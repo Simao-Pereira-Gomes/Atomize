@@ -1,0 +1,53 @@
+{
+  "name": "atomize",
+  "version": "0.1.0",
+  "description": "Automatically generate tasks from user stories",
+  "type": "module",
+  "bin": {
+    "atomize": "./dist/cli/index.js",
+    "atom": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "build": "bun build src/cli/index.ts --outdir dist --target node --format esm",
+    "build:cli": "bun build src/cli/index.ts --compile --outfile atomize",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "lint": "bun run eslint src/**/*.ts",
+    "format": "bun run prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/cli/index.js"
+  },
+  "keywords": [
+    "devops",
+    "azure-devops",
+    "jira",
+    "task-generation",
+    "agile",
+    "automation",
+    "cli"
+  ],
+  "author": "Simão Gomes",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^25.0.2",
+    "chalk": "^5.6.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "azure-devops-node-api": "^15.1.1",
+    "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
+    "inquirer": "^13.1.0",
+    "winston": "^3.19.0",
+    "yaml": "^2.8.2",
+    "zod": "^4.2.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

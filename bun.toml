@@ -1,0 +1,17 @@
+# Bun configuration
+[install]
+# Faster installs
+production = false
+optional = true
+
+[install.scopes]
+# Add any scoped package configurations here
+
+[test]
+# Test configuration
+preload = ["./tests/setup.ts"]
+coverage = true
+
+[run]
+# Environment
+shell = "bash"

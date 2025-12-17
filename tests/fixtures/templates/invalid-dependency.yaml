@@ -1,0 +1,19 @@
+version: "1.0"
+name: "Invalid Dependency Template"
+
+filter:
+  workItemTypes:
+    - "User Story"
+
+tasks:
+  - id: "task1"
+    title: "Task 1"
+    estimationPercent: 50
+
+  - id: "task2"
+    title: "Task 2"
+    estimationPercent: 50
+    dependsOn: ["nonexistent-task"]  # This task doesn't exist
+
+validation:
+  totalEstimationMustBe: 100
