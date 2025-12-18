@@ -60,10 +60,6 @@ export class EstimationCalculator {
         estimationConfig
       );
 
-      console.log(
-        `Calculated estimation for task "${templateTask.title}": ${estimation} points`
-      );
-
       const calculatedTask: CalculatedTask = {
         title: this.interpolateTitle(templateTask.title, story),
         description: templateTask.description
@@ -107,9 +103,6 @@ export class EstimationCalculator {
     }
 
     if (task.estimationPercent !== undefined) {
-      console.debug(
-        `Calculating estimation for task with ${task.estimationPercent}% of parent estimation ${parentEstimation}`
-      );
       const rawEstimation = (parentEstimation * task.estimationPercent) / 100;
 
       const rounded = this.roundEstimation(
@@ -118,10 +111,6 @@ export class EstimationCalculator {
       );
 
       const minimum = config?.minimumTaskPoints || 0;
-
-      console.debug(
-        `Raw estimation: ${rawEstimation}, Rounded: ${rounded}, Minimum: ${minimum}`
-      );
       return Math.max(rounded, minimum);
     }
 

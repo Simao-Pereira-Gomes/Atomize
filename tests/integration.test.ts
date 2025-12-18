@@ -10,7 +10,6 @@ describe("Integration Tests", () => {
 
   describe("Load and Validate Flow", () => {
     test("should load and validate backend template", async () => {
-      console.log("Directory ", __dirname);
       const templatePath = resolve(__dirname, "../templates/backend.yaml");
       const template = await loader.load(templatePath);
       expect(template).toBeDefined();
@@ -112,7 +111,6 @@ describe("Integration Tests", () => {
 
         expect(result.valid).toBe(true);
         if (!result.valid) {
-          console.log(`Template ${templatePath} failed:`, result.errors);
         }
       }
     });
