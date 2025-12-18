@@ -56,7 +56,6 @@ export const TaskDefinitionSchema = z.object({
   acceptanceCriteriaAsChecklist: z.boolean().optional(),
 });
 
-// Estimation configuration schema
 export const EstimationConfigSchema = z.object({
   strategy: z
     .enum(["percentage", "fixed", "hours", "fibonacci"])
@@ -68,7 +67,6 @@ export const EstimationConfigSchema = z.object({
   defaultParentEstimation: z.number().optional(),
 });
 
-// Validation rules schema
 export const ValidationConfigSchema = z.object({
   totalEstimationMustBe: z.number().optional(),
   totalEstimationRange: z
@@ -111,25 +109,103 @@ export const MetadataSchema = z.object({
     .optional(),
 });
 
-export const TaskTemplateSchema = z.object({
-  version: z.string().default("1.0"),
-  name: z.string().min(1, "Template name is required"),
-  description: z.string().optional(),
-  author: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  created: z.string().optional(),
-  lastModified: z.string().optional(),
+export const TaskTemplateSchema = z
+  .object({
+    version: z.string().default("1.0"),
+    name: z.string().min(1, "Template name is required"),
+    description: z.string().optional(),
+    author: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    created: z.string().optional(),
+    lastModified: z.string().optional(),
 
-  filter: FilterCriteriaSchema,
-  tasks: z.array(TaskDefinitionSchema).min(1, "At least one task is required"),
+    filter: FilterCriteriaSchema,
+    tasks: z
+      .array(TaskDefinitionSchema)
+      .min(1, "At least one task is required"),
 
-  estimation: EstimationConfigSchema.optional(),
-  validation: ValidationConfigSchema.optional(),
-  metadata: MetadataSchema.optional(),
+    estimation: EstimationConfigSchema.optional(),
+    validation: ValidationConfigSchema.optional(),
+    metadata: MetadataSchema.optional(),
 
-  variables: z.record(z.string(), z.any()).optional(),
-  extends: z.string().optional(),
-});
+    variables: z.record(z.string(), z.any()).optional(),
+    extends: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const { tasks, validation: v } = data;
+    const nonConditionalTasks = tasks.filter((t) => !t.condition);
+    const totalPercent = nonConditionalTasks.reduce(
+      (sum, t) => sum + (t.estimationPercent ?? 0),
+      0
+    );
+    const taskIds = new Set(tasks.map((t) => t.id).filter(Boolean));
+
+    validateEstimationConstraints(v, totalPercent, ctx);
+
+    validateTaskConstraints(v, tasks, ctx);
+    tasks.forEach((task, index) => {
+      task.dependsOn?.forEach((depId) => {
+        if (!taskIds.has(depId)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["tasks", index, "dependsOn"],
+            message: `Task depends on non-existent task ID: "${depId}"`,
+            params: { code: "INVALID_DEPENDENCY" },
+          });
+        }
+      });
+    });
+  });
+
+function validateTaskConstraints(
+  v: TaskTemplate["validation"] | undefined,
+  tasks: TaskTemplate["tasks"],
+  ctx: z.RefinementCtx
+) {
+  if (v?.minTasks !== undefined && tasks.length < v.minTasks) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["tasks"],
+      message: `Template has ${tasks.length} tasks, but minimum is ${v.minTasks}`,
+      params: { code: "TOO_FEW_TASKS" },
+    });
+  }
+  if (v?.maxTasks !== undefined && tasks.length > v.maxTasks) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["tasks"],
+      message: `Template has ${tasks.length} tasks, but maximum is ${v.maxTasks}`,
+      params: { code: "TOO_MANY_TASKS" },
+    });
+  }
+}
+
+function validateEstimationConstraints(
+  v: TaskTemplate["validation"] | undefined,
+  totalPercent: number,
+  ctx: z.RefinementCtx
+) {
+  if (v?.totalEstimationMustBe !== undefined) {
+    if (totalPercent !== v.totalEstimationMustBe) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tasks"],
+        message: `Total estimation is ${totalPercent}%, but must be ${v.totalEstimationMustBe}%`,
+        params: { code: "INVALID_TOTAL_ESTIMATION" },
+      });
+    }
+  } else if (v?.totalEstimationRange) {
+    const { min, max } = v.totalEstimationRange;
+    if (totalPercent < min || totalPercent > max) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tasks"],
+        message: `Total estimation is ${totalPercent}%, but must be between ${min}% and ${max}%`,
+        params: { code: "INVALID_ESTIMATION_RANGE" },
+      });
+    }
+  }
+}
 
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;
