@@ -1,14 +1,13 @@
-#!/usr/bin/env bun
-
 import { Command } from "commander";
 import { validateCommand } from "./commands/validate.command";
+import { generateCommand } from "./commands/generate.command";
 import chalk from "chalk";
 
 const program = new Command();
 
 program
   .name("atomize")
-  .description("Automatically generate tasks from Devops System")
+  .description("Automatically generate tasks from user stories")
   .version("0.1.0");
 
 const banner = `
@@ -23,7 +22,7 @@ ${chalk.gray("Break down stories, build up velocity.")}
 
 program.addHelpText("beforeAll", banner);
 program.addCommand(validateCommand);
-
+program.addCommand(generateCommand);
 if (process.argv.length === 2) {
   console.log(banner);
   program.help();

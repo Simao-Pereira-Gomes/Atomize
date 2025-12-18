@@ -61,7 +61,7 @@ export const EstimationConfigSchema = z.object({
     .enum(["percentage", "fixed", "hours", "fibonacci"])
     .default("percentage"),
   source: z.string().optional(),
-  rounding: z.enum(["nearest", "up", "down"]).default("nearest"),
+  rounding: z.enum(["nearest", "up", "down", "none"]).default("none"),
   minimumTaskPoints: z.number().optional(),
   ifParentHasNoEstimation: z.enum(["skip", "warn", "use-default"]).optional(),
   defaultParentEstimation: z.number().optional(),

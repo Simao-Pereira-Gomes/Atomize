@@ -1,4 +1,4 @@
-import type { WorkItemType } from "./work-item.interface.js";
+import type { WorkItemType } from "./work-item.interface.ts";
 /**
  * Filter criteria for querying work items
  */
