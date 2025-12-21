@@ -4,9 +4,12 @@ import type {
   PlatformType,
 } from "./interfaces/platform.interface";
 import { MockPlatformAdapter } from "./adapters/mock/mock.adapter";
+import {
+  AzureDevOpsAdapter,
+  type AzureDevOpsConfig,
+} from "./adapters/azure-devops/azure-devops.adapter";
 import { PlatformError } from "@utils/errors";
 import { logger } from "@config/logger";
-import { match, P } from "ts-pattern";
 
 /**
  * Factory for creating platform adapters
@@ -15,27 +18,40 @@ export class PlatformFactory {
   /**
    * Create a platform adapter based on type
    */
-  static create(
-    type: PlatformType,
-    _config?: PlatformConfig
-  ): IPlatformAdapter {
+  static create(type: PlatformType, config?: PlatformConfig): IPlatformAdapter {
     logger.debug(`Creating platform adapter: ${type}`);
-    return match(type)
-      .with(P.union("azure-devops", "jira", "github"), (platform) => {
+
+    switch (type) {
+      case "mock":
+        return new MockPlatformAdapter();
+
+      case "azure-devops":
+        if (!config) {
+          throw new PlatformError(
+            "Configuration required for Azure DevOps adapter",
+            "azure-devops"
+          );
+        }
+        return new AzureDevOpsAdapter(config as AzureDevOpsConfig);
+
+      case "jira":
         throw new PlatformError(
-          `${
-            platform.charAt(0).toUpperCase() + platform.slice(1)
-          } adapter not yet implemented`,
-          platform
+          "Jira adapter not yet implemented. Coming soon!",
+          "jira"
         );
-      })
-      .with("mock", () => new MockPlatformAdapter())
-      .otherwise((unknown) => {
+
+      case "github":
         throw new PlatformError(
-          `Unknown platform type: ${unknown}. Supported types: mock, azure-devops, jira, github`,
-          unknown
+          "GitHub adapter not yet implemented. Coming soon!",
+          "github"
         );
-      });
+
+      default:
+        throw new PlatformError(
+          `Unknown platform type: ${type}. Supported types: mock, azure-devops, jira, github`,
+          type
+        );
+    }
   }
 
   /**
@@ -56,7 +72,7 @@ export class PlatformFactory {
    * Get list of implemented platforms
    */
   static getImplementedPlatforms(): PlatformType[] {
-    return ["mock"];
+    return ["mock", "azure-devops"];
   }
 
   /**

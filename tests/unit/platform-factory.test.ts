@@ -16,7 +16,7 @@ describe("PlatformFactory", () => {
         PlatformError
       );
       expect(() => PlatformFactory.create("azure-devops")).toThrow(
-        "not yet implemented"
+        "Configuration required for Azure DevOps adapter"
       );
     });
 
@@ -74,7 +74,8 @@ describe("PlatformFactory", () => {
       const platforms = PlatformFactory.getImplementedPlatforms();
 
       expect(platforms).toContain("mock");
-      expect(platforms.length).toBe(1);
+      expect(platforms).toContain("azure-devops");
+      expect(platforms.length).toBe(2);
     });
   });
 
@@ -83,8 +84,8 @@ describe("PlatformFactory", () => {
       expect(PlatformFactory.isImplemented("mock")).toBe(true);
     });
 
-    test("should return false for azure-devops", () => {
-      expect(PlatformFactory.isImplemented("azure-devops")).toBe(false);
+    test("should return true for azure-devops", () => {
+      expect(PlatformFactory.isImplemented("azure-devops")).toBe(true);
     });
 
     test("should return false for jira", () => {

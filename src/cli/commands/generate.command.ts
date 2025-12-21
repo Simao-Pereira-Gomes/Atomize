@@ -4,6 +4,7 @@ import { TemplateLoader } from "@templates/loader";
 import { TemplateValidator } from "@templates/validator";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { Atomizer } from "@core/atomizer";
+import { loadAzureDevOpsConfig } from "@config/azure-devops.config";
 import { logger } from "@config/logger";
 import chalk from "chalk";
 
@@ -23,7 +24,7 @@ export const generateCommand = new Command("generate")
   .option("-v, --verbose", "Show detailed output", false)
   .action(async (templateArg: string | undefined, options) => {
     try {
-      console.log(chalk.blue.bold("\nAtomize - Task Generator\n"));
+      console.log(chalk.blue.bold("\n sAtomize - Task Generator\n"));
 
       let templatePath = templateArg;
 
@@ -41,11 +42,7 @@ export const generateCommand = new Command("generate")
             message: "Select platform:",
             choices: [
               { name: "Mock (for testing)", value: "mock" },
-              {
-                name: "Azure DevOps",
-                value: "azure-devops",
-                disabled: "Coming in Phase 5",
-              },
+              { name: "Azure DevOps", value: "azure-devops" },
               { name: "Jira", value: "jira", disabled: "Coming soon" },
               { name: "GitHub", value: "github", disabled: "Coming soon" },
             ],
@@ -69,14 +66,13 @@ export const generateCommand = new Command("generate")
       if (dryRun) {
         console.log(chalk.yellow("DRY RUN MODE - No tasks will be created\n"));
       } else {
-        console.log(chalk.green("LIVE MODE - Tasks will be created\n"));
+        console.log(chalk.green("sLIVE MODE - Tasks will be created\n"));
       }
 
       // Load template
       logger.info(`Loading template: ${templatePath}`);
-
       if (!templatePath) {
-        throw new Error("No template file specified");
+        throw new Error("Template path is required");
       }
       const loader = new TemplateLoader();
       const template = await loader.load(templatePath);
@@ -92,13 +88,13 @@ export const generateCommand = new Command("generate")
       if (!validation.valid) {
         console.log(chalk.red("Template validation failed:\n"));
         validation.errors.forEach((err) => {
-          console.log(chalk.red(`  - ${err.path}: ${err.message}`));
+          console.log(chalk.red(`${err.path}: ${err.message}`));
         });
         process.exit(1);
       }
 
       if (validation.warnings.length > 0) {
-        console.log(chalk.yellow("Template warnings:"));
+        console.log(chalk.yellow(" Template warnings:"));
         validation.warnings.forEach((warn) => {
           console.log(chalk.yellow(`  - ${warn.path}: ${warn.message}`));
         });
@@ -109,15 +105,39 @@ export const generateCommand = new Command("generate")
 
       let platform;
       try {
-        platform = PlatformFactory.create(options.platform);
+        if (options.platform === "azure-devops") {
+          const azureConfig = loadAzureDevOpsConfig();
+          platform = PlatformFactory.create("azure-devops", azureConfig);
+        } else {
+          // Other platforms (mock, jira, github)
+          platform = PlatformFactory.create(options.platform);
+        }
       } catch (error) {
         if (error instanceof Error) {
-          console.log(chalk.red(`\n ${error.message}\n`));
+          console.log(chalk.red(`\n${error.message}\n`));
+
+          if (options.platform === "azure-devops") {
+            console.log(chalk.yellow("Setup Azure DevOps:"));
+            console.log(chalk.gray("1. Copy .env.example to .env"));
+            console.log(
+              chalk.gray(
+                "2. Fill in AZURE_DEVOPS_ORG_URL, AZURE_DEVOPS_PROJECT, and AZURE_DEVOPS_PAT"
+              )
+            );
+            console.log(
+              chalk.gray(
+                "3. Get a PAT from: https://dev.azure.com/[your-org]/_usersSettings/tokens"
+              )
+            );
+            console.log(
+              chalk.gray("   Required scopes: Work Items (Read, Write)\n")
+            );
+          }
         }
         process.exit(1);
       }
 
-      // Authenticate
+      logger.info("Authenticating...");
       await platform.authenticate();
 
       const metadata = platform.getPlatformMetadata();
@@ -127,7 +147,6 @@ export const generateCommand = new Command("generate")
       console.log(chalk.gray(`Connected: ${metadata.connected ? "✓" : "✗"}\n`));
 
       const atomizer = new Atomizer(platform);
-
       console.log(chalk.cyan("Filter Criteria:"));
       if (template.filter.workItemTypes) {
         console.log(
@@ -191,7 +210,7 @@ export const generateCommand = new Command("generate")
         for (const result of report.results) {
           if (result.success) {
             console.log(
-              chalk.green(`${result.story.id}: ${result.story.title}`)
+              chalk.green(` ${result.story.id}: ${result.story.title}`)
             );
             console.log(
               chalk.gray(`  Estimation: ${result.story.estimation || 0} points`)
@@ -204,7 +223,7 @@ export const generateCommand = new Command("generate")
               console.log(
                 chalk.gray(
                   `  Distribution: ${
-                    result.estimationSummary.totalTaskEstimation.toFixed(2)
+                    result.estimationSummary.totalTaskEstimation
                   } points (${result.estimationSummary.percentageUsed.toFixed(
                     0
                   )}%)`
@@ -224,7 +243,7 @@ export const generateCommand = new Command("generate")
             }
           } else {
             console.log(
-              chalk.red(`✗ ${result.story.id}: ${result.story.title}`)
+              chalk.red(` ${result.story.id}: ${result.story.title}`)
             );
             console.log(chalk.red(`  Error: ${result.error}`));
           }
@@ -239,6 +258,7 @@ export const generateCommand = new Command("generate")
         });
         console.log("");
       }
+
       if (report.warnings.length > 0) {
         console.log(chalk.yellow.bold("Warnings:\n"));
         report.warnings.forEach((warn) => {
@@ -247,21 +267,18 @@ export const generateCommand = new Command("generate")
         console.log("");
       }
 
-      // Final message
       if (dryRun) {
         console.log(
-          chalk.yellow.bold(
-            " DRY RUN COMPLETE - No tasks were actually created"
-          )
+          chalk.yellow.bold("DRY RUN COMPLETE - No tasks were actually created")
         );
         console.log(
-          chalk.yellow("   Run with --execute flag to create tasks for real\n")
+          chalk.yellow("Run with --execute flag to create tasks for real\n")
         );
       } else {
         if (report.storiesSuccess > 0) {
           console.log(
             chalk.green.bold(
-              `SUCCESS - Created ${report.tasksCreated} tasks for ${report.storiesSuccess} stories\n`
+              `🎉 SUCCESS - Created ${report.tasksCreated} tasks for ${report.storiesSuccess} stories\n`
             )
           );
         } else {
@@ -272,7 +289,8 @@ export const generateCommand = new Command("generate")
       process.exit(report.storiesFailed > 0 ? 1 : 0);
     } catch (error) {
       console.log("");
-      logger.error(chalk.red(" GENERATION FAILED"));
+      logger.error(chalk.red("Generation failed"));
+
       if (error instanceof Error) {
         console.log(chalk.red(error.message));
 
