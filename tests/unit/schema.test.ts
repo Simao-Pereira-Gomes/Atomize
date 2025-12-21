@@ -168,7 +168,7 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.strategy).toBe("percentage");
-        expect(result.data.rounding).toBe("nearest");
+        expect(result.data.rounding).toBe("none");
       }
     });
 
