@@ -110,8 +110,6 @@ describe("Integration Tests", () => {
         const result = validator.validate(template);
 
         expect(result.valid).toBe(true);
-        if (!result.valid) {
-        }
       }
     });
   });
