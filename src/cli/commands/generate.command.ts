@@ -26,6 +26,7 @@ export const generateCommand = new Command("generate")
   .option("-v, --verbose", "Show detailed output", false)
   .action(async (templateArg: string | undefined, options) => {
     try {
+      const type = process.platform === "win32" ? "rawlist" : "list";
       console.log(chalk.blue.bold("\n Atomize - Task Generator\n"));
 
       let templatePath = templateArg;
@@ -39,16 +40,14 @@ export const generateCommand = new Command("generate")
             default: "templates/backend-api.yaml",
           },
           {
-            type: "list",
+            type: type,
             name: "platform",
             message: "Select platform:",
             choices: [
               { name: "Mock (for testing)", value: "mock" },
               { name: "Azure DevOps", value: "azure-devops" },
-              { name: "Jira", value: "jira", disabled: "Coming soon" },
-              { name: "GitHub", value: "github", disabled: "Coming soon" },
             ],
-            default: "mock",
+            default: "azure-devops",
           },
           {
             type: "confirm",
