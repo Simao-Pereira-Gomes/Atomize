@@ -15,7 +15,6 @@ describe("AzureDevOpsAdapter", () => {
 
   describe("constructor", () => {
     test("should create adapter with valid config", () => {
-      console.log("Valid Config:", validConfig);
       const adapter = new AzureDevOpsAdapter(validConfig);
       expect(adapter).toBeDefined();
     });
