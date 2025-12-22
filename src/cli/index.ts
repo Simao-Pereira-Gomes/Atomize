@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from "commander";
 import { validateCommand } from "./commands/validate.command";
 import { generateCommand } from "./commands/generate.command";
