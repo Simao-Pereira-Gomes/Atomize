@@ -116,6 +116,7 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
       type: "password",
       name: "token",
       message: "Personal Access Token:",
+      mask: "*",
       validate: (input: string) => {
         if (!input || input.trim() === "") return "PAT is required";
         return true;
