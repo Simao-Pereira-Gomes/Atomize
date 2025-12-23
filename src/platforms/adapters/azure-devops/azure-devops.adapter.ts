@@ -383,11 +383,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         return false;
       }
 
+      console.log("Project:", this.config.project);
       // Simple query to test connection
       await this.witApi.queryByWiql(
         {
           query:
-            "SELECT TOP 1 [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project",
+            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project with $top = 1",
         },
         { project: this.config.project }
       );
