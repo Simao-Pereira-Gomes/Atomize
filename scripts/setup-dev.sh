@@ -45,6 +45,6 @@ echo "To unlink later, run:"
 if [ "$PACKAGE_MANAGER" = "bun" ]; then
     echo "  bun unlink"
 else
-    echo "  npm unlink atomize"
+    echo "  npm unlink -g @sppg2001/atomize"
 fi
 echo ""

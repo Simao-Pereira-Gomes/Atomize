@@ -36,6 +36,6 @@ Write-Host "  atomize --version"
 Write-Host "  atomize validate templates\backend-api.yaml"
 Write-Host ""
 Write-Host "To unlink later:"
-Write-Host "  npm unlink -g atomize"
+Write-Host "  npm unlink -g @sppg2001/atomize"
 Write-Host ""
 exit 0

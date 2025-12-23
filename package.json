@@ -1,5 +1,5 @@
 {
-  "name": "atomize",
+  "name": "@sppg2001/atomize",
   "version": "0.0.1",
   "description": "⚛️ Automatically generate tasks from user stories with smart templates",
   "type": "module",
@@ -7,6 +7,10 @@
   "bin": {
     "atomize": "./dist/cli/index.js",
     "atom": "./dist/cli/index.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
   },
   "files": [
     "dist",
@@ -45,13 +49,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/atomize-tasks.git"
+    "url": "https://github.com/Simao-Pereira-Gomes/atomize.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/atomize-tasks/issues"
+    "url": "https://github.com/Simao-Pereira-Gomes/atomize/issues"
   },
-  "homepage": "https://github.com/yourusername/atomize-tasks#readme",
-  "author": "Your Name <your.email@example.com>",
+  "author": "Simão Pereira Gomes",
   "license": "MIT",
   "devDependencies": {
     "@types/bun": "1.3.5",

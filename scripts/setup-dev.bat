@@ -49,5 +49,5 @@ echo   atomize validate templates\backend-api.yaml
 echo   atomize generate templates\backend-api.yaml --dry-run
 echo.
 echo To unlink later, run:
-echo   npm unlink atomize-tasks
+echo    npm unlink -g @sppg2001/atomize
 echo.
