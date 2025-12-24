@@ -57,9 +57,9 @@ export function createAzureDevOpsConfig(
  * Load Azure DevOps configuration from environment variables
  */
 export function loadFromEnv(): AzureDevOpsConfig {
-  const organizationUrl = Bun.env.AZURE_DEVOPS_ORG_URL;
-  const project = Bun.env.AZURE_DEVOPS_PROJECT;
-  const token = Bun.env.AZURE_DEVOPS_PAT;
+  const organizationUrl = process.env.AZURE_DEVOPS_ORG_URL;
+  const project = process.env.AZURE_DEVOPS_PROJECT;
+  const token = process.env.AZURE_DEVOPS_PAT;
   if (!organizationUrl) {
     throw new ConfigurationError(
       "AZURE_DEVOPS_ORG_URL environment variable is required. Example: https://dev.azure.com/myorg"

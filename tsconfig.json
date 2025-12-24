@@ -35,7 +35,8 @@
       "@platforms/*": ["./src/platforms/*"],
       "@templates/*": ["./src/templates/*"],
       "@config/*": ["./src/config/*"],
-      "@utils/*": ["./src/utils/*"]
+      "@utils/*": ["./src/utils/*"],
+      "@services/*": ["./src/services/*"]
     },
     
     // Bun Specific

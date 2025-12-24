@@ -66,6 +66,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "azure-devops-node-api": "^15.1.2",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
