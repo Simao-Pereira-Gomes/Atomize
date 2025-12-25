@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { validateCommand } from "./commands/validate.command";
 import { generateCommand } from "./commands/generate.command";
 import chalk from "chalk";
+import { templateCommand } from "./commands/template/template.command";
 
 const program = new Command();
 
@@ -24,6 +25,7 @@ ${chalk.gray("Break down stories, build up velocity.")}
 program.addHelpText("beforeAll", banner);
 program.addCommand(validateCommand);
 program.addCommand(generateCommand);
+program.addCommand(templateCommand);
 if (process.argv.length === 2) {
   console.log(banner);
   program.help();

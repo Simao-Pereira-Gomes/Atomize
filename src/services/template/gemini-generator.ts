@@ -10,7 +10,7 @@ import { logger } from "@config/logger";
 
 /**
  * Google Gemini AI Generator
- * Uses Google's free Gemini API for template generation
+ * Uses Google's  Gemini API for template generation
  */
 export class GeminiGenerator implements IAIGenerator {
   private client: GoogleGenerativeAI;

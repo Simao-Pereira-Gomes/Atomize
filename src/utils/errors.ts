@@ -6,6 +6,8 @@ export const AtomizeErrorCode = {
   ConfigurationError: "ConfigurationError",
   AiProviderError: "AiProviderError",
   UnknownError: "UnknownError",
+  TemplateGenerationError: "TemplateGenerationError",
+  CancellationError: "CancellationError",
 } as const;
 
 export type AtomizeErrorCode =
@@ -35,6 +37,12 @@ export class TemplateValidationError extends AtomizeError {
   }
 }
 
+export class TemplateGenerationError extends AtomizeError {
+  constructor(message: string) {
+    super(AtomizeErrorCode.TemplateGenerationError, message);
+  }
+}
+
 export class PlatformError extends AtomizeError {
   constructor(message: string, public readonly platform: string) {
     super(AtomizeErrorCode.PlatformError, message);
@@ -58,3 +66,4 @@ export class UnknownError extends AtomizeError {
     super(AtomizeErrorCode.UnknownError, message);
   }
 }
+
