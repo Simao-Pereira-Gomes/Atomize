@@ -1,0 +1,89 @@
+version: "1.0"
+name: " Custom Example"
+description: "Example template for an Agile project"
+author: "Atomize"
+tags: []
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New"]
+  tags:
+    include: ["Candidate S113"]
+  excludeIfHasTasks: true
+
+tasks:
+  - title: "Analysis & Playback"
+    description: "Analyze requirements and planning of necessary changes and discuss with the team."
+    estimationPercent: 20
+    activity: "Development"
+    tags: []
+
+  - title: "Build"
+    description: "Devolop the required changes in the codebase following best practices."
+    estimationPercent: 50
+    activity: "Development"
+    tags: []
+
+  - title: "Developer Test"
+    description: "Testing the changes made to ensure they meet the requirements and do not introduce new issues.Provide evidence of testing"
+    estimationPercent: 25
+    activity: "Development"
+    tags: []
+
+  - title: "QA Smoke Test"
+    description: "Ensure that main functionalities are working as expected after the deployment to the QA environment."
+    estimationPercent: 0
+    activity: "Development"
+    tags: []
+
+  - title: "WIKI"
+    description: "Update relevant documentation and WIKI pages to reflect the changes made."
+    estimationPercent: 5
+    activity: "Development"
+    tags: []
+
+  - title: "Code Review "
+    description: "Address code review feedback and refactor as needed"
+    estimationPercent: 0
+    activity: "Development"
+    tags: []
+  
+  - title: "Test Preparation"
+    description: "Prepare test cases and scenarios for QA testing."
+    estimationPercent: 40
+    activity: "Testing"
+    tags: []
+  
+  - title: "Test Execution"
+    description: "Execute test cases and report any defects found during testing."
+    estimationPercent: 27
+    activity: "Testing"
+    tags: []
+
+  - title: "Automation Testing"
+    description: "Develop and maintain automated test scripts to improve testing efficiency."
+    estimationPercent: 0
+    activity: "Testing"
+    tags: []
+  
+  - title: "Test Review"
+    description: "Review test results and ensure all requirements are met before deployment."
+    estimationPercent: 0
+    activity: "Testing"
+    tags: []
+  
+  - title: "Release Notes"
+    description: "Prepare release notes and documentation for the deployment."
+    estimationPercent: 0
+    activity: "Documentation"
+    tags: []
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  minimumTaskPoints: 0
+
+metadata:
+  category: "Agile Project"
+  recommendedFor: []
+  estimationGuidelines: "Based on possible Agile project workflow"
