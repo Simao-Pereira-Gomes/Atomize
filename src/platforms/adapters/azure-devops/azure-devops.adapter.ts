@@ -383,7 +383,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         return false;
       }
 
-      const result = await this.witApi.queryByWiql(
+      await this.witApi.queryByWiql(
         {
           query:
             "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project",
