@@ -1,0 +1,52 @@
+version: "1.0"
+name: "Frontend Feature Development"
+description: "UI/UX feature development with React/Vue components"
+author: "Atomize"
+tags: ["frontend", "ui", "react"]
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active", "Approved"]
+  tags:
+    include: ["frontend", "ui"]
+  excludeIfHasTasks: true
+
+tasks:
+  - title: "UI/UX Design: ${story.title}"
+    description: "Create wireframes, mockups, and component designs"
+    estimationPercent: 15
+    activity: "Design"
+    tags: ["design", "ui"]
+
+  - title: "Component Implementation: ${story.title}"
+    description: "Build React/Vue components with proper state management"
+    estimationPercent: 40
+    activity: "Development"
+    tags: ["implementation", "react"]
+
+  - title: "Styling & Responsiveness"
+    description: "CSS/Tailwind styling and responsive design for mobile/tablet"
+    estimationPercent: 20
+    activity: "Development"
+    tags: ["css", "responsive"]
+
+  - title: "Unit & Component Tests"
+    description: "Jest/React Testing Library tests for components"
+    estimationPercent: 15
+    activity: "Testing"
+    tags: ["testing"]
+
+  - title: "Code Review & Accessibility"
+    description: "Review, accessibility improvements, and polish"
+    estimationPercent: 10
+    activity: "Documentation"
+    tags: ["review", "a11y"]
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+
+metadata:
+  category: "Frontend"
+  difficulty: "intermediate"
+  recommendedFor: ["React", "Vue", "UI components"]

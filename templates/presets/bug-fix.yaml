@@ -1,0 +1,44 @@
+version: "1.0"
+name: "Bug Fix"
+description: "Standard bug investigation and resolution workflow"
+author: "Atomize"
+tags: ["bug", "fix"]
+
+filter:
+  workItemTypes: ["Bug"]
+  states: ["New", "Active", "Approved"]
+  excludeIfHasTasks: true
+
+tasks:
+  - title: "Investigate & Reproduce: ${story.title}"
+    description: "Investigate root cause and create reproduction steps"
+    estimationPercent: 30
+    activity: "Development"
+    tags: ["investigation"]
+
+  - title: "Implement Fix: ${story.title}"
+    description: "Fix the bug and ensure no regressions"
+    estimationPercent: 40
+    activity: "Development"
+    tags: ["implementation"]
+
+  - title: "Test & Verify"
+    description: "Verify fix works and add regression tests"
+    estimationPercent: 20
+    activity: "Testing"
+    tags: ["testing", "verification"]
+
+  - title: "Review & Deploy"
+    description: "Code review and prepare for deployment"
+    estimationPercent: 10
+    activity: "Documentation"
+    tags: ["review"]
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+
+metadata:
+  category: "Maintenance"
+  difficulty: "beginner"
+  recommendedFor: ["Bug fixes", "Hotfixes", "Production issues"]

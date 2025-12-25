@@ -15,11 +15,11 @@ import { PlatformError } from "@utils/errors";
 import { logger } from "@config/logger";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
 import {
+  WorkItemErrorPolicy,
   WorkItemExpand,
   type WorkItem as AzureWorkItem,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
-
 /**
  * Azure DevOps specific configuration
  */
@@ -383,19 +383,19 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         return false;
       }
 
-      console.log("Project:", this.config.project);
-      // Simple query to test connection
-      await this.witApi.queryByWiql(
+      const result = await this.witApi.queryByWiql(
         {
           query:
-            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project with $top = 1",
+            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project",
         },
-        { project: this.config.project }
+        { project: this.config.project },
+        false,
+        1
       );
 
       return true;
     } catch (error) {
-      logger.error("AzureDevOps: Connection test failed", { error });
+      logger.debug((error as Error).message);
       return false;
     }
   }
@@ -412,20 +412,18 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new Error(`Invalid parent ID: ${parentId}`);
       }
 
-      // Get work item with relations
       const parent = await this.witApi!.getWorkItem(
         numericId,
-        [this.config.project],
         undefined,
         undefined,
-        "all" // expand
+        WorkItemExpand.All,
+        this.config.project
       );
 
       if (!parent || !parent.relations) {
         return [];
       }
 
-      // Find child relations
       const childIds: number[] = [];
       for (const relation of parent.relations) {
         if (relation.rel === "System.LinkTypes.Hierarchy-Forward") {
@@ -441,10 +439,14 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         return [];
       }
 
-      // Get child work items
-      const children = await this.witApi!.getWorkItems(childIds, [
-        this.config.project,
-      ]);
+      const children = await this.witApi!.getWorkItems(
+        childIds,
+        undefined,
+        undefined,
+        WorkItemExpand.All,
+        WorkItemErrorPolicy.Fail,
+        this.config.project
+      );
 
       return children
         .filter((c) => c !== null)

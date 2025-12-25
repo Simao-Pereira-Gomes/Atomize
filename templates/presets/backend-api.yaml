@@ -1,0 +1,62 @@
+version: "1.0"
+name: "Backend API Development"
+description: "Standard backend API development with database integration"
+author: "Atomize"
+tags: ["backend", "api", "database"]
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active", "Approved"]
+  tags:
+    include: ["backend", "api"]
+  excludeIfHasTasks: true
+
+tasks:
+  - title: "Design API Endpoints: ${story.title}"
+    description: "Design REST API endpoints, request/response schemas, and error handling"
+    estimationPercent: 15
+    activity: "Design"
+    tags: ["design", "api"]
+
+  - title: "Database Schema: ${story.title}"
+    description: "Design and create database tables, migrations, and relationships"
+    estimationPercent: 15
+    activity: "Design"
+    tags: ["database", "migration"]
+
+  - title: "Implement Core Logic: ${story.title}"
+    description: "Implement business logic, data validation, and error handling"
+    estimationPercent: 35
+    activity: "Development"
+    tags: ["implementation"]
+
+  - title: "Write Unit Tests"
+    description: "Unit tests for services, repositories, and utilities"
+    estimationPercent: 15
+    activity: "Testing"
+    tags: ["testing", "unit-tests"]
+
+  - title: "Integration Tests & Documentation"
+    description: "API integration tests and OpenAPI/Swagger documentation"
+    estimationPercent: 10
+    activity: "Testing"
+    tags: ["testing", "documentation"]
+
+  - title: "Code Review & Refinement"
+    description: "Address code review feedback and refactor as needed"
+    estimationPercent: 10
+    activity: "Documentation"
+    tags: ["review"]
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  minimumTaskPoints: 0
+
+validation:
+
+metadata:
+  category: "Backend"
+  difficulty: "intermediate"
+  recommendedFor: ["API development", "Microservices", "REST APIs"]
+  estimationGuidelines: "Based on typical backend development workflows"
