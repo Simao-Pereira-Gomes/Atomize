@@ -929,7 +929,7 @@ tasks:
 
 ## See Also
 
-- [Template Reference](./TEMPLATE-REFERENCE.md) - Complete template schema
-- [Platform Guide](./PLATFORM-GUIDE.md) - Platform setup and configuration
-- [Examples](../examples/) - Real-world template examples
-- [Contributing](../CONTRIBUTING.md) - How to contribute
+- [Template Reference](./Template-Reference.md) - Complete template schema
+- [Platform Guide](./Platform-Guide.md) - Platform setup and configuration
+- [Examples](../templates/) - Real-world template examples
+- [Contributing](../Contributing.md) - How to contribute

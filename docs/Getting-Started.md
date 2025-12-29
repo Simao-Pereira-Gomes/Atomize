@@ -525,6 +525,7 @@ ollama serve
 - Add support for new platforms (Jira, GitHub)
 - See [CONTRIBUTING.md](../CONTRIBUTING.md)
 
+
 ## Quick Reference Card
 
 ```bash
@@ -560,7 +561,7 @@ atomize --version                              # Show version
 
 ## Need Help?
 
-- 📖 Read the [CLI Reference](./CLI-REFERENCE.md)
+- 📖 Read the [CLI Reference](./Cli-Reference.md)
 - 🔍 Search [GitHub Issues](https://github.com/Simao-Pereira-Gomes/atomize/issues)
 - 💬 Start a [Discussion](https://github.com/Simao-Pereira-Gomes/atomize/discussions)
-- 🐛 [Report a Bug](https://github.com/Simao-Pereira-Gomes/atomize/issues/new)
+- � [Report a Bug](https://github.com/Simao-Pereira-Gomes/atomize/issues/new)

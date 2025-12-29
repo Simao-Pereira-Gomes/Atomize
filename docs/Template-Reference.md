@@ -452,6 +452,6 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platf
 
 ## See Also
 
-- [CLI Reference](./CLI-REFERENCE.md) - Command-line usage
-- [Template Reference](./TEMPLATE-REFERENCE.md) - Template schema
+- [CLI Reference](./Cli-Reference.md) - Command-line usage
+- [Template Reference](./Template-Reference.md) - Template schema
 - [Examples](../templates/) - Real-world examples

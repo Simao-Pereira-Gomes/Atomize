@@ -455,7 +455,7 @@ See [Platform Guide - Adding New Platforms](docs/PLATFORM-GUIDE.md#adding-new-pl
 
 ## Questions?
 
-- 💬 [Start a Discussion](https://github.com/Simao-Pereira-Gomes/atomize/discussions)
+- 💬 [Start a Discussion](https://github.com/Simao-Pereira-Gomes/Atomize/discussions)
 - 📧 Open an issue for specific questions
 - 📖 Check the [documentation](docs/)
 
