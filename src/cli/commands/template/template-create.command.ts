@@ -17,6 +17,13 @@ import { match } from "ts-pattern";
 import { UnknownError } from "@/utils/errors";
 import { PlatformType } from "@/platforms";
 import path from "path";
+import {
+  configureEstimation,
+  configureFilter,
+  configureMetadata,
+  configureTasks,
+  configureValidation,
+} from "./template-wizard-helper.command";
 
 type CreationMode = "ai" | "preset" | "story" | "scratch";
 
@@ -412,12 +419,106 @@ async function createFromStory(options: CreateOptions): Promise<TaskTemplate> {
 async function createFromScratch(
   _options: CreateOptions
 ): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\n   Create from Scratch\n"));
-  console.log(chalk.gray("Coming soon! For now, use AI or preset mode.\n"));
+  console.log(chalk.cyan("\n   Create Template from Scratch\n"));
+  console.log(chalk.gray("Interactive template builder wizard\n"));
 
-  throw new Error(
-    "Scratch mode not yet implemented. Use --ai or --preset instead."
-  );
+  // Step 1: Basic Information
+  console.log(chalk.blue("Step 1: Basic Information"));
+  const basicInfo = await inquirer.prompt([
+    {
+      type: "input",
+      name: "name",
+      message: "Template name:",
+      validate: (input: string) => {
+        if (!input || input.trim() === "") {
+          return "Template name is required";
+        }
+        return true;
+      },
+    },
+    {
+      type: "input",
+      name: "description",
+      message: "Description:",
+    },
+    {
+      type: "input",
+      name: "author",
+      message: "Author:",
+      default: "Atomize",
+    },
+    {
+      type: "input",
+      name: "tags",
+      message: "Tags (comma-separated, optional):",
+      filter: (input: string) => {
+        if (!input) return [];
+        return input.split(",").map((t) => t.trim());
+      },
+    },
+  ]);
+
+  // Step 2: Filter Configuration
+  console.log(chalk.blue("\nStep 2: Filter Configuration"));
+  const filterConfig = await configureFilter();
+
+  // Step 3: Tasks
+  console.log(chalk.blue("\nStep 3: Task Configuration"));
+  const tasks = await configureTasks();
+
+  // Step 4: Estimation Settings
+  console.log(chalk.blue("\nStep 4: Estimation Settings"));
+  const estimation = await configureEstimation();
+
+  // Step 5: Optional Validation Rules
+  const { addValidation } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "addValidation",
+      message: "Add validation rules?",
+      default: false,
+    },
+  ]);
+
+  let validation;
+  if (addValidation) {
+    console.log(chalk.blue("\nStep 5: Validation Rules"));
+    validation = await configureValidation();
+  }
+
+  // Step 6: Optional Metadata
+  const { addMetadata } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "addMetadata",
+      message: "Add metadata?",
+      default: false,
+    },
+  ]);
+
+  let metadata;
+  if (addMetadata) {
+    console.log(chalk.blue("\nStep 6: Metadata"));
+    metadata = await configureMetadata();
+  }
+
+  const template: TaskTemplate = {
+    version: "1.0",
+    name: basicInfo.name,
+    description: basicInfo.description || undefined,
+    author: basicInfo.author || undefined,
+    tags: basicInfo.tags.length > 0 ? basicInfo.tags : undefined,
+    created: new Date().toISOString(),
+    filter: filterConfig,
+    tasks,
+    estimation,
+    validation,
+    metadata,
+  };
+
+  console.log(chalk.green("\n✓ Template created successfully!\n"));
+
+  return template;
 }
 
 /**
