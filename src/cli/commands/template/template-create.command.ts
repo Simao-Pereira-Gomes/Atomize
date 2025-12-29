@@ -422,7 +422,6 @@ async function createFromScratch(
   console.log(chalk.cyan("\n   Create Template from Scratch\n"));
   console.log(chalk.gray("Interactive template builder wizard\n"));
 
-  // Step 1: Basic Information
   console.log(chalk.blue("Step 1: Basic Information"));
   const basicInfo = await inquirer.prompt([
     {
