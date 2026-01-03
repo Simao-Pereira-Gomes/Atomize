@@ -1,26 +1,27 @@
-import type { WorkItem, TaskDefinition } from "./work-item.interface";
 import type { FilterCriteria, QueryResult } from "./filter.interface";
+import type { TaskDefinition, WorkItem } from "./work-item.interface";
 
 /**
  * Authentication configuration
  */
 export interface AuthConfig {
-  /** Platform-specific authentication data */
-  [key: string]: any;
+	/** Platform-specific authentication data */
+	// biome-ignore lint : The any type is used here for flexibility
+	[key: string]: any;
 }
 
 /**
  * Platform metadata
  */
 export interface PlatformMetadata {
-  /** Platform name */
-  name: string;
-  /** Platform version */
-  version: string;
-  /** Supported features */
-  features?: string[];
-  /** Connection status */
-  connected?: boolean;
+	/** Platform name */
+	name: string;
+	/** Platform version */
+	version: string;
+	/** Supported features */
+	features?: string[];
+	/** Connection status */
+	connected?: boolean;
 }
 
 /**
@@ -28,87 +29,88 @@ export interface PlatformMetadata {
  * All platform implementations must implement this interface
  */
 export interface IPlatformAdapter {
-  /**
-   * Authenticate with the platform
-   */
-  authenticate(config?: AuthConfig): Promise<void>;
+	/**
+	 * Authenticate with the platform
+	 */
+	authenticate(config?: AuthConfig): Promise<void>;
 
-  /**
-   * Query work items based on filter criteria
-   */
-  queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]>;
+	/**
+	 * Query work items based on filter criteria
+	 */
+	queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]>;
 
-  /**
-   * Query work items with pagination
-   */
-  queryWorkItemsPaged?(
-    filter: FilterCriteria,
-    skip: number,
-    take: number
-  ): Promise<QueryResult<WorkItem>>;
+	/**
+	 * Query work items with pagination
+	 */
+	queryWorkItemsPaged?(
+		filter: FilterCriteria,
+		skip: number,
+		take: number,
+	): Promise<QueryResult<WorkItem>>;
 
-  /**
-   * Get a single work item by ID
-   */
-  getWorkItem?(id: string): Promise<WorkItem | null>;
+	/**
+	 * Get a single work item by ID
+	 */
+	getWorkItem?(id: string): Promise<WorkItem | null>;
 
-  /**
-   * Create a single task
-   */
-  createTask(parentId: string, task: TaskDefinition): Promise<WorkItem>;
+	/**
+	 * Create a single task
+	 */
+	createTask(parentId: string, task: TaskDefinition): Promise<WorkItem>;
 
-  /**
-   * Create multiple tasks in bulk
-   */
-  createTasksBulk(
-    parentId: string,
-    tasks: TaskDefinition[]
-  ): Promise<WorkItem[]>;
+	/**
+	 * Create multiple tasks in bulk
+	 */
+	createTasksBulk(
+		parentId: string,
+		tasks: TaskDefinition[],
+	): Promise<WorkItem[]>;
 
-  /**
-   * Update a work item
-   */
-  updateWorkItem?(id: string, updates: Partial<WorkItem>): Promise<WorkItem>;
+	/**
+	 * Update a work item
+	 */
+	updateWorkItem?(id: string, updates: Partial<WorkItem>): Promise<WorkItem>;
 
-  /**
-   * Delete a work item
-   */
-  deleteWorkItem?(id: string): Promise<boolean>;
+	/**
+	 * Delete a work item
+	 */
+	deleteWorkItem?(id: string): Promise<boolean>;
 
-  /**
-   * Get platform metadata
-   */
-  getPlatformMetadata(): PlatformMetadata;
+	/**
+	 * Get platform metadata
+	 */
+	getPlatformMetadata(): PlatformMetadata;
 
-  /**
-   * Test connection
-   */
-  testConnection?(): Promise<boolean>;
+	/**
+	 * Test connection
+	 */
+	testConnection?(): Promise<boolean>;
 
-  /**
-   * Get child work items
-   */
-  getChildren?(parentId: string): Promise<WorkItem[]>;
+	/**
+	 * Get child work items
+	 */
+	getChildren?(parentId: string): Promise<WorkItem[]>;
 }
 
 /**
  * Platform configuration
  */
 export interface PlatformConfig {
-  /** Platform type */
-  type: PlatformType;
+	/** Platform type */
+	type: PlatformType;
 
-  /** Organization/instance URL */
-  organizationUrl?: string;
+	/** Organization/instance URL */
+	organizationUrl?: string;
 
-  /** Project name */
-  project?: string;
+	/** Project name */
+	project?: string;
 
-  /** Authentication token */
-  token?: string;
+	/** Authentication token */
+	token?: string;
 
-  /** Additional config */
-  [key: string]: any;
+	/** Additional config */
+	// biome-ignore lint : The any type is used here for flexibility
+	[key: string]: any;
 }
 
 /**

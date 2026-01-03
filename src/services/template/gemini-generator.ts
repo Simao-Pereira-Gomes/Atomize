@@ -1,12 +1,13 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import type {
-  IAIGenerator,
-  AIGenerationContext,
-} from "./ai-generator.interface";
-import type { TaskTemplate } from "@templates/schema";
-import { parse as parseYaml } from "yaml";
-import { TemplateValidator } from "@templates/validator";
 import { logger } from "@config/logger";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { TaskTemplate } from "@templates/schema";
+import { TemplateValidator } from "@templates/validator";
+import { parse as parseYaml } from "yaml";
+import { UnknownError } from "@/utils/errors";
+import type {
+  AIGenerationContext,
+  IAIGenerator,
+} from "./ai-generator.interface";
 
 /**
  * Google Gemini AI Generator
@@ -38,6 +39,11 @@ export class GeminiGenerator implements IAIGenerator {
       const responseText = result.response.text();
       logger.debug("Gemini: Response received");
       const yaml = this.extractYAML(responseText);
+      if (!yaml) {
+        throw new UnknownError(
+          "No YAML content extracted from Gemini response"
+        );
+      }
       const template = this.parseAndValidate(yaml);
       logger.info("Gemini: Template generated successfully");
       return template;
@@ -64,6 +70,11 @@ export class GeminiGenerator implements IAIGenerator {
       const responseText = result.response.text();
 
       const yaml = this.extractYAML(responseText);
+      if (!yaml) {
+        throw new UnknownError(
+          "No YAML content extracted from Gemini response"
+        );
+      }
       const refined = this.parseAndValidate(yaml);
 
       logger.info("Gemini: Template refined successfully");
@@ -213,15 +224,15 @@ VARIABLE INTERPOLATION:
   /**
    * Extract YAML from response (handles markdown code blocks)
    */
-  private extractYAML(text: string): string {
+  private extractYAML(text: string): string | undefined {
     const yamlMatch = text.match(/```ya?ml\n([\s\S]*?)\n```/);
     if (yamlMatch) {
-      return yamlMatch[1]!.trim();
+      return yamlMatch[1]?.trim();
     }
 
     const codeBlockMatch = text.match(/```\n([\s\S]*?)\n```/);
     if (codeBlockMatch) {
-      return codeBlockMatch[1]!.trim();
+      return codeBlockMatch[1]?.trim();
     }
     return text.trim();
   }

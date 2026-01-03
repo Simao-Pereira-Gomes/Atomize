@@ -5,7 +5,7 @@
  */
 
 export const EMBEDDED_PRESETS = {
-  "backend-api": `version: "1.0"
+	"backend-api": `version: "1.0"
 name: "Backend API Development"
 description: "Standard backend API development with database integration"
 author: "Atomize"
@@ -67,7 +67,7 @@ metadata:
   estimationGuidelines: "Based on typical backend development workflows"
 `,
 
-  "frontend-feature": `version: "1.0"
+	"frontend-feature": `version: "1.0"
 name: "Frontend Feature Development"
 description: "UI/UX feature development with React/Vue components"
 author: "Atomize"
@@ -121,7 +121,7 @@ metadata:
   recommendedFor: ["React", "Vue", "UI components"]
 `,
 
-  "bug-fix": `version: "1.0"
+	"bug-fix": `version: "1.0"
 name: "Bug Fix"
 description: "Standard bug investigation and resolution workflow"
 author: "Atomize"

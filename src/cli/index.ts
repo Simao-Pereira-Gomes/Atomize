@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-import { Command } from "commander";
-import { validateCommand } from "./commands/validate.command";
-import { generateCommand } from "./commands/generate.command";
 import chalk from "chalk";
+import { Command } from "commander";
+import { generateCommand } from "./commands/generate.command";
 import { templateCommand } from "./commands/template/template.command";
+import { validateCommand } from "./commands/validate.command";
 
 const program = new Command();
 
 program
-  .name("atomize")
-  .description("Automatically generate tasks from user stories")
-  .version("0.1.0");
+	.name("atomize")
+	.description("Automatically generate tasks from user stories")
+	.version("0.1.0");
 
 const banner = `
 ${chalk.cyan("    ___  __                  _         ")}
@@ -27,8 +27,8 @@ program.addCommand(validateCommand);
 program.addCommand(generateCommand);
 program.addCommand(templateCommand);
 if (process.argv.length === 2) {
-  console.log(banner);
-  program.help();
+	console.log(banner);
+	program.help();
 }
 
 program.parse();

@@ -1,11 +1,12 @@
-import type {
-  IAIGenerator,
-  AIGenerationContext,
-} from "./ai-generator.interface";
-import type { TaskTemplate } from "@templates/schema";
-import { parse as parseYaml } from "yaml";
-import { TemplateValidator } from "@templates/validator";
 import { logger } from "@config/logger";
+import type { TaskTemplate } from "@templates/schema";
+import { TemplateValidator } from "@templates/validator";
+import { parse as parseYaml } from "yaml";
+import { UnknownError } from "@/utils/errors";
+import type {
+  AIGenerationContext,
+  IAIGenerator,
+} from "./ai-generator.interface";
 
 interface OllamaOptions {
   baseUrl?: string;
@@ -44,6 +45,11 @@ export class OllamaGenerator implements IAIGenerator {
     try {
       const response = await this.generate(fullPrompt);
       const yaml = this.extractYAML(response);
+      if (!yaml) {
+        throw new UnknownError(
+          "No YAML content extracted from Ollama response"
+        );
+      }
       const template = this.parseAndValidate(yaml);
 
       logger.info("Ollama: Template generated successfully");
@@ -69,6 +75,11 @@ export class OllamaGenerator implements IAIGenerator {
     try {
       const response = await this.generate(prompt);
       const yaml = this.extractYAML(response);
+      if (!yaml) {
+        throw new UnknownError(
+          "No YAML content extracted from Ollama response"
+        );
+      }
       const refined = this.parseAndValidate(yaml);
 
       logger.info("Ollama: Template refined successfully");
@@ -225,15 +236,15 @@ TASK DISTRIBUTION:
   /**
    * Extract YAML from response
    */
-  private extractYAML(text: string): string {
+  private extractYAML(text: string): string | undefined {
     const yamlMatch = text.match(/```ya?ml\n([\s\S]*?)\n```/);
     if (yamlMatch) {
-      return yamlMatch[1]!.trim();
+      return yamlMatch[1]?.trim();
     }
 
     const codeBlockMatch = text.match(/```\n([\s\S]*?)\n```/);
     if (codeBlockMatch) {
-      return codeBlockMatch[1]!.trim();
+      return codeBlockMatch[1]?.trim();
     }
 
     const lines = text.split("\n");

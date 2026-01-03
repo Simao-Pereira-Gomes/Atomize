@@ -1,6 +1,6 @@
-import { ZodError } from "zod";
-import { TaskTemplateSchema, type TaskTemplate } from "./schema";
 import { TemplateValidationError } from "@utils/errors";
+import type { ZodError } from "zod";
+import { type TaskTemplate, TaskTemplateSchema } from "./schema";
 
 export interface ValidationResult {
   valid: boolean;
@@ -76,7 +76,9 @@ export class TemplateValidator {
     return zodError.issues.map((err) => ({
       path: err.path.join("."),
       message: err.message,
-      code: (err as any).params?.code || err.code,
+      code:
+        (err as unknown as { params?: { code?: string } }).params?.code ||
+        err.code,
     }));
   }
 
