@@ -96,6 +96,10 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+          files: ./coverage/lcov.info
+          verbose: true
+          flags: unittests
+          name: codecov-umbrella
 
   validate-templates:
     name: Validate Templates
