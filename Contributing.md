@@ -449,7 +449,7 @@ export const exportCommand = new Command("export")
 5. Add tests
 6. Document in Platform Guide
 
-See [Platform Guide - Adding New Platforms](docs/PLATFORM-GUIDE.md#adding-new-platforms)
+See [Platform Guide - Adding New Platforms](docs/Platform-Guide.md#adding-new-platforms)
 
 ---
 
