@@ -19,6 +19,11 @@ on:
         required: false
         type: boolean
         default: false
+      version_override:
+        description: 'Override version from package.json'
+        required: false
+        type: boolean
+        default: true
 env:
   AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
   AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
@@ -55,6 +60,7 @@ jobs:
         run: bun test
 
       - name: Bump version
+        if: ${{ github.event.inputs.version_override == 'true' }}
         run: |
           if [ "${{ github.event.inputs.version }}" != "" ]; then
             npm version ${{ github.event.inputs.version }} --no-git-tag-version
@@ -92,12 +98,14 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Commit version bump
+        if: ${{ github.event.inputs.version_override == 'true' }}
         run: |
           git add package.json
           git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
           git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
 
       - name: Push changes
+        if: ${{ github.event.inputs.version_override == 'true' }}
         run: |
           git push origin main
           git push origin "v${{ steps.version.outputs.version }}"
