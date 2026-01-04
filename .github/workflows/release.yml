@@ -31,9 +31,7 @@ env:
 jobs:
   create-release:
     permissions:
-      contents: read
-      issues: write
-      pull-requests: write 
+      contents: write
     name: Create Release
     runs-on: ubuntu-latest
     
