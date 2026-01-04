@@ -1,6 +1,6 @@
 {
 	"name": "@sppg2001/atomize",
-	"version": "0.0.1",
+	"version": "1.0.0",
 	"description": "Automatically generate tasks from user stories with smart templates",
 	"type": "module",
 	"main": "./dist/cli/index.js",
