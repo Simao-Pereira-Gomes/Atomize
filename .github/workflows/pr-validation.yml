@@ -77,20 +77,24 @@ jobs:
         with:
           script: |
             let message = '## PR Validation Report\n\n';
+            let commentPR = false;
             
             if (process.env.breaking_changes === 'true') {
               message += '**Breaking changes detected** in platform interfaces\n';
               message += '- Review changes carefully\n';
               message += '- Update major version if needed\n';
               message += '- Document breaking changes in release notes\n\n';
+              commentPR = true;
             }
             
             if (process.env.version_bumped === 'false') {
               message += '**Version not bumped** in package.json\n';
               message += '- Consider bumping version before merge\n';
               message += '- Use `npm version patch|minor|major`\n\n';
+              commentPR = true;
             }
             
+            if (!commentPR) return;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
