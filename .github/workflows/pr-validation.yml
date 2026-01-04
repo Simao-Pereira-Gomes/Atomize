@@ -5,6 +5,10 @@ on:
     
 jobs:
   validate:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write 
     name: Validate PR
     runs-on: ubuntu-latest
     
