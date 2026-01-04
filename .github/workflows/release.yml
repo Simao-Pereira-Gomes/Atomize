@@ -30,6 +30,10 @@ env:
   AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
 jobs:
   create-release:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write 
     name: Create Release
     runs-on: ubuntu-latest
     
@@ -110,16 +114,16 @@ jobs:
           git push origin main
           git push origin "v${{ steps.version.outputs.version }}"
 
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          release_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: ${{ github.event.inputs.prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify on success
         if: success()
