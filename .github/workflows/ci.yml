@@ -73,34 +73,6 @@ jobs:
 
       - name: Run integration tests
         run: bun test tests/integration.test.ts
-
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Run tests with coverage
-        run:  bun test --coverage --coverage-reporter=lcov
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-          files: ./coverage/lcov.info
-          verbose: true
-          flags: unittests
-          name: codecov-umbrella
-
   validate-templates:
     name: Validate Templates
     runs-on: ubuntu-latest

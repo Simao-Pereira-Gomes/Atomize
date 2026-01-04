@@ -30,10 +30,10 @@
 		"test:unit": "bun test tests/unit",
 		"test:integration": "bun test tests/integration.test.ts",
 		"test:watch": "bun test --watch",
-		"test:coverage": "bun test --coverage --coverageReport lcov",
+		"test:coverage": "bun test --coverage --coverage-reporter=lcov",
 		"typecheck": "tsc --noEmit",
 		"validate": "bun run src/cli/index.ts validate",
-    "validate:package" :  "test -d dist && test -f dist/cli/index.js && test -d templates/presets",
+		"validate:package": "test -d dist && test -f dist/cli/index.js && test -d templates/presets",
 		"check": "bun typecheck && bun test",
 		"lint": "bunx biome check --max-diagnostics 100",
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100"
