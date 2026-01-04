@@ -53,8 +53,6 @@ estimation:
   rounding: "nearest"
   minimumTaskPoints: 0
 
-validation:
-
 metadata:
   category: "Backend"
   difficulty: "intermediate"

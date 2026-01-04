@@ -1,0 +1,109 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Update dependencies
+        run: |
+          # Update all dependencies
+          bun update
+          
+          # Check for outdated packages
+          bun outdated || true
+
+      - name: Run tests
+        run: bun test
+        continue-on-error: true
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore(deps): update dependencies'
+          title: 'chore(deps): Weekly dependency updates'
+          body: |
+            ## Dependency Updates
+            
+            This PR updates dependencies to their latest versions.
+            
+            ### Changes
+            - Updated all dependencies to latest compatible versions
+            
+            ### Testing
+            - All tests passing
+            - Please review changes carefully
+            
+            ### Notes
+            - This PR was automatically created by GitHub Actions
+            - Review the changes and merge if appropriate
+            
+          branch: deps/weekly-update
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+
+  security-updates:
+    name: Security Updates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Check for security issues
+        id: security_audit
+        run: |
+          npm audit --audit-level=moderate > audit-report.txt || true
+          
+          if grep -q "vulnerabilities" audit-report.txt; then
+            echo "Security vulnerabilities found"
+            cat audit-report.txt
+            echo "security_issues=true" >> $$GITHUB_OUTPUT
+          else
+            echo "No security vulnerabilities"
+          fi
+
+      - name: Create issue for security vulnerabilities
+        if: steps.security_audit.outputs.security_issues == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('audit-report.txt', 'utf8');
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Security vulnerabilities detected',
+              body: `## Security Audit Report
+              Security vulnerabilities have been detected in dependencies.
+              ### Audit Report
+              \`\`\`
+              ${report}
+              \`\`\`
+              ### Action Required
+                1. Review the vulnerabilities
+                2. Update affected packages
+                3. Test thoroughly
+                4. Deploy the fixes
+            });

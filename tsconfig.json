@@ -1,48 +1,48 @@
 {
-  "rootDir": "./src",
-  "compilerOptions": {
-    // Language & Environment
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    
-    // Type Checking
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    
-    // Interop Constraints
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    
-    // Emit
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    
-    // Path Mapping
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@core/*": ["./src/core/*"],
-      "@platforms/*": ["./src/platforms/*"],
-      "@templates/*": ["./src/templates/*"],
-      "@config/*": ["./src/config/*"],
-      "@utils/*": ["./src/utils/*"],
-      "@services/*": ["./src/services/*"]
-    },
-    
-    // Bun Specific
-    "types": ["bun-types"],
-    "skipLibCheck": true,
-  },
-  "include": ["src/**/*", ],
-  "exclude": ["node_modules", "dist","tests/**/*"]
+	"rootDir": "./src",
+	"compilerOptions": {
+		// Language & Environment
+		"target": "ES2022",
+		"lib": ["ES2022"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+
+		// Type Checking
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedIndexedAccess": true,
+
+		// Interop Constraints
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+
+		// Emit
+		"declaration": true,
+		"declarationMap": true,
+		"sourceMap": true,
+		"outDir": "./dist",
+
+		// Path Mapping
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"],
+			"@core/*": ["./src/core/*"],
+			"@platforms/*": ["./src/platforms/*"],
+			"@templates/*": ["./src/templates/*"],
+			"@config/*": ["./src/config/*"],
+			"@utils/*": ["./src/utils/*"],
+			"@services/*": ["./src/services/*"]
+		},
+
+		// Bun Specific
+		"types": ["bun-types"],
+		"skipLibCheck": true
+	},
+	"include": ["src/**/*", "tests/**/*"],
+	"exclude": ["node_modules", "dist"]
 }

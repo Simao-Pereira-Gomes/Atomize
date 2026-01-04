@@ -1,0 +1,138 @@
+name: PR Validation
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    
+jobs:
+  validate:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write 
+    name: Validate PR
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Check for breaking changes
+        id: check_changes
+        run: |
+          if git diff origin/main...HEAD -- 'src/platforms/interfaces/*.ts' | grep -q '^[-+]'; then
+            echo "Warning: Interface changes detected. This may be a breaking change."
+            echo "breaking_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate package.json
+        id: validate_version
+        run: |
+          # Check if version was bumped
+          MAIN_VERSION=$(git show origin/main:package.json | grep '"version"' | cut -d'"' -f4)
+          CURRENT_VERSION=$(grep '"version"' package.json | cut -d'"' -f4)
+          
+          if [ "$MAIN_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "Warning: Package version not bumped"
+            echo "version_bumped=false" >> $GITHUB_OUTPUT
+          else
+            echo "Package version bumped: $MAIN_VERSION -> $CURRENT_VERSION"
+            echo "version_bumped=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Test package installation
+        run: |
+          bun run build
+          npm pack
+          PACKAGE=$(ls *.tgz)
+          npm install -g "$PACKAGE"
+          atomize --help
+          rm "$PACKAGE"
+
+      - name: Check bundle size
+        run: |
+          npm pack
+          PACKAGE=$(ls *.tgz)
+          SIZE=$(stat -f%z "$PACKAGE" 2>/dev/null || stat -c%s "$PACKAGE")
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          
+          echo "Package size: ${SIZE_MB}MB"
+          
+          if [ $SIZE_MB -gt 10 ]; then
+            echo "Warning: Package size is large (${SIZE_MB}MB)"
+          fi
+          
+          rm "$PACKAGE"
+
+      - name: Comment on PR
+        if: steps.check_changes.outputs.breaking_changes == 'true' || steps.validate_version.outputs.version_bumped == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let message = '## PR Validation Report\n\n';
+            
+            if (process.env.breaking_changes === 'true') {
+              message += '**Breaking changes detected** in platform interfaces\n';
+              message += '- Review changes carefully\n';
+              message += '- Update major version if needed\n';
+              message += '- Document breaking changes in release notes\n\n';
+            }
+            
+            if (process.env.version_bumped === 'false') {
+              message += '**Version not bumped** in package.json\n';
+              message += '- Consider bumping version before merge\n';
+              message += '- Use `npm version patch|minor|major`\n\n';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run security audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD

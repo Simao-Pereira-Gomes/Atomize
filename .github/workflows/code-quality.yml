@@ -1,0 +1,150 @@
+name: Code Quality
+
+on:
+  push:
+    branches:
+    - main
+    - 'feat/**'
+    - 'fix/**'
+  pull_request:
+    branches: 
+    - main
+
+env:
+  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
+  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
+  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+jobs:
+  lint-and-format:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run Biome checks
+        run: bun run lint
+
+      - name: Type checking
+        run: bun run typecheck
+
+  test-quality:
+    name: Test Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run unit tests
+        run: bun run test:unit
+
+      - name: Run integration tests
+        run: bun run test:integration
+
+      - name: Generate coverage report
+        run: bun run test:coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  build-quality:
+    name: Build Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build project
+        run: bun run build
+
+      - name: Check build output size
+        run: |
+          if [ -d dist ]; then
+            SIZE=$(du -sh dist | cut -f1)
+            echo " Build output size: $SIZE"
+            
+            echo "### Build Artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "Total size: $SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Largest files:" >> $GITHUB_STEP_SUMMARY
+            find dist -type f -exec ls -lh {} \; | sort -k5 -hr | head -5 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Validate package contents
+        run: |
+          echo "### Package Files" >> $GITHUB_STEP_SUMMARY
+          bun run validate:package
+
+  cli-performance:
+    name: CLI Performance
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Test CLI startup time
+        run: |
+          npm pack
+          PACKAGE=$(ls *.tgz)
+          npm install -g "$PACKAGE"
+          
+          # Warmup
+          atomize --help > /dev/null 2>&1 || true
+          
+          # Measure
+          START=$(date +%s%N)
+          atomize --help > /dev/null
+          END=$(date +%s%N)
+          
+          DURATION=$((($END - $START) / 1000000))
+          echo "CLI startup time: ${DURATION}ms"
+          
+          echo "### CLI Performance" >> $GITHUB_STEP_SUMMARY
+          echo "Startup time: ${DURATION}ms" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $DURATION -gt 1000 ]; then
+            echo "Warning: CLI startup is slow (${DURATION}ms)" >> $GITHUB_STEP_SUMMARY
+            echo "::warning::CLI startup time is ${DURATION}ms (target: <1000ms)"
+          else
+            echo "CLI startup time is acceptable" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          rm "$PACKAGE"

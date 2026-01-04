@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+env:
+  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
+  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
+  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      - name: Upload build artifacts
+        if: matrix.node-version == '20.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run integration tests
+        run: bun test tests/integration.test.ts
+  validate-templates:
+    name: Validate Templates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Validate backend template
+        run: bun run validate templates/backend.yaml
+
+      - name: Validate frontend template
+        run: bun run validate templates/frontend.yaml
+
+      - name: Validate fullstack template
+        run: bun run validate templates/fullstack.yaml
+
+      - name: Validate backend-api preset
+        run: bun run validate templates/presets/backend-api.yaml
+
+      - name: Validate bug-fix preset
+        run: bun run validate templates/presets/bug-fix.yaml
+
+      - name: Validate custom preset
+        run: bun run validate templates/presets/custom.yaml
+
+
+      - name: Validate frontend-feature preset
+        run: bun run validate templates/presets/frontend-feature.yaml

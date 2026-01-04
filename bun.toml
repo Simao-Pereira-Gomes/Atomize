@@ -11,6 +11,8 @@ optional = true
 # Test configuration
 preload = ["./tests/setup.ts"]
 coverage = true
+coverageReporter = ["lcov", "text"]
+coverageDirectory = "./coverage"
 
 [run]
 # Environment
