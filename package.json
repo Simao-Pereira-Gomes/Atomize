@@ -35,7 +35,7 @@
 		"validate": "bun run src/cli/index.ts validate",
 		"check": "bun typecheck && bun test",
 		"lint": "bunx biome check --max-diagnostics 100",
-		"lint:fix": "bunx biome check --apply --max-diagnostics 100"
+		"lint:fix": "bunx biome check --fix --max-diagnostics 100"
 	},
 	"keywords": [
 		"devops",

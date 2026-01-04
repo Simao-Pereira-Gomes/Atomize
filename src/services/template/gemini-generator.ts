@@ -5,8 +5,8 @@ import { TemplateValidator } from "@templates/validator";
 import { parse as parseYaml } from "yaml";
 import { UnknownError } from "@/utils/errors";
 import type {
-  AIGenerationContext,
-  IAIGenerator,
+	AIGenerationContext,
+	IAIGenerator,
 } from "./ai-generator.interface";
 
 /**
@@ -14,154 +14,154 @@ import type {
  * Uses Google's  Gemini API for template generation
  */
 export class GeminiGenerator implements IAIGenerator {
-  private client: GoogleGenerativeAI;
-  private model: string;
-  private validator: TemplateValidator;
+	private client: GoogleGenerativeAI;
+	private model: string;
+	private validator: TemplateValidator;
 
-  constructor(apiKey: string, model = "gemini-2.0-flash-exp") {
-    this.client = new GoogleGenerativeAI(apiKey);
-    this.model = model;
-    this.validator = new TemplateValidator();
-  }
+	constructor(apiKey: string, model = "gemini-2.0-flash-exp") {
+		this.client = new GoogleGenerativeAI(apiKey);
+		this.model = model;
+		this.validator = new TemplateValidator();
+	}
 
-  async generateTemplate(
-    prompt: string,
-    context?: AIGenerationContext
-  ): Promise<TaskTemplate> {
-    logger.info("Gemini: Generating template...");
+	async generateTemplate(
+		prompt: string,
+		context?: AIGenerationContext,
+	): Promise<TaskTemplate> {
+		logger.info("Gemini: Generating template...");
 
-    const model = this.client.getGenerativeModel({ model: this.model });
+		const model = this.client.getGenerativeModel({ model: this.model });
 
-    const fullPrompt = this.buildPrompt(prompt, context);
+		const fullPrompt = this.buildPrompt(prompt, context);
 
-    try {
-      const result = await model.generateContent(fullPrompt);
-      const responseText = result.response.text();
-      logger.debug("Gemini: Response received");
-      const yaml = this.extractYAML(responseText);
-      if (!yaml) {
-        throw new UnknownError(
-          "No YAML content extracted from Gemini response"
-        );
-      }
-      const template = this.parseAndValidate(yaml);
-      logger.info("Gemini: Template generated successfully");
-      return template;
-    } catch (error) {
-      logger.error("Gemini: Generation failed", { error });
-      throw new Error(
-        `Failed to generate template: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
-  }
+		try {
+			const result = await model.generateContent(fullPrompt);
+			const responseText = result.response.text();
+			logger.debug("Gemini: Response received");
+			const yaml = this.extractYAML(responseText);
+			if (!yaml) {
+				throw new UnknownError(
+					"No YAML content extracted from Gemini response",
+				);
+			}
+			const template = this.parseAndValidate(yaml);
+			logger.info("Gemini: Template generated successfully");
+			return template;
+		} catch (error) {
+			logger.error("Gemini: Generation failed", { error });
+			throw new Error(
+				`Failed to generate template: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	}
 
-  async refineTemplate(
-    template: TaskTemplate,
-    refinement: string
-  ): Promise<TaskTemplate> {
-    logger.info("Gemini: Refining template...");
+	async refineTemplate(
+		template: TaskTemplate,
+		refinement: string,
+	): Promise<TaskTemplate> {
+		logger.info("Gemini: Refining template...");
 
-    const model = this.client.getGenerativeModel({ model: this.model });
-    const prompt = this.buildRefinementPrompt(template, refinement);
-    try {
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+		const model = this.client.getGenerativeModel({ model: this.model });
+		const prompt = this.buildRefinementPrompt(template, refinement);
+		try {
+			const result = await model.generateContent(prompt);
+			const responseText = result.response.text();
 
-      const yaml = this.extractYAML(responseText);
-      if (!yaml) {
-        throw new UnknownError(
-          "No YAML content extracted from Gemini response"
-        );
-      }
-      const refined = this.parseAndValidate(yaml);
+			const yaml = this.extractYAML(responseText);
+			if (!yaml) {
+				throw new UnknownError(
+					"No YAML content extracted from Gemini response",
+				);
+			}
+			const refined = this.parseAndValidate(yaml);
 
-      logger.info("Gemini: Template refined successfully");
-      return refined;
-    } catch (error) {
-      logger.error("Gemini: Refinement failed", { error });
-      throw new Error(
-        `Failed to refine template: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
-  }
+			logger.info("Gemini: Template refined successfully");
+			return refined;
+		} catch (error) {
+			logger.error("Gemini: Refinement failed", { error });
+			throw new Error(
+				`Failed to refine template: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	}
 
-  async isAvailable(): Promise<boolean> {
-    try {
-      const model = this.client.getGenerativeModel({ model: this.model });
-      await model.generateContent("test");
-      return true;
-    } catch {
-      return false;
-    }
-  }
+	async isAvailable(): Promise<boolean> {
+		try {
+			const model = this.client.getGenerativeModel({ model: this.model });
+			await model.generateContent("test");
+			return true;
+		} catch {
+			return false;
+		}
+	}
 
-  getProviderName(): string {
-    return "Google Gemini";
-  }
+	getProviderName(): string {
+		return "Google Gemini";
+	}
 
-  /**
-   * Build the full prompt for generation
-   */
-  private buildPrompt(
-    userPrompt: string,
-    context?: AIGenerationContext
-  ): string {
-    let prompt = this.getSystemPrompt();
+	/**
+	 * Build the full prompt for generation
+	 */
+	private buildPrompt(
+		userPrompt: string,
+		context?: AIGenerationContext,
+	): string {
+		let prompt = this.getSystemPrompt();
 
-    if (context?.preset) {
-      prompt += "\n\nEXAMPLE TEMPLATE (use as inspiration):\n```yaml\n";
-      prompt += this.templateToYAML(context.preset);
-      prompt += "\n```\n";
-    }
+		if (context?.preset) {
+			prompt += "\n\nEXAMPLE TEMPLATE (use as inspiration):\n```yaml\n";
+			prompt += this.templateToYAML(context.preset);
+			prompt += "\n```\n";
+		}
 
-    if (context?.storyExample) {
-      prompt += "\n\nEXAMPLE STORY STRUCTURE:\n";
-      prompt += JSON.stringify(context.storyExample, null, 2);
-      prompt += "\n";
-    }
+		if (context?.storyExample) {
+			prompt += "\n\nEXAMPLE STORY STRUCTURE:\n";
+			prompt += JSON.stringify(context.storyExample, null, 2);
+			prompt += "\n";
+		}
 
-    if (context?.additionalInstructions) {
-      prompt += "\n\nADDITIONAL INSTRUCTIONS:\n";
-      prompt += context.additionalInstructions;
-      prompt += "\n";
-    }
+		if (context?.additionalInstructions) {
+			prompt += "\n\nADDITIONAL INSTRUCTIONS:\n";
+			prompt += context.additionalInstructions;
+			prompt += "\n";
+		}
 
-    prompt += `\n\nUSER REQUEST: ${userPrompt}\n\n`;
-    prompt +=
-      "Generate a complete, valid YAML template. Output ONLY the YAML, no explanations or markdown formatting:";
+		prompt += `\n\nUSER REQUEST: ${userPrompt}\n\n`;
+		prompt +=
+			"Generate a complete, valid YAML template. Output ONLY the YAML, no explanations or markdown formatting:";
 
-    return prompt;
-  }
+		return prompt;
+	}
 
-  /**
-   * Build refinement prompt
-   */
-  private buildRefinementPrompt(
-    template: TaskTemplate,
-    refinement: string
-  ): string {
-    let prompt = this.getSystemPrompt();
+	/**
+	 * Build refinement prompt
+	 */
+	private buildRefinementPrompt(
+		template: TaskTemplate,
+		refinement: string,
+	): string {
+		let prompt = this.getSystemPrompt();
 
-    prompt += "\n\nCURRENT TEMPLATE:\n```yaml\n";
-    prompt += this.templateToYAML(template);
-    prompt += "\n```\n";
+		prompt += "\n\nCURRENT TEMPLATE:\n```yaml\n";
+		prompt += this.templateToYAML(template);
+		prompt += "\n```\n";
 
-    prompt += `\n\nREFINEMENT REQUEST: ${refinement}\n\n`;
-    prompt +=
-      "Modify the template according to the refinement request. Output ONLY the updated YAML:";
+		prompt += `\n\nREFINEMENT REQUEST: ${refinement}\n\n`;
+		prompt +=
+			"Modify the template according to the refinement request. Output ONLY the updated YAML:";
 
-    return prompt;
-  }
+		return prompt;
+	}
 
-  /**
-   * Get the system prompt with template schema and rules
-   */
-  private getSystemPrompt(): string {
-    return `You are an expert at creating Atomize templates for breaking down user stories into development tasks.
+	/**
+	 * Get the system prompt with template schema and rules
+	 */
+	private getSystemPrompt(): string {
+		return `You are an expert at creating Atomize templates for breaking down user stories into development tasks.
 
 TEMPLATE SCHEMA:
 \`\`\`yaml
@@ -219,56 +219,56 @@ VARIABLE INTERPOLATION:
 - \${story.title} - Inserts the story title
 - \${story.id} - Inserts the story ID
 - \${story.description} - Inserts the story description`;
-  }
+	}
 
-  /**
-   * Extract YAML from response (handles markdown code blocks)
-   */
-  private extractYAML(text: string): string | undefined {
-    const yamlMatch = text.match(/```ya?ml\n([\s\S]*?)\n```/);
-    if (yamlMatch) {
-      return yamlMatch[1]?.trim();
-    }
+	/**
+	 * Extract YAML from response (handles markdown code blocks)
+	 */
+	private extractYAML(text: string): string | undefined {
+		const yamlMatch = text.match(/```ya?ml\n([\s\S]*?)\n```/);
+		if (yamlMatch) {
+			return yamlMatch[1]?.trim();
+		}
 
-    const codeBlockMatch = text.match(/```\n([\s\S]*?)\n```/);
-    if (codeBlockMatch) {
-      return codeBlockMatch[1]?.trim();
-    }
-    return text.trim();
-  }
+		const codeBlockMatch = text.match(/```\n([\s\S]*?)\n```/);
+		if (codeBlockMatch) {
+			return codeBlockMatch[1]?.trim();
+		}
+		return text.trim();
+	}
 
-  /**
-   * Parse YAML and validate
-   */
-  private parseAndValidate(yaml: string): TaskTemplate {
-    try {
-      const parsed = parseYaml(yaml);
+	/**
+	 * Parse YAML and validate
+	 */
+	private parseAndValidate(yaml: string): TaskTemplate {
+		try {
+			const parsed = parseYaml(yaml);
 
-      if (!parsed) {
-        throw new Error("Empty template generated");
-      }
+			if (!parsed) {
+				throw new Error("Empty template generated");
+			}
 
-      const validation = this.validator.validate(parsed);
+			const validation = this.validator.validate(parsed);
 
-      if (!validation.valid) {
-        const errors = validation.errors
-          .map((e) => `${e.path}: ${e.message}`)
-          .join("\n");
-        throw new Error(`Invalid template generated:\n${errors}`);
-      }
+			if (!validation.valid) {
+				const errors = validation.errors
+					.map((e) => `${e.path}: ${e.message}`)
+					.join("\n");
+				throw new Error(`Invalid template generated:\n${errors}`);
+			}
 
-      return parsed as TaskTemplate;
-    } catch (error) {
-      logger.error("Failed to parse generated YAML", { error, yaml });
-      throw error;
-    }
-  }
+			return parsed as TaskTemplate;
+		} catch (error) {
+			logger.error("Failed to parse generated YAML", { error, yaml });
+			throw error;
+		}
+	}
 
-  /**
-   * Convert template to YAML string
-   */
-  private templateToYAML(template: TaskTemplate): string {
-    const { stringify } = require("yaml");
-    return stringify(template);
-  }
+	/**
+	 * Convert template to YAML string
+	 */
+	private templateToYAML(template: TaskTemplate): string {
+		const { stringify } = require("yaml");
+		return stringify(template);
+	}
 }
