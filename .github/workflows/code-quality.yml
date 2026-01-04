@@ -10,6 +10,10 @@ on:
     branches: 
     - main
 
+env:
+  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
+  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
+  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
 jobs:
   lint-and-format:
     name: Lint & Format
@@ -97,7 +101,7 @@ jobs:
       - name: Validate package contents
         run: |
           echo "### Package Files" >> $GITHUB_STEP_SUMMARY
-          bun run validate
+          bun run validate:package
 
   cli-performance:
     name: CLI Performance
