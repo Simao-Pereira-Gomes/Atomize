@@ -19,7 +19,10 @@ on:
         required: false
         type: boolean
         default: false
-
+env:
+  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
+  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
+  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
 jobs:
   create-release:
     name: Create Release
