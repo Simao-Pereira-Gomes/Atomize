@@ -45,7 +45,7 @@ jobs:
 
       - name: Test package installation
         run: |
-          bun build
+          bun run build
           npm pack
           PACKAGE=$(ls *.tgz)
           npm install -g "$PACKAGE"
