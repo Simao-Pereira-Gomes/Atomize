@@ -89,7 +89,7 @@ jobs:
         run: bun install
 
       - name: Run tests with coverage
-        run: bun test --coverage
+        run: bun test --coverage --coverageReport lcov
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
