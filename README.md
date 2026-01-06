@@ -1,5 +1,11 @@
 # Atomize
 
+[![CI](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/ci.yml/badge.svg)](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/ci.yml)
+[![Code Quality](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/code-quality.yml/badge.svg)](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/code-quality.yml)
+[![NPM Version](https://img.shields.io/npm/v/@sppg2001/atomize)](https://www.npmjs.com/package/@sppg2001/atomize)
+[![NPM Downloads](https://img.shields.io/npm/dm/@sppg2001/atomize)](https://www.npmjs.com/package/@sppg2001/atomize)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node Version](https://img.shields.io/node/v/@sppg2001/atomize)](https://nodejs.org)
 **Break down stories, build up velocity.**
 
 Atomize is a CLI tool that automatically generates granular tasks from user stories using  YAML templates. Streamline your agile workflow with AI-powered task breakdowns, preset templates, and smart estimation distribution.
