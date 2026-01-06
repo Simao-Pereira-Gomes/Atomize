@@ -8,7 +8,9 @@ on:
       version:
         description: 'Version to publish (leave empty to use package.json version)'
         required: false
-
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
 jobs:
   publish:
     name: Publish to NPM
