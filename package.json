@@ -5,8 +5,8 @@
 	"type": "module",
 	"main": "./dist/cli/index.js",
 	"bin": {
-		"atomize": "./dist/cli/index.js",
-		"atom": "./dist/cli/index.js"
+		"atomize": "dist/cli/index.js",
+		"atom": "dist/cli/index.js"
 	},
 	"publishConfig": {
 		"access": "public",
@@ -52,7 +52,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Simao-Pereira-Gomes/atomize.git"
+		"url": "git+https://github.com/Simao-Pereira-Gomes/atomize.git"
 	},
 	"bugs": {
 		"url": "https://github.com/Simao-Pereira-Gomes/atomize/issues"
