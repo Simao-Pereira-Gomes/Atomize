@@ -6,14 +6,12 @@
 [![NPM Downloads](https://img.shields.io/npm/dm/@sppg2001/atomize)](https://www.npmjs.com/package/@sppg2001/atomize)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node Version](https://img.shields.io/node/v/@sppg2001/atomize)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+
 
 **Break down stories, build up velocity.**
 
 Atomize is a CLI tool that automatically generates granular tasks from user stories using  YAML templates. Streamline your agile workflow with AI-powered task breakdowns, preset templates, and smart estimation distribution.
-
-[![npm version](https://img.shields.io/npm/v/@sppg2001/atomize.svg)](https://www.npmjs.com/package/@sppg2001/atomize)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 
 ---
 
