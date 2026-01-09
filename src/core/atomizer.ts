@@ -113,6 +113,7 @@ export class Atomizer {
 		// Query user stories
 		logger.info("Querying user stories...");
 		const stories = await this.platform.queryWorkItems(platformFilter);
+		const connectUserEmail = await this.platform.getConnectUserEmail();
 		logger.info(`Found ${stories.length} stories`);
 
 		if (stories.length === 0) {
@@ -130,6 +131,7 @@ export class Atomizer {
 				// Calculate tasks
 				const calculatedTasks = this.estimationCalculator.calculateTasks(
 					story,
+					connectUserEmail,
 					template.tasks,
 					template.estimation,
 				);

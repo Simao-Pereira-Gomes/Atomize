@@ -27,6 +27,7 @@ export class EstimationCalculator {
 	 */
 	calculateTasks(
 		story: WorkItem,
+		connectUserEmail: string,
 		templateTasks: TemplateTaskDefinition[],
 		estimationConfig?: EstimationConfig,
 	): CalculatedTask[] {
@@ -67,7 +68,11 @@ export class EstimationCalculator {
 					: undefined,
 				estimation,
 				tags: templateTask.tags,
-				assignTo: this.resolveAssignment(templateTask.assignTo, story),
+				assignTo: this.resolveAssignment(
+					templateTask.assignTo,
+					story,
+					connectUserEmail,
+				),
 				priority: templateTask.priority,
 				activity: templateTask.activity,
 				remainingWork: templateTask.remainingWork,
@@ -160,14 +165,21 @@ export class EstimationCalculator {
 	/**
 	 * Resolve task assignment
 	 */
-	private resolveAssignment(assignTo: string | undefined, story: WorkItem) {
+	private resolveAssignment(
+		assignTo: string | undefined,
+		story: WorkItem,
+		connectUserEmail: string,
+	) {
 		if (!assignTo) return undefined;
 
-		match<string | string, string | undefined>(assignTo)
+		return match<string | string, string | undefined>(assignTo)
 			.with("@ParentAssignee", "@Inherit", () => {
 				return story.assignedTo;
 			})
-			.with("@Me", "@Auto", () => {
+			.with("@Me", () => {
+				return connectUserEmail;
+			})
+			.with("@Unassigned", () => {
 				return undefined;
 			})
 			.otherwise(() => {

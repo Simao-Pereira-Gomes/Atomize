@@ -819,7 +819,7 @@ tasks:
     
   - title: "Deployment"
     estimationPercent: 5
-    assignTo: "@Auto"  # Let system decide
+    assignTo: "@Unassigned"  # Let system decide
     
   - title: "Design Review"
     estimationPercent: 10

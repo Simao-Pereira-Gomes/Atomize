@@ -20,6 +20,7 @@ import {
 	WorkItemExpand,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
+
 /**
  * Azure DevOps specific configuration
  */
@@ -81,6 +82,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 			);
 
 			this.witApi = await this.connection.getWorkItemTrackingApi();
+
 			await this.testConnection();
 
 			this.authenticated = true;
@@ -93,6 +95,14 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 				"azure-devops",
 			);
 		}
+	}
+
+	async getConnectUserEmail(): Promise<string> {
+		if (!this.connection) {
+			throw new UnknownError("Not connected to Azure DevOps");
+		}
+		const connectionData = await this.connection.connect();
+		return connectionData.authenticatedUser?.properties?.Account?.$value || "";
 	}
 
 	/**
@@ -225,6 +235,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 			});
 
 			const numericParentId = parseInt(parentId, 10);
+			console.log("Assigning task to:", task.assignTo);
 			if (Number.isNaN(numericParentId)) {
 				throw new Error(`Invalid parent ID: ${parentId}`);
 			}
@@ -400,6 +411,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 				return false;
 			}
 
+			console.log("Testing connection to Azure DevOps...");
 			await this.witApi.queryByWiql(
 				{
 					query:
@@ -410,6 +422,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 				1,
 			);
 
+			console.log("Connection test succeeded");
 			return true;
 		} catch (error) {
 			logger.debug((error as Error).message);
