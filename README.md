@@ -217,7 +217,6 @@ tasks:
 
 # Estimation settings
 estimation:
-  strategy: "percentage"
   rounding: "nearest"
   minimumTaskPoints: 0.5
 

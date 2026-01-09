@@ -85,9 +85,6 @@ The first public release of Atomize - a CLI tool for automatically generating ta
 - **Task Dependencies** - Define execution order between tasks
 - **Estimation Strategies**
   - Percentage-based (default)
-  - Fixed values
-  - Fibonacci
-  - Hours-based
 - **Rounding Options** - Nearest, up, down, or no rounding
 - **Validation Rules** - Template validation with configurable constraints
   - Total estimation requirements
