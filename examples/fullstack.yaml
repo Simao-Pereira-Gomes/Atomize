@@ -1,0 +1,169 @@
+version: "1.0"
+name: "Fullstack Feature"
+description: "Complete fullstack feature with frontend and backend tasks"
+author: "Atomize"
+tags: ["fullstack", "frontend", "backend"]
+
+filter:
+  workItemTypes:
+    - "User Story"
+  states:
+    - "New"
+    - "Active"
+  tags:
+    include:
+      - "fullstack"
+  excludeIfHasTasks: true
+
+# Variables for conditionals
+variables:
+  hasDatabase: true
+  hasAuth: false
+
+tasks:
+  # Design Phase
+  - id: "design-overview"
+    title: "Technical Design"
+    description: |
+      Create comprehensive technical design:
+      - Architecture diagram
+      - API contract definition
+      - Data models
+      - UI/UX flow
+    estimationPercent: 10
+    tags: ["design", "planning"]
+    activity: "Design"
+
+  # Backend Tasks
+  - id: "backend-api"
+    title: " Backend API Implementation"
+    description: |
+      Implement backend API:
+      - API endpoints
+      - Business logic
+      - Validation
+      - Error handling
+    estimationPercent: 20
+    tags: ["backend", "api"]
+    activity: "Development"
+    dependsOn: ["design-overview"]
+
+  - id: "database"
+    title: "Database Implementation"
+    description: |
+      Database changes:
+      - Schema migrations
+      - Models
+      - Queries
+      - Indexes
+    estimationPercent: 15
+    tags: ["database", "backend"]
+    activity: "Development"
+    condition: "${variables.hasDatabase}"
+
+  - id: "backend-tests"
+    title: "Backend Tests"
+    description: |
+      Backend test coverage:
+      - Unit tests (80%+)
+      - Integration tests
+      - API endpoint tests
+    estimationPercent: 10
+    tags: ["testing", "backend"]
+    activity: "Testing"
+    dependsOn: ["backend-api"]
+
+  # Frontend Tasks
+  - id: "frontend-components"
+    title: "Frontend Components"
+    description: |
+      Build React components:
+      - Component structure
+      - Props interfaces
+      - State management
+      - Event handlers
+    estimationPercent: 20
+    tags: ["frontend", "react"]
+    activity: "Development"
+    dependsOn: ["design-overview"]
+
+  - id: "frontend-styling"
+    title: "Styling & Responsive Design"
+    description: |
+      Apply styles:
+      - CSS/Tailwind
+      - Mobile responsive
+      - Theme integration
+    estimationPercent: 10
+    tags: ["frontend", "styling"]
+    activity: "Development"
+
+  - id: "frontend-tests"
+    title: "Frontend Tests"
+    description: |
+      Frontend test coverage:
+      - Component tests
+      - User interaction tests
+      - Snapshot tests
+    estimationPercent: 8
+    tags: ["testing", "frontend"]
+    activity: "Testing"
+    dependsOn: ["frontend-components"]
+
+  # Integration
+  - id: "integration"
+    title: "Frontend-Backend Integration"
+    description: |
+      Connect frontend to backend:
+      - API integration
+      - Error handling
+      - Loading states
+      - Data flow testing
+    estimationPercent: 12
+    tags: ["integration"]
+    activity: "Development"
+    dependsOn: ["backend-api", "frontend-components"]
+
+  # Documentation & Review
+  - id: "documentation"
+    title: "Documentation"
+    description: |
+      Complete documentation:
+      - API documentation
+      - Component documentation
+      - README updates
+      - Deployment guide
+    estimationPercent: 5
+    tags: ["documentation"]
+    activity: "Documentation"
+
+# Estimation configuration
+estimation:
+  strategy: "percentage"
+  source: "Microsoft.VSTS.Scheduling.StoryPoints"
+  rounding: "nearest"
+  minimumTaskPoints: 0.5
+
+# Validation
+validation:
+  totalEstimationRange:
+    min: 95
+    max: 105
+  minTasks: 5
+
+# Metadata
+metadata:
+  category: "Fullstack Development"
+  difficulty: "advanced"
+  recommendedFor:
+    - "Full features with UI and API"
+    - "Complete user flows"
+    - "End-to-end features"
+  estimationGuidelines: |
+    Best for stories sized 5-13 points.
+    This template covers both frontend and backend.
+    Adjust tasks based on complexity.
+  examples:
+    - "User registration flow"
+    - "Dashboard with data visualization"
+    - "Search and filter feature"

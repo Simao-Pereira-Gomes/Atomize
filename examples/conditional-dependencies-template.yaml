@@ -1,0 +1,122 @@
+version: "1.0"
+name: "Full-Stack Development with Conditional Tasks"
+description: "Template demonstrating conditional tasks and dependencies"
+
+filter:
+  workItemTypes:
+    - "User Story"
+  tags:
+    include:
+      - "development"
+
+estimation:
+  rounding: "nearest"
+  minimumTaskPoints: 0.5
+
+tasks:
+  # Phase 1: Design (always runs)
+  - id: "design"
+    title: "UI/UX Design and Mockups"
+    description: "Create design mockups for ${story.title}"
+    estimationPercent: 15
+    activity: "Design"
+    assignTo: "@ParentAssignee"
+    tags:
+      - "design"
+
+  # Phase 2: Backend (conditional - only if story has backend tag)
+  - id: "backend-api"
+    title: "Backend API Implementation"
+    description: "Implement REST API endpoints for ${story.title}"
+    estimationPercent: 30
+    activity: "Development"
+    dependsOn: ["design"]
+    condition: '${story.tags} CONTAINS "backend"'
+    tags:
+      - "backend"
+      - "api"
+
+  # Phase 3: Frontend (conditional - only if story has frontend tag)
+  - id: "frontend-ui"
+    title: "Frontend UI Implementation"
+    description: "Build user interface for ${story.title}"
+    estimationPercent: 35
+    activity: "Development"
+    dependsOn: ["design"]
+    condition: '${story.tags} CONTAINS "frontend"'
+    tags:
+      - "frontend"
+
+  # Accessibility testing (conditional - only for frontend stories without legacy tag)
+  - id: "accessibility-testing"
+    title: "Accessibility Testing (WCAG)"
+    description: "Ensure UI meets accessibility standards for ${story.title}"
+    estimationPercent: 7
+    activity: "Testing"
+    dependsOn: ["frontend-ui"]
+    condition: '${story.tags} CONTAINS "frontend" OR ${story.tags} NOT CONTAINS "legacy"'
+    tags:
+      - "accessibility"
+      - "testing"
+
+  # Security tasks (conditional - only for high-priority stories with security tag)
+  - id: "security-review"
+    title: "Security Review and Audit"
+    description: "Perform security review for ${story.title}"
+    estimationPercent: 8
+    activity: "Testing"
+    dependsOn: ["backend-api", "frontend-ui"]
+    condition: '${story.tags} CONTAINS "security" AND ${story.priority} <= 2'
+    priority: 1
+    tags:
+      - "security"
+
+  # Phase 4: Testing (depends on what was implemented)
+  - id: "unit-tests"
+    title: "Unit Tests"
+    description: "Write unit tests for ${story.title}"
+    estimationPercent: 15
+    activity: "Testing"
+    dependsOn: ["backend-api", "frontend-ui"]
+    tags:
+      - "testing"
+
+  - id: "integration-tests"
+    title: "Integration Tests"
+    description: "Write integration tests for ${story.title}"
+    estimationPercent: 12
+    activity: "Testing"
+    dependsOn: ["unit-tests"]
+    tags:
+      - "testing"
+
+  # Performance testing (conditional - only for stories with high estimation)
+  - id: "performance-tests"
+    title: "Performance and Load Testing"
+    description: "Conduct performance testing for ${story.title}"
+    estimationPercent: 10
+    activity: "Testing"
+    dependsOn: ["integration-tests"]
+    condition: '${story.estimation} >= 13'
+    tags:
+      - "performance"
+
+  # Phase 5: Documentation (always runs, depends on everything)
+  - id: "documentation"
+    title: "Technical Documentation"
+    description: "Write technical documentation for ${story.title}"
+    estimationPercent: 8
+    activity: "Documentation"
+    dependsOn: ["unit-tests"]
+    tags:
+      - "documentation"
+
+  # Deployment (final step, depends on all testing)
+  - id: "deployment"
+    title: "Deploy to Staging"
+    description: "Deploy ${story.title} to staging environment"
+    estimationPercent: 5
+    activity: "Deployment"
+    dependsOn: ["integration-tests", "documentation"]
+    tags:
+      - "deployment"

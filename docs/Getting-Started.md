@@ -510,7 +510,7 @@ ollama serve
 - [Platform Guide](./PLATFORM-GUIDE.md) - Platform setup and configuration
 
 🎯 **Examples:**
-- [Example Templates](../templates/) - Real-world templates
+- [Example Templates](../examples/) - Real-world templates
 - [Use Cases](./EXAMPLES.md) - Common scenarios
 
 ### Join the Community

@@ -931,5 +931,5 @@ tasks:
 
 - [Template Reference](./Template-Reference.md) - Complete template schema
 - [Platform Guide](./Platform-Guide.md) - Platform setup and configuration
-- [Examples](../templates/) - Real-world template examples
+- [Examples](../examples/) - Real-world template examples
 - [Contributing](../Contributing.md) - How to contribute

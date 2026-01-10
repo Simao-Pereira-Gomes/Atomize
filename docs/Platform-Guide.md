@@ -625,4 +625,4 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platf
 
 - [CLI Reference](./Cli-Reference.md) - Command-line usage
 - [Template Reference](./Template-Reference.md) - Template schema
-- [Examples](../templates/) - Real-world examples
+- [Examples](../examples/) - Real-world examples
