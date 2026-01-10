@@ -11,7 +11,7 @@ export const FilterCriteriaSchema = z.object({
     .optional(),
   areaPaths: z.array(z.string()).optional(),
   iterations: z.array(z.string()).optional(),
-  assignedTo: z.array(z.string()).optional(),
+  assignedTo: z.array(z.email()).optional(),
   priority: z
     .object({
       min: z.number().optional(),

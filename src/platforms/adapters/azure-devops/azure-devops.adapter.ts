@@ -613,7 +613,6 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       conditions.push(`[System.IterationPath] IN (${iterations})`);
     }
 
-    // Assigned to
     if (filter.assignedTo && filter.assignedTo.length > 0) {
       const users = filter.assignedTo.map((u) => `'${u}'`).join(", ");
       conditions.push(`[System.AssignedTo] IN (${users})`);
