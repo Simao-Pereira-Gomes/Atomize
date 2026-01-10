@@ -1,7 +1,10 @@
 import { logger } from "@config/logger";
 import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import type { TaskTemplate, TaskDefinition as TemplateTaskDefinition } from "@templates/schema";
+import type {
+  TaskTemplate,
+  TaskDefinition as TemplateTaskDefinition,
+} from "@templates/schema";
 import { DependencyResolver } from "./dependency-resolver.js";
 import {
   type CalculatedTask,
@@ -113,10 +116,11 @@ export class Atomizer {
     logger.info(`Template: ${template.name}`);
     logger.info(`Dry run: ${options.dryRun ? "Yes" : "No"}`);
 
-    // Get user email first to resolve @Me macro
     const connectUserEmail = await this.platform.getConnectUserEmail();
-
-    const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
+    const platformFilter = this.filterEngine.convertFilter(
+      template.filter,
+      connectUserEmail
+    );
 
     const filterValidation = this.filterEngine.validateFilter(template.filter);
     if (!filterValidation.valid) {
@@ -390,7 +394,10 @@ export class Atomizer {
    */
   async countMatchingStories(template: TaskTemplate): Promise<number> {
     const connectUserEmail = await this.platform.getConnectUserEmail();
-    const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
+    const platformFilter = this.filterEngine.convertFilter(
+      template.filter,
+      connectUserEmail
+    );
     const stories = await this.platform.queryWorkItems(platformFilter);
     return stories.length;
   }
