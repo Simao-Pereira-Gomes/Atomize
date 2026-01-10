@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import {
+  type CalculatedTask,
+  EstimationCalculator,
+} from "@core/estimation-calculator";
 import { FilterEngine } from "@core/filter-engine";
 import type { FilterCriteria as TemplateFilter } from "@templates/schema";
-import {
-  EstimationCalculator,
-  type CalculatedTask,
-} from "@core/estimation-calculator";
-import { WorkItem } from "@/platforms";
+import type { WorkItem } from "@/platforms";
 
 describe("FilterEngine", () => {
   const engine = new FilterEngine();

@@ -364,6 +364,7 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task",
           estimationPercent: 30,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.tags} CONTAINS "backend"',
         },
         { title: "Task 3", estimationPercent: 20 },
@@ -412,11 +413,13 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task 1",
           estimationPercent: 25,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.tags} CONTAINS "backend"',
         },
         {
           title: "Backend Task 2",
           estimationPercent: 25,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.tags} CONTAINS "backend"',
         },
         { title: "Frontend Task 2", estimationPercent: 20 },
@@ -482,11 +485,13 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task 1",
           estimationPercent: 30,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.tags} CONTAINS "backend"',
         },
         {
           title: "Backend Task 2",
           estimationPercent: 30,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.tags} CONTAINS "backend"',
         },
       ];
@@ -516,6 +521,7 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task",
           estimationPercent: 100,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.tags} CONTAINS "backend"',
         },
       ];
@@ -553,12 +559,14 @@ describe("EstimationCalculator", () => {
         {
           title: "Database Task",
           estimationPercent: 20,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.customFields.component} == "api"',
         },
         { title: "API Task", estimationPercent: 30 },
         {
           title: "Mobile Task",
           estimationPercent: 15,
+          // biome-ignore lint/suspicious : We want to test the template interpolation here
           condition: '${story.tags} CONTAINS "mobile"',
         },
         { title: "Testing Task", estimationPercent: 10 },

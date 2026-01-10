@@ -39,6 +39,7 @@ const mockWorkItemTrackingApi = {
     relations: [],
   })),
   createWorkItem: mock(
+    // biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
     async (
       _customHeaders: any,
       document: any,
@@ -66,6 +67,7 @@ const mockWorkItemTrackingApi = {
     relations: [],
   })),
 };
+// biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
 
 const mockWebApi = {
   getWorkItemTrackingApi: mock(async () => mockWorkItemTrackingApi),
@@ -81,9 +83,7 @@ const mockWebApi = {
 // Mock the azure-devops-node-api module
 mock.module("azure-devops-node-api", () => ({
   getPersonalAccessTokenHandler: mock(() => ({})),
-  WebApi: mock(function () {
-    return mockWebApi;
-  }),
+  WebApi: mock(() => mockWebApi),
 }));
 
 describe("AzureDevOpsAdapter", () => {
@@ -413,6 +413,7 @@ describe("AzureDevOpsAdapter", () => {
     });
 
     test("should get children of work item", async () => {
+      // biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
       const mockParentWithChildren: any = {
         id: 100,
         fields: {
@@ -427,6 +428,8 @@ describe("AzureDevOpsAdapter", () => {
           },
         ],
       };
+      // biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+
       mockWorkItemTrackingApi.getWorkItem.mockResolvedValueOnce(
         mockParentWithChildren
       );

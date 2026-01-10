@@ -184,8 +184,11 @@ describe("normalizeEstimationPercentages", () => {
 
     // Should maintain 1:2:3 ratio
     const ratios = items.map((i) => i.estimationPercent ?? 0);
+    expect(ratios).toHaveLength(3);
+    //biome-ignore-start lint/style: we already checked for undefined above
     expect(ratios[0]).toBeLessThan(ratios[1]!);
     expect(ratios[1]).toBeLessThan(ratios[2]!);
+    //biome-ignore-end lint/style: we already checked for undefined above
   });
 });
 
@@ -226,9 +229,9 @@ describe("validateEstimationPercentages", () => {
     const result = validateEstimationPercentages(items);
 
     expect(result.valid).toBe(false);
-    expect(
-      result.warnings.some((w) => w.includes("zero estimation"))
-    ).toBe(true);
+    expect(result.warnings.some((w) => w.includes("zero estimation"))).toBe(
+      true
+    );
   });
 
   test("should allow small differences within tolerance", () => {

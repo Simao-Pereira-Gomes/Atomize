@@ -1,8 +1,8 @@
 import { logger } from "@config/logger";
 import type { FilterCriteria as PlatformFilter } from "@platforms/interfaces/filter.interface";
 import type { FilterCriteria as TemplateFilter } from "@templates/schema";
-import type { WorkItemType } from "@/platforms";
 import { match } from "ts-pattern";
+import type { WorkItemType } from "@/platforms";
 
 /**
  * Filter Engine
