@@ -2,11 +2,13 @@ import { logger } from "@config/logger";
 import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import type { TaskTemplate } from "@templates/schema";
+import type { TaskDefinition as TemplateTaskDefinition } from "@templates/schema";
 import {
   type CalculatedTask,
   EstimationCalculator,
 } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
+import { DependencyResolver } from "./dependency-resolver.js";
 
 /**
  * Atomization options
@@ -29,6 +31,10 @@ export interface StoryAtomizationResult {
   story: WorkItem;
   tasksCalculated: CalculatedTask[];
   tasksCreated: WorkItem[];
+  tasksSkipped?: Array<{
+    templateTask: TemplateTaskDefinition;
+    reason: string;
+  }>;
   success: boolean;
   error?: string;
   estimationSummary?: {
@@ -61,6 +67,9 @@ export interface AtomizationReport {
   /** Total tasks created */
   tasksCreated: number;
 
+  /** Total tasks skipped (conditional tasks not met) */
+  tasksSkipped: number;
+
   /** Results for each story */
   results: StoryAtomizationResult[];
 
@@ -84,10 +93,12 @@ export interface AtomizationReport {
 export class Atomizer {
   private filterEngine: FilterEngine;
   private estimationCalculator: EstimationCalculator;
+  private dependencyResolver: DependencyResolver;
 
   constructor(private platform: IPlatformAdapter) {
     this.filterEngine = new FilterEngine();
     this.estimationCalculator = new EstimationCalculator();
+    this.dependencyResolver = new DependencyResolver();
   }
 
   /**
@@ -128,15 +139,34 @@ export class Atomizer {
       try {
         logger.info(`\nProcessing: ${story.id} - ${story.title}`);
 
-        // Calculate tasks
-        const calculatedTasks = this.estimationCalculator.calculateTasks(
-          story,
-          connectUserEmail,
-          template.tasks,
-          template.estimation
+        // Resolve task dependencies first
+        const orderedTasks = this.dependencyResolver.resolveDependencies(
+          template.tasks
         );
 
-        logger.info(`Generated ${calculatedTasks.length} tasks`);
+        logger.debug(
+          `Resolved ${orderedTasks.length} tasks in dependency order`
+        );
+
+        const { calculatedTasks, skippedTasks } =
+          this.estimationCalculator.calculateTasksWithSkipped(
+            story,
+            connectUserEmail,
+            orderedTasks,
+            template.estimation
+          );
+
+        logger.info(
+          `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`
+        );
+
+        if (skippedTasks.length > 0) {
+          skippedTasks.forEach((skipped) => {
+            logger.debug(
+              `  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`
+            );
+          });
+        }
 
         const validation = this.estimationCalculator.validateEstimation(
           story,
@@ -165,9 +195,11 @@ export class Atomizer {
         } else {
           logger.info(`Creating ${calculatedTasks.length} tasks...`);
 
-          tasksCreated = await this.platform.createTasksBulk(
+          // Create tasks and handle dependencies
+          tasksCreated = await this.createTasksWithDependencies(
             story.id,
-            calculatedTasks
+            calculatedTasks,
+            orderedTasks
           );
 
           logger.info(`Created ${tasksCreated.length} tasks`);
@@ -177,6 +209,7 @@ export class Atomizer {
           story,
           tasksCalculated: calculatedTasks,
           tasksCreated,
+          tasksSkipped: skippedTasks,
           success: true,
           estimationSummary,
         });
@@ -216,6 +249,10 @@ export class Atomizer {
       (sum, r) => sum + r.tasksCreated.length,
       0
     );
+    const tasksSkipped = results.reduce(
+      (sum, r) => sum + (r.tasksSkipped?.length || 0),
+      0
+    );
 
     const executionTime = Date.now() - startTime;
 
@@ -226,6 +263,7 @@ export class Atomizer {
       storiesFailed,
       tasksCalculated,
       tasksCreated,
+      tasksSkipped,
       results,
       errors,
       warnings,
@@ -242,6 +280,7 @@ export class Atomizer {
     logger.info(`Stories failed:    ${report.storiesFailed}`);
     logger.info(`Tasks calculated:  ${report.tasksCalculated}`);
     logger.info(`Tasks created:     ${report.tasksCreated}`);
+    logger.info(`Tasks skipped:     ${report.tasksSkipped}`);
     logger.info(`Execution time:    ${report.executionTime}ms`);
     logger.info(`Mode:              ${report.dryRun ? "DRY RUN" : "LIVE"}`);
     logger.info("=".repeat(60));
@@ -261,6 +300,81 @@ export class Atomizer {
     }
 
     return report;
+  }
+
+  /**
+   * Create tasks with dependency links
+   */
+  private async createTasksWithDependencies(
+    parentId: string,
+    calculatedTasks: CalculatedTask[],
+    templateTasks: TemplateTaskDefinition[]
+  ): Promise<WorkItem[]> {
+    const createdTasks = await this.platform.createTasksBulk(
+      parentId,
+      calculatedTasks
+    );
+
+    const templateIdToTask = new Map<string, WorkItem>();
+    for (let i = 0; i < calculatedTasks.length; i++) {
+      const calculatedTask = calculatedTasks[i];
+      const createdTask = createdTasks[i];
+      if (calculatedTask?.templateId && createdTask) {
+        templateIdToTask.set(calculatedTask.templateId, createdTask);
+      }
+    }
+
+    for (const templateTask of templateTasks) {
+      if (templateTask.dependsOn && templateTask.dependsOn.length > 0) {
+        const dependentTask = templateTask.id
+          ? templateIdToTask.get(templateTask.id)
+          : undefined;
+
+        if (!dependentTask) {
+          logger.warn(
+            `Cannot create dependency links for task "${templateTask.title}" - task not created or has no ID`
+          );
+          continue;
+        }
+
+        for (const depId of templateTask.dependsOn) {
+          const predecessorTask = templateIdToTask.get(depId);
+
+          if (!predecessorTask) {
+            logger.warn(
+              `Cannot create dependency link: predecessor task with ID "${depId}" not found`
+            );
+            continue;
+          }
+
+          try {
+            if (this.platform.createDependencyLink) {
+              await this.platform.createDependencyLink(
+                dependentTask.id,
+                predecessorTask.id
+              );
+              logger.debug(
+                `Created dependency link: "${dependentTask.title}" depends on "${predecessorTask.title}"`
+              );
+            } else {
+              logger.warn(
+                "Platform does not support dependency links - dependencies will not be created"
+              );
+            }
+          } catch (error) {
+            logger.warn(
+              `Failed to create dependency link for "${
+                dependentTask.title
+              }" -> "${predecessorTask.title}": ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          }
+        }
+      }
+    }
+
+    return createdTasks;
   }
 
   /**

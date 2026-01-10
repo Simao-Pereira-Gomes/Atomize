@@ -498,6 +498,73 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
 
   /**
+   * Create a dependency link between two work items
+   * @param dependentId - The ID of the task that depends on another
+   * @param predecessorId - The ID of the task that must be completed first
+   */
+  async createDependencyLink(
+    dependentId: string,
+    predecessorId: string
+  ): Promise<void> {
+    this.ensureAuthenticated();
+
+    try {
+      logger.debug(
+        `AzureDevOps: Creating dependency link: ${dependentId} depends on ${predecessorId}`
+      );
+
+      const numericDependentId = parseInt(dependentId, 10);
+      const numericPredecessorId = parseInt(predecessorId, 10);
+
+      if (Number.isNaN(numericDependentId)) {
+        throw new Error(`Invalid dependent work item ID: ${dependentId}`);
+      }
+      if (Number.isNaN(numericPredecessorId)) {
+        throw new Error(`Invalid predecessor work item ID: ${predecessorId}`);
+      }
+
+      const patchDocument: JsonPatchDocument = [
+        {
+          op: "add",
+          path: "/relations/-",
+          value: {
+            rel: "System.LinkTypes.Dependency-Reverse",
+            url: `${this.config.organizationUrl}/_apis/wit/workItems/${numericPredecessorId}`,
+            attributes: {
+              comment: "Predecessor dependency",
+            },
+          },
+        },
+      ];
+
+      if (!this.witApi) {
+        throw new UnknownError("Work Item Tracking API not initialized");
+      }
+
+      await this.witApi.updateWorkItem(
+        undefined, // customHeaders
+        patchDocument,
+        numericDependentId,
+        this.config.project
+      );
+
+      logger.info(
+        `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(
+        `AzureDevOps: Failed to create dependency link between ${dependentId} and ${predecessorId}`,
+        { error: message }
+      );
+      throw new PlatformError(
+        `Failed to create dependency link: ${message}`,
+        "azure-devops"
+      );
+    }
+  }
+
+  /**
    * Build WIQL query from filter criteria
    */
   private buildWiqlQuery(filter: FilterCriteria): string {

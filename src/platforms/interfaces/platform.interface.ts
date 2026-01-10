@@ -92,6 +92,16 @@ export interface IPlatformAdapter {
    * Get child work items
    */
   getChildren?(parentId: string): Promise<WorkItem[]>;
+
+  /**
+   * Create a dependency link between two work items
+   * @param dependentId - The ID of the task that depends on another
+   * @param predecessorId - The ID of the task that must be completed first
+   */
+  createDependencyLink?(
+    dependentId: string,
+    predecessorId: string
+  ): Promise<void>;
 }
 
 /**
