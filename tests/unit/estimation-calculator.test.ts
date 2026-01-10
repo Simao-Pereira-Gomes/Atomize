@@ -145,6 +145,35 @@ describe("EstimationCalculator", () => {
       expect(calculated[1]?.title).toBe("Task 2");
     });
 
+    test("should evaluate conditions with outer quotes from YAML", () => {
+      const story = { ...mockStory, estimation: 1 };
+      const tasks: TaskDefinition[] = [
+        { title: "Task 1", estimationPercent: 50 },
+        {
+          title: "High Estimation Task",
+          estimationPercent: 30,
+          //biome-ignore lint/suspicious: The template is needed for user input
+          condition: "'${story.estimation} >= 3'",
+        },
+        {
+          title: "Low Estimation Task",
+          estimationPercent: 20,
+          //biome-ignore lint/suspicious: The template is needed for user input
+          condition: '"${story.estimation} < 3"',
+        },
+      ];
+
+      const calculated = calculator.calculateTasks(
+        story,
+        story.assignedTo ?? "",
+        tasks
+      );
+
+      expect(calculated).toHaveLength(2);
+      expect(calculated[0]?.title).toBe("Task 1");
+      expect(calculated[1]?.title).toBe("Low Estimation Task");
+    });
+
     test("should copy task properties correctly", () => {
       const tasks: TaskDefinition[] = [
         {
@@ -317,8 +346,6 @@ describe("EstimationCalculator", () => {
       ];
 
       const validation = calculator.validateEstimation(story, tasks);
-
-      // 10.1 vs 10 = 0.1 difference, within 0.5 tolerance
       expect(validation.valid).toBe(true);
     });
   });
@@ -353,8 +380,7 @@ describe("EstimationCalculator", () => {
       expect(result.skippedTasks).toHaveLength(1);
       expect(result.skippedTasks[0]?.templateTask.title).toBe("Backend Task");
 
-      // Original percentages: 20 + 30 + 20 = 70
-      // After normalization: should sum to 100
+      // After normalization: should sum to 100. Initial percentages: 20 + 30 + 20 = 70
       const totalPercent = result.calculatedTasks.reduce(
         (sum, t) => sum + (t.estimationPercent || 0),
         0
@@ -367,7 +393,6 @@ describe("EstimationCalculator", () => {
       expect(result.calculatedTasks[1]?.estimationPercent).toBe(43);
       expect(result.calculatedTasks[2]?.estimationPercent).toBe(28);
 
-      // Verify total estimation matches story estimation
       const totalEstimation = result.calculatedTasks.reduce(
         (sum, t) => sum + (t.estimation || 0),
         0
@@ -407,8 +432,7 @@ describe("EstimationCalculator", () => {
       expect(result.calculatedTasks).toHaveLength(2);
       expect(result.skippedTasks).toHaveLength(2);
 
-      // Original percentages of remaining tasks: 30 + 20 = 50
-      // After normalization: should sum to 100
+      // After normalization: should sum to 100. Original percentages of remaining tasks: 30 + 20 = 50
       const totalPercent = result.calculatedTasks.reduce(
         (sum, t) => sum + (t.estimationPercent || 0),
         0
@@ -418,8 +442,6 @@ describe("EstimationCalculator", () => {
       // Check proportions: 30:20 -> 60:40
       expect(result.calculatedTasks[0]?.estimationPercent).toBe(60);
       expect(result.calculatedTasks[1]?.estimationPercent).toBe(40);
-
-      // Verify estimations
       expect(result.calculatedTasks[0]?.estimation).toBeCloseTo(4.8, 1);
       expect(result.calculatedTasks[1]?.estimation).toBeCloseTo(3.2, 1);
     });
@@ -444,7 +466,6 @@ describe("EstimationCalculator", () => {
       expect(result.calculatedTasks).toHaveLength(2);
       expect(result.skippedTasks).toHaveLength(0);
 
-      // Percentages should remain unchanged
       expect(result.calculatedTasks[0]?.estimationPercent).toBe(40);
       expect(result.calculatedTasks[1]?.estimationPercent).toBe(60);
     });
@@ -476,11 +497,8 @@ describe("EstimationCalculator", () => {
         tasks
       );
 
-      // Should have 1 task
       expect(result.calculatedTasks).toHaveLength(1);
       expect(result.skippedTasks).toHaveLength(2);
-
-      // Single task should get 100%
       expect(result.calculatedTasks[0]?.estimationPercent).toBe(100);
       expect(result.calculatedTasks[0]?.estimation).toBe(5);
     });
@@ -508,11 +526,9 @@ describe("EstimationCalculator", () => {
         tasks
       );
 
-      // Should have 2 tasks with zero estimation
       expect(result.calculatedTasks).toHaveLength(2);
       expect(result.skippedTasks).toHaveLength(1);
 
-      // Should distribute equally: 50% each
       const totalPercent = result.calculatedTasks.reduce(
         (sum, t) => sum + (t.estimationPercent || 0),
         0
@@ -557,8 +573,6 @@ describe("EstimationCalculator", () => {
       expect(result.calculatedTasks).toHaveLength(3);
       expect(result.skippedTasks).toHaveLength(2);
 
-      // Remaining: UI(25) + API(30) + Testing(10) = 65
-      // Normalized to 100: ~38 + ~46 + ~15
       const totalPercent = result.calculatedTasks.reduce(
         (sum, t) => sum + (t.estimationPercent || 0),
         0
