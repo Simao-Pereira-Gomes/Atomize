@@ -20,7 +20,6 @@ import {
   WorkItemExpand,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
-import path from "node:path";
 
 /**
  * Azure DevOps specific configuration
@@ -150,12 +149,16 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
 
+      logger.debug(
+        `Excluding work items with tasks: ${filter.excludeIfHasTasks}`
+      );
       if (filter.excludeIfHasTasks) {
         const itemsWithoutTasks: AzureWorkItem[] = [];
 
         for (const item of filtered) {
           if (!item.id) continue;
-          const hasChildren = await this.hasChildWorkItems(item.id);
+          const hasChildren = this.hasChildRelations(item);
+          logger.debug(`Work item ${item.id} has children: ${hasChildren}`);
           if (!hasChildren) {
             itemsWithoutTasks.push(item);
           }
@@ -677,33 +680,19 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
 
   /**
-   * Check if work item has child items
+   * Check if work item has child items by examining relations
+   * This method checks the relations directly from the work item object
+   * without making additional API calls
    */
-  private async hasChildWorkItems(id: number): Promise<boolean> {
-    try {
-      if (!this.witApi) {
-        throw new UnknownError("Work Item Tracking API not initialized");
-      }
-      const workItem = await this.witApi.getWorkItem(
-        id,
-        undefined,
-        undefined,
-        WorkItemExpand.All,
-        this.config.project
-      );
-
-      if (!workItem || !workItem.relations) {
-        return false;
-      }
-
-      // Check for child relations
-      return workItem.relations.some(
-        (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward"
-      );
-    } catch (error) {
-      logger.error(`Failed to check children for ${id}`, { error });
+  private hasChildRelations(workItem: AzureWorkItem): boolean {
+    if (!workItem.relations || workItem.relations.length === 0) {
       return false;
     }
+
+    // Check for child relations (Hierarchy-Forward means this item has children)
+    return workItem.relations.some(
+      (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward"
+    );
   }
 
   /**
