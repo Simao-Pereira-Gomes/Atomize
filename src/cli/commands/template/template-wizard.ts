@@ -1,11 +1,12 @@
 import type { TaskDefinition, TaskTemplate } from "@templates/schema";
+import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
 import chalk from "chalk";
 import inquirer from "inquirer";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
 import { CancellationError } from "@/utils/errors";
-import { buildTaskDefinition } from "./task-configuration";
 import { ListType } from "../../utilities/prompt-utilities";
+import { buildTaskDefinition } from "./task-configuration";
 
 const Actions = {
   Save: "save",
@@ -20,70 +21,12 @@ type Action = (typeof Actions)[keyof typeof Actions];
  * Normalize task estimations to sum to 100%
  */
 export function normalizeEstimations(tasks: TaskDefinition[]): void {
-  if (tasks.length === 0) return;
-
-  // Single task gets 100%
-  if (tasks.length === 1) {
-    const [task] = tasks;
-    if (task) {
-      task.estimationPercent = 100;
-    }
-    return;
-  }
-
-  const total = tasks.reduce(
-    (sum, task) => sum + (task.estimationPercent || 0),
-    0
-  );
-
-  // If total is zero, distribute equally
-  if (total === 0 || Number.isNaN(total)) {
-    distributeEqually(tasks);
-    return;
-  }
-
-  scaleToHundred(tasks, total);
-  validateFinalTotal(tasks);
-}
-
-/**
- * Distribute estimation equally among tasks
- */
-function distributeEqually(tasks: TaskDefinition[]): void {
-  const basePercent = Math.floor(100 / tasks.length);
-  const remainder = 100 - basePercent * tasks.length;
-
-  tasks.forEach((task, index) => {
-    task.estimationPercent =
-      index === 0 ? basePercent + remainder : basePercent;
+  normalizeEstimationPercentages(tasks, {
+    skipIfAlreadyNormalized: false, // Always normalize in wizard context
+    enableLogging: false,
   });
-}
 
-/**
- * Scale task estimations to sum to 100%
- */
-function scaleToHundred(tasks: TaskDefinition[], currentTotal: number): void {
-  const scale = 100 / currentTotal;
-  let sum = 0;
-
-  tasks.forEach((task, index) => {
-    if (index === tasks.length - 1) {
-      // Last task gets the remainder to ensure 100%
-      task.estimationPercent = 100 - sum;
-    } else {
-      const scaled = Math.round((task.estimationPercent || 0) * scale);
-      task.estimationPercent = scaled;
-      sum += scaled;
-    }
-  });
-}
-
-/**
- * Validate that final total equals 100%
- */
-function validateFinalTotal(tasks: TaskDefinition[]): void {
   const finalTotal = tasks.reduce((s, t) => s + (t.estimationPercent || 0), 0);
-
   if (finalTotal !== 100) {
     console.warn(
       chalk.yellow(
@@ -282,7 +225,7 @@ export function showStepHint(stepName: string): void {
     filter:
       "Tip: Use filters to select which work items this template applies to",
     tasks:
-      "Tip: Break work into clear, actionable tasks. Estimation percentages will be normalized to 100%",
+      "Tip: Break work into clear, actionable tasks. Estimation percentages will be normalized to 100%. If you plan on set dependencies, please set task IDs.",
     estimation: "Tip: Choose how story points will be calculated and rounded",
     validation: "Tip: Add constraints to ensure templates are used correctly",
     metadata: "Tip: Metadata helps others understand when to use this template",
@@ -467,4 +410,4 @@ export {
   configureFilter,
   configureMetadata,
   configureValidation,
-} from "./template-wizard-helper";
+} from "./template-wizard-helper.command";

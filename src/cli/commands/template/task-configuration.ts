@@ -1,17 +1,12 @@
-/**
- * Task configuration modules
- * Separates task configuration into logical, testable sections
- */
-
 import type { TaskDefinition } from "@templates/schema";
-import inquirer from "inquirer";
+import inquirer, { type Answers } from "inquirer";
 import {
   ChoiceSets,
   Filters,
-  Validators,
   promptConditionalSelect,
   promptMultipleItems,
   promptOptionalFeature,
+  Validators,
 } from "../../utilities/prompt-utilities";
 
 /**
@@ -20,9 +15,15 @@ import {
 export async function configureBasicTaskInfo(
   isFirstTask: boolean
 ): Promise<
-  Pick<TaskDefinition, "title" | "description" | "estimationPercent">
+  Pick<TaskDefinition, "title" | "description" | "estimationPercent" | "id">
 > {
   const answers = await inquirer.prompt([
+    {
+      type: "input",
+      name: "id",
+      message: "Task ID (optional, max 30 character:",
+      validate: Validators.maxLength("Task ID", 30),
+    },
     {
       type: "input",
       name: "title",
@@ -119,8 +120,9 @@ export async function configureAcceptanceCriteria(): Promise<{
         type: "input",
         name: "criterion",
         message: (answers) =>
-          `Acceptance criterion #${(answers as any)._index || 1}:`,
-        validate: Validators.required("Criterion"),
+          `Acceptance criterion #${(answers as Answers)._index || 1}:`,
+        validate: (input: { criterion: string }) =>
+          Validators.required("Criterion")(input.criterion),
       },
     ],
     continueThreshold: 3,
@@ -187,7 +189,7 @@ export async function configureAdvancedTaskOptions(): Promise<
       type: "input",
       name: "condition",
       //biome-ignore lint/suspicious: Simple string replacement for pattern
-      message: "Condition (optional, e.g., ${needsDatabase}):",
+      message: "Condition (optional, e.g., ${story.tags CONTAINS 'Backend'}):",
     },
     {
       type: "number",
@@ -226,6 +228,7 @@ export async function buildTaskDefinition(
   const basic = await configureBasicTaskInfo(isFirstTask);
 
   const taskDef: TaskDefinition = {
+    id: basic.id,
     title: basic.title,
     estimationPercent: basic.estimationPercent,
   };
@@ -235,19 +238,14 @@ export async function buildTaskDefinition(
   }
 
   if (includeAdvanced) {
-    // Assignment
     const assignTo = await configureTaskAssignment();
     if (assignTo) {
       taskDef.assignTo = assignTo;
     }
-
-    // Activity
     const activity = await configureTaskActivity();
     if (activity) {
       taskDef.activity = activity;
     }
-
-    // Acceptance Criteria
     const acceptanceCriteria = await configureAcceptanceCriteria();
     if (acceptanceCriteria.criteria) {
       taskDef.acceptanceCriteria = acceptanceCriteria.criteria;
@@ -255,14 +253,10 @@ export async function buildTaskDefinition(
         taskDef.acceptanceCriteriaAsChecklist = acceptanceCriteria.asChecklist;
       }
     }
-
-    // Tags
     const tags = await configureTaskTags();
     if (tags) {
       taskDef.tags = tags;
     }
-
-    // Advanced options
     const advanced = await configureAdvancedTaskOptions();
     Object.assign(taskDef, advanced);
   }

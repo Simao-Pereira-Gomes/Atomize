@@ -1,5 +1,5 @@
-import inquirer from "inquirer";
 import type { Answers, Question } from "inquirer";
+import inquirer from "inquirer";
 
 const OS_PLATFORM = process.platform;
 export const ListType = OS_PLATFORM === "win32" ? "rawlist" : "list";
@@ -146,7 +146,7 @@ export async function promptConditionalSelect(
       message: config.conditionalPrompt.message,
       when: (answers: Answers) =>
         answers[config.selectPrompt.name] ===
-        config.conditionalPrompt!.triggerValue,
+        config.conditionalPrompt?.triggerValue,
       validate: config.conditionalPrompt.validate,
     });
   }
@@ -168,7 +168,7 @@ export async function promptConditionalSelect(
  */
 export async function promptMultipleItems<T extends Answers>(itemConfig: {
   itemName: string;
-  prompts: Array<Question & { validate?: (input: any) => boolean | string }>;
+  prompts: Array<Question & { validate?: (input: T) => boolean | string }>;
   continueThreshold?: number;
 }): Promise<T[]> {
   const items: T[] = [];
@@ -201,7 +201,7 @@ export async function promptMultipleItems<T extends Answers>(itemConfig: {
 export async function promptOptionalFeature<T extends Answers>(
   featureName: string,
   followUpPrompts?: Array<
-    Question & { validate?: (input: any) => boolean | string }
+    Question & { validate?: (input: T) => boolean | string }
   >,
   defaultEnabled = false
 ): Promise<{ enabled: boolean; data?: T }> {
