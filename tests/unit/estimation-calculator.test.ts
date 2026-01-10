@@ -30,9 +30,9 @@ describe("EstimationCalculator", () => {
       );
 
       expect(calculated).toHaveLength(3);
-      expect(calculated[0]?.estimation).toBe(3); // 10 * 30% = 3
-      expect(calculated[1]?.estimation).toBe(5); // 10 * 50% = 5
-      expect(calculated[2]?.estimation).toBe(2); // 10 * 20% = 2
+      expect(calculated[0]?.estimation).toBe(3);
+      expect(calculated[1]?.estimation).toBe(5);
+      expect(calculated[2]?.estimation).toBe(2);
     });
 
     test("should use fixed estimations when provided", () => {
@@ -320,6 +320,256 @@ describe("EstimationCalculator", () => {
 
       // 10.1 vs 10 = 0.1 difference, within 0.5 tolerance
       expect(validation.valid).toBe(true);
+    });
+  });
+
+  describe("calculateTasksWithSkipped - normalization after filtering", () => {
+    test("should normalize estimations when tasks are filtered out by conditions", () => {
+      const storyWithTags: WorkItem = {
+        ...mockStory,
+        estimation: 10,
+        tags: ["frontend"],
+      };
+
+      const tasks: TaskDefinition[] = [
+        { title: "Task 1", estimationPercent: 20 },
+        { title: "Task 2", estimationPercent: 30 },
+        {
+          title: "Backend Task",
+          estimationPercent: 30,
+          condition: '${story.tags} CONTAINS "backend"',
+        },
+        { title: "Task 3", estimationPercent: 20 },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(
+        storyWithTags,
+        storyWithTags.assignedTo ?? "",
+        tasks
+      );
+
+      // Should have 3 tasks (backend task filtered out)
+      expect(result.calculatedTasks).toHaveLength(3);
+      expect(result.skippedTasks).toHaveLength(1);
+      expect(result.skippedTasks[0]?.templateTask.title).toBe("Backend Task");
+
+      // Original percentages: 20 + 30 + 20 = 70
+      // After normalization: should sum to 100
+      const totalPercent = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimationPercent || 0),
+        0
+      );
+      expect(totalPercent).toBe(100);
+
+      // Check proportions are maintained: 20:30:20 -> 29:43:28 (scaled from 70 to 100)
+      // 20 * 100/70 = 28.57 rounds to 29, 30 * 100/70 = 42.86 rounds to 43, last gets remainder
+      expect(result.calculatedTasks[0]?.estimationPercent).toBe(29);
+      expect(result.calculatedTasks[1]?.estimationPercent).toBe(43);
+      expect(result.calculatedTasks[2]?.estimationPercent).toBe(28);
+
+      // Verify total estimation matches story estimation
+      const totalEstimation = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimation || 0),
+        0
+      );
+      expect(totalEstimation).toBeCloseTo(10, 1);
+    });
+
+    test("should normalize to 100% when multiple tasks are filtered out", () => {
+      const storyWithoutBackend: WorkItem = {
+        ...mockStory,
+        estimation: 8,
+        tags: ["frontend"],
+      };
+
+      const tasks: TaskDefinition[] = [
+        { title: "Frontend Task 1", estimationPercent: 30 },
+        {
+          title: "Backend Task 1",
+          estimationPercent: 25,
+          condition: '${story.tags} CONTAINS "backend"',
+        },
+        {
+          title: "Backend Task 2",
+          estimationPercent: 25,
+          condition: '${story.tags} CONTAINS "backend"',
+        },
+        { title: "Frontend Task 2", estimationPercent: 20 },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(
+        storyWithoutBackend,
+        storyWithoutBackend.assignedTo ?? "",
+        tasks
+      );
+
+      // Should have 2 tasks (2 backend tasks filtered out)
+      expect(result.calculatedTasks).toHaveLength(2);
+      expect(result.skippedTasks).toHaveLength(2);
+
+      // Original percentages of remaining tasks: 30 + 20 = 50
+      // After normalization: should sum to 100
+      const totalPercent = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimationPercent || 0),
+        0
+      );
+      expect(totalPercent).toBe(100);
+
+      // Check proportions: 30:20 -> 60:40
+      expect(result.calculatedTasks[0]?.estimationPercent).toBe(60);
+      expect(result.calculatedTasks[1]?.estimationPercent).toBe(40);
+
+      // Verify estimations
+      expect(result.calculatedTasks[0]?.estimation).toBeCloseTo(4.8, 1);
+      expect(result.calculatedTasks[1]?.estimation).toBeCloseTo(3.2, 1);
+    });
+
+    test("should not normalize if no tasks are skipped", () => {
+      const story: WorkItem = {
+        ...mockStory,
+        estimation: 10,
+      };
+
+      const tasks: TaskDefinition[] = [
+        { title: "Task 1", estimationPercent: 40 },
+        { title: "Task 2", estimationPercent: 60 },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(
+        story,
+        story.assignedTo ?? "",
+        tasks
+      );
+
+      expect(result.calculatedTasks).toHaveLength(2);
+      expect(result.skippedTasks).toHaveLength(0);
+
+      // Percentages should remain unchanged
+      expect(result.calculatedTasks[0]?.estimationPercent).toBe(40);
+      expect(result.calculatedTasks[1]?.estimationPercent).toBe(60);
+    });
+
+    test("should handle when all but one task is filtered out", () => {
+      const storyWithoutBackend: WorkItem = {
+        ...mockStory,
+        estimation: 5,
+        tags: ["frontend"],
+      };
+
+      const tasks: TaskDefinition[] = [
+        { title: "Frontend Task", estimationPercent: 40 },
+        {
+          title: "Backend Task 1",
+          estimationPercent: 30,
+          condition: '${story.tags} CONTAINS "backend"',
+        },
+        {
+          title: "Backend Task 2",
+          estimationPercent: 30,
+          condition: '${story.tags} CONTAINS "backend"',
+        },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(
+        storyWithoutBackend,
+        storyWithoutBackend.assignedTo ?? "",
+        tasks
+      );
+
+      // Should have 1 task
+      expect(result.calculatedTasks).toHaveLength(1);
+      expect(result.skippedTasks).toHaveLength(2);
+
+      // Single task should get 100%
+      expect(result.calculatedTasks[0]?.estimationPercent).toBe(100);
+      expect(result.calculatedTasks[0]?.estimation).toBe(5);
+    });
+
+    test("should distribute equally if remaining tasks have zero estimation", () => {
+      const story: WorkItem = {
+        ...mockStory,
+        estimation: 9,
+        tags: ["test"],
+      };
+
+      const tasks: TaskDefinition[] = [
+        { title: "Task 1", estimationPercent: 0 },
+        { title: "Task 2", estimationPercent: 0 },
+        {
+          title: "Backend Task",
+          estimationPercent: 100,
+          condition: '${story.tags} CONTAINS "backend"',
+        },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(
+        story,
+        story.assignedTo ?? "",
+        tasks
+      );
+
+      // Should have 2 tasks with zero estimation
+      expect(result.calculatedTasks).toHaveLength(2);
+      expect(result.skippedTasks).toHaveLength(1);
+
+      // Should distribute equally: 50% each
+      const totalPercent = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimationPercent || 0),
+        0
+      );
+      expect(totalPercent).toBe(100);
+      expect(result.calculatedTasks[0]?.estimationPercent).toBe(50);
+      expect(result.calculatedTasks[1]?.estimationPercent).toBe(50);
+    });
+
+    test("should handle complex condition scenarios with proper normalization", () => {
+      const story: WorkItem = {
+        ...mockStory,
+        estimation: 13,
+        tags: ["frontend", "api"],
+        customFields: {
+          component: "web-app",
+        },
+      };
+
+      const tasks: TaskDefinition[] = [
+        { title: "UI Task", estimationPercent: 25 },
+        {
+          title: "Database Task",
+          estimationPercent: 20,
+          condition: '${story.customFields.component} == "api"',
+        },
+        { title: "API Task", estimationPercent: 30 },
+        {
+          title: "Mobile Task",
+          estimationPercent: 15,
+          condition: '${story.tags} CONTAINS "mobile"',
+        },
+        { title: "Testing Task", estimationPercent: 10 },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(
+        story,
+        story.assignedTo ?? "",
+        tasks
+      );
+
+      expect(result.calculatedTasks).toHaveLength(3);
+      expect(result.skippedTasks).toHaveLength(2);
+
+      // Remaining: UI(25) + API(30) + Testing(10) = 65
+      // Normalized to 100: ~38 + ~46 + ~15
+      const totalPercent = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimationPercent || 0),
+        0
+      );
+      expect(totalPercent).toBe(100);
+
+      const totalEstimation = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimation || 0),
+        0
+      );
+      expect(totalEstimation).toBeCloseTo(13, 0);
     });
   });
 });

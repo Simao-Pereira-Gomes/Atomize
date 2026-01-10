@@ -17,7 +17,8 @@
 		"templates/presets",
 		"README.md",
 		"LICENSE",
-		".env.example"
+		".env.example",
+		"examples"
 	],
 	"scripts": {
 		"dev": "bun run src/cli/index.ts",

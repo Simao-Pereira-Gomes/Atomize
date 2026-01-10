@@ -7,6 +7,7 @@ import type {
   EstimationConfig,
   TaskDefinition as TemplateTaskDefinition,
 } from "@templates/schema";
+import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
 import { match } from "ts-pattern";
 import { ConditionEvaluator } from "./condition-evaluator.js";
 
@@ -178,18 +179,12 @@ export class EstimationCalculator {
         );
       }
 
-      const estimation = this.calculateEstimation(
-        parentEstimation,
-        templateTask,
-        estimationConfig
-      );
-
       const calculatedTask: CalculatedTask = {
         title: this.interpolateTitle(templateTask.title, story),
         description: templateTask.description
           ? this.interpolateDescription(templateTask.description, story)
           : undefined,
-        estimation,
+        estimation: 0,
         tags: templateTask.tags,
         assignTo: this.resolveAssignment(
           templateTask.assignTo,
@@ -205,9 +200,25 @@ export class EstimationCalculator {
       };
 
       calculatedTasks.push(calculatedTask);
+    }
+
+    // Normalize estimation percentages if tasks were filtered out -> after that recalculate estimations
+    if (skippedTasks.length > 0) {
+      normalizeEstimationPercentages(calculatedTasks, {
+        skipIfAlreadyNormalized: true,
+        enableLogging: true,
+      });
+    }
+
+    for (const calculatedTask of calculatedTasks) {
+      calculatedTask.estimation = this.calculateEstimation(
+        parentEstimation,
+        calculatedTask as TemplateTaskDefinition,
+        estimationConfig
+      );
 
       logger.debug(
-        `Calculated task: ${calculatedTask.title} = ${estimation} points (${templateTask.estimationPercent}%)`
+        `Calculated task: ${calculatedTask.title} = ${calculatedTask.estimation} points (${calculatedTask.estimationPercent}%)`
       );
     }
 
