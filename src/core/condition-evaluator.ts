@@ -18,11 +18,16 @@ export class ConditionEvaluator {
     }
 
     try {
-      const interpolated = this.interpolateVariables(condition, story);
+      let normalizedCondition = condition.trim();
+      if (
+        (normalizedCondition.startsWith('"') && normalizedCondition.endsWith('"')) ||
+        (normalizedCondition.startsWith("'") && normalizedCondition.endsWith("'"))
+      ) {
+        normalizedCondition = normalizedCondition.slice(1, -1);
+      }
 
+      const interpolated = this.interpolateVariables(normalizedCondition, story);
       logger.debug(`Evaluating condition: "${condition}" => "${interpolated}"`);
-
-      // Parse and evaluate the expression
       const result = this.evaluateExpression(interpolated);
 
       logger.debug(`Condition result: ${result}`);
@@ -164,22 +169,24 @@ export class ConditionEvaluator {
     if (expression.includes(" CONTAINS ")) {
       return this.evaluateContains(expression);
     }
-    if (expression.includes(" == ")) {
+    // Check for operators with flexible spacing (==, !=, >=, <=, >, <)
+    // Match operators with at least one space on either side or no spaces at all
+    if (/\s*==\s*/.test(expression) && expression.includes("==")) {
       return this.evaluateEquals(expression, "==");
     }
-    if (expression.includes(" != ")) {
+    if (/\s*!=\s*/.test(expression) && expression.includes("!=")) {
       return this.evaluateEquals(expression, "!=");
     }
-    if (expression.includes(" >= ")) {
+    if (/\s*>=\s*/.test(expression) && expression.includes(">=")) {
       return this.evaluateNumericComparison(expression, ">=");
     }
-    if (expression.includes(" <= ")) {
+    if (/\s*<=\s*/.test(expression) && expression.includes("<=")) {
       return this.evaluateNumericComparison(expression, "<=");
     }
-    if (expression.includes(" > ")) {
+    if (/\s*>\s*/.test(expression) && expression.includes(">") && !expression.includes(">=")) {
       return this.evaluateNumericComparison(expression, ">");
     }
-    if (expression.includes(" < ")) {
+    if (/\s*<\s*/.test(expression) && expression.includes("<") && !expression.includes("<=")) {
       return this.evaluateNumericComparison(expression, "<");
     }
 
@@ -227,7 +234,8 @@ export class ConditionEvaluator {
    * Evaluates == or != operator
    */
   private evaluateEquals(expression: string, operator: "==" | "!="): boolean {
-    const parts = expression.split(` ${operator} `);
+    const regex = new RegExp(`\\s*${operator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`);
+    const parts = expression.split(regex);
     if (parts.length < 2 || !parts[0] || !parts[1]) return false;
 
     const leftValue = this.unquote(parts[0].trim());
@@ -243,7 +251,8 @@ export class ConditionEvaluator {
     expression: string,
     operator: ">" | "<" | ">=" | "<="
   ): boolean {
-    const parts = expression.split(` ${operator} `);
+    const regex = new RegExp(`\\s*${operator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`);
+    const parts = expression.split(regex);
     if (parts.length < 2 || !parts[0] || !parts[1]) return false;
 
     const leftValue = Number.parseFloat(this.unquote(parts[0].trim()));
