@@ -20,6 +20,7 @@ import {
   WorkItemExpand,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
+import path from "node:path";
 
 /**
  * Azure DevOps specific configuration
@@ -262,6 +263,11 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
               {
                 op: "add",
                 path: "/fields/Microsoft.VSTS.Scheduling.RemainingWork",
+                value: task.estimation,
+              },
+              {
+                op: "add",
+                path: "/fields/Microsoft.VSTS.Scheduling.OriginalEstimate",
                 value: task.estimation,
               },
             ]
