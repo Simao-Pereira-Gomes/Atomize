@@ -1,8 +1,10 @@
 import type { Answers, Question } from "inquirer";
 import inquirer from "inquirer";
+import z from "zod";
 
 const OS_PLATFORM = process.platform;
 export const ListType = OS_PLATFORM === "win32" ? "rawlist" : "list";
+const emailSchema = z.string().email();
 
 /**
  * Validation functions
@@ -43,8 +45,8 @@ export const Validators = {
   },
 
   email: (input: string): boolean | string => {
-    //TODO: Use a more robust email validation
-    if (!input.includes("@")) {
+    const parseEmail = emailSchema.safeParse(input);
+    if (!parseEmail.success) {
       return "Please enter a valid email address";
     }
     return true;
