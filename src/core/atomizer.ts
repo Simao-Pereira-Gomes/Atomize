@@ -113,7 +113,10 @@ export class Atomizer {
     logger.info(`Template: ${template.name}`);
     logger.info(`Dry run: ${options.dryRun ? "Yes" : "No"}`);
 
-    const platformFilter = this.filterEngine.convertFilter(template.filter);
+    // Get user email first to resolve @Me macro
+    const connectUserEmail = await this.platform.getConnectUserEmail();
+
+    const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
 
     const filterValidation = this.filterEngine.validateFilter(template.filter);
     if (!filterValidation.valid) {
@@ -123,7 +126,6 @@ export class Atomizer {
     // Query user stories
     logger.info("Querying user stories...");
     const stories = await this.platform.queryWorkItems(platformFilter);
-    const connectUserEmail = await this.platform.getConnectUserEmail();
     logger.info(`Found ${stories.length} stories`);
 
     if (stories.length === 0) {
@@ -387,7 +389,8 @@ export class Atomizer {
    * Count how many stories match the filter
    */
   async countMatchingStories(template: TaskTemplate): Promise<number> {
-    const platformFilter = this.filterEngine.convertFilter(template.filter);
+    const connectUserEmail = await this.platform.getConnectUserEmail();
+    const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
     const stories = await this.platform.queryWorkItems(platformFilter);
     return stories.length;
   }

@@ -59,6 +59,51 @@ describe("Schema Validation", () => {
       const result = FilterCriteriaSchema.safeParse(filter);
       expect(result.success).toBe(false);
     });
+
+    test("should accept valid email in assignedTo", () => {
+      const filter = {
+        assignedTo: ["john@example.com", "jane@example.com"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept @Me in assignedTo", () => {
+      const filter = {
+        assignedTo: ["@Me"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept both email and @Me in assignedTo", () => {
+      const filter = {
+        assignedTo: ["@Me", "john@example.com"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
+
+    test("should reject invalid email in assignedTo", () => {
+      const filter = {
+        assignedTo: ["not-an-email"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject invalid macro in assignedTo", () => {
+      const filter = {
+        assignedTo: ["@Unknown"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("TaskDefinitionSchema", () => {

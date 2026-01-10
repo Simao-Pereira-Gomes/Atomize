@@ -106,6 +106,48 @@ describe("FilterEngine", () => {
       expect(platformFilter.priority?.max).toBe(2);
       expect(platformFilter.excludeIfHasTasks).toBe(true);
     });
+
+    test("should convert assignedTo with @Me macro", () => {
+      const templateFilter: TemplateFilter = {
+        workItemTypes: ["User Story"],
+        assignedTo: ["@Me"],
+      };
+
+      const platformFilter = engine.convertFilter(
+        templateFilter,
+        "current.user@example.com"
+      );
+
+      expect(platformFilter.assignedTo).toEqual(["current.user@example.com"]);
+    });
+
+    test("should convert assignedTo with both email and @Me", () => {
+      const templateFilter: TemplateFilter = {
+        workItemTypes: ["User Story"],
+        assignedTo: ["@Me", "john@example.com"],
+      };
+
+      const platformFilter = engine.convertFilter(
+        templateFilter,
+        "current.user@example.com"
+      );
+
+      expect(platformFilter.assignedTo).toEqual([
+        "current.user@example.com",
+        "john@example.com",
+      ]);
+    });
+
+    test("should return undefined if @Me used without user email", () => {
+      const templateFilter: TemplateFilter = {
+        workItemTypes: ["User Story"],
+        assignedTo: ["@Me"],
+      };
+
+      const platformFilter = engine.convertFilter(templateFilter);
+
+      expect(platformFilter.assignedTo).toEqual([]); // Should be empty array
+    });
   });
 
   describe("validateFilter", () => {

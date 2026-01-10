@@ -11,7 +11,14 @@ export const FilterCriteriaSchema = z.object({
     .optional(),
   areaPaths: z.array(z.string()).optional(),
   iterations: z.array(z.string()).optional(),
-  assignedTo: z.array(z.email()).optional(),
+  assignedTo: z
+    .array(
+      z.union([
+        z.email(),
+        z.literal("@Me")
+      ])
+    )
+    .optional(),
   priority: z
     .object({
       min: z.number().optional(),

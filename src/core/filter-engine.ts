@@ -2,6 +2,7 @@ import { logger } from "@config/logger";
 import type { FilterCriteria as PlatformFilter } from "@platforms/interfaces/filter.interface";
 import type { FilterCriteria as TemplateFilter } from "@templates/schema";
 import type { WorkItemType } from "@/platforms";
+import { match } from "ts-pattern";
 
 /**
  * Filter Engine
@@ -10,8 +11,13 @@ import type { WorkItemType } from "@/platforms";
 export class FilterEngine {
   /**
    * Convert template filter to platform filter
+   * @param templateFilter The template filter criteria
+   * @param userEmail Optional user email to resolve @Me macro
    */
-  convertFilter(templateFilter: TemplateFilter): PlatformFilter {
+  convertFilter(
+    templateFilter: TemplateFilter,
+    userEmail?: string
+  ): PlatformFilter {
     const platformFilter: PlatformFilter = {};
     const workItems: WorkItemType[] =
       templateFilter.workItemTypes?.map((t) => t as WorkItemType) || [];
@@ -39,7 +45,20 @@ export class FilterEngine {
     }
 
     if (templateFilter.assignedTo) {
-      platformFilter.assignedTo = templateFilter.assignedTo;
+      platformFilter.assignedTo = templateFilter.assignedTo
+        .map((assignee) => {
+          return match(assignee)
+            .with("@Me", () => {
+              if (!userEmail) {
+                logger.warn("@Me macro used but no user email provided");
+                return undefined;
+              }
+              logger.debug(`Resolving @Me to ${userEmail}`);
+              return userEmail;
+            })
+            .otherwise(() => assignee);
+        })
+        .filter((assignee) => assignee !== undefined);
     }
 
     if (templateFilter.priority) {
