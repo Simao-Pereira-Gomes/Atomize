@@ -1,14 +1,13 @@
 import { logger } from "@config/logger";
 import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import type { TaskTemplate } from "@templates/schema";
-import type { TaskDefinition as TemplateTaskDefinition } from "@templates/schema";
+import type { TaskTemplate, TaskDefinition as TemplateTaskDefinition } from "@templates/schema";
+import { DependencyResolver } from "./dependency-resolver.js";
 import {
   type CalculatedTask,
   EstimationCalculator,
 } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
-import { DependencyResolver } from "./dependency-resolver.js";
 
 /**
  * Atomization options

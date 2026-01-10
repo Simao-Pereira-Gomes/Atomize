@@ -1,6 +1,6 @@
-import type { TaskDefinition } from "../templates/schema.js";
-import { logger } from "../config/logger.js";
 import { CircularDependencyError } from "@/utils/errors.js";
+import { logger } from "../config/logger.js";
+import type { TaskDefinition } from "../templates/schema.js";
 
 /**
  * Resolves task dependencies and provides topological ordering
@@ -107,7 +107,8 @@ export class DependencyResolver {
     const visited = new Set<string>();
 
     while (queue.length > 0) {
-      const nodeId = queue.shift()!;
+      const nodeId = queue.shift();
+      if (!nodeId) continue;
       visited.add(nodeId);
 
       const task = taskMap.get(nodeId);
@@ -204,7 +205,7 @@ export class DependencyResolver {
           if (!dependencyMap.has(depId)) {
             dependencyMap.set(depId, []);
           }
-          dependencyMap.get(depId)!.push(task);
+          dependencyMap.get(depId)?.push(task);
         }
       }
     }

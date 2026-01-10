@@ -1,5 +1,5 @@
-import type { WorkItem } from "../platforms/interfaces/work-item.interface.js";
 import { logger } from "../config/logger.js";
+import type { WorkItem } from "../platforms/interfaces/work-item.interface.js";
 
 /**
  * Evaluates conditional expressions for task conditions
