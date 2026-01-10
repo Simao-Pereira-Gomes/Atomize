@@ -207,17 +207,22 @@ filter:
   states: ["New", "Active"]
 
 tasks:
-  - title: "Design: \${story.title}"
+  - id: "design"
+    title: "Design: \${story.title}"
     estimationPercent: 15
     activity: "Design"
-    
-  - title: "Implementation"
+
+  - id: "implementation"
+    title: "Implementation"
     estimationPercent: 60
     activity: "Development"
-    
-  - title: "Testing"
+    dependsOn: ["design"]
+
+  - id: "testing"
+    title: "Testing"
     estimationPercent: 25
     activity: "Testing"
+    dependsOn: ["implementation"]
 \`\`\`
 
 RULES:
@@ -225,12 +230,18 @@ RULES:
 2. Use \${story.title}, \${story.id} for variables
 3. Common activities: Design, Development, Testing, Documentation
 4. Output ONLY the YAML template
+5. If tasks have dependencies (dependsOn), they MUST have id fields
+6. Task IDs should be lowercase with hyphens (e.g., "backend-api")
 
 TASK DISTRIBUTION:
 - Planning/Design: 10-20%
 - Implementation: 40-60%
 - Testing: 15-25%
-- Documentation: 10-15%`;
+- Documentation: 10-15%
+
+DEPENDENCIES:
+- Use dependsOn to link tasks: dependsOn: ["design", "database"]
+- Creates predecessor-successor relationships in work management`;
 	}
 
 	/**
