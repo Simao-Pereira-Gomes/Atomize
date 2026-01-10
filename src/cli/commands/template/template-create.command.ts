@@ -37,7 +37,7 @@ import {
   configureTasksWithValidation,
   configureValidation,
   previewTemplate,
-} from "./template-wizard-enhanced";
+} from "./template-wizard";
 
 interface CreateFromScratchOptions {
   interactive?: boolean;
