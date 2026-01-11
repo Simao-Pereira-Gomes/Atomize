@@ -239,7 +239,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       });
 
       const numericParentId = parseInt(parentId, 10);
-      console.log("Assigning task to:", task.assignTo);
+      logger.debug("AzureDevOps: Assigning task", { assignTo: task.assignTo });
       if (Number.isNaN(numericParentId)) {
         throw new Error(`Invalid parent ID: ${parentId}`);
       }
