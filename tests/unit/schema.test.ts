@@ -1,370 +1,415 @@
 import { describe, expect, test } from "bun:test";
 import {
-	EstimationConfigSchema,
-	FilterCriteriaSchema,
-	TaskDefinitionSchema,
-	TaskTemplateSchema,
-	ValidationConfigSchema,
+  EstimationConfigSchema,
+  FilterCriteriaSchema,
+  TaskDefinitionSchema,
+  TaskTemplateSchema,
+  ValidationConfigSchema,
 } from "@templates/schema";
 
 describe("Schema Validation", () => {
-	describe("FilterCriteriaSchema", () => {
-		test("should accept valid filter criteria", () => {
-			const filter = {
-				workItemTypes: ["User Story"],
-				states: ["New", "Active"],
-				tags: {
-					include: ["backend"],
-					exclude: ["deprecated"],
-				},
-			};
+  describe("FilterCriteriaSchema", () => {
+    test("should accept valid filter criteria", () => {
+      const filter = {
+        workItemTypes: ["User Story"],
+        states: ["New", "Active"],
+        tags: {
+          include: ["backend"],
+          exclude: ["deprecated"],
+        },
+      };
 
-			const result = FilterCriteriaSchema.safeParse(filter);
-			expect(result.success).toBe(true);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
 
-		test("should accept minimal filter criteria", () => {
-			const filter = {};
+    test("should accept minimal filter criteria", () => {
+      const filter = {};
 
-			const result = FilterCriteriaSchema.safeParse(filter);
-			expect(result.success).toBe(true);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
 
-		test("should accept custom fields", () => {
-			const filter = {
-				customFields: [
-					{
-						field: "Custom.Team",
-						operator: "equals",
-						value: "Platform",
-					},
-				],
-			};
+    test("should accept custom fields", () => {
+      const filter = {
+        customFields: [
+          {
+            field: "Custom.Team",
+            operator: "equals",
+            value: "Platform",
+          },
+        ],
+      };
 
-			const result = FilterCriteriaSchema.safeParse(filter);
-			expect(result.success).toBe(true);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
 
-		test("should reject invalid operator", () => {
-			const filter = {
-				customFields: [
-					{
-						field: "Custom.Team",
-						operator: "invalid",
-						value: "Platform",
-					},
-				],
-			};
+    test("should reject invalid operator", () => {
+      const filter = {
+        customFields: [
+          {
+            field: "Custom.Team",
+            operator: "invalid",
+            value: "Platform",
+          },
+        ],
+      };
 
-			const result = FilterCriteriaSchema.safeParse(filter);
-			expect(result.success).toBe(false);
-		});
-	});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(false);
+    });
 
-	describe("TaskDefinitionSchema", () => {
-		test("should accept valid task", () => {
-			const task = {
-				id: "task1",
-				title: "My Task",
-				description: "Task description",
-				estimationPercent: 50,
-				tags: ["dev"],
-			};
+    test("should accept valid email in assignedTo", () => {
+      const filter = {
+        assignedTo: ["john@example.com", "jane@example.com"],
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(true);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
 
-		test("should require title", () => {
-			const task = {
-				estimationPercent: 50,
-			};
+    test("should accept @Me in assignedTo", () => {
+      const filter = {
+        assignedTo: ["@Me"],
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(false);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
 
-		test("should reject empty title", () => {
-			const task = {
-				title: "",
-				estimationPercent: 50,
-			};
+    test("should accept both email and @Me in assignedTo", () => {
+      const filter = {
+        assignedTo: ["@Me", "john@example.com"],
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(false);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
 
-		test("should accept task with dependencies", () => {
-			const task = {
-				title: "Task 2",
-				estimationPercent: 50,
-				dependsOn: ["task1"],
-			};
+    test("should reject invalid email in assignedTo", () => {
+      const filter = {
+        assignedTo: ["not-an-email"],
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(true);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(false);
+    });
 
-		test("should reject negative estimation", () => {
-			const task = {
-				title: "Task",
-				estimationPercent: -10,
-			};
+    test("should reject invalid macro in assignedTo", () => {
+      const filter = {
+        assignedTo: ["@Unknown"],
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(false);
-		});
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(false);
+    });
+  });
 
-		test("should reject estimation > 100", () => {
-			const task = {
-				title: "Task",
-				estimationPercent: 150,
-			};
+  describe("TaskDefinitionSchema", () => {
+    test("should accept valid task", () => {
+      const task = {
+        id: "task1",
+        title: "My Task",
+        description: "Task description",
+        estimationPercent: 50,
+        tags: ["dev"],
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(false);
-		});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(true);
+    });
 
-		test("should accept acceptance criteria", () => {
-			const task = {
-				title: "Task",
-				estimationPercent: 50,
-				acceptanceCriteria: ["Criterion 1", "Criterion 2"],
-				acceptanceCriteriaAsChecklist: true,
-			};
+    test("should require title", () => {
+      const task = {
+        estimationPercent: 50,
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(true);
-		});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(false);
+    });
 
-		test("should accept condition", () => {
-			const task = {
-				title: "Task",
-				estimationPercent: 50,
-				//biome-ignore lint/suspicious: The condition field is needed for user input
-				condition: '${story.tags} CONTAINS "security"',
-			};
+    test("should reject empty title", () => {
+      const task = {
+        title: "",
+        estimationPercent: 50,
+      };
 
-			const result = TaskDefinitionSchema.safeParse(task);
-			expect(result.success).toBe(true);
-		});
-	});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(false);
+    });
 
-	describe("EstimationConfigSchema", () => {
-		test("should accept valid config", () => {
-			const config = {
-				strategy: "percentage",
-				rounding: "nearest",
-				minimumTaskPoints: 0.5,
-			};
+    test("should accept task with dependencies", () => {
+      const task = {
+        title: "Task 2",
+        estimationPercent: 50,
+        dependsOn: ["task1"],
+      };
 
-			const result = EstimationConfigSchema.safeParse(config);
-			expect(result.success).toBe(true);
-		});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(true);
+    });
 
-		test("should use default strategy", () => {
-			const config = {};
+    test("should reject negative estimation", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: -10,
+      };
 
-			const result = EstimationConfigSchema.safeParse(config);
-			expect(result.success).toBe(true);
-			if (result.success) {
-				expect(result.data.strategy).toBe("percentage");
-				expect(result.data.rounding).toBe("none");
-			}
-		});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(false);
+    });
 
-		test("should accept all strategies", () => {
-			const strategies = ["percentage", "fixed", "hours", "fibonacci"] as const;
+    test("should reject estimation > 100", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: 150,
+      };
 
-			strategies.forEach((strategy) => {
-				const config = { strategy };
-				const result = EstimationConfigSchema.safeParse(config);
-				expect(result.success).toBe(true);
-			});
-		});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(false);
+    });
 
-		test("should reject invalid strategy", () => {
-			const config = {
-				strategy: "invalid",
-			};
+    test("should accept acceptance criteria", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: 50,
+        acceptanceCriteria: ["Criterion 1", "Criterion 2"],
+        acceptanceCriteriaAsChecklist: true,
+      };
 
-			const result = EstimationConfigSchema.safeParse(config);
-			expect(result.success).toBe(false);
-		});
-	});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(true);
+    });
 
-	describe("ValidationConfigSchema", () => {
-		test("should accept valid config", () => {
-			const config = {
-				totalEstimationMustBe: 100,
-				minTasks: 3,
-				maxTasks: 10,
-			};
+    test("should accept condition", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: 50,
+        //biome-ignore lint/suspicious: The condition field is needed for user input
+        condition: '${story.tags} CONTAINS "security"',
+      };
 
-			const result = ValidationConfigSchema.safeParse(config);
-			expect(result.success).toBe(true);
-		});
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(true);
+    });
+  });
 
-		test("should accept estimation range", () => {
-			const config = {
-				totalEstimationRange: {
-					min: 95,
-					max: 105,
-				},
-			};
+  describe("EstimationConfigSchema", () => {
+    test("should accept valid config", () => {
+      const config = {
+        strategy: "percentage",
+        rounding: "nearest",
+        minimumTaskPoints: 0.5,
+      };
 
-			const result = ValidationConfigSchema.safeParse(config);
-			expect(result.success).toBe(true);
-		});
+      const result = EstimationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
 
-		test("should accept task estimation range", () => {
-			const config = {
-				taskEstimationRange: {
-					min: 5,
-					max: 40,
-				},
-			};
+    test("should use default strategy", () => {
+      const config = {};
 
-			const result = ValidationConfigSchema.safeParse(config);
-			expect(result.success).toBe(true);
-		});
+      const result = EstimationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.strategy).toBe("percentage");
+        expect(result.data.rounding).toBe("none");
+      }
+    });
 
-		test("should accept required tasks", () => {
-			const config = {
-				requiredTasks: [{ title: "Code Review" }, { title: "Testing" }],
-			};
+    test("should accept all strategies", () => {
+      const strategies = ["percentage"] as const;
 
-			const result = ValidationConfigSchema.safeParse(config);
-			expect(result.success).toBe(true);
-		});
-	});
+      strategies.forEach((strategy) => {
+        const config = { strategy };
+        const result = EstimationConfigSchema.safeParse(config);
+        expect(result.success).toBe(true);
+      });
+    });
 
-	describe("TaskTemplateSchema", () => {
-		test("should accept valid template", () => {
-			const template = {
-				version: "1.0",
-				name: "Test Template",
-				filter: {
-					workItemTypes: ["User Story"],
-				},
-				tasks: [
-					{
-						title: "Task 1",
-						estimationPercent: 100,
-					},
-				],
-			};
+    test("should reject invalid strategy", () => {
+      const config = {
+        strategy: "invalid",
+      };
 
-			const result = TaskTemplateSchema.safeParse(template);
-			expect(result.success).toBe(true);
-		});
+      const result = EstimationConfigSchema.safeParse(config);
+      expect(result.success).toBe(false);
+    });
+  });
 
-		test("should require name", () => {
-			const template = {
-				version: "1.0",
-				filter: {},
-				tasks: [
-					{
-						title: "Task 1",
-						estimationPercent: 100,
-					},
-				],
-			};
+  describe("ValidationConfigSchema", () => {
+    test("should accept valid config", () => {
+      const config = {
+        totalEstimationMustBe: 100,
+        minTasks: 3,
+        maxTasks: 10,
+      };
 
-			const result = TaskTemplateSchema.safeParse(template);
-			expect(result.success).toBe(false);
-		});
+      const result = ValidationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
 
-		test("should require at least one task", () => {
-			const template = {
-				version: "1.0",
-				name: "Test",
-				filter: {},
-				tasks: [],
-			};
+    test("should accept estimation range", () => {
+      const config = {
+        totalEstimationRange: {
+          min: 95,
+          max: 105,
+        },
+      };
 
-			const result = TaskTemplateSchema.safeParse(template);
-			expect(result.success).toBe(false);
-		});
+      const result = ValidationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
 
-		test("should accept complete template with all fields", () => {
-			const template = {
-				version: "1.0",
-				name: "Complete Template",
-				description: "A complete template",
-				author: "Test Author",
-				tags: ["test"],
-				created: "2024-01-01",
-				lastModified: "2024-01-02",
+    test("should accept task estimation range", () => {
+      const config = {
+        taskEstimationRange: {
+          min: 5,
+          max: 40,
+        },
+      };
 
-				filter: {
-					workItemTypes: ["User Story"],
-					states: ["New"],
-				},
+      const result = ValidationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
 
-				tasks: [
-					{
-						id: "task1",
-						title: "Task 1",
-						estimationPercent: 50,
-					},
-					{
-						id: "task2",
-						title: "Task 2",
-						estimationPercent: 50,
-						dependsOn: ["task1"],
-					},
-				],
+    test("should accept required tasks", () => {
+      const config = {
+        requiredTasks: [{ title: "Code Review" }, { title: "Testing" }],
+      };
 
-				estimation: {
-					strategy: "percentage",
-					rounding: "nearest",
-				},
+      const result = ValidationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
+  });
 
-				validation: {
-					totalEstimationMustBe: 100,
-					minTasks: 2,
-				},
+  describe("TaskTemplateSchema", () => {
+    test("should accept valid template", () => {
+      const template = {
+        version: "1.0",
+        name: "Test Template",
+        filter: {
+          workItemTypes: ["User Story"],
+        },
+        tasks: [
+          {
+            title: "Task 1",
+            estimationPercent: 100,
+          },
+        ],
+      };
 
-				metadata: {
-					category: "Development",
-					difficulty: "intermediate",
-				},
+      const result = TaskTemplateSchema.safeParse(template);
+      expect(result.success).toBe(true);
+    });
 
-				variables: {
-					customVar: "value",
-				},
-			};
+    test("should require name", () => {
+      const template = {
+        version: "1.0",
+        filter: {},
+        tasks: [
+          {
+            title: "Task 1",
+            estimationPercent: 100,
+          },
+        ],
+      };
 
-			const result = TaskTemplateSchema.safeParse(template);
-			expect(result.success).toBe(true);
-		});
+      const result = TaskTemplateSchema.safeParse(template);
+      expect(result.success).toBe(false);
+    });
 
-		test("should use default version", () => {
-			const template = {
-				name: "Test",
-				filter: {},
-				tasks: [{ title: "Task", estimationPercent: 100 }],
-			};
+    test("should require at least one task", () => {
+      const template = {
+        version: "1.0",
+        name: "Test",
+        filter: {},
+        tasks: [],
+      };
 
-			const result = TaskTemplateSchema.safeParse(template);
-			expect(result.success).toBe(true);
-			if (result.success) {
-				expect(result.data.version).toBe("1.0");
-			}
-		});
+      const result = TaskTemplateSchema.safeParse(template);
+      expect(result.success).toBe(false);
+    });
 
-		test("should accept extends field", () => {
-			const template = {
-				version: "1.0",
-				name: "Extended Template",
-				extends: "./base-template.yaml",
-				filter: {},
-				tasks: [{ title: "Task", estimationPercent: 100 }],
-			};
+    test("should accept complete template with all fields", () => {
+      const template = {
+        version: "1.0",
+        name: "Complete Template",
+        description: "A complete template",
+        author: "Test Author",
+        tags: ["test"],
+        created: "2024-01-01",
+        lastModified: "2024-01-02",
 
-			const result = TaskTemplateSchema.safeParse(template);
-			expect(result.success).toBe(true);
-		});
-	});
+        filter: {
+          workItemTypes: ["User Story"],
+          states: ["New"],
+        },
+
+        tasks: [
+          {
+            id: "task1",
+            title: "Task 1",
+            estimationPercent: 50,
+          },
+          {
+            id: "task2",
+            title: "Task 2",
+            estimationPercent: 50,
+            dependsOn: ["task1"],
+          },
+        ],
+
+        estimation: {
+          strategy: "percentage",
+          rounding: "nearest",
+        },
+
+        validation: {
+          totalEstimationMustBe: 100,
+          minTasks: 2,
+        },
+
+        metadata: {
+          category: "Development",
+          difficulty: "intermediate",
+        },
+
+        variables: {
+          customVar: "value",
+        },
+      };
+
+      const result = TaskTemplateSchema.safeParse(template);
+      expect(result.success).toBe(true);
+    });
+
+    test("should use default version", () => {
+      const template = {
+        name: "Test",
+        filter: {},
+        tasks: [{ title: "Task", estimationPercent: 100 }],
+      };
+
+      const result = TaskTemplateSchema.safeParse(template);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.version).toBe("1.0");
+      }
+    });
+
+    test("should accept extends field", () => {
+      const template = {
+        version: "1.0",
+        name: "Extended Template",
+        extends: "./base-template.yaml",
+        filter: {},
+        tasks: [{ title: "Task", estimationPercent: 100 }],
+      };
+
+      const result = TaskTemplateSchema.safeParse(template);
+      expect(result.success).toBe(true);
+    });
+  });
 });

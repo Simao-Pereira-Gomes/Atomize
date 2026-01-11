@@ -17,7 +17,8 @@
 		"templates/presets",
 		"README.md",
 		"LICENSE",
-		".env.example"
+		".env.example",
+		"examples"
 	],
 	"scripts": {
 		"dev": "bun run src/cli/index.ts",
@@ -78,7 +79,7 @@
 		"ts-pattern": "^5.9.0",
 		"winston": "^3.19.0",
 		"yaml": "^2.8.2",
-		"zod": "^4.2.1"
+		"zod": "^4.3.5"
 	},
 	"engines": {
 		"node": ">=18.0.0"

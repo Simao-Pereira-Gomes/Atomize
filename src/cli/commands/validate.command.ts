@@ -1,10 +1,10 @@
 import { logger } from "@config/logger";
 import { TemplateLoader } from "@templates/loader";
 import {
-	TemplateValidator,
-	type ValidationError,
-	type ValidationResult,
-	type ValidationWarning,
+  TemplateValidator,
+  type ValidationError,
+  type ValidationResult,
+  type ValidationWarning,
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
@@ -13,129 +13,129 @@ import type { TaskDefinition, TaskTemplate } from "@/templates/schema";
 type ValidateOptions = { verbose?: boolean };
 
 export const validateCommand = new Command("validate")
-	.description("Validate a template file")
-	.argument("<template>", "Path to template file (YAML)")
-	.option("-v, --verbose", "Show detailed validation information", false)
-	.action(async (templatePath: string, options: ValidateOptions) => {
-		console.log(chalk.blue("Atomize Template Validator\n"));
-		try {
-			const template = await loadTemplate(templatePath);
-			if (options.verbose) printTemplateDetails(template);
-			const result = validateTemplate(template);
-			printValidationResult(template, result);
-			if (!result.valid) process.exit(1);
-		} catch (error) {
-			handleFatal(error, options.verbose);
-			process.exit(1);
-		}
-	});
+  .description("Validate a template file")
+  .argument("<template>", "Path to template file (YAML)")
+  .option("-v, --verbose", "Show detailed validation information", false)
+  .action(async (templatePath: string, options: ValidateOptions) => {
+    console.log(chalk.blue("Atomize Template Validator\n"));
+    try {
+      const template = await loadTemplate(templatePath);
+      if (options.verbose) printTemplateDetails(template);
+      const result = validateTemplate(template);
+      printValidationResult(template, result);
+      if (!result.valid) process.exit(1);
+    } catch (error) {
+      handleFatal(error, options.verbose);
+      process.exit(1);
+    }
+  });
 
 async function loadTemplate(templatePath: string) {
-	logger.info(`Loading template: ${templatePath}`);
-	const loader = new TemplateLoader();
-	const template = await loader.load(templatePath);
-	logger.info(`Template loaded: ${template.name}`);
-	return template;
+  logger.info(`Loading template: ${templatePath}`);
+  const loader = new TemplateLoader();
+  const template = await loader.load(templatePath);
+  logger.info(`Template loaded: ${template.name}`);
+  return template;
 }
 
 function validateTemplate(template: unknown) {
-	logger.info("Validating template...");
-	const validator = new TemplateValidator();
-	return validator.validate(template);
+  logger.info("Validating template...");
+  const validator = new TemplateValidator();
+  return validator.validate(template);
 }
 
 function printTemplateDetails(template: TaskTemplate) {
-	console.log(chalk.gray(`Description: ${template.description || "N/A"}`));
-	console.log(chalk.gray(`Version: ${template.version}`));
-	console.log(chalk.gray(`Tasks: ${template.tasks.length}\n`));
+  console.log(chalk.gray(`Description: ${template.description || "N/A"}`));
+  console.log(chalk.gray(`Version: ${template.version}`));
+  console.log(chalk.gray(`Tasks: ${template.tasks.length}\n`));
 }
 
 function printValidationResult(
-	template: TaskTemplate,
-	result: ValidationResult,
+  template: TaskTemplate,
+  result: ValidationResult
 ) {
-	console.log("");
+  console.log("");
 
-	if (result.valid) {
-		printValidSummary(template, result.warnings);
-		return;
-	}
+  if (result.valid) {
+    printValidSummary(template, result.warnings);
+    return;
+  }
 
-	printInvalidSummary(result.errors, result.warnings);
+  printInvalidSummary(result.errors, result.warnings);
 }
 
 function printValidSummary(
-	template: TaskTemplate,
-	warnings: ValidationWarning[],
+  template: TaskTemplate,
+  warnings: ValidationWarning[]
 ) {
-	console.log(chalk.green("Template is valid!\n"));
+  console.log(chalk.green("Template is valid!\n"));
 
-	const summary = getTemplateSummary(template);
+  const summary = getTemplateSummary(template);
 
-	console.log(chalk.bold("Summary:"));
-	console.log(`  Name: ${chalk.cyan(summary.name)}`);
-	console.log(`  Tasks: ${chalk.cyan(summary.tasks)}`);
-	console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
+  console.log(chalk.bold("Summary:"));
+  console.log(`  Name: ${chalk.cyan(summary.name)}`);
+  console.log(`  Tasks: ${chalk.cyan(summary.tasks)}`);
+  console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
 
-	printWarnings(warnings);
+  printWarnings(warnings);
 
-	console.log(`\n ${chalk.green("Ready to use with atomize generate")}`);
+  console.log(`\n ${chalk.green("Ready to use with atomize generate")}`);
 }
 
 function printInvalidSummary(
-	errors: ValidationError[],
-	warnings: ValidationWarning[],
+  errors: ValidationError[],
+  warnings: ValidationWarning[]
 ) {
-	console.log(chalk.red("Template validation failed\n"));
+  console.log(chalk.red("Template validation failed\n"));
 
-	console.log(chalk.red.bold("Errors:"));
-	errors.forEach((err) => {
-		console.log(chalk.red(`  • ${err.path}: ${err.message}`));
-	});
+  console.log(chalk.red.bold("Errors:"));
+  errors.forEach((err) => {
+    console.log(chalk.red(`  • ${err.path}: ${err.message}`));
+  });
 
-	printWarnings(warnings, true);
+  printWarnings(warnings, true);
 
-	console.log(`\n${chalk.gray("Fix the errors above and try again.")}`);
+  console.log(`\n${chalk.gray("Fix the errors above and try again.")}`);
 }
 
 function printWarnings(warnings: ValidationWarning[], boldTitle = false) {
-	if (!warnings?.length) return;
+  if (!warnings?.length) return;
 
-	console.log("");
-	console.log(
-		boldTitle ? chalk.yellow.bold("Warnings:") : chalk.yellow("Warnings:"),
-	);
+  console.log("");
+  console.log(
+    boldTitle ? chalk.yellow.bold("Warnings:") : chalk.yellow("Warnings:")
+  );
 
-	warnings.forEach((warn) => {
-		console.log(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
-	});
+  warnings.forEach((warn) => {
+    console.log(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
+  });
 }
 
 function getTemplateSummary(template: TaskTemplate) {
-	const totalPercent = template.tasks
-		.filter((t: TaskDefinition) => !t.condition)
-		.reduce(
-			(sum: number, task: TaskDefinition) =>
-				sum + (task.estimationPercent ?? 0),
-			0,
-		);
+  const totalPercent = template.tasks
+    .filter((t: TaskDefinition) => !t.condition)
+    .reduce(
+      (sum: number, task: TaskDefinition) =>
+        sum + (task.estimationPercent ?? 0),
+      0
+    );
 
-	return {
-		name: template.name,
-		tasks: template.tasks.length,
-		totalEstimation: `${totalPercent}%`,
-	};
+  return {
+    name: template.name,
+    tasks: template.tasks.length,
+    totalEstimation: `${totalPercent}%`,
+  };
 }
 
 function handleFatal(error: unknown, verbose?: boolean) {
-	console.log("");
-	logger.error(chalk.red("Validation failed"));
+  console.log("");
+  logger.error(chalk.red("Validation failed"));
 
-	const message = error instanceof Error ? error.message : String(error);
-	console.log(chalk.red(message));
+  const message = error instanceof Error ? error.message : String(error);
+  console.log(chalk.red(message));
 
-	if (verbose && error instanceof Error && error.stack) {
-		console.log("");
-		console.log(chalk.gray(error.stack));
-	}
+  if (verbose && error instanceof Error && error.stack) {
+    console.log("");
+    console.log(chalk.gray(error.stack));
+  }
 }

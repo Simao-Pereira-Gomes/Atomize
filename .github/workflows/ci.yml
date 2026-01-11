@@ -91,13 +91,13 @@ jobs:
         run: bun run build
 
       - name: Validate backend template
-        run: bun run validate templates/backend.yaml
+        run: bun run validate examples/backend.yaml
 
       - name: Validate frontend template
-        run: bun run validate templates/frontend.yaml
+        run: bun run validate examples/frontend.yaml
 
       - name: Validate fullstack template
-        run: bun run validate templates/fullstack.yaml
+        run: bun run validate examples/fullstack.yaml
 
       - name: Validate backend-api preset
         run: bun run validate templates/presets/backend-api.yaml

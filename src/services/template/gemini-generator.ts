@@ -177,21 +177,26 @@ filter:
   excludeIfHasTasks: true  # Optional
 
 tasks:
-  - title: "Design: \${story.title}"
+  - id: "design"  # Required if task has dependencies or is referenced by other tasks
+    title: "Design: \${story.title}"
     description: "Design and architecture planning"
     estimationPercent: 15
     activity: "Design"
     tags: ["design"]
-    
-  - title: "Implement: \${story.title}"
+
+  - id: "implementation"
+    title: "Implement: \${story.title}"
     description: "Core implementation"
     estimationPercent: 50
     activity: "Development"
-    
-  - title: "Unit Testing"
+    dependsOn: ["design"]  # This task depends on the "design" task
+
+  - id: "testing"
+    title: "Unit Testing"
     estimationPercent: 20
     activity: "Testing"
-    
+    dependsOn: ["implementation"]
+
   - title: "Code Review & Documentation"
     estimationPercent: 15
     activity: "Documentation"
@@ -207,6 +212,9 @@ CRITICAL RULES:
 3. Each task should have a clear, actionable title
 4. Common activities: Design, Development, Testing, Documentation, Deployment
 5. Output ONLY valid YAML - no markdown code blocks, no explanations
+6. If a task has dependsOn, it MUST have an id field
+7. If a task is referenced in dependsOn, it MUST have an id field
+8. Task IDs should be lowercase, use hyphens, and be descriptive (e.g., "backend-api", "database-setup")
 
 BEST PRACTICES:
 - Design/Planning: 10-20%
@@ -218,7 +226,13 @@ BEST PRACTICES:
 VARIABLE INTERPOLATION:
 - \${story.title} - Inserts the story title
 - \${story.id} - Inserts the story ID
-- \${story.description} - Inserts the story description`;
+- \${story.description} - Inserts the story description
+
+DEPENDENCIES:
+- Use dependsOn to create task dependencies (e.g., testing depends on implementation)
+- dependsOn takes an array of task IDs: dependsOn: ["design", "database"]
+- Both the dependent task and prerequisite tasks MUST have id fields
+- Dependencies create predecessor-successor links in the work management system`;
 	}
 
 	/**
