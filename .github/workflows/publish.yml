@@ -12,9 +12,6 @@ on:
 
 permissions:
   id-token: write
-  contents: write
-  issues: write
-
 jobs:
   publish:
     name: Publish to NPM
@@ -52,9 +49,6 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Publish Summary
         run: |
           echo "###Published to NPM!" >> $GITHUB_STEP_SUMMARY
