@@ -533,3 +533,70 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
 
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
+
+interface BasicInfoResult {
+  name: string;
+  description?: string;
+  author?: string;
+  tags?: string[];
+}
+
+/**
+ * Configure basic template information
+ */
+export async function configureBasicInfo(
+  defaults?: Partial<BasicInfoResult>
+): Promise<BasicInfoResult> {
+  const basicInfo = await inquirer.prompt([
+    {
+      type: "input",
+      name: "name",
+      message: "Template name:",
+      default: defaults?.name,
+      validate: (input: string) => {
+        if (!input || input.trim() === "") {
+          return "Template name is required";
+        }
+        if (input.length > 200) {
+          return "Template name must be 200 characters or less";
+        }
+        return true;
+      },
+    },
+    {
+      type: "input",
+      name: "description",
+      message: "Description (optional):",
+      default: defaults?.description || "",
+      validate: (input: string) => {
+        if (input && input.length > 500) {
+          return "Description must be 500 characters or less";
+        }
+        return true;
+      },
+    },
+    {
+      type: "input",
+      name: "author",
+      message: "Author:",
+      default: defaults?.author || "Atomize",
+    },
+    {
+      type: "input",
+      name: "tags",
+      message: "Tags (comma-separated, optional):",
+      default: defaults?.tags ? defaults.tags.join(", ") : "",
+      filter: (input: string) => {
+        if (!input) return [];
+        return input.split(",").map((t) => t.trim());
+      },
+    },
+  ]);
+
+  return {
+    name: basicInfo.name,
+    description: basicInfo.description || undefined,
+    author: basicInfo.author || undefined,
+    tags: basicInfo.tags.length > 0 ? basicInfo.tags : undefined,
+  };
+}

@@ -52,6 +52,7 @@ export async function previewTemplate(
       choices: [
         { name: "Save template", value: Actions.Save },
         { name: "View full YAML", value: Actions.ViewYaml },
+        { name: "Edit template", value: Actions.Edit },
         { name: "Cancel", value: Actions.Cancel },
       ],
     },
@@ -192,6 +193,149 @@ function displayMetadata(template: TaskTemplate): void {
 }
 
 /**
+ * Edit template interactively
+ */
+async function editTemplate(template: TaskTemplate): Promise<void> {
+  const { section } = await inquirer.prompt([
+    {
+      type: ListType,
+      name: "section",
+      message: "What would you like to edit?",
+      choices: [
+        {
+          name: "Basic Information (name, description, author, tags)",
+          value: "basic",
+        },
+        { name: "Filter Configuration", value: "filter" },
+        { name: "Tasks", value: "tasks" },
+        { name: "Estimation Settings", value: "estimation" },
+        { name: "Validation Rules", value: "validation" },
+        { name: "Metadata", value: "metadata" },
+        { name: "Back to preview", value: "back" },
+      ],
+    },
+  ]);
+
+  if (section === "back") {
+    return;
+  }
+
+  await match(section)
+    .with("basic", async () => {
+      console.log(chalk.cyan("\nEditing Basic Information\n"));
+      const { configureBasicInfo } = await import(
+        "./template-wizard-helper.command"
+      );
+      const basicInfo = await configureBasicInfo({
+        name: template.name,
+        description: template.description,
+        author: template.author,
+        tags: template.tags,
+      });
+
+      template.name = basicInfo.name;
+      template.description = basicInfo.description;
+      template.author = basicInfo.author;
+      template.tags = basicInfo.tags;
+    })
+    .with("filter", async () => {
+      console.log(chalk.cyan("\nEditing Filter Configuration\n"));
+      const { configureFilter } = await import(
+        "./template-wizard-helper.command"
+      );
+      const filterConfig = await configureFilter();
+      template.filter = filterConfig;
+    })
+    .with("tasks", async () => {
+      console.log(chalk.cyan("\nEditing Tasks\n"));
+      console.log(
+        chalk.yellow("Note: This will replace all existing tasks.\n")
+      );
+
+      const { confirm } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "confirm",
+          message: "Are you sure you want to reconfigure all tasks?",
+          default: false,
+        },
+      ]);
+
+      if (confirm) {
+        const tasks = await configureTasksWithValidation();
+        template.tasks = tasks;
+      }
+    })
+    .with("estimation", async () => {
+      console.log(chalk.cyan("\nEditing Estimation Settings\n"));
+      const { configureEstimation } = await import(
+        "./template-wizard-helper.command"
+      );
+      const estimation = await configureEstimation();
+      template.estimation = estimation;
+    })
+    .with("validation", async () => {
+      console.log(chalk.cyan("\nEditing Validation Rules\n"));
+      const { addValidation } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "addValidation",
+          message: "Enable validation rules?",
+          default: !!template.validation,
+        },
+      ]);
+
+      if (addValidation) {
+        const { configureValidation } = await import(
+          "./template-wizard-helper.command"
+        );
+        template.validation = await configureValidation();
+      } else {
+        template.validation = undefined;
+      }
+    })
+    .with("metadata", async () => {
+      console.log(chalk.cyan("\nEditing Metadata\n"));
+      const { addMetadata } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "addMetadata",
+          message: "Enable metadata?",
+          default: !!template.metadata,
+        },
+      ]);
+
+      if (addMetadata) {
+        const { configureMetadata } = await import(
+          "./template-wizard-helper.command"
+        );
+        template.metadata = await configureMetadata();
+      } else {
+        template.metadata = undefined;
+      }
+    })
+    .otherwise(() => {
+      console.log(chalk.yellow("Invalid section selected"));
+    });
+
+  console.log(chalk.green("\n✓ Section updated successfully!\n"));
+
+  // Ask if they want to edit another section
+  const { editMore } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "editMore",
+      message: "Edit another section?",
+      default: false,
+    },
+  ]);
+
+  if (editMore) {
+    await editTemplate(template);
+  }
+}
+
+/**
  * Handle preview action
  */
 async function handlePreviewAction(
@@ -206,7 +350,8 @@ async function handlePreviewAction(
       return await previewTemplate(template);
     })
     .with(Actions.Edit, async () => {
-      return false; // TODO: Implement going back to edits
+      await editTemplate(template);
+      return await previewTemplate(template);
     })
     .with(Actions.Cancel, () => {
       throw new CancellationError("Template creation cancelled by user");
@@ -406,6 +551,7 @@ async function promptRetry(error: unknown): Promise<boolean> {
 }
 
 export {
+  configureBasicInfo,
   configureEstimation,
   configureFilter,
   configureMetadata,

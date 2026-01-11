@@ -31,6 +31,7 @@ import {
   UnknownError,
 } from "@/utils/errors";
 import {
+  configureBasicInfo,
   configureEstimation,
   configureFilter,
   configureMetadata,
@@ -494,48 +495,7 @@ export async function createFromScratch(
       chalk.gray("Tip: Choose a clear, descriptive name for your template\n")
     );
 
-    const basicInfo = await inquirer.prompt([
-      {
-        type: "input",
-        name: "name",
-        message: "Template name:",
-        validate: (input: string) => {
-          if (!input || input.trim() === "") {
-            return "Template name is required";
-          }
-          if (input.length > 200) {
-            return "Template name must be 200 characters or less";
-          }
-          return true;
-        },
-      },
-      {
-        type: "input",
-        name: "description",
-        message: "Description (optional):",
-        validate: (input: string) => {
-          if (input && input.length > 500) {
-            return "Description must be 500 characters or less";
-          }
-          return true;
-        },
-      },
-      {
-        type: "input",
-        name: "author",
-        message: "Author:",
-        default: "Atomize",
-      },
-      {
-        type: "input",
-        name: "tags",
-        message: "Tags (comma-separated, optional):",
-        filter: (input: string) => {
-          if (!input) return [];
-          return input.split(",").map((t) => t.trim());
-        },
-      },
-    ]);
+    const basicInfo = await configureBasicInfo();
 
     const { confirmStep1 } = await inquirer.prompt([
       {
@@ -733,9 +693,9 @@ export async function createFromScratch(
     const template: TaskTemplate = {
       version: "1.0",
       name: basicInfo.name,
-      description: basicInfo.description || undefined,
-      author: basicInfo.author || undefined,
-      tags: basicInfo.tags.length > 0 ? basicInfo.tags : undefined,
+      description: basicInfo.description,
+      author: basicInfo.author,
+      tags: basicInfo.tags,
       created: new Date().toISOString(),
       filter: filterConfig,
       tasks,
