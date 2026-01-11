@@ -4,43 +4,41 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 1.2.3)'
-        required: true
+        description: 'Release version (e.g., 1.2.3 or use release_type)'
+        required: false
+        type: string
       release_type:
-        description: 'Release type'
-        required: true
+        description: 'Release type (used if version not specified)'
+        required: false
         type: choice
+        default: patch
         options:
           - patch
           - minor
           - major
       prerelease:
-        description: 'Is this a pre-release?'
+        description: 'Mark as pre-release?'
         required: false
         type: boolean
         default: false
-      version_override:
-        description: 'Override version from package.json'
-        required: false
-        type: boolean
-        default: true
+
 env:
   AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
   AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
   AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+
 jobs:
   create-release:
-    permissions:
-      contents: write
     name: Create Release
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -48,12 +46,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
-
-      - name: Configure Git
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          node-version: '20'
 
       - name: Install dependencies
         run: bun install
@@ -61,18 +54,23 @@ jobs:
       - name: Run tests
         run: bun test
 
-      - name: Bump version
-        if: ${{ github.event.inputs.version_override == 'true' }}
-        run: |
-          if [ "${{ github.event.inputs.version }}" != "" ]; then
-            npm version ${{ github.event.inputs.version }} --no-git-tag-version
-          else
-            npm version ${{ github.event.inputs.release_type }} --no-git-tag-version
-          fi
-
-      - name: Get new version
+      - name: Determine version
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            # Use explicit version if provided
+            VERSION="${{ github.event.inputs.version }}"
+            echo "Using explicit version: $VERSION"
+          else
+            # Calculate next version based on release type
+            CURRENT=$(node -p "require('./package.json').version")
+            npm version ${{ github.event.inputs.release_type }} --no-git-tag-version
+            VERSION=$(node -p "require('./package.json').version")
+            echo "Bumped from $CURRENT to $VERSION (${{ github.event.inputs.release_type }})"
+            # Restore package.json (we don't commit changes)
+            git checkout package.json
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build
         run: bun run build
@@ -80,57 +78,48 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          # Get commits since last tag
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          VERSION="${{ steps.version.outputs.version }}"
           
           if [ -z "$LAST_TAG" ]; then
+            echo "No previous tags found, including all commits"
             COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+            COMPARE_URL="https://github.com/${{ github.repository }}/commits/v${VERSION}"
           else
+            echo "Generating changelog since $LAST_TAG"
             COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${VERSION}"
           fi
           
-          # Create changelog
-          CHANGELOG="## What's Changed
-          $COMMITS 
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${{ steps.version.outputs.version }}"
-          # Save to file and output
-          echo "$CHANGELOG" > CHANGELOG.md
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Build changelog
+          {
+            echo "changelog<<EOF"
+            echo "## What's Changed"
+            echo ""
+            echo "$COMMITS"
+            echo ""
+            echo "**Full Changelog**: $COMPARE_URL"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
-      - name: Commit version bump
-        if: ${{ github.event.inputs.version_override == 'true' }}
-        run: |
-          git add package.json
-          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
-          git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
-
-      - name: Push changes
-        if: ${{ github.event.inputs.version_override == 'true' }}
-        run: |
-          git push origin main
-          git push origin "v${{ steps.version.outputs.version }}"
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: ${{ github.event.inputs.prerelease }}
+          make_latest: ${{ github.event.inputs.prerelease == false }}
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify on success
+      - name: Release Summary
         if: success()
         run: |
           echo "Release v${{ steps.version.outputs.version }} created successfully!"
-          echo "Package will be published to npm automatically"
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "Release creation failed"
-          echo "Check the logs for details"
+          echo "https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.version }}"
+          echo ""
+          echo "Note: package.json was not updated in the repository."
+          echo "Update it manually in a separate commit if needed."
