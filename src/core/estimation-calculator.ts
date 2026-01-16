@@ -109,6 +109,8 @@ export class EstimationCalculator {
         priority: templateTask.priority,
         activity: templateTask.activity,
         remainingWork: templateTask.remainingWork,
+        completedWork: 0, // Default to 0 for new tasks
+        iteration: story.iteration, // Inherit from parent
         customFields: templateTask.customFields,
         templateId: templateTask.id,
         estimationPercent: templateTask.estimationPercent,
@@ -194,6 +196,8 @@ export class EstimationCalculator {
         priority: templateTask.priority,
         activity: templateTask.activity,
         remainingWork: templateTask.remainingWork,
+        completedWork: 0, // Default to 0 for new tasks
+        iteration: story.iteration, // Inherit from parent
         customFields: templateTask.customFields,
         templateId: templateTask.id,
         estimationPercent: templateTask.estimationPercent,

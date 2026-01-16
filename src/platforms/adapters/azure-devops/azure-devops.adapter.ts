@@ -275,6 +275,25 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
               },
             ]
           : []),
+        ...(task.completedWork !== undefined
+          ? [
+              {
+                op: "add",
+                path: "/fields/Microsoft.VSTS.Scheduling.CompletedWork",
+                value: task.completedWork,
+              },
+            ]
+          : []),
+        // Iteration Path
+        ...(task.iteration
+          ? [
+              {
+                op: "add",
+                path: "/fields/System.IterationPath",
+                value: task.iteration,
+              },
+            ]
+          : []),
         // Tags
         ...(task.tags && task.tags.length > 0
           ? [

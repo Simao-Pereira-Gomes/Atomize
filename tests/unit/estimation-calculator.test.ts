@@ -199,6 +199,29 @@ describe("EstimationCalculator", () => {
       expect(calculated[0]?.activity).toBe("Development");
     });
 
+    test("should set completedWork to 0 and inherit iteration from parent", () => {
+      const storyWithIteration: WorkItem = {
+        ...mockStory,
+        iteration: "Project\\Sprint 1",
+      };
+
+      const tasks: TaskDefinition[] = [
+        {
+          title: "Test Task",
+          estimationPercent: 100,
+        },
+      ];
+
+      const calculated = calculator.calculateTasks(
+        storyWithIteration,
+        storyWithIteration.assignedTo ?? "",
+        tasks
+      );
+
+      expect(calculated[0]?.completedWork).toBe(0);
+      expect(calculated[0]?.iteration).toBe("Project\\Sprint 1");
+    });
+
     test("should resolve @ParentAssignee assignment", () => {
       const tasks: TaskDefinition[] = [
         { title: "Task", estimationPercent: 100, assignTo: "@ParentAssignee" },
