@@ -19,6 +19,15 @@ type Action = (typeof Actions)[keyof typeof Actions];
 
 /**
  * Normalize task estimations to sum to 100%
+ *
+ * This function uses the estimation normalizer utility to ensure all task
+ * estimation percentages sum to exactly 100%. It handles edge cases like:
+ * - Single task: Set to 100%
+ * - All zeros: Distribute equally
+ * - Decimals: Round intelligently with remainder adjustment
+ *
+ * @param tasks - Array of task definitions to normalize
+ * @throws Warning if normalization fails to reach 100% (rare edge case)
  */
 export function normalizeEstimations(tasks: TaskDefinition[]): void {
   normalizeEstimationPercentages(tasks, {
@@ -38,6 +47,13 @@ export function normalizeEstimations(tasks: TaskDefinition[]): void {
 
 /**
  * Display template preview and get user action
+ *
+ * Shows a formatted preview of the template with all sections and prompts
+ * the user to choose an action: save, view YAML, edit, or cancel.
+ *
+ * @param template - The template to preview
+ * @returns Promise<boolean> - true if user wants to save, false otherwise
+ * @throws CancellationError if user chooses to cancel
  */
 export async function previewTemplate(
   template: TaskTemplate

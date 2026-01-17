@@ -475,6 +475,29 @@ async function customizeTemplate(
   return template;
 }
 
+/**
+ * Create a template from scratch using an interactive wizard
+ *
+ * This function guides the user through a 6-step process to create a complete
+ * task template without needing to understand YAML structure
+ * @param _options - Configuration options (currently only interactive flag)
+ * @returns Promise<TaskTemplate> - The created template ready to be saved
+ * @throws CancellationError if user cancels at any step
+ * @throws ConfigurationError if validation fails
+ *
+ * @example
+ * ```typescript
+ * // Basic usage
+ * const template = await createFromScratch();
+ * await saveTemplate(template, "./my-template.yaml");
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // With options
+ * const template = await createFromScratch({ interactive: true });
+ * ```
+ */
 export async function createFromScratch(
   _options: CreateFromScratchOptions = {}
 ): Promise<TaskTemplate> {
@@ -497,6 +520,11 @@ export async function createFromScratch(
 
     const basicInfo = await configureBasicInfo();
 
+    // Validate basic info before continuing
+    if (!basicInfo.name || basicInfo.name.trim() === "") {
+      throw new ConfigurationError("Template name is required");
+    }
+
     const { confirmStep1 } = await inquirer.prompt([
       {
         type: "confirm",
@@ -507,7 +535,7 @@ export async function createFromScratch(
     ]);
 
     if (!confirmStep1) {
-      throw new Error("Template creation cancelled by user");
+      throw new CancellationError("Template creation cancelled by user");
     }
 
     currentStep++;
@@ -529,12 +557,16 @@ export async function createFromScratch(
     if (
       (!filterConfig.workItemTypes ||
         filterConfig.workItemTypes.length === 0) &&
-      (!filterConfig.states || filterConfig.states.length === 0)
+      (!filterConfig.states || filterConfig.states.length === 0) &&
+      !filterConfig.customQuery
     ) {
       console.log(
         chalk.yellow(
-          "\n⚠ Warning: No work item types or states selected. Template will match all items."
+          "\n Warning: No work item types, states, or custom query configured."
         )
+      );
+      console.log(
+        chalk.yellow("   This template will match ALL work items.")
       );
 
       const { continueAnyway } = await inquirer.prompt([
@@ -547,9 +579,9 @@ export async function createFromScratch(
       ]);
 
       if (!continueAnyway) {
-        console.log(chalk.gray("\nReturning to filter configuration...\n"));
-        // In a real implementation, we'd loop back here
-        throw new Error("Please configure at least work item types or states");
+        throw new CancellationError(
+          "Template creation cancelled. Please configure filter criteria."
+        );
       }
     }
 
@@ -563,7 +595,7 @@ export async function createFromScratch(
     ]);
 
     if (!confirmStep2) {
-      throw new Error("Template creation cancelled by user");
+      throw new CancellationError("Template creation cancelled by user");
     }
 
     currentStep++;
@@ -573,12 +605,29 @@ export async function createFromScratch(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Task Configuration`)
     );
     console.log(chalk.gray("███░░░"));
+    console.log(
+      chalk.gray(
+        "Tip: Break work into clear, actionable tasks\n"
+      )
+    );
 
     const tasks = await configureTasksWithValidation();
 
     // Validate we have at least one task
-    if (tasks.length === 0) {
-      throw new Error("At least one task is required");
+    if (!tasks || tasks.length === 0) {
+      throw new ConfigurationError(
+        "At least one task is required. Please add tasks to your template."
+      );
+    }
+
+    // Validate all tasks have titles
+    const invalidTasks = tasks.filter(
+      (task) => !task.title || task.title.trim() === ""
+    );
+    if (invalidTasks.length > 0) {
+      throw new ConfigurationError(
+        `${invalidTasks.length} task(s) are missing titles. All tasks must have a title.`
+      );
     }
 
     const { confirmStep3 } = await inquirer.prompt([
@@ -591,7 +640,7 @@ export async function createFromScratch(
     ]);
 
     if (!confirmStep3) {
-      throw new Error("Template creation cancelled by user");
+      throw new CancellationError("Template creation cancelled by user");
     }
 
     currentStep++;
@@ -603,7 +652,7 @@ export async function createFromScratch(
     console.log(chalk.gray("████░░"));
     console.log(
       chalk.gray(
-        "💡 Tip: Choose how story points will be calculated and rounded\n"
+        "Tip: Choose how story points will be calculated and rounded\n"
       )
     );
 
@@ -619,7 +668,7 @@ export async function createFromScratch(
     ]);
 
     if (!confirmStep4) {
-      throw new Error("Template creation cancelled by user");
+      throw new CancellationError("Template creation cancelled by user");
     }
 
     currentStep++;
@@ -671,7 +720,7 @@ export async function createFromScratch(
     console.log(chalk.gray("██████"));
     console.log(
       chalk.gray(
-        "Tip: Metadata helps others understand when to use this template\n"
+        "💡 Tip: Metadata helps others understand when to use this template\n"
       )
     );
 
@@ -705,27 +754,54 @@ export async function createFromScratch(
     };
 
     // Preview and confirm
-    console.log(chalk.green("\n✓ Template created successfully!\n"));
+    console.log(chalk.green("\n✓ Template configured successfully!\n"));
+    console.log(
+      chalk.gray("Review your template and choose an action below.\n")
+    );
 
     const confirmed = await previewTemplate(template);
 
     if (!confirmed) {
       console.log(
-        chalk.yellow("\n Template creation cancelled. No changes were saved.")
+        chalk.yellow("\n⚠  Template creation cancelled. No changes were saved.")
       );
       throw new CancellationError("Template creation cancelled by user");
     }
 
+    // Final confirmation before saving
+    console.log(chalk.cyan("\n📋 Final confirmation before saving...\n"));
+    const { finalConfirm } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "finalConfirm",
+        message: "Save this template?",
+        default: true,
+      },
+    ]);
+
+    if (!finalConfirm) {
+      throw new CancellationError("Template save cancelled by user");
+    }
+
     return template;
   } catch (error) {
-    // Better error handling
     if (error instanceof CancellationError) {
-      console.log(chalk.yellow("\n⚠ Template creation cancelled"));
-    } else {
-      console.log(
-        chalk.red(`\n✗ Error creating template: ${(error as Error).message}`)
-      );
+      console.log(chalk.yellow("\n Template creation cancelled"));
+      throw error;
     }
+
+    if (error instanceof ConfigurationError) {
+      console.log(chalk.red(`\n Configuration error: ${error.message}`));
+      console.log(
+        chalk.gray("  Please check your inputs and try again.")
+      );
+      throw error;
+    }
+
+    // Unknown error
+    console.log(
+      chalk.red(`\ Error creating template: ${(error as Error).message}`)
+    );
     throw error;
   }
 }
