@@ -819,7 +819,7 @@ tasks:
     
   - title: "Deployment"
     estimationPercent: 5
-    assignTo: "@Auto"  # Let system decide
+    assignTo: "@Unassigned"  # Let system decide
     
   - title: "Design Review"
     estimationPercent: 10
@@ -931,5 +931,5 @@ tasks:
 
 - [Template Reference](./Template-Reference.md) - Complete template schema
 - [Platform Guide](./Platform-Guide.md) - Platform setup and configuration
-- [Examples](../templates/) - Real-world template examples
+- [Examples](../examples/) - Real-world template examples
 - [Contributing](../Contributing.md) - How to contribute
