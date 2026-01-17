@@ -800,7 +800,7 @@ export async function createFromScratch(
 
     // Unknown error
     console.log(
-      chalk.red(`\ Error creating template: ${(error as Error).message}`)
+      chalk.red(` Error creating template: ${(error as Error).message}`)
     );
     throw error;
   }

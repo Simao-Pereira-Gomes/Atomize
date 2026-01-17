@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { validateTemplate } from "../../src/cli/commands/template/template-create.command";
 import type { TaskTemplate } from "@templates/schema";
+import { validateTemplate } from "../../src/cli/commands/template/template-create.command";
 
 describe("Template Wizard - Full Flow Integration", () => {
   test("should validate a complete valid template", () => {
@@ -265,7 +265,9 @@ describe("Template Wizard - Full Flow Integration", () => {
 
     expect(result.valid).toBe(false);
     expect(
-      result.errors.some((e) => e.includes("estimation must be between 0 and 100"))
+      result.errors.some((e) =>
+        e.includes("estimation must be between 0 and 100")
+      )
     ).toBe(true);
   });
 
@@ -320,9 +322,9 @@ describe("Template Wizard - Full Flow Integration", () => {
     const result = validateTemplate(template);
 
     expect(result.valid).toBe(true);
-    expect(
-      result.warnings.some((w) => w.includes("match all items"))
-    ).toBe(true);
+    expect(result.warnings.some((w) => w.includes("match all items"))).toBe(
+      true
+    );
   });
 
   test("should detect invalid task dependency", () => {
@@ -519,6 +521,7 @@ describe("Template Wizard - Full Flow Integration", () => {
           title: "Task 2",
           estimationPercent: 50,
           dependsOn: ["task-1"],
+          //biome-ignore lint/suspicious/noTemplateCurlyInString: we are testing template strings
           condition: "${story.tags CONTAINS 'backend'}",
         },
       ],

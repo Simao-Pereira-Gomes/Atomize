@@ -387,9 +387,15 @@ describe("AzureDevOpsAdapter", () => {
       };
 
       // Capture the patch document sent to createWorkItem
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
       let capturedPatchDocument: any;
       mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(
-        async (_customHeaders: any, document: any, _project: string, type: string) => {
+        async (
+          _customHeaders: any,
+          document: any,
+          _project: string,
+          type: string
+        ) => {
           capturedPatchDocument = document;
           return {
             id: 123,
@@ -402,21 +408,28 @@ describe("AzureDevOpsAdapter", () => {
           };
         }
       );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
 
       const created = await adapter.createTask("100", task);
       expect(created).toBeDefined();
 
       // Verify CompletedWork is set from task definition
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
       const completedWorkOp = capturedPatchDocument.find(
-        (op: any) => op.path === "/fields/Microsoft.VSTS.Scheduling.CompletedWork"
+        (op: any) =>
+          op.path === "/fields/Microsoft.VSTS.Scheduling.CompletedWork"
       );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+
       expect(completedWorkOp).toBeDefined();
       expect(completedWorkOp.value).toBe(0);
 
       // Verify IterationPath is set from task definition
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
       const iterationPathOp = capturedPatchDocument.find(
         (op: any) => op.path === "/fields/System.IterationPath"
       );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
       expect(iterationPathOp).toBeDefined();
       expect(iterationPathOp.value).toBe("SampleProject\\Sprint 1");
     });
