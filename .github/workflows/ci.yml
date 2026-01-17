@@ -72,7 +72,7 @@ jobs:
         run: bun install
 
       - name: Run integration tests
-        run: bun test tests/integration.test.ts
+        run: bun test tests/integration
   validate-templates:
     name: Validate Templates
     runs-on: ubuntu-latest
