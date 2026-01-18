@@ -166,17 +166,29 @@ function scaleToHundred<T extends EstimationPercentage>(
 export function validateEstimationPercentages<T extends EstimationPercentage>(
   items: T[],
   tolerance = 0.5
-): { valid: boolean; total: number; warnings: string[] } {
+): { valid: boolean; total: number; warnings: string[]; suggestions: string[] } {
   const warnings: string[] = [];
+  const suggestions: string[] = [];
   const total = items.reduce(
     (sum, item) => sum + (item.estimationPercent || 0),
     0
   );
 
   if (Math.abs(total - 100) > tolerance) {
+    const diff = 100 - total;
     warnings.push(
       `Total estimation percentage (${total}%) differs from 100% by more than ${tolerance}%`
     );
+
+    if (diff > 0) {
+      suggestions.push(
+        `Add ${diff.toFixed(1)}% to existing tasks or create new tasks totaling ${diff.toFixed(1)}%. You can also use normalizeEstimationPercentages() to automatically adjust.`
+      );
+    } else {
+      suggestions.push(
+        `Reduce task estimations by ${Math.abs(diff).toFixed(1)}% or use normalizeEstimationPercentages() to automatically scale down.`
+      );
+    }
   }
 
   const zeroEstimations = items.filter((t) => (t.estimationPercent || 0) === 0);
@@ -184,11 +196,15 @@ export function validateEstimationPercentages<T extends EstimationPercentage>(
     warnings.push(
       `${zeroEstimations.length} item(s) have zero estimation percentage`
     );
+    suggestions.push(
+      `Assign estimation percentages to these items or remove them if not needed. Consider using equal distribution: ${(100 / items.length).toFixed(1)}% per task.`
+    );
   }
 
   return {
     valid: warnings.length === 0,
     total,
     warnings,
+    suggestions,
   };
 }
