@@ -13,6 +13,43 @@ import {
 import { FilterEngine } from "./filter-engine";
 
 /**
+ * Progress event types
+ */
+export type ProgressEventType =
+  | "query_start"
+  | "query_complete"
+  | "story_start"
+  | "story_complete"
+  | "story_error"
+  | "task_created"
+  | "dependency_created"
+  | "complete";
+
+/**
+ * Progress event data
+ */
+export interface ProgressEvent {
+  type: ProgressEventType;
+  /** Current story index (0-based) */
+  storyIndex?: number;
+  /** Total number of stories */
+  totalStories?: number;
+  /** Current story being processed */
+  story?: WorkItem;
+  /** Number of tasks created so far */
+  tasksCreated?: number;
+  /** Number of dependencies created so far */
+  dependenciesCreated?: number;
+  /** Error message if type is story_error */
+  error?: string;
+}
+
+/**
+ * Progress callback function
+ */
+export type ProgressCallback = (event: ProgressEvent) => void;
+
+/**
  * Atomization options
  */
 export interface AtomizationOptions {
@@ -27,6 +64,12 @@ export interface AtomizationOptions {
 
   /** Maximum concurrent stories to process (default: 3) */
   storyConcurrency?: number;
+
+  /** Maximum concurrent dependency links to create (default: 5) */
+  dependencyConcurrency?: number;
+
+  /** Progress callback for reporting progress */
+  onProgress?: ProgressCallback;
 }
 
 /**
@@ -111,7 +154,7 @@ export class Atomizer {
    */
   async atomize(
     template: TaskTemplate,
-    options: AtomizationOptions = {}
+    options: AtomizationOptions = {},
   ): Promise<AtomizationReport> {
     const startTime = Date.now();
 
@@ -122,7 +165,7 @@ export class Atomizer {
     const connectUserEmail = await this.platform.getConnectUserEmail();
     const platformFilter = this.filterEngine.convertFilter(
       template.filter,
-      connectUserEmail
+      connectUserEmail,
     );
 
     const filterValidation = this.filterEngine.validateFilter(template.filter);
@@ -130,10 +173,14 @@ export class Atomizer {
       throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
     }
 
+    const onProgress = options.onProgress;
+
     // Query user stories
     logger.info("Querying user stories...");
+    onProgress?.({ type: "query_start" });
     const stories = await this.platform.queryWorkItems(platformFilter);
     logger.info(`Found ${stories.length} stories`);
+    onProgress?.({ type: "query_complete", totalStories: stories.length });
 
     if (stories.length === 0) {
       logger.warn("No stories found matching filter criteria");
@@ -144,14 +191,14 @@ export class Atomizer {
 
     // Resolve task dependencies once (same for all stories)
     const orderedTasks = this.dependencyResolver.resolveDependencies(
-      template.tasks
+      template.tasks,
     );
     logger.debug(`Resolved ${orderedTasks.length} tasks in dependency order`);
 
     // Process stories in parallel batches
     const storyConcurrency = options.storyConcurrency ?? 3;
     logger.info(
-      `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`
+      `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,
     );
 
     const results = await this.processStoriesInParallel(
@@ -162,22 +209,22 @@ export class Atomizer {
       options,
       storyConcurrency,
       errors,
-      warnings
+      warnings,
     );
 
     const storiesSuccess = results.filter((r) => r.success).length;
     const storiesFailed = results.filter((r) => !r.success).length;
     const tasksCalculated = results.reduce(
       (sum, r) => sum + r.tasksCalculated.length,
-      0
+      0,
     );
     const tasksCreated = results.reduce(
       (sum, r) => sum + r.tasksCreated.length,
-      0
+      0,
     );
     const tasksSkipped = results.reduce(
       (sum, r) => sum + (r.tasksSkipped?.length || 0),
-      0
+      0,
     );
 
     const executionTime = Date.now() - startTime;
@@ -239,10 +286,13 @@ export class Atomizer {
     options: AtomizationOptions,
     concurrency: number,
     errors: Array<{ storyId: string; error: string }>,
-    warnings: string[]
+    warnings: string[],
   ): Promise<StoryAtomizationResult[]> {
     const results: StoryAtomizationResult[] = new Array(stories.length);
     let stopProcessing = false;
+    let completedStories = 0;
+    let totalTasksCreated = 0;
+    const onProgress = options.onProgress;
 
     for (let i = 0; i < stories.length; i += concurrency) {
       if (stopProcessing) break;
@@ -256,6 +306,13 @@ export class Atomizer {
           return null;
         }
 
+        onProgress?.({
+          type: "story_start",
+          storyIndex,
+          totalStories: stories.length,
+          story,
+        });
+
         try {
           const result = await this.processStory(
             story,
@@ -263,9 +320,21 @@ export class Atomizer {
             template,
             connectUserEmail,
             options,
-            warnings
+            warnings,
           );
           results[storyIndex] = result;
+
+          completedStories++;
+          totalTasksCreated += result.tasksCreated.length;
+
+          onProgress?.({
+            type: "story_complete",
+            storyIndex,
+            totalStories: stories.length,
+            story,
+            tasksCreated: totalTasksCreated,
+          });
+
           return result;
         } catch (error) {
           const errorMessage =
@@ -287,6 +356,15 @@ export class Atomizer {
           };
           results[storyIndex] = failedResult;
 
+          completedStories++;
+          onProgress?.({
+            type: "story_error",
+            storyIndex,
+            totalStories: stories.length,
+            story,
+            error: errorMessage,
+          });
+
           if (!options.continueOnError) {
             logger.error("Stopping on first error (continueOnError=false)");
             stopProcessing = true;
@@ -301,7 +379,7 @@ export class Atomizer {
 
     // Filter out any undefined results (from stopped processing)
     return results.filter(
-      (r): r is StoryAtomizationResult => r !== undefined && r !== null
+      (r): r is StoryAtomizationResult => r !== undefined && r !== null,
     );
   }
 
@@ -314,7 +392,7 @@ export class Atomizer {
     template: TaskTemplate,
     connectUserEmail: string,
     options: AtomizationOptions,
-    warnings: string[]
+    warnings: string[],
   ): Promise<StoryAtomizationResult> {
     logger.info(`Processing: ${story.id} - ${story.title}`);
 
@@ -323,24 +401,24 @@ export class Atomizer {
         story,
         connectUserEmail,
         orderedTasks,
-        template.estimation
+        template.estimation,
       );
 
     logger.info(
-      `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`
+      `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`,
     );
 
     if (skippedTasks.length > 0) {
       skippedTasks.forEach((skipped) => {
         logger.debug(
-          `  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`
+          `  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`,
         );
       });
     }
 
     const validation = this.estimationCalculator.validateEstimation(
       story,
-      calculatedTasks
+      calculatedTasks,
     );
 
     if (!validation.valid) {
@@ -352,7 +430,7 @@ export class Atomizer {
 
     const estimationSummary = this.estimationCalculator.getEstimationSummary(
       story,
-      calculatedTasks
+      calculatedTasks,
     );
 
     logger.debug("Estimation summary:", estimationSummary);
@@ -367,7 +445,8 @@ export class Atomizer {
       tasksCreated = await this.createTasksWithDependencies(
         story.id,
         calculatedTasks,
-        orderedTasks
+        orderedTasks,
+        options.dependencyConcurrency ?? 5,
       );
 
       logger.info(`Created ${tasksCreated.length} tasks`);
@@ -384,16 +463,17 @@ export class Atomizer {
   }
 
   /**
-   * Create tasks with dependency links
+   * Create tasks with dependency links (parallel execution)
    */
   private async createTasksWithDependencies(
     parentId: string,
     calculatedTasks: CalculatedTask[],
-    templateTasks: TemplateTaskDefinition[]
+    templateTasks: TemplateTaskDefinition[],
+    dependencyConcurrency: number,
   ): Promise<WorkItem[]> {
     const createdTasks = await this.platform.createTasksBulk(
       parentId,
-      calculatedTasks
+      calculatedTasks,
     );
 
     const templateIdToTask = new Map<string, WorkItem>();
@@ -405,6 +485,12 @@ export class Atomizer {
       }
     }
 
+    // Collect all dependency links to create
+    const dependencyLinks: Array<{
+      dependentTask: WorkItem;
+      predecessorTask: WorkItem;
+    }> = [];
+
     for (const templateTask of templateTasks) {
       if (templateTask.dependsOn && templateTask.dependsOn.length > 0) {
         const dependentTask = templateTask.id
@@ -413,7 +499,7 @@ export class Atomizer {
 
         if (!dependentTask) {
           logger.warn(
-            `Cannot create dependency links for task "${templateTask.title}" - task not created or has no ID`
+            `Cannot create dependency links for task "${templateTask.title}" - task not created or has no ID`,
           );
           continue;
         }
@@ -423,36 +509,55 @@ export class Atomizer {
 
           if (!predecessorTask) {
             logger.warn(
-              `Cannot create dependency link: predecessor task with ID "${depId}" not found`
+              `Cannot create dependency link: predecessor task with ID "${depId}" not found`,
             );
             continue;
           }
 
-          try {
-            if (this.platform.createDependencyLink) {
-              await this.platform.createDependencyLink(
-                dependentTask.id,
-                predecessorTask.id
-              );
-              logger.debug(
-                `Created dependency link: "${dependentTask.title}" depends on "${predecessorTask.title}"`
-              );
-            } else {
-              logger.warn(
-                "Platform does not support dependency links - dependencies will not be created"
-              );
-            }
-          } catch (error) {
-            logger.warn(
-              `Failed to create dependency link for "${
-                dependentTask.title
-              }" -> "${predecessorTask.title}": ${
-                error instanceof Error ? error.message : String(error)
-              }`
-            );
-          }
+          dependencyLinks.push({ dependentTask, predecessorTask });
         }
       }
+    }
+
+    // Create dependency links in parallel batches
+    const createDependencyLink = this.platform.createDependencyLink?.bind(
+      this.platform,
+    );
+    if (dependencyLinks.length > 0 && createDependencyLink) {
+      logger.debug(
+        `Creating ${dependencyLinks.length} dependency links (concurrency: ${dependencyConcurrency})`,
+      );
+
+      for (let i = 0; i < dependencyLinks.length; i += dependencyConcurrency) {
+        const batch = dependencyLinks.slice(i, i + dependencyConcurrency);
+        const batchPromises = batch.map(
+          async ({ dependentTask, predecessorTask }) => {
+            try {
+              await createDependencyLink(
+                dependentTask.id,
+                predecessorTask.id,
+              );
+              logger.debug(
+                `Created dependency link: "${dependentTask.title}" depends on "${predecessorTask.title}"`,
+              );
+              return true;
+            } catch (error) {
+              logger.warn(
+                `Failed to create dependency link for "${dependentTask.title}" -> "${predecessorTask.title}": ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+              return false;
+            }
+          },
+        );
+
+        await Promise.all(batchPromises);
+      }
+    } else if (dependencyLinks.length > 0) {
+      logger.warn(
+        "Platform does not support dependency links - dependencies will not be created",
+      );
     }
 
     return createdTasks;
@@ -472,7 +577,7 @@ export class Atomizer {
     const connectUserEmail = await this.platform.getConnectUserEmail();
     const platformFilter = this.filterEngine.convertFilter(
       template.filter,
-      connectUserEmail
+      connectUserEmail,
     );
     const stories = await this.platform.queryWorkItems(platformFilter);
     return stories.length;
