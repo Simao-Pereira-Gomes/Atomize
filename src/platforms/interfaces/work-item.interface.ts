@@ -104,6 +104,9 @@ export interface TaskDefinition {
   /** Iteration/sprint path (inherited from parent) */
   iteration?: string;
 
+  /** Area path (inherited from parent) */
+  areaPath?: string;
+
   /** Parent work item ID */
   parentId?: string;
 

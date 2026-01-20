@@ -48,8 +48,12 @@ export const TaskDefinitionSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(1, "Task title is required"),
   description: z.string().optional(),
-  estimationPercent: z.number().min(0).max(100).optional(),
-  estimationFixed: z.number().min(0).optional(),
+  estimationPercent: z
+    .number()
+    .min(0, "Estimation percentage cannot be negative")
+    .max(100, "Estimation percentage cannot exceed 100")
+    .optional(),
+  estimationFixed: z.number().min(0, "Fixed estimation cannot be negative").optional(),
   estimationFormula: z.string().optional(),
   tags: z.array(z.string()).optional(),
   condition: z.string().optional(),
@@ -148,13 +152,17 @@ export const TaskTemplateSchema = z
     validateEstimationConstraints(v, totalPercent, ctx);
 
     validateTaskConstraints(v, tasks, ctx);
+    const availableIds = Array.from(taskIds);
     tasks.forEach((task, index) => {
       task.dependsOn?.forEach((depId) => {
         if (!taskIds.has(depId)) {
+          const suggestion = availableIds.length > 0
+            ? ` Available task IDs: ${availableIds.map(id => `"${id}"`).join(", ")}`
+            : "";
           ctx.addIssue({
             code: "custom",
             path: ["tasks", index, "dependsOn"],
-            message: `Task depends on non-existent task ID: "${depId}"`,
+            message: `Task depends on non-existent task ID: "${depId}".${suggestion}`,
             params: { code: "INVALID_DEPENDENCY" },
           });
         }
@@ -168,18 +176,20 @@ function validateTaskConstraints(
   ctx: z.RefinementCtx
 ) {
   if (v?.minTasks !== undefined && tasks.length < v.minTasks) {
+    const needed = v.minTasks - tasks.length;
     ctx.addIssue({
       code: "custom",
       path: ["tasks"],
-      message: `Template has ${tasks.length} tasks, but minimum is ${v.minTasks}`,
+      message: `Template has ${tasks.length} task(s), but minimum is ${v.minTasks}. Add ${needed} more task(s).`,
       params: { code: "TOO_FEW_TASKS" },
     });
   }
   if (v?.maxTasks !== undefined && tasks.length > v.maxTasks) {
+    const excess = tasks.length - v.maxTasks;
     ctx.addIssue({
       code: "custom",
       path: ["tasks"],
-      message: `Template has ${tasks.length} tasks, but maximum is ${v.maxTasks}`,
+      message: `Template has ${tasks.length} task(s), but maximum is ${v.maxTasks}. Remove ${excess} task(s) or increase maxTasks.`,
       params: { code: "TOO_MANY_TASKS" },
     });
   }
@@ -192,20 +202,27 @@ function validateEstimationConstraints(
 ) {
   if (v?.totalEstimationMustBe !== undefined) {
     if (totalPercent !== v.totalEstimationMustBe) {
+      const diff = v.totalEstimationMustBe - totalPercent;
+      const hint = diff > 0
+        ? ` Add ${diff}% to existing tasks.`
+        : ` Reduce tasks by ${Math.abs(diff)}%.`;
       ctx.addIssue({
         code: "custom",
         path: ["tasks"],
-        message: `Total estimation is ${totalPercent}%, but must be ${v.totalEstimationMustBe}%`,
+        message: `Total estimation is ${totalPercent}%, but must be ${v.totalEstimationMustBe}%.${hint}`,
         params: { code: "INVALID_TOTAL_ESTIMATION" },
       });
     }
   } else if (v?.totalEstimationRange) {
     const { min, max } = v.totalEstimationRange;
     if (totalPercent < min || totalPercent > max) {
+      const hint = totalPercent < min
+        ? ` Increase by ${min - totalPercent}%.`
+        : ` Reduce by ${totalPercent - max}%.`;
       ctx.addIssue({
         code: "custom",
         path: ["tasks"],
-        message: `Total estimation is ${totalPercent}%, but must be between ${min}% and ${max}%`,
+        message: `Total estimation is ${totalPercent}%, but must be between ${min}% and ${max}%.${hint}`,
         params: { code: "INVALID_ESTIMATION_RANGE" },
       });
     }

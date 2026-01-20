@@ -33,7 +33,11 @@ export class TemplateLoadError extends AtomizeError {
 }
 
 export class TemplateValidationError extends AtomizeError {
-  constructor(message: string, public readonly errors: readonly string[]) {
+  constructor(
+    message: string,
+    public readonly errors: readonly string[],
+    public readonly suggestions?: readonly string[]
+  ) {
     super(AtomizeErrorCode.TemplateValidationError, message);
   }
 }
@@ -84,7 +88,11 @@ export class CancellationError extends AtomizeError {
  * Error thrown when circular dependencies are detected
  */
 export class CircularDependencyError extends Error {
-  constructor(message: string, public readonly cycle: string[]) {
+  constructor(
+    message: string,
+    public readonly cycle: string[],
+    public readonly suggestion?: string
+  ) {
     super(message);
     this.name = "CircularDependencyError";
   }

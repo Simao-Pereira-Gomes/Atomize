@@ -51,13 +51,13 @@ describe("EstimationCalculator", () => {
       expect(calculated[1]?.estimation).toBe(5);
     });
 
-    test("should round estimations according to strategy", () => {
+    test("should round estimations according to strategy (half-point precision)", () => {
       const story = { ...mockStory, estimation: 10 };
       const tasks: TaskDefinition[] = [
         { title: "Task", estimationPercent: 33 }, // 3.3
       ];
 
-      // Nearest (default)
+      // Nearest (rounds to nearest 0.5)
       const nearestConfig: EstimationConfig = {
         strategy: "percentage",
         rounding: "nearest",
@@ -68,9 +68,9 @@ describe("EstimationCalculator", () => {
         tasks,
         nearestConfig
       );
-      expect(nearest[0]?.estimation).toBe(3);
+      expect(nearest[0]?.estimation).toBe(3.5); // 3.3 rounds to 3.5
 
-      // Round up
+      // Round up (rounds up to nearest 0.5)
       const upConfig: EstimationConfig = {
         strategy: "percentage",
         rounding: "up",
@@ -81,9 +81,9 @@ describe("EstimationCalculator", () => {
         tasks,
         upConfig
       );
-      expect(up[0]?.estimation).toBe(4);
+      expect(up[0]?.estimation).toBe(3.5); // 3.3 rounds up to 3.5
 
-      // Round down
+      // Round down (rounds down to nearest 0.5)
       const downConfig: EstimationConfig = {
         strategy: "percentage",
         rounding: "down",
@@ -94,7 +94,44 @@ describe("EstimationCalculator", () => {
         tasks,
         downConfig
       );
-      expect(down[0]?.estimation).toBe(3);
+      expect(down[0]?.estimation).toBe(3); // 3.3 rounds down to 3.0
+    });
+
+    test("should preserve small percentage values with half-point rounding", () => {
+      // This test verifies the fix for the issue where small percentages
+      // resulted in 0 estimation (e.g., 2 story points * 5% = 0.1 -> 0)
+      const story = { ...mockStory, estimation: 2 };
+      const tasks: TaskDefinition[] = [
+        { title: "Wiki Task", estimationPercent: 5 }, // 2 * 0.05 = 0.1
+      ];
+
+      const config: EstimationConfig = {
+        strategy: "percentage",
+        rounding: "nearest",
+      };
+      const calculated = calculator.calculateTasks(
+        story,
+        mockStory.assignedTo ?? "",
+        tasks,
+        config
+      );
+      // 0.1 should round to 0 with half-point precision, but minimum should apply if set
+      // Without minimum, 0.1 rounds to 0 (nearest 0.5)
+      expect(calculated[0]?.estimation).toBe(0);
+
+      // With a minimum of 0.5, small values should be at least 0.5
+      const configWithMin: EstimationConfig = {
+        strategy: "percentage",
+        rounding: "nearest",
+        minimumTaskPoints: 0.5,
+      };
+      const calculatedWithMin = calculator.calculateTasks(
+        story,
+        mockStory.assignedTo ?? "",
+        tasks,
+        configWithMin
+      );
+      expect(calculatedWithMin[0]?.estimation).toBe(0.5);
     });
 
     test("should apply minimum task points", () => {
