@@ -111,6 +111,7 @@ export class EstimationCalculator {
         remainingWork: templateTask.remainingWork,
         completedWork: 0, // Default to 0 for new tasks
         iteration: story.iteration, // Inherit from parent
+        areaPath: story.areaPath, // Inherit from parent
         customFields: templateTask.customFields,
         templateId: templateTask.id,
         estimationPercent: templateTask.estimationPercent,
@@ -198,6 +199,7 @@ export class EstimationCalculator {
         remainingWork: templateTask.remainingWork,
         completedWork: 0, // Default to 0 for new tasks
         iteration: story.iteration, // Inherit from parent
+        areaPath: story.areaPath, // Inherit from parent
         customFields: templateTask.customFields,
         templateId: templateTask.id,
         estimationPercent: templateTask.estimationPercent,
@@ -269,15 +271,16 @@ export class EstimationCalculator {
 
   /**
    * Round estimation based on rounding strategy
+   * Uses half-point (0.5) precision to preserve small values while keeping reasonable granularity
    */
   private roundEstimation(
     value: number,
     strategy: "nearest" | "up" | "down" | "none"
   ): number {
     return match(strategy)
-      .with("up", () => Math.ceil(value))
-      .with("down", () => Math.floor(value))
-      .with("nearest", () => Math.round(value))
+      .with("up", () => Math.ceil(value * 2) / 2) // Round up to nearest 0.5
+      .with("down", () => Math.floor(value * 2) / 2) // Round down to nearest 0.5
+      .with("nearest", () => Math.round(value * 2) / 2) // Round to nearest 0.5
       .otherwise(() => Math.floor(value * 100) / 100); // No rounding, keep two decimals
   }
 

@@ -294,6 +294,16 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
               },
             ]
           : []),
+        // Area Path
+        ...(task.areaPath
+          ? [
+              {
+                op: "add",
+                path: "/fields/System.AreaPath",
+                value: task.areaPath,
+              },
+            ]
+          : []),
         // Tags
         ...(task.tags && task.tags.length > 0
           ? [
@@ -618,6 +628,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         (tag) => `[System.Tags] CONTAINS '${tag}'`
       );
       conditions.push(`(${tagConditions.join(" OR ")})`);
+    }
+
+    // Tags (exclude)
+    if (filter.tags?.exclude && filter.tags.exclude.length > 0) {
+      for (const tag of filter.tags.exclude) {
+        conditions.push(`[System.Tags] NOT CONTAINS '${tag}'`);
+      }
     }
 
     // Area paths
