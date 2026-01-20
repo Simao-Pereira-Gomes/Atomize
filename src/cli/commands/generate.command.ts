@@ -23,6 +23,16 @@ export const generateCommand = new Command("generate")
 		"Continue processing even if errors occur",
 		false,
 	)
+	.option(
+		"--story-concurrency <number>",
+		"Max concurrent stories to process (default: 3)",
+		"3",
+	)
+	.option(
+		"--task-concurrency <number>",
+		"Max concurrent tasks to create per story (default: 5)",
+		"5",
+	)
 	.option("-v, --verbose", "Show detailed output", false)
 	.action(async (templateArg: string | undefined, options) => {
 		try {
@@ -103,12 +113,45 @@ export const generateCommand = new Command("generate")
 
 			logger.info(`Initializing ${options.platform} platform...`);
 
+			// Parse and validate concurrency settings
+			const MIN_CONCURRENCY = 1;
+			const MAX_STORY_CONCURRENCY = 10;
+			const MAX_TASK_CONCURRENCY = 20;
+
+			let taskConcurrency = parseInt(options.taskConcurrency, 10) || 5;
+			let storyConcurrency = parseInt(options.storyConcurrency, 10) || 3;
+
+			if (taskConcurrency < MIN_CONCURRENCY || taskConcurrency > MAX_TASK_CONCURRENCY) {
+				console.log(
+					chalk.yellow(
+						`Task concurrency must be between ${MIN_CONCURRENCY} and ${MAX_TASK_CONCURRENCY}. Using default (5).`,
+					),
+				);
+				taskConcurrency = 5;
+			}
+
+			if (storyConcurrency < MIN_CONCURRENCY || storyConcurrency > MAX_STORY_CONCURRENCY) {
+				console.log(
+					chalk.yellow(
+						`Story concurrency must be between ${MIN_CONCURRENCY} and ${MAX_STORY_CONCURRENCY}. Using default (3).`,
+					),
+				);
+				storyConcurrency = 3;
+			}
+
+			logger.info(
+				`Concurrency settings: ${storyConcurrency} stories, ${taskConcurrency} tasks`,
+			);
+
 			let platform: IPlatformAdapter;
 			try {
 				platform = await match(options.platform)
 					.with("azure-devops", async () => {
 						const azureConfig = await getAzureDevOpsConfigInteractive();
-						return PlatformFactory.create("azure-devops", azureConfig);
+						return PlatformFactory.create("azure-devops", {
+							...azureConfig,
+							maxConcurrency: taskConcurrency,
+						});
 					})
 					.otherwise(() => {
 						// Other platforms (mock, jira, github)
@@ -183,6 +226,7 @@ export const generateCommand = new Command("generate")
 				dryRun,
 				project: options.project,
 				continueOnError: options.continueOnError,
+				storyConcurrency,
 			});
 
 			console.log(`\n${chalk.blue("=".repeat(70))}`);

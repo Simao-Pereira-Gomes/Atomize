@@ -24,6 +24,9 @@ export interface AtomizationOptions {
 
   /** Stop on first error or continue */
   continueOnError?: boolean;
+
+  /** Maximum concurrent stories to process (default: 3) */
+  storyConcurrency?: number;
 }
 
 /**
@@ -136,113 +139,31 @@ export class Atomizer {
       logger.warn("No stories found matching filter criteria");
     }
 
-    const results: StoryAtomizationResult[] = [];
     const errors: Array<{ storyId: string; error: string }> = [];
     const warnings: string[] = [];
 
-    for (const story of stories) {
-      try {
-        logger.info(`\nProcessing: ${story.id} - ${story.title}`);
+    // Resolve task dependencies once (same for all stories)
+    const orderedTasks = this.dependencyResolver.resolveDependencies(
+      template.tasks
+    );
+    logger.debug(`Resolved ${orderedTasks.length} tasks in dependency order`);
 
-        // Resolve task dependencies first
-        const orderedTasks = this.dependencyResolver.resolveDependencies(
-          template.tasks
-        );
+    // Process stories in parallel batches
+    const storyConcurrency = options.storyConcurrency ?? 3;
+    logger.info(
+      `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`
+    );
 
-        logger.debug(
-          `Resolved ${orderedTasks.length} tasks in dependency order`
-        );
-
-        const { calculatedTasks, skippedTasks } =
-          this.estimationCalculator.calculateTasksWithSkipped(
-            story,
-            connectUserEmail,
-            orderedTasks,
-            template.estimation
-          );
-
-        logger.info(
-          `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`
-        );
-
-        if (skippedTasks.length > 0) {
-          skippedTasks.forEach((skipped) => {
-            logger.debug(
-              `  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`
-            );
-          });
-        }
-
-        const validation = this.estimationCalculator.validateEstimation(
-          story,
-          calculatedTasks
-        );
-
-        if (!validation.valid) {
-          validation.warnings.forEach((warning) => {
-            logger.warn(`${warning}`);
-            warnings.push(`${story.id}: ${warning}`);
-          });
-        }
-
-        const estimationSummary =
-          this.estimationCalculator.getEstimationSummary(
-            story,
-            calculatedTasks
-          );
-
-        logger.debug("Estimation summary:", estimationSummary);
-
-        let tasksCreated: WorkItem[] = [];
-
-        if (options.dryRun) {
-          logger.info(`DRY RUN: Would create ${calculatedTasks.length} tasks`);
-        } else {
-          logger.info(`Creating ${calculatedTasks.length} tasks...`);
-
-          // Create tasks and handle dependencies
-          tasksCreated = await this.createTasksWithDependencies(
-            story.id,
-            calculatedTasks,
-            orderedTasks
-          );
-
-          logger.info(`Created ${tasksCreated.length} tasks`);
-        }
-
-        results.push({
-          story,
-          tasksCalculated: calculatedTasks,
-          tasksCreated,
-          tasksSkipped: skippedTasks,
-          success: true,
-          estimationSummary,
-        });
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-
-        logger.error(`Error processing story: ${errorMessage}`);
-
-        errors.push({
-          storyId: story.id,
-          error: errorMessage,
-        });
-
-        results.push({
-          story,
-          tasksCalculated: [],
-          tasksCreated: [],
-          success: false,
-          error: errorMessage,
-        });
-
-        if (!options.continueOnError) {
-          logger.error("Stopping on first error (continueOnError=false)");
-          break;
-        }
-      }
-    }
+    const results = await this.processStoriesInParallel(
+      stories,
+      orderedTasks,
+      template,
+      connectUserEmail,
+      options,
+      storyConcurrency,
+      errors,
+      warnings
+    );
 
     const storiesSuccess = results.filter((r) => r.success).length;
     const storiesFailed = results.filter((r) => !r.success).length;
@@ -305,6 +226,161 @@ export class Atomizer {
     }
 
     return report;
+  }
+
+  /**
+   * Process stories in parallel batches
+   */
+  private async processStoriesInParallel(
+    stories: WorkItem[],
+    orderedTasks: TemplateTaskDefinition[],
+    template: TaskTemplate,
+    connectUserEmail: string,
+    options: AtomizationOptions,
+    concurrency: number,
+    errors: Array<{ storyId: string; error: string }>,
+    warnings: string[]
+  ): Promise<StoryAtomizationResult[]> {
+    const results: StoryAtomizationResult[] = new Array(stories.length);
+    let stopProcessing = false;
+
+    for (let i = 0; i < stories.length; i += concurrency) {
+      if (stopProcessing) break;
+
+      const batch = stories.slice(i, i + concurrency);
+      const batchPromises = batch.map(async (story, batchIndex) => {
+        const storyIndex = i + batchIndex;
+
+        // Skip if we've been told to stop (due to error with continueOnError=false)
+        if (stopProcessing) {
+          return null;
+        }
+
+        try {
+          const result = await this.processStory(
+            story,
+            orderedTasks,
+            template,
+            connectUserEmail,
+            options,
+            warnings
+          );
+          results[storyIndex] = result;
+          return result;
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
+          logger.error(`Error processing story ${story.id}: ${errorMessage}`);
+
+          errors.push({
+            storyId: story.id,
+            error: errorMessage,
+          });
+
+          const failedResult: StoryAtomizationResult = {
+            story,
+            tasksCalculated: [],
+            tasksCreated: [],
+            success: false,
+            error: errorMessage,
+          };
+          results[storyIndex] = failedResult;
+
+          if (!options.continueOnError) {
+            logger.error("Stopping on first error (continueOnError=false)");
+            stopProcessing = true;
+          }
+
+          return failedResult;
+        }
+      });
+
+      await Promise.all(batchPromises);
+    }
+
+    // Filter out any undefined results (from stopped processing)
+    return results.filter(
+      (r): r is StoryAtomizationResult => r !== undefined && r !== null
+    );
+  }
+
+  /**
+   * Process a single story
+   */
+  private async processStory(
+    story: WorkItem,
+    orderedTasks: TemplateTaskDefinition[],
+    template: TaskTemplate,
+    connectUserEmail: string,
+    options: AtomizationOptions,
+    warnings: string[]
+  ): Promise<StoryAtomizationResult> {
+    logger.info(`Processing: ${story.id} - ${story.title}`);
+
+    const { calculatedTasks, skippedTasks } =
+      this.estimationCalculator.calculateTasksWithSkipped(
+        story,
+        connectUserEmail,
+        orderedTasks,
+        template.estimation
+      );
+
+    logger.info(
+      `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`
+    );
+
+    if (skippedTasks.length > 0) {
+      skippedTasks.forEach((skipped) => {
+        logger.debug(
+          `  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`
+        );
+      });
+    }
+
+    const validation = this.estimationCalculator.validateEstimation(
+      story,
+      calculatedTasks
+    );
+
+    if (!validation.valid) {
+      validation.warnings.forEach((warning) => {
+        logger.warn(`${warning}`);
+        warnings.push(`${story.id}: ${warning}`);
+      });
+    }
+
+    const estimationSummary = this.estimationCalculator.getEstimationSummary(
+      story,
+      calculatedTasks
+    );
+
+    logger.debug("Estimation summary:", estimationSummary);
+
+    let tasksCreated: WorkItem[] = [];
+
+    if (options.dryRun) {
+      logger.info(`DRY RUN: Would create ${calculatedTasks.length} tasks`);
+    } else {
+      logger.info(`Creating ${calculatedTasks.length} tasks...`);
+
+      tasksCreated = await this.createTasksWithDependencies(
+        story.id,
+        calculatedTasks,
+        orderedTasks
+      );
+
+      logger.info(`Created ${tasksCreated.length} tasks`);
+    }
+
+    return {
+      story,
+      tasksCalculated: calculatedTasks,
+      tasksCreated,
+      tasksSkipped: skippedTasks,
+      success: true,
+      estimationSummary,
+    };
   }
 
   /**
