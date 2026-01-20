@@ -511,51 +511,7 @@ ollama serve
 
 🎯 **Examples:**
 - [Example Templates](../examples/) - Real-world templates
-- [Use Cases](./EXAMPLES.md) - Common scenarios
-
 ### Join the Community
-
-💬 **Get Help:**
-- GitHub Issues: Report bugs and request features
-- Discussions: Ask questions and share templates
-
-🤝 **Contribute:**
-- Add new templates to the preset library
-- Improve documentation
-- Add support for new platforms (Jira, GitHub)
-- See [CONTRIBUTING.md](../CONTRIBUTING.md)
-
-
-## Quick Reference Card
-
-```bash
-# VALIDATION
-atomize validate <template>                    # Validate template
-atomize validate <template> --verbose          # Detailed validation
-
-# GENERATION
-atomize generate <template> --dry-run          # Preview only
-atomize generate <template> --execute          # Create tasks
-atomize generate --platform mock               # Test with mock data
-
-# TEMPLATE CREATION
-atomize template list                          # List presets
-atomize template create --ai "description"     # AI-powered
-atomize template create --preset <n>         # From preset
-atomize template create --from-story <id>      # Learn from story
-atomize template create --scratch              # Interactive wizard
-
-# CONFIGURATION
-export AZURE_DEVOPS_ORG_URL="..."              # Set organization
-export AZURE_DEVOPS_PROJECT="..."              # Set project
-export AZURE_DEVOPS_PAT="..."                  # Set token
-export GOOGLE_AI_API_KEY="..."                 # Set Gemini key
-
-# HELP
-atomize --help                                 # General help
-atomize <command> --help                       # Command help
-atomize --version                              # Show version
-```
 
 ---
 

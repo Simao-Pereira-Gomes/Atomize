@@ -136,8 +136,13 @@ export class DependencyResolver {
     // Check if all nodes were visited (if not, there's a cycle)
     if (visited.size !== graph.size) {
       const cycle = this.detectCycle(graph, visited);
+      const cycleDisplay = cycle.join(" -> ");
+      const suggestion = `Break the circular dependency by removing one of these dependencies: ${cycle
+        .map((id, i) => i < cycle.length - 1 ? `"${id}" depends on "${cycle[i + 1]}"` : "")
+        .filter(Boolean)
+        .join(", ")}`;
       throw new CircularDependencyError(
-        `Circular dependency detected: ${cycle.join(" -> ")}`,
+        `Circular dependency detected: ${cycleDisplay}. ${suggestion}`,
         cycle
       );
     }
@@ -220,13 +225,17 @@ export class DependencyResolver {
   public validateDependencies(tasks: TaskDefinition[]): string[] {
     const errors: string[] = [];
     const taskIds = new Set(tasks.map((t) => t.id).filter((id) => id));
+    const availableIds = Array.from(taskIds);
 
     for (const task of tasks) {
       if (task.dependsOn && task.dependsOn.length > 0) {
         for (const depId of task.dependsOn) {
           if (!taskIds.has(depId)) {
+            const suggestion = availableIds.length > 0
+              ? ` Available task IDs: ${availableIds.map(id => `"${id}"`).join(", ")}`
+              : " Add an 'id' field to the task you want to depend on.";
             errors.push(
-              `Task "${task.title}" (ID: ${task.id}) depends on non-existent task ID: "${depId}"`
+              `Task "${task.title}" (ID: ${task.id}) depends on non-existent task ID: "${depId}".${suggestion}`
             );
           }
         }

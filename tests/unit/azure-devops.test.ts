@@ -35,6 +35,7 @@ const mockWorkItemTrackingApi = {
       "System.Title": `Work Item ${id}`,
       "System.WorkItemType": "User Story",
       "System.State": "New",
+      "System.IterationPath": "SampleProject\\Sprint 1",
     },
     relations: [],
   })),
@@ -376,6 +377,62 @@ describe("AzureDevOpsAdapter", () => {
       expect(created).toBeDefined();
       expect(true).toBe(true);
     });
+
+    test("should set CompletedWork and IterationPath from task definition", async () => {
+      const task = {
+        title: "Task with inherited fields",
+        estimation: 5,
+        completedWork: 0,
+        iteration: "SampleProject\\Sprint 1",
+      };
+
+      // Capture the patch document sent to createWorkItem
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      let capturedPatchDocument: any;
+      mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(
+        async (
+          _customHeaders: any,
+          document: any,
+          _project: string,
+          type: string
+        ) => {
+          capturedPatchDocument = document;
+          return {
+            id: 123,
+            fields: {
+              "System.Title": "Task with inherited fields",
+              "System.WorkItemType": type,
+              "System.State": "New",
+            },
+            relations: [],
+          };
+        }
+      );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+
+      const created = await adapter.createTask("100", task);
+      expect(created).toBeDefined();
+
+      // Verify CompletedWork is set from task definition
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      const completedWorkOp = capturedPatchDocument.find(
+        (op: any) =>
+          op.path === "/fields/Microsoft.VSTS.Scheduling.CompletedWork"
+      );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+
+      expect(completedWorkOp).toBeDefined();
+      expect(completedWorkOp.value).toBe(0);
+
+      // Verify IterationPath is set from task definition
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      const iterationPathOp = capturedPatchDocument.find(
+        (op: any) => op.path === "/fields/System.IterationPath"
+      );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      expect(iterationPathOp).toBeDefined();
+      expect(iterationPathOp.value).toBe("SampleProject\\Sprint 1");
+    });
   });
 
   describe("createTasksBulk", () => {
@@ -446,6 +503,7 @@ describe("AzureDevOpsAdapter", () => {
           "System.Title": "Parent",
           "System.WorkItemType": "User Story",
           "System.State": "New",
+          "System.IterationPath": "SampleProject\\Sprint 1",
         },
         relations: [],
       };

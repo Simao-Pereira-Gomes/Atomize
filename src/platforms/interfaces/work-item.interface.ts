@@ -98,6 +98,15 @@ export interface TaskDefinition {
   /** Remaining work in hours */
   remainingWork?: number;
 
+  /** Completed work in hours (defaults to 0 for new tasks) */
+  completedWork?: number;
+
+  /** Iteration/sprint path (inherited from parent) */
+  iteration?: string;
+
+  /** Area path (inherited from parent) */
+  areaPath?: string;
+
   /** Parent work item ID */
   parentId?: string;
 

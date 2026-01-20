@@ -6,81 +6,111 @@ tags: []
 
 filter:
   workItemTypes: ["User Story"]
-  states: ["New"]
-  tags:
-    include: ["Candidate S113"]
-  excludeIfHasTasks: true
+  states: ["Ready for Sprint"]
+  tags:   
+    exclude: 
+      - "Test Only"
+      - "TestGen"
+
+
+  excludeIfHasTasks: false
+  areaPaths:
+    - EA-RSP-Platform\Release 2 Team
+  iterations:
+    - EA-RSP-Platform\SOW-7-2026-JAN-MARCH\Sprint 115
+  
 
 tasks:
   - title: "Analysis & Playback"
-    description: "Analyze requirements and planning of necessary changes and discuss with the team."
     estimationPercent: 20
     activity: "Development"
     tags: []
+    assignTo: "@ParentAssignee"
+
+
 
   - title: "Build"
-    description: "Devolop the required changes in the codebase following best practices."
     estimationPercent: 50
     activity: "Development"
     tags: []
+    assignTo: "@ParentAssignee"
+
 
   - title: "Developer Test"
-    description: "Testing the changes made to ensure they meet the requirements and do not introduce new issues.Provide evidence of testing"
     estimationPercent: 25
     activity: "Development"
     tags: []
+    assignTo: "@ParentAssignee"
+
 
   - title: "QA Smoke Test"
-    description: "Ensure that main functionalities are working as expected after the deployment to the QA environment."
     estimationPercent: 0
     activity: "Development"
     tags: []
+    assignTo: "@ParentAssignee"
 
-  - title: "WIKI"
-    description: "Update relevant documentation and WIKI pages to reflect the changes made."
+
+  - title: "Wiki"
     estimationPercent: 5
     activity: "Development"
     tags: []
+    assignTo: "@ParentAssignee"
+
 
   - title: "Code Review "
-    description: "Address code review feedback and refactor as needed"
     estimationPercent: 0
     activity: "Development"
     tags: []
+    assignTo: "@Unassigned"
   
   - title: "Test Preparation"
-    description: "Prepare test cases and scenarios for QA testing."
     estimationPercent: 40
     activity: "Testing"
     tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+
   
   - title: "Test Execution"
-    description: "Execute test cases and report any defects found during testing."
     estimationPercent: 27
     activity: "Testing"
     tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+
 
   - title: "Automation Testing"
-    description: "Develop and maintain automated test scripts to improve testing efficiency."
     estimationPercent: 0
     activity: "Testing"
     tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+
   
   - title: "Test Review"
-    description: "Review test results and ensure all requirements are met before deployment."
     estimationPercent: 0
     activity: "Testing"
     tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+
   
   - title: "Release Notes"
-    description: "Prepare release notes and documentation for the deployment."
     estimationPercent: 0
-    activity: "Documentation"
+    activity: "Testing"
     tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+
 
 estimation:
   strategy: "percentage"
-  rounding: "nearest"
+  rounding: "none"
   minimumTaskPoints: 0
 
 metadata:
