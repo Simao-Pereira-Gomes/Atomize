@@ -39,6 +39,9 @@ export interface AzureDevOpsConfig extends PlatformConfig {
 
   /** API version (optional) */
   apiVersion?: string;
+
+  /** Maximum concurrent API requests for bulk operations (default: 5) */
+  maxConcurrency?: number;
 }
 
 /**
@@ -395,7 +398,8 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
 
   /**
-   * Create multiple tasks in bulk
+   * Create multiple tasks in bulk with parallel execution
+   * Uses concurrency limit to avoid overwhelming the API
    */
   async createTasksBulk(
     parentId: string,
@@ -403,23 +407,35 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
+    const concurrency = this.config.maxConcurrency ?? 5;
     logger.debug(
-      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId}`
+      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
     );
 
-    const createdTasks: WorkItem[] = [];
+    const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
 
-    for (const task of tasks) {
-      try {
-        const created = await this.createTask(parentId, task);
-        createdTasks.push(created);
-      } catch (error) {
-        logger.error(`AzureDevOps: Failed to create task: ${task.title}`, {
-          error,
-        });
-        // Continue with other tasks
-      }
+    // Process tasks in parallel batches
+    for (let i = 0; i < tasks.length; i += concurrency) {
+      const batch = tasks.slice(i, i + concurrency);
+      const batchPromises = batch.map(async (task, batchIndex) => {
+        const taskIndex = i + batchIndex;
+        try {
+          const created = await this.createTask(parentId, task);
+          results[taskIndex] = created;
+          return created;
+        } catch (error) {
+          logger.error(`AzureDevOps: Failed to create task: ${task.title}`, {
+            error,
+          });
+          results[taskIndex] = null;
+          return null;
+        }
+      });
+
+      await Promise.all(batchPromises);
     }
+
+    const createdTasks = results.filter((r): r is WorkItem => r !== null);
 
     logger.info(
       `AzureDevOps: Created ${createdTasks.length} of ${tasks.length} tasks`
