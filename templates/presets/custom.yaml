@@ -26,6 +26,8 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
 
 
 
@@ -34,6 +36,8 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
 
 
   - title: "Developer Test"
@@ -41,6 +45,8 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
 
 
   - title: "QA Smoke Test"
@@ -48,6 +54,8 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
 
 
   - title: "Wiki"
@@ -55,6 +63,8 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
 
 
   - title: "Code Review "
@@ -62,6 +72,8 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@Unassigned"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
   
   - title: "Test Preparation"
     estimationPercent: 40
@@ -83,7 +95,7 @@ tasks:
 
   - title: "Automation Testing"
     estimationPercent: 0
-    activity: "Testing"
+    activity: "Test Automation"
     tags: []
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
     assignTo: "@Unassigned"
