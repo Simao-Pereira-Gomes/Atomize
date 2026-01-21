@@ -74,7 +74,13 @@ tasks:
     assignTo: "@Unassigned"
     condition: '${story.tags} NOT CONTAINS "Testing Only"'
 
-  
+  - title: "Physical Data Model Updated"
+    estimationPercent: 0
+    activity: "Development"
+    tags: []
+    assignTo: "@Unassigned"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
   - title: "Test Preparation"
     estimationPercent: 40
     activity: "Testing"
