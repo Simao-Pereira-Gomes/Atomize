@@ -76,7 +76,10 @@ export const EstimationConfigSchema = z.object({
   defaultParentEstimation: z.number().optional(),
 });
 
+export const ValidationModeSchema = z.enum(["strict", "lenient"]);
+
 export const ValidationConfigSchema = z.object({
+  mode: ValidationModeSchema.optional(),
   totalEstimationMustBe: z.number().optional(),
   totalEstimationRange: z
     .object({
@@ -232,6 +235,7 @@ function validateEstimationConstraints(
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;
 export type EstimationConfig = z.infer<typeof EstimationConfigSchema>;
+export type ValidationMode = z.infer<typeof ValidationModeSchema>;
 export type ValidationConfig = z.infer<typeof ValidationConfigSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
 export type TaskTemplate = z.infer<typeof TaskTemplateSchema>;

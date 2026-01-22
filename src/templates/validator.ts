@@ -1,11 +1,17 @@
 import { TemplateValidationError } from "@utils/errors";
 import type { ZodError } from "zod";
 import type { $ZodIssue } from "zod/v4/core";
-import { type TaskTemplate, TaskTemplateSchema } from "./schema";
+import { type TaskTemplate, type ValidationMode, TaskTemplateSchema } from "./schema";
+
+export interface ValidationOptions {
+  mode?: ValidationMode;
+}
+
 export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
   warnings: ValidationWarning[];
+  mode: ValidationMode;
 }
 
 export interface ValidationError {
@@ -22,16 +28,36 @@ export interface ValidationWarning {
 }
 
 export class TemplateValidator {
-  validate(template: unknown): ValidationResult {
+  validate(template: unknown, options?: ValidationOptions): ValidationResult {
     const parsed = TaskTemplateSchema.safeParse(template);
-    const errors: ValidationError[] = !parsed.success
+
+    const templateMode = parsed.success ? parsed.data.validation?.mode : undefined;
+    const effectiveMode: ValidationMode = options?.mode ?? templateMode ?? "lenient";
+
+    let errors: ValidationError[] = !parsed.success
       ? this.convertZodErrors(parsed.error)
       : [];
-    const warnings: ValidationWarning[] = parsed.success
+    let warnings: ValidationWarning[] = parsed.success
       ? this.collectWarnings(parsed.data)
       : [];
 
-    return { valid: errors.length === 0, errors, warnings };
+    // In strict mode, promote warnings to errors
+    if (effectiveMode === "strict" && warnings.length > 0) {
+      const promotedErrors = warnings.map((w) => this.warningToError(w));
+      errors = [...errors, ...promotedErrors];
+      warnings = [];
+    }
+
+    return { valid: errors.length === 0, errors, warnings, mode: effectiveMode };
+  }
+
+  private warningToError(warning: ValidationWarning): ValidationError {
+    return {
+      path: warning.path,
+      message: warning.message,
+      code: "STRICT_MODE_WARNING",
+      suggestion: warning.suggestion,
+    };
   }
 
   private collectWarnings(template: TaskTemplate): ValidationWarning[] {
@@ -275,8 +301,8 @@ export class TemplateValidator {
   /**
    * Validate and throw if invalid
    */
-  validateOrThrow(template: unknown): TaskTemplate {
-    const result = this.validate(template);
+  validateOrThrow(template: unknown, options?: ValidationOptions): TaskTemplate {
+    const result = this.validate(template, options);
 
     if (!result.valid) {
       const errorMessages = result.errors.map((e) => `${e.path}: ${e.message}`);
@@ -296,11 +322,12 @@ export class TemplateValidator {
 
   formatResult(result: ValidationResult): string {
     const lines: string[] = [];
+    const modeLabel = result.mode === "strict" ? "[Strict Mode]" : "[Lenient Mode]";
 
     if (result.valid) {
-      lines.push("Template is valid!");
+      lines.push(`Template is valid! ${modeLabel}`);
     } else {
-      lines.push("Template validation failed:");
+      lines.push(`Template validation failed: ${modeLabel}`);
       lines.push("");
     }
 

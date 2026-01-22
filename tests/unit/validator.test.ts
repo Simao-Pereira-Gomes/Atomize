@@ -378,4 +378,323 @@ describe("TemplateValidator", () => {
 			expect(maxTasksError).toBeDefined();
 		});
 	});
+
+	describe("validation modes (strict vs lenient)", () => {
+		describe("lenient mode (default)", () => {
+			test("should use lenient mode by default", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				};
+
+				const result = validator.validate(template);
+
+				expect(result.mode).toBe("lenient");
+			});
+
+			test("should return warnings without failing in lenient mode", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				};
+
+				const result = validator.validate(template);
+
+				expect(result.valid).toBe(true);
+				expect(result.warnings.length).toBeGreaterThan(0);
+				expect(result.errors).toHaveLength(0);
+			});
+
+			test("should respect lenient mode from template config", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					validation: {
+						mode: "lenient",
+					},
+				};
+
+				const result = validator.validate(template);
+
+				expect(result.mode).toBe("lenient");
+				expect(result.valid).toBe(true);
+				expect(result.warnings.length).toBeGreaterThan(0);
+			});
+		});
+
+		describe("strict mode", () => {
+			test("should promote warnings to errors in strict mode", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					validation: {
+						mode: "strict",
+					},
+				};
+
+				const result = validator.validate(template);
+
+				expect(result.mode).toBe("strict");
+				expect(result.valid).toBe(false);
+				expect(result.warnings).toHaveLength(0);
+				expect(result.errors.length).toBeGreaterThan(0);
+
+				const promotedError = result.errors.find(
+					(e) => e.code === "STRICT_MODE_WARNING",
+				);
+				expect(promotedError).toBeDefined();
+			});
+
+			test("should use strict mode from template config", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 100 }],
+					validation: {
+						mode: "strict",
+					},
+				};
+
+				const result = validator.validate(template);
+
+				expect(result.mode).toBe("strict");
+			});
+
+			test("should fail on suspicious conditionals in strict mode", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [
+						{
+							title: "Task",
+							estimationPercent: 100,
+							condition: "true", // Suspicious condition
+						},
+					],
+					validation: {
+						mode: "strict",
+					},
+				};
+
+				const result = validator.validate(template);
+
+				expect(result.valid).toBe(false);
+				expect(result.errors.some((e) => e.path.includes("condition"))).toBe(
+					true,
+				);
+			});
+
+			test("should fail on missing task IDs for dependencies in strict mode", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [
+						{
+							id: "task1",
+							title: "Task 1",
+							estimationPercent: 50,
+						},
+						{
+							// Missing id but has dependsOn
+							title: "Task 2",
+							estimationPercent: 50,
+							dependsOn: ["task1"],
+						},
+					],
+					validation: {
+						mode: "strict",
+						totalEstimationMustBe: 100,
+					},
+				};
+
+				const result = validator.validate(template);
+
+				expect(result.valid).toBe(false);
+				expect(result.errors.some((e) => e.message.includes("no id field"))).toBe(
+					true,
+				);
+			});
+		});
+
+		describe("CLI option override", () => {
+			test("should override lenient template config with strict CLI option", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					validation: {
+						mode: "lenient",
+					},
+				};
+
+				const result = validator.validate(template, { mode: "strict" });
+
+				expect(result.mode).toBe("strict");
+				expect(result.valid).toBe(false);
+				expect(result.errors.length).toBeGreaterThan(0);
+			});
+
+			test("should override strict template config with lenient CLI option", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					validation: {
+						mode: "strict",
+					},
+				};
+
+				const result = validator.validate(template, { mode: "lenient" });
+
+				expect(result.mode).toBe("lenient");
+				expect(result.valid).toBe(true);
+				expect(result.warnings.length).toBeGreaterThan(0);
+			});
+
+			test("should use CLI option when template has no mode specified", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				};
+
+				const strictResult = validator.validate(template, { mode: "strict" });
+				const lenientResult = validator.validate(template, { mode: "lenient" });
+
+				expect(strictResult.mode).toBe("strict");
+				expect(strictResult.valid).toBe(false);
+
+				expect(lenientResult.mode).toBe("lenient");
+				expect(lenientResult.valid).toBe(true);
+			});
+		});
+
+		describe("validateOrThrow with modes", () => {
+			test("should throw in strict mode when warnings exist", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				};
+
+				// Lenient mode should not throw
+				expect(() => validator.validateOrThrow(template)).not.toThrow();
+
+				// Strict mode should throw
+				expect(() =>
+					validator.validateOrThrow(template, { mode: "strict" }),
+				).toThrow(TemplateValidationError);
+			});
+
+			test("should pass in strict mode when no warnings exist", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 100 }],
+				};
+
+				const validated = validator.validateOrThrow(template, { mode: "strict" });
+				expect(validated.name).toBe("Test");
+			});
+		});
+
+		describe("formatResult with modes", () => {
+			test("should include mode label in formatted output for strict mode", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 100 }],
+				};
+
+				const result = validator.validate(template, { mode: "strict" });
+				const formatted = validator.formatResult(result);
+
+				expect(formatted).toContain("[Strict Mode]");
+			});
+
+			test("should include mode label in formatted output for lenient mode", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 100 }],
+				};
+
+				const result = validator.validate(template, { mode: "lenient" });
+				const formatted = validator.formatResult(result);
+
+				expect(formatted).toContain("[Lenient Mode]");
+			});
+		});
+
+		describe("edge cases", () => {
+			test("should handle template with no validation config in strict mode via option", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 100 }],
+					// No validation config at all
+				};
+
+				const result = validator.validate(template, { mode: "strict" });
+
+				expect(result.mode).toBe("strict");
+				expect(result.valid).toBe(true);
+			});
+
+			test("should still fail on schema errors regardless of mode", () => {
+				const invalidTemplate = {
+					version: "1.0",
+					// Missing name
+					filter: {},
+					tasks: [],
+				};
+
+				const lenientResult = validator.validate(invalidTemplate, {
+					mode: "lenient",
+				});
+				const strictResult = validator.validate(invalidTemplate, {
+					mode: "strict",
+				});
+
+				expect(lenientResult.valid).toBe(false);
+				expect(strictResult.valid).toBe(false);
+			});
+
+			test("should preserve suggestion in promoted errors", () => {
+				const template = {
+					version: "1.0",
+					name: "Test",
+					filter: {},
+					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				};
+
+				const result = validator.validate(template, { mode: "strict" });
+				const promotedError = result.errors.find(
+					(e) => e.code === "STRICT_MODE_WARNING",
+				);
+
+				expect(promotedError?.suggestion).toBeDefined();
+				expect(promotedError?.suggestion).toContain("20%");
+			});
+		});
+	});
 });
