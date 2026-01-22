@@ -1,7 +1,7 @@
 import { bench, group } from "mitata";
 import { DependencyResolver } from "../src/core/dependency-resolver";
-import { generateLargeTemplate } from "../tests/fixtures/generators";
 import type { TaskDefinition } from "../src/templates/schema";
+import { generateLargeTemplate } from "../tests/fixtures/generators";
 
 export function registerDependencyBenchmarks() {
   const resolver = new DependencyResolver();

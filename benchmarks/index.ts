@@ -1,6 +1,6 @@
 import { run } from "mitata";
-import { registerValidationBenchmarks } from "./validation.bench";
 import { registerDependencyBenchmarks } from "./dependencies.bench";
+import { registerValidationBenchmarks } from "./validation.bench";
 
 registerValidationBenchmarks();
 registerDependencyBenchmarks();

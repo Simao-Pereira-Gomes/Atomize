@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { generateLargeTemplate } from "tests/fixtures/generators";
+import { measurePerformance } from "tests/utils/perfomance";
 import { DependencyResolver } from "../../src/core/dependency-resolver";
 import type { TaskDefinition } from "../../src/templates/schema";
 import { TemplateValidator } from "../../src/templates/validator";
-import { generateLargeTemplate } from "tests/fixtures/generators";
-import { measurePerformance } from "tests/utils/perfomance";
 
 describe("Validation Performance", () => {
   const validator = new TemplateValidator();

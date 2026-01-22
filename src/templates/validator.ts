@@ -1,7 +1,7 @@
 import { TemplateValidationError } from "@utils/errors";
 import type { ZodError } from "zod";
 import type { $ZodIssue } from "zod/v4/core";
-import { type TaskTemplate, type ValidationMode, TaskTemplateSchema } from "./schema";
+import { type TaskTemplate, TaskTemplateSchema, type ValidationMode } from "./schema";
 
 export interface ValidationOptions {
   mode?: ValidationMode;

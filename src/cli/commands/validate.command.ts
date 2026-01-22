@@ -9,7 +9,11 @@ import {
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
-import type { TaskDefinition, TaskTemplate, ValidationMode } from "@/templates/schema";
+import type {
+  TaskDefinition,
+  TaskTemplate,
+  ValidationMode,
+} from "@/templates/schema";
 
 type ValidateOptions = {
   verbose?: boolean;
@@ -21,7 +25,11 @@ export const validateCommand = new Command("validate")
   .description("Validate a template file")
   .argument("<template>", "Path to template file (YAML)")
   .option("-v, --verbose", "Show detailed validation information", false)
-  .option("-s, --strict", "Use strict validation mode (warnings become errors)", false)
+  .option(
+    "-s, --strict",
+    "Use strict validation mode (warnings become errors)",
+    false,
+  )
   .option("-l, --lenient", "Use lenient validation mode (default)", false)
   .action(async (templatePath: string, options: ValidateOptions) => {
     console.log(chalk.blue("Atomize Template Validator\n"));
@@ -75,7 +83,7 @@ function printTemplateDetails(template: TaskTemplate) {
 
 function printValidationResult(
   template: TaskTemplate,
-  result: ValidationResult
+  result: ValidationResult,
 ) {
   console.log("");
 
@@ -90,11 +98,11 @@ function printValidationResult(
 function printValidSummary(
   template: TaskTemplate,
   warnings: ValidationWarning[],
-  mode: ValidationMode
+  mode: ValidationMode,
 ) {
-  const modeLabel = mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
-  console.log(chalk.green("Template is valid!") + ` ${modeLabel}\n`);
-
+  const modeLabel =
+    mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
+  console.log(`${chalk.green("Template·is·valid!")}·${modeLabel}\n`);
   const summary = getTemplateSummary(template);
 
   console.log(chalk.bold("Summary:"));
@@ -104,17 +112,17 @@ function printValidSummary(
 
   printWarnings(warnings);
 
-  console.log(`\n ${chalk.green("Ready to use with atomize generate")}`);
+  console.log(`${chalk.red("Template·validation·failed")}·${modeLabel}\n`);
 }
 
 function printInvalidSummary(
   errors: ValidationError[],
   warnings: ValidationWarning[],
-  mode: ValidationMode
+  mode: ValidationMode,
 ) {
-  const modeLabel = mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
-  console.log(chalk.red("Template validation failed") + ` ${modeLabel}\n`);
-
+  const modeLabel =
+    mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
+  console.log(`${chalk.red("Template·validation·failed")}·${modeLabel}\n`);
   console.log(chalk.red.bold("Errors:"));
   errors.forEach((err) => {
     console.log(chalk.red(`  • ${err.path}: ${err.message}`));
@@ -130,7 +138,7 @@ function printWarnings(warnings: ValidationWarning[], boldTitle = false) {
 
   console.log("");
   console.log(
-    boldTitle ? chalk.yellow.bold("Warnings:") : chalk.yellow("Warnings:")
+    boldTitle ? chalk.yellow.bold("Warnings:") : chalk.yellow("Warnings:"),
   );
 
   warnings.forEach((warn) => {
@@ -144,7 +152,7 @@ function getTemplateSummary(template: TaskTemplate) {
     .reduce(
       (sum: number, task: TaskDefinition) =>
         sum + (task.estimationPercent ?? 0),
-      0
+      0,
     );
 
   return {

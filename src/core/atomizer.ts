@@ -34,6 +34,8 @@ export interface ProgressEvent {
   storyIndex?: number;
   /** Total number of stories */
   totalStories?: number;
+  /** Number of stories completed so far */
+  completedStories?: number;
   /** Current story being processed */
   story?: WorkItem;
   /** Number of tasks created so far */
@@ -331,6 +333,7 @@ export class Atomizer {
             type: "story_complete",
             storyIndex,
             totalStories: stories.length,
+            completedStories,
             story,
             tasksCreated: totalTasksCreated,
           });
@@ -361,6 +364,7 @@ export class Atomizer {
             type: "story_error",
             storyIndex,
             totalStories: stories.length,
+            completedStories,
             story,
             error: errorMessage,
           });
