@@ -289,7 +289,7 @@ export const generateCommand = new Command("generate")
               clearProgress();
               console.log(
                 chalk.green(
-                  `  ✓ [${(event.storyIndex ?? 0) + 1}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+                  ` [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
                 ),
               );
               break;
@@ -297,7 +297,7 @@ export const generateCommand = new Command("generate")
               clearProgress();
               console.log(
                 chalk.red(
-                  `  ✗ [${(event.storyIndex ?? 0) + 1}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+                  ` [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
                 ),
               );
               break;
