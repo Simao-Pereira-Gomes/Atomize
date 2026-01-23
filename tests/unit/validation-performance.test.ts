@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { generateLargeTemplate } from "tests/fixtures/generators";
+import {
+  generateLargeTemplate,
+  generateTemplateWithCycles,
+} from "tests/fixtures/generators";
 import { measurePerformance } from "tests/utils/perfomance";
 import { DependencyResolver } from "../../src/core/dependency-resolver";
 import type { TaskDefinition } from "../../src/templates/schema";
@@ -79,6 +82,71 @@ describe("Validation Performance", () => {
 
       // If we had a memory leak, frequent GC pauses would spike this average up.
       expect(avg).toBeLessThan(5);
+    });
+  });
+
+  describe("Circular Dependency Detection Performance", () => {
+    test("should detect cycles in 50 tasks < 3ms (avg)", () => {
+      const template = generateTemplateWithCycles(50, 5);
+
+      const avgTime = measurePerformance(() => {
+        validator.validate(template);
+      });
+
+      const result = validator.validate(template);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.code === "CIRCULAR_DEPENDENCY"),
+      ).toBe(true);
+      expect(avgTime).toBeLessThan(3);
+    });
+
+    test("should detect cycles in 100 tasks < 5ms (avg)", () => {
+      const template = generateTemplateWithCycles(100, 5);
+
+      const avgTime = measurePerformance(() => {
+        validator.validate(template);
+      });
+
+      const result = validator.validate(template);
+      expect(result.valid).toBe(false);
+      expect(avgTime).toBeLessThan(5);
+    });
+
+    test("should detect cycles in 200 tasks < 10ms (avg)", () => {
+      const template = generateTemplateWithCycles(200, 10);
+
+      const avgTime = measurePerformance(() => {
+        validator.validate(template);
+      });
+
+      const result = validator.validate(template);
+      expect(result.valid).toBe(false);
+      expect(avgTime).toBeLessThan(10);
+    });
+
+    test("should validate deep chain (no cycle) for 100 tasks < 5ms", () => {
+      const template = generateLargeTemplate(100, { withDeepChain: true });
+
+      const avgTime = measurePerformance(() => {
+        validator.validate(template);
+      });
+
+      const result = validator.validate(template);
+      expect(result.valid).toBe(true);
+      expect(avgTime).toBeLessThan(5);
+    });
+
+    test("should validate diamond pattern (no cycle) for 100 tasks < 5ms", () => {
+      const template = generateLargeTemplate(100, { withDiamondPattern: true });
+
+      const avgTime = measurePerformance(() => {
+        validator.validate(template);
+      });
+
+      const result = validator.validate(template);
+      expect(result.valid).toBe(true);
+      expect(avgTime).toBeLessThan(5);
     });
   });
 });
