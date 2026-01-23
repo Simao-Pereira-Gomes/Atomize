@@ -228,6 +228,15 @@ export class TemplateValidator {
           : undefined;
       }
 
+      case "CIRCULAR_DEPENDENCY": {
+        const match = err.message.match(/Circular dependency detected: (.+)$/);
+        if (match) {
+          const cyclePath = match[1];
+          return `Remove one of the dependencies in the cycle to break the loop: ${cyclePath}. Consider which task should logically come first.`;
+        }
+        return "Remove one of the dependencies in the cycle to break the circular reference.";
+      }
+
       case "MISSING_REQUIRED_TASK": {
         const match = err.message.match(/title "([^"]+)"/);
         return match

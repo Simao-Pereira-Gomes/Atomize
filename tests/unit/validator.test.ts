@@ -1375,4 +1375,343 @@ describe("TemplateValidator", () => {
 			expect(result.valid).toBe(true);
 		});
 	});
+
+	describe("circular dependency detection", () => {
+		test("should detect simple cycle (A → B → A)", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 50,
+						dependsOn: ["task-b"],
+					},
+					{
+						id: "task-b",
+						title: "Task B",
+						estimationPercent: 50,
+						dependsOn: ["task-a"],
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const cycleError = result.errors.find(
+				(e) => e.code === "CIRCULAR_DEPENDENCY",
+			);
+			expect(cycleError).toBeDefined();
+			expect(cycleError?.message).toContain("task-a");
+			expect(cycleError?.message).toContain("task-b");
+		});
+
+		test("should detect complex cycle (A → B → C → A)", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 34,
+						dependsOn: ["task-b"],
+					},
+					{
+						id: "task-b",
+						title: "Task B",
+						estimationPercent: 33,
+						dependsOn: ["task-c"],
+					},
+					{
+						id: "task-c",
+						title: "Task C",
+						estimationPercent: 33,
+						dependsOn: ["task-a"],
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const cycleError = result.errors.find(
+				(e) => e.code === "CIRCULAR_DEPENDENCY",
+			);
+			expect(cycleError).toBeDefined();
+			expect(cycleError?.message).toContain("Circular dependency detected");
+			expect(cycleError?.message).toContain("→");
+		});
+
+		test("should detect self-referential dependency (A → A)", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 100,
+						dependsOn: ["task-a"],
+					},
+				],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const cycleError = result.errors.find(
+				(e) => e.code === "CIRCULAR_DEPENDENCY",
+			);
+			expect(cycleError).toBeDefined();
+			expect(cycleError?.message).toContain("task-a");
+		});
+
+		test("should allow valid diamond dependencies (no cycle)", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 25,
+					},
+					{
+						id: "task-b",
+						title: "Task B",
+						estimationPercent: 25,
+						dependsOn: ["task-a"],
+					},
+					{
+						id: "task-c",
+						title: "Task C",
+						estimationPercent: 25,
+						dependsOn: ["task-a"],
+					},
+					{
+						id: "task-d",
+						title: "Task D",
+						estimationPercent: 25,
+						dependsOn: ["task-b", "task-c"],
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+			expect(
+				result.errors.filter((e) => e.code === "CIRCULAR_DEPENDENCY"),
+			).toHaveLength(0);
+		});
+
+		test("should allow valid linear chain (no cycle)", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 25,
+					},
+					{
+						id: "task-b",
+						title: "Task B",
+						estimationPercent: 25,
+						dependsOn: ["task-a"],
+					},
+					{
+						id: "task-c",
+						title: "Task C",
+						estimationPercent: 25,
+						dependsOn: ["task-b"],
+					},
+					{
+						id: "task-d",
+						title: "Task D",
+						estimationPercent: 25,
+						dependsOn: ["task-c"],
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should detect multiple separate cycles", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 25,
+						dependsOn: ["task-b"],
+					},
+					{
+						id: "task-b",
+						title: "Task B",
+						estimationPercent: 25,
+						dependsOn: ["task-a"],
+					},
+					{
+						id: "task-c",
+						title: "Task C",
+						estimationPercent: 25,
+						dependsOn: ["task-d"],
+					},
+					{
+						id: "task-d",
+						title: "Task D",
+						estimationPercent: 25,
+						dependsOn: ["task-c"],
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const cycleErrors = result.errors.filter(
+				(e) => e.code === "CIRCULAR_DEPENDENCY",
+			);
+			expect(cycleErrors.length).toBeGreaterThanOrEqual(2);
+		});
+
+		test("should provide actionable suggestion for circular dependency", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 50,
+						dependsOn: ["task-b"],
+					},
+					{
+						id: "task-b",
+						title: "Task B",
+						estimationPercent: 50,
+						dependsOn: ["task-a"],
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+			const cycleError = result.errors.find(
+				(e) => e.code === "CIRCULAR_DEPENDENCY",
+			);
+
+			expect(cycleError?.suggestion).toBeDefined();
+			expect(cycleError?.suggestion).toContain("Remove one of the dependencies");
+		});
+
+		test("should handle tasks without IDs (no circular check needed)", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task A",
+						estimationPercent: 50,
+					},
+					{
+						title: "Task B",
+						estimationPercent: 50,
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+			expect(
+				result.errors.filter((e) => e.code === "CIRCULAR_DEPENDENCY"),
+			).toHaveLength(0);
+		});
+
+		test("should detect cycle in longer chain (A → B → C → D → B)", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						id: "task-a",
+						title: "Task A",
+						estimationPercent: 25,
+						dependsOn: ["task-b"],
+					},
+					{
+						id: "task-b",
+						title: "Task B",
+						estimationPercent: 25,
+						dependsOn: ["task-c"],
+					},
+					{
+						id: "task-c",
+						title: "Task C",
+						estimationPercent: 25,
+						dependsOn: ["task-d"],
+					},
+					{
+						id: "task-d",
+						title: "Task D",
+						estimationPercent: 25,
+						dependsOn: ["task-b"],
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const cycleError = result.errors.find(
+				(e) => e.code === "CIRCULAR_DEPENDENCY",
+			);
+			expect(cycleError).toBeDefined();
+			// The cycle should include b → c → d → b
+			expect(cycleError?.message).toContain("task-b");
+		});
+	});
 });

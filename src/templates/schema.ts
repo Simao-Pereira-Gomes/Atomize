@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  buildAdjacencyList,
+  detectCycles,
+  formatCyclePath,
+} from "@/utils/graph.js";
 
 // Custom field type definitions for validation
 export const CustomFieldTypeSchema = z.enum([
@@ -184,6 +189,11 @@ export const TaskTemplateSchema = z
     validateCustomFields(v, tasks, ctx);
 
     const availableIds = Array.from(taskIds);
+    const taskIndexById = new Map<string, number>();
+    tasks.forEach((t, i) => {
+      if (t.id) taskIndexById.set(t.id, i);
+    });
+
     tasks.forEach((task, index) => {
       task.dependsOn?.forEach((depId) => {
         if (!taskIds.has(depId)) {
@@ -200,6 +210,9 @@ export const TaskTemplateSchema = z
         }
       });
     });
+
+    // Detect circular dependencies
+    reportCircularDependencies(tasks, taskIndexById, ctx);
   });
 
 function validateTaskConstraints(
@@ -431,6 +444,30 @@ function getValueType(value: unknown): string {
     return "string";
   }
   return typeof value; // "number", "boolean", "object"
+}
+
+/**
+ * Detects circular dependencies in task graph and reports them as validation issues.
+ */
+function reportCircularDependencies(
+  tasks: z.infer<typeof TaskDefinitionSchema>[],
+  taskIndexById: Map<string, number>,
+  ctx: z.RefinementCtx,
+) {
+  const adjacencyList = buildAdjacencyList(tasks);
+  const { cycles } = detectCycles(adjacencyList);
+
+  for (const cyclePath of cycles) {
+    const firstTaskId = cyclePath[0];
+    const taskIndex = firstTaskId ? (taskIndexById.get(firstTaskId) ?? 0) : 0;
+
+    ctx.addIssue({
+      code: "custom",
+      path: ["tasks", taskIndex, "dependsOn"],
+      message: `Circular dependency detected: ${formatCyclePath(cyclePath)}`,
+      params: { code: "CIRCULAR_DEPENDENCY", cycle: cyclePath },
+    });
+  }
 }
 
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
