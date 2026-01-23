@@ -697,4 +697,682 @@ describe("TemplateValidator", () => {
 			});
 		});
 	});
+
+	describe("required tasks validation", () => {
+		test("should pass when all required tasks are present by title", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ title: "Setup", estimationPercent: 30 },
+					{ title: "Implementation", estimationPercent: 50 },
+					{ title: "Testing", estimationPercent: 20 },
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+					requiredTasks: [{ title: "Setup" }, { title: "Testing" }],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+			expect(result.errors).toHaveLength(0);
+		});
+
+		test("should fail when required task is missing", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ title: "Setup", estimationPercent: 50 },
+					{ title: "Implementation", estimationPercent: 50 },
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+					requiredTasks: [
+						{ title: "Setup" },
+						{ title: "Testing" }, // Missing!
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const missingError = result.errors.find(
+				(e) => e.code === "MISSING_REQUIRED_TASK",
+			);
+			expect(missingError).toBeDefined();
+			expect(missingError?.message).toContain("Testing");
+		});
+
+		test("should match required task by id", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ id: "setup-task", title: "Project Setup", estimationPercent: 50 },
+					{ id: "test-task", title: "Run Tests", estimationPercent: 50 },
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+					requiredTasks: [
+						{ id: "setup-task", title: "Setup" },
+						{ id: "test-task", title: "Testing" },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should be case-insensitive for title matching", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ title: "SETUP", estimationPercent: 50 },
+					{ title: "testing", estimationPercent: 50 },
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+					requiredTasks: [{ title: "Setup" }, { title: "TESTING" }],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should provide actionable suggestion for missing required task", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [{ title: "Setup", estimationPercent: 100 }],
+				validation: {
+					requiredTasks: [{ title: "Code Review" }],
+				},
+			};
+
+			const result = validator.validate(template);
+			const error = result.errors.find(
+				(e) => e.code === "MISSING_REQUIRED_TASK",
+			);
+
+			expect(error?.suggestion).toBeDefined();
+			expect(error?.suggestion).toContain("Code Review");
+		});
+	});
+
+	describe("custom field type validation", () => {
+		test("should pass when custom field has correct type", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							priority: 1,
+							category: "backend",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "priority", type: "number" },
+						{ name: "category", type: "string" },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should fail when custom field has wrong type", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							priority: "high",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [{ name: "priority", type: "number" }],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const typeError = result.errors.find(
+				(e) => e.code === "INVALID_CUSTOM_FIELD_TYPE",
+			);
+			expect(typeError).toBeDefined();
+			expect(typeError?.message).toContain("string");
+			expect(typeError?.message).toContain("number");
+		});
+
+		test("should validate boolean type", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							isUrgent: true,
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [{ name: "isUrgent", type: "boolean" }],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should validate array type", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							labels: ["frontend", "urgent"],
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [{ name: "labels", type: "array" }],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should validate date type from string", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							dueDate: "2024-12-31",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [{ name: "dueDate", type: "date" }],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+	});
+
+	describe("custom field range validation", () => {
+		test("should pass when number is within range", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							priority: 5,
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "priority", type: "number", min: 1, max: 10 },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should fail when number is below minimum", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							priority: 0,
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "priority", type: "number", min: 1, max: 10 },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const rangeError = result.errors.find(
+				(e) => e.code === "CUSTOM_FIELD_BELOW_MIN",
+			);
+			expect(rangeError).toBeDefined();
+			expect(rangeError?.message).toContain("0");
+			expect(rangeError?.message).toContain("1");
+		});
+
+		test("should fail when number is above maximum", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							priority: 15,
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "priority", type: "number", min: 1, max: 10 },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const rangeError = result.errors.find(
+				(e) => e.code === "CUSTOM_FIELD_ABOVE_MAX",
+			);
+			expect(rangeError).toBeDefined();
+			expect(rangeError?.message).toContain("15");
+			expect(rangeError?.message).toContain("10");
+		});
+
+		test("should validate string length constraints", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							code: "AB",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "code", type: "string", minLength: 3, maxLength: 10 },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const lengthError = result.errors.find(
+				(e) => e.code === "CUSTOM_FIELD_TOO_SHORT",
+			);
+			expect(lengthError).toBeDefined();
+		});
+
+		test("should fail when string exceeds max length", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							code: "ABCDEFGHIJKLM",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "code", type: "string", maxLength: 10 },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const lengthError = result.errors.find(
+				(e) => e.code === "CUSTOM_FIELD_TOO_LONG",
+			);
+			expect(lengthError).toBeDefined();
+		});
+
+		test("should validate string pattern", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							code: "invalid-code",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "code", type: "string", pattern: "^[A-Z]{3}-\\d{3}$" },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const patternError = result.errors.find(
+				(e) => e.code === "CUSTOM_FIELD_PATTERN_MISMATCH",
+			);
+			expect(patternError).toBeDefined();
+		});
+
+		test("should pass when string matches pattern", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							code: "ABC-123",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "code", type: "string", pattern: "^[A-Z]{3}-\\d{3}$" },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+	});
+
+	describe("custom field allowed values validation", () => {
+		test("should pass when value is in allowed list", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							status: "active",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{
+							name: "status",
+							type: "string",
+							allowedValues: ["active", "inactive", "pending"],
+						},
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should fail when value is not in allowed list", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							status: "unknown",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{
+							name: "status",
+							type: "string",
+							allowedValues: ["active", "inactive", "pending"],
+						},
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const valueError = result.errors.find(
+				(e) => e.code === "CUSTOM_FIELD_INVALID_VALUE",
+			);
+			expect(valueError).toBeDefined();
+			expect(valueError?.message).toContain("unknown");
+			expect(valueError?.message).toContain("active");
+		});
+
+		test("should validate allowed numeric values", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							priority: 5,
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{
+							name: "priority",
+							type: "number",
+							allowedValues: [1, 2, 3],
+						},
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const valueError = result.errors.find(
+				(e) => e.code === "CUSTOM_FIELD_INVALID_VALUE",
+			);
+			expect(valueError).toBeDefined();
+		});
+	});
+
+	describe("required custom fields validation", () => {
+		test("should fail when required custom field is missing", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "priority", type: "number", required: true },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const missingError = result.errors.find(
+				(e) => e.code === "MISSING_REQUIRED_CUSTOM_FIELD",
+			);
+			expect(missingError).toBeDefined();
+			expect(missingError?.message).toContain("priority");
+		});
+
+		test("should fail when required field is missing for specific task", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 50,
+						customFields: {
+							priority: 1,
+						},
+					},
+					{
+						title: "Task 2",
+						estimationPercent: 50,
+						customFields: {
+							category: "backend",
+						},
+					},
+				],
+				validation: {
+					totalEstimationMustBe: 100,
+					customFieldDefinitions: [
+						{ name: "priority", type: "number", required: true },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			const missingError = result.errors.find(
+				(e) => e.code === "MISSING_REQUIRED_CUSTOM_FIELD",
+			);
+			expect(missingError).toBeDefined();
+			expect(missingError?.message).toContain("Task 2");
+		});
+
+		test("should pass when all required custom fields are present", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						customFields: {
+							priority: 1,
+							category: "backend",
+						},
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "priority", type: "number", required: true },
+						{ name: "category", type: "string", required: true },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("should not require optional custom fields", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+					},
+				],
+				validation: {
+					customFieldDefinitions: [
+						{ name: "priority", type: "number", required: false },
+						{ name: "category", type: "string" },
+					],
+				},
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+		});
+	});
 });
