@@ -133,16 +133,16 @@ Summary:
 #### Create a Template
 
 ```bash
-# AI-powered (best for quick starts)
+# best for quick starts
 atomize template create --ai "Create template for React component development"
 
 # From preset (fastest)
 atomize template create --preset frontend-feature
 
-# Learn from story (best for matching your workflow)
+# Learn from story in your platform
 atomize template create --from-story STORY-456 --platform azure-devops
 
-# Interactive wizard (most control)
+# Interactive wizard
 atomize template create --scratch
 ```
 
@@ -263,11 +263,11 @@ tasks:
 
 ---
 
-## 🤖 AI-Powered Template Creation
+##  AI-Powered Template Creation
 
 Atomize supports two free AI providers for template generation:
 
-### Google Gemini (Cloud - Recommended)
+### Google Gemin
 
 1. Get a free API key: https://makersuite.google.com/app/apikey
 2. Set environment variable:
@@ -279,7 +279,7 @@ Atomize supports two free AI providers for template generation:
    atomize template create --ai "Backend API with OAuth authentication"
    ```
 
-### Ollama (Local - Complete Privacy)
+### Ollama (Local)
 
 1. Install Ollama: https://ollama.ai
 2. Download a model:
@@ -298,13 +298,12 @@ Atomize supports two free AI providers for template generation:
 ### AI Tips
 
 - Be specific: "Backend API with JWT auth, rate limiting, and PostgreSQL"
-- Mention your tech stack: "React component with TypeScript and Tailwind CSS"
 - Specify testing requirements: "Include unit tests and E2E tests"
 - Refine iteratively: Use the refine option to adjust the generated template
 
 ---
 
-## 🔗 Platform Setup
+##  Platform Setup
 
 ### Azure DevOps
 
@@ -371,15 +370,6 @@ filter:
   excludeIfHasTasks: true
 ```
 
-### Estimation Strategies
-
-```yaml
-estimation:
-  strategy: "percentage"     # Distribute story points by percentage
-  rounding: "nearest"        # nearest, up, down, none
-  minimumTaskPoints: 0.5     # Minimum points per task
-```
-
 ### Learning from Existing Stories
 
 ```bash
@@ -395,7 +385,7 @@ atomize template create --from-story STORY-123 --no-normalize
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 ```bash
 # Run all tests
@@ -442,22 +432,9 @@ bun run build
 - [x] Preset templates
 - [x] Story learning
 - [x] Interactive wizards
-
-### v0.2.0 - Enhanced Features
-- [ ] GitHub Issues integration
-- [ ] Jira integration
-- [ ] VS Code extension
-
-### v0.3.0 - Advanced Capabilities
-- [ ] Multi-story batch processing
-- [ ] Custom estimation formulas
-- [ ] Template inheritance
-- [ ] Workflow automation
-- [ ] Analytics dashboard
-
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
@@ -493,12 +470,12 @@ ollama pull llama3.2  # Model must be downloaded
 
 ---
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details
 
-## 📧 Support
+##  Support
 
-- 🐛 [Report a Bug](https://github.com/Simao-Pereira-Gomes/atomize/issues)
-- 💡 [Request a Feature](https://github.com/Simao-Pereira-Gomes/atomize/issues)
-- 💬 [Discussions](https://github.com/Simao-Pereira-Gomes/atomize/discussions)
+- [Report a Bug](https://github.com/Simao-Pereira-Gomes/atomize/issues)
+- [Request a Feature](https://github.com/Simao-Pereira-Gomes/atomize/issues)
+- [Discussions](https://github.com/Simao-Pereira-Gomes/atomize/discussions)
