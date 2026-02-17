@@ -1,10 +1,14 @@
 import type { TaskDefinition } from "@templates/schema";
-import { PatternDetector } from "./pattern-detector";
+import { ConditionPatternDetector } from "./condition-pattern-detector";
+import { DependencyDetector } from "./dependency-detector";
+import { SimilarityCalculator } from "./similarity-calculator";
 import type {
+  EnhancedTagInfo,
   MergedTask,
   PatternDetectionResult,
   StoryAnalysis,
 } from "./story-learner.types";
+import { TagPatternDetector } from "./tag-pattern-detector";
 
 /**
  * Merges similar tasks from multiple stories into a canonical task list.
@@ -12,12 +16,16 @@ import type {
  * averaged estimations with full source tracking.
  */
 export class TaskMerger {
-  private detector = new PatternDetector();
+  private detector = new SimilarityCalculator();
+  private dependencyDetector = new DependencyDetector();
+  private tagPatternDetector = new TagPatternDetector();
+  private conditionPatternDetector = new ConditionPatternDetector();
   private similarityThreshold = 0.45;
-
+  private confidenceTresholdForDependsOn = 0.7;
+  private confidenceThresholdForConditions = 0.75;
   merge(
     analyses: StoryAnalysis[],
-    _patterns: PatternDetectionResult,
+    patterns: PatternDetectionResult,
   ): MergedTask[] {
     if (analyses.length === 0) return [];
 
@@ -41,14 +49,27 @@ export class TaskMerger {
       (entry) => entry.normalized,
       this.similarityThreshold,
     );
-    const mergedTasks: MergedTask[] = groups.map((group, index) => {
+
+    const tagInfoMap = new Map<string, EnhancedTagInfo>();
+    for (const commonTask of patterns.commonTasks) {
+      if (commonTask.tagInfo) {
+        tagInfoMap.set(commonTask.canonicalTitle, commonTask.tagInfo);
+      }
+    }
+
+    let mergedTasks: MergedTask[] = groups.map((group, index) => {
       const canonicalTitle = this.pickCanonicalTitle(
         group.map((g) => g.task.title),
       );
       const avgEstimation = this.averageEstimation(
         group.map((g) => g.task.estimationPercent ?? 0),
       );
-      const tags = this.mergeTags(group.map((g) => g.task.tags ?? []));
+
+      const tagInfo = tagInfoMap.get(canonicalTitle);
+      const tags = tagInfo
+        ? this.tagPatternDetector.getSuggestedTags(tagInfo, true)
+        : this.mergeTags(group.map((g) => g.task.tags ?? []));
+
       const activity = this.mostCommonActivity(
         group.map((g) => g.task.activity ?? "Development"),
       );
@@ -73,8 +94,25 @@ export class TaskMerger {
         ),
       };
 
-      return { task, sources, similarity };
+      return {
+        task,
+        sources,
+        similarity,
+        tagClassification: tagInfo,
+      };
     });
+
+    mergedTasks = this.dependencyDetector.generateDependsOn(
+      mergedTasks,
+      patterns.dependencyPatterns,
+      this.confidenceTresholdForDependsOn,
+    );
+
+    mergedTasks = this.conditionPatternDetector.augmentMergedTasks(
+      mergedTasks,
+      patterns.conditionalPatterns,
+      this.confidenceThresholdForConditions, // confidence threshold
+    );
 
     return this.deduplicateAndOrder(mergedTasks);
   }

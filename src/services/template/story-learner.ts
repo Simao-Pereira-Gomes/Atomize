@@ -35,7 +35,7 @@ export class StoryLearner {
    */
   async learnFromStory(
     storyId: string,
-    normalizePercentages: boolean
+    normalizePercentages: boolean,
   ): Promise<TaskTemplate> {
     logger.info(`Learning template from story: ${storyId}`);
     const story = await this.platform.getWorkItem?.(storyId);
@@ -46,7 +46,7 @@ export class StoryLearner {
     const tasks = await this.platform.getChildren?.(storyId);
     if (!tasks || tasks.length === 0) {
       throw new TemplateGenerationError(
-        `Story ${storyId} has no child tasks to learn from`
+        `Story ${storyId} has no child tasks to learn from`,
       );
     }
 
@@ -55,7 +55,7 @@ export class StoryLearner {
     const template = this.generateTemplateFromTasks(
       story,
       tasks,
-      normalizePercentages
+      normalizePercentages,
     );
 
     logger.info("Template learned successfully");
@@ -68,19 +68,17 @@ export class StoryLearner {
    */
   async learnFromStories(
     storyIds: string[],
-    options: LearnOptions
+    options: LearnOptions,
   ): Promise<MultiStoryLearningResult> {
     logger.info(
-      `Learning template from ${storyIds.length} stories: ${storyIds.join(", ")}`
+      `Learning template from ${storyIds.length} stories: ${storyIds.join(", ")}`,
     );
 
     if (storyIds.length === 0) {
       throw new TemplateGenerationError("No story IDs provided");
     }
-
-    // 1. Analyze each story in parallel
     const results = await Promise.allSettled(
-      storyIds.map((id) => this.analyzeStory(id, options))
+      storyIds.map((id) => this.analyzeStory(id, options)),
     );
 
     const analyses: StoryAnalysis[] = [];
@@ -109,51 +107,37 @@ export class StoryLearner {
 
     if (analyses.length === 0) {
       throw new TemplateGenerationError(
-        "None of the provided stories had analyzable tasks"
+        "None of the provided stories had analyzable tasks",
       );
     }
-
-    // 2. Detect patterns
     const patternDetector = new PatternDetector();
     const patterns = patternDetector.detect(analyses);
-
-    // 3. Merge tasks
     const taskMerger = new TaskMerger();
     const mergedTasks = taskMerger.merge(analyses, patterns);
-
-    // 4. Build merged template
     const mergedTemplate = this.buildMergedTemplate(
       analyses,
       mergedTasks,
-      options
+      options,
     );
-
-    // 5. Score confidence
     const confidenceScorer = new ConfidenceScorer();
     const confidence = confidenceScorer.score(analyses, patterns, mergedTasks);
-
-    // 6. Detect outliers
     const outlierDetector = new OutlierDetector();
     const outliers = outlierDetector.detect(analyses, patterns);
-
-    // 7. Generate suggestions
     const suggestions = this.generateSuggestions(
       analyses,
       patterns,
       confidence,
-      outliers
+      outliers,
     );
-
-    // 8. Generate variations
     const variations = this.generateVariations(
       analyses,
       patterns,
       mergedTasks,
-      options
+      options,
     );
 
     logger.info(
-      `Multi-story learning complete: ${analyses.length} analyzed, ${skipped.length} skipped, confidence: ${confidence.level} (${confidence.overall}%)`
+      `Multi-story learning complete: ${analyses.length} analyzed, ${skipped.length} skipped, confidence: ${confidence.level} (${confidence.overall}%)`,
     );
 
     return {
@@ -174,7 +158,7 @@ export class StoryLearner {
    */
   private async analyzeStory(
     storyId: string,
-    options: LearnOptions
+    options: LearnOptions,
   ): Promise<StoryAnalysis> {
     const story = await this.platform.getWorkItem?.(storyId);
     if (!story) {
@@ -196,7 +180,7 @@ export class StoryLearner {
 
     if (tasks.length === 1) {
       warnings.push(
-        `Story ${storyId} has only 1 task, which may not be representative`
+        `Story ${storyId} has only 1 task, which may not be representative`,
       );
     }
 
@@ -206,7 +190,7 @@ export class StoryLearner {
       const detected = this.detectEstimationStyle(tasks);
       if (detected !== "percentage") {
         warnings.push(
-          `Detected estimation style "${detected}" for story ${storyId}`
+          `Detected estimation style "${detected}" for story ${storyId}`,
         );
       }
     }
@@ -214,7 +198,7 @@ export class StoryLearner {
     const template = this.generateTemplateFromTasks(
       story,
       tasks,
-      options.normalizePercentages
+      options.normalizePercentages,
     );
 
     return { story, tasks, template, warnings };
@@ -226,9 +210,28 @@ export class StoryLearner {
   private buildMergedTemplate(
     analyses: StoryAnalysis[],
     mergedTasks: MergedTask[],
-    options: LearnOptions
+    options: LearnOptions,
   ): TaskTemplate {
-    const taskDefinitions = mergedTasks.map((mt) => mt.task);
+    const taskDefinitions = mergedTasks.map((mt) => {
+      const task = { ...mt.task };
+      if (mt.learnedDependsOn && mt.learnedDependsOn.length > 0) {
+        task.dependsOn = mt.learnedDependsOn;
+      }
+      if (mt.learnedCondition) {
+        task.condition = mt.learnedCondition;
+      }
+      if (mt.tagClassification) {
+        const suggestedTags = [
+          ...mt.tagClassification.coreTags,
+          ...mt.tagClassification.optionalTags.slice(0, 2),
+        ];
+        if (suggestedTags.length > 0) {
+          task.tags = suggestedTags;
+        }
+      }
+
+      return task;
+    });
 
     if (options.normalizePercentages) {
       normalizeEstimationPercentages(taskDefinitions, {
@@ -236,22 +239,15 @@ export class StoryLearner {
       });
     }
 
-    // Collect work item types across stories
-    const workItemTypes = [
-      ...new Set(analyses.map((a) => a.story.type)),
-    ];
-    const allTags = [
-      ...new Set(analyses.flatMap((a) => a.story.tags ?? [])),
-    ];
-
-    // Average parent estimation
+    const workItemTypes = [...new Set(analyses.map((a) => a.story.type))];
+    const allTags = [...new Set(analyses.flatMap((a) => a.story.tags ?? []))];
     const estimations = analyses
       .map((a) => a.story.estimation ?? 0)
       .filter((e) => e > 0);
     const avgEstimation =
       estimations.length > 0
         ? Math.round(
-            estimations.reduce((a, b) => a + b, 0) / estimations.length
+            estimations.reduce((a, b) => a + b, 0) / estimations.length,
           )
         : 0;
 
@@ -307,11 +303,10 @@ export class StoryLearner {
     analyses: StoryAnalysis[],
     patterns: PatternDetectionResult,
     confidence: { level: string },
-    outliers: Outlier[]
+    outliers: Outlier[],
   ): TemplateSuggestion[] {
     const suggestions: TemplateSuggestion[] = [];
 
-    // Suggest adding more stories if confidence is low
     if (confidence.level === "low" && analyses.length < 3) {
       suggestions.push({
         type: "add-task",
@@ -319,8 +314,6 @@ export class StoryLearner {
         severity: "important",
       });
     }
-
-    // Suggest checking estimation if inconsistent
     if (!patterns.estimationPattern.isConsistent) {
       suggestions.push({
         type: "adjust-estimation",
@@ -328,8 +321,6 @@ export class StoryLearner {
         severity: "warning",
       });
     }
-
-    // Suggest removing outlier tasks
     for (const outlier of outliers) {
       if (outlier.type === "extra-task") {
         suggestions.push({
@@ -339,8 +330,6 @@ export class StoryLearner {
         });
       }
     }
-
-    // Suggest naming improvements for low-frequency tasks
     for (const task of patterns.commonTasks) {
       if (task.titleVariants.length > 2 && task.frequencyRatio >= 0.5) {
         suggestions.push({
@@ -350,22 +339,61 @@ export class StoryLearner {
         });
       }
     }
-
-    // Suggest dependency if common ordering detected
     if (
       patterns.commonTasks.some(
-        (t) => t.activity === "Design" && t.frequencyRatio >= 0.8
+        (t) => t.activity === "Design" && t.frequencyRatio >= 0.8,
       ) &&
       patterns.commonTasks.some(
-        (t) => t.activity === "Development" && t.frequencyRatio >= 0.8
+        (t) => t.activity === "Development" && t.frequencyRatio >= 0.8,
       )
     ) {
       suggestions.push({
         type: "add-dependency",
         message:
-          'Design and Development tasks are consistently present. Consider adding a dependency from Development to Design.',
+          "Design and Development tasks are consistently present. Consider adding a dependency from Development to Design.",
         severity: "info",
       });
+    }
+    for (const dep of patterns.dependencyPatterns) {
+      if (dep.confidence >= 0.8) {
+        suggestions.push({
+          type: "add-dependency",
+          message: `Detected dependency: "${dep.dependentTaskTitle}" depends on "${dep.predecessorTaskTitle}" (${Math.round(dep.confidence * 100)}% confidence, ${dep.source} source)`,
+          severity: dep.source === "explicit" ? "important" : "info",
+        });
+      }
+    }
+    for (const cond of patterns.conditionalPatterns) {
+      if (cond.confidence >= 0.75) {
+        suggestions.push({
+          type: "add-condition",
+          message: cond.explanation,
+          severity: "info",
+        });
+      }
+    }
+    if (patterns.learnedFilters.commonStoryTags) {
+      const highFreqTags = patterns.learnedFilters.commonStoryTags.filter(
+        (t) => t.frequencyRatio >= 0.8,
+      );
+      if (highFreqTags.length > 0) {
+        suggestions.push({
+          type: "improve-filter",
+          message: `Tags "${highFreqTags.map((t) => t.tag).join('", "')}" appear in 80%+ of stories. Consider adding to template filter.`,
+          severity: "info",
+        });
+      }
+    }
+
+    if (patterns.learnedFilters.priorityRange) {
+      const { min, max } = patterns.learnedFilters.priorityRange;
+      if (min === max) {
+        suggestions.push({
+          type: "improve-filter",
+          message: `All stories have priority ${min}. Consider adding a priority filter.`,
+          severity: "info",
+        });
+      }
     }
 
     return suggestions;
@@ -379,7 +407,7 @@ export class StoryLearner {
     analyses: StoryAnalysis[],
     patterns: PatternDetectionResult,
     mergedTasks: MergedTask[],
-    options: LearnOptions
+    options: LearnOptions,
   ): TemplateVariation[] {
     const confidenceScorer = new ConfidenceScorer();
     const variations: TemplateVariation[] = [];
@@ -394,16 +422,15 @@ export class StoryLearner {
       const coreTemplate = this.buildMergedTemplate(
         analyses,
         coreTasks,
-        options
+        options,
       );
       coreTemplate.name = "Core Tasks Template";
-      coreTemplate.description =
-        "Tasks appearing in 60%+ of analyzed stories";
+      coreTemplate.description = "Tasks appearing in 60%+ of analyzed stories";
 
       const coreConfidence = confidenceScorer.score(
         analyses,
         patterns,
-        coreTasks
+        coreTasks,
       );
 
       variations.push({
@@ -419,7 +446,7 @@ export class StoryLearner {
       const fullTemplate = this.buildMergedTemplate(
         analyses,
         mergedTasks,
-        options
+        options,
       );
       fullTemplate.name = "Comprehensive Template";
       fullTemplate.description = "All tasks found across analyzed stories";
@@ -427,7 +454,7 @@ export class StoryLearner {
       const fullConfidence = confidenceScorer.score(
         analyses,
         patterns,
-        mergedTasks
+        mergedTasks,
       );
 
       variations.push({
@@ -447,7 +474,7 @@ export class StoryLearner {
   private generateTemplateFromTasks(
     story: WorkItem,
     tasks: WorkItem[],
-    shouldNormalize: boolean
+    shouldNormalize: boolean,
   ): TaskTemplate {
     const storyEstimation = story.estimation || 0;
 
@@ -581,7 +608,7 @@ export class StoryLearner {
    * 'points' for Fibonacci-like values, 'hours' otherwise.
    */
   detectEstimationStyle(
-    tasks: WorkItem[]
+    tasks: WorkItem[],
   ): "percentage" | "hours" | "points" | "mixed" {
     const estimations = tasks
       .map((t) => t.estimation ?? 0)
@@ -615,7 +642,7 @@ export class StoryLearner {
   private normalizePercentages(tasks: TaskDefinition[]): void {
     const total = tasks.reduce(
       (sum, task) => sum + (task.estimationPercent || 0),
-      0
+      0,
     );
 
     if (total === 0) {

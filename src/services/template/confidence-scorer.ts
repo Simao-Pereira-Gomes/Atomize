@@ -1,6 +1,7 @@
 import type {
   ConfidenceFactor,
   ConfidenceScore,
+  DependencyPattern,
   MergedTask,
   PatternDetectionResult,
   StoryAnalysis,
@@ -25,6 +26,8 @@ export class ConfidenceScorer {
       this.scoreEstimationConsistency(analyses),
       this.scoreMergeQuality(mergedTasks, analyses),
       this.scoreEstimationCoverage(analyses),
+      this.scoreDependencyConsistency(patterns.dependencyPatterns),
+      this.scoreConditionQuality(patterns),
     ];
 
     return this.calculateOverall(factors, analyses.length);
@@ -49,7 +52,7 @@ export class ConfidenceScorer {
     return {
       name: "Sample Size",
       score,
-      weight: 0.25,
+      weight: 0.2,
       description: `Based on ${count} ${count === 1 ? "story" : "stories"} analyzed`,
     };
   }
@@ -67,7 +70,7 @@ export class ConfidenceScorer {
       return {
         name: "Task Consistency",
         score: 0,
-        weight: 0.3,
+        weight: 0.25,
         description: "No tasks to analyze",
       };
     }
@@ -83,7 +86,7 @@ export class ConfidenceScorer {
     return {
       name: "Task Consistency",
       score,
-      weight: 0.3,
+      weight: 0.25,
       description: `${commonCount} common tasks of ~${Math.round(avgTasksPerStory)} avg per story`,
     };
   }
@@ -99,7 +102,7 @@ export class ConfidenceScorer {
       return {
         name: "Estimation Consistency",
         score: 50,
-        weight: 0.2,
+        weight: 0.15,
         description: "Insufficient stories for comparison",
       };
     }
@@ -136,7 +139,7 @@ export class ConfidenceScorer {
     return {
       name: "Estimation Consistency",
       score,
-      weight: 0.2,
+      weight: 0.15,
       description: `Estimation distribution similarity: ${score}%`,
     };
   }
@@ -227,6 +230,82 @@ export class ConfidenceScorer {
   }
 
   /**
+   * Score dependency consistency: how consistent are detected dependency patterns?
+   * High confidence dependencies across many stories = high score.
+   */
+  private scoreDependencyConsistency(
+    dependencyPatterns: DependencyPattern[],
+  ): ConfidenceFactor {
+    if (dependencyPatterns.length === 0) {
+      return {
+        name: "Dependency Consistency",
+        score: 50,
+        weight: 0.1,
+        description: "No dependency patterns detected",
+      };
+    }
+    const avgConfidence =
+      dependencyPatterns.reduce((sum, d) => sum + d.confidence, 0) /
+      dependencyPatterns.length;
+    const explicitCount = dependencyPatterns.filter(
+      (d) => d.source === "explicit",
+    ).length;
+    const explicitRatio = explicitCount / dependencyPatterns.length;
+    const explicitBonus = explicitRatio * 10;
+
+    const score = Math.round(
+      Math.min(100, avgConfidence * 100 + explicitBonus),
+    );
+
+    return {
+      name: "Dependency Consistency",
+      score,
+      weight: 0.1,
+      description: `${dependencyPatterns.length} patterns (${explicitCount} explicit), avg confidence ${Math.round(avgConfidence * 100)}%`,
+    };
+  }
+
+  /**
+   * Score condition quality: how well-supported are detected conditional patterns?
+   * High confidence conditions with good sample sizes = high score.
+   */
+  private scoreConditionQuality(
+    patterns: PatternDetectionResult,
+  ): ConfidenceFactor {
+    const conditionalPatterns = patterns.conditionalPatterns;
+
+    if (conditionalPatterns.length === 0) {
+      return {
+        name: "Condition Quality",
+        score: 50,
+        weight: 0.05,
+        description: "No conditional patterns detected",
+      };
+    }
+
+    const avgConfidence =
+      conditionalPatterns.reduce((sum, c) => sum + c.confidence, 0) /
+      conditionalPatterns.length;
+    const avgCoverage =
+      conditionalPatterns.reduce(
+        (sum, c) =>
+          sum + (c.totalStories > 0 ? c.matchCount / c.totalStories : 0),
+        0,
+      ) / conditionalPatterns.length;
+
+    const score = Math.round(
+      Math.min(100, avgConfidence * 70 + avgCoverage * 30),
+    );
+
+    return {
+      name: "Condition Quality",
+      score,
+      weight: 0.05,
+      description: `${conditionalPatterns.length} conditions, avg confidence ${Math.round(avgConfidence * 100)}%`,
+    };
+  }
+
+  /**
    * Calculate overall confidence with dynamic weight adjustment for small samples.
    * Instead of a hardcoded multiplier, we add extra weight to the sample size factor
    * when the sample count is low, effectively penalizing overconfidence in other metrics.
@@ -250,7 +329,6 @@ export class ConfidenceScorer {
 
     let overall: number;
     if (sampleSizeFactor && extraWeight > 0) {
-      // Reduce overall by gap between 100 and sample size score, weighted by extra
       const penalty = (100 - sampleSizeFactor.score) * extraWeight;
       overall = Math.max(0, Math.round(baseScore - penalty));
     } else {
