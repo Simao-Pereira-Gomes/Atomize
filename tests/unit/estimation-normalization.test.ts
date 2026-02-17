@@ -151,12 +151,11 @@ describe("normalizeEstimations", () => {
     // Should maintain 1:2:3 ratio, approximately 17:33:50
     const ratios = tasks.map((t) => t.estimationPercent ?? 0);
     expect(ratios.length).toBe(3);
-    expect(ratios[0]).toBeDefined();
-    expect(ratios[1]).toBeDefined();
-    expect(ratios[2]).toBeDefined();
-    //biome-ignore lint/style : Checking relative sizes
-    expect(ratios[0]).toBeLessThan(ratios[1]!);
-    //biome-ignore lint/style : Checking relative sizes
-    expect(ratios[1]).toBeLessThan(ratios[2]!);
+    const [ratio0, ratio1, ratio2] = ratios;
+    expect(ratio0).toBeDefined();
+    expect(ratio1).toBeDefined();
+    expect(ratio2).toBeDefined();
+    expect(ratio0).toBeLessThan(ratio1 ?? 0);
+    expect(ratio1).toBeLessThan(ratio2 ?? 0);
   });
 });
