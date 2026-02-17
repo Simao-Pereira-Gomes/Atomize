@@ -305,31 +305,54 @@ export class StoryLearner {
     confidence: { level: string },
     outliers: Outlier[],
   ): TemplateSuggestion[] {
-    const suggestions: TemplateSuggestion[] = [];
+    return [
+      ...this.suggestConfidenceImprovements(analyses, confidence),
+      ...this.suggestEstimationFixes(patterns),
+      ...this.suggestOutlierRemovals(outliers),
+      ...this.suggestNamingImprovements(patterns),
+      ...this.suggestDependencies(patterns),
+      ...this.suggestConditions(patterns),
+      ...this.suggestFilterImprovements(patterns),
+    ];
+  }
 
+  private suggestConfidenceImprovements(
+    analyses: StoryAnalysis[],
+    confidence: { level: string },
+  ): TemplateSuggestion[] {
     if (confidence.level === "low" && analyses.length < 3) {
-      suggestions.push({
+      return [{
         type: "add-task",
         message: `Confidence is low. Consider adding more stories (currently ${analyses.length}) for better pattern detection.`,
         severity: "important",
-      });
+      }];
     }
+    return [];
+  }
+
+  private suggestEstimationFixes(
+    patterns: PatternDetectionResult,
+  ): TemplateSuggestion[] {
     if (!patterns.estimationPattern.isConsistent) {
-      suggestions.push({
+      return [{
         type: "adjust-estimation",
         message: `Mixed estimation styles detected (${patterns.estimationPattern.detectedStyle}). Consider standardizing estimation across stories.`,
         severity: "warning",
-      });
+      }];
     }
-    for (const outlier of outliers) {
-      if (outlier.type === "extra-task") {
-        suggestions.push({
-          type: "remove-task",
-          message: outlier.message,
-          severity: "info",
-        });
-      }
-    }
+    return [];
+  }
+
+  private suggestOutlierRemovals(outliers: Outlier[]): TemplateSuggestion[] {
+    return outliers
+      .filter((o) => o.type === "extra-task")
+      .map((o) => ({ type: "remove-task" as const, message: o.message, severity: "info" as const }));
+  }
+
+  private suggestNamingImprovements(
+    patterns: PatternDetectionResult,
+  ): TemplateSuggestion[] {
+    const suggestions: TemplateSuggestion[] = [];
     for (const task of patterns.commonTasks) {
       if (task.titleVariants.length > 2 && task.frequencyRatio >= 0.5) {
         suggestions.push({
@@ -339,21 +362,28 @@ export class StoryLearner {
         });
       }
     }
-    if (
-      patterns.commonTasks.some(
-        (t) => t.activity === "Design" && t.frequencyRatio >= 0.8,
-      ) &&
-      patterns.commonTasks.some(
-        (t) => t.activity === "Development" && t.frequencyRatio >= 0.8,
-      )
-    ) {
+    return suggestions;
+  }
+
+  private suggestDependencies(
+    patterns: PatternDetectionResult,
+  ): TemplateSuggestion[] {
+    const suggestions: TemplateSuggestion[] = [];
+
+    const hasDesign = patterns.commonTasks.some(
+      (t) => t.activity === "Design" && t.frequencyRatio >= 0.8,
+    );
+    const hasDev = patterns.commonTasks.some(
+      (t) => t.activity === "Development" && t.frequencyRatio >= 0.8,
+    );
+    if (hasDesign && hasDev) {
       suggestions.push({
         type: "add-dependency",
-        message:
-          "Design and Development tasks are consistently present. Consider adding a dependency from Development to Design.",
+        message: "Design and Development tasks are consistently present. Consider adding a dependency from Development to Design.",
         severity: "info",
       });
     }
+
     for (const dep of patterns.dependencyPatterns) {
       if (dep.confidence >= 0.8) {
         suggestions.push({
@@ -363,15 +393,23 @@ export class StoryLearner {
         });
       }
     }
-    for (const cond of patterns.conditionalPatterns) {
-      if (cond.confidence >= 0.75) {
-        suggestions.push({
-          type: "add-condition",
-          message: cond.explanation,
-          severity: "info",
-        });
-      }
-    }
+
+    return suggestions;
+  }
+
+  private suggestConditions(
+    patterns: PatternDetectionResult,
+  ): TemplateSuggestion[] {
+    return patterns.conditionalPatterns
+      .filter((c) => c.confidence >= 0.75)
+      .map((c) => ({ type: "add-condition" as const, message: c.explanation, severity: "info" as const }));
+  }
+
+  private suggestFilterImprovements(
+    patterns: PatternDetectionResult,
+  ): TemplateSuggestion[] {
+    const suggestions: TemplateSuggestion[] = [];
+
     if (patterns.learnedFilters.commonStoryTags) {
       const highFreqTags = patterns.learnedFilters.commonStoryTags.filter(
         (t) => t.frequencyRatio >= 0.8,

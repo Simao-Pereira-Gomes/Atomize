@@ -476,10 +476,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         1
       );
 
-      console.log("Connection test succeeded");
+      logger.info("Connection test succeeded");
       return true;
     } catch (error) {
-      logger.debug((error as Error).message);
+      logger.debug(error instanceof Error ? error.message : String(error));
       return false;
     }
   }
