@@ -50,7 +50,7 @@ export const generateCommand = new Command("generate")
         templatePath = assertNotCancelled(
           await text({
             message: "Template file path:",
-            defaultValue: "templates/backend-api.yaml",
+            placeholder: "templates/backend-api.yaml",
           }),
         );
 

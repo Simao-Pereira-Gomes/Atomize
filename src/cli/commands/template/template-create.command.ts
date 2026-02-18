@@ -157,7 +157,8 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
             value: "story",
           },
           {
-            label: "From Multiple Stories - Learn patterns from several examples",
+            label:
+              "From Multiple Stories - Learn patterns from several examples",
             value: "stories",
           },
           {
@@ -205,7 +206,8 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
     prompt = assertNotCancelled(
       await text({
         message: "Describe the template you need:",
-        defaultValue: "Backend API development with database migrations",
+        placeholder:
+          "e.g. Generate tasks for User Stories with Dev and Testing tasks",
       }),
     );
   }
@@ -280,7 +282,7 @@ async function refineTemplateInteractively(
       const refinement = assertNotCancelled(
         await text({
           message: "How should I refine it?",
-          defaultValue: "Add more detailed testing tasks",
+          placeholder: "e.g. Add more detailed testing tasks",
         }),
       );
 

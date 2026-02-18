@@ -46,6 +46,7 @@ export async function configureFilter(): Promise<FilterCriteria> {
     const raw = assertNotCancelled(
       await text({
         message: "Enter custom work item types (comma-separated):",
+        placeholder: "e.g. Requirement, Test Case",
       }),
     );
     customWorkItemTypes = Filters.commaSeparated(raw);
@@ -80,6 +81,7 @@ export async function configureFilter(): Promise<FilterCriteria> {
     const raw = assertNotCancelled(
       await text({
         message: "Enter custom states (comma-separated):",
+        placeholder: "e.g. In Review, On Hold",
       }),
     );
     customStates = Filters.commaSeparated(raw);
@@ -104,11 +106,13 @@ export async function configureFilter(): Promise<FilterCriteria> {
     const includeRaw = assertNotCancelled(
       await text({
         message: "Tags to include (comma-separated):",
+        placeholder: "e.g. backend, api",
       }),
     );
     const excludeRaw = assertNotCancelled(
       await text({
         message: "Tags to exclude (comma-separated):",
+        placeholder: "e.g. wip, blocked",
       }),
     );
 
@@ -147,18 +151,25 @@ export async function configureFilter(): Promise<FilterCriteria> {
   if (advancedFilter) {
     const areaPaths = Filters.commaSeparated(
       assertNotCancelled(
-        await text({ message: "Area paths (comma-separated):" }),
+        await text({
+          message: "Area paths (comma-separated):",
+          placeholder: "e.g. MyProject\\\\Backend, MyProject\\\\API",
+        }),
       ),
     );
     const iterations = Filters.commaSeparated(
       assertNotCancelled(
-        await text({ message: "Iterations (comma-separated):" }),
+        await text({
+          message: "Iterations (comma-separated):",
+          placeholder: "e.g. Sprint 1, Sprint 2",
+        }),
       ),
     );
     const assignedTo = Filters.commaSeparated(
       assertNotCancelled(
         await text({
           message: "Assigned to (comma-separated email addresses):",
+          placeholder: "e.g. alice@example.com, bob@example.com",
         }),
       ),
     );
@@ -444,7 +455,8 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
 
   const category = assertNotCancelled(
     await text({
-      message: "Category (e.g., Backend Development):",
+      message: "Category:",
+      placeholder: "e.g. Backend Development",
     }),
   );
 
@@ -462,6 +474,7 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
   const recommendedForRaw = assertNotCancelled(
     await text({
       message: "Recommended for (comma-separated):",
+      placeholder: "e.g. senior developers, backend teams",
     }),
   );
   const recommendedFor = Filters.commaSeparated(recommendedForRaw);
@@ -469,6 +482,7 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
   const estimationGuidelines = assertNotCancelled(
     await text({
       message: "Estimation guidelines:",
+      placeholder: "e.g. Use story points based on complexity",
     }),
   );
 
@@ -512,6 +526,7 @@ export async function configureBasicInfo(
   const description = assertNotCancelled(
     await text({
       message: "Description (optional):",
+      placeholder: "e.g. Generate tasks for backend API development",
       defaultValue: defaults?.description || "",
       validate: (input): string | undefined => {
         if (input && input.length > 500) {
@@ -525,6 +540,7 @@ export async function configureBasicInfo(
   const author = assertNotCancelled(
     await text({
       message: "Author:",
+      placeholder: "e.g. John Doe",
       defaultValue: defaults?.author || "Atomize",
     }),
   );
@@ -532,6 +548,7 @@ export async function configureBasicInfo(
   const tagsRaw = assertNotCancelled(
     await text({
       message: "Tags (comma-separated, optional):",
+      placeholder: "e.g. backend, api, development",
       defaultValue: defaults?.tags ? defaults.tags.join(", ") : "",
     }),
   );
