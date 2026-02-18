@@ -1,11 +1,11 @@
+import { confirm, select } from "@clack/prompts";
 import type { TaskDefinition, TaskTemplate } from "@templates/schema";
 import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
 import chalk from "chalk";
-import inquirer from "inquirer";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
 import { CancellationError } from "@/utils/errors";
-import { ListType } from "../../utilities/prompt-utilities";
+import { assertNotCancelled } from "../../utilities/prompt-utilities";
 import { buildTaskDefinition } from "./task-configuration";
 
 const Actions = {
@@ -60,21 +60,19 @@ export async function previewTemplate(
 ): Promise<boolean> {
   displayTemplatePreview(template);
 
-  const { action } = await inquirer.prompt([
-    {
-      type: ListType,
-      name: "action",
+  const action = assertNotCancelled(
+    await select({
       message: "What would you like to do?",
-      choices: [
-        { name: "Save template", value: Actions.Save },
-        { name: "View full YAML", value: Actions.ViewYaml },
-        { name: "Edit template", value: Actions.Edit },
-        { name: "Cancel", value: Actions.Cancel },
+      options: [
+        { label: "Save template", value: Actions.Save },
+        { label: "View full YAML", value: Actions.ViewYaml },
+        { label: "Edit template", value: Actions.Edit },
+        { label: "Cancel", value: Actions.Cancel },
       ],
-    },
-  ]);
+    })
+  );
 
-  return await handlePreviewAction(action, template);
+  return await handlePreviewAction(action as Action, template);
 }
 
 /**
@@ -212,25 +210,23 @@ function displayMetadata(template: TaskTemplate): void {
  * Edit template interactively
  */
 async function editTemplate(template: TaskTemplate): Promise<void> {
-  const { section } = await inquirer.prompt([
-    {
-      type: ListType,
-      name: "section",
+  const section = assertNotCancelled(
+    await select({
       message: "What would you like to edit?",
-      choices: [
+      options: [
         {
-          name: "Basic Information (name, description, author, tags)",
+          label: "Basic Information (name, description, author, tags)",
           value: "basic",
         },
-        { name: "Filter Configuration", value: "filter" },
-        { name: "Tasks", value: "tasks" },
-        { name: "Estimation Settings", value: "estimation" },
-        { name: "Validation Rules", value: "validation" },
-        { name: "Metadata", value: "metadata" },
-        { name: "Back to preview", value: "back" },
+        { label: "Filter Configuration", value: "filter" },
+        { label: "Tasks", value: "tasks" },
+        { label: "Estimation Settings", value: "estimation" },
+        { label: "Validation Rules", value: "validation" },
+        { label: "Metadata", value: "metadata" },
+        { label: "Back to preview", value: "back" },
       ],
-    },
-  ]);
+    })
+  );
 
   if (section === "back") {
     return;
@@ -268,16 +264,14 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
         chalk.yellow("Note: This will replace all existing tasks.\n")
       );
 
-      const { confirm } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "confirm",
+      const confirmed = assertNotCancelled(
+        await confirm({
           message: "Are you sure you want to reconfigure all tasks?",
-          default: false,
-        },
-      ]);
+          initialValue: false,
+        })
+      );
 
-      if (confirm) {
+      if (confirmed) {
         const tasks = await configureTasksWithValidation();
         template.tasks = tasks;
       }
@@ -292,14 +286,12 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
     })
     .with("validation", async () => {
       console.log(chalk.cyan("\nEditing Validation Rules\n"));
-      const { addValidation } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "addValidation",
+      const addValidation = assertNotCancelled(
+        await confirm({
           message: "Enable validation rules?",
-          default: !!template.validation,
-        },
-      ]);
+          initialValue: !!template.validation,
+        })
+      );
 
       if (addValidation) {
         const { configureValidation } = await import(
@@ -312,14 +304,12 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
     })
     .with("metadata", async () => {
       console.log(chalk.cyan("\nEditing Metadata\n"));
-      const { addMetadata } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "addMetadata",
+      const addMetadata = assertNotCancelled(
+        await confirm({
           message: "Enable metadata?",
-          default: !!template.metadata,
-        },
-      ]);
+          initialValue: !!template.metadata,
+        })
+      );
 
       if (addMetadata) {
         const { configureMetadata } = await import(
@@ -336,15 +326,12 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
 
   console.log(chalk.green("\n✓ Section updated successfully!\n"));
 
-  // Ask if they want to edit another section
-  const { editMore } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "editMore",
+  const editMore = assertNotCancelled(
+    await confirm({
       message: "Edit another section?",
-      default: false,
-    },
-  ]);
+      initialValue: false,
+    })
+  );
 
   if (editMore) {
     await editTemplate(template);
@@ -448,16 +435,12 @@ async function collectTasks(): Promise<TaskDefinition[]> {
  * Prompt user if they want advanced task options
  */
 async function promptForAdvancedOptions(): Promise<boolean> {
-  const { addAdvanced } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "addAdvanced",
+  return assertNotCancelled(
+    await confirm({
       message: "Configure advanced options?",
-      default: false,
-    },
-  ]);
-
-  return addAdvanced;
+      initialValue: false,
+    })
+  );
 }
 
 /**
@@ -477,16 +460,12 @@ function warnIfTooManyTasks(taskCounter: number): void {
  * Ask user if they want to add more tasks
  */
 async function shouldAddMoreTasks(taskCounter: number): Promise<boolean> {
-  const { more } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "more",
+  return assertNotCancelled(
+    await confirm({
       message: "Add another task?",
-      default: taskCounter <= 5,
-    },
-  ]);
-
-  return more;
+      initialValue: taskCounter <= 5,
+    })
+  );
 }
 
 /**
@@ -524,16 +503,12 @@ async function handleEstimationNormalization(
  * Prompt user to normalize estimations
  */
 async function promptForNormalization(): Promise<boolean> {
-  const { normalize } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "normalize",
+  return assertNotCancelled(
+    await confirm({
       message: "Normalize estimations to sum to 100%?",
-      default: true,
-    },
-  ]);
-
-  return normalize;
+      initialValue: true,
+    })
+  );
 }
 
 /**
@@ -554,16 +529,12 @@ function displayNormalizedEstimations(tasks: TaskDefinition[]): void {
 async function promptRetry(error: unknown): Promise<boolean> {
   console.log(chalk.red(`\nError configuring tasks: ${error}`));
 
-  const { retry } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "retry",
+  return assertNotCancelled(
+    await confirm({
       message: "Try again?",
-      default: true,
-    },
-  ]);
-
-  return retry;
+      initialValue: true,
+    })
+  );
 }
 
 export {

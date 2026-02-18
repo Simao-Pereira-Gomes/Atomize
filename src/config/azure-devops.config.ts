@@ -1,6 +1,14 @@
+import { cancel, confirm, isCancel, password, text } from "@clack/prompts";
 import type { AzureDevOpsConfig } from "@platforms/adapters/azure-devops/azure-devops.adapter";
 import { ConfigurationError } from "@utils/errors";
-import inquirer from "inquirer";
+
+function assertNotCancelled<T>(value: T): Exclude<T, symbol> {
+	if (isCancel(value)) {
+		cancel("Operation cancelled.");
+		process.exit(0);
+	}
+	return value as Exclude<T, symbol>;
+}
 
 /**
  * Validate Azure DevOps configuration
@@ -90,49 +98,48 @@ export function loadFromEnv(): AzureDevOpsConfig {
  * Prompt user for Azure DevOps configuration interactively
  */
 export async function promptForConfig(): Promise<AzureDevOpsConfig> {
-	const answers = await inquirer.prompt([
-		{
-			type: "input",
-			name: "organizationUrl",
+	const organizationUrl = assertNotCancelled(
+		await text({
 			message: "Azure DevOps Organization URL:",
-			validate: (input: string) => {
+			validate: (input: string): string | undefined => {
 				if (!input) return "Organization URL is required";
-				if (!input.startsWith("https://"))
-					return "URL must start with https://";
-				return true;
+				if (!input.startsWith("https://")) return "URL must start with https://";
+				return undefined;
 			},
-		},
-		{
-			type: "input",
-			name: "project",
+		}),
+	);
+
+	const project = assertNotCancelled(
+		await text({
 			message: "Project name:",
-			validate: (input: string) => {
+			validate: (input: string): string | undefined => {
 				if (!input || input.trim() === "") return "Project name is required";
-				return true;
+				return undefined;
 			},
-		},
-		{
-			type: "password",
-			name: "token",
+		}),
+	);
+
+	const token = assertNotCancelled(
+		await password({
 			message: "Personal Access Token:",
-			mask: "*",
-			validate: (input: string) => {
+			validate: (input: string): string | undefined => {
 				if (!input || input.trim() === "") return "PAT is required";
-				return true;
+				return undefined;
 			},
-		},
-		{
-			type: "input",
-			name: "team",
+		}),
+	);
+
+	const team = assertNotCancelled(
+		await text({
 			message: "Team name (optional):",
-		},
-	]);
+		}),
+	);
 
 	return createAzureDevOpsConfig(
-		answers.organizationUrl,
-		answers.project,
-		answers.token,
-		answers.team || undefined,
+		organizationUrl,
+		project,
+		token,
+		team || undefined,
 	);
 }
 
@@ -170,14 +177,12 @@ export async function getAzureDevOpsConfig(options?: {
  * Asks user whether to use env vars or manual input
  */
 export async function getAzureDevOpsConfigInteractive(): Promise<AzureDevOpsConfig> {
-	const { useEnv } = await inquirer.prompt([
-		{
-			type: "confirm",
-			name: "useEnv",
+	const useEnv = assertNotCancelled(
+		await confirm({
 			message: "Load Azure DevOps configuration from environment variables?",
-			default: true,
-		},
-	]);
+			initialValue: true,
+		}),
+	);
 
 	if (useEnv) {
 		return loadFromEnv();

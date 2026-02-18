@@ -1,73 +1,95 @@
-import type { Answers, Question } from "inquirer";
-import inquirer from "inquirer";
+import {
+  cancel,
+  confirm,
+  isCancel,
+  select,
+  text,
+} from "@clack/prompts";
 import z from "zod";
 
-const OS_PLATFORM = process.platform;
-export const ListType = OS_PLATFORM === "win32" ? "rawlist" : "list";
 const emailSchema = z.string().email();
 
 /**
- * Validation functions
+ * Assert that a clack prompt result is not a cancellation symbol.
+ * Calls cancel() and exits if the user cancelled (Ctrl+C).
+ */
+export function assertNotCancelled<T>(value: T): Exclude<T, symbol> {
+  if (isCancel(value)) {
+    cancel("Operation cancelled.");
+    process.exit(0);
+  }
+  return value as Exclude<T, symbol>;
+}
+
+/**
+ * Validation functions.
+ * Return a string (error message) or undefined (valid) — compatible with @clack/prompts validate.
  */
 export const Validators = {
   required:
     (fieldName: string) =>
-    (input: string): boolean | string => {
+    (input: string): string | undefined => {
       if (!input || input.trim() === "") {
         return `${fieldName} is required`;
       }
-      return true;
+      return undefined;
     },
 
   maxLength:
     (fieldName: string, maxLength: number) =>
-    (input: string): boolean | string => {
+    (input: string): string | undefined => {
       if (input.length > maxLength) {
         return `${fieldName} must be ${maxLength} characters or less`;
       }
-      return true;
+      return undefined;
     },
 
   requiredWithMaxLength:
     (fieldName: string, maxLength: number) =>
-    (input: string): boolean | string => {
+    (input: string): string | undefined => {
       const required = Validators.required(fieldName)(input);
-      if (required !== true) return required;
+      if (required) return required;
       return Validators.maxLength(fieldName, maxLength)(input);
     },
 
-  estimationPercent: (input: string): boolean | string => {
+  estimationPercent: (input: string): string | undefined => {
     const num = Number(input);
     if (Number.isNaN(num)) return "Estimation must be a valid number";
     if (num < 0) return "Estimation cannot be negative";
     if (num > 100) return "Estimation cannot exceed 100%";
-    return true;
+    return undefined;
   },
 
-  email: (input: string): boolean | string => {
+  email: (input: string): string | undefined => {
     const parseEmail = emailSchema.safeParse(input);
     if (!parseEmail.success) {
       return "Please enter a valid email address";
     }
-    return true;
+    return undefined;
   },
 
-  priorityRange: (input: number): boolean | string => {
-    if (Number.isNaN(input)) return true; // Optional
-    if (input < 1 || input > 4) {
+  /** Accepts an empty/blank string as "not provided" (optional field). */
+  priorityRange: (input: string): string | undefined => {
+    if (!input || input.trim() === "") return undefined; // Optional
+    const num = Number(input);
+    if (Number.isNaN(num)) return "Priority must be a valid number";
+    if (num < 1 || num > 4) {
       return "Priority must be between 1 and 4";
     }
-    return true;
+    return undefined;
   },
 
+  /** Accepts an empty/blank string as "not provided" (optional field). */
   nonNegative:
     (fieldName: string) =>
-    (input: number): boolean | string => {
-      if (Number.isNaN(input)) return true; // Optional
-      if (input < 0) {
+    (input: string): string | undefined => {
+      if (!input || input.trim() === "") return undefined; // Optional
+      const num = Number(input);
+      if (Number.isNaN(num)) return `${fieldName} must be a valid number`;
+      if (num < 0) {
         return `${fieldName} cannot be negative`;
       }
-      return true;
+      return undefined;
     },
 };
 
@@ -84,112 +106,101 @@ export const Filters = {
 };
 
 /**
- * Choice definitions for common select prompts
+ * Choice definitions for common select prompts (clack format: label/value)
  */
 export const ChoiceSets = {
   assignmentTypes: [
-    { name: "Parent's assignee", value: "@ParentAssignee" },
-    { name: "Inherit from parent", value: "@Inherit" },
-    { name: "Me (current user)", value: "@Me" },
-    { name: "Custom email", value: "custom" },
-    { name: "Unassigned", value: "@Unassigned" },
+    { label: "Parent's assignee", value: "@ParentAssignee" },
+    { label: "Inherit from parent", value: "@Inherit" },
+    { label: "Me (current user)", value: "@Me" },
+    { label: "Custom email", value: "custom" },
+    { label: "Unassigned", value: "@Unassigned" },
   ],
 
   activityTypes: [
-    { name: "Design", value: "Design" },
-    { name: "Development", value: "Development" },
-    { name: "Testing", value: "Testing" },
-    { name: "Documentation", value: "Documentation" },
-    { name: "Deployment", value: "Deployment" },
-    { name: "Requirements", value: "Requirements" },
-    { name: "Code Review", value: "Code Review" },
-    { name: "Custom", value: "Custom" },
-    { name: "None", value: "None" },
+    { label: "Design", value: "Design" },
+    { label: "Development", value: "Development" },
+    { label: "Testing", value: "Testing" },
+    { label: "Documentation", value: "Documentation" },
+    { label: "Deployment", value: "Deployment" },
+    { label: "Requirements", value: "Requirements" },
+    { label: "Code Review", value: "Code Review" },
+    { label: "Custom", value: "Custom" },
+    { label: "None", value: "None" },
   ],
 };
 
 /**
- * Prompt builder for conditional two-step prompts (select + conditional input)
+ * Config for a conditional two-step prompt (select + optional text input)
  */
 interface ConditionalPromptConfig {
   selectPrompt: {
     name: string;
     message: string;
-    choices: Array<{ name: string; value: string }>;
+    choices: Array<{ label: string; value: string }>;
     defaultValue?: string;
   };
   conditionalPrompt?: {
     name: string;
     message: string;
     triggerValue: string;
-    validate?: (input: string) => boolean | string;
+    validate?: (input: string) => string | undefined;
   };
 }
 
 export async function promptConditionalSelect(
   config: ConditionalPromptConfig
 ): Promise<{ value: string; customValue?: string }> {
-  const prompts: Array<
-    Question & { validate?: (input: string) => boolean | string }
-  > = [
-    {
-      type: ListType,
-      name: config.selectPrompt.name,
+  const selectValue = assertNotCancelled(
+    await select({
       message: config.selectPrompt.message,
-      choices: config.selectPrompt.choices,
-      default: config.selectPrompt.defaultValue,
-    },
-  ];
+      options: config.selectPrompt.choices,
+      initialValue: config.selectPrompt.defaultValue,
+    })
+  );
 
-  if (config.conditionalPrompt) {
-    prompts.push({
-      type: "input",
-      name: config.conditionalPrompt.name,
-      message: config.conditionalPrompt.message,
-      when: (answers: Answers) =>
-        answers[config.selectPrompt.name] ===
-        config.conditionalPrompt?.triggerValue,
-      validate: config.conditionalPrompt.validate,
-    });
+  let customValue: string | undefined;
+  if (
+    config.conditionalPrompt &&
+    selectValue === config.conditionalPrompt.triggerValue
+  ) {
+    customValue = assertNotCancelled(
+      await text({
+        message: config.conditionalPrompt.message,
+        validate: config.conditionalPrompt.validate,
+      })
+    );
   }
 
-  const answers = await inquirer.prompt(prompts);
-  const selectValue = answers[config.selectPrompt.name] as string;
-  const customValue = config.conditionalPrompt
-    ? (answers[config.conditionalPrompt.name] as string | undefined)
-    : undefined;
-
-  return {
-    value: selectValue,
-    customValue,
-  };
+  return { value: selectValue as string, customValue };
 }
 
 /**
- * Prompt for adding multiple items with continue confirmation
+ * Prompt for adding multiple items with continue confirmation.
+ * @param itemName - Display name for the item type (e.g. "criterion")
+ * @param promptFn - Factory called with the 1-based item index; returns the item
+ * @param continueThreshold - Default "add more?" to true while count < threshold
  */
-export async function promptMultipleItems<T extends Answers>(itemConfig: {
-  itemName: string;
-  prompts: Array<Question & { validate?: (input: T) => boolean | string }>;
-  continueThreshold?: number;
-}): Promise<T[]> {
+export async function promptMultipleItems<T>(
+  itemName: string,
+  promptFn: (index: number) => Promise<T>,
+  continueThreshold?: number
+): Promise<T[]> {
   const items: T[] = [];
   let shouldContinue = true;
 
   while (shouldContinue) {
-    const itemAnswers = await inquirer.prompt<T>(itemConfig.prompts);
-    items.push(itemAnswers as T);
+    const item = await promptFn(items.length + 1);
+    items.push(item);
 
-    const { more } = await inquirer.prompt<{ more: boolean }>([
-      {
-        type: "confirm",
-        name: "more",
-        message: `Add another ${itemConfig.itemName}?`,
-        default: itemConfig.continueThreshold
-          ? items.length < itemConfig.continueThreshold
+    const more = assertNotCancelled(
+      await confirm({
+        message: `Add another ${itemName}?`,
+        initialValue: continueThreshold
+          ? items.length < continueThreshold
           : true,
-      },
-    ]);
+      })
+    );
 
     shouldContinue = more;
   }
@@ -198,28 +209,27 @@ export async function promptMultipleItems<T extends Answers>(itemConfig: {
 }
 
 /**
- * Prompt for yes/no with optional follow-up prompts
+ * Prompt for yes/no with an optional async follow-up.
+ * @param featureName - Question label (appended with "?")
+ * @param followUp - Called only when user answers yes; returns the feature data
+ * @param defaultEnabled - Initial value for the confirm prompt
  */
-export async function promptOptionalFeature<T extends Answers>(
+export async function promptOptionalFeature<T>(
   featureName: string,
-  followUpPrompts?: Array<
-    Question & { validate?: (input: T) => boolean | string }
-  >,
+  followUp?: () => Promise<T>,
   defaultEnabled = false
 ): Promise<{ enabled: boolean; data?: T }> {
-  const { enabled } = await inquirer.prompt<{ enabled: boolean }>([
-    {
-      type: "confirm",
-      name: "enabled",
+  const enabled = assertNotCancelled(
+    await confirm({
       message: `${featureName}?`,
-      default: defaultEnabled,
-    },
-  ]);
+      initialValue: defaultEnabled,
+    })
+  );
 
-  if (!enabled || !followUpPrompts) {
+  if (!enabled || !followUp) {
     return { enabled };
   }
 
-  const data = await inquirer.prompt<T>(followUpPrompts);
-  return { enabled, data: data as T };
+  const data = await followUp();
+  return { enabled, data };
 }

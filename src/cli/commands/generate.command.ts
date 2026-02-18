@@ -1,3 +1,4 @@
+import { confirm, select, text } from "@clack/prompts";
 import { getAzureDevOpsConfigInteractive } from "@config/azure-devops.config";
 import { logger } from "@config/logger";
 import { Atomizer } from "@core/atomizer";
@@ -6,8 +7,8 @@ import { TemplateLoader } from "@templates/loader";
 import { TemplateValidator } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
-import inquirer from "inquirer";
 import { match } from "ts-pattern";
+import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter } from "@/platforms";
 
 export const generateCommand = new Command("generate")
@@ -41,40 +42,35 @@ export const generateCommand = new Command("generate")
   .option("-v, --verbose", "Show detailed output", false)
   .action(async (templateArg: string | undefined, options) => {
     try {
-      const type = process.platform === "win32" ? "rawlist" : "list";
       console.log(chalk.blue.bold("\n Atomize - Task Generator\n"));
 
       let templatePath = templateArg;
 
       if (!templatePath) {
-        const answers = await inquirer.prompt([
-          {
-            type: "input",
-            name: "template",
+        templatePath = assertNotCancelled(
+          await text({
             message: "Template file path:",
-            default: "templates/backend-api.yaml",
-          },
-          {
-            type: type,
-            name: "platform",
-            message: "Select platform:",
-            choices: [
-              { name: "Mock (for testing)", value: "mock" },
-              { name: "Azure DevOps", value: "azure-devops" },
-            ],
-            default: "azure-devops",
-          },
-          {
-            type: "confirm",
-            name: "dryRun",
-            message: "Dry run (preview only, no actual creation)?",
-            default: true,
-          },
-        ]);
+            defaultValue: "templates/backend-api.yaml",
+          }),
+        );
 
-        templatePath = answers.template;
-        options.platform = answers.platform;
-        options.dryRun = answers.dryRun;
+        options.platform = assertNotCancelled(
+          await select({
+            message: "Select platform:",
+            options: [
+              { label: "Mock (for testing)", value: "mock" },
+              { label: "Azure DevOps", value: "azure-devops" },
+            ],
+            initialValue: "azure-devops",
+          }),
+        );
+
+        options.dryRun = assertNotCancelled(
+          await confirm({
+            message: "Dry run (preview only, no actual creation)?",
+            initialValue: true,
+          }),
+        );
       }
 
       const dryRun = options.execute ? false : options.dryRun;
