@@ -79,6 +79,28 @@ export const Validators = {
     return undefined;
   },
 
+  /** Validates that the value is strictly greater than `min`, accepting empty/blank as "use default". */
+  greaterThan:
+    (fieldName: string, min: number) =>
+    (input: string): string | undefined => {
+      if (!input || input.trim() === "") return undefined;
+      const n = Number(input);
+      if (Number.isNaN(n)) return `${fieldName} must be a valid number`;
+      if (n <= min) return `${fieldName} must be greater than ${min}`;
+      return undefined;
+    },
+
+  /** Validates a numeric range, accepting empty/blank as "use default". */
+  numericRange:
+    (fieldName: string, min: number, max: number) =>
+    (input: string): string | undefined => {
+      if (!input || input.trim() === "") return undefined;
+      const n = Number(input);
+      if (Number.isNaN(n) || n < min || n > max)
+        return `${fieldName} must be between ${min} and ${max}`;
+      return undefined;
+    },
+
   /** Accepts an empty/blank string as "not provided" (optional field). */
   nonNegative:
     (fieldName: string) =>

@@ -6,7 +6,11 @@ import type {
   ValidationConfig,
 } from "@templates/schema";
 import type { CustomFieldFilter } from "@/platforms";
-import { assertNotCancelled, Filters } from "../../utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  Filters,
+  Validators,
+} from "../../utilities/prompt-utilities";
 
 interface WorkItemPromptAnswers {
   workItemTypes: string[];
@@ -195,24 +199,16 @@ export async function configureFilter(): Promise<FilterCriteria> {
         await text({
           message: "Minimum priority (1-5):",
           defaultValue: "1",
-          validate: (input): string | undefined => {
-            const n = Number(input);
-            if (Number.isNaN(n) || n < 1 || n > 5)
-              return "Priority must be between 1 and 5";
-            return undefined;
-          },
+          placeholder: "e.g. 1",
+          validate: Validators.numericRange("Priority", 1, 5),
         }),
       );
       const maxRaw = assertNotCancelled(
         await text({
           message: "Maximum priority (1-5):",
           defaultValue: "3",
-          validate: (input): string | undefined => {
-            const n = Number(input);
-            if (Number.isNaN(n) || n < 1 || n > 5)
-              return "Priority must be between 1 and 5";
-            return undefined;
-          },
+          placeholder: "e.g. 3",
+          validate: Validators.numericRange("Priority", 1, 5),
         }),
       );
 
@@ -270,7 +266,8 @@ async function configureCustomFields(): Promise<CustomFieldFilter[]> {
   while (addMore) {
     const fieldName = assertNotCancelled(
       await text({
-        message: "Field name (e.g., Custom.Team, System.ChangedBy):",
+        message: "Field name:",
+        placeholder: "e.g. Custom.TeamPriority, System.Tags",
         validate: (input): string | undefined => {
           if (!input || input.trim() === "") {
             return "Field name is required";
@@ -405,12 +402,14 @@ export async function configureValidation(): Promise<
       await text({
         message: "Minimum total estimation %:",
         defaultValue: "95",
+        placeholder: "e.g. 95",
       }),
     );
     const maxRaw = assertNotCancelled(
       await text({
         message: "Maximum total estimation %:",
         defaultValue: "105",
+        placeholder: "e.g. 105",
       }),
     );
     validation.totalEstimationRange = {
@@ -431,12 +430,16 @@ export async function configureValidation(): Promise<
       await text({
         message: "Minimum number of tasks:",
         defaultValue: "3",
+        validate: Validators.nonNegative("Minimum tasks"),
+        placeholder: "e.g. 3",
       }),
     );
     const maxTasksRaw = assertNotCancelled(
       await text({
         message: "Maximum number of tasks:",
         defaultValue: "10",
+        placeholder: "e.g. 10",
+        validate: Validators.greaterThan("Maximum tasks", Number(minTasksRaw)),
       }),
     );
 
@@ -489,7 +492,8 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
   if (category) metadata.category = category;
   if (difficulty) metadata.difficulty = difficulty as Metadata["difficulty"];
   if (recommendedFor.length > 0) metadata.recommendedFor = recommendedFor;
-  if (estimationGuidelines) metadata.estimationGuidelines = estimationGuidelines;
+  if (estimationGuidelines)
+    metadata.estimationGuidelines = estimationGuidelines;
 
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
@@ -505,7 +509,7 @@ interface BasicInfoResult {
  * Configure basic template information
  */
 export async function configureBasicInfo(
-  defaults?: Partial<BasicInfoResult>
+  defaults?: Partial<BasicInfoResult>,
 ): Promise<BasicInfoResult> {
   const name = assertNotCancelled(
     await text({
@@ -561,4 +565,3 @@ export async function configureBasicInfo(
     tags: tags.length > 0 ? tags : undefined,
   };
 }
-
