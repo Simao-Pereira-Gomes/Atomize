@@ -115,9 +115,6 @@ export interface LearnedFilterCriteria {
 export interface LearnOptions {
   /** Normalize estimations to percentages */
   normalizePercentages: boolean;
-
-  /** Estimation interpretation strategy */
-  estimationStyle?: "auto" | "hours" | "points" | "percentage";
 }
 
 /** Result of analyzing a single story */
@@ -237,16 +234,10 @@ export interface CommonTaskPattern {
   averagePosition?: number;
 }
 
-/** Detected estimation style across stories */
+/** Estimation statistics across stories */
 export interface EstimationPattern {
-  /** Dominant estimation style */
-  detectedStyle: "percentage" | "hours" | "points" | "mixed";
-
-  /** Mean total estimation */
+  /** Mean total estimation across analyzed stories */
   averageTotalEstimation: number;
-
-  /** Whether estimations are consistent */
-  isConsistent: boolean;
 }
 
 /** Overall confidence score */

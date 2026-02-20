@@ -503,7 +503,7 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
   );
   console.log(
     chalk.gray(
-      `  Avg tasks/story: ${result.patterns.averageTaskCount}, estimation style: ${result.patterns.estimationPattern.detectedStyle}`,
+      `  Avg tasks/story: ${result.patterns.averageTaskCount}`,
     ),
   );
 

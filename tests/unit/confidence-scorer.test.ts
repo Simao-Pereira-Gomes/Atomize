@@ -72,9 +72,7 @@ function makePatterns(
     averageTaskCount: 4,
     taskCountStdDev: 0,
     estimationPattern: {
-      detectedStyle: "percentage",
       averageTotalEstimation: 20,
-      isConsistent: true,
     },
     dependencyPatterns: [],
     conditionalPatterns: [],

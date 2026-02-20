@@ -31,9 +31,7 @@ export class PatternDetector extends SimilarityCalculator {
         averageTaskCount: 0,
         taskCountStdDev: 0,
         estimationPattern: {
-          detectedStyle: "mixed",
           averageTotalEstimation: 0,
-          isConsistent: false,
         },
         dependencyPatterns: [],
         conditionalPatterns: [],
@@ -203,43 +201,11 @@ export class PatternDetector extends SimilarityCalculator {
     analyses: StoryAnalysis[],
   ): EstimationPattern {
     const totalEstimations: number[] = [];
-    const styles: string[] = [];
 
     for (const analysis of analyses) {
       const storyEstimation = analysis.story.estimation ?? 0;
       totalEstimations.push(storyEstimation);
-
-      if (storyEstimation > 0) {
-        const taskEstimations = analysis.tasks
-          .map((t) => t.estimation ?? 0)
-          .filter((e) => e > 0);
-
-        if (taskEstimations.length === 0) {
-          styles.push("percentage");
-          continue;
-        }
-
-        const sum = taskEstimations.reduce((a, b) => a + b, 0);
-        const allSmall = taskEstimations.every((e) => e <= 1);
-        const sumNearOne = Math.abs(sum - 1) < 0.1;
-        const fibLike = new Set([1, 2, 3, 5, 8, 13, 21, 34]);
-        const allFib = taskEstimations.every((e) => fibLike.has(e));
-
-        if (allSmall && sumNearOne) {
-          styles.push("percentage");
-        } else if (allFib) {
-          styles.push("points");
-        } else {
-          styles.push("hours");
-        }
-      }
     }
-
-    const uniqueStyles = [...new Set(styles)];
-    const detectedStyle =
-      uniqueStyles.length === 1
-        ? (uniqueStyles[0] as EstimationPattern["detectedStyle"])
-        : "mixed";
 
     const avgTotal =
       totalEstimations.length > 0
@@ -247,9 +213,7 @@ export class PatternDetector extends SimilarityCalculator {
         : 0;
 
     return {
-      detectedStyle,
       averageTotalEstimation: Math.round(avgTotal * 100) / 100,
-      isConsistent: uniqueStyles.length <= 1,
     };
   }
 

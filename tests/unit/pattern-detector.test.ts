@@ -218,8 +218,7 @@ describe("PatternDetector", () => {
       ];
 
       const result = detector.detect(analyses);
-      expect(result.estimationPattern.isConsistent).toBe(true);
-      expect(result.estimationPattern.detectedStyle).toBe("points");
+      expect(result.estimationPattern.averageTotalEstimation).toBeGreaterThan(0);
     });
 
     test("should calculate average task count and std dev", () => {

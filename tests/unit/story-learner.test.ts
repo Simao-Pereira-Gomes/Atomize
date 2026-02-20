@@ -351,42 +351,6 @@ describe("StoryLearner", () => {
     });
   });
 
-  describe("detectEstimationStyle", () => {
-    test("should detect percentage style", () => {
-      const learner = new StoryLearner(createMockPlatform({}, {}));
-      const tasks: WorkItem[] = [
-        { id: "1", title: "A", type: "Task", state: "Active", estimation: 0.3 },
-        { id: "2", title: "B", type: "Task", state: "Active", estimation: 0.5 },
-        { id: "3", title: "C", type: "Task", state: "Active", estimation: 0.2 },
-      ];
-      expect(learner.detectEstimationStyle(tasks)).toBe("percentage");
-    });
-
-    test("should detect points style for Fibonacci-like values", () => {
-      const learner = new StoryLearner(createMockPlatform({}, {}));
-      expect(learner.detectEstimationStyle(fibTasks)).toBe("points");
-    });
-
-    test("should detect hours style", () => {
-      const learner = new StoryLearner(createMockPlatform({}, {}));
-      expect(learner.detectEstimationStyle(hourTasks)).toBe("hours");
-    });
-
-    test("should return percentage for empty tasks", () => {
-      const learner = new StoryLearner(createMockPlatform({}, {}));
-      expect(learner.detectEstimationStyle([])).toBe("percentage");
-    });
-
-    test("should return mixed for inconsistent styles", () => {
-      const learner = new StoryLearner(createMockPlatform({}, {}));
-      const tasks: WorkItem[] = [
-        { id: "1", title: "A", type: "Task", state: "Active", estimation: 0.3 },
-        { id: "2", title: "B", type: "Task", state: "Active", estimation: 100 },
-        { id: "3", title: "C", type: "Task", state: "Active", estimation: 7.5 },
-      ];
-      expect(learner.detectEstimationStyle(tasks)).toBe("mixed");
-    });
-  });
 
   describe("extractTitlePattern", () => {
     test("should replace story title with variable", () => {

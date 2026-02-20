@@ -184,16 +184,6 @@ export class StoryLearner {
       );
     }
 
-    // Detect estimation style if auto
-    const style = options.estimationStyle ?? "auto";
-    if (style === "auto") {
-      const detected = this.detectEstimationStyle(tasks);
-      if (detected !== "percentage") {
-        warnings.push(
-          `Detected estimation style "${detected}" for story ${storyId}`,
-        );
-      }
-    }
 
     const template = this.generateTemplateFromTasks(
       story,
@@ -307,7 +297,6 @@ export class StoryLearner {
   ): TemplateSuggestion[] {
     return [
       ...this.suggestConfidenceImprovements(analyses, confidence),
-      ...this.suggestEstimationFixes(patterns),
       ...this.suggestOutlierRemovals(outliers),
       ...this.suggestNamingImprovements(patterns),
       ...this.suggestDependencies(patterns),
@@ -330,18 +319,6 @@ export class StoryLearner {
     return [];
   }
 
-  private suggestEstimationFixes(
-    patterns: PatternDetectionResult,
-  ): TemplateSuggestion[] {
-    if (!patterns.estimationPattern.isConsistent) {
-      return [{
-        type: "adjust-estimation",
-        message: `Mixed estimation styles detected (${patterns.estimationPattern.detectedStyle}). Consider standardizing estimation across stories.`,
-        severity: "warning",
-      }];
-    }
-    return [];
-  }
 
   private suggestOutlierRemovals(outliers: Outlier[]): TemplateSuggestion[] {
     return outliers
@@ -640,39 +617,6 @@ export class StoryLearner {
     return "Development";
   }
 
-  /**
-   * Detect estimation style from raw task estimation values.
-   * Returns 'percentage' if values are small decimals summing to ~1,
-   * 'points' for Fibonacci-like values, 'hours' otherwise.
-   */
-  detectEstimationStyle(
-    tasks: WorkItem[],
-  ): "percentage" | "hours" | "points" | "mixed" {
-    const estimations = tasks
-      .map((t) => t.estimation ?? 0)
-      .filter((e) => e > 0);
-
-    if (estimations.length === 0) return "percentage";
-
-    const sum = estimations.reduce((a, b) => a + b, 0);
-    const allSmall = estimations.every((e) => e <= 1);
-    const sumNearOne = Math.abs(sum - 1) < 0.15;
-
-    if (allSmall && sumNearOne) return "percentage";
-
-    const fibNumbers = new Set([1, 2, 3, 5, 8, 13, 21, 34]);
-    const allFib = estimations.every((e) => fibNumbers.has(e));
-    if (allFib) return "points";
-
-    const typicalHours = new Set([0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24]);
-    const mostlyHours =
-      estimations.filter((e) => typicalHours.has(e)).length /
-        estimations.length >=
-      0.5;
-    if (mostlyHours) return "hours";
-
-    return "mixed";
-  }
 
   /**
    * Normalize percentages to sum to 100

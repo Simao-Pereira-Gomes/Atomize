@@ -95,7 +95,7 @@ export const TaskDefinitionSchema = z.object({
 });
 
 export const EstimationConfigSchema = z.object({
-  strategy: z.enum(["percentage"]).default("percentage"), // TODO: add more strategies
+  strategy: z.enum(["percentage"]).default("percentage"),
   source: z.string().optional(),
   rounding: z.enum(["nearest", "up", "down", "none"]).default("none"),
   minimumTaskPoints: z.number().optional(),

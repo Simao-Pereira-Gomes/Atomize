@@ -62,9 +62,7 @@ const emptyPatterns: PatternDetectionResult = {
   averageTaskCount: 0,
   taskCountStdDev: 0,
   estimationPattern: {
-    detectedStyle: "percentage",
     averageTotalEstimation: 0,
-    isConsistent: true,
   },
   dependencyPatterns: [],
   conditionalPatterns: [],
