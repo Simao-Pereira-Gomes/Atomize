@@ -8,16 +8,15 @@ import type {
 
 /**
  * Detects dependency patterns across multiple stories.
- * Analyzes both explicit predecessor links (from ADO) and positional ordering.
+ * Analyzes explicit predecessor links from ADO.
  */
 export class DependencyDetector {
   private patternDetector = new SimilarityCalculator();
-  private positionThreshold = 0.7;
   private explicitConfidenceBoost = 0.2;
 
   /**
    * Detect dependency patterns from multiple story analyses.
-   * Combines explicit links (from ADO predecessor/successor) with positional ordering.
+   * Uses only explicit links (from ADO predecessor/successor).
    */
   detect(
     analyses: StoryAnalysis[],
@@ -28,17 +27,8 @@ export class DependencyDetector {
     }
 
     const explicitDeps = this.detectExplicitDependencies(analyses, commonTasks);
-    const positionalDeps = this.detectPositionalDependencies(
-      analyses,
-      commonTasks,
-    );
 
-    return this.mergePatterns(
-      explicitDeps,
-      positionalDeps,
-      analyses.length,
-      commonTasks,
-    );
+    return this.mergePatterns(explicitDeps, analyses.length);
   }
 
   /**
@@ -93,66 +83,6 @@ export class DependencyDetector {
     return deps;
   }
 
-  /**
-   * Analyze task ordering patterns (positional dependencies).
-   * Detects when task A consistently appears before task B across stories.
-   */
-  private detectPositionalDependencies(
-    analyses: StoryAnalysis[],
-    commonTasks: CommonTaskPattern[],
-  ): Map<string, Map<string, { before: number; after: number }>> {
-    const ordering = new Map<
-      string,
-      Map<string, { before: number; after: number }>
-    >();
-
-    for (const analysis of analyses) {
-      const taskPositions: Array<{ title: string; position: number }> = [];
-
-      for (let i = 0; i < analysis.template.tasks.length; i++) {
-        const task = analysis.template.tasks[i];
-        if (!task) continue;
-        const matched = this.matchToCommonTask(task.title, commonTasks);
-        if (matched) {
-          taskPositions.push({
-            title: matched.canonicalTitle,
-            position: i,
-          });
-        }
-      }
-
-      for (let i = 0; i < taskPositions.length; i++) {
-        for (let j = i + 1; j < taskPositions.length; j++) {
-          const taskA = taskPositions[i];
-          const taskB = taskPositions[j];
-          if (!taskA || !taskB) continue;
-          if (taskA.title === taskB.title) continue;
-
-          if (!ordering.has(taskB.title)) {
-            ordering.set(taskB.title, new Map());
-          }
-          const bMap = ordering.get(taskB.title);
-          if (bMap) {
-            const entry = bMap.get(taskA.title) ?? { before: 0, after: 0 };
-            entry.before++;
-            bMap.set(taskA.title, entry);
-          }
-
-          if (!ordering.has(taskA.title)) {
-            ordering.set(taskA.title, new Map());
-          }
-          const aMap = ordering.get(taskA.title);
-          if (aMap) {
-            const entry = aMap.get(taskB.title) ?? { before: 0, after: 0 };
-            entry.after++;
-            aMap.set(taskB.title, entry);
-          }
-        }
-      }
-    }
-
-    return ordering;
-  }
 
   /**
    * Match a task title to a common task pattern using similarity.
@@ -192,23 +122,17 @@ export class DependencyDetector {
   }
 
   /**
-   * Merge explicit and positional dependencies into final patterns.
+   * Process explicit dependencies into final patterns.
    */
   private mergePatterns(
     explicitDeps: Map<string, Map<string, number>>,
-    positionalDeps: Map<string, Map<string, { before: number; after: number }>>,
     totalStories: number,
-    commonTasks: CommonTaskPattern[],
   ): DependencyPattern[] {
     const patterns: DependencyPattern[] = [];
-    const processed = new Set<string>();
 
-    // Process explicit dependencies first (higher confidence)
+    // Process explicit dependencies only
     for (const [dependent, predMap] of explicitDeps) {
       for (const [predecessor, count] of predMap) {
-        const key = `${dependent}|${predecessor}`;
-        processed.add(key);
-
         const frequencyRatio = count / totalStories;
         const confidence = Math.min(
           1,
@@ -228,48 +152,6 @@ export class DependencyDetector {
       }
     }
 
-    // Process positional dependencies (only those not already explicit)
-    for (const [dependent, predMap] of positionalDeps) {
-      for (const [predecessor, counts] of predMap) {
-        const key = `${dependent}|${predecessor}`;
-        if (processed.has(key)) continue;
-
-        const total = counts.before + counts.after;
-        if (total === 0) continue;
-
-        // Only consider if this task pair appears in multiple stories
-        if (total < 2) continue;
-
-        // Calculate consistency: how often does predecessor come before dependent?
-        const consistency = counts.before / total;
-        if (consistency < this.positionThreshold) continue;
-        const dependentPattern = commonTasks.find(
-          (t) => t.canonicalTitle === dependent,
-        );
-        const predecessorPattern = commonTasks.find(
-          (t) => t.canonicalTitle === predecessor,
-        );
-
-        if (!dependentPattern || !predecessorPattern) continue;
-
-        if (dependentPattern.frequencyRatio < 0.5) continue;
-        if (predecessorPattern.frequencyRatio < 0.5) continue;
-
-        const frequencyRatio = total / totalStories;
-        const confidence = consistency * frequencyRatio;
-
-        if (confidence >= 0.5) {
-          patterns.push({
-            dependentTaskTitle: dependent,
-            predecessorTaskTitle: predecessor,
-            frequency: counts.before,
-            frequencyRatio,
-            confidence,
-            source: "positional",
-          });
-        }
-      }
-    }
     return patterns.sort((a, b) => b.confidence - a.confidence);
   }
 

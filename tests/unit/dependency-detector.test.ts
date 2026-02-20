@@ -9,10 +9,6 @@ import type {
 } from "@services/template/story-learner.types";
 import type { TaskTemplate } from "@templates/schema";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeCommonTask(
   canonicalTitle: string,
   overrides: Partial<CommonTaskPattern> = {},
@@ -130,16 +126,8 @@ function makePattern(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe("DependencyDetector", () => {
   const detector = new DependencyDetector();
-
-  // -----------------------------------------------------------------------
-  // detect()
-  // -----------------------------------------------------------------------
   describe("detect", () => {
     test("should return empty array when analyses is empty", () => {
       const commonTasks = [makeCommonTask("Design API")];
@@ -220,7 +208,6 @@ describe("DependencyDetector", () => {
 
       const result = detector.detect(analyses, commonTasks);
 
-      // "Write tests" depends on "Design API" (explicit in all 3 stories)
       const writeTestsDep = result.find(
         (p) =>
           p.dependentTaskTitle === "Write tests" &&
@@ -230,7 +217,6 @@ describe("DependencyDetector", () => {
       expect(writeTestsDep?.source).toBe("explicit");
       expect(writeTestsDep?.frequency).toBe(3);
 
-      // "Code review" depends on "Write tests" (explicit in all 3 stories)
       const codeReviewDep = result.find(
         (p) =>
           p.dependentTaskTitle === "Code review" &&
@@ -241,7 +227,6 @@ describe("DependencyDetector", () => {
     });
 
     test("should not create self-dependencies from explicit links", () => {
-      // A task with a predecessorId that maps to the same canonical title
       const analyses = [
         makeAnalysis("S1", [
           { id: "T1", title: "Design API", estimationPercent: 50 },
@@ -265,7 +250,7 @@ describe("DependencyDetector", () => {
       expect(selfDep).toBeUndefined();
     });
 
-    test("should detect positional dependencies when task A consistently before task B", () => {
+    test("should NOT detect dependencies without explicit predecessor links", () => {
       // 3 stories, each with Design -> Implement -> Test in same order
       const analyses = [
         makeAnalysis("S1", [
@@ -292,15 +277,7 @@ describe("DependencyDetector", () => {
       ];
 
       const result = detector.detect(analyses, commonTasks);
-
-      // There should be positional patterns detected
-      // Since Design always before Implement, and Implement always before Write tests
-      expect(result.length).toBeGreaterThan(0);
-
-      // All patterns should be positional since there are no explicit predecessorIds
-      for (const pattern of result) {
-        expect(pattern.source).toBe("positional");
-      }
+      expect(result.length).toBe(0);
     });
 
     test("should sort results by confidence descending", () => {
@@ -374,125 +351,12 @@ describe("DependencyDetector", () => {
 
       const result = detector.detect(analyses, commonTasks);
 
-      // No dependency should be created because "Obscure unrelated task XYZ"
-      // doesn't match any common task
       const dep = result.find(
         (p) => p.dependentTaskTitle === "Obscure unrelated task XYZ",
       );
       expect(dep).toBeUndefined();
     });
 
-    test("should boost explicit dependency confidence over positional", () => {
-      // 3 stories with both explicit links and positional ordering
-      const analyses = [
-        makeAnalysis("S1", [
-          { id: "T1", title: "Design API", estimationPercent: 30 },
-          {
-            id: "T2",
-            title: "Write tests",
-            estimationPercent: 70,
-            predecessorIds: ["T1"],
-          },
-        ]),
-        makeAnalysis("S2", [
-          { id: "T3", title: "Design API", estimationPercent: 30 },
-          {
-            id: "T4",
-            title: "Write tests",
-            estimationPercent: 70,
-            predecessorIds: ["T3"],
-          },
-        ]),
-        makeAnalysis("S3", [
-          { id: "T5", title: "Design API", estimationPercent: 30 },
-          {
-            id: "T6",
-            title: "Write tests",
-            estimationPercent: 70,
-            predecessorIds: ["T5"],
-          },
-        ]),
-      ];
-
-      const commonTasks = [
-        makeCommonTask("Design API"),
-        makeCommonTask("Write tests"),
-      ];
-
-      const result = detector.detect(analyses, commonTasks);
-
-      const dep = result.find(
-        (p) =>
-          p.dependentTaskTitle === "Write tests" &&
-          p.predecessorTaskTitle === "Design API",
-      );
-      expect(dep).toBeDefined();
-      expect(dep?.source).toBe("explicit");
-      // Explicit gets a confidence boost (frequencyRatio + 0.2), capped at 1
-      // frequency ratio = 3/3 = 1.0, + 0.2 = 1.2, capped at 1.0
-      expect(dep?.confidence).toBeLessThanOrEqual(1);
-    });
-
-    test("should not create positional dependency for inconsistent ordering", () => {
-      // Tasks appear in varying orders across stories (no consistent order)
-      const analyses = [
-        makeAnalysis("S1", [
-          { title: "Design API", estimationPercent: 50 },
-          { title: "Write tests", estimationPercent: 50 },
-        ]),
-        makeAnalysis("S2", [
-          { title: "Write tests", estimationPercent: 50 },
-          { title: "Design API", estimationPercent: 50 },
-        ]),
-        makeAnalysis("S3", [
-          { title: "Design API", estimationPercent: 50 },
-          { title: "Write tests", estimationPercent: 50 },
-        ]),
-      ];
-
-      const commonTasks = [
-        makeCommonTask("Design API"),
-        makeCommonTask("Write tests"),
-      ];
-
-      const result = detector.detect(analyses, commonTasks);
-
-      // Consistency for Design->Write tests is 2/3 = 0.67, below 0.7 threshold
-      // So no positional dependency should be created with "Design API" as predecessor
-      const positionalDep = result.find(
-        (p) => p.source === "positional",
-      );
-      expect(positionalDep).toBeUndefined();
-    });
-
-    test("should skip positional patterns for low-frequency common tasks", () => {
-      // Common tasks with low frequencyRatio should be filtered out
-      const analyses = [
-        makeAnalysis("S1", [
-          { title: "Design API", estimationPercent: 50 },
-          { title: "Write tests", estimationPercent: 50 },
-        ]),
-        makeAnalysis("S2", [
-          { title: "Design API", estimationPercent: 50 },
-          { title: "Write tests", estimationPercent: 50 },
-        ]),
-        makeAnalysis("S3", [
-          { title: "Design API", estimationPercent: 50 },
-          { title: "Write tests", estimationPercent: 50 },
-        ]),
-      ];
-
-      // frequencyRatio < 0.5 for both tasks
-      const commonTasks = [
-        makeCommonTask("Design API", { frequencyRatio: 0.3 }),
-        makeCommonTask("Write tests", { frequencyRatio: 0.3 }),
-      ];
-
-      const result = detector.detect(analyses, commonTasks);
-
-      const positionalDep = result.find((p) => p.source === "positional");
-      expect(positionalDep).toBeUndefined();
-    });
   });
 
   // -----------------------------------------------------------------------
@@ -517,15 +381,11 @@ describe("DependencyDetector", () => {
       expect(designApi?.dependsOn).toBeUndefined();
       expect(designApi?.dependents).toContain("Write tests");
 
-      const writeTests = result.find(
-        (t) => t.canonicalTitle === "Write tests",
-      );
+      const writeTests = result.find((t) => t.canonicalTitle === "Write tests");
       expect(writeTests?.dependsOn).toContain("Design API");
       expect(writeTests?.dependents).toContain("Code review");
 
-      const codeReview = result.find(
-        (t) => t.canonicalTitle === "Code review",
-      );
+      const codeReview = result.find((t) => t.canonicalTitle === "Code review");
       expect(codeReview?.dependsOn).toContain("Write tests");
       expect(codeReview?.dependents).toBeUndefined();
     });
@@ -558,9 +418,7 @@ describe("DependencyDetector", () => {
 
       const result = detector.augmentCommonTasks(commonTasks, patterns);
 
-      const codeReview = result.find(
-        (t) => t.canonicalTitle === "Code review",
-      );
+      const codeReview = result.find((t) => t.canonicalTitle === "Code review");
       expect(codeReview?.dependsOn).toHaveLength(2);
       expect(codeReview?.dependsOn).toContain("Design API");
       expect(codeReview?.dependsOn).toContain("Implement logic");
@@ -580,9 +438,7 @@ describe("DependencyDetector", () => {
 
       const result = detector.augmentCommonTasks(commonTasks, patterns);
 
-      const writeTests = result.find(
-        (t) => t.canonicalTitle === "Write tests",
-      );
+      const writeTests = result.find((t) => t.canonicalTitle === "Write tests");
       expect(writeTests?.dependsOn).toHaveLength(1);
     });
 
@@ -656,9 +512,7 @@ describe("DependencyDetector", () => {
         confidence: 0.8,
       });
 
-      const result = detector.generateDependsOn(mergedTasks, [
-        highConfPattern,
-      ]);
+      const result = detector.generateDependsOn(mergedTasks, [highConfPattern]);
 
       const writeTests = result.find((mt) => mt.task.id === "test-1");
       expect(writeTests?.learnedDependsOn).toBeDefined();
@@ -773,9 +627,7 @@ describe("DependencyDetector", () => {
 
     test("should return empty map for empty common tasks", () => {
       const analyses = [
-        makeAnalysis("S1", [
-          { title: "Design API", estimationPercent: 100 },
-        ]),
+        makeAnalysis("S1", [{ title: "Design API", estimationPercent: 100 }]),
       ];
       const result = detector.calculateAveragePositions(analyses, []);
       expect(result.size).toBe(0);
@@ -975,7 +827,10 @@ describe("DependencyDetector", () => {
       const commonTasks = [makeCommonTask("Write unit tests")];
 
       // "Write tests" is similar enough to "Write unit tests"
-      const match = detector.matchToCommonTask("Write unit tests for API", commonTasks);
+      const match = detector.matchToCommonTask(
+        "Write unit tests for API",
+        commonTasks,
+      );
       expect(match).toBeDefined();
       expect(match?.canonicalTitle).toBe("Write unit tests");
     });
@@ -1023,26 +878,6 @@ describe("DependencyDetector", () => {
       expect(Array.isArray(result)).toBe(true);
     });
 
-    test("should not create positional dependency from single pair occurrence", () => {
-      // positional deps need total >= 2 to be considered
-      const analyses = [
-        makeAnalysis("S1", [
-          { title: "Design API", estimationPercent: 50 },
-          { title: "Write tests", estimationPercent: 50 },
-        ]),
-      ];
-
-      const commonTasks = [
-        makeCommonTask("Design API"),
-        makeCommonTask("Write tests"),
-      ];
-
-      const result = detector.detect(analyses, commonTasks);
-
-      // Only 1 observation, which is below the total < 2 threshold for positional
-      const positionalDep = result.find((p) => p.source === "positional");
-      expect(positionalDep).toBeUndefined();
-    });
 
     test("should handle explicit dependency with low frequency ratio", () => {
       // Explicit dep appears in only 1 out of 10 stories -> frequencyRatio = 0.1 < 0.3
@@ -1161,11 +996,7 @@ describe("DependencyDetector", () => {
         makeMergedTask("review-1", "Code review"),
       ];
 
-      const withDeps = detector.generateDependsOn(
-        mergedTasks,
-        patterns,
-        0.5,
-      );
+      const withDeps = detector.generateDependsOn(mergedTasks, patterns, 0.5);
 
       // At least one task should have learnedDependsOn
       const tasksWithDeps = withDeps.filter((mt) => mt.learnedDependsOn);

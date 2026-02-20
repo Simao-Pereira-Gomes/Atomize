@@ -19,7 +19,7 @@ export interface DependencyPattern {
   confidence: number;
 
   /** Source of detection */
-  source: "explicit" | "positional";
+  source: "explicit";
 }
 
 /** Tag frequency pattern for a task */
