@@ -102,7 +102,27 @@ describe("TaskMerger", () => {
     expect(designTask?.sources.map((s) => s.storyId)).toContain("S2");
   });
 
-  test("should average estimation percentages", () => {
+  test("should use most common estimation percentage", () => {
+    const analyses = [
+      makeAnalysis("S1", [
+        { title: "Code review", estimationPercent: 20 },
+      ]),
+      makeAnalysis("S2", [
+        { title: "Code review", estimationPercent: 20 },
+      ]),
+      makeAnalysis("S3", [
+        { title: "Code review", estimationPercent: 30 },
+      ]),
+    ];
+
+    const result = merger.merge(analyses, emptyPatterns);
+    expect(result).toHaveLength(1);
+    const mergedTask = result[0];
+    // 20% appears twice, 30% appears once -> should use 20%
+    expect(mergedTask?.task.estimationPercent).toBe(20);
+  });
+
+  test("should use higher value when there's a tie in frequency", () => {
     const analyses = [
       makeAnalysis("S1", [
         { title: "Code review", estimationPercent: 20 },
@@ -115,7 +135,8 @@ describe("TaskMerger", () => {
     const result = merger.merge(analyses, emptyPatterns);
     expect(result).toHaveLength(1);
     const mergedTask = result[0];
-    expect(mergedTask?.task.estimationPercent).toBe(30);
+    // Tie between 20 and 40 -> should use higher value (40)
+    expect(mergedTask?.task.estimationPercent).toBe(40);
   });
 
   test("should pick canonical title from most frequent variant", () => {

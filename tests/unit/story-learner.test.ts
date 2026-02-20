@@ -104,30 +104,6 @@ const tasksForStory2: WorkItem[] = [
   },
 ];
 
-const fibTasks: WorkItem[] = [
-  { id: "T10", title: "Design", type: "Task", state: "Active", estimation: 3 },
-  {
-    id: "T11",
-    title: "Implement",
-    type: "Task",
-    state: "Active",
-    estimation: 8,
-  },
-  { id: "T12", title: "Test", type: "Task", state: "Active", estimation: 5 },
-];
-
-const hourTasks: WorkItem[] = [
-  { id: "T13", title: "Design", type: "Task", state: "Active", estimation: 4 },
-  {
-    id: "T14",
-    title: "Implement",
-    type: "Task",
-    state: "Active",
-    estimation: 8,
-  },
-  { id: "T15", title: "Test", type: "Task", state: "Active", estimation: 2 },
-];
-
 describe("StoryLearner", () => {
   describe("learnFromStory", () => {
     test("should throw TemplateGenerationError when story not found", async () => {
@@ -350,7 +326,6 @@ describe("StoryLearner", () => {
       expect(result.mergedTemplate.tasks.length).toBeGreaterThanOrEqual(2);
     });
   });
-
 
   describe("extractTitlePattern", () => {
     test("should replace story title with variable", () => {

@@ -137,9 +137,28 @@ export class TaskMerger {
     return best;
   }
 
+  /**
+   * Find the most common (mode) estimation percentage across all instances.
+   * If there's a tie, returns the higher value.
+   */
   private averageEstimation(values: number[]): number {
     if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    if (values.length === 1) return values[0] ?? 0;
+    const counts = new Map<number, number>();
+    for (const value of values) {
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+    let mostCommon = values[0] ?? 0;
+    let maxCount = 0;
+
+    for (const [value, count] of counts) {
+      if (count > maxCount || (count === maxCount && value > mostCommon)) {
+        mostCommon = value;
+        maxCount = count;
+      }
+    }
+
+    return mostCommon;
   }
 
   private averagePriority(values: number[]): number | undefined {

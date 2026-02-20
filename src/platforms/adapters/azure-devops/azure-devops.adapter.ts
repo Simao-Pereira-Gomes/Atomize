@@ -732,7 +732,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         fields["System.AssignedTo"]?.displayName,
       estimation:
         fields["Microsoft.VSTS.Scheduling.StoryPoints"] ||
-        fields["Microsoft.VSTS.Scheduling.RemainingWork"],
+        fields["Microsoft.VSTS.Scheduling.OriginalEstimate"],
       tags: fields["System.Tags"] ? fields["System.Tags"].split("; ") : [],
       description: fields["System.Description"],
       areaPath: fields["System.AreaPath"],
