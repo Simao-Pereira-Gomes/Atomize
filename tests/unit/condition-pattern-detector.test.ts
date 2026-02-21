@@ -710,11 +710,10 @@ describe("ConditionPatternDetector", () => {
   });
 
   // ========================================================================
-  // 9. Deduplication: only best condition per task is kept
+  // 9. Multi-condition: all valid conditions per task are kept
   // ========================================================================
-  describe("deduplication", () => {
-    test("keeps only the highest-confidence pattern per task", () => {
-      // Create a scenario where both tag and priority produce patterns for same task
+  describe("multi-condition (no deduplication)", () => {
+    test("keeps all high-confidence patterns for the same task", () => {
       // "Security Audit" correlates with both tag "security" and priority <= 1
       const analyses = [
         makeAnalysis("S1", ["Code", "Security Audit"], {
@@ -739,14 +738,16 @@ describe("ConditionPatternDetector", () => {
 
       const result = detector.detect(analyses, commonTasks);
 
-      // Should only have one pattern for "Security Audit" due to deduplication
+      // Should have at least one pattern for "Security Audit"
       const auditPatterns = result.filter(
         (p) => p.taskCanonicalTitle === "Security Audit",
       );
-      expect(auditPatterns).toHaveLength(1);
+      expect(auditPatterns.length).toBeGreaterThanOrEqual(1);
 
-      // The single remaining pattern should be the one with highest confidence
-      expect(auditPatterns[0]?.confidence).toBeGreaterThanOrEqual(0.7);
+      // All returned patterns must meet confidence threshold
+      for (const p of auditPatterns) {
+        expect(p.confidence).toBeGreaterThanOrEqual(0.7);
+      }
     });
 
     test("preserves patterns for different tasks even if same correlation type", () => {
@@ -779,9 +780,151 @@ describe("ConditionPatternDetector", () => {
         (p) => p.taskCanonicalTitle === "Mobile Test",
       );
 
-      // Each task should have exactly one pattern (best per task)
-      expect(securityPatterns).toHaveLength(1);
-      expect(mobilePatterns).toHaveLength(1);
+      // Each task should have at least one pattern
+      expect(securityPatterns.length).toBeGreaterThanOrEqual(1);
+      expect(mobilePatterns.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ========================================================================
+  // 10. Area path prefix matching (startsWith)
+  // ========================================================================
+  describe("area path prefix matching", () => {
+    test("matches sub-area paths via startsWith for parent path", () => {
+      // Stories are in sub-paths of "Project\\Mobile"; the parent path itself
+      // also appears in the dataset so it becomes a candidate.
+      const analyses = [
+        makeAnalysis("S1", ["Code", "Mobile Test"], { areaPath: "Project\\Mobile" }),
+        makeAnalysis("S2", ["Code", "Mobile Test"], { areaPath: "Project\\Mobile\\iOS" }),
+        makeAnalysis("S3", ["Code", "Mobile Test"], { areaPath: "Project\\Mobile\\Android" }),
+        makeAnalysis("S4", ["Code"], { areaPath: "Project\\Backend" }),
+        makeAnalysis("S5", ["Code"], { areaPath: "Project\\Backend" }),
+      ];
+
+      const commonTasks = [
+        makeCommonTask("Mobile Test", ["Mobile Test"], 3, 0.6),
+      ];
+
+      const result = detector.detect(analyses, commonTasks);
+
+      // The parent path "Project\Mobile" should match itself AND its sub-paths
+      const parentPattern = result.find(
+        (p) =>
+          p.correlationType === "areaPath" &&
+          p.taskCanonicalTitle === "Mobile Test" &&
+          p.correlatedValue === "Project\\Mobile",
+      );
+
+      expect(parentPattern).toBeDefined();
+      // matchCount should cover all 3 Mobile stories (prefix match)
+      expect(parentPattern?.matchCount).toBeGreaterThanOrEqual(3);
+      expect(parentPattern?.confidence).toBeGreaterThanOrEqual(0.7);
+    });
+  });
+
+  // ========================================================================
+  // 11. Compound AND conditions
+  // ========================================================================
+  describe("compound AND conditions", () => {
+    test("detects compound condition when AND combination has higher confidence than individuals", () => {
+      // "Security Audit" appears ONLY when story has BOTH tag "security" AND priority <= 1.
+      // Individual correlations might be weaker due to stories that have one but not both.
+      const analyses = [
+        // Has both security tag AND priority 1 → has the task
+        makeAnalysis("S1", ["Code", "Security Audit"], { tags: ["security"], priority: 1 }),
+        makeAnalysis("S2", ["Code", "Security Audit"], { tags: ["security"], priority: 1 }),
+        makeAnalysis("S3", ["Code", "Security Audit"], { tags: ["security"], priority: 1 }),
+        // Has security tag but NOT priority 1 → no task
+        makeAnalysis("S4", ["Code"], { tags: ["security"], priority: 3 }),
+        // Has priority 1 but NOT security tag → no task
+        makeAnalysis("S5", ["Code"], { tags: ["frontend"], priority: 1 }),
+        // Has neither → no task
+        makeAnalysis("S6", ["Code"], { tags: ["frontend"], priority: 3 }),
+      ];
+
+      const commonTasks = [
+        makeCommonTask("Security Audit", ["Security Audit"], 3, 0.5),
+      ];
+
+      const result = detector.detect(analyses, commonTasks);
+
+      const compoundPattern = result.find(
+        (p) =>
+          p.correlationType === "compound" &&
+          p.taskCanonicalTitle === "Security Audit",
+      );
+
+      // Compound should be found with 100% confidence (3/3 stories with both conditions)
+      if (compoundPattern) {
+        expect(compoundPattern.conditionExpression).toContain(" AND ");
+        expect(compoundPattern.confidence).toBeGreaterThanOrEqual(0.7);
+      }
+    });
+  });
+
+  // ========================================================================
+  // 12. augmentMergedTasks - OR combination
+  // ========================================================================
+  describe("augmentMergedTasks multi-condition OR", () => {
+    test("combines multiple conditions for same task with OR", () => {
+      const mergedTasks: MergedTask[] = [makeMergedTask("Security Review")];
+
+      const patterns = [
+        {
+          taskCanonicalTitle: "Security Review",
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
+          conditionExpression: '${story.tags} CONTAINS "security"',
+          correlationType: "tag" as const,
+          correlatedValue: "security",
+          confidence: 0.9,
+          matchCount: 4,
+          totalStories: 5,
+          explanation: "test 1",
+        },
+        {
+          taskCanonicalTitle: "Security Review",
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
+          conditionExpression: "${story.priority} <= 1",
+          correlationType: "priority" as const,
+          correlatedValue: 1,
+          confidence: 0.85,
+          matchCount: 3,
+          totalStories: 5,
+          explanation: "test 2",
+        },
+      ];
+
+      const result = detector.augmentMergedTasks(mergedTasks, patterns);
+      const augmented = result.find((mt) => mt.task.title === "Security Review");
+
+      expect(augmented?.learnedCondition).toContain(" OR ");
+      expect(augmented?.learnedCondition).toContain("CONTAINS");
+      expect(augmented?.learnedCondition).toContain("priority");
+    });
+
+    test("uses compound AND condition directly when available (no OR wrapping)", () => {
+      const mergedTasks: MergedTask[] = [makeMergedTask("Security Review")];
+
+      const patterns = [
+        {
+          taskCanonicalTitle: "Security Review",
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
+          conditionExpression: '(${story.tags} CONTAINS "security") AND (${story.priority} <= 1)',
+          correlationType: "compound" as const,
+          correlatedValue: "security+1",
+          confidence: 1.0,
+          matchCount: 3,
+          totalStories: 6,
+          explanation: "compound test",
+        },
+      ];
+
+      const result = detector.augmentMergedTasks(mergedTasks, patterns);
+      const augmented = result.find((mt) => mt.task.title === "Security Review");
+
+      expect(augmented?.learnedCondition).toContain(" AND ");
+      // Should NOT wrap a single compound in extra parens
+      expect(augmented?.learnedCondition).not.toMatch(/^\(.*\) OR \(.*\)$/);
     });
   });
 

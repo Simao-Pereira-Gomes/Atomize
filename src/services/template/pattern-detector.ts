@@ -112,10 +112,16 @@ export class PatternDetector extends SimilarityCalculator {
       }
     }
 
-    //  complete-linkage clustering (order-independent)
     const groups = this.clusterItems(
       allTasks,
-      (task) => task.normalizedTitle,
+      (a, b) => {
+        const titleSim = this.calculateSimilarity(
+          a.normalizedTitle,
+          b.normalizedTitle,
+        );
+        const activityBoost = a.activity === b.activity ? 0.15 : 0;
+        return Math.min(1, titleSim + activityBoost);
+      },
       0.6,
     );
     return groups.map((group) => {
@@ -159,17 +165,14 @@ export class PatternDetector extends SimilarityCalculator {
         }
       }
 
-      const avgEstimation =
-        estimations.length > 0
-          ? estimations.reduce((a, b) => a + b, 0) / estimations.length
-          : 0;
+      const modeEstimation = this.mostCommonValue(estimations);
 
       return {
         canonicalTitle,
         titleVariants: [...new Set(group.map((t) => t.originalTitle))],
         frequency: storyIds.size,
         frequencyRatio: storyIds.size / totalStories,
-        averageEstimationPercent: Math.round(avgEstimation * 100) / 100,
+        averageEstimationPercent: Math.round(modeEstimation * 100) / 100,
         estimationStdDev: this.stdDev(estimations),
         activity,
       };
@@ -236,5 +239,23 @@ export class PatternDetector extends SimilarityCalculator {
     const squaredDiffs = values.map((v) => (v - mean) ** 2);
     const variance = squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
     return Math.round(Math.sqrt(variance) * 100) / 100;
+  }
+
+  private mostCommonValue(values: number[]): number {
+    if (values.length === 0) return 0;
+    if (values.length === 1) return values[0] ?? 0;
+    const counts = new Map<number, number>();
+    for (const v of values) {
+      counts.set(v, (counts.get(v) ?? 0) + 1);
+    }
+    let best = values[0] ?? 0;
+    let bestCount = 0;
+    for (const [v, c] of counts) {
+      if (c > bestCount || (c === bestCount && v > best)) {
+        best = v;
+        bestCount = c;
+      }
+    }
+    return best;
   }
 }

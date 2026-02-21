@@ -1,7 +1,5 @@
 /**
  * Text similarity computation and clustering utilities.
- * Extracted from PatternDetector to avoid circular dependencies
- * between PatternDetector and its sub-detectors.
  */
 export class SimilarityCalculator {
   /**
@@ -68,14 +66,13 @@ export class SimilarityCalculator {
    */
   clusterItems<T>(
     items: T[],
-    keyFn: (item: T) => string,
+    similarityFn: (a: T, b: T) => number,
     threshold: number,
   ): T[][] {
     if (items.length === 0) return [];
     const firstItem = items[0];
     if (items.length === 1 && firstItem) return [[firstItem]];
-    const keys = items.map(keyFn);
-    const n = keys.length;
+    const n = items.length;
     const simMatrix: number[][] = Array(n)
       .fill(null)
       .map(() => Array<number>(n).fill(0));
@@ -84,13 +81,13 @@ export class SimilarityCalculator {
       for (let j = i; j < n; j++) {
         const rowI = simMatrix[i];
         const rowJ = simMatrix[j];
-        const keyI = keys[i];
-        const keyJ = keys[j];
-        if (rowI && rowJ && keyI !== undefined && keyJ !== undefined) {
+        const itemI = items[i];
+        const itemJ = items[j];
+        if (rowI && rowJ && itemI !== undefined && itemJ !== undefined) {
           if (i === j) {
             rowI[j] = 1;
           } else {
-            const sim = this.calculateSimilarity(keyI, keyJ);
+            const sim = similarityFn(itemI, itemJ);
             rowI[j] = sim;
             rowJ[i] = sim;
           }
@@ -103,7 +100,6 @@ export class SimilarityCalculator {
       let bestPair: [number, number] | null = null;
       let bestSim = -1;
 
-      // Find pair with highest complete-linkage similarity
       for (let i = 0; i < clusters.length; i++) {
         for (let j = i + 1; j < clusters.length; j++) {
           const clusterI = clusters[i];

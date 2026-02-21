@@ -61,7 +61,7 @@ export interface ConditionalTaskPattern {
   conditionExpression: string;
 
   /** Type of correlation detected */
-  correlationType: "tag" | "priority" | "estimation" | "areaPath";
+  correlationType: "tag" | "priority" | "estimation" | "areaPath" | "compound";
 
   /** Value correlated with task presence */
   correlatedValue: string | number;

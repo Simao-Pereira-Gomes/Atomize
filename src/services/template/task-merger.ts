@@ -46,7 +46,7 @@ export class TaskMerger {
     }
     const groups = this.detector.clusterItems(
       allTasks,
-      (entry) => entry.normalized,
+      (a, b) => this.detector.calculateSimilarity(a.normalized, b.normalized),
       this.similarityThreshold,
     );
 

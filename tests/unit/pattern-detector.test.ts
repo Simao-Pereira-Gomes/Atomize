@@ -323,13 +323,15 @@ describe("PatternDetector", () => {
   });
 
   describe("clusterItems", () => {
+    const sim = (a: string, b: string) => detector.calculateSimilarity(a, b);
+
     test("should return empty array for empty input", () => {
-      const result = detector.clusterItems([], (x: string) => x, 0.5);
+      const result = detector.clusterItems([], sim, 0.5);
       expect(result).toHaveLength(0);
     });
 
     test("should return single cluster for one item", () => {
-      const result = detector.clusterItems(["hello"], (x) => x, 0.5);
+      const result = detector.clusterItems(["hello"], sim, 0.5);
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(["hello"]);
     });
@@ -341,14 +343,14 @@ describe("PatternDetector", () => {
         "write unit tests",
         "write integration tests",
       ];
-      const result = detector.clusterItems(items, (x) => x, 0.5);
+      const result = detector.clusterItems(items, sim, 0.5);
       // Should create 2 clusters: design-related and test-related
       expect(result).toHaveLength(2);
     });
 
     test("should keep dissimilar items in separate clusters", () => {
       const items = ["alpha", "bravo", "charlie"];
-      const result = detector.clusterItems(items, (x) => x, 0.5);
+      const result = detector.clusterItems(items, sim, 0.5);
       // Each item should be in its own cluster
       expect(result).toHaveLength(3);
     });
@@ -357,8 +359,8 @@ describe("PatternDetector", () => {
       const items1 = ["design api", "design interface", "test unit"];
       const items2 = ["test unit", "design interface", "design api"];
 
-      const result1 = detector.clusterItems(items1, (x) => x, 0.5);
-      const result2 = detector.clusterItems(items2, (x) => x, 0.5);
+      const result1 = detector.clusterItems(items1, sim, 0.5);
+      const result2 = detector.clusterItems(items2, sim, 0.5);
 
       // Same number of clusters regardless of order
       expect(result1.length).toBe(result2.length);
