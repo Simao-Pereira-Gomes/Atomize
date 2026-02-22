@@ -12,7 +12,7 @@ import type { TaskTemplate } from "@templates/schema";
 function makeAnalysis(
   storyId: string,
   taskCount: number,
-  storyEstimation = 20
+  storyEstimation = 20,
 ): StoryAnalysis {
   const story: WorkItem = {
     id: storyId,
@@ -39,7 +39,8 @@ function makeAnalysis(
     tasks: Array.from({ length: taskCount }, (_, i) => ({
       id: `task-${i + 1}`,
       title: `Task ${i + 1}`,
-      estimationPercent: i === taskCount - 1 ? 100 - pct * (taskCount - 1) : pct,
+      estimationPercent:
+        i === taskCount - 1 ? 100 - pct * (taskCount - 1) : pct,
       activity: "Development",
     })),
     estimation: { strategy: "percentage", rounding: "none" },
@@ -50,7 +51,7 @@ function makeAnalysis(
 
 function makeCommonTasks(
   count: number,
-  frequencyRatio = 1.0
+  frequencyRatio = 1.0,
 ): CommonTaskPattern[] {
   return Array.from({ length: count }, (_, i) => ({
     canonicalTitle: `Task ${i + 1}`,
@@ -64,7 +65,7 @@ function makeCommonTasks(
 }
 
 function makePatterns(
-  overrides: Partial<PatternDetectionResult> = {}
+  overrides: Partial<PatternDetectionResult> = {},
 ): PatternDetectionResult {
   return {
     commonTasks: [],
@@ -140,9 +141,7 @@ describe("ConfidenceScorer", () => {
         taskCountStdDev: 2,
         commonTasks: makeCommonTasks(2, 0.67), // ~67% frequency
         estimationPattern: {
-          detectedStyle: "mixed",
           averageTotalEstimation: 20,
-          isConsistent: false,
         },
       });
       const merged = makeMergedTasks(4, 0.7);
@@ -155,7 +154,7 @@ describe("ConfidenceScorer", () => {
 
     test("should produce level 'high' for score >= 75", () => {
       const analyses = Array.from({ length: 6 }, (_, i) =>
-        makeAnalysis(`S${i}`, 4)
+        makeAnalysis(`S${i}`, 4),
       );
       // 4 common tasks with 100% frequency ratio, avg 4 tasks = 100% task consistency
       const patterns = makePatterns({
@@ -174,9 +173,7 @@ describe("ConfidenceScorer", () => {
         taskCountStdDev: 3,
         commonTasks: [], // No common tasks = 0% task consistency
         estimationPattern: {
-          detectedStyle: "mixed",
           averageTotalEstimation: 0,
-          isConsistent: false,
         },
       });
       const merged = makeMergedTasks(2, 0.3);
@@ -209,11 +206,9 @@ describe("ConfidenceScorer", () => {
       const merged = makeMergedTasks(3);
 
       const result = scorer.score(analyses, patterns, merged);
-      const sampleFactor = result.factors.find(
-        (f) => f.name === "Sample Size"
-      );
+      const sampleFactor = result.factors.find((f) => f.name === "Sample Size");
       expect(sampleFactor).toBeDefined();
-      expect(sampleFactor?.weight).toBe(0.20);
+      expect(sampleFactor?.weight).toBe(0.2);
     });
 
     test("should weight task consistency at 0.25", () => {
@@ -222,9 +217,7 @@ describe("ConfidenceScorer", () => {
       const merged = makeMergedTasks(3);
 
       const result = scorer.score(analyses, patterns, merged);
-      const factor = result.factors.find(
-        (f) => f.name === "Task Consistency"
-      );
+      const factor = result.factors.find((f) => f.name === "Task Consistency");
       expect(factor).toBeDefined();
       expect(factor?.weight).toBe(0.25);
     });
@@ -250,7 +243,7 @@ describe("ConfidenceScorer", () => {
 
     test("sample size: 5 stories gives 80 score", () => {
       const analyses = Array.from({ length: 5 }, (_, i) =>
-        makeAnalysis(`S${i}`, 3)
+        makeAnalysis(`S${i}`, 3),
       );
       const result = scorer.score(analyses, makePatterns(), makeMergedTasks(3));
 
@@ -260,22 +253,19 @@ describe("ConfidenceScorer", () => {
     });
 
     test("estimation consistency: single story returns default 50", () => {
-      // With the new cosine similarity algorithm, 1 story returns 50 (insufficient stories)
       const patterns = makePatterns({
         estimationPattern: {
-          detectedStyle: "percentage",
           averageTotalEstimation: 20,
-          isConsistent: true,
         },
       });
       const result = scorer.score(
         [makeAnalysis("S1", 3)],
         patterns,
-        makeMergedTasks(3)
+        makeMergedTasks(3),
       );
 
       const factor = result.factors.find(
-        (f) => f.name === "Estimation Consistency"
+        (f) => f.name === "Estimation Consistency",
       );
       // Single story returns default 50 for estimation consistency
       expect(factor?.score).toBe(50);
@@ -288,7 +278,7 @@ describe("ConfidenceScorer", () => {
       const result = scorer.score(analyses, patterns, makeMergedTasks(4));
 
       const factor = result.factors.find(
-        (f) => f.name === "Estimation Consistency"
+        (f) => f.name === "Estimation Consistency",
       );
       // Identical distributions = 100% cosine similarity
       expect(factor?.score).toBe(100);
