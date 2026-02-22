@@ -153,10 +153,6 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
             value: "preset",
           },
           {
-            label: "From Existing Story - Learn from your work",
-            value: "story",
-          },
-          {
             label:
               "From Multiple Stories - Learn patterns from several examples",
             value: "stories",
@@ -502,9 +498,7 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
     ),
   );
   console.log(
-    chalk.gray(
-      `  Avg tasks/story: ${result.patterns.averageTaskCount}`,
-    ),
+    chalk.gray(`  Avg tasks/story: ${result.patterns.averageTaskCount}`),
   );
 
   // Merged template summary
