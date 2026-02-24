@@ -1,5 +1,5 @@
 import { confirm, text } from "@clack/prompts";
-import type { TaskDefinition } from "@templates/schema";
+import type { EstimationPercentCondition, TaskDefinition } from "@templates/schema";
 import {
   assertNotCancelled,
   ChoiceSets,
@@ -16,7 +16,14 @@ import {
 export async function configureBasicTaskInfo(
   isFirstTask: boolean,
 ): Promise<
-  Pick<TaskDefinition, "title" | "description" | "estimationPercent" | "id">
+  Pick<
+    TaskDefinition,
+    | "title"
+    | "description"
+    | "estimationPercent"
+    | "estimationPercentCondition"
+    | "id"
+  >
 > {
   const id = assertNotCancelled(
     await text({
@@ -51,11 +58,43 @@ export async function configureBasicTaskInfo(
     }),
   );
 
+  const conditionalPercents = await promptOptionalFeature<
+    EstimationPercentCondition[]
+  >(
+    "Add conditional percentages (override based on story conditions)",
+    async () =>
+      promptMultipleItems<EstimationPercentCondition>(
+        "conditional percentage",
+        async (index) => {
+          const condition = assertNotCancelled(
+            await text({
+              message: `Condition #${index}:`,
+              //biome-ignore lint/suspicious: Simple string replacement for pattern
+              placeholder: "${story.tags} CONTAINS 'backend'",
+              validate: Validators.required("Condition"),
+            }),
+          );
+          const percentRaw = assertNotCancelled(
+            await text({
+              message: `Percentage for condition #${index} (0-100):`,
+              validate: Validators.estimationPercent,
+            }),
+          );
+          return { condition, percent: Number(percentRaw) };
+        },
+      ),
+    false,
+  );
+
   return {
     id: id || undefined,
     title,
     description: description || undefined,
     estimationPercent: Number(estimationPercentRaw),
+    estimationPercentCondition:
+      conditionalPercents.enabled && conditionalPercents.data?.length
+        ? conditionalPercents.data
+        : undefined,
   };
 }
 
@@ -247,6 +286,10 @@ export async function buildTaskDefinition(
 
   if (basic.description) {
     taskDef.description = basic.description;
+  }
+
+  if (basic.estimationPercentCondition) {
+    taskDef.estimationPercentCondition = basic.estimationPercentCondition;
   }
 
   if (includeAdvanced) {

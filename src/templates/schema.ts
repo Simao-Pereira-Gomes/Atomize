@@ -68,6 +68,11 @@ export const FilterCriteriaSchema = z.object({
     .optional(),
 });
 
+export const EstimationPercentConditionSchema = z.object({
+  condition: z.string().min(1, "Condition is required"),
+  percent: z.number().min(0).max(100),
+});
+
 export const TaskDefinitionSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(1, "Task title is required"),
@@ -76,6 +81,9 @@ export const TaskDefinitionSchema = z.object({
     .number()
     .min(0, "Estimation percentage cannot be negative")
     .max(100, "Estimation percentage cannot exceed 100")
+    .optional(),
+  estimationPercentCondition: z
+    .array(EstimationPercentConditionSchema)
     .optional(),
   estimationFixed: z
     .number()
@@ -472,6 +480,9 @@ function reportCircularDependencies(
 
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;
+export type EstimationPercentCondition = z.infer<
+  typeof EstimationPercentConditionSchema
+>;
 export type EstimationConfig = z.infer<typeof EstimationConfigSchema>;
 export type ValidationMode = z.infer<typeof ValidationModeSchema>;
 export type ValidationConfig = z.infer<typeof ValidationConfigSchema>;

@@ -1,0 +1,139 @@
+version: "1.0"
+name: "Story-Aware Task Allocation"
+description: >
+  Demonstrates estimationPercentCondition — each task's weight adapts to
+  the story's size and tags. When the conditional frontend-impl task is
+  skipped, the remaining tasks carry their already-resolved conditional
+  percents into normalization, so the final split is always accurate.
+author: "Atomize"
+tags: ["demo", "conditional-percent", "adaptive"]
+
+filter:
+  workItemTypes:
+    - "User Story"
+  excludeIfHasTasks: true
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  minimumTaskPoints: 0.5
+
+tasks:
+  # ── Design ────────────────────────────────────────────────────────────────
+  # Allocation scales with story size.
+  # Small stories (< 5 pts):  10 %  — quick design, no surprises expected
+  # Medium stories (5–12 pts): 15 %  — moderate up-front work
+  # Large stories (≥ 13 pts):  20 %  — epic-scale requires thorough design
+  - id: "design"
+    title: "Technical Design & Architecture"
+    description: "Define architecture, API contracts, and data models for ${story.title}"
+    activity: "Design"
+    assignTo: "@ParentAssignee"
+    estimationPercent: 10
+    estimationPercentCondition:
+      - condition: "${story.estimation} >= 13"
+        percent: 20
+      - condition: "${story.estimation} >= 5"
+        percent: 15
+    tags: ["design"]
+
+  # ── Backend implementation ─────────────────────────────────────────────────
+  # Rules evaluated in order — first match wins.
+  #
+  # • fullstack tag present  → 40 %  (budget shared with the frontend task)
+  # • medium/large story     → 50 %  (more surface area to cover carefully)
+  # • fallback               → 60 %  (small, pure-backend story)
+  - id: "backend-impl"
+    title: "Backend Implementation"
+    description: "Implement API endpoints and business logic for ${story.title}"
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+    dependsOn: ["design"]
+    estimationPercent: 60
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "fullstack"'
+        percent: 40
+      - condition: "${story.estimation} >= 5"
+        percent: 50
+    tags: ["backend"]
+
+  # ── Frontend implementation (conditional task) ─────────────────────────────
+  # Only created when the story is tagged "fullstack".
+  # When this task is SKIPPED, the remaining tasks' resolved conditional
+  # percents are used as the baseline for normalization — so Design and
+  # Backend get accurate relative weights rather than stale static values.
+  #
+  # complex-ui tag → extra allocation for non-trivial UIs
+  - id: "frontend-impl"
+    title: "Frontend Implementation"
+    description: "Build UI components and integrate with the API for ${story.title}"
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+    dependsOn: ["design"]
+    condition: '${story.tags} CONTAINS "fullstack"'
+    estimationPercent: 30
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "complex-ui"'
+        percent: 40
+    tags: ["frontend"]
+
+  # ── Testing & QA ──────────────────────────────────────────────────────────
+  # Critical stories need more thorough test coverage.
+  # AND-condition is checked first: critical + large ≥ 8 pts → 30 %
+  # If only critical (smaller story)                        → 25 %
+  # Otherwise                                               → 20 %
+  - id: "testing"
+    title: "Testing & QA"
+    description: "Write automated tests and perform QA for ${story.title}"
+    activity: "Testing"
+    assignTo: "@ParentAssignee"
+    dependsOn: ["backend-impl"]
+    estimationPercent: 20
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "critical" AND ${story.estimation} >= 8'
+        percent: 30
+      - condition: '${story.tags} CONTAINS "critical"'
+        percent: 25
+    tags: ["testing"]
+
+  # ── Code review ────────────────────────────────────────────────────────────
+  # Always 5 % — lightweight overhead regardless of story size or tags.
+  # No estimationPercentCondition needed here.
+  - id: "code-review"
+    title: "Code Review & Documentation"
+    description: "Peer review and document all changes for ${story.title}"
+    activity: "Documentation"
+    assignTo: "@ParentAssignee"
+    dependsOn: ["testing"]
+    estimationPercent: 5
+    tags: ["review", "documentation"]
+
+# ── Metadata ─────────────────────────────────────────────────────────────────
+metadata:
+  category: "Demo"
+  difficulty: "intermediate"
+  recommendedFor:
+    - "Demonstrating estimationPercentCondition"
+    - "Adaptive task weighting by story size or tags"
+  estimationGuidelines: |
+    Effective resolved percentages by scenario (before normalization):
+
+    Scenario A — small backend-only story (< 5 pts, no "fullstack" tag):
+      design=10  backend=60  testing=20  review=5  → total=95 → normalised to 100
+    Scenario B — medium backend-only story (5–12 pts):
+      design=15  backend=50  testing=20  review=5  → total=90 → normalised to 100
+    Scenario C — medium fullstack story (5–12 pts, "fullstack" tag):
+      design=15  backend=40  frontend=30  testing=20  review=5  → total=110 → normalised
+    Scenario D — large critical fullstack story (≥ 13 pts, "critical" + "fullstack" tags):
+      design=20  backend=40  frontend=30  testing=30  review=5  → total=125 → normalised
+    Scenario E — medium critical backend-only story (5–12 pts, "critical", no "fullstack"):
+      design=15  backend=50  testing=25  review=5  → total=95 → normalised to 100
+
+    Key behaviour: when frontend-impl is skipped (no "fullstack" tag) the
+    remaining tasks already hold their *resolved* conditional percents before
+    normalization runs, so the final ratio reflects the per-story adjustments
+    rather than the static fallback values.
+  examples:
+    - "Small pure-backend story (2 pts, tags: [backend])"
+    - "Medium fullstack story (8 pts, tags: [fullstack])"
+    - "Large critical fullstack story (13 pts, tags: [fullstack, critical, complex-ui])"
