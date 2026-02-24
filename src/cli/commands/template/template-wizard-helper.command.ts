@@ -334,14 +334,6 @@ async function configureCustomFields(): Promise<CustomFieldFilter[]> {
 export async function configureEstimation(): Promise<
   EstimationConfig | undefined
 > {
-  const strategy = assertNotCancelled(
-    await select({
-      message: "Estimation strategy:",
-      options: [{ label: "Percentage-based", value: "percentage" }],
-      initialValue: "percentage",
-    }),
-  );
-
   const rounding = assertNotCancelled(
     await select({
       message: "Rounding strategy:",
@@ -369,7 +361,7 @@ export async function configureEstimation(): Promise<
   );
 
   return {
-    strategy: strategy as EstimationConfig["strategy"],
+    strategy: "percentage",
     rounding: rounding as EstimationConfig["rounding"],
     minimumTaskPoints: Number(minimumTaskPointsRaw) || undefined,
   };
