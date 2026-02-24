@@ -1,14 +1,7 @@
-import { cancel, confirm, isCancel, password, text } from "@clack/prompts";
+import { confirm, password, text } from "@clack/prompts";
 import type { AzureDevOpsConfig } from "@platforms/adapters/azure-devops/azure-devops.adapter";
 import { ConfigurationError } from "@utils/errors";
-
-function assertNotCancelled<T>(value: T): Exclude<T, symbol> {
-  if (isCancel(value)) {
-    cancel("Operation cancelled.");
-    process.exit(0);
-  }
-  return value as Exclude<T, symbol>;
-}
+import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 
 /**
  * Validate Azure DevOps configuration

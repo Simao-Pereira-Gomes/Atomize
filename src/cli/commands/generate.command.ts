@@ -1,5 +1,5 @@
-import { confirm, select, text } from "@clack/prompts";
-import { getAzureDevOpsConfigInteractive } from "@config/azure-devops.config";
+import { cancel, confirm, intro, log, outro, select, spinner, text } from "@clack/prompts";
+import { getAzureDevOpsConfig, getAzureDevOpsConfigInteractive } from "@config/azure-devops.config";
 import { logger } from "@config/logger";
 import { Atomizer } from "@core/atomizer";
 import { PlatformFactory } from "@platforms/platform-factory";
@@ -40,13 +40,24 @@ export const generateCommand = new Command("generate")
     "5",
   )
   .option("-v, --verbose", "Show detailed output", false)
+  .option(
+    "--no-interactive",
+    "Skip all prompts; requires template arg and env vars",
+  )
   .action(async (templateArg: string | undefined, options) => {
     try {
-      console.log(chalk.blue.bold("\n Atomize - Task Generator\n"));
+      intro(" Atomize — Task Generator");
 
       let templatePath = templateArg;
 
       if (!templatePath) {
+        if (options.interactive === false) {
+          cancel(
+            "--no-interactive requires a template path argument.\nUsage: atomize generate <template> [--execute] [--platform azure-devops]",
+          );
+          process.exit(1);
+        }
+
         templatePath = assertNotCancelled(
           await text({
             message: "Template file path:",
@@ -169,7 +180,10 @@ export const generateCommand = new Command("generate")
       try {
         platform = await match(options.platform)
           .with("azure-devops", async () => {
-            const azureConfig = await getAzureDevOpsConfigInteractive();
+            const azureConfig =
+              options.interactive === false
+                ? await getAzureDevOpsConfig({ promptIfMissing: false })
+                : await getAzureDevOpsConfigInteractive();
             return PlatformFactory.create("azure-devops", {
               ...azureConfig,
               maxConcurrency: taskConcurrency,
@@ -210,13 +224,11 @@ export const generateCommand = new Command("generate")
       }
 
       logger.info("Authenticating...");
+      const authSpinner = spinner();
+      authSpinner.start("Authenticating...");
       await platform.authenticate();
-
       const metadata = platform.getPlatformMetadata();
-      console.log(
-        chalk.gray(`Platform: ${metadata.name} v${metadata.version}`),
-      );
-      console.log(chalk.gray(`Connected: ${metadata.connected ? "✓" : "✗"}\n`));
+      authSpinner.stop(`Connected: ${metadata.name} v${metadata.version} ✓`);
 
       const atomizer = new Atomizer(platform);
       console.log(chalk.cyan(" Filter Criteria:"));
@@ -244,20 +256,8 @@ export const generateCommand = new Command("generate")
 
       logger.info("Starting atomization...");
 
-      // Progress tracking state
-      let lastProgressLine = "";
-      const clearProgress = () => {
-        if (lastProgressLine && process.stdout.isTTY) {
-          process.stdout.write(`\r${" ".repeat(lastProgressLine.length)}\r`);
-        }
-      };
-      const writeProgress = (message: string) => {
-        if (process.stdout.isTTY) {
-          clearProgress();
-          process.stdout.write(message);
-          lastProgressLine = message;
-        }
-      };
+      const s = spinner();
+      s.start("Querying work items...");
 
       const report = await atomizer.atomize(template, {
         dryRun,
@@ -268,40 +268,31 @@ export const generateCommand = new Command("generate")
         onProgress: (event) => {
           switch (event.type) {
             case "query_start":
-              writeProgress(chalk.gray("  Querying stories..."));
+              s.message("Querying work items...");
               break;
             case "query_complete":
-              clearProgress();
-              console.log(chalk.gray(`  Found ${event.totalStories} stories`));
+              s.message(`Found ${event.totalStories} stories`);
               break;
             case "story_start":
-              writeProgress(
-                chalk.gray(
-                  `  Processing story ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
-                ),
+              s.message(
+                `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
               );
               break;
             case "story_complete":
-              clearProgress();
-              console.log(
-                chalk.green(
-                  ` [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
-                ),
+              log.success(
+                `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
               );
               break;
             case "story_error":
-              clearProgress();
-              console.log(
-                chalk.red(
-                  ` [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
-                ),
+              log.error(
+                `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
               );
               break;
           }
         },
       });
 
-      clearProgress();
+      s.stop("Processing complete");
       console.log(`\n${chalk.blue("=".repeat(70))}`);
       console.log(chalk.blue.bold("  ATOMIZATION RESULTS"));
       console.log(`${chalk.blue("=".repeat(70))}\n`);
@@ -414,10 +405,17 @@ export const generateCommand = new Command("generate")
         }
       }
 
-      process.exit(report.storiesFailed > 0 ? 1 : 0);
+      const exitCode = report.storiesFailed > 0 ? 1 : 0;
+      outro(
+        dryRun
+          ? "Dry run complete"
+          : exitCode === 0
+            ? "Generation complete ✓"
+            : "Generation finished with errors",
+      );
+      process.exit(exitCode);
     } catch (error) {
-      console.log("");
-      logger.error(chalk.red("Generation failed"));
+      cancel("Generation failed");
 
       if (error instanceof Error) {
         console.log(chalk.red(error.message));

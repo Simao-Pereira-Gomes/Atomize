@@ -1,3 +1,4 @@
+import { cancel, intro, outro } from "@clack/prompts";
 import { logger } from "@config/logger";
 import { TemplateLoader } from "@templates/loader";
 import {
@@ -31,8 +32,9 @@ export const validateCommand = new Command("validate")
     false,
   )
   .option("-l, --lenient", "Use lenient validation mode (default)", false)
+  .option("--no-interactive", "Run without prompts (for CI/scripts)")
   .action(async (templatePath: string, options: ValidateOptions) => {
-    console.log(chalk.blue("Atomize Template Validator\n"));
+    intro("Atomize Template Validator");
     try {
       const template = await loadTemplate(templatePath);
       if (options.verbose) printTemplateDetails(template);
@@ -41,6 +43,7 @@ export const validateCommand = new Command("validate")
       const result = validateTemplate(template, validationOptions);
 
       printValidationResult(template, result);
+      outro(result.valid ? "Validation complete ✓" : "Validation failed");
       if (!result.valid) process.exit(1);
     } catch (error) {
       handleFatal(error, options.verbose);
@@ -111,8 +114,6 @@ function printValidSummary(
   console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
 
   printWarnings(warnings);
-
-  console.log(`${chalk.red("Template·validation·failed")}·${modeLabel}\n`);
 }
 
 function printInvalidSummary(
@@ -163,7 +164,7 @@ function getTemplateSummary(template: TaskTemplate) {
 }
 
 function handleFatal(error: unknown, verbose?: boolean) {
-  console.log("");
+  cancel("Validation failed");
   logger.error(chalk.red("Validation failed"));
 
   const message = error instanceof Error ? error.message : String(error);

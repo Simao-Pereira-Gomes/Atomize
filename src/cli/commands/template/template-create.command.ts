@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { confirm, select, text } from "@clack/prompts";
+import { cancel, confirm, intro, outro, select, spinner, text } from "@clack/prompts";
 import {
   type AIConfig,
   getAIConfig,
@@ -93,7 +94,7 @@ export const templateCreateCommand = new Command("create")
   .option("--no-interactive", "Skip all prompts (use with flags only)")
   .action(async (options: CreateOptions) => {
     try {
-      console.log(chalk.blue.bold("\n Atomize Template Creator\n"));
+      intro(" Atomize Template Creator");
       const mode = await determineMode(options);
 
       const template = await match(mode)
@@ -117,8 +118,9 @@ export const templateCreateCommand = new Command("create")
           chalk.gray(`atomize validate ${options.output}`),
       );
       console.log("");
+      outro(`Template saved → ${options.output}`);
     } catch (error) {
-      console.log("");
+      cancel("Template creation failed");
       logger.error(chalk.red("Template creation failed"));
 
       if (error instanceof Error) {
@@ -167,8 +169,10 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
     return mode as CreationMode;
   }
 
-  // Default to scratch if --no-interactive
-  return "scratch";
+  cancel(
+    "--no-interactive requires a mode flag: --ai <prompt>, --preset <name>, or --from-stories <ids>",
+  );
+  process.exit(1);
 }
 
 /**
@@ -208,12 +212,15 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
     );
   }
 
-  const usePreset = assertNotCancelled(
-    await confirm({
-      message: "Use a preset as starting point?",
-      initialValue: false,
-    }),
-  );
+  let usePreset = false;
+  if (options.interactive !== false) {
+    usePreset = assertNotCancelled(
+      await confirm({
+        message: "Use a preset as starting point?",
+        initialValue: false,
+      }),
+    );
+  }
 
   let context = {};
   if (usePreset) {
@@ -235,14 +242,19 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
     }
   }
 
-  console.log(chalk.cyan(`\nGenerating with ${aiConfig.provider}...\n`));
-
   const generator = AIGeneratorFactory.create(aiConfig);
   if (!prompt) {
     throw new ConfigurationError("AI prompt is required");
   }
+  const genSpinner = spinner();
+  genSpinner.start(`Generating with ${aiConfig.provider}...`);
   let template = await generator.generateTemplate(prompt, context);
-  template = await refineTemplateInteractively(generator, template);
+  genSpinner.stop("Template generated ✓");
+  template = await refineTemplateInteractively(
+    generator,
+    template,
+    options.interactive !== false,
+  );
 
   return template;
 }
@@ -253,7 +265,12 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
 async function refineTemplateInteractively(
   generator: IAIGenerator,
   template: TaskTemplate,
+  interactive = true,
 ): Promise<TaskTemplate> {
+  if (!interactive) {
+    return template;
+  }
+
   while (true) {
     console.log(chalk.cyan("\n Generated Template:\n"));
     console.log(chalk.gray(stringifyYaml(template)));
@@ -282,8 +299,10 @@ async function refineTemplateInteractively(
         }),
       );
 
-      console.log(chalk.cyan("\nRefining...\n"));
+      const refineSpinner = spinner();
+      refineSpinner.start("Refining...");
       template = await generator.refineTemplate(template, refinement);
+      refineSpinner.stop("Refined ✓");
     }
 
     if (action === "regenerate") {
@@ -293,8 +312,10 @@ async function refineTemplateInteractively(
         }),
       );
 
-      console.log(chalk.cyan("\nRegenerating...\n"));
+      const regenSpinner = spinner();
+      regenSpinner.start("Regenerating...");
       template = await generator.generateTemplate(prompt);
+      regenSpinner.stop("Regenerated ✓");
     }
 
     if (action === "cancel") {
@@ -383,7 +404,7 @@ async function createFromStories(
   }
 
   let platformType = options.platform || "azure-devops";
-  if (!options.platform) {
+  if (!options.platform && options.interactive !== false) {
     platformType = assertNotCancelled(
       await select({
         message: "Select platform:",
@@ -396,7 +417,7 @@ async function createFromStories(
   }
 
   let shouldNormalize = options.normalize ?? true;
-  if (options.normalize === undefined) {
+  if (options.normalize === undefined && options.interactive !== false) {
     shouldNormalize = assertNotCancelled(
       await confirm({
         message: "Normalize task percentages to sum to 100%?",
@@ -405,7 +426,8 @@ async function createFromStories(
     );
   }
 
-  console.log(chalk.cyan(`\nConnecting to ${platformType}...\n`));
+  const connectSpinner = spinner();
+  connectSpinner.start(`Connecting to ${platformType}...`);
 
   let platform: IPlatformAdapter | null = null;
   if (platformType === "azure-devops") {
@@ -416,15 +438,19 @@ async function createFromStories(
   }
 
   await platform.authenticate();
+  connectSpinner.stop("Connected ✓");
 
   const learner = new StoryLearner(platform);
+  const learnSpinner = spinner();
+  learnSpinner.start(`Learning from ${storyIds.length} stories...`);
   const result = await learner.learnFromStories(storyIds, {
     normalizePercentages: shouldNormalize,
   });
+  learnSpinner.stop(`Analyzed ${result.analyses.length} stories ✓`);
 
   displayMultiStoryResults(result);
 
-  if (result.variations.length > 1) {
+  if (result.variations.length > 1 && options.interactive !== false) {
     const choice = assertNotCancelled(
       await select({
         message: "Select template variation:",
@@ -896,6 +922,18 @@ async function saveTemplate(
     validation.warnings.forEach((warn) => {
       console.log(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
     });
+  }
+
+  if (existsSync(outputPath)) {
+    const overwrite = assertNotCancelled(
+      await confirm({
+        message: "Output file already exists. Overwrite?",
+        initialValue: false,
+      }),
+    );
+    if (!overwrite) {
+      throw new CancellationError("Save cancelled — file not overwritten");
+    }
   }
 
   const yaml = stringifyYaml(template);
