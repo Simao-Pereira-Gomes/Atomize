@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { confirm, select, text } from "@clack/prompts";
 import {
   type AIConfig,
   getAIConfig,
@@ -15,11 +16,12 @@ import { StoryLearner } from "@services/template/story-learner";
 import { TemplateValidator } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
-import inquirer from "inquirer";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
+import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter, PlatformType } from "@/platforms";
 import type { IAIGenerator } from "@/services/template";
+import type { MultiStoryLearningResult } from "@/services/template/story-learner.types";
 import type {
   Metadata,
   TaskTemplate,
@@ -44,14 +46,12 @@ interface CreateFromScratchOptions {
   interactive?: boolean;
 }
 
-type CreationMode = "ai" | "preset" | "story" | "scratch";
+type CreationMode = "ai" | "preset" | "story" | "stories" | "scratch";
 
-const OS_PLATFORM = process.platform;
-const ListType = OS_PLATFORM === "win32" ? "rawlist" : "list";
 interface CreateOptions {
   ai?: string;
   preset?: string;
-  fromStory?: string;
+  fromStories?: string;
   scratch?: boolean;
   output?: string;
   interactive?: boolean;
@@ -69,11 +69,14 @@ export const templateCreateCommand = new Command("create")
   .option("--api-key <key>", "Google Gemini API key (if not in environment)")
   .option("--model <n>", "AI model name (e.g., gemini-2.0-flash-exp, llama3.2)")
   .option("--preset <name>", "Start from a preset template")
-  .option("--from-story <id>", "Learn template from existing story")
+  .option(
+    "--from-stories <ids>",
+    "Learn template from multiple stories (comma-separated IDs)",
+  )
   .option(
     "-p, --platform <platform>",
     "Platform to use (azure-devops, mock)",
-    "azure-devops"
+    "azure-devops",
   )
   .option("--normalize", "Normalize task estimation percentages to sum to 100%")
   .option("--no-normalize", "Keep original estimation percentages")
@@ -84,8 +87,8 @@ export const templateCreateCommand = new Command("create")
     path.resolve(
       process.cwd(),
       "createdTemplates",
-      generateTemplateFilename("template")
-    )
+      generateTemplateFilename("template"),
+    ),
   )
   .option("--no-interactive", "Skip all prompts (use with flags only)")
   .action(async (options: CreateOptions) => {
@@ -96,7 +99,7 @@ export const templateCreateCommand = new Command("create")
       const template = await match(mode)
         .with("ai", async () => await createWithAI(options))
         .with("preset", async () => await createFromPreset(options))
-        .with("story", async () => await createFromStory(options))
+        .with("stories", async () => await createFromStories(options))
         .with("scratch", async () => await createFromScratch(options))
         .otherwise(() => {
           throw new Error("Invalid creation mode");
@@ -111,7 +114,7 @@ export const templateCreateCommand = new Command("create")
       console.log(chalk.green(`\n Template saved to ${options.output}\n`));
       console.log(
         chalk.cyan("Try it out with: ") +
-          chalk.gray(`atomize validate ${options.output}`)
+          chalk.gray(`atomize validate ${options.output}`),
       );
       console.log("");
     } catch (error) {
@@ -132,37 +135,36 @@ export const templateCreateCommand = new Command("create")
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
   if (options.ai) return "ai";
   if (options.preset) return "preset";
-  if (options.fromStory) return "story";
+  if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
 
   // No flags - show interactive menu
   if (options.interactive !== false) {
-    const { mode } = await inquirer.prompt([
-      {
-        type: ListType,
-        name: "mode",
+    const mode = assertNotCancelled(
+      await select({
         message: "How would you like to create your template?",
-        choices: [
+        options: [
           {
-            name: " AI-Powered - Describe what you need (free)",
+            label: " AI-Powered - Describe what you need (free)",
             value: "ai",
           },
           {
-            name: "From Preset - Start with a common template",
+            label: "From Preset - Start with a common template",
             value: "preset",
           },
           {
-            name: "From Existing Story - Learn from your work",
-            value: "story",
+            label:
+              "From Multiple Stories - Learn patterns from several examples",
+            value: "stories",
           },
           {
-            name: " From Scratch - Build step-by-step",
+            label: " From Scratch - Build step-by-step",
             value: "scratch",
           },
         ],
-      },
-    ]);
-    return mode;
+      }),
+    );
+    return mode as CreationMode;
   }
 
   // Default to scratch if --no-interactive
@@ -197,25 +199,21 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
 
   let prompt = options.ai;
   if (!prompt) {
-    const answer = await inquirer.prompt([
-      {
-        type: "input",
-        name: "prompt",
+    prompt = assertNotCancelled(
+      await text({
         message: "Describe the template you need:",
-        default: "Backend API development with database migrations",
-      },
-    ]);
-    prompt = answer.prompt;
+        placeholder:
+          "e.g. Generate tasks for User Stories with Dev and Testing tasks",
+      }),
+    );
   }
 
-  const { usePreset } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "usePreset",
+  const usePreset = assertNotCancelled(
+    await confirm({
       message: "Use a preset as starting point?",
-      default: false,
-    },
-  ]);
+      initialValue: false,
+    }),
+  );
 
   let context = {};
   if (usePreset) {
@@ -225,16 +223,14 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
     if (choices.length === 0) {
       console.log(chalk.yellow("No presets available"));
     } else {
-      const { presetName } = await inquirer.prompt([
-        {
-          type: ListType,
-          name: "presetName",
+      const presetName = assertNotCancelled(
+        await select({
           message: "Select preset:",
-          choices,
-        },
-      ]);
+          options: choices.map((c) => ({ label: c.name, value: c.value })),
+        }),
+      );
 
-      const preset = await presetManager.loadPreset(presetName);
+      const preset = await presetManager.loadPreset(presetName as string);
       context = { preset };
     }
   }
@@ -256,52 +252,46 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
  */
 async function refineTemplateInteractively(
   generator: IAIGenerator,
-  template: TaskTemplate
+  template: TaskTemplate,
 ): Promise<TaskTemplate> {
   while (true) {
     console.log(chalk.cyan("\n Generated Template:\n"));
     console.log(chalk.gray(stringifyYaml(template)));
 
-    const { action } = await inquirer.prompt([
-      {
-        type: ListType,
-        name: "action",
+    const action = assertNotCancelled(
+      await select({
         message: "What would you like to do?",
-        choices: [
-          { name: "Accept and save", value: "accept" },
-          { name: "Refine with additional instructions", value: "refine" },
-          { name: "Regenerate", value: "regenerate" },
-          { name: "Cancel", value: "cancel" },
+        options: [
+          { label: "Accept and save", value: "accept" },
+          { label: "Refine with additional instructions", value: "refine" },
+          { label: "Regenerate", value: "regenerate" },
+          { label: "Cancel", value: "cancel" },
         ],
-      },
-    ]);
+      }),
+    );
 
     if (action === "accept") {
       return template;
     }
 
     if (action === "refine") {
-      const { refinement } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "refinement",
+      const refinement = assertNotCancelled(
+        await text({
           message: "How should I refine it?",
-          default: "Add more detailed testing tasks",
-        },
-      ]);
+          placeholder: "e.g. Add more detailed testing tasks",
+        }),
+      );
 
       console.log(chalk.cyan("\nRefining...\n"));
       template = await generator.refineTemplate(template, refinement);
     }
 
     if (action === "regenerate") {
-      const { prompt } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "prompt",
+      const prompt = assertNotCancelled(
+        await text({
           message: "New description:",
-        },
-      ]);
+        }),
+      );
 
       console.log(chalk.cyan("\nRegenerating...\n"));
       template = await generator.generateTemplate(prompt);
@@ -328,20 +318,16 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
 
     if (choices.length === 0) {
       throw new Error(
-        "No presets found. Create some in templates/presets/ first."
+        "No presets found. Create some in templates/presets/ first.",
       );
     }
 
-    const answer = await inquirer.prompt([
-      {
-        type: ListType,
-        name: "preset",
+    presetName = assertNotCancelled(
+      await select({
         message: "Select preset:",
-        choices,
-      },
-    ]);
-
-    presetName = answer.preset;
+        options: choices.map((c) => ({ label: c.name, value: c.value })),
+      }),
+    ) as string;
   }
 
   if (!presetName) {
@@ -352,14 +338,12 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
 
   console.log(chalk.green(`\nLoaded preset: ${template.name}`));
 
-  const { customize } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "customize",
+  const customize = assertNotCancelled(
+    await confirm({
       message: "Customize the template?",
-      default: false,
-    },
-  ]);
+      initialValue: false,
+    }),
+  );
 
   if (customize) {
     return await customizeTemplate(template);
@@ -369,51 +353,56 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
 }
 
 /**
- * Create from existing story
+ * Create from multiple existing stories
  */
-async function createFromStory(options: CreateOptions): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\n Learn from Existing Story\n"));
+async function createFromStories(
+  options: CreateOptions,
+): Promise<TaskTemplate> {
+  console.log(chalk.cyan("\n Learn from Multiple Stories\n"));
 
-  let storyId = options.fromStory;
-  if (!storyId) {
-    const answer = await inquirer.prompt([
-      {
-        type: "input",
-        name: "storyId",
-        message: "Enter story ID:",
-      },
-    ]);
-    storyId = answer.storyId;
+  let storyIds: string[];
+  if (options.fromStories) {
+    storyIds = options.fromStories
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else {
+    const storyIdsRaw = assertNotCancelled(
+      await text({
+        message: "Enter story IDs (comma-separated):",
+      }),
+    );
+    storyIds = storyIdsRaw
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+  }
+
+  if (storyIds.length === 0) {
+    throw new ConfigurationError("At least one story ID is required");
   }
 
   let platformType = options.platform || "azure-devops";
   if (!options.platform) {
-    const { platform } = await inquirer.prompt([
-      {
-        type: ListType,
-        name: "platform",
+    platformType = assertNotCancelled(
+      await select({
         message: "Select platform:",
-        choices: [
-          { name: "Azure DevOps", value: "azure-devops" },
-          { name: "Mock Platform (for testing)", value: "mock" },
+        options: [
+          { label: "Azure DevOps", value: "azure-devops" },
+          { label: "Mock Platform (for testing)", value: "mock" },
         ],
-      },
-    ]);
-    platformType = platform;
+      }),
+    ) as string;
   }
 
   let shouldNormalize = options.normalize ?? true;
   if (options.normalize === undefined) {
-    const { normalize } = await inquirer.prompt<{ normalize: boolean }>([
-      {
-        type: "confirm",
-        name: "normalize",
+    shouldNormalize = assertNotCancelled(
+      await confirm({
         message: "Normalize task percentages to sum to 100%?",
-        default: true,
-      },
-    ]);
-
-    shouldNormalize = normalize;
+        initialValue: true,
+      }),
+    );
   }
 
   console.log(chalk.cyan(`\nConnecting to ${platformType}...\n`));
@@ -429,48 +418,148 @@ async function createFromStory(options: CreateOptions): Promise<TaskTemplate> {
   await platform.authenticate();
 
   const learner = new StoryLearner(platform);
+  const result = await learner.learnFromStories(storyIds, {
+    normalizePercentages: shouldNormalize,
+  });
 
-  if (!storyId) {
-    throw new ConfigurationError("Story ID is required");
+  displayMultiStoryResults(result);
+
+  if (result.variations.length > 1) {
+    const choice = assertNotCancelled(
+      await select({
+        message: "Select template variation:",
+        options: [
+          {
+            label: `Merged template (confidence: ${result.confidence.level} - ${result.confidence.overall}%)`,
+            value: "merged",
+          },
+          ...result.variations.map((v, i) => ({
+            label: `${v.name} (confidence: ${v.confidence.level} - ${v.confidence.overall}%)`,
+            value: `variation-${i}`,
+          })),
+        ],
+      }),
+    );
+
+    if (choice !== "merged") {
+      const index = Number.parseInt(
+        (choice as string).replace("variation-", ""),
+        10,
+      );
+      const variation = result.variations[index];
+      if (variation) {
+        return variation.template;
+      }
+    }
   }
-  const template = await learner.learnFromStory(storyId, shouldNormalize);
 
+  return result.mergedTemplate;
+}
+
+/**
+ * Display multi-story learning results
+ */
+function displayMultiStoryResults(result: MultiStoryLearningResult): void {
   console.log(
-    chalk.green(`\nLearned template with ${template.tasks.length} tasks`)
+    chalk.green(
+      `\nAnalyzed ${result.analyses.length} stories, skipped ${result.skipped.length}`,
+    ),
   );
 
-  if (shouldNormalize) {
-    console.log(chalk.gray("Task percentages normalized to 100%"));
-  } else {
-    console.log(chalk.gray("Task percentages kept as-is from original"));
+  if (result.skipped.length > 0) {
+    console.log(chalk.yellow("\nSkipped stories:"));
+    for (const s of result.skipped) {
+      console.log(chalk.yellow(`  - ${s.storyId}: ${s.reason}`));
+    }
   }
 
-  return template;
+  // Confidence
+  const confidenceColor =
+    result.confidence.level === "high"
+      ? chalk.green
+      : result.confidence.level === "medium"
+        ? chalk.yellow
+        : chalk.red;
+  console.log(
+    confidenceColor(
+      `\nConfidence: ${result.confidence.level} (${result.confidence.overall}%)`,
+    ),
+  );
+  for (const factor of result.confidence.factors) {
+    console.log(
+      chalk.gray(`  ${factor.name}: ${factor.score}% - ${factor.description}`),
+    );
+  }
+
+  // Patterns
+  console.log(
+    chalk.cyan(
+      `\nPatterns: ${result.patterns.commonTasks.length} common tasks detected`,
+    ),
+  );
+  console.log(
+    chalk.gray(`  Avg tasks/story: ${result.patterns.averageTaskCount}`),
+  );
+
+  // Merged template summary
+  console.log(
+    chalk.green(
+      `\nMerged template: ${result.mergedTemplate.tasks.length} tasks`,
+    ),
+  );
+
+  // Suggestions
+  if (result.suggestions.length > 0) {
+    console.log(chalk.cyan("\nSuggestions:"));
+    for (const s of result.suggestions) {
+      const icon =
+        s.severity === "important"
+          ? chalk.red("!")
+          : s.severity === "warning"
+            ? chalk.yellow("~")
+            : chalk.gray("-");
+      console.log(`  ${icon} ${s.message}`);
+    }
+  }
+
+  // Outliers
+  if (result.outliers.length > 0) {
+    console.log(chalk.yellow("\nOutliers detected:"));
+    for (const o of result.outliers) {
+      console.log(chalk.yellow(`  - ${o.message}`));
+    }
+  }
+
+  // Variations
+  if (result.variations.length > 0) {
+    console.log(
+      chalk.cyan(`\n${result.variations.length} template variations available`),
+    );
+  }
 }
 
 /**
  * Customize template interactively
  */
 async function customizeTemplate(
-  template: TaskTemplate
+  template: TaskTemplate,
 ): Promise<TaskTemplate> {
-  const answers = await inquirer.prompt([
-    {
-      type: "input",
-      name: "name",
+  const name = assertNotCancelled(
+    await text({
       message: "Template name:",
-      default: template.name,
-    },
-    {
-      type: "input",
-      name: "description",
-      message: "Description:",
-      default: template.description,
-    },
-  ]);
+      defaultValue: template.name,
+    }),
+  );
 
-  template.name = answers.name;
-  template.description = answers.description;
+  const description = assertNotCancelled(
+    await text({
+      message: "Description:",
+      defaultValue: template.description,
+    }),
+  );
+
+  template.name = name;
+  template.description = description;
 
   return template;
 }
@@ -499,7 +588,7 @@ async function customizeTemplate(
  * ```
  */
 export async function createFromScratch(
-  _options: CreateFromScratchOptions = {}
+  _options: CreateFromScratchOptions = {},
 ): Promise<TaskTemplate> {
   console.log(chalk.cyan("\n✨ Create Template from Scratch\n"));
   console.log(chalk.gray("Interactive template builder wizard"));
@@ -511,11 +600,11 @@ export async function createFromScratch(
   try {
     // Step 1: Basic Information
     console.log(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`)
+      chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`),
     );
     console.log(chalk.gray("█░░░░░"));
     console.log(
-      chalk.gray("Tip: Choose a clear, descriptive name for your template\n")
+      chalk.gray("Tip: Choose a clear, descriptive name for your template\n"),
     );
 
     const basicInfo = await configureBasicInfo();
@@ -525,14 +614,12 @@ export async function createFromScratch(
       throw new ConfigurationError("Template name is required");
     }
 
-    const { confirmStep1 } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "confirmStep1",
+    const confirmStep1 = assertNotCancelled(
+      await confirm({
         message: "Continue to filter configuration?",
-        default: true,
-      },
-    ]);
+        initialValue: true,
+      }),
+    );
 
     if (!confirmStep1) {
       throw new CancellationError("Template creation cancelled by user");
@@ -542,13 +629,13 @@ export async function createFromScratch(
 
     // Step 2: Filter Configuration
     console.log(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Filter Configuration`)
+      chalk.blue(`\n[${currentStep}/${totalSteps}] Filter Configuration`),
     );
     console.log(chalk.gray("██░░░░"));
     console.log(
       chalk.gray(
-        "Tip: Use filters to select which work items this template applies to\n"
-      )
+        "Tip: Use filters to select which work items this template applies to\n",
+      ),
     );
 
     const filterConfig = await configureFilter();
@@ -562,37 +649,31 @@ export async function createFromScratch(
     ) {
       console.log(
         chalk.yellow(
-          "\n Warning: No work item types, states, or custom query configured."
-        )
+          "\n Warning: No work item types, states, or custom query configured.",
+        ),
       );
-      console.log(
-        chalk.yellow("   This template will match ALL work items.")
-      );
+      console.log(chalk.yellow("   This template will match ALL work items."));
 
-      const { continueAnyway } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "continueAnyway",
+      const continueAnyway = assertNotCancelled(
+        await confirm({
           message: "Continue with empty filter?",
-          default: false,
-        },
-      ]);
+          initialValue: false,
+        }),
+      );
 
       if (!continueAnyway) {
         throw new CancellationError(
-          "Template creation cancelled. Please configure filter criteria."
+          "Template creation cancelled. Please configure filter criteria.",
         );
       }
     }
 
-    const { confirmStep2 } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "confirmStep2",
+    const confirmStep2 = assertNotCancelled(
+      await confirm({
         message: "Continue to task configuration?",
-        default: true,
-      },
-    ]);
+        initialValue: true,
+      }),
+    );
 
     if (!confirmStep2) {
       throw new CancellationError("Template creation cancelled by user");
@@ -602,42 +683,36 @@ export async function createFromScratch(
 
     // Step 3: Task Configuration
     console.log(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Task Configuration`)
+      chalk.blue(`\n[${currentStep}/${totalSteps}] Task Configuration`),
     );
     console.log(chalk.gray("███░░░"));
-    console.log(
-      chalk.gray(
-        "Tip: Break work into clear, actionable tasks\n"
-      )
-    );
+    console.log(chalk.gray("Tip: Break work into clear, actionable tasks\n"));
 
     const tasks = await configureTasksWithValidation();
 
     // Validate we have at least one task
     if (!tasks || tasks.length === 0) {
       throw new ConfigurationError(
-        "At least one task is required. Please add tasks to your template."
+        "At least one task is required. Please add tasks to your template.",
       );
     }
 
     // Validate all tasks have titles
     const invalidTasks = tasks.filter(
-      (task) => !task.title || task.title.trim() === ""
+      (task) => !task.title || task.title.trim() === "",
     );
     if (invalidTasks.length > 0) {
       throw new ConfigurationError(
-        `${invalidTasks.length} task(s) are missing titles. All tasks must have a title.`
+        `${invalidTasks.length} task(s) are missing titles. All tasks must have a title.`,
       );
     }
 
-    const { confirmStep3 } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "confirmStep3",
+    const confirmStep3 = assertNotCancelled(
+      await confirm({
         message: "Continue to estimation settings?",
-        default: true,
-      },
-    ]);
+        initialValue: true,
+      }),
+    );
 
     if (!confirmStep3) {
       throw new CancellationError("Template creation cancelled by user");
@@ -647,25 +722,23 @@ export async function createFromScratch(
 
     // Step 4: Estimation Settings
     console.log(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Estimation Settings`)
+      chalk.blue(`\n[${currentStep}/${totalSteps}] Estimation Settings`),
     );
     console.log(chalk.gray("████░░"));
     console.log(
       chalk.gray(
-        "Tip: Choose how story points will be calculated and rounded\n"
-      )
+        "Tip: Choose how story points will be calculated and rounded\n",
+      ),
     );
 
     const estimation = await configureEstimation();
 
-    const { confirmStep4 } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "confirmStep4",
+    const confirmStep4 = assertNotCancelled(
+      await confirm({
         message: "Continue to validation rules?",
-        default: true,
-      },
-    ]);
+        initialValue: true,
+      }),
+    );
 
     if (!confirmStep4) {
       throw new CancellationError("Template creation cancelled by user");
@@ -675,37 +748,35 @@ export async function createFromScratch(
 
     // Step 5: Validation Rules (Optional)
     console.log(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Validation Rules (Optional)`)
+      chalk.blue(
+        `\n[${currentStep}/${totalSteps}] Validation Rules (Optional)`,
+      ),
     );
     console.log(chalk.gray("█████░"));
     console.log(
       chalk.gray(
-        "Tip: Add constraints to ensure templates are used correctly\n"
-      )
+        "Tip: Add constraints to ensure templates are used correctly\n",
+      ),
     );
 
-    const { addValidation } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "addValidation",
+    const addValidation = assertNotCancelled(
+      await confirm({
         message: "Add validation rules?",
-        default: false,
-      },
-    ]);
+        initialValue: false,
+      }),
+    );
 
     let validation: ValidationConfig | undefined;
     if (addValidation) {
       validation = await configureValidation();
     }
 
-    const { confirmStep5 } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "confirmStep5",
+    const confirmStep5 = assertNotCancelled(
+      await confirm({
         message: "Continue to metadata?",
-        default: true,
-      },
-    ]);
+        initialValue: true,
+      }),
+    );
 
     if (!confirmStep5) {
       throw new CancellationError("Template creation cancelled by user");
@@ -715,23 +786,21 @@ export async function createFromScratch(
 
     // Step 6: Metadata (Optional)
     console.log(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Metadata (Optional)`)
+      chalk.blue(`\n[${currentStep}/${totalSteps}] Metadata (Optional)`),
     );
     console.log(chalk.gray("██████"));
     console.log(
       chalk.gray(
-        "💡 Tip: Metadata helps others understand when to use this template\n"
-      )
+        "💡 Tip: Metadata helps others understand when to use this template\n",
+      ),
     );
 
-    const { addMetadata } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "addMetadata",
+    const addMetadata = assertNotCancelled(
+      await confirm({
         message: "Add metadata?",
-        default: false,
-      },
-    ]);
+        initialValue: false,
+      }),
+    );
 
     let metadata: Metadata | undefined;
     if (addMetadata) {
@@ -756,28 +825,28 @@ export async function createFromScratch(
     // Preview and confirm
     console.log(chalk.green("\n✓ Template configured successfully!\n"));
     console.log(
-      chalk.gray("Review your template and choose an action below.\n")
+      chalk.gray("Review your template and choose an action below.\n"),
     );
 
     const confirmed = await previewTemplate(template);
 
     if (!confirmed) {
       console.log(
-        chalk.yellow("\n⚠  Template creation cancelled. No changes were saved.")
+        chalk.yellow(
+          "\n⚠  Template creation cancelled. No changes were saved.",
+        ),
       );
       throw new CancellationError("Template creation cancelled by user");
     }
 
     // Final confirmation before saving
     console.log(chalk.cyan("\n📋 Final confirmation before saving...\n"));
-    const { finalConfirm } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "finalConfirm",
+    const finalConfirm = assertNotCancelled(
+      await confirm({
         message: "Save this template?",
-        default: true,
-      },
-    ]);
+        initialValue: true,
+      }),
+    );
 
     if (!finalConfirm) {
       throw new CancellationError("Template save cancelled by user");
@@ -792,15 +861,13 @@ export async function createFromScratch(
 
     if (error instanceof ConfigurationError) {
       console.log(chalk.red(`\n Configuration error: ${error.message}`));
-      console.log(
-        chalk.gray("  Please check your inputs and try again.")
-      );
+      console.log(chalk.gray("  Please check your inputs and try again."));
       throw error;
     }
 
     // Unknown error
     console.log(
-      chalk.red(` Error creating template: ${(error as Error).message}`)
+      chalk.red(` Error creating template: ${(error as Error).message}`),
     );
     throw error;
   }
@@ -811,7 +878,7 @@ export async function createFromScratch(
  */
 async function saveTemplate(
   template: TaskTemplate,
-  outputPath: string
+  outputPath: string,
 ): Promise<void> {
   const validator = new TemplateValidator();
   const validation = validator.validate(template);
@@ -877,7 +944,7 @@ export function validateTemplate(template: TaskTemplate): {
     !template.filter.customQuery
   ) {
     warnings.push(
-      "Filter has no work item types, states, or custom query. Will match all items."
+      "Filter has no work item types, states, or custom query. Will match all items.",
     );
   }
 
@@ -898,7 +965,7 @@ export function validateTemplate(template: TaskTemplate): {
 
     if (task.description && task.description.length > 2000) {
       errors.push(
-        `Task #${index + 1} description must be 2000 characters or less`
+        `Task #${index + 1} description must be 2000 characters or less`,
       );
     }
 
@@ -913,18 +980,18 @@ export function validateTemplate(template: TaskTemplate): {
   // Estimation validation
   const totalEstimation = template.tasks.reduce(
     (sum, task) => sum + (task.estimationPercent || 0),
-    0
+    0,
   );
 
   if (totalEstimation !== 100 && !template.validation?.totalEstimationRange) {
     warnings.push(
-      `Total estimation is ${totalEstimation}% instead of 100%. Consider normalizing.`
+      `Total estimation is ${totalEstimation}% instead of 100%. Consider normalizing.`,
     );
   }
 
   // Dependency validation
   const taskIds = new Set(
-    template.tasks.map((t) => t.id).filter((id): id is string => !!id)
+    template.tasks.map((t) => t.id).filter((id): id is string => !!id),
   );
 
   template.tasks.forEach((task, index) => {
@@ -932,7 +999,7 @@ export function validateTemplate(template: TaskTemplate): {
       task.dependsOn.forEach((depId) => {
         if (!taskIds.has(depId)) {
           errors.push(
-            `Task #${index + 1} depends on non-existent task ID: "${depId}"`
+            `Task #${index + 1} depends on non-existent task ID: "${depId}"`,
           );
         }
       });

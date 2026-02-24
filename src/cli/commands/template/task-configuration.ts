@@ -1,6 +1,7 @@
+import { confirm, text } from "@clack/prompts";
 import type { TaskDefinition } from "@templates/schema";
-import inquirer, { type Answers } from "inquirer";
 import {
+  assertNotCancelled,
   ChoiceSets,
   Filters,
   promptConditionalSelect,
@@ -13,40 +14,49 @@ import {
  * Configure basic task information (title, description, estimation)
  */
 export async function configureBasicTaskInfo(
-  isFirstTask: boolean
+  isFirstTask: boolean,
 ): Promise<
   Pick<TaskDefinition, "title" | "description" | "estimationPercent" | "id">
 > {
-  const answers = await inquirer.prompt([
-    {
-      type: "input",
-      name: "id",
-      message: "Task ID (optional, max 30 character:",
+  const id = assertNotCancelled(
+    await text({
+      message: "Task ID (optional, max 30 characters):",
+      placeholder: "e.g. task-setup, task-tests",
       validate: Validators.maxLength("Task ID", 30),
-    },
-    {
-      type: "input",
-      name: "title",
+    }),
+  );
+
+  const title = assertNotCancelled(
+    await text({
       message: "Task title:",
       validate: Validators.requiredWithMaxLength("Task title", 500),
-    },
-    {
-      type: "input",
-      name: "description",
-      message: "Description (optional):",
-      validate: Validators.maxLength("Description", 2000),
-    },
-    {
-      type: "input",
-      name: "estimationPercent",
-      message: "Estimation percentage (0-100):",
-      default: isFirstTask ? "100" : "0",
-      validate: Validators.estimationPercent,
-      filter: Filters.toNumber,
-    },
-  ]);
+    }),
+  );
 
-  return answers;
+  const description = assertNotCancelled(
+    await text({
+      message: "Description (optional):",
+      placeholder:
+        "e.g. Generate tasks for User Stories with Dev and Testing tasks",
+      validate: Validators.maxLength("Description", 2000),
+    }),
+  );
+
+  const estimationPercentRaw = assertNotCancelled(
+    await text({
+      message: "Estimation percentage (0-100):",
+      placeholder: isFirstTask ? "100" : "0",
+      defaultValue: isFirstTask ? "100" : "0",
+      validate: Validators.estimationPercent,
+    }),
+  );
+
+  return {
+    id: id || undefined,
+    title,
+    description: description || undefined,
+    estimationPercent: Number(estimationPercentRaw),
+  };
 }
 
 /**
@@ -106,40 +116,37 @@ export async function configureAcceptanceCriteria(): Promise<{
   const feature = await promptOptionalFeature(
     "Add acceptance criteria",
     undefined,
-    false
+    false,
   );
 
   if (!feature.enabled) {
     return {};
   }
 
-  const criteria = await promptMultipleItems<{ criterion: string }>({
-    itemName: "criterion",
-    prompts: [
-      {
-        type: "input",
-        name: "criterion",
-        message: (answers) =>
-          `Acceptance criterion #${(answers as Answers)._index || 1}:`,
-        validate: (input: { criterion: string }) =>
-          Validators.required("Criterion")(input.criterion),
-      },
-    ],
-    continueThreshold: 3,
-  });
+  const criteria = await promptMultipleItems<{ criterion: string }>(
+    "criterion",
+    async (index) => {
+      const criterion = assertNotCancelled(
+        await text({
+          message: `Acceptance criterion #${index}:`,
+          validate: Validators.required("Criterion"),
+        }),
+      );
+      return { criterion };
+    },
+    3,
+  );
 
   if (criteria.length === 0) {
     return {};
   }
 
-  const { asChecklist } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "asChecklist",
+  const asChecklist = assertNotCancelled(
+    await confirm({
       message: "Display as checklist?",
-      default: true,
-    },
-  ]);
+      initialValue: true,
+    }),
+  );
 
   return {
     criteria: criteria.map((c) => c.criterion),
@@ -151,25 +158,25 @@ export async function configureAcceptanceCriteria(): Promise<{
  * Configure task tags
  */
 export async function configureTaskTags(): Promise<string[] | undefined> {
-  const feature = await promptOptionalFeature<{ taskTags: string }>(
+  const feature = await promptOptionalFeature<string[]>(
     "Add tags",
-    [
-      {
-        type: "input",
-        name: "taskTags",
-        message: "Tags (comma-separated):",
-        filter: Filters.commaSeparated,
-      },
-    ],
-    false
+    async () => {
+      const raw = assertNotCancelled(
+        await text({
+          message: "Tags (comma-separated):",
+          placeholder: "e.g. api, testing, high-priority",
+        }),
+      );
+      return Filters.commaSeparated(raw);
+    },
+    false,
   );
 
-  if (!feature.enabled || !feature.data?.taskTags) {
+  if (!feature.enabled || !feature.data) {
     return undefined;
   }
 
-  const tags = feature.data.taskTags as unknown as string[];
-  return tags.length > 0 ? tags : undefined;
+  return feature.data.length > 0 ? feature.data : undefined;
 }
 
 /**
@@ -178,42 +185,47 @@ export async function configureTaskTags(): Promise<string[] | undefined> {
 export async function configureAdvancedTaskOptions(): Promise<
   Pick<TaskDefinition, "dependsOn" | "condition" | "priority" | "remainingWork">
 > {
-  const answers = await inquirer.prompt([
-    {
-      type: "input",
-      name: "dependsOn",
+  const dependsOnRaw = assertNotCancelled(
+    await text({
       message: "Depends on task IDs (comma-separated, optional):",
-      filter: Filters.commaSeparated,
-    },
-    {
-      type: "input",
-      name: "condition",
+      placeholder: "e.g. task-setup, task-db, task-build, task-test",
+    }),
+  );
+  const dependsOn = Filters.commaSeparated(dependsOnRaw);
+
+  const condition = assertNotCancelled(
+    await text({
+      message: "Condition (optional):",
       //biome-ignore lint/suspicious: Simple string replacement for pattern
-      message: "Condition (optional, e.g., ${story.tags CONTAINS 'Backend'}):",
-    },
-    {
-      type: "number",
-      name: "priority",
+      placeholder: "e.g. ${story.tags CONTAINS 'Backend'}",
+    }),
+  );
+
+  const priorityRaw = assertNotCancelled(
+    await text({
       message: "Priority (1-4, optional):",
+      placeholder: "e.g. 2",
       validate: Validators.priorityRange,
-    },
-    {
-      type: "number",
-      name: "remainingWork",
+    }),
+  );
+
+  const remainingWorkRaw = assertNotCancelled(
+    await text({
       message: "Remaining work in hours (optional):",
+      placeholder: "e.g. 8",
       validate: Validators.nonNegative("Remaining work"),
-    },
-  ]);
+    }),
+  );
 
   const result: Pick<
     TaskDefinition,
     "dependsOn" | "condition" | "priority" | "remainingWork"
   > = {};
 
-  if (answers.dependsOn.length > 0) result.dependsOn = answers.dependsOn;
-  if (answers.condition) result.condition = answers.condition;
-  if (answers.priority) result.priority = answers.priority;
-  if (answers.remainingWork) result.remainingWork = answers.remainingWork;
+  if (dependsOn.length > 0) result.dependsOn = dependsOn;
+  if (condition) result.condition = condition;
+  if (priorityRaw) result.priority = Number(priorityRaw);
+  if (remainingWorkRaw) result.remainingWork = Number(remainingWorkRaw);
 
   return result;
 }
@@ -223,7 +235,7 @@ export async function configureAdvancedTaskOptions(): Promise<
  */
 export async function buildTaskDefinition(
   isFirstTask: boolean,
-  includeAdvanced: boolean
+  includeAdvanced: boolean,
 ): Promise<TaskDefinition> {
   const basic = await configureBasicTaskInfo(isFirstTask);
 

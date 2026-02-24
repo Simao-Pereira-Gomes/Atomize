@@ -476,10 +476,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         1
       );
 
-      console.log("Connection test succeeded");
+      logger.info("Connection test succeeded");
       return true;
     } catch (error) {
-      logger.debug((error as Error).message);
+      logger.debug(error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -699,6 +699,29 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private convertWorkItem(azureItem: AzureWorkItem): WorkItem {
     const fields = azureItem.fields || {};
 
+    // Extract predecessor and successor IDs from relations
+    const predecessorIds: string[] = [];
+    const successorIds: string[] = [];
+
+    if (azureItem.relations) {
+      for (const relation of azureItem.relations) {
+        const url = relation.url || "";
+        const match = url.match(/\/(\d+)$/);
+        const relatedId = match?.[1];
+
+        if (relatedId) {
+          // Dependency-Reverse: this work item depends on the linked item (predecessor)
+          if (relation.rel === "System.LinkTypes.Dependency-Reverse") {
+            predecessorIds.push(relatedId);
+          }
+          // Dependency-Forward: the linked item depends on this work item (successor)
+          if (relation.rel === "System.LinkTypes.Dependency-Forward") {
+            successorIds.push(relatedId);
+          }
+        }
+      }
+    }
+
     return {
       id: azureItem.id?.toString() || "",
       title: fields["System.Title"] || "",
@@ -709,12 +732,14 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         fields["System.AssignedTo"]?.displayName,
       estimation:
         fields["Microsoft.VSTS.Scheduling.StoryPoints"] ||
-        fields["Microsoft.VSTS.Scheduling.RemainingWork"],
+        fields["Microsoft.VSTS.Scheduling.OriginalEstimate"],
       tags: fields["System.Tags"] ? fields["System.Tags"].split("; ") : [],
       description: fields["System.Description"],
       areaPath: fields["System.AreaPath"],
       iteration: fields["System.IterationPath"],
       priority: fields["Microsoft.VSTS.Common.Priority"],
+      predecessorIds: predecessorIds.length > 0 ? predecessorIds : undefined,
+      successorIds: successorIds.length > 0 ? successorIds : undefined,
       customFields: fields,
       createdDate: fields["System.CreatedDate"]
         ? new Date(fields["System.CreatedDate"])
