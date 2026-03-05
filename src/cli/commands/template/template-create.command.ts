@@ -76,7 +76,7 @@ export const templateCreateCommand = new Command("create")
   )
   .option(
     "-p, --platform <platform>",
-    "Platform to use (azure-devops, mock)",
+    "Platform to use",
     "azure-devops",
   )
   .option("--normalize", "Normalize task estimation percentages to sum to 100%")
@@ -415,7 +415,9 @@ async function createFromStories(
         message: "Select platform:",
         options: [
           { label: "Azure DevOps", value: "azure-devops" },
-          { label: "Mock Platform (for testing)", value: "mock" },
+          ...(process.env.ATOMIZE_DEV === "true"
+            ? [{ label: "Mock Platform (for testing)", value: "mock" }]
+            : []),
         ],
       }),
     ) as string;

@@ -1,5 +1,17 @@
-import { cancel, confirm, intro, log, outro, select, spinner, text } from "@clack/prompts";
-import { getAzureDevOpsConfig, getAzureDevOpsConfigInteractive } from "@config/azure-devops.config";
+import {
+  cancel,
+  confirm,
+  intro,
+  log,
+  outro,
+  select,
+  spinner,
+  text,
+} from "@clack/prompts";
+import {
+  getAzureDevOpsConfig,
+  getAzureDevOpsConfigInteractive,
+} from "@config/azure-devops.config";
 import { logger } from "@config/logger";
 import { Atomizer } from "@core/atomizer";
 import { PlatformFactory } from "@platforms/platform-factory";
@@ -57,19 +69,19 @@ export const generateCommand = new Command("generate")
           );
           process.exit(1);
         }
-
         templatePath = assertNotCancelled(
           await text({
             message: "Template file path:",
             placeholder: "templates/backend-api.yaml",
           }),
         );
-
         options.platform = assertNotCancelled(
           await select({
             message: "Select platform:",
             options: [
-              { label: "Mock (for testing)", value: "mock" },
+              ...(process.env.ATOMIZE_DEV === "true"
+                ? [{ label: "Mock (for testing)", value: "mock" }]
+                : []),
               { label: "Azure DevOps", value: "azure-devops" },
             ],
             initialValue: "azure-devops",
