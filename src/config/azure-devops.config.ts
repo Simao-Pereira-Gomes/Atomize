@@ -94,7 +94,7 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
   const organizationUrl = assertNotCancelled(
     await text({
       message: "Azure DevOps Organization URL:",
-      validate: (input: string): string | undefined => {
+      validate: (input: string | undefined): string | undefined => {
         if (!input) return "Organization URL is required";
         if (!input.startsWith("https://"))
           return "URL must start with https://";
@@ -106,7 +106,7 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
   const project = assertNotCancelled(
     await text({
       message: "Project name:",
-      validate: (input: string): string | undefined => {
+      validate: (input: string | undefined): string | undefined => {
         if (!input || input.trim() === "") return "Project name is required";
         return undefined;
       },
@@ -116,7 +116,7 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
   const token = assertNotCancelled(
     await password({
       message: "Personal Access Token:",
-      validate: (input: string): string | undefined => {
+      validate: (input: string | undefined): string | undefined => {
         if (!input || input.trim() === "") return "PAT is required";
         return undefined;
       },

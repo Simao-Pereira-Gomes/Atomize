@@ -137,7 +137,7 @@ export async function getAIConfigForProvider(
           const apiKey = assertNotCancelled(
             await password({
               message: "Enter your Google Gemini API key:",
-              validate: (input: string): string | undefined => {
+              validate: (input: string | undefined): string | undefined => {
                 if (!input || input.trim() === "") {
                   return "API key is required";
                 }

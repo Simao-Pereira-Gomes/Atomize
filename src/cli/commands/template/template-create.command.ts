@@ -135,7 +135,10 @@ export const templateCreateCommand = new Command("create")
  * Determine creation mode
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
-  if (options.ai) return "ai";
+  if (options.ai) {
+    cancel("AI generation is temporarily disabled.");
+    process.exit(1);
+  }
   if (options.preset) return "preset";
   if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
@@ -149,6 +152,8 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
           {
             label: " AI-Powered - Describe what you need (free)",
             value: "ai",
+            hint: "coming soon",
+            disabled: true,
           },
           {
             label: "From Preset - Start with a common template",
