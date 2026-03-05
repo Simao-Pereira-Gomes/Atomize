@@ -1,9 +1,12 @@
+import { writeFile } from "node:fs/promises";
 import {
   cancel,
   confirm,
   intro,
   log,
+  note,
   outro,
+  progress,
   select,
   spinner,
   text,
@@ -20,7 +23,10 @@ import { TemplateValidator } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
-import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  isInteractiveTerminal,
+} from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter } from "@/platforms";
 
 export const generateCommand = new Command("generate")
@@ -56,9 +62,20 @@ export const generateCommand = new Command("generate")
     "--no-interactive",
     "Skip all prompts; requires template arg and env vars",
   )
+  .option("-o, --output <file>", "Write JSON report to file (for CI/CD)")
+  .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (templateArg: string | undefined, options) => {
     try {
       intro(" Atomize — Task Generator");
+
+      const isTTYSession = isInteractiveTerminal();
+      if (options.interactive !== false && isTTYSession) {
+        console.log(
+          chalk.gray(
+            "  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n",
+          ),
+        );
+      }
 
       let templatePath = templateArg;
 
@@ -97,11 +114,37 @@ export const generateCommand = new Command("generate")
       }
 
       const dryRun = options.execute ? false : options.dryRun;
+      if (
+        options.interactive === false &&
+        options.platform === "azure-devops"
+      ) {
+        const missing: string[] = [];
+        if (!process.env.AZURE_DEVOPS_ORG_URL)
+          missing.push("AZURE_DEVOPS_ORG_URL");
+        if (!process.env.AZURE_DEVOPS_PROJECT)
+          missing.push("AZURE_DEVOPS_PROJECT");
+        if (!process.env.AZURE_DEVOPS_PAT) missing.push("AZURE_DEVOPS_PAT");
+        if (missing.length > 0) {
+          cancel(
+            `Missing required environment variables: ${missing.join(", ")}`,
+          );
+          console.log(
+            chalk.gray(
+              "Set them in your .env file or export them before running.",
+            ),
+          );
+          process.exit(1);
+        }
+      }
+      const isQuiet = options.quiet === true;
+      const print = (msg: string) => {
+        if (!isQuiet) console.log(msg);
+      };
 
       if (dryRun) {
-        console.log(chalk.yellow("DRY RUN MODE - No tasks will be created\n"));
+        print(chalk.yellow("DRY RUN MODE - No tasks will be created\n"));
       } else {
-        console.log(chalk.green("LIVE MODE - Tasks will be created\n"));
+        print(chalk.green("LIVE MODE - Tasks will be created\n"));
       }
 
       logger.info(`Loading template: ${templatePath}`);
@@ -111,9 +154,9 @@ export const generateCommand = new Command("generate")
       const loader = new TemplateLoader();
       const template = await loader.load(templatePath);
 
-      console.log(chalk.cyan(`Template: ${template.name}`));
-      console.log(chalk.gray(`Description: ${template.description || "N/A"}`));
-      console.log(chalk.gray(`Tasks: ${template.tasks.length}\n`));
+      print(chalk.cyan(`Template: ${template.name}`));
+      print(chalk.gray(`Description: ${template.description || "N/A"}`));
+      print(chalk.gray(`Tasks: ${template.tasks.length}\n`));
 
       logger.info("Validating template...");
       const validator = new TemplateValidator();
@@ -128,11 +171,11 @@ export const generateCommand = new Command("generate")
       }
 
       if (validation.warnings.length > 0) {
-        console.log(chalk.yellow(" Template warnings:"));
+        print(chalk.yellow(" Template warnings:"));
         validation.warnings.forEach((warn) => {
-          console.log(chalk.yellow(`  - ${warn.path}: ${warn.message}`));
+          print(chalk.yellow(`  - ${warn.path}: ${warn.message}`));
         });
-        console.log("");
+        print("");
       }
 
       logger.info(`Initializing ${options.platform} platform...`);
@@ -152,7 +195,7 @@ export const generateCommand = new Command("generate")
         taskConcurrency < MIN_CONCURRENCY ||
         taskConcurrency > MAX_TASK_CONCURRENCY
       ) {
-        console.log(
+        print(
           chalk.yellow(
             `Task concurrency must be between ${MIN_CONCURRENCY} and ${MAX_TASK_CONCURRENCY}. Using default (5).`,
           ),
@@ -164,7 +207,7 @@ export const generateCommand = new Command("generate")
         storyConcurrency < MIN_CONCURRENCY ||
         storyConcurrency > MAX_STORY_CONCURRENCY
       ) {
-        console.log(
+        print(
           chalk.yellow(
             `Story concurrency must be between ${MIN_CONCURRENCY} and ${MAX_STORY_CONCURRENCY}. Using default (3).`,
           ),
@@ -176,7 +219,7 @@ export const generateCommand = new Command("generate")
         dependencyConcurrency < MIN_CONCURRENCY ||
         dependencyConcurrency > MAX_DEPENDENCY_CONCURRENCY
       ) {
-        console.log(
+        print(
           chalk.yellow(
             `Dependency concurrency must be between ${MIN_CONCURRENCY} and ${MAX_DEPENDENCY_CONCURRENCY}. Using default (5).`,
           ),
@@ -234,42 +277,80 @@ export const generateCommand = new Command("generate")
         }
         process.exit(1);
       }
-
       logger.info("Authenticating...");
       const authSpinner = spinner();
-      authSpinner.start("Authenticating...");
+      if (isTTYSession) authSpinner.start("Authenticating...");
       await platform.authenticate();
       const metadata = platform.getPlatformMetadata();
-      authSpinner.stop(`Connected: ${metadata.name} v${metadata.version} ✓`);
+      if (isTTYSession) {
+        authSpinner.stop(`Connected: ${metadata.name} v${metadata.version} ✓`);
+      } else {
+        print(`Connected: ${metadata.name} v${metadata.version} ✓`);
+      }
 
       const atomizer = new Atomizer(platform);
-      console.log(chalk.cyan(" Filter Criteria:"));
+      print(chalk.cyan(" Filter Criteria:"));
       if (template.filter.workItemTypes) {
-        console.log(
+        print(
           chalk.gray(`  Types: ${template.filter.workItemTypes.join(", ")}`),
         );
       }
       if (template.filter.states) {
-        console.log(
-          chalk.gray(`  States: ${template.filter.states.join(", ")}`),
-        );
+        print(chalk.gray(`  States: ${template.filter.states.join(", ")}`));
       }
       if (template.filter.tags?.include) {
-        console.log(
+        print(
           chalk.gray(
             `  Tags (include): ${template.filter.tags.include.join(", ")}`,
           ),
         );
       }
       if (template.filter.excludeIfHasTasks) {
-        console.log(chalk.gray(`  Exclude if has tasks: Yes`));
+        print(chalk.gray(`  Exclude if has tasks: Yes`));
       }
-      console.log("");
+      print("");
+      if (!dryRun && options.interactive !== false) {
+        const filterParts: string[] = [];
+        if (template.filter.workItemTypes)
+          filterParts.push(
+            `Types: ${template.filter.workItemTypes.join(", ")}`,
+          );
+        if (template.filter.states)
+          filterParts.push(`States: ${template.filter.states.join(", ")}`);
+        if (template.filter.tags?.include)
+          filterParts.push(`Tags: ${template.filter.tags.include.join(", ")}`);
+
+        note(
+          [
+            `Template:  ${template.name}`,
+            `Filter:    ${filterParts.join(" · ") || "All items"}`,
+            `Platform:  ${options.platform}`,
+            ...(options.project ? [`Project:   ${options.project}`] : []),
+            "",
+            "This will CREATE tasks in your work tracking system.",
+          ].join("\n"),
+          "⚠  LIVE MODE",
+        );
+
+        const proceed = assertNotCancelled(
+          await confirm({
+            message: "Proceed with task creation?",
+            initialValue: false,
+          }),
+        );
+        if (!proceed) {
+          outro("Cancelled.");
+          process.exit(0);
+        }
+      }
 
       logger.info("Starting atomization...");
 
-      const s = spinner();
-      s.start("Querying work items...");
+      const querySpinner = spinner();
+      let storyProgress: ReturnType<typeof progress> | undefined;
+
+      if (isTTYSession) querySpinner.start("Querying work items...");
+      else print("Querying work items...");
 
       const report = await atomizer.atomize(template, {
         dryRun,
@@ -280,31 +361,66 @@ export const generateCommand = new Command("generate")
         onProgress: (event) => {
           switch (event.type) {
             case "query_start":
-              s.message("Querying work items...");
+              if (isTTYSession) querySpinner.message("Querying work items...");
               break;
             case "query_complete":
-              s.message(`Found ${event.totalStories} stories`);
+              if (isTTYSession) {
+                querySpinner.stop(`Found ${event.totalStories} stories`);
+                storyProgress = progress({
+                  max: event.totalStories ?? 1,
+                  style: "block",
+                });
+                storyProgress.start(
+                  `Processing stories (0/${event.totalStories})`,
+                );
+              } else {
+                print(`Found ${event.totalStories} stories`);
+              }
               break;
             case "story_start":
-              s.message(
-                `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
-              );
+              if (!isTTYSession)
+                print(
+                  `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
+                );
               break;
             case "story_complete":
-              log.success(
-                `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
-              );
+              if (isTTYSession && storyProgress) {
+                log.success(
+                  `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+                );
+                storyProgress.advance(
+                  1,
+                  `${event.completedStories}/${event.totalStories} stories`,
+                );
+              } else {
+                print(
+                  `✓ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+                );
+              }
               break;
             case "story_error":
-              log.error(
-                `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
-              );
+              if (isTTYSession && storyProgress) {
+                log.error(
+                  `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+                );
+                storyProgress.advance(
+                  1,
+                  `${event.completedStories}/${event.totalStories} stories`,
+                );
+              } else {
+                print(
+                  `✗ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+                );
+              }
               break;
           }
         },
       });
 
-      s.stop("Processing complete");
+      if (isTTYSession && storyProgress)
+        storyProgress.stop("Processing complete");
+      else print("Processing complete");
+
       console.log(`\n${chalk.blue("=".repeat(70))}`);
       console.log(chalk.blue.bold("  ATOMIZATION RESULTS"));
       console.log(`${chalk.blue("=".repeat(70))}\n`);
@@ -415,6 +531,12 @@ export const generateCommand = new Command("generate")
         } else {
           console.log(chalk.red.bold("FAILED - No tasks were created\n"));
         }
+      }
+      if (options.output) {
+        const reportJson = JSON.stringify(report, null, 2);
+        await writeFile(options.output, reportJson, "utf-8");
+        if (!isQuiet)
+          console.log(chalk.gray(`\n  Report saved to ${options.output}`));
       }
 
       const exitCode = report.storiesFailed > 0 ? 1 : 0;

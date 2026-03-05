@@ -2,10 +2,17 @@ import {
   cancel,
   confirm,
   isCancel,
+  isCI,
+  isTTY,
   select,
   text,
 } from "@clack/prompts";
 import z from "zod";
+
+/** Returns true when running in a real interactive terminal (not piped/CI). */
+export function isInteractiveTerminal(): boolean {
+  return isTTY(process.stdout) && !isCI();
+}
 
 const emailSchema = z.string().email();
 

@@ -19,7 +19,10 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
-import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  isInteractiveTerminal,
+} from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter, PlatformType } from "@/platforms";
 import type { IAIGenerator } from "@/services/template";
 import type { MultiStoryLearningResult } from "@/services/template/story-learner.types";
@@ -45,6 +48,7 @@ import {
 
 interface CreateFromScratchOptions {
   interactive?: boolean;
+  quiet?: boolean;
 }
 
 type CreationMode = "ai" | "preset" | "story" | "stories" | "scratch";
@@ -61,6 +65,7 @@ interface CreateOptions {
   model?: string;
   platform?: string;
   normalize?: boolean;
+  quiet?: boolean;
 }
 
 export const templateCreateCommand = new Command("create")
@@ -92,16 +97,20 @@ export const templateCreateCommand = new Command("create")
     ),
   )
   .option("--no-interactive", "Skip all prompts (use with flags only)")
+  .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (options: CreateOptions) => {
     try {
       intro(" Atomize Template Creator");
+      if (isInteractiveTerminal()) {
+        console.log(chalk.gray("  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n"));
+      }
       const mode = await determineMode(options);
 
       const template = await match(mode)
         .with("ai", async () => await createWithAI(options))
         .with("preset", async () => await createFromPreset(options))
         .with("stories", async () => await createFromStories(options))
-        .with("scratch", async () => await createFromScratch(options))
+        .with("scratch", async () => await createFromScratch({ interactive: options.interactive, quiet: options.quiet }))
         .otherwise(() => {
           throw new Error("Invalid creation mode");
         });
@@ -623,20 +632,23 @@ async function customizeTemplate(
 export async function createFromScratch(
   _options: CreateFromScratchOptions = {},
 ): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\n✨ Create Template from Scratch\n"));
-  console.log(chalk.gray("Interactive template builder wizard"));
-  console.log(chalk.gray("You can review and edit before saving\n"));
+  const quiet = _options.quiet === true;
+  const printStep = (msg: string) => { if (!quiet) console.log(msg); };
+
+  printStep(chalk.cyan("\n✨ Create Template from Scratch\n"));
+  printStep(chalk.gray("Interactive template builder wizard"));
+  printStep(chalk.gray("You can review and edit before saving\n"));
 
   const totalSteps = 6;
   let currentStep = 1;
 
   try {
     // Step 1: Basic Information
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`),
     );
-    console.log(chalk.gray("█░░░░░"));
-    console.log(
+    printStep(chalk.gray("█░░░░░"));
+    printStep(
       chalk.gray("Tip: Choose a clear, descriptive name for your template\n"),
     );
 
@@ -661,11 +673,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 2: Filter Configuration
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Filter Configuration`),
     );
-    console.log(chalk.gray("██░░░░"));
-    console.log(
+    printStep(chalk.gray("██░░░░"));
+    printStep(
       chalk.gray(
         "Tip: Use filters to select which work items this template applies to\n",
       ),
@@ -715,11 +727,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 3: Task Configuration
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Task Configuration`),
     );
-    console.log(chalk.gray("███░░░"));
-    console.log(chalk.gray("Tip: Break work into clear, actionable tasks\n"));
+    printStep(chalk.gray("███░░░"));
+    printStep(chalk.gray("Tip: Break work into clear, actionable tasks\n"));
 
     const tasks = await configureTasksWithValidation();
 
@@ -754,11 +766,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 4: Estimation Settings
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Estimation Settings`),
     );
-    console.log(chalk.gray("████░░"));
-    console.log(
+    printStep(chalk.gray("████░░"));
+    printStep(
       chalk.gray(
         "Tip: Choose how story points will be calculated and rounded\n",
       ),
@@ -780,13 +792,13 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 5: Validation Rules (Optional)
-    console.log(
+    printStep(
       chalk.blue(
         `\n[${currentStep}/${totalSteps}] Validation Rules (Optional)`,
       ),
     );
-    console.log(chalk.gray("█████░"));
-    console.log(
+    printStep(chalk.gray("█████░"));
+    printStep(
       chalk.gray(
         "Tip: Add constraints to ensure templates are used correctly\n",
       ),
@@ -818,11 +830,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 6: Metadata (Optional)
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Metadata (Optional)`),
     );
-    console.log(chalk.gray("██████"));
-    console.log(
+    printStep(chalk.gray("██████"));
+    printStep(
       chalk.gray(
         "💡 Tip: Metadata helps others understand when to use this template\n",
       ),

@@ -10,6 +10,7 @@ import {
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
+import { isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 import type {
   TaskDefinition,
   TaskTemplate,
@@ -20,6 +21,7 @@ type ValidateOptions = {
   verbose?: boolean;
   strict?: boolean;
   lenient?: boolean;
+  quiet?: boolean;
 };
 
 export const validateCommand = new Command("validate")
@@ -33,8 +35,12 @@ export const validateCommand = new Command("validate")
   )
   .option("-l, --lenient", "Use lenient validation mode (default)", false)
   .option("--no-interactive", "Run without prompts (for CI/scripts)")
+  .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (templatePath: string, options: ValidateOptions) => {
     intro("Atomize Template Validator");
+    if (isInteractiveTerminal()) {
+      console.log(chalk.gray("  Enter to confirm · Ctrl+C to cancel\n"));
+    }
     try {
       const template = await loadTemplate(templatePath);
       if (options.verbose) printTemplateDetails(template);
@@ -42,7 +48,7 @@ export const validateCommand = new Command("validate")
       const validationOptions = resolveValidationOptions(options);
       const result = validateTemplate(template, validationOptions);
 
-      printValidationResult(template, result);
+      printValidationResult(template, result, options.quiet);
       outro(result.valid ? "Validation complete ✓" : "Validation failed");
       if (!result.valid) process.exit(1);
     } catch (error) {
@@ -87,11 +93,12 @@ function printTemplateDetails(template: TaskTemplate) {
 function printValidationResult(
   template: TaskTemplate,
   result: ValidationResult,
+  quiet?: boolean,
 ) {
   console.log("");
 
   if (result.valid) {
-    printValidSummary(template, result.warnings, result.mode);
+    printValidSummary(template, result.warnings, result.mode, quiet);
     return;
   }
 
@@ -102,18 +109,20 @@ function printValidSummary(
   template: TaskTemplate,
   warnings: ValidationWarning[],
   mode: ValidationMode,
+  quiet?: boolean,
 ) {
   const modeLabel =
     mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
   console.log(`${chalk.green("Template·is·valid!")}·${modeLabel}\n`);
-  const summary = getTemplateSummary(template);
 
-  console.log(chalk.bold("Summary:"));
-  console.log(`  Name: ${chalk.cyan(summary.name)}`);
-  console.log(`  Tasks: ${chalk.cyan(summary.tasks)}`);
-  console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
-
-  printWarnings(warnings);
+  if (!quiet) {
+    const summary = getTemplateSummary(template);
+    console.log(chalk.bold("Summary:"));
+    console.log(`  Name: ${chalk.cyan(summary.name)}`);
+    console.log(`  Tasks: ${chalk.cyan(summary.tasks)}`);
+    console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
+    printWarnings(warnings);
+  }
 }
 
 function printInvalidSummary(
