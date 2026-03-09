@@ -14,12 +14,14 @@ import {
 import {
   getAzureDevOpsConfig,
   getAzureDevOpsConfigInteractive,
+  getMissingAzureEnvVars,
 } from "@config/azure-devops.config";
 import { logger } from "@config/logger";
-import { Atomizer } from "@core/atomizer";
+import { Atomizer, type ProgressEvent } from "@core/atomizer";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { TemplateLoader } from "@templates/loader";
 import { TemplateValidator } from "@templates/validator";
+import { clampConcurrency } from "@utils/math";
 import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
@@ -28,6 +30,98 @@ import {
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter } from "@/platforms";
+
+/**
+ * Returns a print function that writes to stdout only when quiet mode is off.
+ * @internal Exported for testing
+ */
+export function createPrinter(quiet: boolean): (msg: string) => void {
+  return (msg: string) => {
+    if (!quiet) console.log(msg);
+  };
+}
+
+interface ProgressHandle {
+  start(msg: string): void;
+  advance(step: number, msg: string): void;
+  stop(msg: string): void;
+}
+
+interface SpinnerHandle {
+  message(msg: string): void;
+  stop(msg: string): void;
+}
+
+/**
+ * Builds the onProgress callback for atomizer.atomize(), separating TTY
+ * (spinner + progress bar) from non-TTY (plain print) output paths.
+ * @internal Exported for testing
+ */
+export function createProgressHandler(
+  isTTYSession: boolean,
+  querySpinner: SpinnerHandle,
+  storyProgressRef: { current: ProgressHandle | undefined },
+  print: (msg: string) => void,
+  logSuccess: (msg: string) => void,
+  logError: (msg: string) => void,
+  makeProgress: (totalStories: number) => ProgressHandle,
+): (event: ProgressEvent) => void {
+  return (event) => {
+    switch (event.type) {
+      case "query_start":
+        if (isTTYSession) querySpinner.message("Querying work items...");
+        break;
+      case "query_complete":
+        if (isTTYSession) {
+          querySpinner.stop(`Found ${event.totalStories} stories`);
+          storyProgressRef.current = makeProgress(event.totalStories ?? 1);
+          storyProgressRef.current.start(
+            `Processing stories (0/${event.totalStories})`,
+          );
+        } else {
+          print(`Found ${event.totalStories} stories`);
+        }
+        break;
+      case "story_start":
+        if (!isTTYSession)
+          print(
+            `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
+          );
+        break;
+      case "story_complete":
+        if (isTTYSession && storyProgressRef.current) {
+          logSuccess(
+            `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+          );
+          storyProgressRef.current.advance(
+            1,
+            `${event.completedStories}/${event.totalStories} stories`,
+          );
+        } else {
+          print(
+            `✓ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+          );
+        }
+        break;
+      case "story_error":
+        if (isTTYSession && storyProgressRef.current) {
+          logError(
+            `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+          );
+          storyProgressRef.current.advance(
+            1,
+            `${event.completedStories}/${event.totalStories} stories`,
+          );
+        } else {
+          print(
+            `✗ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+          );
+        }
+        break;
+    }
+  };
+}
+
 
 export const generateCommand = new Command("generate")
   .alias("gen")
@@ -118,12 +212,7 @@ export const generateCommand = new Command("generate")
         options.interactive === false &&
         options.platform === "azure-devops"
       ) {
-        const missing: string[] = [];
-        if (!process.env.AZURE_DEVOPS_ORG_URL)
-          missing.push("AZURE_DEVOPS_ORG_URL");
-        if (!process.env.AZURE_DEVOPS_PROJECT)
-          missing.push("AZURE_DEVOPS_PROJECT");
-        if (!process.env.AZURE_DEVOPS_PAT) missing.push("AZURE_DEVOPS_PAT");
+        const missing = getMissingAzureEnvVars();
         if (missing.length > 0) {
           cancel(
             `Missing required environment variables: ${missing.join(", ")}`,
@@ -137,9 +226,7 @@ export const generateCommand = new Command("generate")
         }
       }
       const isQuiet = options.quiet === true;
-      const print = (msg: string) => {
-        if (!isQuiet) console.log(msg);
-      };
+      const print = createPrinter(isQuiet);
 
       if (dryRun) {
         print(chalk.yellow("DRY RUN MODE - No tasks will be created\n"));
@@ -186,45 +273,51 @@ export const generateCommand = new Command("generate")
       const MAX_TASK_CONCURRENCY = 20;
       const MAX_DEPENDENCY_CONCURRENCY = 10;
 
-      let taskConcurrency = parseInt(options.taskConcurrency, 10) || 5;
-      let storyConcurrency = parseInt(options.storyConcurrency, 10) || 3;
-      let dependencyConcurrency =
-        parseInt(options.dependencyConcurrency, 10) || 5;
+      const rawTask = parseInt(options.taskConcurrency, 10) || 5;
+      const rawStory = parseInt(options.storyConcurrency, 10) || 3;
+      const rawDep = parseInt(options.dependencyConcurrency, 10) || 5;
 
-      if (
-        taskConcurrency < MIN_CONCURRENCY ||
-        taskConcurrency > MAX_TASK_CONCURRENCY
-      ) {
+      const taskConcurrency = clampConcurrency(
+        rawTask,
+        MIN_CONCURRENCY,
+        MAX_TASK_CONCURRENCY,
+        5,
+      );
+      const storyConcurrency = clampConcurrency(
+        rawStory,
+        MIN_CONCURRENCY,
+        MAX_STORY_CONCURRENCY,
+        3,
+      );
+      const dependencyConcurrency = clampConcurrency(
+        rawDep,
+        MIN_CONCURRENCY,
+        MAX_DEPENDENCY_CONCURRENCY,
+        5,
+      );
+
+      if (rawTask !== taskConcurrency) {
         print(
           chalk.yellow(
             `Task concurrency must be between ${MIN_CONCURRENCY} and ${MAX_TASK_CONCURRENCY}. Using default (5).`,
           ),
         );
-        taskConcurrency = 5;
       }
 
-      if (
-        storyConcurrency < MIN_CONCURRENCY ||
-        storyConcurrency > MAX_STORY_CONCURRENCY
-      ) {
+      if (rawStory !== storyConcurrency) {
         print(
           chalk.yellow(
             `Story concurrency must be between ${MIN_CONCURRENCY} and ${MAX_STORY_CONCURRENCY}. Using default (3).`,
           ),
         );
-        storyConcurrency = 3;
       }
 
-      if (
-        dependencyConcurrency < MIN_CONCURRENCY ||
-        dependencyConcurrency > MAX_DEPENDENCY_CONCURRENCY
-      ) {
+      if (rawDep !== dependencyConcurrency) {
         print(
           chalk.yellow(
             `Dependency concurrency must be between ${MIN_CONCURRENCY} and ${MAX_DEPENDENCY_CONCURRENCY}. Using default (5).`,
           ),
         );
-        dependencyConcurrency = 5;
       }
 
       logger.info(
@@ -347,7 +440,9 @@ export const generateCommand = new Command("generate")
       logger.info("Starting atomization...");
 
       const querySpinner = spinner();
-      let storyProgress: ReturnType<typeof progress> | undefined;
+      const storyProgressRef: { current: ProgressHandle | undefined } = {
+        current: undefined,
+      };
 
       if (isTTYSession) querySpinner.start("Querying work items...");
       else print("Querying work items...");
@@ -358,67 +453,22 @@ export const generateCommand = new Command("generate")
         continueOnError: options.continueOnError,
         storyConcurrency,
         dependencyConcurrency,
-        onProgress: (event) => {
-          switch (event.type) {
-            case "query_start":
-              if (isTTYSession) querySpinner.message("Querying work items...");
-              break;
-            case "query_complete":
-              if (isTTYSession) {
-                querySpinner.stop(`Found ${event.totalStories} stories`);
-                storyProgress = progress({
-                  max: event.totalStories ?? 1,
-                  style: "block",
-                });
-                storyProgress.start(
-                  `Processing stories (0/${event.totalStories})`,
-                );
-              } else {
-                print(`Found ${event.totalStories} stories`);
-              }
-              break;
-            case "story_start":
-              if (!isTTYSession)
-                print(
-                  `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
-                );
-              break;
-            case "story_complete":
-              if (isTTYSession && storyProgress) {
-                log.success(
-                  `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
-                );
-                storyProgress.advance(
-                  1,
-                  `${event.completedStories}/${event.totalStories} stories`,
-                );
-              } else {
-                print(
-                  `✓ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
-                );
-              }
-              break;
-            case "story_error":
-              if (isTTYSession && storyProgress) {
-                log.error(
-                  `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
-                );
-                storyProgress.advance(
-                  1,
-                  `${event.completedStories}/${event.totalStories} stories`,
-                );
-              } else {
-                print(
-                  `✗ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
-                );
-              }
-              break;
-          }
-        },
+        onProgress: createProgressHandler(
+          isTTYSession,
+          querySpinner,
+          storyProgressRef,
+          print,
+          log.success,
+          log.error,
+          (total) => {
+            const p = progress({ max: total, style: "block" });
+            return p;
+          },
+        ),
       });
 
-      if (isTTYSession && storyProgress)
-        storyProgress.stop("Processing complete");
+      if (isTTYSession && storyProgressRef.current)
+        storyProgressRef.current.stop("Processing complete");
       else print("Processing complete");
 
       console.log(`\n${chalk.blue("=".repeat(70))}`);

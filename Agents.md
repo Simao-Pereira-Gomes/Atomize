@@ -4,7 +4,7 @@ This repository is a **TypeScript + Bun** CLI tool. The goal is: **predictable b
 
 ---
 
-## Non-negotiables (quality gates)
+## Non-negotiable (quality gates)
 
 ### TypeScript safety
 

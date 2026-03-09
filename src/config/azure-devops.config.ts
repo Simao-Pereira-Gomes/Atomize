@@ -55,6 +55,18 @@ export function createAzureDevOpsConfig(
 }
 
 /**
+ * Returns the names of any Azure DevOps environment variables that are absent.
+ * An empty array means all required variables are present.
+ */
+export function getMissingAzureEnvVars(): string[] {
+  const missing: string[] = [];
+  if (!process.env.AZURE_DEVOPS_ORG_URL) missing.push("AZURE_DEVOPS_ORG_URL");
+  if (!process.env.AZURE_DEVOPS_PROJECT) missing.push("AZURE_DEVOPS_PROJECT");
+  if (!process.env.AZURE_DEVOPS_PAT) missing.push("AZURE_DEVOPS_PAT");
+  return missing;
+}
+
+/**
  * Load Azure DevOps configuration from environment variables
  */
 export function loadFromEnv(): AzureDevOpsConfig {

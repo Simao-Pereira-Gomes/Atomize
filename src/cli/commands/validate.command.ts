@@ -57,9 +57,11 @@ export const validateCommand = new Command("validate")
     }
   });
 
-function resolveValidationOptions(options: ValidateOptions): ValidationOptions {
+export function resolveValidationOptions(
+  options: ValidateOptions,
+): ValidationOptions {
   // CLI flags override template config
-  // --strict and --lenient are mutually exclusivea and strict takes precedence
+  // --strict and --lenient are mutually exclusive and strict takes precedence
   if (options.strict) {
     return { mode: "strict" };
   }
@@ -105,7 +107,7 @@ function printValidationResult(
   printInvalidSummary(result.errors, result.warnings, result.mode);
 }
 
-function printValidSummary(
+export function printValidSummary(
   template: TaskTemplate,
   warnings: ValidationWarning[],
   mode: ValidationMode,
@@ -156,7 +158,7 @@ function printWarnings(warnings: ValidationWarning[], boldTitle = false) {
   });
 }
 
-function getTemplateSummary(template: TaskTemplate) {
+export function getTemplateSummary(template: TaskTemplate) {
   const totalPercent = template.tasks
     .filter((t: TaskDefinition) => !t.condition)
     .reduce(
