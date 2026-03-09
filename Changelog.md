@@ -137,7 +137,7 @@ The first public release of Atomize - a CLI tool for automatically generating ta
 - **Task Assignment Patterns**
   - `@ParentAssignee` / `@Inherit` - Inherit from parent story
   - `@Me` - Assign to current user
-  - `@Un`
+  - `@Unassigned`
   - Specific email addresses
 - **Task Dependencies** - Define execution order between tasks
 - **Estimation Strategies**

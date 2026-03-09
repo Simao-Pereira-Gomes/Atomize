@@ -67,7 +67,7 @@ A combined backend + frontend template for end-to-end features. Uses a branching
 **Tasks (9):**
 1. Technical Design — 10%
 2. Backend API Implementation — 20% *(depends on design)*
-3. Database Implementation — 15% *(conditional: only if `hasDatabase` variable is set)*
+3. Database Implementation — 15% *(conditional: only if story has `database` tag)*
 4. Backend Tests — 10% *(depends on backend API)*
 5. Frontend Components — 20% *(depends on design)*
 6. Styling & Responsive Design — 10%

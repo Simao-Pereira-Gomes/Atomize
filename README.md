@@ -130,6 +130,7 @@ atomize generate templates/backend-api.yaml \
 - `--continue-on-error` - Keep processing if errors occur
 - `--story-concurrency <n>` - Parallel story processing (default: 3, max: 10)
 - `--task-concurrency <n>` - Parallel task creation per story (default: 5, max: 20)
+- `--dependency-concurrency <n>` - Parallel dependency link creation (default: 5, max: 10)
 - `--verbose` - Show detailed output
 - `--no-interactive` - Skip all prompts (for automation)
 - `-o, --output <file>` - Write JSON report to file

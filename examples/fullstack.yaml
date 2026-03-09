@@ -15,11 +15,6 @@ filter:
       - "fullstack"
   excludeIfHasTasks: true
 
-# Variables for conditionals
-variables:
-  hasDatabase: true
-  hasAuth: false
-
 tasks:
   # Design Phase
   - id: "design-overview"
@@ -59,7 +54,7 @@ tasks:
     estimationPercent: 15
     tags: ["database", "backend"]
     activity: "Development"
-    condition: "${variables.hasDatabase}"
+    condition: '${story.tags} CONTAINS "database"'
 
   - id: "backend-tests"
     title: "Backend Tests"

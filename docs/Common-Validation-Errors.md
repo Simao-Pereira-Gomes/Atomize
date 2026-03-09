@@ -362,7 +362,7 @@ Condition "true" might be invalid (no variables found)
    tasks:
      - title: "Complex Condition"
        estimationPercent: 40
-       condition: "${story.tags} CONTAINS 'api' AND ${story.storyPoints} > 5"
+       condition: "${story.tags} CONTAINS 'api' AND ${story.estimation} > 5"
    ```
 
 **Valid Operators:**

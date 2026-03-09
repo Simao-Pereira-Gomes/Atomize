@@ -68,7 +68,7 @@ Define which work items this template applies to:
 - Area paths
 - Iterations
 - Assigned to (email addresses)
-- Priority range (1-5)
+- Priority range (1-4)
 - Tags (include/exclude)
 - Custom fields
 - Custom WIQL query

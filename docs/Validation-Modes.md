@@ -40,7 +40,7 @@ Template is valid (with warnings)
 
 Warnings:
   ⚠ tasks[2].condition: Condition "true" might be invalid (no variables found)
-     Use variables like ${story.tags} or operators like CONTAINS, ==, !=
+     💡 Use variables like ${story.tags} or operators like CONTAINS, ==, !=
 
 Ready to use with: atomize generate my-template.yaml
 ```
