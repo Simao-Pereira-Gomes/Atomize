@@ -88,9 +88,14 @@ export class EstimationCalculator {
         );
       }
 
+      const resolvedPercent = this.resolveEffectivePercent(templateTask, story);
+      const taskForEstimation =
+        resolvedPercent !== undefined
+          ? { ...templateTask, estimationPercent: resolvedPercent }
+          : templateTask;
       const estimation = this.calculateEstimation(
         parentEstimation,
-        templateTask,
+        taskForEstimation,
         estimationConfig
       );
 
@@ -114,13 +119,13 @@ export class EstimationCalculator {
         areaPath: story.areaPath, // Inherit from parent
         customFields: templateTask.customFields,
         templateId: templateTask.id,
-        estimationPercent: templateTask.estimationPercent,
+        estimationPercent: resolvedPercent ?? templateTask.estimationPercent,
       };
 
       calculatedTasks.push(calculatedTask);
 
       logger.debug(
-        `Calculated task: ${calculatedTask.title} = ${estimation} points (${templateTask.estimationPercent}%)`
+        `Calculated task: ${calculatedTask.title} = ${estimation} points (${calculatedTask.estimationPercent}%)`
       );
     }
 
@@ -202,7 +207,9 @@ export class EstimationCalculator {
         areaPath: story.areaPath, // Inherit from parent
         customFields: templateTask.customFields,
         templateId: templateTask.id,
-        estimationPercent: templateTask.estimationPercent,
+        estimationPercent:
+          this.resolveEffectivePercent(templateTask, story) ??
+          templateTask.estimationPercent,
       };
 
       calculatedTasks.push(calculatedTask);
@@ -233,6 +240,27 @@ export class EstimationCalculator {
     );
 
     return { calculatedTasks, skippedTasks };
+  }
+
+  /**
+   * Resolve the effective estimation percent for a task given a story.
+   * Returns the first matching conditional percent, or falls back to estimationPercent.
+   */
+  private resolveEffectivePercent(
+    task: TemplateTaskDefinition,
+    story: WorkItem,
+  ): number | undefined {
+    if (task.estimationPercentCondition?.length) {
+      for (const rule of task.estimationPercentCondition) {
+        if (this.conditionEvaluator.evaluateCondition(rule.condition, story)) {
+          logger.debug(
+            `Task "${task.title}": conditional percent → ${rule.percent}%`,
+          );
+          return rule.percent;
+        }
+      }
+    }
+    return task.estimationPercent;
   }
 
   /**

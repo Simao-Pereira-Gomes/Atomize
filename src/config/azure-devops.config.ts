@@ -1,14 +1,7 @@
-import { cancel, confirm, isCancel, password, text } from "@clack/prompts";
+import { confirm, password, text } from "@clack/prompts";
 import type { AzureDevOpsConfig } from "@platforms/adapters/azure-devops/azure-devops.adapter";
 import { ConfigurationError } from "@utils/errors";
-
-function assertNotCancelled<T>(value: T): Exclude<T, symbol> {
-  if (isCancel(value)) {
-    cancel("Operation cancelled.");
-    process.exit(0);
-  }
-  return value as Exclude<T, symbol>;
-}
+import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 
 /**
  * Validate Azure DevOps configuration
@@ -62,6 +55,18 @@ export function createAzureDevOpsConfig(
 }
 
 /**
+ * Returns the names of any Azure DevOps environment variables that are absent.
+ * An empty array means all required variables are present.
+ */
+export function getMissingAzureEnvVars(): string[] {
+  const missing: string[] = [];
+  if (!process.env.AZURE_DEVOPS_ORG_URL) missing.push("AZURE_DEVOPS_ORG_URL");
+  if (!process.env.AZURE_DEVOPS_PROJECT) missing.push("AZURE_DEVOPS_PROJECT");
+  if (!process.env.AZURE_DEVOPS_PAT) missing.push("AZURE_DEVOPS_PAT");
+  return missing;
+}
+
+/**
  * Load Azure DevOps configuration from environment variables
  */
 export function loadFromEnv(): AzureDevOpsConfig {
@@ -101,7 +106,7 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
   const organizationUrl = assertNotCancelled(
     await text({
       message: "Azure DevOps Organization URL:",
-      validate: (input: string): string | undefined => {
+      validate: (input: string | undefined): string | undefined => {
         if (!input) return "Organization URL is required";
         if (!input.startsWith("https://"))
           return "URL must start with https://";
@@ -113,7 +118,7 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
   const project = assertNotCancelled(
     await text({
       message: "Project name:",
-      validate: (input: string): string | undefined => {
+      validate: (input: string | undefined): string | undefined => {
         if (!input || input.trim() === "") return "Project name is required";
         return undefined;
       },
@@ -123,7 +128,7 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
   const token = assertNotCancelled(
     await password({
       message: "Personal Access Token:",
-      validate: (input: string): string | undefined => {
+      validate: (input: string | undefined): string | undefined => {
         if (!input || input.trim() === "") return "PAT is required";
         return undefined;
       },

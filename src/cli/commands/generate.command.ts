@@ -1,15 +1,127 @@
-import { confirm, select, text } from "@clack/prompts";
-import { getAzureDevOpsConfigInteractive } from "@config/azure-devops.config";
+import { writeFile } from "node:fs/promises";
+import {
+  cancel,
+  confirm,
+  intro,
+  log,
+  note,
+  outro,
+  progress,
+  select,
+  spinner,
+  text,
+} from "@clack/prompts";
+import {
+  getAzureDevOpsConfig,
+  getAzureDevOpsConfigInteractive,
+  getMissingAzureEnvVars,
+} from "@config/azure-devops.config";
 import { logger } from "@config/logger";
-import { Atomizer } from "@core/atomizer";
+import { Atomizer, type ProgressEvent } from "@core/atomizer";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { TemplateLoader } from "@templates/loader";
 import { TemplateValidator } from "@templates/validator";
+import { clampConcurrency } from "@utils/math";
 import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
-import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  isInteractiveTerminal,
+} from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter } from "@/platforms";
+
+/**
+ * Returns a print function that writes to stdout only when quiet mode is off.
+ * @internal Exported for testing
+ */
+export function createPrinter(quiet: boolean): (msg: string) => void {
+  return (msg: string) => {
+    if (!quiet) console.log(msg);
+  };
+}
+
+interface ProgressHandle {
+  start(msg: string): void;
+  advance(step: number, msg: string): void;
+  stop(msg: string): void;
+}
+
+interface SpinnerHandle {
+  message(msg: string): void;
+  stop(msg: string): void;
+}
+
+/**
+ * Builds the onProgress callback for atomizer.atomize(), separating TTY
+ * (spinner + progress bar) from non-TTY (plain print) output paths.
+ * @internal Exported for testing
+ */
+export function createProgressHandler(
+  isTTYSession: boolean,
+  querySpinner: SpinnerHandle,
+  storyProgressRef: { current: ProgressHandle | undefined },
+  print: (msg: string) => void,
+  logSuccess: (msg: string) => void,
+  logError: (msg: string) => void,
+  makeProgress: (totalStories: number) => ProgressHandle,
+): (event: ProgressEvent) => void {
+  return (event) => {
+    switch (event.type) {
+      case "query_start":
+        if (isTTYSession) querySpinner.message("Querying work items...");
+        break;
+      case "query_complete":
+        if (isTTYSession) {
+          querySpinner.stop(`Found ${event.totalStories} stories`);
+          storyProgressRef.current = makeProgress(event.totalStories ?? 1);
+          storyProgressRef.current.start(
+            `Processing stories (0/${event.totalStories})`,
+          );
+        } else {
+          print(`Found ${event.totalStories} stories`);
+        }
+        break;
+      case "story_start":
+        if (!isTTYSession)
+          print(
+            `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
+          );
+        break;
+      case "story_complete":
+        if (isTTYSession && storyProgressRef.current) {
+          logSuccess(
+            `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+          );
+          storyProgressRef.current.advance(
+            1,
+            `${event.completedStories}/${event.totalStories} stories`,
+          );
+        } else {
+          print(
+            `✓ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+          );
+        }
+        break;
+      case "story_error":
+        if (isTTYSession && storyProgressRef.current) {
+          logError(
+            `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+          );
+          storyProgressRef.current.advance(
+            1,
+            `${event.completedStories}/${event.totalStories} stories`,
+          );
+        } else {
+          print(
+            `✗ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+          );
+        }
+        break;
+    }
+  };
+}
+
 
 export const generateCommand = new Command("generate")
   .alias("gen")
@@ -40,25 +152,47 @@ export const generateCommand = new Command("generate")
     "5",
   )
   .option("-v, --verbose", "Show detailed output", false)
+  .option(
+    "--no-interactive",
+    "Skip all prompts; requires template arg and env vars",
+  )
+  .option("-o, --output <file>", "Write JSON report to file (for CI/CD)")
+  .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (templateArg: string | undefined, options) => {
     try {
-      console.log(chalk.blue.bold("\n Atomize - Task Generator\n"));
+      intro(" Atomize — Task Generator");
+
+      const isTTYSession = isInteractiveTerminal();
+      if (options.interactive !== false && isTTYSession) {
+        console.log(
+          chalk.gray(
+            "  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n",
+          ),
+        );
+      }
 
       let templatePath = templateArg;
 
       if (!templatePath) {
+        if (options.interactive === false) {
+          cancel(
+            "--no-interactive requires a template path argument.\nUsage: atomize generate <template> [--execute] [--platform azure-devops]",
+          );
+          process.exit(1);
+        }
         templatePath = assertNotCancelled(
           await text({
             message: "Template file path:",
             placeholder: "templates/backend-api.yaml",
           }),
         );
-
         options.platform = assertNotCancelled(
           await select({
             message: "Select platform:",
             options: [
-              { label: "Mock (for testing)", value: "mock" },
+              ...(process.env.ATOMIZE_DEV === "true"
+                ? [{ label: "Mock (for testing)", value: "mock" }]
+                : []),
               { label: "Azure DevOps", value: "azure-devops" },
             ],
             initialValue: "azure-devops",
@@ -74,11 +208,30 @@ export const generateCommand = new Command("generate")
       }
 
       const dryRun = options.execute ? false : options.dryRun;
+      if (
+        options.interactive === false &&
+        options.platform === "azure-devops"
+      ) {
+        const missing = getMissingAzureEnvVars();
+        if (missing.length > 0) {
+          cancel(
+            `Missing required environment variables: ${missing.join(", ")}`,
+          );
+          console.log(
+            chalk.gray(
+              "Set them in your .env file or export them before running.",
+            ),
+          );
+          process.exit(1);
+        }
+      }
+      const isQuiet = options.quiet === true;
+      const print = createPrinter(isQuiet);
 
       if (dryRun) {
-        console.log(chalk.yellow("DRY RUN MODE - No tasks will be created\n"));
+        print(chalk.yellow("DRY RUN MODE - No tasks will be created\n"));
       } else {
-        console.log(chalk.green("LIVE MODE - Tasks will be created\n"));
+        print(chalk.green("LIVE MODE - Tasks will be created\n"));
       }
 
       logger.info(`Loading template: ${templatePath}`);
@@ -88,9 +241,9 @@ export const generateCommand = new Command("generate")
       const loader = new TemplateLoader();
       const template = await loader.load(templatePath);
 
-      console.log(chalk.cyan(`Template: ${template.name}`));
-      console.log(chalk.gray(`Description: ${template.description || "N/A"}`));
-      console.log(chalk.gray(`Tasks: ${template.tasks.length}\n`));
+      print(chalk.cyan(`Template: ${template.name}`));
+      print(chalk.gray(`Description: ${template.description || "N/A"}`));
+      print(chalk.gray(`Tasks: ${template.tasks.length}\n`));
 
       logger.info("Validating template...");
       const validator = new TemplateValidator();
@@ -105,11 +258,11 @@ export const generateCommand = new Command("generate")
       }
 
       if (validation.warnings.length > 0) {
-        console.log(chalk.yellow(" Template warnings:"));
+        print(chalk.yellow(" Template warnings:"));
         validation.warnings.forEach((warn) => {
-          console.log(chalk.yellow(`  - ${warn.path}: ${warn.message}`));
+          print(chalk.yellow(`  - ${warn.path}: ${warn.message}`));
         });
-        console.log("");
+        print("");
       }
 
       logger.info(`Initializing ${options.platform} platform...`);
@@ -120,45 +273,51 @@ export const generateCommand = new Command("generate")
       const MAX_TASK_CONCURRENCY = 20;
       const MAX_DEPENDENCY_CONCURRENCY = 10;
 
-      let taskConcurrency = parseInt(options.taskConcurrency, 10) || 5;
-      let storyConcurrency = parseInt(options.storyConcurrency, 10) || 3;
-      let dependencyConcurrency =
-        parseInt(options.dependencyConcurrency, 10) || 5;
+      const rawTask = parseInt(options.taskConcurrency, 10) || 5;
+      const rawStory = parseInt(options.storyConcurrency, 10) || 3;
+      const rawDep = parseInt(options.dependencyConcurrency, 10) || 5;
 
-      if (
-        taskConcurrency < MIN_CONCURRENCY ||
-        taskConcurrency > MAX_TASK_CONCURRENCY
-      ) {
-        console.log(
+      const taskConcurrency = clampConcurrency(
+        rawTask,
+        MIN_CONCURRENCY,
+        MAX_TASK_CONCURRENCY,
+        5,
+      );
+      const storyConcurrency = clampConcurrency(
+        rawStory,
+        MIN_CONCURRENCY,
+        MAX_STORY_CONCURRENCY,
+        3,
+      );
+      const dependencyConcurrency = clampConcurrency(
+        rawDep,
+        MIN_CONCURRENCY,
+        MAX_DEPENDENCY_CONCURRENCY,
+        5,
+      );
+
+      if (rawTask !== taskConcurrency) {
+        print(
           chalk.yellow(
             `Task concurrency must be between ${MIN_CONCURRENCY} and ${MAX_TASK_CONCURRENCY}. Using default (5).`,
           ),
         );
-        taskConcurrency = 5;
       }
 
-      if (
-        storyConcurrency < MIN_CONCURRENCY ||
-        storyConcurrency > MAX_STORY_CONCURRENCY
-      ) {
-        console.log(
+      if (rawStory !== storyConcurrency) {
+        print(
           chalk.yellow(
             `Story concurrency must be between ${MIN_CONCURRENCY} and ${MAX_STORY_CONCURRENCY}. Using default (3).`,
           ),
         );
-        storyConcurrency = 3;
       }
 
-      if (
-        dependencyConcurrency < MIN_CONCURRENCY ||
-        dependencyConcurrency > MAX_DEPENDENCY_CONCURRENCY
-      ) {
-        console.log(
+      if (rawDep !== dependencyConcurrency) {
+        print(
           chalk.yellow(
             `Dependency concurrency must be between ${MIN_CONCURRENCY} and ${MAX_DEPENDENCY_CONCURRENCY}. Using default (5).`,
           ),
         );
-        dependencyConcurrency = 5;
       }
 
       logger.info(
@@ -169,7 +328,10 @@ export const generateCommand = new Command("generate")
       try {
         platform = await match(options.platform)
           .with("azure-devops", async () => {
-            const azureConfig = await getAzureDevOpsConfigInteractive();
+            const azureConfig =
+              options.interactive === false
+                ? await getAzureDevOpsConfig({ promptIfMissing: false })
+                : await getAzureDevOpsConfigInteractive();
             return PlatformFactory.create("azure-devops", {
               ...azureConfig,
               maxConcurrency: taskConcurrency,
@@ -208,56 +370,82 @@ export const generateCommand = new Command("generate")
         }
         process.exit(1);
       }
-
       logger.info("Authenticating...");
+      const authSpinner = spinner();
+      if (isTTYSession) authSpinner.start("Authenticating...");
       await platform.authenticate();
-
       const metadata = platform.getPlatformMetadata();
-      console.log(
-        chalk.gray(`Platform: ${metadata.name} v${metadata.version}`),
-      );
-      console.log(chalk.gray(`Connected: ${metadata.connected ? "✓" : "✗"}\n`));
+      if (isTTYSession) {
+        authSpinner.stop(`Connected: ${metadata.name} v${metadata.version} ✓`);
+      } else {
+        print(`Connected: ${metadata.name} v${metadata.version} ✓`);
+      }
 
       const atomizer = new Atomizer(platform);
-      console.log(chalk.cyan(" Filter Criteria:"));
+      print(chalk.cyan(" Filter Criteria:"));
       if (template.filter.workItemTypes) {
-        console.log(
+        print(
           chalk.gray(`  Types: ${template.filter.workItemTypes.join(", ")}`),
         );
       }
       if (template.filter.states) {
-        console.log(
-          chalk.gray(`  States: ${template.filter.states.join(", ")}`),
-        );
+        print(chalk.gray(`  States: ${template.filter.states.join(", ")}`));
       }
       if (template.filter.tags?.include) {
-        console.log(
+        print(
           chalk.gray(
             `  Tags (include): ${template.filter.tags.include.join(", ")}`,
           ),
         );
       }
       if (template.filter.excludeIfHasTasks) {
-        console.log(chalk.gray(`  Exclude if has tasks: Yes`));
+        print(chalk.gray(`  Exclude if has tasks: Yes`));
       }
-      console.log("");
+      print("");
+      if (!dryRun && options.interactive !== false) {
+        const filterParts: string[] = [];
+        if (template.filter.workItemTypes)
+          filterParts.push(
+            `Types: ${template.filter.workItemTypes.join(", ")}`,
+          );
+        if (template.filter.states)
+          filterParts.push(`States: ${template.filter.states.join(", ")}`);
+        if (template.filter.tags?.include)
+          filterParts.push(`Tags: ${template.filter.tags.include.join(", ")}`);
+
+        note(
+          [
+            `Template:  ${template.name}`,
+            `Filter:    ${filterParts.join(" · ") || "All items"}`,
+            `Platform:  ${options.platform}`,
+            ...(options.project ? [`Project:   ${options.project}`] : []),
+            "",
+            "This will CREATE tasks in your work tracking system.",
+          ].join("\n"),
+          "⚠  LIVE MODE",
+        );
+
+        const proceed = assertNotCancelled(
+          await confirm({
+            message: "Proceed with task creation?",
+            initialValue: false,
+          }),
+        );
+        if (!proceed) {
+          outro("Cancelled.");
+          process.exit(0);
+        }
+      }
 
       logger.info("Starting atomization...");
 
-      // Progress tracking state
-      let lastProgressLine = "";
-      const clearProgress = () => {
-        if (lastProgressLine && process.stdout.isTTY) {
-          process.stdout.write(`\r${" ".repeat(lastProgressLine.length)}\r`);
-        }
+      const querySpinner = spinner();
+      const storyProgressRef: { current: ProgressHandle | undefined } = {
+        current: undefined,
       };
-      const writeProgress = (message: string) => {
-        if (process.stdout.isTTY) {
-          clearProgress();
-          process.stdout.write(message);
-          lastProgressLine = message;
-        }
-      };
+
+      if (isTTYSession) querySpinner.start("Querying work items...");
+      else print("Querying work items...");
 
       const report = await atomizer.atomize(template, {
         dryRun,
@@ -265,43 +453,24 @@ export const generateCommand = new Command("generate")
         continueOnError: options.continueOnError,
         storyConcurrency,
         dependencyConcurrency,
-        onProgress: (event) => {
-          switch (event.type) {
-            case "query_start":
-              writeProgress(chalk.gray("  Querying stories..."));
-              break;
-            case "query_complete":
-              clearProgress();
-              console.log(chalk.gray(`  Found ${event.totalStories} stories`));
-              break;
-            case "story_start":
-              writeProgress(
-                chalk.gray(
-                  `  Processing story ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
-                ),
-              );
-              break;
-            case "story_complete":
-              clearProgress();
-              console.log(
-                chalk.green(
-                  ` [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
-                ),
-              );
-              break;
-            case "story_error":
-              clearProgress();
-              console.log(
-                chalk.red(
-                  ` [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
-                ),
-              );
-              break;
-          }
-        },
+        onProgress: createProgressHandler(
+          isTTYSession,
+          querySpinner,
+          storyProgressRef,
+          print,
+          log.success,
+          log.error,
+          (total) => {
+            const p = progress({ max: total, style: "block" });
+            return p;
+          },
+        ),
       });
 
-      clearProgress();
+      if (isTTYSession && storyProgressRef.current)
+        storyProgressRef.current.stop("Processing complete");
+      else print("Processing complete");
+
       console.log(`\n${chalk.blue("=".repeat(70))}`);
       console.log(chalk.blue.bold("  ATOMIZATION RESULTS"));
       console.log(`${chalk.blue("=".repeat(70))}\n`);
@@ -413,11 +582,24 @@ export const generateCommand = new Command("generate")
           console.log(chalk.red.bold("FAILED - No tasks were created\n"));
         }
       }
+      if (options.output) {
+        const reportJson = JSON.stringify(report, null, 2);
+        await writeFile(options.output, reportJson, "utf-8");
+        if (!isQuiet)
+          console.log(chalk.gray(`\n  Report saved to ${options.output}`));
+      }
 
-      process.exit(report.storiesFailed > 0 ? 1 : 0);
+      const exitCode = report.storiesFailed > 0 ? 1 : 0;
+      outro(
+        dryRun
+          ? "Dry run complete"
+          : exitCode === 0
+            ? "Generation complete ✓"
+            : "Generation finished with errors",
+      );
+      process.exit(exitCode);
     } catch (error) {
-      console.log("");
-      logger.error(chalk.red("Generation failed"));
+      cancel("Generation failed");
 
       if (error instanceof Error) {
         console.log(chalk.red(error.message));

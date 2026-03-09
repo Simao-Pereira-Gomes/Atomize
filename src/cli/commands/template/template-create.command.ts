@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { confirm, select, text } from "@clack/prompts";
+import { cancel, confirm, intro, outro, select, spinner, text } from "@clack/prompts";
 import {
   type AIConfig,
   getAIConfig,
@@ -18,7 +19,10 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
-import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  isInteractiveTerminal,
+} from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter, PlatformType } from "@/platforms";
 import type { IAIGenerator } from "@/services/template";
 import type { MultiStoryLearningResult } from "@/services/template/story-learner.types";
@@ -44,6 +48,7 @@ import {
 
 interface CreateFromScratchOptions {
   interactive?: boolean;
+  quiet?: boolean;
 }
 
 type CreationMode = "ai" | "preset" | "story" | "stories" | "scratch";
@@ -60,6 +65,7 @@ interface CreateOptions {
   model?: string;
   platform?: string;
   normalize?: boolean;
+  quiet?: boolean;
 }
 
 export const templateCreateCommand = new Command("create")
@@ -75,7 +81,7 @@ export const templateCreateCommand = new Command("create")
   )
   .option(
     "-p, --platform <platform>",
-    "Platform to use (azure-devops, mock)",
+    "Platform to use",
     "azure-devops",
   )
   .option("--normalize", "Normalize task estimation percentages to sum to 100%")
@@ -91,16 +97,20 @@ export const templateCreateCommand = new Command("create")
     ),
   )
   .option("--no-interactive", "Skip all prompts (use with flags only)")
+  .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (options: CreateOptions) => {
     try {
-      console.log(chalk.blue.bold("\n Atomize Template Creator\n"));
+      intro(" Atomize Template Creator");
+      if (isInteractiveTerminal()) {
+        console.log(chalk.gray("  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n"));
+      }
       const mode = await determineMode(options);
 
       const template = await match(mode)
         .with("ai", async () => await createWithAI(options))
         .with("preset", async () => await createFromPreset(options))
         .with("stories", async () => await createFromStories(options))
-        .with("scratch", async () => await createFromScratch(options))
+        .with("scratch", async () => await createFromScratch({ interactive: options.interactive, quiet: options.quiet }))
         .otherwise(() => {
           throw new Error("Invalid creation mode");
         });
@@ -117,8 +127,9 @@ export const templateCreateCommand = new Command("create")
           chalk.gray(`atomize validate ${options.output}`),
       );
       console.log("");
+      outro(`Template saved → ${options.output}`);
     } catch (error) {
-      console.log("");
+      cancel("Template creation failed");
       logger.error(chalk.red("Template creation failed"));
 
       if (error instanceof Error) {
@@ -133,7 +144,10 @@ export const templateCreateCommand = new Command("create")
  * Determine creation mode
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
-  if (options.ai) return "ai";
+  if (options.ai) {
+    cancel("AI generation is temporarily disabled.");
+    process.exit(1);
+  }
   if (options.preset) return "preset";
   if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
@@ -147,6 +161,8 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
           {
             label: " AI-Powered - Describe what you need (free)",
             value: "ai",
+            hint: "coming soon",
+            disabled: true,
           },
           {
             label: "From Preset - Start with a common template",
@@ -167,8 +183,10 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
     return mode as CreationMode;
   }
 
-  // Default to scratch if --no-interactive
-  return "scratch";
+  cancel(
+    "--no-interactive requires a mode flag: --ai <prompt>, --preset <name>, or --from-stories <ids>",
+  );
+  process.exit(1);
 }
 
 /**
@@ -208,12 +226,15 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
     );
   }
 
-  const usePreset = assertNotCancelled(
-    await confirm({
-      message: "Use a preset as starting point?",
-      initialValue: false,
-    }),
-  );
+  let usePreset = false;
+  if (options.interactive !== false) {
+    usePreset = assertNotCancelled(
+      await confirm({
+        message: "Use a preset as starting point?",
+        initialValue: false,
+      }),
+    );
+  }
 
   let context = {};
   if (usePreset) {
@@ -235,14 +256,19 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
     }
   }
 
-  console.log(chalk.cyan(`\nGenerating with ${aiConfig.provider}...\n`));
-
   const generator = AIGeneratorFactory.create(aiConfig);
   if (!prompt) {
     throw new ConfigurationError("AI prompt is required");
   }
+  const genSpinner = spinner();
+  genSpinner.start(`Generating with ${aiConfig.provider}...`);
   let template = await generator.generateTemplate(prompt, context);
-  template = await refineTemplateInteractively(generator, template);
+  genSpinner.stop("Template generated ✓");
+  template = await refineTemplateInteractively(
+    generator,
+    template,
+    options.interactive !== false,
+  );
 
   return template;
 }
@@ -253,7 +279,12 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
 async function refineTemplateInteractively(
   generator: IAIGenerator,
   template: TaskTemplate,
+  interactive = true,
 ): Promise<TaskTemplate> {
+  if (!interactive) {
+    return template;
+  }
+
   while (true) {
     console.log(chalk.cyan("\n Generated Template:\n"));
     console.log(chalk.gray(stringifyYaml(template)));
@@ -282,8 +313,10 @@ async function refineTemplateInteractively(
         }),
       );
 
-      console.log(chalk.cyan("\nRefining...\n"));
+      const refineSpinner = spinner();
+      refineSpinner.start("Refining...");
       template = await generator.refineTemplate(template, refinement);
+      refineSpinner.stop("Refined ✓");
     }
 
     if (action === "regenerate") {
@@ -293,8 +326,10 @@ async function refineTemplateInteractively(
         }),
       );
 
-      console.log(chalk.cyan("\nRegenerating...\n"));
+      const regenSpinner = spinner();
+      regenSpinner.start("Regenerating...");
       template = await generator.generateTemplate(prompt);
+      regenSpinner.stop("Regenerated ✓");
     }
 
     if (action === "cancel") {
@@ -383,20 +418,22 @@ async function createFromStories(
   }
 
   let platformType = options.platform || "azure-devops";
-  if (!options.platform) {
+  if (!options.platform && options.interactive !== false) {
     platformType = assertNotCancelled(
       await select({
         message: "Select platform:",
         options: [
           { label: "Azure DevOps", value: "azure-devops" },
-          { label: "Mock Platform (for testing)", value: "mock" },
+          ...(process.env.ATOMIZE_DEV === "true"
+            ? [{ label: "Mock Platform (for testing)", value: "mock" }]
+            : []),
         ],
       }),
     ) as string;
   }
 
   let shouldNormalize = options.normalize ?? true;
-  if (options.normalize === undefined) {
+  if (options.normalize === undefined && options.interactive !== false) {
     shouldNormalize = assertNotCancelled(
       await confirm({
         message: "Normalize task percentages to sum to 100%?",
@@ -405,7 +442,8 @@ async function createFromStories(
     );
   }
 
-  console.log(chalk.cyan(`\nConnecting to ${platformType}...\n`));
+  const connectSpinner = spinner();
+  connectSpinner.start(`Connecting to ${platformType}...`);
 
   let platform: IPlatformAdapter | null = null;
   if (platformType === "azure-devops") {
@@ -416,15 +454,19 @@ async function createFromStories(
   }
 
   await platform.authenticate();
+  connectSpinner.stop("Connected ✓");
 
   const learner = new StoryLearner(platform);
+  const learnSpinner = spinner();
+  learnSpinner.start(`Learning from ${storyIds.length} stories...`);
   const result = await learner.learnFromStories(storyIds, {
     normalizePercentages: shouldNormalize,
   });
+  learnSpinner.stop(`Analyzed ${result.analyses.length} stories ✓`);
 
   displayMultiStoryResults(result);
 
-  if (result.variations.length > 1) {
+  if (result.variations.length > 1 && options.interactive !== false) {
     const choice = assertNotCancelled(
       await select({
         message: "Select template variation:",
@@ -590,20 +632,23 @@ async function customizeTemplate(
 export async function createFromScratch(
   _options: CreateFromScratchOptions = {},
 ): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\n✨ Create Template from Scratch\n"));
-  console.log(chalk.gray("Interactive template builder wizard"));
-  console.log(chalk.gray("You can review and edit before saving\n"));
+  const quiet = _options.quiet === true;
+  const printStep = (msg: string) => { if (!quiet) console.log(msg); };
+
+  printStep(chalk.cyan("\n✨ Create Template from Scratch\n"));
+  printStep(chalk.gray("Interactive template builder wizard"));
+  printStep(chalk.gray("You can review and edit before saving\n"));
 
   const totalSteps = 6;
   let currentStep = 1;
 
   try {
     // Step 1: Basic Information
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`),
     );
-    console.log(chalk.gray("█░░░░░"));
-    console.log(
+    printStep(chalk.gray("█░░░░░"));
+    printStep(
       chalk.gray("Tip: Choose a clear, descriptive name for your template\n"),
     );
 
@@ -628,11 +673,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 2: Filter Configuration
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Filter Configuration`),
     );
-    console.log(chalk.gray("██░░░░"));
-    console.log(
+    printStep(chalk.gray("██░░░░"));
+    printStep(
       chalk.gray(
         "Tip: Use filters to select which work items this template applies to\n",
       ),
@@ -682,11 +727,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 3: Task Configuration
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Task Configuration`),
     );
-    console.log(chalk.gray("███░░░"));
-    console.log(chalk.gray("Tip: Break work into clear, actionable tasks\n"));
+    printStep(chalk.gray("███░░░"));
+    printStep(chalk.gray("Tip: Break work into clear, actionable tasks\n"));
 
     const tasks = await configureTasksWithValidation();
 
@@ -721,11 +766,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 4: Estimation Settings
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Estimation Settings`),
     );
-    console.log(chalk.gray("████░░"));
-    console.log(
+    printStep(chalk.gray("████░░"));
+    printStep(
       chalk.gray(
         "Tip: Choose how story points will be calculated and rounded\n",
       ),
@@ -747,13 +792,13 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 5: Validation Rules (Optional)
-    console.log(
+    printStep(
       chalk.blue(
         `\n[${currentStep}/${totalSteps}] Validation Rules (Optional)`,
       ),
     );
-    console.log(chalk.gray("█████░"));
-    console.log(
+    printStep(chalk.gray("█████░"));
+    printStep(
       chalk.gray(
         "Tip: Add constraints to ensure templates are used correctly\n",
       ),
@@ -785,11 +830,11 @@ export async function createFromScratch(
     currentStep++;
 
     // Step 6: Metadata (Optional)
-    console.log(
+    printStep(
       chalk.blue(`\n[${currentStep}/${totalSteps}] Metadata (Optional)`),
     );
-    console.log(chalk.gray("██████"));
-    console.log(
+    printStep(chalk.gray("██████"));
+    printStep(
       chalk.gray(
         "💡 Tip: Metadata helps others understand when to use this template\n",
       ),
@@ -896,6 +941,18 @@ async function saveTemplate(
     validation.warnings.forEach((warn) => {
       console.log(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
     });
+  }
+
+  if (existsSync(outputPath)) {
+    const overwrite = assertNotCancelled(
+      await confirm({
+        message: "Output file already exists. Overwrite?",
+        initialValue: false,
+      }),
+    );
+    if (!overwrite) {
+      throw new CancellationError("Save cancelled — file not overwritten");
+    }
   }
 
   const yaml = stringifyYaml(template);

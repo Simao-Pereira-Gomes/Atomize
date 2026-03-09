@@ -1,4 +1,4 @@
-import { confirm, password, select } from "@clack/prompts";
+import { confirm, password, select, spinner } from "@clack/prompts";
 import chalk from "chalk";
 import { match } from "ts-pattern";
 import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
@@ -52,7 +52,10 @@ export async function getOllamaModels(
  */
 export async function getAIConfig(): Promise<AIConfig> {
   const geminiKey = process.env.GOOGLE_AI_API_KEY;
+  const checkSpinner = spinner();
+  checkSpinner.start("Checking AI providers...");
   const ollamaAvailable = await checkOllama();
+  checkSpinner.stop("Done");
   if (geminiKey && ollamaAvailable) {
     const provider = assertNotCancelled(
       await select({
@@ -134,7 +137,7 @@ export async function getAIConfigForProvider(
           const apiKey = assertNotCancelled(
             await password({
               message: "Enter your Google Gemini API key:",
-              validate: (input: string): string | undefined => {
+              validate: (input: string | undefined): string | undefined => {
                 if (!input || input.trim() === "") {
                   return "API key is required";
                 }
@@ -174,7 +177,10 @@ export async function getAIConfigForProvider(
     })
     .with("ollama", async () => {
       {
+        const ollamaSpinner = spinner();
+        ollamaSpinner.start("Checking Ollama availability...");
         const available = await checkOllama();
+        ollamaSpinner.stop(available ? "Ollama available ✓" : "Ollama not reachable");
         if (!available) {
           throw new AiProviderError(
             "Ollama is not running.\n" +

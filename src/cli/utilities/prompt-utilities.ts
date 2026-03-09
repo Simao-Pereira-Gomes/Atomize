@@ -2,10 +2,17 @@ import {
   cancel,
   confirm,
   isCancel,
+  isCI,
+  isTTY,
   select,
   text,
 } from "@clack/prompts";
 import z from "zod";
+
+/** Returns true when running in a real interactive terminal (not piped/CI). */
+export function isInteractiveTerminal(): boolean {
+  return isTTY(process.stdout) && !isCI();
+}
 
 const emailSchema = z.string().email();
 
@@ -28,7 +35,7 @@ export function assertNotCancelled<T>(value: T): Exclude<T, symbol> {
 export const Validators = {
   required:
     (fieldName: string) =>
-    (input: string): string | undefined => {
+    (input: string | undefined): string | undefined => {
       if (!input || input.trim() === "") {
         return `${fieldName} is required`;
       }
@@ -37,7 +44,8 @@ export const Validators = {
 
   maxLength:
     (fieldName: string, maxLength: number) =>
-    (input: string): string | undefined => {
+    (input: string | undefined): string | undefined => {
+      if (!input) return undefined;
       if (input.length > maxLength) {
         return `${fieldName} must be ${maxLength} characters or less`;
       }
@@ -46,13 +54,13 @@ export const Validators = {
 
   requiredWithMaxLength:
     (fieldName: string, maxLength: number) =>
-    (input: string): string | undefined => {
+    (input: string | undefined): string | undefined => {
       const required = Validators.required(fieldName)(input);
       if (required) return required;
       return Validators.maxLength(fieldName, maxLength)(input);
     },
 
-  estimationPercent: (input: string): string | undefined => {
+  estimationPercent: (input: string | undefined): string | undefined => {
     const num = Number(input);
     if (Number.isNaN(num)) return "Estimation must be a valid number";
     if (num < 0) return "Estimation cannot be negative";
@@ -60,7 +68,8 @@ export const Validators = {
     return undefined;
   },
 
-  email: (input: string): string | undefined => {
+  email: (input: string | undefined): string | undefined => {
+    if (!input) return undefined;
     const parseEmail = emailSchema.safeParse(input);
     if (!parseEmail.success) {
       return "Please enter a valid email address";
@@ -69,7 +78,7 @@ export const Validators = {
   },
 
   /** Accepts an empty/blank string as "not provided" (optional field). */
-  priorityRange: (input: string): string | undefined => {
+  priorityRange: (input: string | undefined): string | undefined => {
     if (!input || input.trim() === "") return undefined; // Optional
     const num = Number(input);
     if (Number.isNaN(num)) return "Priority must be a valid number";
@@ -82,7 +91,7 @@ export const Validators = {
   /** Validates that the value is strictly greater than `min`, accepting empty/blank as "use default". */
   greaterThan:
     (fieldName: string, min: number) =>
-    (input: string): string | undefined => {
+    (input: string | undefined): string | undefined => {
       if (!input || input.trim() === "") return undefined;
       const n = Number(input);
       if (Number.isNaN(n)) return `${fieldName} must be a valid number`;
@@ -93,7 +102,7 @@ export const Validators = {
   /** Validates a numeric range, accepting empty/blank as "use default". */
   numericRange:
     (fieldName: string, min: number, max: number) =>
-    (input: string): string | undefined => {
+    (input: string | undefined): string | undefined => {
       if (!input || input.trim() === "") return undefined;
       const n = Number(input);
       if (Number.isNaN(n) || n < min || n > max)
@@ -104,7 +113,7 @@ export const Validators = {
   /** Accepts an empty/blank string as "not provided" (optional field). */
   nonNegative:
     (fieldName: string) =>
-    (input: string): string | undefined => {
+    (input: string | undefined): string | undefined => {
       if (!input || input.trim() === "") return undefined; // Optional
       const num = Number(input);
       if (Number.isNaN(num)) return `${fieldName} must be a valid number`;
@@ -166,7 +175,7 @@ interface ConditionalPromptConfig {
     name: string;
     message: string;
     triggerValue: string;
-    validate?: (input: string) => string | undefined;
+    validate?: (input: string | undefined) => string | undefined;
   };
 }
 
