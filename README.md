@@ -7,27 +7,29 @@
 [![Node Version](https://img.shields.io/node/v/@sppg2001/atomize)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 
-
 **Break down stories, build up velocity.**
 
-Atomize is a CLI tool that automatically generates granular tasks from user stories using  YAML templates. Streamline your agile workflow with AI-powered task breakdowns, preset templates, and smart estimation distribution.
+Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with AI-powered task breakdowns, preset templates, and smart estimation distribution.
 
 ---
 
-##  Features
+## Features
 
-- **🤖 AI-Powered Generation** - Create templates using Google Gemini or local Ollama (completely free)
-- **📋 Preset Templates** - Start with battle-tested templates for common workflows
-- **🧠 Story Learning** - Generate templates by analyzing your existing work items
-- **🎯 Smart Estimation** - Automatically distribute story points across tasks
-- **🔗 Azure DevOps Integration** - Native support with more platforms coming soon
-- **⚡ Zero Config** - Works out of the box with sensible defaults
-- **🎨 Interactive Wizards** - User-friendly prompts guide you through everything
-- **✅ Built-in Validation** - Catch template errors before they cause problems
+- **AI-Powered Generation** - Create templates using Google Gemini or local Ollama (completely free)
+- **Preset Templates** - Start with battle-tested templates for common workflows
+- **Story Learning** - Generate templates by analyzing your existing work items (single or multiple stories)
+- **Pattern Detection** - Identify common task patterns across multiple stories with confidence scoring
+- **Smart Estimation** - Automatically distribute story points across tasks with conditional percentage support
+- **Strict & Lenient Validation** - Flexible QA modes to enforce template quality
+- **Azure DevOps Integration** - Native support with WIQL queries and full field mapping
+- **Zero Config** - Works out of the box with sensible defaults
+- **Interactive Wizards** - User-friendly prompts guide you through everything
+- **Built-in Validation** - Catch template errors before they cause problems
+- **CI/CD Ready** - Automation-friendly with `--no-interactive` and JSON report output
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Global Installation (Recommended)
 
@@ -52,7 +54,7 @@ bun run dev
 
 ---
 
-## 🎯 Quick Start
+## Quick Start
 
 ### 1. Generate Tasks from a Template
 
@@ -60,7 +62,7 @@ bun run dev
 # Use a preset template
 atomize generate templates/backend-api.yaml
 
-# Interactive mode
+# Interactive mode (prompts for template and options)
 atomize generate
 ```
 
@@ -73,8 +75,11 @@ atomize template create --ai "Backend API with authentication"
 # From a preset
 atomize template create --preset backend-api
 
-# Learn from an existing story
+# Learn from one existing story
 atomize template create --from-story STORY-123
+
+# Learn from multiple stories (better pattern detection)
+atomize template create --from-stories STORY-1,STORY-2,STORY-3
 
 # Step-by-step wizard
 atomize template create --scratch
@@ -83,12 +88,16 @@ atomize template create --scratch
 ### 3. Validate a Template
 
 ```bash
+# Lenient mode (default) — only hard errors block use
 atomize validate templates/my-template.yaml
+
+# Strict mode — warnings also become errors
+atomize validate templates/my-template.yaml --strict
 ```
 
 ---
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### Generate Command
 
@@ -104,16 +113,26 @@ atomize generate templates/backend-api.yaml \
   --execute \
   --verbose
 
-# Dry run (preview only)
+# Dry run (preview only — default behavior)
 atomize generate templates/backend-api.yaml --dry-run
+
+# CI/CD mode with JSON report
+atomize generate templates/backend-api.yaml \
+  --execute \
+  --no-interactive \
+  --output report.json
 ```
 
-**Options:**
-- `--platform <type>` - Platform to use (azure-devops, mock)
-- `--execute` - Actually create tasks (default is dry-run)
+**Key Options:**
+- `--platform <type>` - Platform: `azure-devops` or `mock`
+- `--execute` - Actually create tasks (default is dry-run preview)
 - `--dry-run` - Preview without creating tasks
 - `--continue-on-error` - Keep processing if errors occur
+- `--story-concurrency <n>` - Parallel story processing (default: 3, max: 10)
+- `--task-concurrency <n>` - Parallel task creation per story (default: 5, max: 20)
 - `--verbose` - Show detailed output
+- `--no-interactive` - Skip all prompts (for automation)
+- `-o, --output <file>` - Write JSON report to file
 
 **Example Output:**
 ```
@@ -139,8 +158,14 @@ atomize template create --ai "Create template for React component development"
 # From preset (fastest)
 atomize template create --preset frontend-feature
 
-# Learn from story (best for matching your workflow)
+# Learn from a single story (matches your workflow)
 atomize template create --from-story STORY-456 --platform azure-devops
+
+# Learn from multiple stories (best pattern detection)
+atomize template create \
+  --from-stories STORY-1,STORY-2,STORY-3 \
+  --normalize \
+  --output my-templates/learned.yaml
 
 # Interactive wizard (most control)
 atomize template create --scratch
@@ -163,13 +188,13 @@ atomize template list
 ```bash
 atomize validate templates/my-template.yaml
 
-# With detailed output
-atomize validate templates/my-template.yaml --verbose
+# Strict mode — warnings become errors (recommended for team/production templates)
+atomize validate templates/my-template.yaml --strict --verbose
 ```
 
 ---
 
-## 🏗️ Template Structure
+## Template Structure
 
 Templates are YAML files that define how to break down user stories into tasks.
 
@@ -200,19 +225,16 @@ tasks:
     description: "Implement business logic and validation"
     estimationPercent: 40
     activity: "Development"
-    tags: ["implementation"]
 
   - title: "Write Tests"
     description: "Unit and integration tests"
     estimationPercent: 30
     activity: "Testing"
-    tags: ["testing"]
 
   - title: "Code Review & Documentation"
     description: "Review and document the implementation"
     estimationPercent: 15
     activity: "Documentation"
-    tags: ["review", "docs"]
 
 # Estimation settings
 estimation:
@@ -229,12 +251,16 @@ validation:
 ### Template Features
 
 #### Variable Interpolation
-Use story data in task titles and descriptions:
-- `${story.title}` - Story title
-- `${story.id}` - Story ID
-- `${story.description}` - Story description
+
+```yaml
+- title: "Design: ${story.title}"
+- description: "Story ${story.id}: ${story.description}"
+```
+
+Available variables: `${story.title}`, `${story.id}`, `${story.description}`, `${story.estimation}`, `${story.tags}`
 
 #### Task Assignment
+
 ```yaml
 assignTo: "@ParentAssignee"  # Inherit from story
 assignTo: "@Me"              # Current user
@@ -242,13 +268,29 @@ assignTo: "user@email.com"   # Specific user
 ```
 
 #### Conditional Tasks
+
 ```yaml
 - title: "Security Review"
   estimationPercent: 10
   condition: '${story.tags} CONTAINS "security"'
 ```
 
+#### Conditional Estimation (v1.1)
+
+Adapt task percentage based on story properties. First matching rule wins; `estimationPercent` is the fallback.
+
+```yaml
+- title: "Implementation"
+  estimationPercent: 50                 # Default
+  estimationPercentCondition:
+    - condition: '${story.tags} CONTAINS "critical"'
+      percent: 60                       # More weight for critical stories
+    - condition: "${story.estimation} >= 13"
+      percent: 55                       # More work for large stories
+```
+
 #### Task Dependencies
+
 ```yaml
 tasks:
   - id: "design"
@@ -258,16 +300,16 @@ tasks:
   - id: "implement"
     title: "Implementation"
     estimationPercent: 60
-    dependsOn: ["design"]  # Must complete design first
+    dependsOn: ["design"]   # Must complete design first
 ```
 
 ---
 
-## 🤖 AI-Powered Template Creation
+## AI-Powered Template Creation
 
-Atomize supports two free AI providers for template generation:
+Atomize supports two free AI providers:
 
-### Google Gemini (Cloud - Recommended)
+### Google Gemini (Cloud — Recommended)
 
 1. Get a free API key: https://makersuite.google.com/app/apikey
 2. Set environment variable:
@@ -279,7 +321,7 @@ Atomize supports two free AI providers for template generation:
    atomize template create --ai "Backend API with OAuth authentication"
    ```
 
-### Ollama (Local - Complete Privacy)
+### Ollama (Local — Complete Privacy)
 
 1. Install Ollama: https://ollama.ai
 2. Download a model:
@@ -300,11 +342,11 @@ Atomize supports two free AI providers for template generation:
 - Be specific: "Backend API with JWT auth, rate limiting, and PostgreSQL"
 - Mention your tech stack: "React component with TypeScript and Tailwind CSS"
 - Specify testing requirements: "Include unit tests and E2E tests"
-- Refine iteratively: Use the refine option to adjust the generated template
+- Use the refinement loop to iterate: Accept, Refine, Regenerate, or Cancel
 
 ---
 
-## 🔗 Platform Setup
+## Platform Setup
 
 ### Azure DevOps
 
@@ -331,9 +373,36 @@ Atomize supports two free AI providers for template generation:
 atomize generate templates/backend-api.yaml --platform mock
 ```
 
+No configuration required. Includes 7 built-in sample stories.
+
 ---
 
-##  Real-World Examples
+## Strict vs Lenient Validation
+
+Atomize has two validation modes:
+
+| Mode | Warnings | Best For |
+|------|----------|----------|
+| **Lenient** (default) | Non-blocking | Development, personal templates |
+| **Strict** | Treated as errors | Team templates, CI/CD pipelines |
+
+```bash
+# Default (lenient) — only hard errors block use
+atomize validate my-template.yaml
+
+# Strict — warnings also fail validation
+atomize validate my-template.yaml --strict
+```
+
+You can also set the mode in the template itself:
+```yaml
+validation:
+  mode: "strict"
+```
+
+---
+
+## Real-World Examples
 
 ### Example 1: Backend API Feature
 
@@ -349,11 +418,28 @@ atomize generate templates/backend-api.yaml --platform mock
 
 **Total:** 10 story points perfectly distributed
 
-## 🛠️ Advanced Usage
+### Example 2: Multi-Story Learning
+
+```bash
+# Learn from your team's best stories
+atomize template create \
+  --from-stories STORY-100,STORY-115,STORY-132,STORY-148 \
+  --platform azure-devops \
+  --normalize \
+  --output team-templates/backend-standard.yaml
+
+# Validate the learned template
+atomize validate team-templates/backend-standard.yaml --strict
+
+# Apply it
+atomize generate team-templates/backend-standard.yaml --execute
+```
+
+---
+
+## Advanced Usage
 
 ### Custom Filters
-
-Filter stories with precise criteria:
 
 ```yaml
 filter:
@@ -369,33 +455,25 @@ filter:
     min: 1
     max: 2
   excludeIfHasTasks: true
+  customFields:
+    - field: "Custom.Team"
+      operator: "equals"
+      value: "Platform Engineering"
 ```
 
-### Estimation Strategies
+### Estimation Settings
 
 ```yaml
 estimation:
-  strategy: "percentage"     # Distribute story points by percentage
-  rounding: "nearest"        # nearest, up, down, none
-  minimumTaskPoints: 0.5     # Minimum points per task
-```
-
-### Learning from Existing Stories
-
-```bash
-# Analyze a story and create a template
-atomize template create --from-story STORY-123
-
-# With percentage normalization
-atomize template create --from-story STORY-123 --normalize
-
-# Keep original percentages
-atomize template create --from-story STORY-123 --no-normalize
+  strategy: "percentage"    # Distribute story points by percentage
+  rounding: "nearest"       # nearest, up, down, none
+  minimumTaskPoints: 0.5    # Minimum points per task
+  ifParentHasNoEstimation: "skip"   # skip, warn, use-default
 ```
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -414,65 +492,32 @@ bun test --watch
 ### Development Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/Simao-Pereira-Gomes/atomize.git
 cd atomize
-
-# Install dependencies
 bun install
-
-# Run in development mode
 bun run dev
-
-# Run tests
 bun test
-
-# Build
 bun run build
 ```
 
 ---
 
-## 📝 Roadmap
+## Troubleshooting
 
-### v0.1.0 - Initial Release ✅
-- [x] Core task generation engine
-- [x] Azure DevOps integration
-- [x] AI-powered template creation
-- [x] Preset templates
-- [x] Story learning
-- [x] Interactive wizards
+### "Not authenticated" error
 
-### v0.2.0 - Enhanced Features
-- [ ] GitHub Issues integration
-- [ ] Jira integration
-- [ ] VS Code extension
-
-### v0.3.0 - Advanced Capabilities
-- [ ] Multi-story batch processing
-- [ ] Custom estimation formulas
-- [ ] Template inheritance
-- [ ] Workflow automation
-- [ ] Analytics dashboard
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**"Not authenticated" error**
 ```bash
-# Make sure environment variables are set
+# Check environment variables are set
 echo $AZURE_DEVOPS_PAT
 
-# Or use interactive mode
-atomize generate --interactive
+# Or use interactive mode (will prompt)
+atomize generate templates/backend-api.yaml
 ```
 
-**"Template validation failed"**
+### "Template validation failed"
+
 ```bash
-# Check your template
+# Get detailed output
 atomize validate templates/my-template.yaml --verbose
 
 # Common issues:
@@ -481,24 +526,38 @@ atomize validate templates/my-template.yaml --verbose
 # - Missing required fields
 ```
 
-**AI provider not available**
+### "AI provider not available"
+
 ```bash
 # For Gemini
 export GOOGLE_AI_API_KEY="your-key"
 
 # For Ollama
-ollama serve  # Must be running
+ollama serve          # Must be running
 ollama pull llama3.2  # Model must be downloaded
 ```
 
 ---
 
-## 📄 License
+## Documentation
+
+- [Getting Started](./docs/Getting-Started.md) - First steps and core concepts
+- [CLI Reference](./docs/Cli-Reference.md) - Complete command and flag reference
+- [Template Reference](./docs/Template-Reference.md) - Full template schema
+- [Validation Modes](./docs/Validation-Modes.md) - Strict vs lenient explained
+- [Story Learner](./docs/Story-Learner.md) - Generate templates from existing stories
+- [Common Validation Errors](./docs/Common-Validation-Errors.md) - Fix validation failures
+- [Platform Guide](./docs/Platform-Guide.md) - Azure DevOps setup
+- [Template Wizard Guide](./docs/template-wizard-guide.md) - Interactive wizard walkthrough
+
+---
+
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details
 
-## 📧 Support
+## Support
 
-- 🐛 [Report a Bug](https://github.com/Simao-Pereira-Gomes/atomize/issues)
-- 💡 [Request a Feature](https://github.com/Simao-Pereira-Gomes/atomize/issues)
-- 💬 [Discussions](https://github.com/Simao-Pereira-Gomes/atomize/discussions)
+- [Report a Bug](https://github.com/Simao-Pereira-Gomes/atomize/issues)
+- [Request a Feature](https://github.com/Simao-Pereira-Gomes/atomize/issues)
+- [Discussions](https://github.com/Simao-Pereira-Gomes/atomize/discussions)

@@ -4,12 +4,38 @@ This guide provides solutions for common template validation errors you might en
 
 ## Table of Contents
 
+- [Validation Modes: Lenient vs Strict](#validation-modes-lenient-vs-strict)
 - [Estimation Errors](#estimation-errors)
 - [Task Count Errors](#task-count-errors)
 - [Dependency Errors](#dependency-errors)
 - [Condition Errors](#condition-errors)
 - [Schema Errors](#schema-errors)
 - [Understanding Error Messages](#understanding-error-messages)
+
+---
+
+## Validation Modes: Lenient vs Strict
+
+Atomize has two validation modes that affect how warnings are treated.
+
+| Mode | Warnings | Usage |
+|------|----------|-------|
+| **Lenient** (default) | Non-blocking — template is still valid | Development, flexible templates |
+| **Strict** | Promoted to errors — template is invalid | Production, CI/CD, team templates |
+
+**Set mode via CLI:**
+```bash
+atomize validate my-template.yaml --strict    # Warnings become errors
+atomize validate my-template.yaml --lenient   # Warnings are non-blocking (default)
+```
+
+**Set mode in template YAML:**
+```yaml
+validation:
+  mode: "strict"   # or "lenient"
+```
+
+See [Validation Modes](./Validation-Modes.md) for a full explanation.
 
 ---
 
@@ -70,7 +96,7 @@ Total estimation is 120%, but must be 100%.
 
 2. **Use the wizard's auto-normalization feature:**
    ```bash
-   atomize template create --wizard
+   atomize template create --scratch
    # The wizard will offer to normalize estimations automatically
    ```
 
@@ -510,5 +536,6 @@ If you encounter an error not covered here:
 ## See Also
 
 - [Template Reference](./Template-Reference.md) - Complete template schema
+- [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Getting Started](./Getting-Started.md) - Template basics
 - [Template Wizard Guide](./template-wizard-guide.md) - Interactive template creation
