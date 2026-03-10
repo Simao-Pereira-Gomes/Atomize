@@ -153,7 +153,7 @@ Summary:
 #### Create a Template
 
 ```bash
-# AI-powered (best for quick starts)
+# best for quick starts
 atomize template create --ai "Create template for React component development"
 
 # From preset (fastest)
@@ -317,7 +317,11 @@ Atomize supports two free AI providers:
    ```bash
    export GOOGLE_AI_API_KEY="your-key-here"
    ```
-3. Create templates:
+   For windows
+  ```bash
+    set GOOGLE_AI_API_KEY=your-key
+  ```
+4. Create templates:
    ```bash
    atomize template create --ai "Backend API with OAuth authentication"
    ```
@@ -341,7 +345,6 @@ Atomize supports two free AI providers:
 ### AI Tips
 
 - Be specific: "Backend API with JWT auth, rate limiting, and PostgreSQL"
-- Mention your tech stack: "React component with TypeScript and Tailwind CSS"
 - Specify testing requirements: "Include unit tests and E2E tests"
 - Use the refinement loop to iterate: Accept, Refine, Regenerate, or Cancel
 
@@ -361,8 +364,14 @@ Atomize supports two free AI providers:
    export AZURE_DEVOPS_PROJECT="YourProject"
    export AZURE_DEVOPS_PAT="your-personal-access-token"
    ```
+   For Windows
+    ```bash
+   set AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
+   set AZURE_DEVOPS_PROJECT="YourProject"
+   set AZURE_DEVOPS_PAT="your-personal-access-token"
+   ```
 
-3. **Or Use Interactive Setup**
+4. **Or Use Interactive Setup**
    ```bash
    atomize generate templates/backend-api.yaml
    # CLI will prompt for configuration
@@ -532,6 +541,7 @@ atomize validate templates/my-template.yaml --verbose
 ```bash
 # For Gemini
 export GOOGLE_AI_API_KEY="your-key"
+set GOOGLE_AI_API_KEY="your-key"
 
 # For Ollama
 ollama serve          # Must be running
