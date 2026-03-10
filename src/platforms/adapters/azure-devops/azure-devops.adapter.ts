@@ -11,6 +11,7 @@ import type {
   WorkItem,
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
+import { CURRENT_ITERATION } from "@templates/schema";
 import { PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
@@ -661,8 +662,22 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     // Iterations
     if (filter.iterations && filter.iterations.length > 0) {
-      const iterations = filter.iterations.map((i) => `'${i}'`).join(", ");
-      conditions.push(`[System.IterationPath] IN (${iterations})`);
+      const hasSentinel = filter.iterations.includes(CURRENT_ITERATION);
+      const realPaths = filter.iterations.filter(
+        (i) => i !== CURRENT_ITERATION,
+      );
+
+      if (hasSentinel && realPaths.length === 0) {
+        conditions.push(`[System.IterationPath] = @CurrentIteration`);
+      } else if (!hasSentinel && realPaths.length > 0) {
+        const quoted = realPaths.map((i) => `'${i}'`).join(", ");
+        conditions.push(`[System.IterationPath] IN (${quoted})`);
+      } else if (hasSentinel && realPaths.length > 0) {
+        const quoted = realPaths.map((i) => `'${i}'`).join(", ");
+        conditions.push(
+          `([System.IterationPath] IN (${quoted}) OR [System.IterationPath] = @CurrentIteration)`,
+        );
+      }
     }
 
     if (filter.assignedTo && filter.assignedTo.length > 0) {

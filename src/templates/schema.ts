@@ -41,7 +41,9 @@ export const FilterCriteriaSchema = z.object({
     })
     .optional(),
   areaPaths: z.array(z.string()).optional(),
-  iterations: z.array(z.string()).optional(),
+  iterations: z
+    .array(z.union([z.string(), z.literal("@CurrentIteration")]))
+    .optional(),
   assignedTo: z.array(z.union([z.email(), z.literal("@Me")])).optional(),
   priority: z
     .object({
@@ -477,6 +479,8 @@ function reportCircularDependencies(
     });
   }
 }
+
+export const CURRENT_ITERATION = "@CurrentIteration" as const;
 
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;

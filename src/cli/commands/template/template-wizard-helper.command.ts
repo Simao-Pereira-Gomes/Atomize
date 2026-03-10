@@ -12,6 +12,8 @@ import {
   Validators,
 } from "../../utilities/prompt-utilities";
 
+type IterationFilterMode = "none" | "@CurrentIteration" | "specific" | "mixed";
+
 interface WorkItemPromptAnswers {
   workItemTypes: string[];
   customWorkItemTypes?: string[];
@@ -161,14 +163,46 @@ export async function configureFilter(): Promise<FilterCriteria> {
         }),
       ),
     );
-    const iterations = Filters.commaSeparated(
-      assertNotCancelled(
-        await text({
-          message: "Iterations (comma-separated):",
-          placeholder: "e.g. Sprint 1, Sprint 2",
-        }),
-      ),
+    const iterationMode = assertNotCancelled(
+      await select<IterationFilterMode>({
+        message: "Iteration filter:",
+        options: [
+          { label: "No iteration filter", value: "none" as const },
+          {
+            label: "@CurrentIteration  (always targets the active sprint)",
+            value: "@CurrentIteration" as const,
+          },
+          { label: "Specific iteration paths", value: "specific" as const },
+          {
+            label: "@CurrentIteration + specific paths",
+            value: "mixed" as const,
+          },
+        ],
+        initialValue: "none" as const,
+      }),
     );
+
+    let iterations: string[] = [];
+    if (iterationMode === "@CurrentIteration") {
+      iterations = ["@CurrentIteration"];
+    } else if (iterationMode === "specific" || iterationMode === "mixed") {
+      const raw = assertNotCancelled(
+        await text({
+          message: "Iteration paths (comma-separated):",
+          placeholder: "e.g. MyProject\\\\Sprint 1, MyProject\\\\Sprint 2",
+          validate: (input): string | undefined => {
+            if (!input || input.trim() === "")
+              return "At least one iteration path is required";
+            return undefined;
+          },
+        }),
+      );
+      const specificPaths = Filters.commaSeparated(raw);
+      iterations =
+        iterationMode === "mixed"
+          ? ["@CurrentIteration", ...specificPaths]
+          : specificPaths;
+    }
     const assignedTo = Filters.commaSeparated(
       assertNotCancelled(
         await text({

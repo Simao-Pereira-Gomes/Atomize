@@ -104,6 +104,24 @@ describe("Schema Validation", () => {
       const result = FilterCriteriaSchema.safeParse(filter);
       expect(result.success).toBe(false);
     });
+
+    test("should accept @CurrentIteration as a valid iterations value", () => {
+      const filter = {
+        iterations: ["@CurrentIteration"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept mixed @CurrentIteration and real iteration paths", () => {
+      const filter = {
+        iterations: ["@CurrentIteration", "MyProject\\Sprint 1"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
   });
 
   describe("TaskDefinitionSchema", () => {

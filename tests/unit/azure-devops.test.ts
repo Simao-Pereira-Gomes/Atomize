@@ -565,6 +565,44 @@ describe("AzureDevOps WIQL Query Building", () => {
     // Expected: [System.Tags] CONTAINS 'backend'
     expect(true).toBe(true);
   });
+
+  test("should emit @CurrentIteration macro when sentinel is the only iteration", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      iterations: ["@CurrentIteration"],
+    });
+    expect(wiql).toContain("[System.IterationPath] = @CurrentIteration");
+    expect(wiql).not.toContain("'@CurrentIteration'");
+  });
+
+  test("should emit IN clause when only real iteration paths are given", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      iterations: ["MyProject\\Sprint 1", "MyProject\\Sprint 2"],
+    });
+    expect(wiql).toContain(
+      "[System.IterationPath] IN ('MyProject\\Sprint 1', 'MyProject\\Sprint 2')",
+    );
+    expect(wiql).not.toContain("@CurrentIteration");
+  });
+
+  test("should emit combined OR clause when sentinel is mixed with real paths", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      iterations: ["@CurrentIteration", "MyProject\\Sprint 1"],
+    });
+    expect(wiql).toContain(
+      "[System.IterationPath] IN ('MyProject\\Sprint 1')",
+    );
+    expect(wiql).toContain("[System.IterationPath] = @CurrentIteration");
+    expect(wiql).toContain(" OR ");
+  });
 });
 
 describe("AzureDevOps excludeIfHasTasks functionality", () => {
