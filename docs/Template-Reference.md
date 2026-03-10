@@ -1,233 +1,101 @@
-# Platform Guide
+# Template Reference
 
-Setup and configuration guide for different work item management platforms.
+Complete reference for Atomize YAML template files.
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Azure DevOps](#azure-devops)
-- [Mock Platform](#mock-platform)
-- [Adding New Platforms](#adding-new-platforms)
+- [Top-Level Fields](#top-level-fields)
+- [filter](#filter)
+- [tasks](#tasks)
+  - [Task Fields](#task-fields)
+  - [Variable Interpolation](#variable-interpolation)
+  - [Assignment Patterns](#assignment-patterns)
+  - [Conditional Tasks](#conditional-tasks)
+  - [Conditional Estimation](#conditional-estimation)
+  - [Task Dependencies](#task-dependencies)
+- [estimation](#estimation)
+- [validation](#validation)
+- [metadata](#metadata)
+- [Complete Example](#complete-example)
 
 ---
 
 ## Overview
 
-Atomize supports multiple work item management platforms through a unified adapter interface. Currently supported:
+Templates are YAML files that define how Atomize breaks down user stories into tasks. Each template specifies:
 
-| Platform | Status | Features |
-|----------|--------|----------|
-| Azure DevOps | ✅ Production | Full support with WIQL queries |
-| Mock | ✅ Production | Testing and development |
-| Jira | 🚧 Planned | Coming soon |
-| GitHub Issues | 🚧 Planned | Coming soon |
+1. **Which work items to target** (via `filter`)
+2. **What tasks to create** (via `tasks`)
+3. **How to distribute estimations** (via `estimation`)
+4. **Optional constraints** (via `validation`)
+5. **Optional metadata** (via `metadata`)
 
 ---
 
-## Azure DevOps
+## Top-Level Fields
 
-Complete setup guide for Azure DevOps Services.
-
-### Prerequisites
-
-- Azure DevOps organization and project
-- Personal Access Token (PAT) with Work Items permissions
-- Node.js 18+ or Bun runtime
-
-### Quick Start
-
-1. **Get your organization URL and project name**
-
-   Your Azure DevOps URL looks like:
-   ```
-   https://dev.azure.com/{organization}
-   ```
-   
-   Example: `https://dev.azure.com/contoso`
-
-2. **Create a Personal Access Token (PAT)**
-
-   - Go to `https://dev.azure.com/{organization}/_usersSettings/tokens`
-   - Click "New Token"
-   - Set scopes: **Work Items (Read, Write)**
-   - Copy the token (you won't see it again!)
-
-3. **Configure environment variables**
-
-   ```bash
-   # Create .env file
-   cat > .env << EOF
-   AZURE_DEVOPS_ORG_URL=https://dev.azure.com/yourorg
-   AZURE_DEVOPS_PROJECT=YourProject
-   AZURE_DEVOPS_PAT=your-token-here
-   AZURE_DEVOPS_TEAM=YourTeam  # Optional
-   EOF
-   ```
-
-4. **Test connection**
-
-   ```bash
-   atomize generate templates/backend-api.yaml --dry-run
-   ```
-
-### Configuration Options
-
-#### Option 1: Environment Variables (Recommended)
-
-```bash
-# Required
-export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/myorg"
-export AZURE_DEVOPS_PROJECT="MyProject"
-export AZURE_DEVOPS_PAT="your-pat-token"
-
-# Optional
-export AZURE_DEVOPS_TEAM="MyTeam"
-export AZURE_DEVOPS_API_VERSION="7.0"
+```yaml
+version: "1.0"          # Required. Always "1.0"
+name: "Template Name"   # Required. Human-readable name (max 200 chars)
+description: "..."      # Optional. What this template is for (max 500 chars)
+author: "Your Name"     # Optional. Author name or team
+tags: ["tag1", "tag2"]  # Optional. Categorization tags
 ```
 
-#### Option 2: .env File
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `version` | Yes | string | Template schema version. Use `"1.0"` |
+| `name` | Yes | string | Template display name |
+| `description` | No | string | Detailed description |
+| `author` | No | string | Author name or team |
+| `tags` | No | string[] | Tags for categorization |
 
-```bash
-# .env
-AZURE_DEVOPS_ORG_URL=https://dev.azure.com/myorg
-AZURE_DEVOPS_PROJECT=MyProject
-AZURE_DEVOPS_PAT=your-pat-token
-AZURE_DEVOPS_TEAM=MyTeam
-```
+---
 
-#### Option 3: Interactive Prompts
+## filter
 
-```bash
-atomize generate templates/backend-api.yaml
-
-# You'll be prompted:
-# ✔ Load Azure DevOps configuration from environment variables? (Y/n)
-# If you select "no", you'll enter configuration manually
-```
-
-### PAT Permissions
-
-Your Personal Access Token needs these scopes:
-
-| Scope | Access Level | Required |
-|-------|--------------|----------|
-| Work Items | Read | ✅ Yes |
-| Work Items | Write | ✅ Yes |
-| Project and Team | Read | ⚪ Optional |
-
-**Minimum permissions:**
-- Read work items
-- Write work items
-- Create work item links
-
-### Azure DevOps Concepts
-
-#### Work Item Types
-
-Default Azure DevOps work item types:
+Defines which work items this template applies to. All criteria are combined with AND logic.
 
 ```yaml
 filter:
-  workItemTypes:
-    - "User Story"           # Scrum
-    - "Product Backlog Item" # Agile
-    - "Bug"
-    - "Task"
-    - "Epic"
-    - "Feature"
-```
-
-#### States
-
-Common work item states:
-
-```yaml
-filter:
-  states:
-    - "New"        # Just created
-    - "Active"     # In progress
-    - "Resolved"   # Completed, awaiting verification
-    - "Closed"     # Verified and done
-    - "Removed"    # Cancelled
-```
-
-#### Area Paths
-
-Organize work items by product area:
-
-```yaml
-filter:
-  areaPaths:
-    - "MyProject\\Backend"
-    - "MyProject\\Frontend"
-    - "MyProject\\Infrastructure"
-```
-
-#### Iteration Paths
-
-Organize work items by sprint/iteration:
-
-```yaml
-filter:
-  iterations:
-    - "MyProject\\Sprint 23"
-    - "MyProject\\Sprint 24"
-```
-
-### WIQL Queries
-
-Azure DevOps uses Work Item Query Language (WIQL) for filtering.
-
-**Basic query structure:**
-```sql
-SELECT [System.Id] 
-FROM WorkItems 
-WHERE [System.TeamProject] = 'MyProject'
-  AND [System.WorkItemType] = 'User Story'
-  AND [System.State] = 'New'
-```
-
-**Template filter to WIQL:**
-
-Template:
-```yaml
-filter:
-  workItemTypes: ["User Story"]
+  workItemTypes: ["User Story", "Bug"]
   states: ["New", "Active"]
   tags:
     include: ["backend"]
+    exclude: ["deprecated"]
+  areaPaths: ["MyProject\\Backend"]
+  iterations: ["MyProject\\Sprint 23"]
+  assignedTo: ["user@company.com", "@Me"]
+  priority:
+    min: 1
+    max: 3
+  excludeIfHasTasks: true
+  customFields:
+    - field: "Custom.Team"
+      operator: "equals"
+      value: "Platform Engineering"
+  customQuery: "SELECT [System.Id] FROM WorkItems WHERE ..."
 ```
 
-Generated WIQL:
-```sql
-SELECT [System.Id] 
-FROM WorkItems 
-WHERE [System.TeamProject] = 'MyProject'
-  AND [System.WorkItemType] IN ('User Story')
-  AND [System.State] IN ('New', 'Active')
-  AND [System.Tags] CONTAINS 'backend'
-```
+### Filter Fields
 
-**Custom WIQL queries:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `workItemTypes` | string[] | Work item types to match (e.g., `"User Story"`, `"Bug"`) |
+| `states` | string[] | Work item states to match (e.g., `"New"`, `"Active"`) |
+| `tags.include` | string[] | Must have at least one of these tags |
+| `tags.exclude` | string[] | Must not have any of these tags |
+| `areaPaths` | string[] | Area paths to match (case-sensitive) |
+| `iterations` | string[] | Iteration paths to match |
+| `assignedTo` | string[] | Assigned user emails, or `"@Me"` for current user |
+| `priority.min` | number | Minimum priority (1 = highest) |
+| `priority.max` | number | Maximum priority |
+| `excludeIfHasTasks` | boolean | Skip work items that already have child tasks |
+| `customFields` | array | Additional field filters (see below) |
+| `customQuery` | string | Raw WIQL query that overrides all other filters |
 
-```yaml
-filter:
-  customQuery: |
-    SELECT [System.Id] 
-    FROM WorkItems 
-    WHERE [System.TeamProject] = 'MyProject'
-      AND [System.WorkItemType] = 'User Story'
-      AND [System.State] IN ('New', 'Active')
-      AND [Custom.Team] = 'Platform Engineering'
-      AND [Microsoft.VSTS.Common.Priority] <= 2
-      AND [System.Tags] CONTAINS 'backend'
-```
-
-### Custom Fields
-
-Azure DevOps supports custom fields for work items.
-
-**Common custom fields:**
+### Custom Field Filters
 
 ```yaml
 filter:
@@ -235,223 +103,408 @@ filter:
     - field: "Custom.Team"
       operator: "equals"
       value: "Platform Engineering"
-    
-    - field: "Custom.Complexity"
-      operator: "greaterThan"
-      value: 3
-    
+
     - field: "Microsoft.VSTS.Common.Priority"
       operator: "lessThan"
       value: 3
 ```
 
-**Field reference format:**
-- System fields: `System.FieldName` (e.g., `System.State`)
-- Microsoft fields: `Microsoft.VSTS.*.FieldName`
-- Custom fields: `Custom.FieldName`
+**Supported operators:** `equals`, `notEquals`, `contains`, `greaterThan`, `lessThan`
 
-**Common system fields:**
-- `System.Id` - Work item ID
-- `System.Title` - Title
-- `System.State` - Current state
-- `System.WorkItemType` - Type
-- `System.AssignedTo` - Assigned user
-- `System.Tags` - Tags (semicolon-separated)
-- `System.AreaPath` - Area path
-- `System.IterationPath` - Iteration path
-- `System.CreatedDate` - Creation date
-- `System.ChangedDate` - Last modified date
+### Custom WIQL Query
 
-**Common Microsoft fields:**
-- `Microsoft.VSTS.Scheduling.StoryPoints` - Story points
-- `Microsoft.VSTS.Scheduling.RemainingWork` - Remaining work (hours)
-- `Microsoft.VSTS.Common.Priority` - Priority (1-5)
-- `Microsoft.VSTS.Common.Activity` - Activity type
-- `Microsoft.VSTS.Common.BacklogPriority` - Backlog priority
-
-### Task Creation
-
-When creating tasks, Atomize sets these fields:
+Use `customQuery` when you need advanced filtering that standard fields cannot express. This overrides all other filter criteria.
 
 ```yaml
-# Task definition
+filter:
+  customQuery: |
+    SELECT [System.Id]
+    FROM WorkItems
+    WHERE [System.TeamProject] = 'MyProject'
+      AND [System.WorkItemType] = 'User Story'
+      AND [System.State] IN ('New', 'Active')
+      AND [Custom.Team] = 'Platform Engineering'
+      AND [Microsoft.VSTS.Common.Priority] <= 2
+```
+
+---
+
+## tasks
+
+Defines the tasks to create for each matching work item. Tasks are created as child items.
+
+```yaml
 tasks:
-  - title: "Implement API"
-    description: "Implementation details"
-    estimationPercent: 40
-    tags: ["backend", "api"]
-    activity: "Development"
-    assignTo: "john@company.com"
+  - id: "design"
+    title: "Design: ${story.title}"
+    description: "Design and planning phase"
+    estimationPercent: 20
+    activity: "Design"
+    tags: ["design"]
+    assignTo: "@ParentAssignee"
     priority: 2
-    remainingWork: 16
+    condition: '${story.tags} CONTAINS "backend"'
+    dependsOn: []
+    acceptanceCriteria:
+      - "Criteria 1"
+      - "Criteria 2"
+    customFields:
+      Custom.Complexity: "High"
 ```
 
-Maps to Azure DevOps fields:
-- `System.Title` ← title
-- `System.Description` ← description
-- `Microsoft.VSTS.Scheduling.RemainingWork` ← estimationPercent * story points
-- `System.Tags` ← tags (joined with "; ")
-- `Microsoft.VSTS.Common.Activity` ← activity
-- `System.AssignedTo` ← assignTo
-- `Microsoft.VSTS.Common.Priority` ← priority
+### Task Fields
 
-### Troubleshooting
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `title` | Yes | string | Task title (max 500 chars). Supports variable interpolation |
+| `id` | No | string | Unique identifier for dependencies (max 30 chars) |
+| `description` | No | string | Task description (max 2000 chars) |
+| `estimationPercent` | No | number | Percentage of parent story points (0-100) |
+| `estimationFixed` | No | number | Fixed point value regardless of parent estimation |
+| `estimationPercentCondition` | No | array | Conditional estimation rules (see below) |
+| `activity` | No | string | Activity type (e.g., `"Development"`, `"Testing"`, `"Design"`) |
+| `tags` | No | string[] | Tags to apply to the task |
+| `assignTo` | No | string | Who to assign the task to (see assignment patterns) |
+| `priority` | No | number | Task priority (1-4) |
+| `remainingWork` | No | number | Override remaining work in hours |
+| `condition` | No | string | Expression to conditionally create this task |
+| `dependsOn` | No | string[] | IDs of tasks this task depends on |
+| `acceptanceCriteria` | No | string[] | List of acceptance criteria |
+| `customFields` | No | object | Custom Azure DevOps fields to set |
 
-#### Authentication Failures
+### Variable Interpolation
 
-**Problem:** `Authentication failed: 401 Unauthorized`
+Use story data dynamically in task titles and descriptions:
 
-**Solutions:**
-1. Verify PAT hasn't expired
-2. Check PAT has correct scopes (Work Items Read/Write)
-3. Verify organization URL format: `https://dev.azure.com/org`
-4. Don't include project in organization URL
+| Variable | Description |
+|----------|-------------|
+| `${story.title}` | Story title |
+| `${story.id}` | Story ID (e.g., `STORY-123`) |
+| `${story.description}` | Story description |
+| `${story.estimation}` | Story points |
+| `${story.tags}` | Story tags (semicolon-separated) |
 
-#### No Work Items Found
+**Example:**
 
-**Problem:** `Found 0 stories matching filter criteria`
-
-**Solutions:**
-1. Check work item types match your project's process template
-2. Verify states exist in your project
-3. Check area/iteration paths are correct (case-sensitive)
-4. Test with mock platform first:
-   ```bash
-   atomize generate templates/backend-api.yaml --platform mock --dry-run
-   ```
-
-#### Permission Errors
-
-**Problem:** `Failed to create task: Access Denied`
-
-**Solutions:**
-1. Verify PAT has Write permissions
-2. Check project permissions (Project Contributor role)
-3. Verify you can create work items manually in the web UI
-
-#### Connection Timeouts
-
-**Problem:** `Request timeout` or `ECONNRESET`
-
-**Solutions:**
-1. Check network connectivity
-2. Verify organization URL is accessible
-3. Check if behind corporate proxy (configure proxy settings)
-4. Try with increased timeout
-
----
-
-## Mock Platform
-
-The mock platform provides sample data for testing and development.
-
-### Usage
-
-```bash
-atomize generate templates/backend-api.yaml \
-  --platform mock \
-  --dry-run
-```
-
-### Features
-
-- No configuration required
-- Sample user stories with various states and tags
-- Simulated network delays
-- 
-### Sample Data
-
-The mock platform includes 7 sample stories:
-
-```
-STORY-001: Implement user authentication API
-  State: New, Tags: backend, api, security
-  Estimation: 8 points
-
-STORY-002: Create user profile dashboard
-  State: Active, Tags: frontend, react, ui
-  Estimation: 5 points
-
-STORY-003: Implement payment processing
-  State: New, Tags: backend, api, payment
-  Estimation: 13 points
-
-STORY-004: Add search functionality
-  State: Approved, Tags: fullstack, search, api, frontend
-  Estimation: 8 points
-
-STORY-005: Optimize database queries
-  State: New, Tags: backend, database, performance
-  Estimation: 3 points
-
-STORY-006: Mobile responsive design
-  State: New, Tags: frontend, mobile, css
-  Estimation: 5 points
-
-STORY-007: Implement data export feature
-  State: Active, Tags: backend, api, export
-  Estimation: 8 points (has 1 existing task)
-```
-
-### Testing Workflows
-
-**1. Template Development:**
-```bash
-# Create template
-atomize template create --scratch -o test-template.yaml
-
-# Test with mock data
-atomize generate test-template.yaml --platform mock --dry-run
-
-# Iterate until satisfied
-```
-
-**2. Filter Testing:**
-```bash
-# Test different filters
-atomize generate test-template.yaml --platform mock --dry-run
-
-# Check which stories match
-# Adjust filter criteria
-# Repeat
-```
-
-**3. CI/CD Testing:**
 ```yaml
-# .github/workflows/test.yml
-- name: Test Templates
-  run: |
-    for template in templates/*.yaml; do
-      atomize validate "$template"
-      atomize generate "$template" --platform mock --dry-run
-    done
+tasks:
+  - title: "Design API: ${story.title}"
+    description: |
+      Design the REST API for: ${story.title}
+
+      Story ID: ${story.id}
+      Estimation: ${story.estimation} points
 ```
 
+### Assignment Patterns
+
+The `assignTo` field supports special patterns in addition to email addresses:
+
+| Value | Behavior |
+|-------|----------|
+| `@ParentAssignee` | Inherit assignment from the parent story |
+| `@Inherit` | Same as `@ParentAssignee` |
+| `@Me` | Assign to the currently authenticated user |
+| `@Unassigned` | Leave the task unassigned |
+| `"user@company.com"` | Assign to a specific user by email |
+
+```yaml
+tasks:
+  - title: "Implementation"
+    assignTo: "@ParentAssignee"   # Inherit from story
+
+  - title: "Code Review"
+    assignTo: "lead@company.com"  # Specific person
+
+  - title: "Testing"
+    assignTo: "@Me"               # Whoever runs the command
+```
+
+### Conditional Tasks
+
+Tasks with a `condition` are only created when the condition evaluates to `true`. When a conditional task is skipped, its estimation is redistributed to other tasks proportionally.
+
+```yaml
+tasks:
+  - title: "Security Review"
+    estimationPercent: 10
+    condition: '${story.tags} CONTAINS "security"'
+
+  - title: "Database Migration"
+    estimationPercent: 15
+    condition: '${story.tags} CONTAINS "database" AND ${story.estimation} > 5'
+```
+
+**Condition operators:**
+
+| Operator | Usage | Example |
+|----------|-------|---------|
+| `CONTAINS` | Tag/string contains value | `${story.tags} CONTAINS "backend"` |
+| `NOT CONTAINS` | Tag/string doesn't contain value | `${story.tags} NOT CONTAINS "frontend"` |
+| `==` | Equality | `${story.estimation} == 8` |
+| `!=` | Inequality | `${story.estimation} != 0` |
+| `>` | Greater than | `${story.estimation} > 5` |
+| `<` | Less than | `${story.estimation} < 13` |
+| `>=` | Greater than or equal | `${story.estimation} >= 8` |
+| `<=` | Less than or equal | `${story.estimation} <= 3` |
+| `AND` | Both conditions must be true | `... AND ...` |
+| `OR` | Either condition must be true | `... OR ...` |
+
+### Conditional Estimation
+
+Use `estimationPercentCondition` to adapt a task's percentage based on story properties. Rules are evaluated in order; the first matching rule wins. The `estimationPercent` field serves as the fallback.
+
+```yaml
+tasks:
+  - title: "Implementation"
+    estimationPercent: 50       # Default/fallback
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "critical"'
+        percent: 60             # Higher weight for critical stories
+      - condition: "${story.estimation} >= 13"
+        percent: 55             # More work for large stories
+      - condition: '${story.tags} CONTAINS "fullstack"'
+        percent: 40             # Less backend work for fullstack stories
+```
+
+**Key behaviors:**
+- Rules are evaluated in order; first match wins
+- If no condition matches, `estimationPercent` is used
+- Normalization uses the resolved percentages (including skipped tasks)
+- Conditional percentages participate correctly in the 100% distribution
+
+### Task Dependencies
+
+Define execution order by referencing other task IDs in `dependsOn`. Atomize creates dependency links between tasks in the platform.
+
+```yaml
+tasks:
+  - id: "design"
+    title: "Design API"
+    estimationPercent: 15
+
+  - id: "implement"
+    title: "Implement API"
+    estimationPercent: 50
+    dependsOn: ["design"]      # Cannot start until "design" is done
+
+  - id: "test"
+    title: "Write Tests"
+    estimationPercent: 25
+    dependsOn: ["implement"]
+
+  - id: "review"
+    title: "Code Review & Documentation"
+    estimationPercent: 10
+    dependsOn: ["implement", "test"]  # Multiple dependencies
+```
+
+**Rules:**
+- `id` is required on any task that other tasks depend on
+- `id` is required on any task that uses `dependsOn`
+- Circular dependencies are a validation error
+- IDs must be unique within a template
+
 ---
 
+## estimation
 
-### Contributing
+Controls how story points are distributed across tasks.
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platform adapters.
+```yaml
+estimation:
+  strategy: "percentage"      # How to calculate task points
+  rounding: "nearest"         # How to round calculated values
+  minimumTaskPoints: 0.5      # Minimum points per task
+  ifParentHasNoEstimation: "skip"   # What to do if parent has no points
+  defaultParentEstimation: 8  # Used when parent has no estimation (if not "skip")
+```
+
+| Field | Type | Default | Options | Description |
+|-------|------|---------|---------|-------------|
+| `strategy` | string | `"percentage"` | `"percentage"` | How to calculate task estimations |
+| `rounding` | string | `"nearest"` | `nearest`, `up`, `down`, `none` | How to round decimal point values |
+| `minimumTaskPoints` | number | `0` | any non-negative number | Minimum points for any task |
+| `ifParentHasNoEstimation` | string | `"skip"` | `skip`, `warn`, `use-default` | Behavior when parent story has no estimation |
+| `defaultParentEstimation` | number | `8` | any positive number | Fallback estimation when parent has none |
+
+**Rounding options:**
+- `nearest` - Round to nearest whole number (0.5 → 1, 0.4 → 0)
+- `up` - Always round up (0.1 → 1)
+- `down` - Always round down (0.9 → 0)
+- `none` - Keep decimal values
 
 ---
 
-## Platform Comparison
+## validation
 
-| Feature | Azure DevOps | Mock | Jira | GitHub |
-|---------|--------------|------|------|--------|
-| Authentication | PAT | None | API Token | PAT |
-| Work Items | ✅ | ✅ | 🚧 | 🚧 |
-| Custom Fields | ✅ | ✅ | 🚧 | 🚧 |
-| Bulk Creation | ✅ | ✅ | 🚧 | 🚧 |
-| Work Item Links | ✅ | ✅ | 🚧 | 🚧 |
-| Query Language | WIQL | Simple | JQL | - |
-| Real-time | ✅ | ✅ | 🚧 | 🚧 |
+Optional rules that validate the template before use. See [Validation Modes](./Validation-Modes.md) for details on strict vs lenient behavior.
+
+```yaml
+validation:
+  mode: "lenient"             # lenient or strict
+  totalEstimationMustBe: 100  # Total must equal exactly this
+  totalEstimationRange:       # OR use a range instead
+    min: 95
+    max: 105
+  minTasks: 3                 # Minimum number of tasks required
+  maxTasks: 10                # Maximum number of tasks allowed
+  taskEstimationRange:        # Each task must fall in this range
+    min: 0.5
+    max: 8
+  requiredTasks:              # Tasks that must be present
+    - title: "Code Review"
+      id: "review"
+  customFieldDefinitions:     # Define allowed custom field values
+    - name: "Complexity"
+      type: "string"
+      allowedValues: ["Low", "Medium", "High"]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | string | `"lenient"` (default) or `"strict"`. In strict mode, warnings become errors |
+| `totalEstimationMustBe` | number | Total estimation percentage must equal this value |
+| `totalEstimationRange` | object | Total estimation must fall within `min`-`max` range |
+| `minTasks` | number | Minimum number of tasks required |
+| `maxTasks` | number | Maximum number of tasks allowed |
+| `taskEstimationRange` | object | Each individual task's resolved estimation must fall within this range |
+| `requiredTasks` | array | Tasks that must exist (matched by `id` or `title`) |
+| `customFieldDefinitions` | array | Definitions for custom fields used in tasks |
+
+> **Note:** `totalEstimationMustBe` and `totalEstimationRange` are mutually exclusive.
+
+---
+
+## metadata
+
+Optional metadata to help others discover and use your template.
+
+```yaml
+metadata:
+  category: "Backend"
+  difficulty: "intermediate"        # beginner, intermediate, advanced
+  recommendedFor:
+    - "API development"
+    - "Microservices"
+  estimationGuidelines: "Based on typical backend API workflows for 5-13 point stories."
+  examples:
+    - "Implement user authentication endpoint"
+    - "Build REST API for product catalog"
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `category` | string | Template category (e.g., `"Backend"`, `"Frontend"`) |
+| `difficulty` | string | `"beginner"`, `"intermediate"`, or `"advanced"` |
+| `recommendedFor` | string[] | Descriptions of when to use this template |
+| `estimationGuidelines` | string | Guidance on estimation sizing for this template |
+| `examples` | string[] | Example story titles this template works well for |
+
+---
+
+## Complete Example
+
+```yaml
+version: "1.0"
+name: "Backend API Development"
+description: "Standard workflow for developing RESTful API endpoints"
+author: "Platform Team"
+tags: ["backend", "api", "rest"]
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active"]
+  tags:
+    include: ["backend", "api"]
+    exclude: ["deprecated"]
+  priority:
+    min: 1
+    max: 3
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "design"
+    title: "Design API: ${story.title}"
+    description: "Design REST endpoints, request/response schemas, and error handling"
+    estimationPercent: 15
+    activity: "Design"
+    tags: ["design", "api"]
+    assignTo: "@ParentAssignee"
+
+  - id: "db-schema"
+    title: "Database Schema"
+    description: "Create or update database schema and migrations"
+    estimationPercent: 15
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "complex-db"'
+        percent: 25
+    activity: "Development"
+    dependsOn: ["design"]
+
+  - id: "implement"
+    title: "Implement Core Logic: ${story.title}"
+    description: "Implement business logic, validation, and API endpoints"
+    estimationPercent: 35
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+    dependsOn: ["design", "db-schema"]
+
+  - id: "unit-tests"
+    title: "Unit Tests"
+    estimationPercent: 15
+    activity: "Testing"
+    dependsOn: ["implement"]
+
+  - id: "integration-tests"
+    title: "Integration Tests"
+    estimationPercent: 10
+    activity: "Testing"
+    dependsOn: ["implement"]
+
+  - id: "security-review"
+    title: "Security Review"
+    estimationPercent: 10
+    activity: "Testing"
+    condition: '${story.tags} CONTAINS "security" OR ${story.tags} CONTAINS "auth"'
+    dependsOn: ["implement"]
+
+  - id: "review"
+    title: "Code Review & Documentation"
+    estimationPercent: 10
+    activity: "Documentation"
+    assignTo: "@Me"
+    dependsOn: ["unit-tests", "integration-tests"]
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  minimumTaskPoints: 0.5
+  ifParentHasNoEstimation: "skip"
+
+validation:
+  mode: "strict"
+  totalEstimationMustBe: 100
+  minTasks: 3
+  maxTasks: 10
+
+metadata:
+  category: "Backend"
+  difficulty: "intermediate"
+  recommendedFor:
+    - "REST API development"
+    - "Microservice endpoints"
+    - "Data service implementation"
+  estimationGuidelines: "Works best with stories between 5-13 story points."
+```
 
 ---
 
 ## See Also
 
-- [CLI Reference](./Cli-Reference.md) - Command-line usage
-- [Template Reference](./Template-Reference.md) - Template schema
-- [Examples](../templates/) - Real-world examples
+- [CLI Reference](./Cli-Reference.md) - Commands for validating and using templates
+- [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
+- [Common Validation Errors](./Common-Validation-Errors.md) - Fix validation failures
+- [Story Learner](./Story-Learner.md) - Generate templates from existing work items
+- [Template Wizard Guide](./template-wizard-guide.md) - Interactive template creation
+- [Examples](../examples/) - Real-world template examples

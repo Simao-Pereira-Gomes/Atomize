@@ -186,24 +186,44 @@ export class MockPlatformAdapter implements IPlatformAdapter {
   }
 
   /**
-   * Create multiple tasks in bulk
+   * Create multiple tasks in bulk with parallel execution
+   * Uses concurrency limit to simulate realistic API behavior
    */
   async createTasksBulk(
     parentId: string,
-    tasks: TaskDefinition[]
+    tasks: TaskDefinition[],
+    concurrency = 5
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
     logger.debug(
-      `MockPlatform: Creating ${tasks.length} tasks for parent ${parentId}`
+      `MockPlatform: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
     );
 
-    const createdTasks: WorkItem[] = [];
+    const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
 
-    for (const task of tasks) {
-      const createdTask = await this.createTask(parentId, task);
-      createdTasks.push(createdTask);
+    // Process tasks in parallel batches
+    for (let i = 0; i < tasks.length; i += concurrency) {
+      const batch = tasks.slice(i, i + concurrency);
+      const batchPromises = batch.map(async (task, batchIndex) => {
+        const taskIndex = i + batchIndex;
+        try {
+          const created = await this.createTask(parentId, task);
+          results[taskIndex] = created;
+          return created;
+        } catch (error) {
+          logger.error(`MockPlatform: Failed to create task: ${task.title}`, {
+            error,
+          });
+          results[taskIndex] = null;
+          return null;
+        }
+      });
+
+      await Promise.all(batchPromises);
     }
+
+    const createdTasks = results.filter((r): r is WorkItem => r !== null);
 
     logger.info(`MockPlatform: Created ${createdTasks.length} tasks`);
 

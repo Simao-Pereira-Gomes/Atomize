@@ -1,0 +1,83 @@
+name: Benchmarks
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  deployments: write
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Run benchmarks
+        run: bun run benchmark > benchmark-output.json
+
+      - name: Process benchmark results
+        id: process
+        run: |
+          # Convert mitata JSON output to benchmark-action compatible format
+          node << 'EOF'
+          const fs = require('fs');
+          const output = JSON.parse(fs.readFileSync('benchmark-output.json', 'utf8'));
+          const results = [];
+
+          // mitata JSON format has benchmarks array with stats
+          for (const bench of output.benchmarks || []) {
+            const name = bench.name || bench.alias;
+            const stats = bench.stats || bench;
+
+            // Use avg time (smaller is better)
+            if (stats.avg !== undefined) {
+              results.push({
+                name: name,
+                unit: 'ns',
+                value: stats.avg
+              });
+            }
+          }
+
+          fs.writeFileSync('benchmark-results.json', JSON.stringify(results, null, 2));
+          console.log('Parsed', results.length, 'benchmark results');
+          console.log(JSON.stringify(results, null, 2));
+          EOF
+
+      - name: Store benchmark results
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Atomize Benchmarks
+          tool: 'customSmallerIsBetter'
+          output-file-path: benchmark-results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: '150%'
+          comment-on-alert: true
+          fail-on-alert: false
+          benchmark-data-dir-path: docs/benchmarks
+
+      - name: Upload raw benchmark output
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-output
+          path: benchmark-output.txt
+          retention-days: 30

@@ -42,6 +42,12 @@ export interface WorkItem {
   /** Child work items */
   children?: WorkItem[];
 
+  /** IDs of work items this depends on (predecessors) */
+  predecessorIds?: string[];
+
+  /** IDs of work items that depend on this (successors) */
+  successorIds?: string[];
+
   /** Custom fields (platform-specific) */
   // biome-ignore lint : The any type is used here for flexibility
   customFields?: Record<string, any>;

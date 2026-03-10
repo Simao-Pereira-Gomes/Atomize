@@ -185,10 +185,9 @@ describe("normalizeEstimationPercentages", () => {
     // Should maintain 1:2:3 ratio
     const ratios = items.map((i) => i.estimationPercent ?? 0);
     expect(ratios).toHaveLength(3);
-    //biome-ignore-start lint/style: we already checked for undefined above
-    expect(ratios[0]).toBeLessThan(ratios[1]!);
-    expect(ratios[1]).toBeLessThan(ratios[2]!);
-    //biome-ignore-end lint/style: we already checked for undefined above
+    const [ratio0, ratio1, ratio2] = ratios;
+    expect(ratio0).toBeLessThan(ratio1 ?? 0);
+    expect(ratio1).toBeLessThan(ratio2 ?? 0);
   });
 });
 

@@ -1,12 +1,16 @@
+import { confirm, multiselect, select, text } from "@clack/prompts";
 import type {
   EstimationConfig,
   FilterCriteria,
   Metadata,
   ValidationConfig,
 } from "@templates/schema";
-import inquirer from "inquirer";
-import { match } from "ts-pattern";
 import type { CustomFieldFilter } from "@/platforms";
+import {
+  assertNotCancelled,
+  Filters,
+  Validators,
+} from "../../utilities/prompt-utilities";
 
 interface WorkItemPromptAnswers {
   workItemTypes: string[];
@@ -18,268 +22,232 @@ interface StatePromptAnswers {
   customStates?: string[];
 }
 
-const OS_PLATFORM = process.platform;
-const ListType = OS_PLATFORM === "win32" ? "rawlist" : "list";
-
 /**
  * Configure filter criteria with support for custom query and custom fields
  */
 export async function configureFilter(): Promise<FilterCriteria> {
   const filter: FilterCriteria = {};
 
-  const { workItemTypes, customWorkItemTypes } =
-    await inquirer.prompt<WorkItemPromptAnswers>([
-      {
-        type: "checkbox",
-        name: "workItemTypes",
-        message: "Select work item types:",
-        choices: [
-          { name: "User Story", checked: true },
-          { name: "Bug" },
-          { name: "Task" },
-          { name: "Epic" },
-          { name: "Feature" },
-          { name: "Issue" },
-          { name: "+ Add custom type", value: "__custom__" },
-        ],
-      },
-      {
-        type: "input",
-        name: "customWorkItemTypes",
+  const workItemTypes = assertNotCancelled(
+    await multiselect<WorkItemPromptAnswers["workItemTypes"][number]>({
+      message: "Select work item types:",
+      options: [
+        { label: "User Story", value: "User Story" },
+        { label: "Bug", value: "Bug" },
+        { label: "Task", value: "Task" },
+        { label: "Epic", value: "Epic" },
+        { label: "Feature", value: "Feature" },
+        { label: "Issue", value: "Issue" },
+        { label: "+ Add custom type", value: "__custom__" },
+      ],
+      initialValues: ["User Story"],
+      required: false,
+    }),
+  );
+
+  let customWorkItemTypes: string[] = [];
+  if (workItemTypes.includes("__custom__")) {
+    const raw = assertNotCancelled(
+      await text({
         message: "Enter custom work item types (comma-separated):",
-        when: (answers) => answers.workItemTypes?.includes("__custom__"),
-        filter: (input: string) => {
-          if (!input) return [];
-          return input.split(",").map((t) => t.trim());
-        },
-      },
-    ]);
+        placeholder: "e.g. Requirement, Test Case",
+      }),
+    );
+    customWorkItemTypes = Filters.commaSeparated(raw);
+  }
 
   if (workItemTypes.length > 0) {
-    const filtered = workItemTypes.filter((t: string) => t !== "__custom__");
-    const allTypes = [...filtered, ...(customWorkItemTypes || [])];
+    const filtered = workItemTypes.filter((t) => t !== "__custom__");
+    const allTypes = [...filtered, ...customWorkItemTypes];
     if (allTypes.length > 0) {
       filter.workItemTypes = allTypes;
     }
   }
 
-  const { states, customStates } = await inquirer.prompt<StatePromptAnswers>([
-    {
-      type: "checkbox",
-      name: "states",
+  const states = assertNotCancelled(
+    await multiselect<StatePromptAnswers["states"][number]>({
       message: "Select states:",
-      choices: [
-        { name: "New", checked: true },
-        { name: "Active", checked: true },
-        { name: "Removed" },
-        { name: "Resolved" },
-        { name: "Closed" },
-        { name: "+ Add custom state", value: "__custom__" },
+      options: [
+        { label: "New", value: "New" },
+        { label: "Active", value: "Active" },
+        { label: "Removed", value: "Removed" },
+        { label: "Resolved", value: "Resolved" },
+        { label: "Closed", value: "Closed" },
+        { label: "+ Add custom state", value: "__custom__" },
       ],
-    },
-    {
-      type: "input",
-      name: "customStates",
-      message: "Enter custom states (comma-separated):",
-      when: (answers) => answers.states?.includes("__custom__"),
-      filter: (input: string) => {
-        if (!input) return [];
-        return input.split(",").map((t) => t.trim());
-      },
-    },
-  ]);
+      initialValues: ["New", "Active"],
+      required: false,
+    }),
+  );
+
+  let customStates: string[] = [];
+  if (states.includes("__custom__")) {
+    const raw = assertNotCancelled(
+      await text({
+        message: "Enter custom states (comma-separated):",
+        placeholder: "e.g. In Review, On Hold",
+      }),
+    );
+    customStates = Filters.commaSeparated(raw);
+  }
 
   if (states.length > 0) {
-    const filtered = states.filter((s: string) => s !== "__custom__");
-    const allStates = [...filtered, ...(customStates || [])];
+    const filtered = states.filter((s) => s !== "__custom__");
+    const allStates = [...filtered, ...customStates];
     if (allStates.length > 0) {
       filter.states = allStates;
     }
   }
 
-  const { useTags } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "useTags",
+  const useTags = assertNotCancelled(
+    await confirm({
       message: "Filter by tags?",
-      default: false,
-    },
-  ]);
+      initialValue: false,
+    }),
+  );
 
   if (useTags) {
-    const tagConfig = await inquirer.prompt([
-      {
-        type: "input",
-        name: "include",
+    const includeRaw = assertNotCancelled(
+      await text({
         message: "Tags to include (comma-separated):",
-        filter: (input: string) => {
-          if (!input) return [];
-          return input.split(",").map((t) => t.trim());
-        },
-      },
-      {
-        type: "input",
-        name: "exclude",
+        placeholder: "e.g. backend, api",
+      }),
+    );
+    const excludeRaw = assertNotCancelled(
+      await text({
         message: "Tags to exclude (comma-separated):",
-        filter: (input: string) => {
-          if (!input) return [];
-          return input.split(",").map((t) => t.trim());
-        },
-      },
-    ]);
+        placeholder: "e.g. wip, blocked",
+      }),
+    );
 
-    if (tagConfig.include.length > 0 || tagConfig.exclude.length > 0) {
+    const include = Filters.commaSeparated(includeRaw);
+    const exclude = Filters.commaSeparated(excludeRaw);
+
+    if (include.length > 0 || exclude.length > 0) {
       filter.tags = {};
-      if (tagConfig.include.length > 0) {
-        filter.tags.include = tagConfig.include;
+      if (include.length > 0) {
+        filter.tags.include = include;
       }
-      if (tagConfig.exclude.length > 0) {
-        filter.tags.exclude = tagConfig.exclude;
+      if (exclude.length > 0) {
+        filter.tags.exclude = exclude;
       }
     }
   }
 
-  // Exclude if has tasks
-  const { excludeIfHasTasks } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "excludeIfHasTasks",
+  const excludeIfHasTasks = assertNotCancelled(
+    await confirm({
       message: "Exclude work items that already have tasks?",
-      default: true,
-    },
-  ]);
+      initialValue: true,
+    }),
+  );
 
   if (excludeIfHasTasks) {
     filter.excludeIfHasTasks = true;
   }
 
-  // Advanced options
-  const { advancedFilter } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "advancedFilter",
+  const advancedFilter = assertNotCancelled(
+    await confirm({
       message: "Add advanced filter options?",
-      default: false,
-    },
-  ]);
+      initialValue: false,
+    }),
+  );
 
   if (advancedFilter) {
-    const advanced = await inquirer.prompt([
-      {
-        type: "input",
-        name: "areaPaths",
-        message: "Area paths (comma-separated):",
-        filter: (input: string) => {
-          if (!input) return [];
-          return input.split(",").map((t) => t.trim());
-        },
-      },
-      {
-        type: "input",
-        name: "iterations",
-        message: "Iterations (comma-separated):",
-        filter: (input: string) => {
-          if (!input) return [];
-          return input.split(",").map((t) => t.trim());
-        },
-      },
-      {
-        type: "input",
-        name: "assignedTo",
-        message: "Assigned to (comma-separated email addresses):",
-        filter: (input: string) => {
-          if (!input) return [];
-          return input.split(",").map((t) => t.trim());
-        },
-      },
-      {
-        type: "confirm",
-        name: "usePriority",
+    const areaPaths = Filters.commaSeparated(
+      assertNotCancelled(
+        await text({
+          message: "Area paths (comma-separated):",
+          placeholder: "e.g. MyProject\\\\Backend, MyProject\\\\API",
+        }),
+      ),
+    );
+    const iterations = Filters.commaSeparated(
+      assertNotCancelled(
+        await text({
+          message: "Iterations (comma-separated):",
+          placeholder: "e.g. Sprint 1, Sprint 2",
+        }),
+      ),
+    );
+    const assignedTo = Filters.commaSeparated(
+      assertNotCancelled(
+        await text({
+          message: "Assigned to (comma-separated email addresses):",
+          placeholder: "e.g. alice@example.com, bob@example.com",
+        }),
+      ),
+    );
+    const usePriority = assertNotCancelled(
+      await confirm({
         message: "Filter by priority range?",
-        default: false,
-      },
-    ]);
+        initialValue: false,
+      }),
+    );
 
-    if (advanced.areaPaths.length > 0) {
-      filter.areaPaths = advanced.areaPaths;
+    if (areaPaths.length > 0) {
+      filter.areaPaths = areaPaths;
     }
-    if (advanced.iterations.length > 0) {
-      filter.iterations = advanced.iterations;
+    if (iterations.length > 0) {
+      filter.iterations = iterations;
     }
-    if (advanced.assignedTo.length > 0) {
-      filter.assignedTo = advanced.assignedTo;
+    if (assignedTo.length > 0) {
+      filter.assignedTo = assignedTo;
     }
 
-    if (advanced.usePriority) {
-      const priority = await inquirer.prompt([
-        {
-          type: "number",
-          name: "min",
+    if (usePriority) {
+      const minRaw = assertNotCancelled(
+        await text({
           message: "Minimum priority (1-5):",
-          default: 1,
-          validate: (input: number) => {
-            if (input < 1 || input > 5)
-              return "Priority must be between 1 and 5";
-            return true;
-          },
-        },
-        {
-          type: "number",
-          name: "max",
+          defaultValue: "1",
+          placeholder: "e.g. 1",
+          validate: Validators.numericRange("Priority", 1, 5),
+        }),
+      );
+      const maxRaw = assertNotCancelled(
+        await text({
           message: "Maximum priority (1-5):",
-          default: 3,
-          validate: (input: number) => {
-            if (input < 1 || input > 5)
-              return "Priority must be between 1 and 5";
-            return true;
-          },
-        },
-      ]);
+          defaultValue: "3",
+          placeholder: "e.g. 3",
+          validate: Validators.numericRange("Priority", 1, 5),
+        }),
+      );
 
       filter.priority = {
-        min: priority.min,
-        max: priority.max,
+        min: Number(minRaw),
+        max: Number(maxRaw),
       };
     }
 
-    const { useCustomFields } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "useCustomFields",
+    const useCustomFields = assertNotCancelled(
+      await confirm({
         message: "Add custom field filters?",
-        default: false,
-      },
-    ]);
+        initialValue: false,
+      }),
+    );
 
     if (useCustomFields) {
       filter.customFields = await configureCustomFields();
     }
 
-    const { useCustomQuery } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "useCustomQuery",
+    const useCustomQuery = assertNotCancelled(
+      await confirm({
         message: "Use a custom query string? (overrides other filters)",
-        default: false,
-      },
-    ]);
+        initialValue: false,
+      }),
+    );
 
     if (useCustomQuery) {
-      const { customQuery } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "customQuery",
+      filter.customQuery = assertNotCancelled(
+        await text({
           message: "Enter custom query (e.g., WIQL for Azure DevOps):",
-          validate: (input: string) => {
+          validate: (input): string | undefined => {
             if (!input || input.trim() === "") {
               return "Custom query cannot be empty";
             }
-            return true;
+            return undefined;
           },
-        },
-      ]);
-
-      filter.customQuery = customQuery;
+        }),
+      );
     }
   }
 
@@ -296,68 +264,65 @@ async function configureCustomFields(): Promise<CustomFieldFilter[]> {
   console.log("\nCustom Fields Configuration:");
 
   while (addMore) {
-    const field = await inquirer.prompt([
-      {
-        type: "input",
-        name: "field",
-        message: "Field name (e.g., Custom.Team, System.ChangedBy):",
-        validate: (input: string) => {
+    const fieldName = assertNotCancelled(
+      await text({
+        message: "Field name:",
+        placeholder: "e.g. Custom.TeamPriority, System.Tags",
+        validate: (input): string | undefined => {
           if (!input || input.trim() === "") {
             return "Field name is required";
           }
-          return true;
+          return undefined;
         },
-      },
-      {
-        type: ListType,
-        name: "operator",
+      }),
+    );
+
+    const operator = assertNotCancelled(
+      await select({
         message: "Operator:",
-        choices: [
-          { name: "Equals", value: "equals" },
-          { name: "Not Equals", value: "notEquals" },
-          { name: "Contains", value: "contains" },
-          { name: "Greater Than", value: "greaterThan" },
-          { name: "Less Than", value: "lessThan" },
+        options: [
+          { label: "Equals", value: "equals" },
+          { label: "Not Equals", value: "notEquals" },
+          { label: "Contains", value: "contains" },
+          { label: "Greater Than", value: "greaterThan" },
+          { label: "Less Than", value: "lessThan" },
         ],
-      },
-      {
-        type: "input",
-        name: "value",
+      }),
+    );
+
+    const valueStr = assertNotCancelled(
+      await text({
         message: "Value:",
-        validate: (input: string) => {
+        validate: (input): string | undefined => {
           if (!input || input.trim() === "") {
             return "Value is required";
           }
-          return true;
+          return undefined;
         },
-      },
-    ]);
+      }),
+    );
 
-    let parsedValue: string | number | boolean = field.value;
-    if (!Number.isNaN(Number(field.value))) {
-      parsedValue = Number(field.value);
-    } else if (field.value.toLowerCase() === "true") {
+    let parsedValue: string | number | boolean = valueStr;
+    if (!Number.isNaN(Number(valueStr))) {
+      parsedValue = Number(valueStr);
+    } else if (valueStr.toLowerCase() === "true") {
       parsedValue = true;
-    } else if (field.value.toLowerCase() === "false") {
+    } else if (valueStr.toLowerCase() === "false") {
       parsedValue = false;
     }
 
     customFields.push({
-      field: field.field,
-      operator: field.operator,
+      field: fieldName,
+      operator: operator as CustomFieldFilter["operator"],
       value: parsedValue,
     });
 
-    const { more } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "more",
+    addMore = assertNotCancelled(
+      await confirm({
         message: "Add another custom field filter?",
-        default: false,
-      },
-    ]);
-
-    addMore = more;
+        initialValue: false,
+      }),
+    );
   }
 
   return customFields;
@@ -369,38 +334,36 @@ async function configureCustomFields(): Promise<CustomFieldFilter[]> {
 export async function configureEstimation(): Promise<
   EstimationConfig | undefined
 > {
-  const config = await inquirer.prompt([
-    {
-      type: ListType,
-      name: "strategy",
-      message: "Estimation strategy:",
-      choices: [{ name: "Percentage-based", value: "percentage" }],
-      default: "percentage",
-    },
-    {
-      type: ListType,
-      name: "rounding",
+  const rounding = assertNotCancelled(
+    await select({
       message: "Rounding strategy:",
-      choices: [
-        { name: "Nearest integer", value: "nearest" },
-        { name: "Round up", value: "up" },
-        { name: "Round down", value: "down" },
-        { name: "No rounding", value: "none" },
+      options: [
+        { label: "Nearest integer", value: "nearest" },
+        { label: "Round up", value: "up" },
+        { label: "Round down", value: "down" },
+        { label: "No rounding", value: "none" },
       ],
-      default: "none",
-    },
-    {
-      type: "number",
-      name: "minimumTaskPoints",
+      initialValue: "none",
+    }),
+  );
+
+  const minimumTaskPointsRaw = assertNotCancelled(
+    await text({
       message: "Minimum task points (0 for no minimum):",
-      default: 0,
-    },
-  ]);
+      defaultValue: "0",
+      validate: (input): string | undefined => {
+        const n = Number(input);
+        if (Number.isNaN(n)) return "Must be a valid number";
+        if (n < 0) return "Cannot be negative";
+        return undefined;
+      },
+    }),
+  );
 
   return {
-    strategy: config.strategy,
-    rounding: config.rounding,
-    minimumTaskPoints: config.minimumTaskPoints || undefined,
+    strategy: "percentage",
+    rounding: rounding as EstimationConfig["rounding"],
+    minimumTaskPoints: Number(minimumTaskPointsRaw) || undefined,
   };
 }
 
@@ -412,75 +375,68 @@ export async function configureValidation(): Promise<
 > {
   const validation: ValidationConfig = {};
 
-  const { validationType } = await inquirer.prompt([
-    {
-      type: ListType,
-      name: "validationType",
+  const validationType = assertNotCancelled(
+    await select({
       message: "Estimation validation type:",
-      choices: [
-        { name: "Must equal 100%", value: "exact" },
-        { name: "Range (e.g., 95-105%)", value: "range" },
-        { name: "No validation", value: "none" },
+      options: [
+        { label: "Must equal 100%", value: "exact" },
+        { label: "Range (e.g., 95-105%)", value: "range" },
+        { label: "No validation", value: "none" },
       ],
-      default: "exact",
-    },
-  ]);
+      initialValue: "exact",
+    }),
+  );
 
-  match(validationType)
-    .with("exact", () => {
-      validation.totalEstimationMustBe = 100;
-    })
-    .with("range", async () => {
-      const range = await inquirer.prompt([
-        {
-          type: "number",
-          name: "min",
-          message: "Minimum total estimation %:",
-          default: 95,
-        },
-        {
-          type: "number",
-          name: "max",
-          message: "Maximum total estimation %:",
-          default: 105,
-        },
-      ]);
-      validation.totalEstimationRange = {
-        min: range.min,
-        max: range.max,
-      };
-    })
-    .otherwise(() => {
-      return;
-    });
+  if (validationType === "exact") {
+    validation.totalEstimationMustBe = 100;
+  } else if (validationType === "range") {
+    const minRaw = assertNotCancelled(
+      await text({
+        message: "Minimum total estimation %:",
+        defaultValue: "95",
+        placeholder: "e.g. 95",
+      }),
+    );
+    const maxRaw = assertNotCancelled(
+      await text({
+        message: "Maximum total estimation %:",
+        defaultValue: "105",
+        placeholder: "e.g. 105",
+      }),
+    );
+    validation.totalEstimationRange = {
+      min: Number(minRaw),
+      max: Number(maxRaw),
+    };
+  }
 
-  const { taskLimits } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "taskLimits",
+  const taskLimits = assertNotCancelled(
+    await confirm({
       message: "Set task count limits?",
-      default: false,
-    },
-  ]);
+      initialValue: false,
+    }),
+  );
 
   if (taskLimits) {
-    const limits = await inquirer.prompt([
-      {
-        type: "number",
-        name: "minTasks",
+    const minTasksRaw = assertNotCancelled(
+      await text({
         message: "Minimum number of tasks:",
-        default: 3,
-      },
-      {
-        type: "number",
-        name: "maxTasks",
+        defaultValue: "3",
+        validate: Validators.nonNegative("Minimum tasks"),
+        placeholder: "e.g. 3",
+      }),
+    );
+    const maxTasksRaw = assertNotCancelled(
+      await text({
         message: "Maximum number of tasks:",
-        default: 10,
-      },
-    ]);
+        defaultValue: "10",
+        placeholder: "e.g. 10",
+        validate: Validators.greaterThan("Maximum tasks", Number(minTasksRaw)),
+      }),
+    );
 
-    validation.minTasks = limits.minTasks;
-    validation.maxTasks = limits.maxTasks;
+    validation.minTasks = Number(minTasksRaw);
+    validation.maxTasks = Number(maxTasksRaw);
   }
 
   return Object.keys(validation).length > 0 ? validation : undefined;
@@ -492,44 +448,44 @@ export async function configureValidation(): Promise<
 export async function configureMetadata(): Promise<Metadata | undefined> {
   const metadata: Metadata = {};
 
-  const config = await inquirer.prompt([
-    {
-      type: "input",
-      name: "category",
-      message: "Category (e.g., Backend Development):",
-    },
-    {
-      type: ListType,
-      name: "difficulty",
-      message: "Difficulty level:",
-      choices: [
-        { name: "Beginner", value: "beginner" },
-        { name: "Intermediate", value: "intermediate" },
-        { name: "Advanced", value: "advanced" },
-      ],
-    },
-    {
-      type: "input",
-      name: "recommendedFor",
-      message: "Recommended for (comma-separated):",
-      filter: (input: string) => {
-        if (!input) return [];
-        return input.split(",").map((t) => t.trim());
-      },
-    },
-    {
-      type: "input",
-      name: "estimationGuidelines",
-      message: "Estimation guidelines:",
-    },
-  ]);
+  const category = assertNotCancelled(
+    await text({
+      message: "Category:",
+      placeholder: "e.g. Backend Development",
+    }),
+  );
 
-  if (config.category) metadata.category = config.category;
-  if (config.difficulty) metadata.difficulty = config.difficulty;
-  if (config.recommendedFor.length > 0)
-    metadata.recommendedFor = config.recommendedFor;
-  if (config.estimationGuidelines)
-    metadata.estimationGuidelines = config.estimationGuidelines;
+  const difficulty = assertNotCancelled(
+    await select({
+      message: "Difficulty level:",
+      options: [
+        { label: "Beginner", value: "beginner" },
+        { label: "Intermediate", value: "intermediate" },
+        { label: "Advanced", value: "advanced" },
+      ],
+    }),
+  );
+
+  const recommendedForRaw = assertNotCancelled(
+    await text({
+      message: "Recommended for (comma-separated):",
+      placeholder: "e.g. senior developers, backend teams",
+    }),
+  );
+  const recommendedFor = Filters.commaSeparated(recommendedForRaw);
+
+  const estimationGuidelines = assertNotCancelled(
+    await text({
+      message: "Estimation guidelines:",
+      placeholder: "e.g. Use story points based on complexity",
+    }),
+  );
+
+  if (category) metadata.category = category;
+  if (difficulty) metadata.difficulty = difficulty as Metadata["difficulty"];
+  if (recommendedFor.length > 0) metadata.recommendedFor = recommendedFor;
+  if (estimationGuidelines)
+    metadata.estimationGuidelines = estimationGuidelines;
 
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
@@ -545,58 +501,59 @@ interface BasicInfoResult {
  * Configure basic template information
  */
 export async function configureBasicInfo(
-  defaults?: Partial<BasicInfoResult>
+  defaults?: Partial<BasicInfoResult>,
 ): Promise<BasicInfoResult> {
-  const basicInfo = await inquirer.prompt([
-    {
-      type: "input",
-      name: "name",
+  const name = assertNotCancelled(
+    await text({
       message: "Template name:",
-      default: defaults?.name,
-      validate: (input: string) => {
+      defaultValue: defaults?.name,
+      validate: (input): string | undefined => {
         if (!input || input.trim() === "") {
           return "Template name is required";
         }
         if (input.length > 200) {
           return "Template name must be 200 characters or less";
         }
-        return true;
+        return undefined;
       },
-    },
-    {
-      type: "input",
-      name: "description",
+    }),
+  );
+
+  const description = assertNotCancelled(
+    await text({
       message: "Description (optional):",
-      default: defaults?.description || "",
-      validate: (input: string) => {
+      placeholder: "e.g. Generate tasks for backend API development",
+      defaultValue: defaults?.description || "",
+      validate: (input): string | undefined => {
         if (input && input.length > 500) {
           return "Description must be 500 characters or less";
         }
-        return true;
+        return undefined;
       },
-    },
-    {
-      type: "input",
-      name: "author",
+    }),
+  );
+
+  const author = assertNotCancelled(
+    await text({
       message: "Author:",
-      default: defaults?.author || "Atomize",
-    },
-    {
-      type: "input",
-      name: "tags",
+      placeholder: "e.g. John Doe",
+      defaultValue: defaults?.author || "Atomize",
+    }),
+  );
+
+  const tagsRaw = assertNotCancelled(
+    await text({
       message: "Tags (comma-separated, optional):",
-      default: defaults?.tags ? defaults.tags.join(", ") : "",
-      filter: (input: string) => {
-        if (!input) return [];
-        return input.split(",").map((t) => t.trim());
-      },
-    },
-  ]);
+      placeholder: "e.g. backend, api, development",
+      defaultValue: defaults?.tags ? defaults.tags.join(", ") : "",
+    }),
+  );
+  const tags = Filters.commaSeparated(tagsRaw);
 
   return {
-    name: basicInfo.name,
-    description: basicInfo.description || undefined,
-    author: basicInfo.author || undefined,
-    tags: basicInfo.tags.length > 0 ? basicInfo.tags : undefined,
+    name,
+    description: description || undefined,
+    author: author || undefined,
+    tags: tags.length > 0 ? tags : undefined,
   };
 }

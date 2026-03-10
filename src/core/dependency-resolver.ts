@@ -1,4 +1,5 @@
 import { CircularDependencyError } from "@/utils/errors.js";
+import { detectCycles, formatCyclePath } from "@/utils/graph.js";
 import { logger } from "../config/logger.js";
 import type { TaskDefinition } from "../templates/schema.js";
 
@@ -135,10 +136,17 @@ export class DependencyResolver {
 
     // Check if all nodes were visited (if not, there's a cycle)
     if (visited.size !== graph.size) {
-      const cycle = this.detectCycle(graph, visited);
-      const cycleDisplay = cycle.join(" -> ");
+      // Convert graph to adjacency list format for shared utility
+      const adjacencyList = new Map<string, string[]>();
+      for (const [nodeId, deps] of graph.entries()) {
+        adjacencyList.set(nodeId, Array.from(deps));
+      }
+
+      const { cycles } = detectCycles(adjacencyList);
+      const cycle = cycles[0] ?? [];
+      const cycleDisplay = formatCyclePath(cycle);
       const suggestion = `Break the circular dependency by removing one of these dependencies: ${cycle
-        .map((id, i) => i < cycle.length - 1 ? `"${id}" depends on "${cycle[i + 1]}"` : "")
+        .map((id, i) => (i < cycle.length - 1 ? `"${id}" depends on "${cycle[i + 1]}"` : ""))
         .filter(Boolean)
         .join(", ")}`;
       throw new CircularDependencyError(
@@ -148,51 +156,6 @@ export class DependencyResolver {
     }
 
     return result;
-  }
-
-  /**
-   * Detects a cycle in the dependency graph
-   */
-  private detectCycle(
-    graph: Map<string, Set<string>>,
-    visited: Set<string>
-  ): string[] {
-    const unvisited = Array.from(graph.keys()).filter((id) => !visited.has(id));
-
-    if (unvisited.length === 0) return [];
-
-    const path: string[] = [];
-    const onStack = new Set<string>();
-
-    const dfs = (nodeId: string): boolean => {
-      if (onStack.has(nodeId)) {
-        return true;
-      }
-
-      if (visited.has(nodeId)) {
-        return false;
-      }
-
-      path.push(nodeId);
-      onStack.add(nodeId);
-
-      const deps = graph.get(nodeId) || new Set();
-      for (const dep of deps) {
-        if (dfs(dep)) {
-          return true;
-        }
-      }
-
-      onStack.delete(nodeId);
-      return false;
-    };
-
-    const firstUnvisited = unvisited[0];
-    if (firstUnvisited) {
-      dfs(firstUnvisited);
-    }
-
-    return path;
   }
 
   /**

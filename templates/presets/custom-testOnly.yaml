@@ -1,0 +1,65 @@
+version: "1.0"
+name: "Custom Example - Test Only"
+description: "Example template containing only test tasks (percentages normalized to 100)"
+author: "Atomize"
+tags: []
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["Ready for Sprint"]
+  tags:
+    include:
+      - "Test Only"
+    exclude:
+      - "TestGen"
+  excludeIfHasTasks: false
+  areaPaths:
+    - EA-RSP-Platform\Release 2 Team
+  iterations:
+    - EA-RSP-Platform\SOW-7-2026-JAN-MARCH\Sprint 116
+
+tasks:
+  - title: "Test Preparation"
+    estimationPercent: 59.7014925373
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Test Execution"
+    estimationPercent: 40.2985074627
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Automation Testing"
+    estimationPercent: 0
+    activity: "Test Automation"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Test Review"
+    estimationPercent: 0
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Release Notes"
+    estimationPercent: 0
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  minimumTaskPoints: 0
+
+metadata:
+  category: "Agile Project"
+  recommendedFor: []
+  estimationGuidelines: "Test-only workflow; percentages normalized from original template"

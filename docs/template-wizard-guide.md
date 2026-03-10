@@ -68,7 +68,7 @@ Define which work items this template applies to:
 - Area paths
 - Iterations
 - Assigned to (email addresses)
-- Priority range (1-5)
+- Priority range (1-4)
 - Tags (include/exclude)
 - Custom fields
 - Custom WIQL query
@@ -469,25 +469,35 @@ atomize template create --no-interactive --scratch
 
 ```bash
 # Validate a template
-atomize template validate path/to/template.yaml
+atomize validate path/to/template.yaml
 
-# List all templates
+# Validate in strict mode
+atomize validate path/to/template.yaml --strict
+
+# List available presets
 atomize template list
 
+# Generate tasks using your template
+atomize generate path/to/template.yaml --dry-run
+atomize generate path/to/template.yaml --execute
+```
 
 After creating your template:
 
 1. **Validate it:**
    ```bash
-   atomize template validate path/to/template.yaml
+   atomize validate path/to/template.yaml
    ```
 
-2. **Test on a sample work item:**
+2. **Test with mock data:**
    ```bash
-   atomize apply -t path/to/template.yaml -i SAMPLE_ID --dry-run
+   atomize generate path/to/template.yaml --platform mock --dry-run
    ```
 
-3. **Review generated tasks** before applying to production
+3. **Review generated tasks** before applying to production:
+   ```bash
+   atomize generate path/to/template.yaml --dry-run --verbose
+   ```
 
 ## Support
 

@@ -654,4 +654,199 @@ describe("EstimationCalculator", () => {
       expect(totalEstimation).toBeCloseTo(13, 0);
     });
   });
+
+  describe("estimationPercentCondition", () => {
+    test("should use the first matching condition's percent", () => {
+      const story = { ...mockStory, estimation: 10 };
+      const tasks: TaskDefinition[] = [
+        {
+          title: "Task",
+          estimationPercent: 40,
+          estimationPercentCondition: [
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 8", percent: 60 },
+          ],
+        },
+      ];
+
+      const calculated = calculator.calculateTasks(story, "", tasks);
+
+      expect(calculated[0]?.estimationPercent).toBe(60);
+      expect(calculated[0]?.estimation).toBe(6); // 60% of 10
+    });
+
+    test("should fall back to estimationPercent when no condition matches", () => {
+      const story = { ...mockStory, estimation: 10 };
+      const tasks: TaskDefinition[] = [
+        {
+          title: "Task",
+          estimationPercent: 40,
+          estimationPercentCondition: [
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 50", percent: 80 },
+          ],
+        },
+      ];
+
+      const calculated = calculator.calculateTasks(story, "", tasks);
+
+      expect(calculated[0]?.estimationPercent).toBe(40);
+      expect(calculated[0]?.estimation).toBe(4); // 40% of 10
+    });
+
+    test("should evaluate rules in order and use the first match", () => {
+      const tasks: TaskDefinition[] = [
+        {
+          title: "Design",
+          estimationPercent: 10,
+          estimationPercentCondition: [
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 13", percent: 20 },
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 5", percent: 15 },
+          ],
+        },
+      ];
+
+      const small = calculator.calculateTasks(
+        { ...mockStory, estimation: 3 },
+        "",
+        tasks,
+      );
+      const medium = calculator.calculateTasks(
+        { ...mockStory, estimation: 8 },
+        "",
+        tasks,
+      );
+      const large = calculator.calculateTasks(
+        { ...mockStory, estimation: 13 },
+        "",
+        tasks,
+      );
+
+      expect(small[0]?.estimationPercent).toBe(10); // no match → fallback
+      expect(medium[0]?.estimationPercent).toBe(15); // second rule matches
+      expect(large[0]?.estimationPercent).toBe(20); // first rule matches
+    });
+
+    test("should support tag-based conditions", () => {
+      const tasks: TaskDefinition[] = [
+        {
+          title: "Backend",
+          estimationPercent: 60,
+          estimationPercentCondition: [
+            {
+              // biome-ignore lint/suspicious: template condition
+              condition: '${story.tags} CONTAINS "fullstack"',
+              percent: 40,
+            },
+          ],
+        },
+      ];
+
+      const backendOnly = calculator.calculateTasks(
+        { ...mockStory, estimation: 10, tags: ["backend"] },
+        "",
+        tasks,
+      );
+      const fullstack = calculator.calculateTasks(
+        { ...mockStory, estimation: 10, tags: ["fullstack"] },
+        "",
+        tasks,
+      );
+
+      expect(backendOnly[0]?.estimationPercent).toBe(60); // no match → fallback
+      expect(fullstack[0]?.estimationPercent).toBe(40); // condition met
+    });
+
+    test("should resolve conditional percents before normalization in calculateTasksWithSkipped", () => {
+      // Task A and C resolve to 30% and 70% → sum=100, normalization skipped.
+      const story: WorkItem = { ...mockStory, estimation: 10, tags: ["backend"] };
+      const tasks: TaskDefinition[] = [
+        {
+          title: "Task A",
+          estimationPercent: 20,
+          estimationPercentCondition: [
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 5", percent: 30 },
+          ],
+        },
+        {
+          title: "Skipped Task",
+          estimationPercent: 50,
+          // biome-ignore lint/suspicious: template condition
+          condition: '${story.tags} CONTAINS "frontend"',
+        },
+        {
+          title: "Task C",
+          estimationPercent: 30,
+          estimationPercentCondition: [
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 5", percent: 70 },
+          ],
+        },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(story, "", tasks);
+
+      expect(result.calculatedTasks).toHaveLength(2);
+      expect(result.skippedTasks).toHaveLength(1);
+
+      // Resolved: A=30%, C=70% → total=100, normalization skipped
+      expect(result.calculatedTasks[0]?.estimationPercent).toBe(30);
+      expect(result.calculatedTasks[1]?.estimationPercent).toBe(70);
+      expect(result.calculatedTasks[0]?.estimation).toBe(3); // 30% of 10
+      expect(result.calculatedTasks[1]?.estimation).toBe(7); // 70% of 10
+    });
+
+    test("should normalize resolved conditional percents when they sum below 100", () => {
+      // Design resolves to 20%, Frontend resolves to 50% → total=70 → normalised.
+      const story: WorkItem = { ...mockStory, estimation: 10, tags: ["frontend"] };
+      const tasks: TaskDefinition[] = [
+        {
+          title: "Design",
+          estimationPercent: 10,
+          estimationPercentCondition: [
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 5", percent: 20 },
+          ],
+        },
+        {
+          title: "Backend",
+          estimationPercent: 60,
+          // biome-ignore lint/suspicious: template condition
+          condition: '${story.tags} CONTAINS "backend"',
+        },
+        {
+          title: "Frontend",
+          estimationPercent: 30,
+          estimationPercentCondition: [
+            // biome-ignore lint/suspicious: template condition
+            { condition: "${story.estimation} >= 5", percent: 50 },
+          ],
+        },
+      ];
+
+      const result = calculator.calculateTasksWithSkipped(story, "", tasks);
+
+      expect(result.calculatedTasks).toHaveLength(2);
+      expect(result.skippedTasks).toHaveLength(1);
+
+      // Resolved: Design=20%, Frontend=50% → total=70
+      // scaleToHundred: Design=round(20*100/70)=29, Frontend=100-29=71
+      const totalPercent = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimationPercent ?? 0),
+        0,
+      );
+      expect(totalPercent).toBe(100);
+      expect(result.calculatedTasks[0]?.estimationPercent).toBe(29);
+      expect(result.calculatedTasks[1]?.estimationPercent).toBe(71);
+
+      const totalEstimation = result.calculatedTasks.reduce(
+        (sum, t) => sum + (t.estimation ?? 0),
+        0,
+      );
+      expect(totalEstimation).toBeCloseTo(10, 1);
+    });
+  });
 });

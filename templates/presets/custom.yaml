@@ -7,18 +7,14 @@ tags: []
 filter:
   workItemTypes: ["User Story"]
   states: ["Ready for Sprint"]
-  tags:   
-    exclude: 
-      - "Test Only"
-      - "TestGen"
-
-
-  excludeIfHasTasks: false
+  tags:
+    include:
+      - "Candidate S117"
+  excludeIfHasTasks: true
   areaPaths:
     - EA-RSP-Platform\Release 2 Team
   iterations:
-    - EA-RSP-Platform\SOW-7-2026-JAN-MARCH\Sprint 115
-  
+    - EA-RSP-Platform\SOW-7-2026-JAN-MARCH\Sprint 117
 
 tasks:
   - title: "Analysis & Playback"
@@ -26,43 +22,50 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-
-
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
 
   - title: "Build"
     estimationPercent: 50
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
 
   - title: "Developer Test"
     estimationPercent: 25
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
 
   - title: "QA Smoke Test"
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
 
   - title: "Wiki"
     estimationPercent: 5
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
 
   - title: "Code Review "
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@Unassigned"
-  
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
+  - title: "Physical Data Model Updated"
+    estimationPercent: 0
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+
   - title: "Test Preparation"
     estimationPercent: 40
     activity: "Testing"
@@ -70,8 +73,6 @@ tasks:
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
     assignTo: "@Unassigned"
 
-
-  
   - title: "Test Execution"
     estimationPercent: 27
     activity: "Testing"
@@ -79,17 +80,13 @@ tasks:
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
     assignTo: "@Unassigned"
 
-
-
   - title: "Automation Testing"
     estimationPercent: 0
-    activity: "Testing"
+    activity: "Test Automation"
     tags: []
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
     assignTo: "@Unassigned"
 
-
-  
   - title: "Test Review"
     estimationPercent: 0
     activity: "Testing"
@@ -97,8 +94,6 @@ tasks:
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
     assignTo: "@Unassigned"
 
-
-  
   - title: "Release Notes"
     estimationPercent: 0
     activity: "Testing"
@@ -106,7 +101,12 @@ tasks:
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
     assignTo: "@Unassigned"
 
-
+  - title: "Merge to Stable"
+    estimationPercent: 10
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only"'
 
 estimation:
   strategy: "percentage"

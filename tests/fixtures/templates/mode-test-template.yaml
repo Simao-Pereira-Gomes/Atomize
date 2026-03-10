@@ -1,0 +1,74 @@
+version: "1.0"
+name: "Mode Test Template"
+description: "Template for testing lenient vs strict validation modes"
+author: "Test"
+
+filter:
+  workItemTypes:
+    - "User Story"
+    - "Bug"
+  states:
+    - "New"
+    - "Active"
+
+tasks:
+  # Task without an ID - will generate a warning about missing ID
+  # when other tasks might want to depend on it
+  - title: "Design Review"
+    description: "Review the design with stakeholders"
+    estimationPercent: 15
+    tags: ["review", "design"]
+    activity: "Development"
+
+  # Task with ID and dependencies - properly configured
+  - id: "implementation"
+    title: "Implementation"
+    description: "Implement the feature"
+    estimationPercent: 40
+    tags: ["dev"]
+    activity: "Development"
+
+  # Task with suspicious condition - will generate warning
+  # In strict mode, this becomes an error
+  - id: "code-review"
+    title: "Code Review"
+    description: "Review the implementation code"
+    estimationPercent: 10
+    condition: "true"  # Suspicious: no variables or operators
+    dependsOn: ["implementation"]
+    activity: "Development"
+
+  # Task with proper condition syntax - no warning
+  - id: "backend-tests"
+    title: "Backend Unit Tests"
+    description: "Write unit tests for backend code"
+    estimationPercent: 15
+    condition: "${story.tags} CONTAINS 'backend'"
+    dependsOn: ["implementation"]
+    activity: "Testing"
+
+  # Task with dependsOn but no ID - warning in lenient, error in strict
+  - title: "Integration Testing"
+    description: "Perform integration tests"
+    estimationPercent: 10
+    dependsOn: ["implementation"]
+    activity: "Testing"
+
+# Validation configuration
+# Change mode to "strict" to see warnings become errors
+validation:
+  mode: "strict"  # Options: "lenient" (default) or "strict"
+  # Note: Total estimation is 90% (not 100%), which will generate a warning
+  # In lenient mode: passes with warning
+  # In strict mode: fails with error
+
+# Metadata for documentation
+metadata:
+  category: "Testing"
+  difficulty: "intermediate"
+  recommendedFor:
+    - "Testing validation modes"
+    - "Understanding warning vs error behavior"
+  estimationGuidelines: |
+    This template intentionally has estimation totaling 90% to demonstrate
+    how lenient mode allows this with a warning, while strict mode fails.

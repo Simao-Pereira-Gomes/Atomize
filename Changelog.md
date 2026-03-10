@@ -13,7 +13,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VS Code extension
 - Template inheritance
 - Custom estimation formulas
-- Multi-story batch processing
+
+---
+
+## [1.1.0] - 2026-03-09
+
+### Added
+
+#### Conditional Estimation Percentages
+- **`estimationPercentCondition`** — new task field that lets each task's weight adapt to story properties at generation time
+  - Rules are evaluated in order; first matching condition wins
+  - Falls back to `estimationPercent` when no condition matches
+  - Resolved percentages (not static fallbacks) are used as the baseline when conditional tasks are skipped, keeping normalization accurate
+  - Supports all existing condition operators: `CONTAINS`, `AND`, `OR`, `==`, `!=`, `>`, `<`, `>=`, `<=`
+
+#### Multi-Story Learning
+- **`--from-stories <ids>`** flag on `template create` — learn from multiple existing stories at once (comma-separated IDs)
+  - Pattern detection groups similar tasks across stories
+  - Confidence scoring: high (≥ 70% of stories), medium (40–69%), low (< 40%)
+  - Outlier detection flags stories that differ significantly from the group
+  - Estimation averaging across non-outlier stories
+  - Condition pattern detection suggests conditional task logic based on story tags
+  - Tag pattern analysis feeds into generated filter criteria
+
+#### Strict / Lenient Validation Modes
+- **`--strict`** flag on `validate` — promotes all warnings to errors; template fails if any warning exists
+- **`--lenient`** flag on `validate` — explicit lenient mode (already the default, now available as an explicit flag)
+- **`validation.mode`** field in template YAML — set the default mode per template (`"strict"` or `"lenient"`)
+- CLI flags override the template's `validation.mode` setting
+
+#### CLI Improvements
+- **`--story-concurrency <n>`** on `generate` — control max stories processed in parallel (default: 3, max: 10)
+- **`--task-concurrency <n>`** on `generate` — control max tasks created per story in parallel (default: 5, max: 20)
+- **`--dependency-concurrency <n>`** on `generate` — control max dependency links created in parallel (default: 5, max: 10)
+- **`--no-interactive`** on `generate` and `template create` — skip all prompts for automation and CI/CD use
+- **`-o, --output <file>`** on `generate` — write a JSON execution report to a file
+- **`-q, --quiet`** on `generate`, `validate`, and `template create` — suppress non-essential output
+
+#### Validation Improvements
+- Validation errors now include actionable suggestions (💡 hints) explaining exactly how to fix each issue
+- Exit code `1` on `generate` when one or more stories fail processing
+
+#### Documentation
+- New: [Validation Modes guide](docs/Validation-Modes.md) — full explanation of strict vs lenient, error vs warning classification, and when to use each
+- New: [Story Learner guide](docs/Story-Learner.md) — single and multi-story learning, pattern detection, confidence scoring, tips
+- Rewritten: [Template Reference](docs/Template-Reference.md) — complete schema reference (previously contained wrong content)
+- Updated: all existing docs to reflect v1.1 flags, features, and corrected command references
+
+### Changed
+
+- **Interactive prompts** migrated from `inquirer` to `@clack/prompts` — improved UI consistency and cross-platform behaviour
+- **Validate command** output now distinguishes strict vs lenient context in the result header
+- **Generate command** details section shown when `--verbose` is set or there are 5 or fewer stories (previously always shown)
+- **`--from-story`** single-story learning unchanged; `--from-stories` is the new multi-story variant
+
+### Fixed
+
+- Conditional task skipping now uses resolved conditional percentages (not static fallbacks) as the normalization baseline, producing accurate estimation distributions
+- Improved error messages across all commands with specific, actionable guidance
 
 ---
 
@@ -80,7 +137,7 @@ The first public release of Atomize - a CLI tool for automatically generating ta
 - **Task Assignment Patterns**
   - `@ParentAssignee` / `@Inherit` - Inherit from parent story
   - `@Me` - Assign to current user
-  - `@Un`
+  - `@Unassigned`
   - Specific email addresses
 - **Task Dependencies** - Define execution order between tasks
 - **Estimation Strategies**
@@ -160,13 +217,14 @@ N/A - Initial release
 
 ## Version History
 
+- **[1.1.0]** - 2026-03-09 - Conditional estimation, multi-story learning, strict/lenient validation modes
 - **[0.0.1]** - 2024-12-29 - Initial release
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for information on how to contribute to this project.
+See [Contributing.md](Contributing.md) for information on how to contribute to this project.
 
 ## Links
 
@@ -177,5 +235,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for information on how to contribute to t
 
 ---
 
-[Unreleased]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v0.0.1...v1.1.0
 [0.0.1]: https://github.com/Simao-Pereira-Gomes/atomize/releases/tag/v0.0.1

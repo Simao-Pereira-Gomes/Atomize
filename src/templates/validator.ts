@@ -1,11 +1,17 @@
 import { TemplateValidationError } from "@utils/errors";
 import type { ZodError } from "zod";
 import type { $ZodIssue } from "zod/v4/core";
-import { type TaskTemplate, TaskTemplateSchema } from "./schema";
+import { type TaskTemplate, TaskTemplateSchema, type ValidationMode } from "./schema";
+
+export interface ValidationOptions {
+  mode?: ValidationMode;
+}
+
 export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
   warnings: ValidationWarning[];
+  mode: ValidationMode;
 }
 
 export interface ValidationError {
@@ -22,16 +28,36 @@ export interface ValidationWarning {
 }
 
 export class TemplateValidator {
-  validate(template: unknown): ValidationResult {
+  validate(template: unknown, options?: ValidationOptions): ValidationResult {
     const parsed = TaskTemplateSchema.safeParse(template);
-    const errors: ValidationError[] = !parsed.success
+
+    const templateMode = parsed.success ? parsed.data.validation?.mode : undefined;
+    const effectiveMode: ValidationMode = options?.mode ?? templateMode ?? "lenient";
+
+    let errors: ValidationError[] = !parsed.success
       ? this.convertZodErrors(parsed.error)
       : [];
-    const warnings: ValidationWarning[] = parsed.success
+    let warnings: ValidationWarning[] = parsed.success
       ? this.collectWarnings(parsed.data)
       : [];
 
-    return { valid: errors.length === 0, errors, warnings };
+    // In strict mode, promote warnings to errors
+    if (effectiveMode === "strict" && warnings.length > 0) {
+      const promotedErrors = warnings.map((w) => this.warningToError(w));
+      errors = [...errors, ...promotedErrors];
+      warnings = [];
+    }
+
+    return { valid: errors.length === 0, errors, warnings, mode: effectiveMode };
+  }
+
+  private warningToError(warning: ValidationWarning): ValidationError {
+    return {
+      path: warning.path,
+      message: warning.message,
+      code: "STRICT_MODE_WARNING",
+      suggestion: warning.suggestion,
+    };
   }
 
   private collectWarnings(template: TaskTemplate): ValidationWarning[] {
@@ -202,6 +228,78 @@ export class TemplateValidator {
           : undefined;
       }
 
+      case "CIRCULAR_DEPENDENCY": {
+        const match = err.message.match(/Circular dependency detected: (.+)$/);
+        if (match) {
+          const cyclePath = match[1];
+          return `Remove one of the dependencies in the cycle to break the loop: ${cyclePath}. Consider which task should logically come first.`;
+        }
+        return "Remove one of the dependencies in the cycle to break the circular reference.";
+      }
+
+      case "MISSING_REQUIRED_TASK": {
+        const match = err.message.match(/title "([^"]+)"/);
+        return match
+          ? `Add a task with title "${match[1]}" to satisfy the required tasks constraint.`
+          : "Add the missing required task to the template.";
+      }
+
+      case "MISSING_REQUIRED_CUSTOM_FIELD": {
+        const match = err.message.match(/field "([^"]+)" is missing in task "([^"]+)"/);
+        return match
+          ? `Add customFields.${match[1]} to task "${match[2]}".`
+          : "Add the required custom field to the task.";
+      }
+
+      case "INVALID_CUSTOM_FIELD_TYPE": {
+        const match = err.message.match(/has type "([^"]+)", expected "([^"]+)"/);
+        return match
+          ? `Change the value to be a ${match[2]} type instead of ${match[1]}.`
+          : "Ensure the custom field value matches the expected type.";
+      }
+
+      case "CUSTOM_FIELD_BELOW_MIN": {
+        const match = err.message.match(/is (\d+(?:\.\d+)?), but minimum is (\d+(?:\.\d+)?)/);
+        return match
+          ? `Increase the value to at least ${match[2]}.`
+          : "Increase the value to meet the minimum requirement.";
+      }
+
+      case "CUSTOM_FIELD_ABOVE_MAX": {
+        const match = err.message.match(/is (\d+(?:\.\d+)?), but maximum is (\d+(?:\.\d+)?)/);
+        return match
+          ? `Decrease the value to at most ${match[2]}.`
+          : "Decrease the value to meet the maximum requirement.";
+      }
+
+      case "CUSTOM_FIELD_TOO_SHORT": {
+        const match = err.message.match(/has length (\d+), but minimum is (\d+)/);
+        return match
+          ? `Add at least ${Number(match[2]) - Number(match[1])} more character(s).`
+          : "Add more characters to meet the minimum length.";
+      }
+
+      case "CUSTOM_FIELD_TOO_LONG": {
+        const match = err.message.match(/has length (\d+), but maximum is (\d+)/);
+        return match
+          ? `Remove at least ${Number(match[1]) - Number(match[2])} character(s).`
+          : "Remove characters to meet the maximum length.";
+      }
+
+      case "CUSTOM_FIELD_PATTERN_MISMATCH": {
+        const match = err.message.match(/does not match pattern "([^"]+)"/);
+        return match
+          ? `Update the value to match the required pattern: ${match[1]}`
+          : "Update the value to match the required pattern.";
+      }
+
+      case "CUSTOM_FIELD_INVALID_VALUE": {
+        const match = err.message.match(/must be one of: (.+)\.$/);
+        return match
+          ? `Change the value to one of the allowed values: ${match[1]}`
+          : "Change the value to one of the allowed values.";
+      }
+
       default:
         return undefined;
     }
@@ -275,8 +373,8 @@ export class TemplateValidator {
   /**
    * Validate and throw if invalid
    */
-  validateOrThrow(template: unknown): TaskTemplate {
-    const result = this.validate(template);
+  validateOrThrow(template: unknown, options?: ValidationOptions): TaskTemplate {
+    const result = this.validate(template, options);
 
     if (!result.valid) {
       const errorMessages = result.errors.map((e) => `${e.path}: ${e.message}`);
@@ -296,11 +394,12 @@ export class TemplateValidator {
 
   formatResult(result: ValidationResult): string {
     const lines: string[] = [];
+    const modeLabel = result.mode === "strict" ? "[Strict Mode]" : "[Lenient Mode]";
 
     if (result.valid) {
-      lines.push("Template is valid!");
+      lines.push(`Template is valid! ${modeLabel}`);
     } else {
-      lines.push("Template validation failed:");
+      lines.push(`Template validation failed: ${modeLabel}`);
       lines.push("");
     }
 

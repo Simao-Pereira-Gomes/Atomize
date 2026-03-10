@@ -1,34 +1,76 @@
+import { cancel, intro, outro } from "@clack/prompts";
 import { logger } from "@config/logger";
 import { TemplateLoader } from "@templates/loader";
 import {
   TemplateValidator,
   type ValidationError,
+  type ValidationOptions,
   type ValidationResult,
   type ValidationWarning,
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
-import type { TaskDefinition, TaskTemplate } from "@/templates/schema";
+import { isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
+import type {
+  TaskDefinition,
+  TaskTemplate,
+  ValidationMode,
+} from "@/templates/schema";
 
-type ValidateOptions = { verbose?: boolean };
+type ValidateOptions = {
+  verbose?: boolean;
+  strict?: boolean;
+  lenient?: boolean;
+  quiet?: boolean;
+};
 
 export const validateCommand = new Command("validate")
   .description("Validate a template file")
   .argument("<template>", "Path to template file (YAML)")
   .option("-v, --verbose", "Show detailed validation information", false)
+  .option(
+    "-s, --strict",
+    "Use strict validation mode (warnings become errors)",
+    false,
+  )
+  .option("-l, --lenient", "Use lenient validation mode (default)", false)
+  .option("--no-interactive", "Run without prompts (for CI/scripts)")
+  .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (templatePath: string, options: ValidateOptions) => {
-    console.log(chalk.blue("Atomize Template Validator\n"));
+    intro("Atomize Template Validator");
+    if (isInteractiveTerminal()) {
+      console.log(chalk.gray("  Enter to confirm · Ctrl+C to cancel\n"));
+    }
     try {
       const template = await loadTemplate(templatePath);
       if (options.verbose) printTemplateDetails(template);
-      const result = validateTemplate(template);
-      printValidationResult(template, result);
+
+      const validationOptions = resolveValidationOptions(options);
+      const result = validateTemplate(template, validationOptions);
+
+      printValidationResult(template, result, options.quiet);
+      outro(result.valid ? "Validation complete ✓" : "Validation failed");
       if (!result.valid) process.exit(1);
     } catch (error) {
       handleFatal(error, options.verbose);
       process.exit(1);
     }
   });
+
+export function resolveValidationOptions(
+  options: ValidateOptions,
+): ValidationOptions {
+  // CLI flags override template config
+  // --strict and --lenient are mutually exclusive and strict takes precedence
+  if (options.strict) {
+    return { mode: "strict" };
+  }
+  if (options.lenient) {
+    return { mode: "lenient" };
+  }
+  // No override: let validator use template config or default
+  return {};
+}
 
 async function loadTemplate(templatePath: string) {
   logger.info(`Loading template: ${templatePath}`);
@@ -38,10 +80,10 @@ async function loadTemplate(templatePath: string) {
   return template;
 }
 
-function validateTemplate(template: unknown) {
+function validateTemplate(template: unknown, options?: ValidationOptions) {
   logger.info("Validating template...");
   const validator = new TemplateValidator();
-  return validator.validate(template);
+  return validator.validate(template, options);
 }
 
 function printTemplateDetails(template: TaskTemplate) {
@@ -52,42 +94,47 @@ function printTemplateDetails(template: TaskTemplate) {
 
 function printValidationResult(
   template: TaskTemplate,
-  result: ValidationResult
+  result: ValidationResult,
+  quiet?: boolean,
 ) {
   console.log("");
 
   if (result.valid) {
-    printValidSummary(template, result.warnings);
+    printValidSummary(template, result.warnings, result.mode, quiet);
     return;
   }
 
-  printInvalidSummary(result.errors, result.warnings);
+  printInvalidSummary(result.errors, result.warnings, result.mode);
 }
 
-function printValidSummary(
+export function printValidSummary(
   template: TaskTemplate,
-  warnings: ValidationWarning[]
+  warnings: ValidationWarning[],
+  mode: ValidationMode,
+  quiet?: boolean,
 ) {
-  console.log(chalk.green("Template is valid!\n"));
+  const modeLabel =
+    mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
+  console.log(`${chalk.green("Template·is·valid!")}·${modeLabel}\n`);
 
-  const summary = getTemplateSummary(template);
-
-  console.log(chalk.bold("Summary:"));
-  console.log(`  Name: ${chalk.cyan(summary.name)}`);
-  console.log(`  Tasks: ${chalk.cyan(summary.tasks)}`);
-  console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
-
-  printWarnings(warnings);
-
-  console.log(`\n ${chalk.green("Ready to use with atomize generate")}`);
+  if (!quiet) {
+    const summary = getTemplateSummary(template);
+    console.log(chalk.bold("Summary:"));
+    console.log(`  Name: ${chalk.cyan(summary.name)}`);
+    console.log(`  Tasks: ${chalk.cyan(summary.tasks)}`);
+    console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
+    printWarnings(warnings);
+  }
 }
 
 function printInvalidSummary(
   errors: ValidationError[],
-  warnings: ValidationWarning[]
+  warnings: ValidationWarning[],
+  mode: ValidationMode,
 ) {
-  console.log(chalk.red("Template validation failed\n"));
-
+  const modeLabel =
+    mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
+  console.log(`${chalk.red("Template·validation·failed")}·${modeLabel}\n`);
   console.log(chalk.red.bold("Errors:"));
   errors.forEach((err) => {
     console.log(chalk.red(`  • ${err.path}: ${err.message}`));
@@ -103,7 +150,7 @@ function printWarnings(warnings: ValidationWarning[], boldTitle = false) {
 
   console.log("");
   console.log(
-    boldTitle ? chalk.yellow.bold("Warnings:") : chalk.yellow("Warnings:")
+    boldTitle ? chalk.yellow.bold("Warnings:") : chalk.yellow("Warnings:"),
   );
 
   warnings.forEach((warn) => {
@@ -111,13 +158,13 @@ function printWarnings(warnings: ValidationWarning[], boldTitle = false) {
   });
 }
 
-function getTemplateSummary(template: TaskTemplate) {
+export function getTemplateSummary(template: TaskTemplate) {
   const totalPercent = template.tasks
     .filter((t: TaskDefinition) => !t.condition)
     .reduce(
       (sum: number, task: TaskDefinition) =>
         sum + (task.estimationPercent ?? 0),
-      0
+      0,
     );
 
   return {
@@ -128,7 +175,7 @@ function getTemplateSummary(template: TaskTemplate) {
 }
 
 function handleFatal(error: unknown, verbose?: boolean) {
-  console.log("");
+  cancel("Validation failed");
   logger.error(chalk.red("Validation failed"));
 
   const message = error instanceof Error ? error.message : String(error);

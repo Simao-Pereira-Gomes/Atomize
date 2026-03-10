@@ -39,6 +39,9 @@ export interface AzureDevOpsConfig extends PlatformConfig {
 
   /** API version (optional) */
   apiVersion?: string;
+
+  /** Maximum concurrent API requests for bulk operations (default: 5) */
+  maxConcurrency?: number;
 }
 
 /**
@@ -395,7 +398,8 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
 
   /**
-   * Create multiple tasks in bulk
+   * Create multiple tasks in bulk with parallel execution
+   * Uses concurrency limit to avoid overwhelming the API
    */
   async createTasksBulk(
     parentId: string,
@@ -403,23 +407,35 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
+    const concurrency = this.config.maxConcurrency ?? 5;
     logger.debug(
-      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId}`
+      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
     );
 
-    const createdTasks: WorkItem[] = [];
+    const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
 
-    for (const task of tasks) {
-      try {
-        const created = await this.createTask(parentId, task);
-        createdTasks.push(created);
-      } catch (error) {
-        logger.error(`AzureDevOps: Failed to create task: ${task.title}`, {
-          error,
-        });
-        // Continue with other tasks
-      }
+    // Process tasks in parallel batches
+    for (let i = 0; i < tasks.length; i += concurrency) {
+      const batch = tasks.slice(i, i + concurrency);
+      const batchPromises = batch.map(async (task, batchIndex) => {
+        const taskIndex = i + batchIndex;
+        try {
+          const created = await this.createTask(parentId, task);
+          results[taskIndex] = created;
+          return created;
+        } catch (error) {
+          logger.error(`AzureDevOps: Failed to create task: ${task.title}`, {
+            error,
+          });
+          results[taskIndex] = null;
+          return null;
+        }
+      });
+
+      await Promise.all(batchPromises);
     }
+
+    const createdTasks = results.filter((r): r is WorkItem => r !== null);
 
     logger.info(
       `AzureDevOps: Created ${createdTasks.length} of ${tasks.length} tasks`
@@ -460,10 +476,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         1
       );
 
-      console.log("Connection test succeeded");
+      logger.info("Connection test succeeded");
       return true;
     } catch (error) {
-      logger.debug((error as Error).message);
+      logger.debug(error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -683,6 +699,29 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private convertWorkItem(azureItem: AzureWorkItem): WorkItem {
     const fields = azureItem.fields || {};
 
+    // Extract predecessor and successor IDs from relations
+    const predecessorIds: string[] = [];
+    const successorIds: string[] = [];
+
+    if (azureItem.relations) {
+      for (const relation of azureItem.relations) {
+        const url = relation.url || "";
+        const match = url.match(/\/(\d+)$/);
+        const relatedId = match?.[1];
+
+        if (relatedId) {
+          // Dependency-Reverse: this work item depends on the linked item (predecessor)
+          if (relation.rel === "System.LinkTypes.Dependency-Reverse") {
+            predecessorIds.push(relatedId);
+          }
+          // Dependency-Forward: the linked item depends on this work item (successor)
+          if (relation.rel === "System.LinkTypes.Dependency-Forward") {
+            successorIds.push(relatedId);
+          }
+        }
+      }
+    }
+
     return {
       id: azureItem.id?.toString() || "",
       title: fields["System.Title"] || "",
@@ -693,12 +732,14 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         fields["System.AssignedTo"]?.displayName,
       estimation:
         fields["Microsoft.VSTS.Scheduling.StoryPoints"] ||
-        fields["Microsoft.VSTS.Scheduling.RemainingWork"],
+        fields["Microsoft.VSTS.Scheduling.OriginalEstimate"],
       tags: fields["System.Tags"] ? fields["System.Tags"].split("; ") : [],
       description: fields["System.Description"],
       areaPath: fields["System.AreaPath"],
       iteration: fields["System.IterationPath"],
       priority: fields["Microsoft.VSTS.Common.Priority"],
+      predecessorIds: predecessorIds.length > 0 ? predecessorIds : undefined,
+      successorIds: successorIds.length > 0 ? successorIds : undefined,
       customFields: fields,
       createdDate: fields["System.CreatedDate"]
         ? new Date(fields["System.CreatedDate"])
