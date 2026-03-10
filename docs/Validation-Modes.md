@@ -80,8 +80,8 @@ These issues always block template use:
 
 | Issue | Example Message |
 |-------|----------------|
-| Total estimation ≠ 100% | `Total estimation is 70%, but must be 100%` |
-| Estimation outside configured range | `Total estimation is 80%, must be 95%-105%` |
+| Total ≠ configured `totalEstimationMustBe` | `Total estimation is 70%, but must be 100%` |
+| Estimation outside configured `totalEstimationRange` | `Total estimation is 80%, must be 95%-105%` |
 | Task count below minimum | `Template has 1 task(s), but minimum is 3` |
 | Task count above maximum | `Template has 12 task(s), but maximum is 10` |
 | Non-existent dependency reference | `Task depends on non-existent task ID: "setup-db"` |
@@ -99,7 +99,7 @@ These issues are warnings in lenient mode but become errors in strict mode:
 | Issue | Example Message |
 |-------|----------------|
 | Condition with no variables | `Condition "true" might be invalid (no variables found)` |
-| Total estimation not 100% with range configured | `Total estimation is 98%, slightly outside exact 100%` |
+| Total estimation not 100% (no `totalEstimationMustBe` or `totalEstimationRange` configured) | `Total estimation is 70% (expected 100%)` |
 | Estimation below `taskEstimationRange.min` | `Task estimation 0.2 is below minimum 0.5` |
 | Task missing recommended field | `Task "Implementation" has no activity set` |
 | Template has no filter criteria | `No filter criteria configured — template will match all work items` |

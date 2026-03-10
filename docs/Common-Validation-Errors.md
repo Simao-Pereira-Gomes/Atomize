@@ -43,13 +43,15 @@ See [Validation Modes](./Validation-Modes.md) for a full explanation.
 
 ### Total Estimation Does Not Equal 100%
 
-**Error Message:**
+> **Note:** Without `totalEstimationMustBe` or `totalEstimationRange` configured, a mismatched total is a **warning** (not an error) in lenient mode — the template is still usable. It only becomes an error when a strict constraint is configured, or when running in strict mode.
+
+**Error Message** (when `totalEstimationMustBe: 100` is set):
 ```
 Total estimation is 70%, but must be 100%.
 💡 Add 30% to existing tasks or create a new task with 30% estimation.
 ```
 
-**Cause:** Your task estimation percentages don't add up to 100%.
+**Cause:** Your task estimation percentages don't add up to 100%, and a strict validation constraint requires them to.
 
 **Solutions:**
 1. **Adjust existing tasks:**
