@@ -35,8 +35,8 @@ export interface AzureDevOpsConfig extends PlatformConfig {
   /** Personal Access Token for authentication */
   token: string;
 
-  /** Team (optional) */
-  team?: string;
+  /** Team name */
+  team: string;
 
   /** API version (optional) */
   apiVersion?: string;
@@ -81,7 +81,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       );
 
       this.connection = new azdev.WebApi(
-        this.config.organizationUrl,
+        this.config.organizationUrl.replace(/\/+$/, ""),
         authHandler
       );
 
@@ -126,7 +126,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       const result = await this.witApi.queryByWiql(
         { query: wiql },
-        { project: this.config.project }
+        { project: this.config.project, team: this.config.team },
       );
 
       if (!result.workItems || result.workItems.length === 0) {

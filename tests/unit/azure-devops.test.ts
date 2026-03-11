@@ -10,6 +10,7 @@ const validConfig: AzureDevOpsConfig = {
   organizationUrl: Bun.env.AZURE_DEVOPS_ORG_URL || "https://dev.azure.com/test",
   project: Bun.env.AZURE_DEVOPS_PROJECT || "SampleProject",
   token: Bun.env.AZURE_DEVOPS_PAT || "test-token",
+  team: Bun.env.AZURE_DEVOPS_TEAM || "TestTeam",
 };
 
 // Mock Azure DevOps API

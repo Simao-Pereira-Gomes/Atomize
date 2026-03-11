@@ -14,7 +14,7 @@ filter:
   areaPaths:
     - EA-RSP-Platform\Release 2 Team
   iterations:
-    - EA-RSP-Platform\SOW-7-2026-JAN-MARCH\Sprint 117
+    - "@CurrentIteration"
 
 tasks:
   - title: "Analysis & Playback"

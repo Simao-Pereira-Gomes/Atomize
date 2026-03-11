@@ -363,12 +363,14 @@ Atomize supports two free AI providers:
    export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
    export AZURE_DEVOPS_PROJECT="YourProject"
    export AZURE_DEVOPS_PAT="your-personal-access-token"
+   export AZURE_DEVOPS_TEAM="YourTeam"
    ```
    For Windows
     ```bash
    set AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
    set AZURE_DEVOPS_PROJECT="YourProject"
    set AZURE_DEVOPS_PAT="your-personal-access-token"
+   set AZURE_DEVOPS_TEAM="YourTeam"
    ```
 
 4. **Or Use Interactive Setup**
