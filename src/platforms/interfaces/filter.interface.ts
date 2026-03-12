@@ -46,6 +46,12 @@ export interface FilterCriteria {
 		to?: Date;
 	};
 
+	/** Filter by last changed date. Supports @Today macros (e.g. "@Today-7") */
+	changedAfter?: string;
+
+	/** Filter by creation date. Supports @Today macros (e.g. "@Today-30") */
+	createdAfter?: string;
+
 	/** Limit number of results */
 	limit?: number;
 }

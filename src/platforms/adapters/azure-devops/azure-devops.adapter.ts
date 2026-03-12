@@ -11,7 +11,7 @@ import type {
   WorkItem,
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
-import { CURRENT_ITERATION } from "@templates/schema";
+import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
 import { PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
@@ -43,6 +43,34 @@ export interface AzureDevOpsConfig extends PlatformConfig {
 
   /** Maximum concurrent API requests for bulk operations (default: 5) */
   maxConcurrency?: number;
+}
+
+const CURRENT_ITERATION_OFFSET_RE = /^@CurrentIteration\s*([+-])\s*(\d+)$/i;
+const DATE_MACRO_RE =
+  /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(?:\s*([+-])\s*(\d+))?$/i;
+const DATE_MACRO_CANONICAL: Record<string, string> = {
+  "@today": "@Today",
+  "@startofday": "@StartOfDay",
+  "@startofmonth": "@StartOfMonth",
+  "@startofweek": "@StartOfWeek",
+  "@startofyear": "@StartOfYear",
+};
+
+/** Returns the WIQL macro string for an iteration value, or null if it is a real path. */
+function parseIterationMacro(value: string): string | null {
+  if (value === CURRENT_ITERATION) return "@CurrentIteration";
+  const match = value.match(CURRENT_ITERATION_OFFSET_RE);
+  if (match) return `@CurrentIteration ${match[1]} ${match[2]}`;
+  return null;
+}
+
+/** Returns the WIQL representation of a date value — macro or quoted literal. */
+function formatDateMacro(value: string): string {
+  const match = value.match(DATE_MACRO_RE);
+  if (!match?.[1]) return `'${value}'`;
+  const canonical = DATE_MACRO_CANONICAL[match[1].toLowerCase()] ?? match[1];
+  if (!match[2] || !match[3]) return canonical;
+  return `${canonical} ${match[2]} ${match[3]}`;
 }
 
 /**
@@ -656,26 +684,46 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     // Area paths
     if (filter.areaPaths && filter.areaPaths.length > 0) {
-      const paths = filter.areaPaths.map((p) => `'${p}'`).join(", ");
-      conditions.push(`[System.AreaPath] IN (${paths})`);
+      const hasTeamAreas = filter.areaPaths.includes(TEAM_AREAS);
+      const realPaths = filter.areaPaths.filter((p) => p !== TEAM_AREAS);
+
+      if (hasTeamAreas && realPaths.length === 0) {
+        conditions.push(`[System.AreaPath] IN (@TeamAreas)`);
+      } else if (!hasTeamAreas && realPaths.length > 0) {
+        const quoted = realPaths.map((p) => `'${p}'`).join(", ");
+        conditions.push(`[System.AreaPath] IN (${quoted})`);
+      } else if (hasTeamAreas && realPaths.length > 0) {
+        const quoted = realPaths.map((p) => `'${p}'`).join(", ");
+        conditions.push(
+          `([System.AreaPath] IN (${quoted}) OR [System.AreaPath] IN (@TeamAreas))`,
+        );
+      }
     }
 
     // Iterations
     if (filter.iterations && filter.iterations.length > 0) {
-      const hasSentinel = filter.iterations.includes(CURRENT_ITERATION);
-      const realPaths = filter.iterations.filter(
-        (i) => i !== CURRENT_ITERATION,
-      );
+      const iterConditions: string[] = [];
+      const realPaths: string[] = [];
 
-      if (hasSentinel && realPaths.length === 0) {
-        conditions.push(`[System.IterationPath] = @CurrentIteration`);
-      } else if (!hasSentinel && realPaths.length > 0) {
+      for (const iter of filter.iterations) {
+        const macro = parseIterationMacro(iter);
+        if (macro) {
+          iterConditions.push(`[System.IterationPath] = ${macro}`);
+        } else {
+          realPaths.push(iter);
+        }
+      }
+
+      if (realPaths.length > 0) {
         const quoted = realPaths.map((i) => `'${i}'`).join(", ");
-        conditions.push(`[System.IterationPath] IN (${quoted})`);
-      } else if (hasSentinel && realPaths.length > 0) {
-        const quoted = realPaths.map((i) => `'${i}'`).join(", ");
+        iterConditions.push(`[System.IterationPath] IN (${quoted})`);
+      }
+
+      if (iterConditions.length > 0) {
         conditions.push(
-          `([System.IterationPath] IN (${quoted}) OR [System.IterationPath] = @CurrentIteration)`,
+          iterConditions.length === 1
+            ? iterConditions.join("")
+            : `(${iterConditions.join(" OR ")})`,
         );
       }
     }
@@ -697,6 +745,19 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
           `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`
         );
       }
+    }
+
+    // Date filters
+    if (filter.changedAfter) {
+      conditions.push(
+        `[System.ChangedDate] >= ${formatDateMacro(filter.changedAfter)}`,
+      );
+    }
+
+    if (filter.createdAfter) {
+      conditions.push(
+        `[System.CreatedDate] >= ${formatDateMacro(filter.createdAfter)}`,
+      );
     }
 
     // Custom query (if provided, use it instead)

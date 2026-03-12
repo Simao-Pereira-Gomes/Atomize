@@ -122,6 +122,39 @@ describe("Schema Validation", () => {
       const result = FilterCriteriaSchema.safeParse(filter);
       expect(result.success).toBe(true);
     });
+
+    test("should accept @TeamAreas as a valid areaPaths value", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        areaPaths: ["@TeamAreas"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept mixed @TeamAreas and real area paths", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        areaPaths: ["@TeamAreas", "MyProject\\Backend"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept @Today macro in changedAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({ changedAfter: "@Today" });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept @Today offset in changedAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        changedAfter: "@Today-7",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept literal date in createdAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        createdAfter: "2026-01-01",
+      });
+      expect(result.success).toBe(true);
+    });
   });
 
   describe("TaskDefinitionSchema", () => {

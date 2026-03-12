@@ -604,6 +604,134 @@ describe("AzureDevOps WIQL Query Building", () => {
     expect(wiql).toContain("[System.IterationPath] = @CurrentIteration");
     expect(wiql).toContain(" OR ");
   });
+
+  test("should emit @CurrentIteration + 1 for next sprint offset", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      iterations: ["@CurrentIteration + 1"],
+    });
+    expect(wiql).toContain("[System.IterationPath] = @CurrentIteration + 1");
+  });
+
+  test("should emit @CurrentIteration - 1 for previous sprint offset", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      iterations: ["@CurrentIteration - 1"],
+    });
+    expect(wiql).toContain("[System.IterationPath] = @CurrentIteration - 1");
+  });
+
+  test("should emit @TeamAreas macro for area path sentinel", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      areaPaths: ["@TeamAreas"],
+    });
+    expect(wiql).toContain("[System.AreaPath] IN (@TeamAreas)");
+    expect(wiql).not.toContain("'@TeamAreas'");
+  });
+
+  test("should emit combined OR clause for @TeamAreas mixed with real paths", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      areaPaths: ["@TeamAreas", "MyProject\\Backend"],
+    });
+    expect(wiql).toContain("[System.AreaPath] IN ('MyProject\\Backend')");
+    expect(wiql).toContain("[System.AreaPath] IN (@TeamAreas)");
+    expect(wiql).toContain(" OR ");
+  });
+
+  test("should emit @Today macro for changedAfter", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@Today" });
+    expect(wiql).toContain("[System.ChangedDate] >= @Today");
+    expect(wiql).not.toContain("'@Today'");
+  });
+
+  test("should emit @Today - 7 macro for changedAfter offset", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@Today-7" });
+    expect(wiql).toContain("[System.ChangedDate] >= @Today - 7");
+  });
+
+  test("should quote literal date for changedAfter", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      changedAfter: "2026-01-01",
+    });
+    expect(wiql).toContain("[System.ChangedDate] >= '2026-01-01'");
+  });
+
+  test("should emit @Today macro for createdAfter", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      createdAfter: "@Today - 30",
+    });
+    expect(wiql).toContain("[System.CreatedDate] >= @Today - 30");
+  });
+
+  test("should emit @StartOfDay macro", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@StartOfDay" });
+    expect(wiql).toContain("[System.ChangedDate] >= @StartOfDay");
+  });
+
+  test("should emit @StartOfDay with offset", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@StartOfDay-7" });
+    expect(wiql).toContain("[System.ChangedDate] >= @StartOfDay - 7");
+  });
+
+  test("should emit @StartOfWeek macro", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@StartOfWeek-2" });
+    expect(wiql).toContain("[System.ChangedDate] >= @StartOfWeek - 2");
+  });
+
+  test("should emit @StartOfMonth macro", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ createdAfter: "@StartOfMonth-3" });
+    expect(wiql).toContain("[System.CreatedDate] >= @StartOfMonth - 3");
+  });
+
+  test("should emit @StartOfYear macro", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ createdAfter: "@StartOfYear" });
+    expect(wiql).toContain("[System.CreatedDate] >= @StartOfYear");
+  });
+
+  test("should normalise case for date macros", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@startofmonth-1" });
+    expect(wiql).toContain("[System.ChangedDate] >= @StartOfMonth - 1");
+  });
 });
 
 describe("AzureDevOps excludeIfHasTasks functionality", () => {

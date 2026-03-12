@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import dotenv from "dotenv";
+
 dotenv.config({ override: true });
+
 import chalk from "chalk";
 import { Command } from "commander";
 import { generateCommand } from "./commands/generate.command";

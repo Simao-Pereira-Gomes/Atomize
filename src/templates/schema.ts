@@ -40,11 +40,15 @@ export const FilterCriteriaSchema = z.object({
       exclude: z.array(z.string()).optional(),
     })
     .optional(),
-  areaPaths: z.array(z.string()).optional(),
+  areaPaths: z
+    .array(z.union([z.string(), z.literal("@TeamAreas")]))
+    .optional(),
   iterations: z
     .array(z.union([z.string(), z.literal("@CurrentIteration")]))
     .optional(),
   assignedTo: z.array(z.union([z.email(), z.literal("@Me")])).optional(),
+  changedAfter: z.string().optional(),
+  createdAfter: z.string().optional(),
   priority: z
     .object({
       min: z.number().optional(),
@@ -481,6 +485,13 @@ function reportCircularDependencies(
 }
 
 export const CURRENT_ITERATION = "@CurrentIteration" as const;
+export const TEAM_AREAS = "@TeamAreas" as const;
+export const TODAY = "@Today" as const;
+export const START_OF_DAY = "@StartOfDay" as const;
+export const START_OF_WEEK = "@StartOfWeek" as const;
+export const START_OF_MONTH = "@StartOfMonth" as const;
+export const START_OF_YEAR = "@StartOfYear" as const;
+export const ME = "@Me" as const;
 
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;

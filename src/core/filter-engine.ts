@@ -80,6 +80,14 @@ export class FilterEngine {
       platformFilter.customQuery = templateFilter.customQuery;
     }
 
+    if (templateFilter.changedAfter) {
+      platformFilter.changedAfter = templateFilter.changedAfter;
+    }
+
+    if (templateFilter.createdAfter) {
+      platformFilter.createdAfter = templateFilter.createdAfter;
+    }
+
     return platformFilter;
   }
 
@@ -98,7 +106,9 @@ export class FilterEngine {
       filter.assignedTo ||
       filter.priority ||
       filter.customFields ||
-      filter.customQuery;
+      filter.customQuery ||
+      filter.changedAfter ||
+      filter.createdAfter;
 
     if (!hasCriteria) {
       errors.push("Filter must have at least one criterion");

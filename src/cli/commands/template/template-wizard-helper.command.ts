@@ -12,17 +12,38 @@ import {
   Validators,
 } from "../../utilities/prompt-utilities";
 
-type IterationFilterMode = "none" | "@CurrentIteration" | "specific" | "mixed";
+type AreaFilterMode = "none" | "@TeamAreas" | "specific" | "mixed";
+type IterationFilterMode =
+  | "none"
+  | "@CurrentIteration"
+  | "@CurrentIteration+1"
+  | "@CurrentIteration-1"
+  | "specific"
+  | "mixed";
+type DateFilterPreset =
+  | "none"
+  | "@Today"
+  | "@Today-7"
+  | "@Today-14"
+  | "@Today-30"
+  | "@StartOfDay"
+  | "@StartOfWeek"
+  | "@StartOfMonth"
+  | "@StartOfYear"
+  | "custom";
 
-interface WorkItemPromptAnswers {
-  workItemTypes: string[];
-  customWorkItemTypes?: string[];
-}
-
-interface StatePromptAnswers {
-  states: string[];
-  customStates?: string[];
-}
+const DATE_FILTER_OPTIONS: { label: string; value: DateFilterPreset }[] = [
+  { label: "No filter", value: "none" as const },
+  { label: "Today  (@Today)", value: "@Today" as const },
+  { label: "Last 7 days  (@Today-7)", value: "@Today-7" as const },
+  { label: "Last 14 days  (@Today-14)", value: "@Today-14" as const },
+  { label: "Last 30 days  (@Today-30)", value: "@Today-30" as const },
+  { label: "Start of day  (@StartOfDay)", value: "@StartOfDay" as const },
+  { label: "Start of week  (@StartOfWeek)", value: "@StartOfWeek" as const },
+  { label: "Start of month  (@StartOfMonth)", value: "@StartOfMonth" as const },
+  { label: "Start of year  (@StartOfYear)", value: "@StartOfYear" as const },
+  { label: "Custom", value: "custom" as const },
+];
 
 /**
  * Configure filter criteria with support for custom query and custom fields
@@ -30,8 +51,61 @@ interface StatePromptAnswers {
 export async function configureFilter(): Promise<FilterCriteria> {
   const filter: FilterCriteria = {};
 
-  const workItemTypes = assertNotCancelled(
-    await multiselect<WorkItemPromptAnswers["workItemTypes"][number]>({
+  const workItemTypes = await promptWorkItemTypes();
+  if (workItemTypes.length > 0) filter.workItemTypes = workItemTypes;
+
+  const states = await promptStates();
+  if (states.length > 0) filter.states = states;
+
+  const tags = await promptTags();
+  if (tags) filter.tags = tags;
+
+  if (await promptExcludeIfHasTasks()) filter.excludeIfHasTasks = true;
+
+  const advancedFilter = assertNotCancelled(
+    await confirm({ message: "Add advanced filter options?", initialValue: false }),
+  );
+
+  if (advancedFilter) {
+    const areaPaths = await promptAreaPaths();
+    if (areaPaths.length > 0) filter.areaPaths = areaPaths;
+
+    const iterations = await promptIterations();
+    if (iterations.length > 0) filter.iterations = iterations;
+
+    const assignedTo = await promptAssignedTo();
+    if (assignedTo.length > 0) filter.assignedTo = assignedTo;
+
+    const priority = await promptPriority();
+    if (priority) filter.priority = priority;
+
+    const changedAfter = await promptDateFilter(
+      "Filter by last modified date:",
+      "Changed after (date or @Today offset):",
+    );
+    if (changedAfter) filter.changedAfter = changedAfter;
+
+    const createdAfter = await promptDateFilter(
+      "Filter by creation date:",
+      "Created after (date or @Today offset):",
+    );
+    if (createdAfter) filter.createdAfter = createdAfter;
+
+    const useCustomFields = assertNotCancelled(
+      await confirm({ message: "Add custom field filters?", initialValue: false }),
+    );
+    if (useCustomFields) filter.customFields = await configureCustomFields();
+
+    const customQuery = await promptCustomQuery();
+    if (customQuery) filter.customQuery = customQuery;
+  }
+
+  return filter;
+}
+
+async function promptWorkItemTypes(): Promise<string[]> {
+  const selected = assertNotCancelled(
+    await multiselect({
       message: "Select work item types:",
       options: [
         { label: "User Story", value: "User Story" },
@@ -47,27 +121,23 @@ export async function configureFilter(): Promise<FilterCriteria> {
     }),
   );
 
-  let customWorkItemTypes: string[] = [];
-  if (workItemTypes.includes("__custom__")) {
+  let custom: string[] = [];
+  if (selected.includes("__custom__")) {
     const raw = assertNotCancelled(
       await text({
         message: "Enter custom work item types (comma-separated):",
         placeholder: "e.g. Requirement, Test Case",
       }),
     );
-    customWorkItemTypes = Filters.commaSeparated(raw);
+    custom = Filters.commaSeparated(raw);
   }
 
-  if (workItemTypes.length > 0) {
-    const filtered = workItemTypes.filter((t) => t !== "__custom__");
-    const allTypes = [...filtered, ...customWorkItemTypes];
-    if (allTypes.length > 0) {
-      filter.workItemTypes = allTypes;
-    }
-  }
+  return [...selected.filter((t) => t !== "__custom__"), ...custom];
+}
 
-  const states = assertNotCancelled(
-    await multiselect<StatePromptAnswers["states"][number]>({
+async function promptStates(): Promise<string[]> {
+  const selected = assertNotCancelled(
+    await multiselect({
       message: "Select states:",
       options: [
         { label: "New", value: "New" },
@@ -82,210 +152,210 @@ export async function configureFilter(): Promise<FilterCriteria> {
     }),
   );
 
-  let customStates: string[] = [];
-  if (states.includes("__custom__")) {
+  let custom: string[] = [];
+  if (selected.includes("__custom__")) {
     const raw = assertNotCancelled(
       await text({
         message: "Enter custom states (comma-separated):",
         placeholder: "e.g. In Review, On Hold",
       }),
     );
-    customStates = Filters.commaSeparated(raw);
+    custom = Filters.commaSeparated(raw);
   }
 
-  if (states.length > 0) {
-    const filtered = states.filter((s) => s !== "__custom__");
-    const allStates = [...filtered, ...customStates];
-    if (allStates.length > 0) {
-      filter.states = allStates;
-    }
-  }
+  return [...selected.filter((s) => s !== "__custom__"), ...custom];
+}
 
+async function promptTags(): Promise<FilterCriteria["tags"]> {
   const useTags = assertNotCancelled(
-    await confirm({
-      message: "Filter by tags?",
-      initialValue: false,
+    await confirm({ message: "Filter by tags?", initialValue: false }),
+  );
+  if (!useTags) return undefined;
+
+  const includeRaw = assertNotCancelled(
+    await text({
+      message: "Tags to include (comma-separated):",
+      placeholder: "e.g. backend, api",
+    }),
+  );
+  const excludeRaw = assertNotCancelled(
+    await text({
+      message: "Tags to exclude (comma-separated):",
+      placeholder: "e.g. wip, blocked",
     }),
   );
 
-  if (useTags) {
-    const includeRaw = assertNotCancelled(
-      await text({
-        message: "Tags to include (comma-separated):",
-        placeholder: "e.g. backend, api",
-      }),
-    );
-    const excludeRaw = assertNotCancelled(
-      await text({
-        message: "Tags to exclude (comma-separated):",
-        placeholder: "e.g. wip, blocked",
-      }),
-    );
+  const include = Filters.commaSeparated(includeRaw);
+  const exclude = Filters.commaSeparated(excludeRaw);
 
-    const include = Filters.commaSeparated(includeRaw);
-    const exclude = Filters.commaSeparated(excludeRaw);
+  if (include.length === 0 && exclude.length === 0) return undefined;
 
-    if (include.length > 0 || exclude.length > 0) {
-      filter.tags = {};
-      if (include.length > 0) {
-        filter.tags.include = include;
-      }
-      if (exclude.length > 0) {
-        filter.tags.exclude = exclude;
-      }
-    }
-  }
+  return {
+    ...(include.length > 0 && { include }),
+    ...(exclude.length > 0 && { exclude }),
+  };
+}
 
-  const excludeIfHasTasks = assertNotCancelled(
+async function promptExcludeIfHasTasks(): Promise<boolean> {
+  return assertNotCancelled(
     await confirm({
       message: "Exclude work items that already have tasks?",
       initialValue: true,
     }),
   );
+}
 
-  if (excludeIfHasTasks) {
-    filter.excludeIfHasTasks = true;
-  }
-
-  const advancedFilter = assertNotCancelled(
-    await confirm({
-      message: "Add advanced filter options?",
-      initialValue: false,
+async function promptAreaPaths(): Promise<string[]> {
+  const mode = assertNotCancelled(
+    await select<AreaFilterMode>({
+      message: "Area path filter:",
+      options: [
+        { label: "No area path filter", value: "none" as const },
+        { label: "@TeamAreas  (all areas belonging to this team)", value: "@TeamAreas" as const },
+        { label: "Specific area paths", value: "specific" as const },
+        { label: "@TeamAreas + specific paths", value: "mixed" as const },
+      ],
+      initialValue: "none" as const,
     }),
   );
 
-  if (advancedFilter) {
-    const areaPaths = Filters.commaSeparated(
-      assertNotCancelled(
-        await text({
-          message: "Area paths (comma-separated):",
-          placeholder: "e.g. MyProject\\\\Backend, MyProject\\\\API",
-        }),
-      ),
-    );
-    const iterationMode = assertNotCancelled(
-      await select<IterationFilterMode>({
-        message: "Iteration filter:",
-        options: [
-          { label: "No iteration filter", value: "none" as const },
-          {
-            label: "@CurrentIteration  (always targets the active sprint)",
-            value: "@CurrentIteration" as const,
-          },
-          { label: "Specific iteration paths", value: "specific" as const },
-          {
-            label: "@CurrentIteration + specific paths",
-            value: "mixed" as const,
-          },
-        ],
-        initialValue: "none" as const,
+  if (mode === "none") return [];
+  if (mode === "@TeamAreas") return ["@TeamAreas"];
+
+  const raw = assertNotCancelled(
+    await text({
+      message: "Area paths (comma-separated):",
+      placeholder: "e.g. MyProject\\\\Backend, MyProject\\\\API",
+      validate: (input): string | undefined => {
+        if (!input || input.trim() === "") return "At least one area path is required";
+        return undefined;
+      },
+    }),
+  );
+  const specific = Filters.commaSeparated(raw);
+  return mode === "mixed" ? ["@TeamAreas", ...specific] : specific;
+}
+
+async function promptIterations(): Promise<string[]> {
+  const mode = assertNotCancelled(
+    await select<IterationFilterMode>({
+      message: "Iteration filter:",
+      options: [
+        { label: "No iteration filter", value: "none" as const },
+        { label: "@CurrentIteration       (active sprint)", value: "@CurrentIteration" as const },
+        { label: "@CurrentIteration + 1  (next sprint)", value: "@CurrentIteration+1" as const },
+        { label: "@CurrentIteration - 1  (previous sprint)", value: "@CurrentIteration-1" as const },
+        { label: "Specific iteration paths", value: "specific" as const },
+        { label: "@CurrentIteration + specific paths", value: "mixed" as const },
+      ],
+      initialValue: "none" as const,
+    }),
+  );
+
+  if (mode === "none") return [];
+  if (mode === "@CurrentIteration") return ["@CurrentIteration"];
+  if (mode === "@CurrentIteration+1") return ["@CurrentIteration + 1"];
+  if (mode === "@CurrentIteration-1") return ["@CurrentIteration - 1"];
+
+  const raw = assertNotCancelled(
+    await text({
+      message: "Iteration paths (comma-separated):",
+      placeholder: "e.g. MyProject\\\\Sprint 1, MyProject\\\\Sprint 2",
+      validate: (input): string | undefined => {
+        if (!input || input.trim() === "") return "At least one iteration path is required";
+        return undefined;
+      },
+    }),
+  );
+  const specific = Filters.commaSeparated(raw);
+  return mode === "mixed" ? ["@CurrentIteration", ...specific] : specific;
+}
+
+async function promptAssignedTo(): Promise<string[]> {
+  return Filters.commaSeparated(
+    assertNotCancelled(
+      await text({
+        message: "Assigned to (comma-separated email addresses):",
+        placeholder: "e.g. alice@example.com, bob@example.com",
+      }),
+    ),
+  );
+}
+
+async function promptPriority(): Promise<FilterCriteria["priority"]> {
+  const use = assertNotCancelled(
+    await confirm({ message: "Filter by priority range?", initialValue: false }),
+  );
+  if (!use) return undefined;
+
+  const minRaw = assertNotCancelled(
+    await text({
+      message: "Minimum priority (1-5):",
+      defaultValue: "1",
+      placeholder: "e.g. 1",
+      validate: Validators.numericRange("Priority", 1, 5),
+    }),
+  );
+  const maxRaw = assertNotCancelled(
+    await text({
+      message: "Maximum priority (1-5):",
+      defaultValue: "3",
+      placeholder: "e.g. 3",
+      validate: Validators.numericRange("Priority", 1, 5),
+    }),
+  );
+
+  return { min: Number(minRaw), max: Number(maxRaw) };
+}
+
+async function promptDateFilter(
+  selectMessage: string,
+  customMessage: string,
+): Promise<string | undefined> {
+  const preset = assertNotCancelled(
+    await select<DateFilterPreset>({
+      message: selectMessage,
+      options: DATE_FILTER_OPTIONS,
+      initialValue: "none" as const,
+    }),
+  );
+
+  if (preset === "none") return undefined;
+
+  if (preset === "custom") {
+    return assertNotCancelled(
+      await text({
+        message: customMessage,
+        placeholder: "e.g. 2026-01-01 or @Today-60",
+        validate: (input): string | undefined => {
+          if (!input || input.trim() === "") return "Date is required";
+          return undefined;
+        },
       }),
     );
-
-    let iterations: string[] = [];
-    if (iterationMode === "@CurrentIteration") {
-      iterations = ["@CurrentIteration"];
-    } else if (iterationMode === "specific" || iterationMode === "mixed") {
-      const raw = assertNotCancelled(
-        await text({
-          message: "Iteration paths (comma-separated):",
-          placeholder: "e.g. MyProject\\\\Sprint 1, MyProject\\\\Sprint 2",
-          validate: (input): string | undefined => {
-            if (!input || input.trim() === "")
-              return "At least one iteration path is required";
-            return undefined;
-          },
-        }),
-      );
-      const specificPaths = Filters.commaSeparated(raw);
-      iterations =
-        iterationMode === "mixed"
-          ? ["@CurrentIteration", ...specificPaths]
-          : specificPaths;
-    }
-    const assignedTo = Filters.commaSeparated(
-      assertNotCancelled(
-        await text({
-          message: "Assigned to (comma-separated email addresses):",
-          placeholder: "e.g. alice@example.com, bob@example.com",
-        }),
-      ),
-    );
-    const usePriority = assertNotCancelled(
-      await confirm({
-        message: "Filter by priority range?",
-        initialValue: false,
-      }),
-    );
-
-    if (areaPaths.length > 0) {
-      filter.areaPaths = areaPaths;
-    }
-    if (iterations.length > 0) {
-      filter.iterations = iterations;
-    }
-    if (assignedTo.length > 0) {
-      filter.assignedTo = assignedTo;
-    }
-
-    if (usePriority) {
-      const minRaw = assertNotCancelled(
-        await text({
-          message: "Minimum priority (1-5):",
-          defaultValue: "1",
-          placeholder: "e.g. 1",
-          validate: Validators.numericRange("Priority", 1, 5),
-        }),
-      );
-      const maxRaw = assertNotCancelled(
-        await text({
-          message: "Maximum priority (1-5):",
-          defaultValue: "3",
-          placeholder: "e.g. 3",
-          validate: Validators.numericRange("Priority", 1, 5),
-        }),
-      );
-
-      filter.priority = {
-        min: Number(minRaw),
-        max: Number(maxRaw),
-      };
-    }
-
-    const useCustomFields = assertNotCancelled(
-      await confirm({
-        message: "Add custom field filters?",
-        initialValue: false,
-      }),
-    );
-
-    if (useCustomFields) {
-      filter.customFields = await configureCustomFields();
-    }
-
-    const useCustomQuery = assertNotCancelled(
-      await confirm({
-        message: "Use a custom query string? (overrides other filters)",
-        initialValue: false,
-      }),
-    );
-
-    if (useCustomQuery) {
-      filter.customQuery = assertNotCancelled(
-        await text({
-          message: "Enter custom query (e.g., WIQL for Azure DevOps):",
-          validate: (input): string | undefined => {
-            if (!input || input.trim() === "") {
-              return "Custom query cannot be empty";
-            }
-            return undefined;
-          },
-        }),
-      );
-    }
   }
 
-  return filter;
+  return preset;
+}
+
+async function promptCustomQuery(): Promise<string | undefined> {
+  const use = assertNotCancelled(
+    await confirm({
+      message: "Use a custom query string? (overrides other filters)",
+      initialValue: false,
+    }),
+  );
+  if (!use) return undefined;
+
+  return assertNotCancelled(
+    await text({
+      message: "Enter custom query (e.g., WIQL for Azure DevOps):",
+      validate: (input): string | undefined => {
+        if (!input || input.trim() === "") return "Custom query cannot be empty";
+        return undefined;
+      },
+    }),
+  );
 }
 
 /**
