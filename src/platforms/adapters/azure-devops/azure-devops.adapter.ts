@@ -12,7 +12,7 @@ import type {
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
 import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
-import { PlatformError, UnknownError } from "@utils/errors";
+import { ConfigurationError, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import {
@@ -35,7 +35,7 @@ export interface AzureDevOpsConfig extends PlatformConfig {
   /** Personal Access Token for authentication */
   token: string;
 
-  /** Team name */
+  /** Team name (can be overridden per-template via filter.team) */
   team: string;
 
   /** API version (optional) */
@@ -62,6 +62,13 @@ function parseIterationMacro(value: string): string | null {
   const match = value.match(CURRENT_ITERATION_OFFSET_RE);
   if (match) return `@CurrentIteration ${match[1]} ${match[2]}`;
   return null;
+}
+
+/** Returns true if the filter uses any team-scoped macros (@CurrentIteration, @TeamAreas). */
+function requiresTeam(filter: FilterCriteria): boolean {
+  if (filter.areaPaths?.includes(TEAM_AREAS)) return true;
+  if (filter.iterations?.some((i) => parseIterationMacro(i) !== null)) return true;
+  return false;
 }
 
 /** Returns the WIQL representation of a date value — macro or quoted literal. */
@@ -152,9 +159,17 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new UnknownError("Work Item Tracking API not initialized");
       }
 
+      const effectiveTeam = filter.team ?? this.config.team;
+      if (requiresTeam(filter) && !effectiveTeam) {
+        throw new ConfigurationError(
+          "A team is required when using @CurrentIteration or @TeamAreas macros. " +
+          "Set AZURE_DEVOPS_TEAM in your environment or add 'team' to the template filter.",
+        );
+      }
+
       const result = await this.witApi.queryByWiql(
         { query: wiql },
-        { project: this.config.project, team: this.config.team },
+        { project: this.config.project, team: effectiveTeam },
       );
 
       if (!result.workItems || result.workItems.length === 0) {
@@ -661,10 +676,26 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       conditions.push(`[System.WorkItemType] IN (${types})`);
     }
 
-    // States
+    // States (include)
     if (filter.states && filter.states.length > 0) {
       const states = filter.states.map((s) => `'${s}'`).join(", ");
       conditions.push(`[System.State] IN (${states})`);
+    }
+
+    // States (exclude)
+    if (filter.statesExclude && filter.statesExclude.length > 0) {
+      const states = filter.statesExclude.map((s) => `'${s}'`).join(", ");
+      conditions.push(`[System.State] NOT IN (${states})`);
+    }
+
+    // States (WAS EVER)
+    if (filter.statesWereEver && filter.statesWereEver.length > 0) {
+      const clauses = filter.statesWereEver.map(
+        (s) => `[System.State] WAS EVER '${s}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
     }
 
     // Tags (include)
@@ -698,6 +729,16 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
           `([System.AreaPath] IN (${quoted}) OR [System.AreaPath] IN (@TeamAreas))`,
         );
       }
+    }
+
+    // Area paths (UNDER)
+    if (filter.areaPathsUnder && filter.areaPathsUnder.length > 0) {
+      const clauses = filter.areaPathsUnder.map(
+        (p) => `[System.AreaPath] UNDER '${p}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
     }
 
     // Iterations
@@ -745,6 +786,16 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
           `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`
         );
       }
+    }
+
+    // Iterations (UNDER)
+    if (filter.iterationsUnder && filter.iterationsUnder.length > 0) {
+      const clauses = filter.iterationsUnder.map(
+        (p) => `[System.IterationPath] UNDER '${p}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
     }
 
     // Date filters

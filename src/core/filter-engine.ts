@@ -19,6 +19,11 @@ export class FilterEngine {
     userEmail?: string
   ): PlatformFilter {
     const platformFilter: PlatformFilter = {};
+
+    if (templateFilter.team) {
+      platformFilter.team = templateFilter.team;
+    }
+
     const workItems: WorkItemType[] =
       templateFilter.workItemTypes?.map((t) => t as WorkItemType) || [];
     if (templateFilter.workItemTypes) {
@@ -27,6 +32,14 @@ export class FilterEngine {
 
     if (templateFilter.states) {
       platformFilter.states = templateFilter.states;
+    }
+
+    if (templateFilter.statesExclude) {
+      platformFilter.statesExclude = templateFilter.statesExclude;
+    }
+
+    if (templateFilter.statesWereEver) {
+      platformFilter.statesWereEver = templateFilter.statesWereEver;
     }
 
     if (templateFilter.tags) {
@@ -40,8 +53,16 @@ export class FilterEngine {
       platformFilter.areaPaths = templateFilter.areaPaths;
     }
 
+    if (templateFilter.areaPathsUnder) {
+      platformFilter.areaPathsUnder = templateFilter.areaPathsUnder;
+    }
+
     if (templateFilter.iterations) {
       platformFilter.iterations = templateFilter.iterations;
+    }
+
+    if (templateFilter.iterationsUnder) {
+      platformFilter.iterationsUnder = templateFilter.iterationsUnder;
     }
 
     if (templateFilter.assignedTo) {
@@ -108,7 +129,11 @@ export class FilterEngine {
       filter.customFields ||
       filter.customQuery ||
       filter.changedAfter ||
-      filter.createdAfter;
+      filter.createdAfter ||
+      filter.statesExclude ||
+      filter.statesWereEver ||
+      filter.areaPathsUnder ||
+      filter.iterationsUnder;
 
     if (!hasCriteria) {
       errors.push("Filter must have at least one criterion");

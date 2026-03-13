@@ -12,13 +12,14 @@ import {
   Validators,
 } from "../../utilities/prompt-utilities";
 
-type AreaFilterMode = "none" | "@TeamAreas" | "specific" | "mixed";
+type AreaFilterMode = "none" | "@TeamAreas" | "exact" | "under" | "mixed";
 type IterationFilterMode =
   | "none"
   | "@CurrentIteration"
   | "@CurrentIteration+1"
   | "@CurrentIteration-1"
-  | "specific"
+  | "exact"
+  | "under"
   | "mixed";
 type DateFilterPreset =
   | "none"
@@ -67,11 +68,22 @@ export async function configureFilter(): Promise<FilterCriteria> {
   );
 
   if (advancedFilter) {
-    const areaPaths = await promptAreaPaths();
-    if (areaPaths.length > 0) filter.areaPaths = areaPaths;
+    const team = await promptTeam();
+    if (team) filter.team = team;
 
-    const iterations = await promptIterations();
+    const { exact: areaPaths, under: areaPathsUnder } = await promptAreaPaths();
+    if (areaPaths.length > 0) filter.areaPaths = areaPaths;
+    if (areaPathsUnder.length > 0) filter.areaPathsUnder = areaPathsUnder;
+
+    const { exact: iterations, under: iterationsUnder } = await promptIterations();
     if (iterations.length > 0) filter.iterations = iterations;
+    if (iterationsUnder.length > 0) filter.iterationsUnder = iterationsUnder;
+
+    const statesExclude = await promptStatesExclude();
+    if (statesExclude.length > 0) filter.statesExclude = statesExclude;
+
+    const statesWereEver = await promptStatesWereEver();
+    if (statesWereEver.length > 0) filter.statesWereEver = statesWereEver;
 
     const assignedTo = await promptAssignedTo();
     if (assignedTo.length > 0) filter.assignedTo = assignedTo;
@@ -205,22 +217,45 @@ async function promptExcludeIfHasTasks(): Promise<boolean> {
   );
 }
 
-async function promptAreaPaths(): Promise<string[]> {
+async function promptTeam(): Promise<string | undefined> {
+  const override = assertNotCancelled(
+    await confirm({
+      message: "Override team for this template? (affects @CurrentIteration and @TeamAreas)",
+      initialValue: false,
+    }),
+  );
+  if (!override) return undefined;
+
+  const team = assertNotCancelled(
+    await text({
+      message: "Team name:",
+      placeholder: "e.g. MyProject Team",
+      validate(input): string | undefined {
+        if (!input?.trim()) return "Team name is required";
+        return undefined;
+      },
+    }),
+  );
+  return team.trim();
+}
+
+async function promptAreaPaths(): Promise<{ exact: string[]; under: string[] }> {
   const mode = assertNotCancelled(
     await select<AreaFilterMode>({
       message: "Area path filter:",
       options: [
         { label: "No area path filter", value: "none" as const },
-        { label: "@TeamAreas  (all areas belonging to this team)", value: "@TeamAreas" as const },
-        { label: "Specific area paths", value: "specific" as const },
-        { label: "@TeamAreas + specific paths", value: "mixed" as const },
+        { label: "@TeamAreas  (all areas for this team)", value: "@TeamAreas" as const },
+        { label: "Exact paths  (IN)", value: "exact" as const },
+        { label: "Path and descendants  (UNDER)", value: "under" as const },
+        { label: "@TeamAreas + exact paths", value: "mixed" as const },
       ],
       initialValue: "none" as const,
     }),
   );
 
-  if (mode === "none") return [];
-  if (mode === "@TeamAreas") return ["@TeamAreas"];
+  if (mode === "none") return { exact: [], under: [] };
+  if (mode === "@TeamAreas") return { exact: ["@TeamAreas"], under: [] };
 
   const raw = assertNotCancelled(
     await text({
@@ -232,11 +267,14 @@ async function promptAreaPaths(): Promise<string[]> {
       },
     }),
   );
-  const specific = Filters.commaSeparated(raw);
-  return mode === "mixed" ? ["@TeamAreas", ...specific] : specific;
+  const paths = Filters.commaSeparated(raw);
+
+  if (mode === "under") return { exact: [], under: paths };
+  if (mode === "mixed") return { exact: ["@TeamAreas", ...paths], under: [] };
+  return { exact: paths, under: [] };
 }
 
-async function promptIterations(): Promise<string[]> {
+async function promptIterations(): Promise<{ exact: string[]; under: string[] }> {
   const mode = assertNotCancelled(
     await select<IterationFilterMode>({
       message: "Iteration filter:",
@@ -245,17 +283,18 @@ async function promptIterations(): Promise<string[]> {
         { label: "@CurrentIteration       (active sprint)", value: "@CurrentIteration" as const },
         { label: "@CurrentIteration + 1  (next sprint)", value: "@CurrentIteration+1" as const },
         { label: "@CurrentIteration - 1  (previous sprint)", value: "@CurrentIteration-1" as const },
-        { label: "Specific iteration paths", value: "specific" as const },
-        { label: "@CurrentIteration + specific paths", value: "mixed" as const },
+        { label: "Exact iteration paths  (IN)", value: "exact" as const },
+        { label: "Iteration and children  (UNDER)", value: "under" as const },
+        { label: "@CurrentIteration + exact paths", value: "mixed" as const },
       ],
       initialValue: "none" as const,
     }),
   );
 
-  if (mode === "none") return [];
-  if (mode === "@CurrentIteration") return ["@CurrentIteration"];
-  if (mode === "@CurrentIteration+1") return ["@CurrentIteration + 1"];
-  if (mode === "@CurrentIteration-1") return ["@CurrentIteration - 1"];
+  if (mode === "none") return { exact: [], under: [] };
+  if (mode === "@CurrentIteration") return { exact: ["@CurrentIteration"], under: [] };
+  if (mode === "@CurrentIteration+1") return { exact: ["@CurrentIteration + 1"], under: [] };
+  if (mode === "@CurrentIteration-1") return { exact: ["@CurrentIteration - 1"], under: [] };
 
   const raw = assertNotCancelled(
     await text({
@@ -267,8 +306,81 @@ async function promptIterations(): Promise<string[]> {
       },
     }),
   );
-  const specific = Filters.commaSeparated(raw);
-  return mode === "mixed" ? ["@CurrentIteration", ...specific] : specific;
+  const paths = Filters.commaSeparated(raw);
+
+  if (mode === "under") return { exact: [], under: paths };
+  if (mode === "mixed") return { exact: ["@CurrentIteration", ...paths], under: [] };
+  return { exact: paths, under: [] };
+}
+
+async function promptStatesExclude(): Promise<string[]> {
+  const use = assertNotCancelled(
+    await confirm({ message: "Exclude specific states?", initialValue: false }),
+  );
+  if (!use) return [];
+
+  const selected = assertNotCancelled(
+    await multiselect({
+      message: "States to exclude:",
+      options: [
+        { label: "New", value: "New" },
+        { label: "Active", value: "Active" },
+        { label: "Resolved", value: "Resolved" },
+        { label: "Closed", value: "Closed" },
+        { label: "Removed", value: "Removed" },
+        { label: "+ Add custom state", value: "__custom__" },
+      ],
+      required: true,
+    }),
+  );
+
+  let custom: string[] = [];
+  if (selected.includes("__custom__")) {
+    const raw = assertNotCancelled(
+      await text({
+        message: "Custom states to exclude (comma-separated):",
+        placeholder: "e.g. On Hold, Cancelled",
+      }),
+    );
+    custom = Filters.commaSeparated(raw);
+  }
+
+  return [...selected.filter((s) => s !== "__custom__"), ...custom];
+}
+
+async function promptStatesWereEver(): Promise<string[]> {
+  const use = assertNotCancelled(
+    await confirm({ message: "Filter by states the item was ever in?", initialValue: false }),
+  );
+  if (!use) return [];
+
+  const selected = assertNotCancelled(
+    await multiselect({
+      message: "States the item was ever in:",
+      options: [
+        { label: "New", value: "New" },
+        { label: "Active", value: "Active" },
+        { label: "Resolved", value: "Resolved" },
+        { label: "Closed", value: "Closed" },
+        { label: "Removed", value: "Removed" },
+        { label: "+ Add custom state", value: "__custom__" },
+      ],
+      required: true,
+    }),
+  );
+
+  let custom: string[] = [];
+  if (selected.includes("__custom__")) {
+    const raw = assertNotCancelled(
+      await text({
+        message: "Custom states (comma-separated):",
+        placeholder: "e.g. In Review, On Hold",
+      }),
+    );
+    custom = Filters.commaSeparated(raw);
+  }
+
+  return [...selected.filter((s) => s !== "__custom__"), ...custom];
 }
 
 async function promptAssignedTo(): Promise<string[]> {

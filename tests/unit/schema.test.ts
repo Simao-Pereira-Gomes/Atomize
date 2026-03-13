@@ -155,6 +155,63 @@ describe("Schema Validation", () => {
       });
       expect(result.success).toBe(true);
     });
+
+    test("should accept statesExclude", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        statesExclude: ["Closed", "Removed"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept statesWereEver", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        statesWereEver: ["Active", "In Progress"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept areaPathsUnder", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        areaPathsUnder: ["MyProject\\TeamA"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept iterationsUnder", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        iterationsUnder: ["MyProject\\Release 1"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept all new filter fields combined", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        statesExclude: ["Closed"],
+        statesWereEver: ["Active"],
+        areaPathsUnder: ["MyProject\\Backend"],
+        iterationsUnder: ["MyProject\\Release 1"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept optional team override", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        states: ["Active"],
+        team: "Frontend Team",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.team).toBe("Frontend Team");
+      }
+    });
+
+    test("should allow filter without team (team is optional)", () => {
+      const result = FilterCriteriaSchema.safeParse({ states: ["Active"] });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.team).toBeUndefined();
+      }
+    });
   });
 
   describe("TaskDefinitionSchema", () => {

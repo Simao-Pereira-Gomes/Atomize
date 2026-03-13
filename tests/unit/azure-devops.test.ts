@@ -732,6 +732,109 @@ describe("AzureDevOps WIQL Query Building", () => {
     const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@startofmonth-1" });
     expect(wiql).toContain("[System.ChangedDate] >= @StartOfMonth - 1");
   });
+
+  test("should emit NOT IN for excluded states", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      statesExclude: ["Closed", "Removed"],
+    });
+    expect(wiql).toContain("[System.State] NOT IN ('Closed', 'Removed')");
+  });
+
+  test("should emit WAS EVER for a single statesWereEver value", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      statesWereEver: ["Active"],
+    });
+    expect(wiql).toContain("[System.State] WAS EVER 'Active'");
+    expect(wiql).not.toContain("OR");
+  });
+
+  test("should emit OR'd WAS EVER clauses for multiple statesWereEver values", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      statesWereEver: ["Active", "In Progress"],
+    });
+    expect(wiql).toContain("[System.State] WAS EVER 'Active'");
+    expect(wiql).toContain("[System.State] WAS EVER 'In Progress'");
+    expect(wiql).toContain(" OR ");
+  });
+
+  test("should emit UNDER for a single areaPathsUnder value", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      areaPathsUnder: ["MyProject\\TeamA"],
+    });
+    expect(wiql).toContain("[System.AreaPath] UNDER 'MyProject\\TeamA'");
+  });
+
+  test("should emit OR'd UNDER clauses for multiple areaPathsUnder values", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      areaPathsUnder: ["MyProject\\TeamA", "MyProject\\TeamB"],
+    });
+    expect(wiql).toContain("[System.AreaPath] UNDER 'MyProject\\TeamA'");
+    expect(wiql).toContain("[System.AreaPath] UNDER 'MyProject\\TeamB'");
+    expect(wiql).toContain(" OR ");
+  });
+
+  test("should emit UNDER for a single iterationsUnder value", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      iterationsUnder: ["MyProject\\Release 1"],
+    });
+    expect(wiql).toContain("[System.IterationPath] UNDER 'MyProject\\Release 1'");
+  });
+
+  test("should emit OR'd UNDER clauses for multiple iterationsUnder values", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      iterationsUnder: ["MyProject\\Release 1", "MyProject\\Release 2"],
+    });
+    expect(wiql).toContain("[System.IterationPath] UNDER 'MyProject\\Release 1'");
+    expect(wiql).toContain("[System.IterationPath] UNDER 'MyProject\\Release 2'");
+    expect(wiql).toContain(" OR ");
+  });
+});
+
+describe("AzureDevOps team override", () => {
+  test("should use config team when filter has no team", async () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    await adapter.authenticate();
+    await adapter.queryWorkItems({ states: ["Active"] });
+    const call = mockWorkItemTrackingApi.queryByWiql.mock.calls.at(-1) as unknown[];
+    expect((call[1] as { team: string }).team).toBe(validConfig.team);
+  });
+
+  test("should use filter team when provided, overriding config team", async () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    await adapter.authenticate();
+    await adapter.queryWorkItems({ states: ["Active"], team: "OtherTeam" });
+    const call = mockWorkItemTrackingApi.queryByWiql.mock.calls.at(-1) as unknown[];
+    expect((call[1] as { team: string }).team).toBe("OtherTeam");
+  });
+
+  test("should allow @CurrentIteration when team is set only on the filter, overriding config team", async () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    await adapter.authenticate();
+    await adapter.queryWorkItems({ iterations: ["@CurrentIteration"], team: "FilterTeam" });
+    const call = mockWorkItemTrackingApi.queryByWiql.mock.calls.at(-1) as unknown[];
+    expect((call[1] as { team: string }).team).toBe("FilterTeam");
+  });
 });
 
 describe("AzureDevOps excludeIfHasTasks functionality", () => {

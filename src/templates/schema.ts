@@ -32,8 +32,12 @@ export const CustomFieldDefinitionSchema = z.object({
 });
 
 export const FilterCriteriaSchema = z.object({
+  /** Override the team from config for this template's queries (affects @CurrentIteration and @TeamAreas resolution) */
+  team: z.string().optional(),
   workItemTypes: z.array(z.string()).optional(),
   states: z.array(z.string()).optional(),
+  statesExclude: z.array(z.string()).optional(),
+  statesWereEver: z.array(z.string()).optional(),
   tags: z
     .object({
       include: z.array(z.string()).optional(),
@@ -43,9 +47,11 @@ export const FilterCriteriaSchema = z.object({
   areaPaths: z
     .array(z.union([z.string(), z.literal("@TeamAreas")]))
     .optional(),
+  areaPathsUnder: z.array(z.string()).optional(),
   iterations: z
     .array(z.union([z.string(), z.literal("@CurrentIteration")]))
     .optional(),
+  iterationsUnder: z.array(z.string()).optional(),
   assignedTo: z.array(z.union([z.email(), z.literal("@Me")])).optional(),
   changedAfter: z.string().optional(),
   createdAfter: z.string().optional(),
