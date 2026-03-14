@@ -1,0 +1,113 @@
+version: "1.0"
+name: "Advanced Filtering Demo"
+description: |
+  Demonstrates the full range of filter criteria: state exclusion, historical
+  state matching, area/iteration hierarchy traversal, date-based filters, and
+  team override.
+author: "Atomize"
+tags: ["demo", "filtering", "advanced"]
+
+# Each option below is independent — in a real template you would only use
+# the subset that makes sense for your workflow.
+filter:
+  # Override the team configured in AZURE_DEVOPS_TEAM env var
+  team: "Backend Team"
+
+  workItemTypes:
+    - "User Story"
+
+  # Items currently in these states
+  states:
+    - "Active"
+    - "In Progress"
+
+  # Exclude items in these states (complements `states`)
+  statesExclude:
+    - "Done"
+    - "Removed"
+    - "Won't Fix"
+
+  # Items that passed through code review at some point (historical match)
+  statesWereEver:
+    - "In Review"
+
+  tags:
+    include:
+      - "backend"
+    exclude:
+      - "deprecated"
+      - "on-hold"
+
+  # Match items under "MyProject\Backend" and ALL its sub-areas
+  areaPathsUnder:
+    - "MyProject\\Backend"
+
+  # Match items in the current sprint or any sprint under the current release
+  iterations:
+    - "@CurrentIteration"
+  iterationsUnder:
+    - "MyProject\\Release 3"
+
+  # Only items assigned to the person running the command
+  assignedTo:
+    - "@Me"
+
+  # Only items touched in the last 14 days
+  changedAfter: "@Today-14"
+
+  # Only items created in the last 90 days
+  createdAfter: "@Today-90"
+
+  priority:
+    min: 1
+    max: 2
+
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "design"
+    title: "Design: ${story.title}"
+    description: "Technical design and approach"
+    estimationPercent: 15
+    activity: "Design"
+    assignTo: "@ParentAssignee"
+
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    description: "Core implementation"
+    estimationPercent: 55
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+    dependsOn:
+      - "design"
+
+  - id: "tests"
+    title: "Tests"
+    description: "Unit and integration tests"
+    estimationPercent: 20
+    activity: "Testing"
+    dependsOn:
+      - "implement"
+
+  - id: "review"
+    title: "Code Review & Documentation"
+    estimationPercent: 10
+    activity: "Documentation"
+    dependsOn:
+      - "tests"
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  minimumTaskPoints: 0.5
+
+validation:
+  totalEstimationMustBe: 100
+  minTasks: 3
+
+metadata:
+  category: "Demo"
+  difficulty: "beginner"
+  recommendedFor:
+    - "Learning Atomize filter options"
+  estimationGuidelines: "Tasks here are illustrative — adjust percentages to fit your team's workflow."

@@ -11,7 +11,8 @@ import type {
   WorkItem,
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
-import { PlatformError, UnknownError } from "@utils/errors";
+import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
+import { ConfigurationError, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import {
@@ -34,14 +35,49 @@ export interface AzureDevOpsConfig extends PlatformConfig {
   /** Personal Access Token for authentication */
   token: string;
 
-  /** Team (optional) */
-  team?: string;
+  /** Team name (can be overridden per-template via filter.team) */
+  team: string;
 
   /** API version (optional) */
   apiVersion?: string;
 
   /** Maximum concurrent API requests for bulk operations (default: 5) */
   maxConcurrency?: number;
+}
+
+const CURRENT_ITERATION_OFFSET_RE = /^@CurrentIteration\s*([+-])\s*(\d+)$/i;
+const DATE_MACRO_RE =
+  /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(?:\s*([+-])\s*(\d+))?$/i;
+const DATE_MACRO_CANONICAL: Record<string, string> = {
+  "@today": "@Today",
+  "@startofday": "@StartOfDay",
+  "@startofmonth": "@StartOfMonth",
+  "@startofweek": "@StartOfWeek",
+  "@startofyear": "@StartOfYear",
+};
+
+/** Returns the WIQL macro string for an iteration value, or null if it is a real path. */
+function parseIterationMacro(value: string): string | null {
+  if (value === CURRENT_ITERATION) return "@CurrentIteration";
+  const match = value.match(CURRENT_ITERATION_OFFSET_RE);
+  if (match) return `@CurrentIteration ${match[1]} ${match[2]}`;
+  return null;
+}
+
+/** Returns true if the filter uses any team-scoped macros (@CurrentIteration, @TeamAreas). */
+function requiresTeam(filter: FilterCriteria): boolean {
+  if (filter.areaPaths?.includes(TEAM_AREAS)) return true;
+  if (filter.iterations?.some((i) => parseIterationMacro(i) !== null)) return true;
+  return false;
+}
+
+/** Returns the WIQL representation of a date value — macro or quoted literal. */
+function formatDateMacro(value: string): string {
+  const match = value.match(DATE_MACRO_RE);
+  if (!match?.[1]) return `'${value}'`;
+  const canonical = DATE_MACRO_CANONICAL[match[1].toLowerCase()] ?? match[1];
+  if (!match[2] || !match[3]) return canonical;
+  return `${canonical} ${match[2]} ${match[3]}`;
 }
 
 /**
@@ -80,7 +116,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       );
 
       this.connection = new azdev.WebApi(
-        this.config.organizationUrl,
+        this.config.organizationUrl.replace(/\/+$/, ""),
         authHandler
       );
 
@@ -123,9 +159,17 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new UnknownError("Work Item Tracking API not initialized");
       }
 
+      const effectiveTeam = filter.team ?? this.config.team;
+      if (requiresTeam(filter) && !effectiveTeam) {
+        throw new ConfigurationError(
+          "A team is required when using @CurrentIteration or @TeamAreas macros. " +
+          "Set AZURE_DEVOPS_TEAM in your environment or add 'team' to the template filter.",
+        );
+      }
+
       const result = await this.witApi.queryByWiql(
         { query: wiql },
-        { project: this.config.project }
+        { project: this.config.project, team: effectiveTeam },
       );
 
       if (!result.workItems || result.workItems.length === 0) {
@@ -632,10 +676,26 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       conditions.push(`[System.WorkItemType] IN (${types})`);
     }
 
-    // States
+    // States (include)
     if (filter.states && filter.states.length > 0) {
       const states = filter.states.map((s) => `'${s}'`).join(", ");
       conditions.push(`[System.State] IN (${states})`);
+    }
+
+    // States (exclude)
+    if (filter.statesExclude && filter.statesExclude.length > 0) {
+      const states = filter.statesExclude.map((s) => `'${s}'`).join(", ");
+      conditions.push(`[System.State] NOT IN (${states})`);
+    }
+
+    // States (WAS EVER)
+    if (filter.statesWereEver && filter.statesWereEver.length > 0) {
+      const clauses = filter.statesWereEver.map(
+        (s) => `[System.State] WAS EVER '${s}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
     }
 
     // Tags (include)
@@ -655,14 +715,58 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     // Area paths
     if (filter.areaPaths && filter.areaPaths.length > 0) {
-      const paths = filter.areaPaths.map((p) => `'${p}'`).join(", ");
-      conditions.push(`[System.AreaPath] IN (${paths})`);
+      const hasTeamAreas = filter.areaPaths.includes(TEAM_AREAS);
+      const realPaths = filter.areaPaths.filter((p) => p !== TEAM_AREAS);
+
+      if (hasTeamAreas && realPaths.length === 0) {
+        conditions.push(`[System.AreaPath] IN (@TeamAreas)`);
+      } else if (!hasTeamAreas && realPaths.length > 0) {
+        const quoted = realPaths.map((p) => `'${p}'`).join(", ");
+        conditions.push(`[System.AreaPath] IN (${quoted})`);
+      } else if (hasTeamAreas && realPaths.length > 0) {
+        const quoted = realPaths.map((p) => `'${p}'`).join(", ");
+        conditions.push(
+          `([System.AreaPath] IN (${quoted}) OR [System.AreaPath] IN (@TeamAreas))`,
+        );
+      }
+    }
+
+    // Area paths (UNDER)
+    if (filter.areaPathsUnder && filter.areaPathsUnder.length > 0) {
+      const clauses = filter.areaPathsUnder.map(
+        (p) => `[System.AreaPath] UNDER '${p}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
     }
 
     // Iterations
     if (filter.iterations && filter.iterations.length > 0) {
-      const iterations = filter.iterations.map((i) => `'${i}'`).join(", ");
-      conditions.push(`[System.IterationPath] IN (${iterations})`);
+      const iterConditions: string[] = [];
+      const realPaths: string[] = [];
+
+      for (const iter of filter.iterations) {
+        const macro = parseIterationMacro(iter);
+        if (macro) {
+          iterConditions.push(`[System.IterationPath] = ${macro}`);
+        } else {
+          realPaths.push(iter);
+        }
+      }
+
+      if (realPaths.length > 0) {
+        const quoted = realPaths.map((i) => `'${i}'`).join(", ");
+        iterConditions.push(`[System.IterationPath] IN (${quoted})`);
+      }
+
+      if (iterConditions.length > 0) {
+        conditions.push(
+          iterConditions.length === 1
+            ? iterConditions.join("")
+            : `(${iterConditions.join(" OR ")})`,
+        );
+      }
     }
 
     if (filter.assignedTo && filter.assignedTo.length > 0) {
@@ -682,6 +786,29 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
           `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`
         );
       }
+    }
+
+    // Iterations (UNDER)
+    if (filter.iterationsUnder && filter.iterationsUnder.length > 0) {
+      const clauses = filter.iterationsUnder.map(
+        (p) => `[System.IterationPath] UNDER '${p}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
+    }
+
+    // Date filters
+    if (filter.changedAfter) {
+      conditions.push(
+        `[System.ChangedDate] >= ${formatDateMacro(filter.changedAfter)}`,
+      );
+    }
+
+    if (filter.createdAfter) {
+      conditions.push(
+        `[System.CreatedDate] >= ${formatDateMacro(filter.createdAfter)}`,
+      );
     }
 
     // Custom query (if provided, use it instead)

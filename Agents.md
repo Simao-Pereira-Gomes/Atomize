@@ -1,9 +1,3 @@
-# agent.md — Atomize (TypeScript + Bun CLI)
-
-This repository is a **TypeScript + Bun** CLI tool. The goal is: **predictable behavior, strict typing, great UX, and safe releases**.
-
----
-
 ## Non-negotiable (quality gates)
 
 ### TypeScript safety
@@ -19,67 +13,6 @@ This repository is a **TypeScript + Bun** CLI tool. The goal is: **predictable b
 - If a value may be missing, model it (`T | undefined`) and handle it with narrowing or defaults.
 - Use explicit parsing/validation at the boundary (CLI args/env/files).
 
----
-
-## Commit Convention (Semantic Commits — REQUIRED)
-
-All commits **must follow semantic / conventional commit rules**.
-
-Format:
-
-```
-
-type(scope): message
-
-```
-
-Examples:
-
-```
-
-feat(cli): add validate command
-fix(parser): handle empty templates
-refactor(core): simplify task generation logic
-docs(readme): update usage examples
-test(validation): add regression for condition evaluator
-chore(release): bump version
-
-```
-
-### Allowed Types
-
-- `feat` -> new feature
-- `fix` -> bug fix
-- `refactor` -> code change without behavior change
-- `docs` -> documentation only
-- `test` -> tests only
-- `chore` -> tooling / build / deps / config
-- `style` -> formatting only (no logic change)
-
-### Rules
-
-- Use present tense
-- Be concise but descriptive
-- Include scope when meaningful
-- One logical change per commit
-
-**Forbidden**
-
-- `update stuff`
-- `fix things`
-- `misc changes`
-
-### Why this matters
-
-Semantic commits enable:
-
-- predictable changelogs
-- safer releases
-- automated versioning
-- easier debugging & history analysis
-
----
-
 ## Tests are required
 
 Any change that affects behavior must include tests (unit and/or integration).
@@ -93,56 +26,17 @@ CI must be green:
 ## Determinism
 
 - Avoid time/network randomness in unit tests.
-- If using time or randomness, inject it (e.g., `Clock`, `IdGenerator`) or seed it.
+- If using time or randomness, inject it or seed it.
 
----
+## CLI design principles
 
-## Commands (match package.json)
+### Separation of concerns
 
-- Install: `bun install`
-- Run CLI locally: `bun run dev`
-- Build: `bun run build`
-- Validate command: `bun run validate`
-- Typecheck: `bun run typecheck`
-- Lint: `bun run lint` (fix: `bun run lint:fix`)
-- Tests: `bun test`
-  - Unit: `bun run test:unit`
-  - Integration: `bun run test:integration`
-  - Watch: `bun run test:watch`
-  - Coverage: `bun run test:coverage`
-- Sanity check bundle contents: `bun run validate:package`
-- Quick gate: `bun run check`
-
-**Before publishing**
-
-- `bun run build`
-- `bun run validate:package`
-- `bun run test:coverage` (preferred)
-- Ensure the CLI entry is executable (postbuild handles this)
-
----
-
-## CLI design principles (good software practices for a CLI)
-
-### Separation of concerns (no “architecture ceremony”, just sane boundaries)
-
-Keep modules focused and decoupled:
-
-- **commands/**: command definitions + option parsing (Commander / Inquirer)
-- **core/**: pure business logic (template resolution, work item generation, transforms)
-- **io/**: filesystem, env, process, network calls (Azure DevOps API, Gemini, etc.)
-- **validation/**: Zod schemas and parsing (templates, config, env)
-- **logging/**: Winston configuration + helpers
-- **format/**: output formatting, tables, pretty printing, colors
-- **errors/**: typed errors + mapping to exit codes
-
-Rules:
+- Keep modules focused and decoupled
 
 - Core logic should be **testable without touching FS/network/process**.
 - IO modules should be thin wrappers around external libraries.
 - No deep import chains from command handlers into random utilities—keep flows clear.
-
----
 
 ## “Edge validation” rule
 
@@ -151,8 +45,6 @@ Validate **as early as possible** (CLI args, env vars, config files, templates):
 - Parse and validate with **Zod** at the edges.
 - Convert validated inputs into strongly-typed internal objects.
 - Don’t pass raw `process.env` / untyped YAML objects deep into logic.
-
----
 
 ## Exit codes and error UX
 
@@ -164,15 +56,11 @@ Validate **as early as possible** (CLI args, env vars, config files, templates):
   - Show a concise message + next steps.
   - Stack traces only behind `--debug` or `ATOMIZE_DEBUG=1`.
 
----
-
 ## Logging
 
 - Default: user-friendly logs (minimal noise).
 - Debug mode: verbose (include timings, payload sizes, file paths).
 - Never log secrets (PAT tokens, API keys). Redact by default.
-
----
 
 ## No hidden side effects
 
@@ -181,51 +69,16 @@ Validate **as early as possible** (CLI args, env vars, config files, templates):
   - support `--dry-run` where reasonable
   - ask for confirmation if destructive (unless `--yes` is set)
 
----
-
 ## Keep the CLI fast
 
 - Avoid heavy work in module top-level scope.
 - Lazy load expensive dependencies where it improves startup time (optional).
 
----
-
 ## Type safety rules (examples)
 
-### Non-null assertions are forbidden
+- Non-null assertions are forbidden
 
-**Bad**
-
-```ts
-const org = process.env.AZDO_ORG!;
-```
-
-**Good**
-
-```ts
-const org = process.env.AZDO_ORG;
-if (!org)
-  return failUser("Missing AZDO_ORG. Set it in .env or environment variables.");
-```
-
----
-
-## Prefer `unknown` + narrowing
-
-**Bad**
-
-```ts
-const data: any = YAML.parse(text);
-```
-
-**Good**
-
-```ts
-const data: unknown = YAML.parse(text);
-const parsed = TemplateSchema.parse(data);
-```
-
----
+- Prefer `unknown` + narrowing
 
 ## Testing strategy (Bun test)
 
@@ -255,61 +108,3 @@ Test command flows end-to-end with fixtures:
 - read template files
 - validate presets/examples
 - run `validate` command on sample inputs
-- ensure outputs match snapshots / expected structures
-
----
-
-## Linting & formatting (Biome)
-
-- Run `bun run lint` before pushing.
-- Use `bun run lint:fix` to auto-fix.
-- Prefer clarity over cleverness.
-- Avoid long functions; refactor when a function has multiple responsibilities.
-
----
-
-## Release / publishing checks (npm)
-
-Before merging a release PR:
-
-- [ ] version bumped (semver)
-- [ ] `bun run build` passes
-- [ ] `bun run validate:package` passes
-- [ ] `bun run check` passes
-- [ ] README updated if CLI flags/behavior changed
-- [ ] no secrets in docs/examples
-
----
-
-## Contributing checklist
-
-Before opening a PR:
-
-- [ ] No implicit `any`
-- [ ] No `!` non-null assertions
-- [ ] Inputs validated at boundaries (Zod)
-- [ ] Helpful error messages + correct exit codes
-- [ ] Unit tests added/updated
-- [ ] Integration tests updated if CLI output/behavior changed
-- [ ] `bun run typecheck && bun run lint && bun test` all pass
-
----
-
-## Quick “where does this go?” guide
-
-- parsing/validation of templates/config/env → `validation/` (Zod)
-- core task generation logic → `core/`
-- Azure DevOps calls → `io/azure-devops/`
-- Gemini calls → `io/ai/`
-- CLI commands/options/prompts → `commands/`
-- output formatting & display → `format/`
-- logging setup & redaction → `logging/`
-- errors + exit codes → `errors/`
-
----
-
-## Defaults we assume
-
-- Node >= 18 (see package.json engines)
-- Bun test runner
-- ESM modules (`"type": "module"`)

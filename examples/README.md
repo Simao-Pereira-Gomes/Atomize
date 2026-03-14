@@ -11,6 +11,7 @@ Real-world Atomize template examples. Each file is a working template you can va
 | [`fullstack.yaml`](#fullstackyaml) | Combined backend + frontend with a branching task graph |
 | [`conditional-dependencies-template.yaml`](#conditional-dependencies-templateyaml) | Conditional tasks — tasks that only appear when a story meets specific criteria |
 | [`conditional-percentage-template.yaml`](#conditional-percentage-templateyaml) | Conditional estimation — task weights that adapt to story size and tags |
+| [`advanced-filtering.yaml`](#advanced-filteringyaml) | Full filter criteria showcase: state exclusion, historical states, area/iteration hierarchy, date filters, team override |
 
 ---
 
@@ -155,6 +156,36 @@ All totals are normalized to exactly 100% at generation time.
 ```bash
 atomize validate examples/conditional-percentage-template.yaml
 atomize generate examples/conditional-percentage-template.yaml --platform mock --dry-run
+```
+
+---
+
+## advanced-filtering.yaml
+
+A reference template that demonstrates every available filter option. Use it as a starting point when you need precise control over which work items Atomize processes.
+
+**Key features shown:**
+
+| Filter | What it does |
+|--------|-------------|
+| `team` | Overrides the `AZURE_DEVOPS_TEAM` env var for this template |
+| `statesExclude` | Excludes items in `Done`, `Removed`, or `Won't Fix` |
+| `statesWereEver` | Matches items that passed through `In Review` historically |
+| `areaPathsUnder` | Matches `MyProject\Backend` **and all sub-areas** (hierarchy traversal) |
+| `iterationsUnder` | Matches all sprints under `Release 3` (not just one sprint) |
+| `changedAfter` | Only items touched in the last 14 days (`@Today-14`) |
+| `createdAfter` | Only items created in the last 90 days (`@Today-90`) |
+
+**Supported `@Today` macro syntax:**
+- `@Today` — start of today
+- `@Today-N` — N days in the past (e.g. `@Today-7`)
+- `@Today+N` — N days in the future
+- Also: `@StartOfWeek`, `@StartOfMonth`, `@StartOfYear` (with optional offsets)
+
+**Try it:**
+```bash
+atomize validate examples/advanced-filtering.yaml
+atomize generate examples/advanced-filtering.yaml --platform mock --dry-run
 ```
 
 ---

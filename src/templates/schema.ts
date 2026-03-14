@@ -32,17 +32,29 @@ export const CustomFieldDefinitionSchema = z.object({
 });
 
 export const FilterCriteriaSchema = z.object({
+  /** Override the team from config for this template's queries (affects @CurrentIteration and @TeamAreas resolution) */
+  team: z.string().optional(),
   workItemTypes: z.array(z.string()).optional(),
   states: z.array(z.string()).optional(),
+  statesExclude: z.array(z.string()).optional(),
+  statesWereEver: z.array(z.string()).optional(),
   tags: z
     .object({
       include: z.array(z.string()).optional(),
       exclude: z.array(z.string()).optional(),
     })
     .optional(),
-  areaPaths: z.array(z.string()).optional(),
-  iterations: z.array(z.string()).optional(),
+  areaPaths: z
+    .array(z.union([z.string(), z.literal("@TeamAreas")]))
+    .optional(),
+  areaPathsUnder: z.array(z.string()).optional(),
+  iterations: z
+    .array(z.union([z.string(), z.literal("@CurrentIteration")]))
+    .optional(),
+  iterationsUnder: z.array(z.string()).optional(),
   assignedTo: z.array(z.union([z.email(), z.literal("@Me")])).optional(),
+  changedAfter: z.string().optional(),
+  createdAfter: z.string().optional(),
   priority: z
     .object({
       min: z.number().optional(),
@@ -477,6 +489,15 @@ function reportCircularDependencies(
     });
   }
 }
+
+export const CURRENT_ITERATION = "@CurrentIteration" as const;
+export const TEAM_AREAS = "@TeamAreas" as const;
+export const TODAY = "@Today" as const;
+export const START_OF_DAY = "@StartOfDay" as const;
+export const START_OF_WEEK = "@StartOfWeek" as const;
+export const START_OF_MONTH = "@StartOfMonth" as const;
+export const START_OF_YEAR = "@StartOfYear" as const;
+export const ME = "@Me" as const;
 
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;

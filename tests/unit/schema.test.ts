@@ -104,6 +104,114 @@ describe("Schema Validation", () => {
       const result = FilterCriteriaSchema.safeParse(filter);
       expect(result.success).toBe(false);
     });
+
+    test("should accept @CurrentIteration as a valid iterations value", () => {
+      const filter = {
+        iterations: ["@CurrentIteration"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept mixed @CurrentIteration and real iteration paths", () => {
+      const filter = {
+        iterations: ["@CurrentIteration", "MyProject\\Sprint 1"],
+      };
+
+      const result = FilterCriteriaSchema.safeParse(filter);
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept @TeamAreas as a valid areaPaths value", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        areaPaths: ["@TeamAreas"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept mixed @TeamAreas and real area paths", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        areaPaths: ["@TeamAreas", "MyProject\\Backend"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept @Today macro in changedAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({ changedAfter: "@Today" });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept @Today offset in changedAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        changedAfter: "@Today-7",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept literal date in createdAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        createdAfter: "2026-01-01",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept statesExclude", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        statesExclude: ["Closed", "Removed"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept statesWereEver", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        statesWereEver: ["Active", "In Progress"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept areaPathsUnder", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        areaPathsUnder: ["MyProject\\TeamA"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept iterationsUnder", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        iterationsUnder: ["MyProject\\Release 1"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept all new filter fields combined", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        statesExclude: ["Closed"],
+        statesWereEver: ["Active"],
+        areaPathsUnder: ["MyProject\\Backend"],
+        iterationsUnder: ["MyProject\\Release 1"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept optional team override", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        states: ["Active"],
+        team: "Frontend Team",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.team).toBe("Frontend Team");
+      }
+    });
+
+    test("should allow filter without team (team is optional)", () => {
+      const result = FilterCriteriaSchema.safeParse({ states: ["Active"] });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.team).toBeUndefined();
+      }
+    });
   });
 
   describe("TaskDefinitionSchema", () => {

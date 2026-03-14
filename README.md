@@ -363,12 +363,14 @@ Atomize supports two free AI providers:
    export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
    export AZURE_DEVOPS_PROJECT="YourProject"
    export AZURE_DEVOPS_PAT="your-personal-access-token"
+   export AZURE_DEVOPS_TEAM="YourTeam"
    ```
    For Windows
     ```bash
    set AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
    set AZURE_DEVOPS_PROJECT="YourProject"
    set AZURE_DEVOPS_PAT="your-personal-access-token"
+   set AZURE_DEVOPS_TEAM="YourTeam"
    ```
 
 4. **Or Use Interactive Setup**
@@ -453,14 +455,21 @@ atomize generate team-templates/backend-standard.yaml --execute
 
 ```yaml
 filter:
+  team: "Backend Team"                    # Override team (replaces AZURE_DEVOPS_TEAM env var)
   workItemTypes: ["User Story", "Bug"]
   states: ["New", "Approved"]
+  statesExclude: ["Done", "Removed"]      # Exclude items in these states
+  statesWereEver: ["In Review"]           # Items that were ever in these states
   tags:
     include: ["backend"]
     exclude: ["deprecated"]
-  areaPaths: ["MyProject\\Backend\\API"]
-  iterations: ["Sprint 23", "Sprint 24"]
-  assignedTo: ["john@company.com", "jane@company.com"]
+  areaPaths: ["MyProject\\Backend\\API"]  # Exact match
+  areaPathsUnder: ["MyProject\\Backend"]  # Match and all sub-areas
+  iterations: ["@CurrentIteration"]       # Current sprint
+  iterationsUnder: ["MyProject\\Release 2"] # All sprints under a release
+  assignedTo: ["@Me", "jane@company.com"]
+  changedAfter: "@Today-7"               # Changed in the last 7 days
+  createdAfter: "@Today-30"              # Created in the last 30 days
   priority:
     min: 1
     max: 2

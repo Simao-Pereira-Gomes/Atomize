@@ -39,7 +39,7 @@ export function createAzureDevOpsConfig(
   organizationUrl: string,
   project: string,
   token: string,
-  team?: string,
+  team: string,
 ): AzureDevOpsConfig {
   const config: AzureDevOpsConfig = {
     type: "azure-devops",
@@ -63,6 +63,7 @@ export function getMissingAzureEnvVars(): string[] {
   if (!process.env.AZURE_DEVOPS_ORG_URL) missing.push("AZURE_DEVOPS_ORG_URL");
   if (!process.env.AZURE_DEVOPS_PROJECT) missing.push("AZURE_DEVOPS_PROJECT");
   if (!process.env.AZURE_DEVOPS_PAT) missing.push("AZURE_DEVOPS_PAT");
+  if (!process.env.AZURE_DEVOPS_TEAM) missing.push("AZURE_DEVOPS_TEAM");
   return missing;
 }
 
@@ -91,12 +92,14 @@ export function loadFromEnv(): AzureDevOpsConfig {
     );
   }
 
-  return createAzureDevOpsConfig(
-    organizationUrl,
-    project,
-    token,
-    process.env.AZURE_DEVOPS_TEAM,
-  );
+  const team = process.env.AZURE_DEVOPS_TEAM;
+  if (!team) {
+    throw new ConfigurationError(
+      "AZURE_DEVOPS_TEAM environment variable is required. Example: MyTeam",
+    );
+  }
+
+  return createAzureDevOpsConfig(organizationUrl, project, token, team);
 }
 
 /**
@@ -137,17 +140,16 @@ export async function promptForConfig(): Promise<AzureDevOpsConfig> {
 
   const team = assertNotCancelled(
     await text({
-      message: "Team name (optional):",
+      message: "Team name:",
       placeholder: "e.g. Project Team, MyTeam",
+      validate: (input): string | undefined => {
+        if (!input || input.trim() === "") return "Team name is required";
+        return undefined;
+      },
     }),
   );
 
-  return createAzureDevOpsConfig(
-    organizationUrl,
-    project,
-    token,
-    team || undefined,
-  );
+  return createAzureDevOpsConfig(organizationUrl, project, token, team);
 }
 
 /**
