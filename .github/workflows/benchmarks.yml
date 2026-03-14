@@ -40,16 +40,20 @@ jobs:
           const fs = require('fs');
           const output = JSON.parse(fs.readFileSync('benchmark-output.json', 'utf8'));
           const results = [];
+          console.log('Raw benchmark output:', JSON.stringify(output, null, 2));
 
           for (const bench of output.benchmarks || []) {
-            for (const run of bench.runs || []) {
-              const name = run.name;
-              const stats = run.stats;
+            const name = bench.alias || bench.name;
+            const runs = bench.runs || [];
+
+            for (let i = 0; i < runs.length; i++) {
+              const stats = runs[i]?.stats;
+              const runName = runs.length > 1 ? `${name} (run ${i + 1})` : name;
 
               // Use avg time in ns (smaller is better)
               if (stats?.avg !== undefined) {
                 results.push({
-                  name: name,
+                  name: runName,
                   unit: 'ns',
                   value: stats.avg
                 });
