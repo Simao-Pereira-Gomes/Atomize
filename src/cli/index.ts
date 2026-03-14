@@ -5,6 +5,7 @@ dotenv.config({ override: true });
 
 import chalk from "chalk";
 import { Command } from "commander";
+import { authCommand } from "./commands/auth/auth.command";
 import { generateCommand } from "./commands/generate.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
@@ -27,6 +28,7 @@ ${chalk.gray("Break down stories, build up velocity.")}
 `;
 
 program.addHelpText("beforeAll", banner);
+program.addCommand(authCommand);
 program.addCommand(validateCommand);
 program.addCommand(generateCommand);
 program.addCommand(templateCommand);
