@@ -67,15 +67,15 @@ jobs:
 
       - name: Initialize gh-pages branch if needed
         run: |
-          git fetch origin gh-pages || (
-            git config user.email "github-actions[bot]@users.noreply.github.com" &&
-            git config user.name "github-actions[bot]" &&
-            git checkout --orphan gh-pages &&
-            git rm -rf . &&
-            git commit --allow-empty -m "Initialize gh-pages" &&
-            git push origin gh-pages &&
-            git checkout -
-          )
+          if ! git fetch origin gh-pages; then
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git checkout --orphan gh-pages
+            git rm -rf .
+            git commit --allow-empty -m "Initialize gh-pages"
+            git push origin gh-pages
+            git checkout main
+          fi
 
       - name: Store benchmark results
         uses: benchmark-action/github-action-benchmark@v1
