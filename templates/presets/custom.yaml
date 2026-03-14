@@ -1,6 +1,6 @@
 version: "1.0"
 name: " Custom Example"
-description: "Example template for an Agile project"
+description: "Example template for an Agile project. Handles dev stories, mixed dev+test stories, and test-only stories in a single template using conditional tasks and conditional estimation."
 author: "Atomize"
 tags: []
 
@@ -8,8 +8,8 @@ filter:
   workItemTypes: ["User Story"]
   states: ["Ready for Sprint"]
   tags:
-    include:
-      - "Candidate S117"
+    exclude:
+      - "TestGen"
   excludeIfHasTasks: true
   areaPaths:
     - EA-RSP-Platform\Release 2 Team
@@ -22,52 +22,55 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
   - title: "Build"
     estimationPercent: 50
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
   - title: "Developer Test"
     estimationPercent: 25
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
   - title: "QA Smoke Test"
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
   - title: "Wiki"
     estimationPercent: 5
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
   - title: "Code Review "
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@Unassigned"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
   - title: "Physical Data Model Updated"
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
   - title: "Test Preparation"
     estimationPercent: 40
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "Testing Only" OR ${story.tags} CONTAINS "Test Only"'
+        percent: 59.70
     activity: "Testing"
     tags: []
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
@@ -75,6 +78,9 @@ tasks:
 
   - title: "Test Execution"
     estimationPercent: 27
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "Testing Only" OR ${story.tags} CONTAINS "Test Only"'
+        percent: 40.30
     activity: "Testing"
     tags: []
     condition: '${story.tags} NOT CONTAINS "Dev Only"'
@@ -106,7 +112,7 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only"'
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
 
 estimation:
   strategy: "percentage"
@@ -116,4 +122,9 @@ estimation:
 metadata:
   category: "Agile Project"
   recommendedFor: []
-  estimationGuidelines: "Based on possible Agile project workflow"
+  estimationGuidelines: |
+    Handles three story archetypes in one template:
+    - Dev and Test story (no special tag): dev tasks + test tasks, base percentages apply.
+    - Testing Only / Test Only story: dev tasks skipped; Test Preparation gets 59.70%
+      and Test Execution gets 40.30%.
+    - Dev Only story: test tasks skipped
