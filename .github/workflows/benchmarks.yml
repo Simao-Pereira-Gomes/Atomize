@@ -36,24 +36,24 @@ jobs:
       - name: Process benchmark results
         id: process
         run: |
-          # Convert mitata JSON output to benchmark-action compatible format
           node << 'EOF'
           const fs = require('fs');
           const output = JSON.parse(fs.readFileSync('benchmark-output.json', 'utf8'));
           const results = [];
 
-          // mitata JSON format has benchmarks array with stats
           for (const bench of output.benchmarks || []) {
-            const name = bench.name || bench.alias;
-            const stats = bench.stats || bench;
+            for (const run of bench.runs || []) {
+              const name = run.name;
+              const stats = run.stats;
 
-            // Use avg time (smaller is better)
-            if (stats.avg !== undefined) {
-              results.push({
-                name: name,
-                unit: 'ns',
-                value: stats.avg
-              });
+              // Use avg time in ns (smaller is better)
+              if (stats?.avg !== undefined) {
+                results.push({
+                  name: name,
+                  unit: 'ns',
+                  value: stats.avg
+                });
+              }
             }
           }
 
@@ -66,11 +66,11 @@ jobs:
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Atomize Benchmarks
-          tool: 'customSmallerIsBetter'
+          tool: "customSmallerIsBetter"
           output-file-path: benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          alert-threshold: '150%'
+          alert-threshold: "150%"
           comment-on-alert: true
           fail-on-alert: false
           benchmark-data-dir-path: docs/benchmarks
