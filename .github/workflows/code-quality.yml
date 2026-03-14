@@ -10,6 +10,8 @@ on:
       - main
       - "release/**"
 
+permissions: {}
+
 env:
   AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
   AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
@@ -19,6 +21,8 @@ jobs:
   lint-and-format:
     name: Lint & Format
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -39,6 +43,8 @@ jobs:
   test-quality:
     name: Test Quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -72,6 +78,8 @@ jobs:
   build-quality:
     name: Build Quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -107,6 +115,8 @@ jobs:
   cli-performance:
     name: CLI Performance
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
