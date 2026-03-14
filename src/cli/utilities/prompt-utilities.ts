@@ -8,6 +8,7 @@ import {
   text,
 } from "@clack/prompts";
 import z from "zod";
+import { ExitCode } from "@/cli/utilities/exit-codes";
 
 /** Returns true when running in a real interactive terminal (not piped/CI). */
 export function isInteractiveTerminal(): boolean {
@@ -23,7 +24,7 @@ const emailSchema = z.string().email();
 export function assertNotCancelled<T>(value: T): Exclude<T, symbol> {
   if (isCancel(value)) {
     cancel("Operation cancelled.");
-    process.exit(0);
+    process.exit(ExitCode.Success);
   }
   return value as Exclude<T, symbol>;
 }
