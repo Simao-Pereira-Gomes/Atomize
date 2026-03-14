@@ -10,6 +10,7 @@ import {
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
+import { ExitCode } from "@/cli/utilities/exit-codes";
 import { isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 import type {
   TaskDefinition,
@@ -50,10 +51,10 @@ export const validateCommand = new Command("validate")
 
       printValidationResult(template, result, options.quiet);
       outro(result.valid ? "Validation complete ✓" : "Validation failed");
-      if (!result.valid) process.exit(1);
+      if (!result.valid) process.exit(ExitCode.Failure);
     } catch (error) {
       handleFatal(error, options.verbose);
-      process.exit(1);
+      process.exit(ExitCode.Failure);
     }
   });
 

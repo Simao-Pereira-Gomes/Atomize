@@ -1,6 +1,7 @@
 import { PresetManager } from "@services/template/preset-manager";
 import chalk from "chalk";
 import { Command } from "commander";
+import { ExitCode } from "@/cli/utilities/exit-codes";
 
 export const templateListCommand = new Command("list")
   .alias("ls")
@@ -35,6 +36,6 @@ export const templateListCommand = new Command("list")
           `\nError: ${error instanceof Error ? error.message : String(error)}\n`
         )
       );
-      process.exit(1);
+      process.exit(ExitCode.Failure);
     }
   });
