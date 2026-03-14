@@ -7,10 +7,10 @@ import { PlatformError } from "@utils/errors";
 
 const validConfig: AzureDevOpsConfig = {
   type: "azure-devops",
-  organizationUrl: Bun.env.AZURE_DEVOPS_ORG_URL || "https://dev.azure.com/test",
-  project: Bun.env.AZURE_DEVOPS_PROJECT || "SampleProject",
-  token: Bun.env.AZURE_DEVOPS_PAT || "test-token",
-  team: Bun.env.AZURE_DEVOPS_TEAM || "TestTeam",
+  organizationUrl: "https://dev.azure.com/test",
+  project: "SampleProject",
+  token: "test-token",
+  team: "TestTeam",
 };
 
 // Mock Azure DevOps API
