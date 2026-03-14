@@ -65,6 +65,16 @@ jobs:
           console.log(JSON.stringify(results, null, 2));
           EOF
 
+      - name: Initialize gh-pages branch if needed
+        run: |
+          git fetch origin gh-pages || (
+            git checkout --orphan gh-pages &&
+            git rm -rf . &&
+            git commit --allow-empty -m "Initialize gh-pages" &&
+            git push origin gh-pages &&
+            git checkout -
+          )
+
       - name: Store benchmark results
         uses: benchmark-action/github-action-benchmark@v1
         with:
