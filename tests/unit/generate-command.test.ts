@@ -13,15 +13,18 @@ describe("getMissingAzureEnvVars", () => {
   let savedOrg: string | undefined;
   let savedProject: string | undefined;
   let savedPat: string | undefined;
+  let savedTeam: string | undefined;
 
   beforeEach(() => {
     savedOrg = process.env.AZURE_DEVOPS_ORG_URL;
     savedProject = process.env.AZURE_DEVOPS_PROJECT;
     savedPat = process.env.AZURE_DEVOPS_PAT;
+    savedTeam = process.env.AZURE_DEVOPS_TEAM;
 
     delete process.env.AZURE_DEVOPS_ORG_URL;
     delete process.env.AZURE_DEVOPS_PROJECT;
     delete process.env.AZURE_DEVOPS_PAT;
+    delete process.env.AZURE_DEVOPS_TEAM;
   });
 
   afterEach(() => {
@@ -34,43 +37,56 @@ describe("getMissingAzureEnvVars", () => {
 
     if (savedPat !== undefined) process.env.AZURE_DEVOPS_PAT = savedPat;
     else delete process.env.AZURE_DEVOPS_PAT;
+
+    if (savedTeam !== undefined) process.env.AZURE_DEVOPS_TEAM = savedTeam;
+    else delete process.env.AZURE_DEVOPS_TEAM;
   });
 
   test("returns an empty array when all required env vars are present", () => {
     process.env.AZURE_DEVOPS_ORG_URL = "https://dev.azure.com/myorg";
     process.env.AZURE_DEVOPS_PROJECT = "MyProject";
     process.env.AZURE_DEVOPS_PAT = "my-pat-token";
+    process.env.AZURE_DEVOPS_TEAM = "MyTeam";
 
     expect(getMissingAzureEnvVars()).toEqual([]);
   });
 
-  test("returns all three variable names when none are set", () => {
+  test("returns all four variable names when none are set", () => {
     const missing = getMissingAzureEnvVars();
     expect(missing).toContain("AZURE_DEVOPS_ORG_URL");
     expect(missing).toContain("AZURE_DEVOPS_PROJECT");
     expect(missing).toContain("AZURE_DEVOPS_PAT");
-    expect(missing).toHaveLength(3);
+    expect(missing).toContain("AZURE_DEVOPS_TEAM");
+    expect(missing).toHaveLength(4);
   });
 
-  test("returns only AZURE_DEVOPS_PAT when ORG_URL and PROJECT are set", () => {
+  test("returns only AZURE_DEVOPS_PAT and AZURE_DEVOPS_TEAM when ORG_URL and PROJECT are set", () => {
     process.env.AZURE_DEVOPS_ORG_URL = "https://dev.azure.com/myorg";
     process.env.AZURE_DEVOPS_PROJECT = "MyProject";
 
-    expect(getMissingAzureEnvVars()).toEqual(["AZURE_DEVOPS_PAT"]);
+    expect(getMissingAzureEnvVars()).toEqual(["AZURE_DEVOPS_PAT", "AZURE_DEVOPS_TEAM"]);
   });
 
-  test("returns only AZURE_DEVOPS_ORG_URL when PROJECT and PAT are set", () => {
+  test("returns only AZURE_DEVOPS_ORG_URL and AZURE_DEVOPS_TEAM when PROJECT and PAT are set", () => {
     process.env.AZURE_DEVOPS_PROJECT = "MyProject";
     process.env.AZURE_DEVOPS_PAT = "my-pat-token";
 
-    expect(getMissingAzureEnvVars()).toEqual(["AZURE_DEVOPS_ORG_URL"]);
+    expect(getMissingAzureEnvVars()).toEqual(["AZURE_DEVOPS_ORG_URL", "AZURE_DEVOPS_TEAM"]);
   });
 
-  test("returns only AZURE_DEVOPS_PROJECT when ORG_URL and PAT are set", () => {
+  test("returns only AZURE_DEVOPS_PROJECT and AZURE_DEVOPS_TEAM when ORG_URL and PAT are set", () => {
     process.env.AZURE_DEVOPS_ORG_URL = "https://dev.azure.com/myorg";
     process.env.AZURE_DEVOPS_PAT = "my-pat-token";
 
-    expect(getMissingAzureEnvVars()).toEqual(["AZURE_DEVOPS_PROJECT"]);
+    expect(getMissingAzureEnvVars()).toEqual(["AZURE_DEVOPS_PROJECT", "AZURE_DEVOPS_TEAM"]);
+  });
+
+  test("returns only AZURE_DEVOPS_TEAM when ORG_URL, PROJECT, and PAT are set", () => {
+    process.env.AZURE_DEVOPS_ORG_URL = "https://dev.azure.com/myorg";
+    process.env.AZURE_DEVOPS_PROJECT = "MyProject";
+    process.env.AZURE_DEVOPS_PAT = "my-pat-token";
+
+    expect(getMissingAzureEnvVars()).toEqual(["AZURE_DEVOPS_TEAM"]);
   });
 
   test("preserves declaration order in the returned array", () => {
@@ -79,6 +95,7 @@ describe("getMissingAzureEnvVars", () => {
       "AZURE_DEVOPS_ORG_URL",
       "AZURE_DEVOPS_PROJECT",
       "AZURE_DEVOPS_PAT",
+      "AZURE_DEVOPS_TEAM",
     ];
     expect(missing).toEqual(expectedOrder);
   });
