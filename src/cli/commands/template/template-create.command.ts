@@ -8,7 +8,6 @@ import {
   getAIConfig,
   getAIConfigForProvider,
 } from "@config/ai.config";
-import { getAzureDevOpsConfigInteractive } from "@config/azure-devops.config";
 import { logger } from "@config/logger";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { AIGeneratorFactory } from "@services/template/ai-factory";
@@ -19,6 +18,7 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
+import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   isInteractiveTerminal,
@@ -64,6 +64,7 @@ interface CreateOptions {
   apiKey?: string;
   model?: string;
   platform?: string;
+  profile?: string;
   normalize?: boolean;
   quiet?: boolean;
 }
@@ -79,11 +80,8 @@ export const templateCreateCommand = new Command("create")
     "--from-stories <ids>",
     "Learn template from multiple stories (comma-separated IDs)",
   )
-  .option(
-    "-p, --platform <platform>",
-    "Platform to use",
-    "azure-devops",
-  )
+  .option("-p, --platform <platform>", "Platform to use", "azure-devops")
+  .option("--profile <name>", "Named connection profile to use")
   .option("--normalize", "Normalize task estimation percentages to sum to 100%")
   .option("--no-normalize", "Keep original estimation percentages")
   .option("--scratch", "Create from scratch (skip mode selection)")
@@ -136,7 +134,7 @@ export const templateCreateCommand = new Command("create")
         console.log(chalk.red(error.message));
       }
 
-      process.exit(1);
+      process.exit(ExitCode.Failure);
     }
   });
 
@@ -146,7 +144,7 @@ export const templateCreateCommand = new Command("create")
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
   if (options.ai) {
     cancel("AI generation is temporarily disabled.");
-    process.exit(1);
+    process.exit(ExitCode.Failure);
   }
   if (options.preset) return "preset";
   if (options.fromStories) return "stories";
@@ -186,7 +184,7 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
   cancel(
     "--no-interactive requires a mode flag: --ai <prompt>, --preset <name>, or --from-stories <ids>",
   );
-  process.exit(1);
+  process.exit(ExitCode.Failure);
 }
 
 /**
@@ -447,7 +445,8 @@ async function createFromStories(
 
   let platform: IPlatformAdapter | null = null;
   if (platformType === "azure-devops") {
-    const config = await getAzureDevOpsConfigInteractive();
+    const { resolveAzureConfig } = await import("@config/profile-resolver");
+    const config = await resolveAzureConfig(options.profile);
     platform = PlatformFactory.create("azure-devops", config);
   } else {
     platform = PlatformFactory.create(platformType as PlatformType);
