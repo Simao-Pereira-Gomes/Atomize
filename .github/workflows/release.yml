@@ -22,6 +22,8 @@ on:
         type: boolean
         default: false
 
+permissions: {}
+
 env:
   AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
   AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
