@@ -10,11 +10,6 @@ on:
       - main
 permissions: {}
 
-env:
-  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
-  AZURE_DEVOPS_TEAM: ${{ secrets.AZURE_DEVOPS_TEAM }}
 jobs:
   test:
     name: Test & Lint (${{ matrix.os }}, node ${{ matrix.node-version }})
