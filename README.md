@@ -125,6 +125,7 @@ atomize generate templates/backend-api.yaml \
 
 **Key Options:**
 - `--platform <type>` - Platform: `azure-devops` or `mock`
+- `--profile <name>` - Named connection profile to use (see `atomize auth add`)
 - `--execute` - Actually create tasks (default is dry-run preview)
 - `--dry-run` - Preview without creating tasks
 - `--continue-on-error` - Keep processing if errors occur
@@ -358,26 +359,28 @@ Atomize supports two free AI providers:
    - Go to: `https://dev.azure.com/[your-org]/_usersSettings/tokens`
    - Create token with `Work Items (Read, Write)` scope
 
-2. **Configure Environment Variables**
+2. **Save a connection profile**
    ```bash
-   export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
-   export AZURE_DEVOPS_PROJECT="YourProject"
-   export AZURE_DEVOPS_PAT="your-personal-access-token"
-   export AZURE_DEVOPS_TEAM="YourTeam"
-   ```
-   For Windows
-    ```bash
-   set AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
-   set AZURE_DEVOPS_PROJECT="YourProject"
-   set AZURE_DEVOPS_PAT="your-personal-access-token"
-   set AZURE_DEVOPS_TEAM="YourTeam"
+   atomize auth add work-ado
+   # Prompts for org URL, project, team, and PAT
    ```
 
-4. **Or Use Interactive Setup**
+3. **Test the connection**
    ```bash
-   atomize generate templates/backend-api.yaml
-   # CLI will prompt for configuration
+   atomize auth test work-ado
    ```
+
+4. **Generate tasks**
+   ```bash
+   # Use the profile explicitly
+   atomize generate templates/backend-api.yaml --profile work-ado
+
+   # Or set it as default once
+   atomize auth use work-ado
+   atomize generate templates/backend-api.yaml
+   ```
+
+See `atomize auth --help` for all profile management commands (`list`, `remove`, `rotate`).
 
 ### Mock Platform (Testing)
 
@@ -526,11 +529,17 @@ bun run build
 ### "Not authenticated" error
 
 ```bash
-# Check environment variables are set
-echo $AZURE_DEVOPS_PAT
+# Check what profiles are saved
+atomize auth list
 
-# Or use interactive mode (will prompt)
-atomize generate templates/backend-api.yaml
+# Add a profile if none exist
+atomize auth add work-ado
+
+# Test the profile
+atomize auth test work-ado
+
+# Use it explicitly
+atomize generate templates/backend-api.yaml --profile work-ado
 ```
 
 ### "Template validation failed"

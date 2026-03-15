@@ -106,22 +106,22 @@ Tasks created:     0 (dry run)
 
 ### Step 2: Connect to Azure DevOps
 
-```bash
-# Set up environment variables
-export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/yourorg"
-export AZURE_DEVOPS_PROJECT="YourProject"
-export AZURE_DEVOPS_PAT="your-personal-access-token"
+Save your credentials as a named profile:
 
-# Or create a .env file
-cat > .env << EOF
-AZURE_DEVOPS_ORG_URL=https://dev.azure.com/yourorg
-AZURE_DEVOPS_PROJECT=YourProject
-AZURE_DEVOPS_PAT=your-pat-token
-EOF
+```bash
+atomize auth add work-ado
+# Prompts for org URL, project, team, and PAT
+# Set as default when prompted
 ```
 
 **Get a PAT:** `https://dev.azure.com/[your-org]/_usersSettings/tokens`
 **Scopes needed:** Work Items (Read, Write)
+
+Test the connection before generating:
+
+```bash
+atomize auth test work-ado
+```
 
 ### Step 3: Generate Real Tasks
 
@@ -450,11 +450,16 @@ jobs:
             atomize validate "$template" --strict --quiet
           done
 
+      - name: Save connection profile
+        run: |
+          atomize auth add ci \
+            --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
+            --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
+            --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
+            --pat "${{ secrets.AZURE_DEVOPS_PAT }}" \
+            --default
+
       - name: Generate Tasks
-        env:
-          AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-          AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
           atomize generate templates/backend-api.yaml \
             --execute \
@@ -485,16 +490,22 @@ jobs:
 ### "Authentication failed"
 
 **Solutions:**
-1. Verify environment variables:
+1. Check what profiles are saved:
    ```bash
-   echo $AZURE_DEVOPS_ORG_URL
-   echo $AZURE_DEVOPS_PROJECT
-   echo $AZURE_DEVOPS_PAT
+   atomize auth list
    ```
 
-2. Check PAT hasn't expired
+2. Test the profile:
+   ```bash
+   atomize auth test work-ado
+   ```
 
-3. Verify PAT has Work Items (Read, Write) scope
+3. If the PAT has expired, rotate it:
+   ```bash
+   atomize auth rotate work-ado
+   ```
+
+4. Verify PAT has Work Items (Read, Write) scope
 
 ### "Validation failed"
 

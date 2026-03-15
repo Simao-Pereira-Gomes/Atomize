@@ -255,11 +255,9 @@ async function initPlatform(
       match(options.platform)
         .with("azure-devops", () => {
           console.log(chalk.yellow(" Setup Azure DevOps:"));
-          console.log(chalk.gray("1. Run: atomize auth add"));
-          console.log(chalk.gray("   — or —"));
-          console.log(chalk.gray("2. Set AZURE_DEVOPS_ORG_URL, AZURE_DEVOPS_PROJECT, AZURE_DEVOPS_PAT, AZURE_DEVOPS_TEAM"));
-          console.log(chalk.gray("   Get a PAT from: https://dev.azure.com/[your-org]/_usersSettings/tokens"));
-          console.log(chalk.gray("   Required scopes: Work Items (Read, Write)\n"));
+          console.log(chalk.gray("  Run: atomize auth add"));
+          console.log(chalk.gray("  Get a PAT from: https://dev.azure.com/[your-org]/_usersSettings/tokens"));
+          console.log(chalk.gray("  Required scopes: Work Items (Read, Write)\n"));
         })
         .otherwise(() => {});
     }
