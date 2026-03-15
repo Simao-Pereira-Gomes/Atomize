@@ -16,9 +16,6 @@ describe("resolveValidationOptions", () => {
     });
   });
 
-  test("returns empty options when verbose-only flags are set (no mode override)", () => {
-    expect(resolveValidationOptions({ verbose: true })).toEqual({});
-  });
 });
 
 describe("getTemplateSummary", () => {

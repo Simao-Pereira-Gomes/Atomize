@@ -33,7 +33,6 @@ program.addCommand(validateCommand);
 program.addCommand(generateCommand);
 program.addCommand(templateCommand);
 if (process.argv.length === 2) {
-	console.log(banner);
 	program.help();
 }
 

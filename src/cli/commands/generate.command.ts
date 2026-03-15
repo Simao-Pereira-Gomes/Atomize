@@ -18,7 +18,7 @@ import { TemplateLoader } from "@templates/loader";
 import { TemplateValidator } from "@templates/validator";
 import { clampConcurrency } from "@utils/math";
 import chalk from "chalk";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { match } from "ts-pattern";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
@@ -126,35 +126,35 @@ interface ConcurrencySettings {
 
 async function promptMissingArgs(
   templateArg: string | undefined,
-  options: { platform: string; execute: boolean },
+  options: { platform: string | undefined; execute: boolean },
 ): Promise<{ templatePath: string; platform: string; dryRun: boolean }> {
-  if (templateArg) {
-    return {
-      templatePath: templateArg,
-      platform: options.platform,
-      dryRun: !options.execute,
-    };
-  }
+  const interactive = isInteractiveTerminal();
 
-  const templatePath = assertNotCancelled(
+  const templatePath = templateArg ?? assertNotCancelled(
     await text({
       message: "Template file path:",
       placeholder: "templates/backend-api.yaml",
     }),
   );
 
-  const platform = assertNotCancelled(
-    await select({
-      message: "Select platform:",
-      options: [
-        ...(process.env.ATOMIZE_DEV === "true"
-          ? [{ label: "Mock (for testing)", value: "mock" }]
-          : []),
-        { label: "Azure DevOps", value: "azure-devops" },
-      ],
-      initialValue: "azure-devops",
-    }),
-  ) as string;
+  const platformOptions = [
+    ...(process.env.ATOMIZE_DEV === "true"
+      ? [{ label: "Mock (for testing)", value: "mock" }]
+      : []),
+    { label: "Azure DevOps", value: "azure-devops" },
+  ];
+
+  const platform = options.platform ?? (
+    interactive
+      ? (assertNotCancelled(
+          await select({
+            message: "Select platform:",
+            options: platformOptions,
+            initialValue: "azure-devops",
+          }),
+        ) as string)
+      : "azure-devops"
+  );
 
   return { templatePath, platform, dryRun: !options.execute };
 }
@@ -175,7 +175,7 @@ async function loadAndValidateTemplate(
   const validation = new TemplateValidator().validate(template);
 
   if (!validation.valid) {
-    console.log(chalk.red("Template validation failed:\n"));
+    cancel("Template validation failed");
     for (const err of validation.errors) {
       console.log(chalk.red(`  ${err.path}: ${err.message}`));
     }
@@ -185,7 +185,7 @@ async function loadAndValidateTemplate(
   if (validation.warnings.length > 0) {
     print(chalk.yellow(" Template warnings:"));
     for (const warn of validation.warnings) {
-      print(chalk.yellow(`  - ${warn.path}: ${warn.message}`));
+      print(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
     }
     print("");
   }
@@ -244,7 +244,7 @@ async function initPlatform(
       .otherwise(() => PlatformFactory.create(options.platform as import("@platforms/interfaces/platform.interface").PlatformType));
   } catch (error) {
     if (error instanceof Error) {
-      console.log(chalk.red(`\n${error.message}\n`));
+      cancel(error.message);
       match(options.platform)
         .with("azure-devops", () => {
           console.log(chalk.yellow(" Setup Azure DevOps:"));
@@ -295,10 +295,13 @@ function printReport(
   options: { verbose: boolean },
   dryRun: boolean,
 ): number {
-  console.log(`\n${chalk.blue("=".repeat(70))}`);
-  console.log(chalk.blue.bold("  ATOMIZATION RESULTS"));
-  console.log(`${chalk.blue("=".repeat(70))}\n`);
+  if (report.storiesProcessed === 0) {
+    console.log(chalk.yellow("No stories matched the filter criteria."));
+    console.log(chalk.gray("  Check your template's filter configuration (types, states, tags).\n"));
+    return ExitCode.NoMatch;
+  }
 
+  console.log("");
   console.log(chalk.cyan(" Summary:"));
   console.log(`  Template:          ${chalk.bold(report.templateName)}`);
   console.log(`  Stories processed: ${chalk.bold(report.storiesProcessed)}`);
@@ -341,7 +344,7 @@ function printReport(
   if (report.errors.length > 0) {
     console.log(chalk.red.bold("Errors:\n"));
     for (const err of report.errors) {
-      console.log(chalk.red(`  - ${err.storyId}: ${err.error}`));
+      console.log(chalk.red(`  • ${err.storyId}: ${err.error}`));
     }
     console.log("");
   }
@@ -349,18 +352,18 @@ function printReport(
   if (report.warnings.length > 0) {
     console.log(chalk.yellow.bold("Warnings:\n"));
     for (const warn of report.warnings) {
-      console.log(chalk.yellow(`  - ${warn}`));
+      console.log(chalk.yellow(`  • ${warn}`));
     }
     console.log("");
   }
 
   if (dryRun) {
-    console.log(chalk.yellow.bold("DRY RUN COMPLETE - No tasks were actually created"));
-    console.log(chalk.yellow("   Run with --execute flag to create tasks for real\n"));
+    console.log(chalk.yellow("Dry run complete — no tasks were created."));
+    console.log(chalk.gray("  Run with --execute to create tasks for real.\n"));
   } else if (report.storiesSuccess > 0) {
-    console.log(chalk.green.bold(`SUCCESS - Created ${report.tasksCreated} tasks for ${report.storiesSuccess} stories\n`));
+    console.log(chalk.green(`Created ${report.tasksCreated} tasks for ${report.storiesSuccess} ${report.storiesSuccess === 1 ? "story" : "stories"}.\n`));
   } else {
-    console.log(chalk.red.bold("FAILED - No tasks were created\n"));
+    console.log(chalk.red("No tasks were created.\n"));
   }
 
   return report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success;
@@ -370,14 +373,14 @@ export const generateCommand = new Command("generate")
   .alias("gen")
   .description("Generate tasks from user stories using a template")
   .argument("[template]", "Path to template file (YAML)")
-  .option("-p, --platform <platform>", "Platform to use", "azure-devops")
+  .option("-p, --platform <platform>", "Platform to use")
   .option("--execute", "Execute task creation (default is dry-run preview)", false)
-  .option("--continue-on-error", "Continue processing even if errors occur", false)
-  .option("--story-concurrency <number>", "Max concurrent stories to process (default: 3)", "3")
-  .option("--task-concurrency <number>", "Max concurrent tasks to create per story (default: 5)", "5")
-  .option("--dependency-concurrency <number>", "Max concurrent dependency links to create (default: 5)", "5")
+  .option("--continue-on-error", "Continue processing remaining stories if one fails", false)
+  .addOption(new Option("--story-concurrency <number>", "Max concurrent stories to process").default("3").hideHelp())
+  .addOption(new Option("--task-concurrency <number>", "Max concurrent tasks to create per story").default("5").hideHelp())
+  .addOption(new Option("--dependency-concurrency <number>", "Max concurrent dependency links to create").default("5").hideHelp())
   .option("-v, --verbose", "Show detailed output", false)
-  .option("-o, --output <file>", "Write JSON report to file (for CI/CD)")
+  .option("-o, --output <file>", "Write JSON report to file")
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--profile <name>", "Named connection profile to use")
   .action(async (templateArg: string | undefined, options) => {
@@ -385,17 +388,18 @@ export const generateCommand = new Command("generate")
       intro(" Atomize — Task Generator");
 
       const isTTYSession = isInteractiveTerminal();
-      if (isTTYSession) {
+      const willPrompt = !templateArg || options.platform === undefined || options.execute === true;
+      if (isTTYSession && willPrompt) {
         console.log(chalk.gray("  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n"));
       }
-
-      const { templatePath, platform, dryRun } = await promptMissingArgs(templateArg, options);
-      options.platform = platform;
 
       if (options.quiet && options.verbose) {
         cancel("--quiet and --verbose are mutually exclusive.");
         process.exit(ExitCode.Failure);
       }
+
+      const { templatePath, platform, dryRun } = await promptMissingArgs(templateArg, options);
+      options.platform = platform;
 
       const isQuiet = options.quiet === true;
       const print = createPrinter(isQuiet);
@@ -403,7 +407,8 @@ export const generateCommand = new Command("generate")
       if (options.verbose) logger.level = "info";
       else if (isQuiet) logger.level = "error";
 
-      print(dryRun ? chalk.yellow("DRY RUN MODE - No tasks will be created\n") : chalk.green("LIVE MODE - Tasks will be created\n"));
+      if (dryRun) log.info("Dry-run mode — no tasks will be created");
+      else log.warn("Live mode — tasks will be created");
 
       const template = await loadAndValidateTemplate(templatePath, print);
       const { storyConcurrency, taskConcurrency, dependencyConcurrency } = parseConcurrency(options, print);
@@ -418,6 +423,12 @@ export const generateCommand = new Command("generate")
 
       const atomizer = new Atomizer(platform_);
 
+      const hasFilterCriteria =
+        template.filter.workItemTypes ||
+        template.filter.states ||
+        template.filter.tags?.include ||
+        template.filter.excludeIfHasTasks;
+
       print(chalk.cyan(" Filter Criteria:"));
       if (template.filter.workItemTypes)
         print(chalk.gray(`  Types: ${template.filter.workItemTypes.join(", ")}`));
@@ -427,10 +438,14 @@ export const generateCommand = new Command("generate")
         print(chalk.gray(`  Tags (include): ${template.filter.tags.include.join(", ")}`));
       if (template.filter.excludeIfHasTasks)
         print(chalk.gray("  Exclude if has tasks: Yes"));
+      if (!hasFilterCriteria)
+        print(chalk.gray("  Matches all work items"));
       print("");
 
       if (!dryRun && isTTYSession) {
         await confirmLiveExecution(template, { platform });
+      } else if (!dryRun) {
+        log.warn("Live mode — running without confirmation (non-interactive)");
       }
 
       logger.info("Starting atomization...");
@@ -456,8 +471,10 @@ export const generateCommand = new Command("generate")
         ),
       });
 
-      if (isTTYSession && storyProgressRef.current) storyProgressRef.current.stop("Processing complete");
-      else print("Processing complete");
+      if (report.storiesProcessed > 0) {
+        if (isTTYSession && storyProgressRef.current) storyProgressRef.current.stop("Processing complete");
+        else print("Processing complete");
+      }
 
       const exitCode = printReport(report, options, dryRun);
 
@@ -467,7 +484,10 @@ export const generateCommand = new Command("generate")
       }
 
       outro(
-        dryRun ? "Dry run complete" : exitCode === ExitCode.Success ? "Generation complete ✓" : "Generation finished with errors",
+        exitCode === ExitCode.NoMatch ? "No stories matched" :
+        dryRun ? "Dry run complete ✓" :
+        exitCode === ExitCode.Success ? "Generation complete ✓" :
+        "Generation finished with errors ✗",
       );
       process.exit(exitCode);
     } catch (error) {

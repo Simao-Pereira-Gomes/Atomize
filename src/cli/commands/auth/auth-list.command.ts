@@ -27,9 +27,10 @@ export const authListCommand = new Command("list")
       console.log(`    Project:  ${profile.project}`);
       console.log(`    Team:     ${profile.team}`);
       console.log(`    Token:    ${tokenDisplay}`);
-      console.log(`    Created:  ${new Date(profile.createdAt).toLocaleString()}`);
+      console.log(`    Created:  ${profile.createdAt.slice(0, 16).replace("T", " ")}`);
       console.log("");
     }
 
-    outro(`${file.profiles.length} profile(s) listed`);
+    const count = file.profiles.length;
+    outro(`${count} ${count === 1 ? "profile" : "profiles"} listed`);
   });

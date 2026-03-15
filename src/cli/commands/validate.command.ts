@@ -11,7 +11,6 @@ import {
 import chalk from "chalk";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
-import { isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 import type {
   TaskDefinition,
   TaskTemplate,
@@ -19,7 +18,6 @@ import type {
 } from "@/templates/schema";
 
 type ValidateOptions = {
-  verbose?: boolean;
   strict?: boolean;
   quiet?: boolean;
 };
@@ -27,7 +25,6 @@ type ValidateOptions = {
 export const validateCommand = new Command("validate")
   .description("Validate a template file")
   .argument("<template>", "Path to template file (YAML)")
-  .option("-v, --verbose", "Show detailed validation information", false)
   .option(
     "-s, --strict",
     "Use strict validation mode (warnings become errors)",
@@ -35,29 +32,26 @@ export const validateCommand = new Command("validate")
   )
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (templatePath: string, options: ValidateOptions) => {
-    intro("Atomize Template Validator");
-    if (isInteractiveTerminal()) {
-      console.log(chalk.gray("  Enter to confirm · Ctrl+C to cancel\n"));
-    }
+    intro(" Atomize — Template Validator");
     try {
       const template = await loadTemplate(templatePath);
-      if (options.verbose) printTemplateDetails(template);
 
       const validationOptions = resolveValidationOptions(options);
       const result = validateTemplate(template, validationOptions);
 
       printValidationResult(template, result, options.quiet);
-      outro(result.valid ? "Validation complete ✓" : "Validation failed");
+      if (result.valid && !options.quiet) {
+        console.log(chalk.cyan("  Try it with: ") + chalk.gray(`atomize generate ${templatePath}`));
+      }
+      outro(result.valid ? "Validation complete ✓" : "Validation failed ✗");
       if (!result.valid) process.exit(ExitCode.Failure);
     } catch (error) {
-      handleFatal(error, options.verbose);
+      handleFatal(error);
       process.exit(ExitCode.Failure);
     }
   });
 
-export function resolveValidationOptions(
-  options: ValidateOptions,
-): ValidationOptions {
+export function resolveValidationOptions(options: ValidateOptions): ValidationOptions {
   if (options.strict) {
     return { mode: "strict" };
   }
@@ -78,11 +72,6 @@ function validateTemplate(template: unknown, options?: ValidationOptions) {
   return validator.validate(template, options);
 }
 
-function printTemplateDetails(template: TaskTemplate) {
-  console.log(chalk.gray(`Description: ${template.description || "N/A"}`));
-  console.log(chalk.gray(`Version: ${template.version}`));
-  console.log(chalk.gray(`Tasks: ${template.tasks.length}\n`));
-}
 
 function printValidationResult(
   template: TaskTemplate,
@@ -107,7 +96,7 @@ export function printValidSummary(
 ) {
   const modeLabel =
     mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
-  console.log(`${chalk.green("Template·is·valid!")}·${modeLabel}\n`);
+  console.log(`${chalk.green("Template is valid!")} ${modeLabel}\n`);
 
   if (!quiet) {
     const summary = getTemplateSummary(template);
@@ -126,7 +115,7 @@ function printInvalidSummary(
 ) {
   const modeLabel =
     mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
-  console.log(`${chalk.red("Template·validation·failed")}·${modeLabel}\n`);
+  console.log(`${chalk.red("Template validation failed")} ${modeLabel}\n`);
   console.log(chalk.red.bold("Errors:"));
   errors.forEach((err) => {
     console.log(chalk.red(`  • ${err.path}: ${err.message}`));
@@ -166,15 +155,10 @@ export function getTemplateSummary(template: TaskTemplate) {
   };
 }
 
-function handleFatal(error: unknown, verbose?: boolean) {
+function handleFatal(error: unknown) {
   cancel("Validation failed");
   logger.error(chalk.red("Validation failed"));
 
   const message = error instanceof Error ? error.message : String(error);
   console.log(chalk.red(message));
-
-  if (verbose && error instanceof Error && error.stack) {
-    console.log("");
-    console.log(chalk.gray(error.stack));
-  }
 }

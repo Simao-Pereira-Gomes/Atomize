@@ -10,10 +10,10 @@ import {
 } from "./helpers/auth-rotate.helper";
 
 export const authRotateCommand = new Command("rotate")
-  .description("Replace the PAT for a connection profile")
+  .description("Replace the access token for a connection profile")
   .argument("[name]", "Profile name")
   .action(async (nameArg: string | undefined) => {
-    intro(" Atomize — Rotate PAT");
+    intro(" Atomize — Rotate Token");
 
     if (!(await hasProfiles())) {
       outro("No profiles found. Run: atomize auth add");

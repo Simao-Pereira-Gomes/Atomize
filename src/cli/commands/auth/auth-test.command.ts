@@ -1,4 +1,5 @@
 import { cancel, intro, outro, spinner } from "@clack/prompts";
+import { readConnectionsFile } from "@config/connections.config";
 import chalk from "chalk";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
@@ -13,6 +14,12 @@ export const authTestCommand = new Command("test")
   .argument("[name]", "Profile name (uses default if omitted)")
   .action(async (nameArg: string | undefined) => {
     intro(" Atomize — Test Connection");
+
+    const file = await readConnectionsFile();
+    if (file.profiles.length === 0) {
+      outro("No profiles found. Run: atomize auth add");
+      return;
+    }
 
     const profileName = await promptProfileToTest(nameArg);
 
