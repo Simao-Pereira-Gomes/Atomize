@@ -25,7 +25,7 @@ Atomize is a CLI tool that automatically generates granular tasks from user stor
 - **Zero Config** - Works out of the box with sensible defaults
 - **Interactive Wizards** - User-friendly prompts guide you through everything
 - **Built-in Validation** - Catch template errors before they cause problems
-- **CI/CD Ready** - Automation-friendly with `--no-interactive` and JSON report output
+- **CI/CD Ready** - Automation-friendly with JSON report output
 
 ---
 
@@ -75,9 +75,6 @@ atomize template create --ai "Backend API with authentication"
 # From a preset
 atomize template create --preset backend-api
 
-# Learn from one existing story
-atomize template create --from-story STORY-123
-
 # Learn from multiple stories (better pattern detection)
 atomize template create --from-stories STORY-1,STORY-2,STORY-3
 
@@ -113,13 +110,12 @@ atomize generate templates/backend-api.yaml \
   --execute \
   --verbose
 
-# Dry run (preview only — default behavior)
-atomize generate templates/backend-api.yaml --dry-run
+# Dry run (default — no --execute needed)
+atomize generate templates/backend-api.yaml
 
 # CI/CD mode with JSON report
 atomize generate templates/backend-api.yaml \
   --execute \
-  --no-interactive \
   --output report.json
 ```
 
@@ -127,13 +123,11 @@ atomize generate templates/backend-api.yaml \
 - `--platform <type>` - Platform: `azure-devops` or `mock`
 - `--profile <name>` - Named connection profile to use (see `atomize auth add`)
 - `--execute` - Actually create tasks (default is dry-run preview)
-- `--dry-run` - Preview without creating tasks
 - `--continue-on-error` - Keep processing if errors occur
 - `--story-concurrency <n>` - Parallel story processing (default: 3, max: 10)
 - `--task-concurrency <n>` - Parallel task creation per story (default: 5, max: 20)
 - `--dependency-concurrency <n>` - Parallel dependency link creation (default: 5, max: 10)
 - `--verbose` - Show detailed output
-- `--no-interactive` - Skip all prompts (for automation)
 - `-o, --output <file>` - Write JSON report to file
 
 **Example Output:**
@@ -160,13 +154,9 @@ atomize template create --ai "Create template for React component development"
 # From preset (fastest)
 atomize template create --preset frontend-feature
 
-# Learn from a single story (matches your workflow)
-atomize template create --from-story STORY-456 --platform azure-devops
-
 # Learn from multiple stories (best pattern detection)
 atomize template create \
   --from-stories STORY-1,STORY-2,STORY-3 \
-  --normalize \
   --output my-templates/learned.yaml
 
 # Interactive wizard (most control)
@@ -440,7 +430,6 @@ validation:
 atomize template create \
   --from-stories STORY-100,STORY-115,STORY-132,STORY-148 \
   --platform azure-devops \
-  --normalize \
   --output team-templates/backend-standard.yaml
 
 # Validate the learned template

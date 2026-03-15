@@ -82,7 +82,7 @@ Let's generate tasks for some user stories in **5 minutes**!
 curl -o backend-api.yaml https://raw.githubusercontent.com/Simao-Pereira-Gomes/atomize/main/templates/presets/backend-api.yaml
 
 # Preview without connecting to any platform
-atomize generate backend-api.yaml --platform mock --dry-run
+atomize generate backend-api.yaml --platform mock
 ```
 
 You'll see:
@@ -126,8 +126,8 @@ atomize auth test work-ado
 ### Step 3: Generate Real Tasks
 
 ```bash
-# Dry run first (always recommended)
-atomize generate backend-api.yaml --dry-run
+# Dry run (default — no --execute)
+atomize generate backend-api.yaml
 
 # Execute for real
 atomize generate backend-api.yaml --execute
@@ -185,17 +185,10 @@ Follow the step-by-step wizard:
 ### Option 4: Learn from Existing Work
 
 ```bash
-# Learn from a single well-structured story
-atomize template create \
-  --from-story STORY-123 \
-  --platform azure-devops \
-  --normalize
-
-# Learn from multiple stories for better pattern detection
+# Learn from multiple stories for pattern detection
 atomize template create \
   --from-stories STORY-100,STORY-115,STORY-132 \
-  --platform azure-devops \
-  --normalize
+  --platform azure-devops
 ```
 
 Atomize analyzes the story's existing tasks and generates a reusable template. When using multiple stories, it detects patterns, scores confidence, and filters outliers. See [Story Learner](./Story-Learner.md) for details.
@@ -208,7 +201,7 @@ Atomize analyzes the story's existing tasks and generates a reusable template. W
 
 ```bash
 # Preview first (always recommended)
-atomize generate my-template.yaml --dry-run
+atomize generate my-template.yaml
 
 # Execute when satisfied
 atomize generate my-template.yaml --execute
@@ -224,7 +217,7 @@ atomize generate my-template.yaml --execute --continue-on-error
 atomize generate my-template.yaml --execute --verbose
 
 # Mock platform (testing, no credentials needed)
-atomize generate my-template.yaml --platform mock --dry-run
+atomize generate my-template.yaml --platform mock
 
 # Increase concurrency for large backlogs
 atomize generate my-template.yaml --execute --story-concurrency 8
@@ -404,7 +397,7 @@ atomize template create --ai "database migration with rollback"
 
 # Test the new template
 atomize validate my-new-template.yaml
-atomize generate my-new-template.yaml --dry-run
+atomize generate my-new-template.yaml
 
 # Apply it
 atomize generate my-new-template.yaml --execute
@@ -463,7 +456,6 @@ jobs:
         run: |
           atomize generate templates/backend-api.yaml \
             --execute \
-            --no-interactive \
             --continue-on-error
 ```
 
@@ -476,7 +468,7 @@ jobs:
 **Solutions:**
 1. Test with mock platform first:
    ```bash
-   atomize generate my-template.yaml --platform mock --dry-run
+   atomize generate my-template.yaml --platform mock
    ```
 
 2. Make the filter less restrictive:

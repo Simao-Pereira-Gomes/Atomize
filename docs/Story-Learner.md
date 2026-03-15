@@ -5,7 +5,6 @@ The Story Learner analyzes existing work items with their tasks and generates a 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Learn from a Single Story](#learn-from-a-single-story)
 - [Learn from Multiple Stories](#learn-from-multiple-stories)
 - [How Pattern Detection Works](#how-pattern-detection-works)
 - [Normalization](#normalization)
@@ -29,51 +28,6 @@ This is ideal when your team has a well-established workflow and you want to rep
 
 ---
 
-## Learn from a Single Story
-
-Use `--from-story` to create a template based on one well-structured story.
-
-```bash
-atomize template create --from-story STORY-123
-```
-
-**With options:**
-
-```bash
-atomize template create \
-  --from-story STORY-123 \
-  --platform azure-devops \
-  --normalize \
-  --output my-templates/api-pattern.yaml
-```
-
-### Options
-
-| Option | Description |
-|--------|-------------|
-| `--from-story <id>` | Story ID to learn from |
-| `--platform <name>` | Platform to fetch from (`azure-devops`, `mock`) |
-| `--normalize` | Normalize task percentages to sum to 100% |
-| `--no-normalize` | Keep original estimation percentages |
-| `-o, --output <path>` | Where to save the generated template |
-
-### What It Does
-
-1. Fetches the story and all its child tasks from the platform
-2. Calculates each task's percentage of the parent story's estimation
-3. Extracts task titles, activities, tags, and other metadata
-4. Generates a template with these tasks as the baseline
-
-**Example:** If story STORY-123 has 8 points and these tasks:
-- Design (2 pts) → 25%
-- Implementation (4 pts) → 50%
-- Testing (1.5 pts) → 18.75%
-- Review (0.5 pts) → 6.25%
-
-The generated template will have tasks with those percentages (optionally normalized).
-
----
-
 ## Learn from Multiple Stories
 
 Use `--from-stories` to analyze multiple stories at once. This produces higher-quality templates because it detects patterns, filters out outliers, and generates confidence scores.
@@ -88,7 +42,6 @@ atomize template create --from-stories STORY-1,STORY-2,STORY-3
 atomize template create \
   --from-stories STORY-123,STORY-456,STORY-789 \
   --platform azure-devops \
-  --normalize \
   --output learned-templates/backend-pattern.yaml
 ```
 
@@ -98,8 +51,7 @@ atomize template create \
 |--------|-------------|
 | `--from-stories <ids>` | Comma-separated list of story IDs |
 | `--platform <name>` | Platform to fetch from |
-| `--normalize` | Normalize task percentages to sum to 100% |
-| `--no-normalize` | Keep original estimation percentages |
+| `--no-normalize` | Keep original estimation percentages (default normalizes to 100%) |
 | `-o, --output <path>` | Where to save the generated template |
 
 ### Minimum Requirements
@@ -157,14 +109,14 @@ Tags that consistently appear on matching stories are incorporated into the temp
 
 ## Normalization
 
-By default (`--normalize` or prompted interactively), task percentages are adjusted to sum to exactly 100%.
+By default, task percentages are adjusted to sum to exactly 100%. Pass `--no-normalize` to keep the original percentages.
 
 **Without normalization (`--no-normalize`):**
 - Original percentages are preserved
 - The template may have a total estimation ≠ 100%
 - Validation will flag this unless `totalEstimationRange` is configured
 
-**With normalization (`--normalize`):**
+**With normalization (default):**
 - Percentages are scaled proportionally to sum to 100%
 - Remainder is added to the largest task
 - Result always validates against `totalEstimationMustBe: 100`
@@ -247,47 +199,21 @@ metadata:
 
 ## Examples
 
-### Basic Single Story
-
-```bash
-# Learn from a story on Azure DevOps
-atomize template create \
-  --from-story STORY-123 \
-  --platform azure-devops
-
-# Test the generated template
-atomize validate createdTemplates/template-*.yaml
-atomize generate createdTemplates/template-*.yaml --platform mock --dry-run
-```
-
-### Multi-Story Learning for Team Templates
+### Learn from Multiple Stories
 
 ```bash
 # Gather your best-structured stories
 atomize template create \
   --from-stories STORY-100,STORY-115,STORY-132,STORY-148 \
   --platform azure-devops \
-  --normalize \
   --output team-templates/backend-standard.yaml
 
 # Validate the result
 atomize validate team-templates/backend-standard.yaml --strict --verbose
 
 # Apply to new stories
-atomize generate team-templates/backend-standard.yaml --dry-run
+atomize generate team-templates/backend-standard.yaml
 ```
-
-### Mock Platform (No Azure DevOps Required)
-
-```bash
-# Use mock platform for testing/exploration
-atomize template create \
-  --from-story STORY-007 \
-  --platform mock \
-  --normalize
-```
-
-The mock platform includes STORY-007 which already has an existing task — perfect for testing the story learner.
 
 ---
 
@@ -313,12 +239,12 @@ After generating, always:
 
 3. **Test with mock data:**
    ```bash
-   atomize generate my-learned-template.yaml --platform mock --dry-run
+   atomize generate my-learned-template.yaml --platform mock
    ```
 
-4. **Dry-run against real data before executing:**
+4. **Preview against real data before executing:**
    ```bash
-   atomize generate my-learned-template.yaml --dry-run
+   atomize generate my-learned-template.yaml
    ```
 
 ### Improving Generated Templates
@@ -372,7 +298,7 @@ If all detected patterns have low confidence:
 
 ### "Generated template has estimation ≠ 100%"
 
-- Run with `--normalize` flag to automatically adjust percentages
+- Use `--no-normalize` to keep original percentages, or let the default normalize them
 - Or manually edit the generated YAML to balance estimations
 
 ---

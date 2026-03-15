@@ -2,7 +2,15 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { cancel, confirm, intro, outro, select, spinner, text } from "@clack/prompts";
+import {
+  cancel,
+  confirm,
+  intro,
+  outro,
+  select,
+  spinner,
+  text,
+} from "@clack/prompts";
 import {
   type AIConfig,
   getAIConfig,
@@ -82,7 +90,6 @@ export const templateCreateCommand = new Command("create")
   )
   .option("-p, --platform <platform>", "Platform to use", "azure-devops")
   .option("--profile <name>", "Named connection profile to use")
-  .option("--normalize", "Normalize task estimation percentages to sum to 100%")
   .option("--no-normalize", "Keep original estimation percentages")
   .option("--scratch", "Create from scratch (skip mode selection)")
   .option(
@@ -100,7 +107,11 @@ export const templateCreateCommand = new Command("create")
     try {
       intro(" Atomize Template Creator");
       if (isInteractiveTerminal()) {
-        console.log(chalk.gray("  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n"));
+        console.log(
+          chalk.gray(
+            "  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n",
+          ),
+        );
       }
       const mode = await determineMode(options);
 
@@ -108,7 +119,14 @@ export const templateCreateCommand = new Command("create")
         .with("ai", async () => await createWithAI(options))
         .with("preset", async () => await createFromPreset(options))
         .with("stories", async () => await createFromStories(options))
-        .with("scratch", async () => await createFromScratch({ interactive: options.interactive, quiet: options.quiet }))
+        .with(
+          "scratch",
+          async () =>
+            await createFromScratch({
+              interactive: options.interactive,
+              quiet: options.quiet,
+            }),
+        )
         .otherwise(() => {
           throw new Error("Invalid creation mode");
         });
@@ -430,15 +448,7 @@ async function createFromStories(
     ) as string;
   }
 
-  let shouldNormalize = options.normalize ?? true;
-  if (options.normalize === undefined && options.interactive !== false) {
-    shouldNormalize = assertNotCancelled(
-      await confirm({
-        message: "Normalize task percentages to sum to 100%?",
-        initialValue: true,
-      }),
-    );
-  }
+  const shouldNormalize = options.normalize !== false;
 
   const connectSpinner = spinner();
   connectSpinner.start(`Connecting to ${platformType}...`);
@@ -632,7 +642,9 @@ export async function createFromScratch(
   _options: CreateFromScratchOptions = {},
 ): Promise<TaskTemplate> {
   const quiet = _options.quiet === true;
-  const printStep = (msg: string) => { if (!quiet) console.log(msg); };
+  const printStep = (msg: string) => {
+    if (!quiet) console.log(msg);
+  };
 
   printStep(chalk.cyan("\n✨ Create Template from Scratch\n"));
   printStep(chalk.gray("Interactive template builder wizard"));
@@ -643,9 +655,7 @@ export async function createFromScratch(
 
   try {
     // Step 1: Basic Information
-    printStep(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`),
-    );
+    printStep(chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`));
     printStep(chalk.gray("█░░░░░"));
     printStep(
       chalk.gray("Tip: Choose a clear, descriptive name for your template\n"),

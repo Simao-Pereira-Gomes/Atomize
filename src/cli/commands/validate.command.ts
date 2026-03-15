@@ -21,7 +21,6 @@ import type {
 type ValidateOptions = {
   verbose?: boolean;
   strict?: boolean;
-  lenient?: boolean;
   quiet?: boolean;
 };
 
@@ -34,8 +33,6 @@ export const validateCommand = new Command("validate")
     "Use strict validation mode (warnings become errors)",
     false,
   )
-  .option("-l, --lenient", "Use lenient validation mode (default)", false)
-  .option("--no-interactive", "Run without prompts (for CI/scripts)")
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (templatePath: string, options: ValidateOptions) => {
     intro("Atomize Template Validator");
@@ -61,15 +58,9 @@ export const validateCommand = new Command("validate")
 export function resolveValidationOptions(
   options: ValidateOptions,
 ): ValidationOptions {
-  // CLI flags override template config
-  // --strict and --lenient are mutually exclusive and strict takes precedence
   if (options.strict) {
     return { mode: "strict" };
   }
-  if (options.lenient) {
-    return { mode: "lenient" };
-  }
-  // No override: let validator use template config or default
   return {};
 }
 

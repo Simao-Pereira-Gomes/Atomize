@@ -313,7 +313,7 @@ Maps to Azure DevOps fields:
 3. Check area/iteration paths are correct (case-sensitive)
 4. Test with mock platform first:
    ```bash
-   atomize generate templates/backend-api.yaml --platform mock --dry-run
+   atomize generate templates/backend-api.yaml --platform mock
    ```
 
 #### Permission Errors
@@ -344,9 +344,7 @@ The mock platform provides sample data for testing and development.
 ### Usage
 
 ```bash
-atomize generate templates/backend-api.yaml \
-  --platform mock \
-  --dry-run
+atomize generate templates/backend-api.yaml --platform mock
 ```
 
 ### Features
@@ -398,7 +396,7 @@ STORY-007: Implement data export feature
 atomize template create --scratch -o test-template.yaml
 
 # Test with mock data
-atomize generate test-template.yaml --platform mock --dry-run
+atomize generate test-template.yaml --platform mock
 
 # Iterate until satisfied
 ```
@@ -406,7 +404,7 @@ atomize generate test-template.yaml --platform mock --dry-run
 **2. Filter Testing:**
 ```bash
 # Test different filters
-atomize generate test-template.yaml --platform mock --dry-run
+atomize generate test-template.yaml --platform mock
 
 # Check which stories match
 # Adjust filter criteria
@@ -420,7 +418,7 @@ atomize generate test-template.yaml --platform mock --dry-run
   run: |
     for template in templates/*.yaml; do
       atomize validate "$template"
-      atomize generate "$template" --platform mock --dry-run
+      atomize generate "$template" --platform mock
     done
 ```
 

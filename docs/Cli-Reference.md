@@ -219,15 +219,12 @@ atomize gen [template] [options]  # alias
 |--------|------|---------|-------------|
 | `-p, --platform <platform>` | string | `azure-devops` | Platform to use. Options: `azure-devops`, `mock` |
 | `--profile <name>` | string | - | Named connection profile to use (see `auth add`) |
-| `--project <name>` | string | - | Override the project name |
-| `--dry-run` | flag | `true` | Preview tasks without creating them (default) |
-| `--execute` | flag | - | Actually create tasks in the platform |
+| `--execute` | flag | - | Actually create tasks (default is dry-run preview) |
 | `--continue-on-error` | flag | - | Keep processing other stories if one fails |
 | `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
 | `--dependency-concurrency <n>` | number | `5` | Max dependency links created in parallel (max: 10) |
 | `-v, --verbose` | flag | - | Show detailed output including per-task breakdown |
-| `--no-interactive` | flag | - | Skip all prompts (requires template arg and a saved profile) |
 | `-o, --output <file>` | string | - | Write a JSON report to this file path (for CI/CD) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 
@@ -236,12 +233,12 @@ atomize gen [template] [options]  # alias
 **Interactive mode (no template specified):**
 ```bash
 atomize generate
-# Prompts for: template file, platform, dry-run preference
+# Prompts for: template file, platform (dry-run by default)
 ```
 
-**Dry run with explicit template:**
+**Dry run (default — no --execute):**
 ```bash
-atomize generate templates/backend-api.yaml --dry-run
+atomize generate templates/backend-api.yaml
 ```
 
 **Execute for real:**
@@ -251,7 +248,7 @@ atomize generate templates/backend-api.yaml --execute
 
 **Mock platform (no credentials needed):**
 ```bash
-atomize generate templates/backend-api.yaml --platform mock --dry-run
+atomize generate templates/backend-api.yaml --platform mock
 ```
 
 **Verbose output:**
@@ -272,11 +269,10 @@ atomize generate templates/backend-api.yaml \
   --task-concurrency 10
 ```
 
-**Non-interactive for CI/CD with JSON report:**
+**CI/CD with JSON report:**
 ```bash
 atomize generate templates/backend-api.yaml \
   --execute \
-  --no-interactive \
   --output report.json \
   --quiet
 ```
@@ -345,8 +341,6 @@ atomize validate <template> [options]
 |--------|------|---------|-------------|
 | `-v, --verbose` | flag | - | Show detailed validation information including all checked rules |
 | `-s, --strict` | flag | - | Use strict mode: warnings are treated as errors |
-| `-l, --lenient` | flag | - | Use lenient mode: warnings are non-blocking (default) |
-| `--no-interactive` | flag | - | Run without prompts (suitable for CI/scripts) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 
 > See [Validation Modes](./Validation-Modes.md) for a full explanation of strict vs lenient behavior.
@@ -436,11 +430,10 @@ atomize tpl create [options]  # alias
 | `--api-key <key>` | string | Google Gemini API key (if not in `GOOGLE_AI_API_KEY` env var) |
 | `--model <name>` | string | AI model name (e.g., `gemini-2.0-flash-exp`, `llama3.2`) |
 | `--preset <name>` | string | Start from a preset: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack` |
-| `--from-story <id>` | string | Learn template from a single existing story |
 | `--from-stories <ids>` | string | Learn template from multiple stories (comma-separated IDs) |
-| `-p, --platform <platform>` | string | Platform for `--from-story` / `--from-stories` (default: `azure-devops`) |
-| `--normalize` | flag | Normalize task estimation percentages to 100% |
-| `--no-normalize` | flag | Keep original estimation percentages |
+| `--profile <name>` | string | Named connection profile for `--from-stories` (see `auth add`) |
+| `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
+| `--no-normalize` | flag | Keep original estimation percentages (default normalizes to 100%) |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `-o, --output <path>` | string | Output file path (default: `createdTemplates/template-YYYYMMDD-XXXX.yaml`) |
 | `--no-interactive` | flag | Skip all prompts (use with flags only, for automation) |
@@ -506,19 +499,7 @@ Available presets:
 
 ---
 
-**3. Learn from an Existing Story**
-
-Analyze a story that already has tasks and create a reusable template from it.
-
-```bash
-atomize template create --from-story STORY-123 --platform azure-devops
-atomize template create --from-story STORY-123 --normalize
-atomize template create --from-story STORY-001 --platform mock  # Testing
-```
-
----
-
-**4. Learn from Multiple Stories**
+**3. Learn from Multiple Stories**
 
 Analyze multiple stories to detect patterns and build a higher-confidence template.
 
@@ -528,7 +509,6 @@ atomize template create --from-stories STORY-1,STORY-2,STORY-3
 atomize template create \
   --from-stories STORY-123,STORY-456,STORY-789 \
   --platform azure-devops \
-  --normalize \
   --output learned-templates/api-pattern.yaml
 ```
 
@@ -567,7 +547,7 @@ Template created successfully!
 Template saved to: createdTemplates/template-20260101-a3f2.yaml
 
 Validate it:   atomize validate createdTemplates/template-20260101-a3f2.yaml
-Test it:       atomize generate createdTemplates/template-20260101-a3f2.yaml --platform mock --dry-run
+Test it:       atomize generate createdTemplates/template-20260101-a3f2.yaml --platform mock
 Use it:        atomize generate createdTemplates/template-20260101-a3f2.yaml --execute
 ```
 
@@ -701,8 +681,8 @@ atomize template create --preset backend-api -o my-backend.yaml
 # 4. Validate it
 atomize validate my-backend.yaml
 
-# 5. Preview (dry run)
-atomize generate my-backend.yaml --dry-run
+# 5. Preview (dry run — default, no --execute)
+atomize generate my-backend.yaml
 
 # 6. Execute
 atomize generate my-backend.yaml --execute
@@ -717,7 +697,7 @@ export GOOGLE_AI_API_KEY="your-key"
 atomize template create --ai "REST API with PostgreSQL and Redis caching"
 
 # Then use it
-atomize generate createdTemplates/template-*.yaml --dry-run
+atomize generate createdTemplates/template-*.yaml
 ```
 
 ### Multi-Story Learning
@@ -726,7 +706,6 @@ atomize generate createdTemplates/template-*.yaml --dry-run
 atomize template create \
   --from-stories STORY-1,STORY-2,STORY-3,STORY-4,STORY-5 \
   --platform azure-devops \
-  --normalize \
   --output team-templates/backend-standard.yaml
 
 atomize validate team-templates/backend-standard.yaml --strict --verbose
@@ -773,7 +752,6 @@ jobs:
         run: |
           atomize generate templates/backend-api.yaml \
             --execute \
-            --no-interactive \
             --output task-report.json \
             --continue-on-error
 
@@ -833,7 +811,7 @@ atomize validate templates/my-template.yaml --verbose
 
 ```bash
 # Test with mock platform first
-atomize generate templates/my-template.yaml --platform mock --dry-run
+atomize generate templates/my-template.yaml --platform mock
 
 # Make filter less restrictive:
 # - Add more states: ["New", "Active", "Approved"]

@@ -35,22 +35,24 @@ export const authRemoveCommand = new Command("remove")
       return;
     }
 
-    const s = spinner();
-    s.start(`Removing "${name}"...`);
+    const operationSpinner = spinner();
+    operationSpinner.start(`Removing "${name}"...`);
 
     try {
       const { wasDefault } = await deleteProfile(name, profile);
-      s.stop(`Profile "${name}" removed`);
+      operationSpinner.stop(`Profile "${name}" removed`);
 
       if (wasDefault) {
         console.log(
-          chalk.yellow(`  Warning: "${name}" was the default profile. Use "atomize auth use" to set a new default.`),
+          chalk.yellow(
+            `  Warning: "${name}" was the default profile. Use "atomize auth use" to set a new default.`,
+          ),
         );
       }
 
       outro("Done.");
     } catch (error) {
-      s.stop("Failed");
+      operationSpinner.stop("Failed");
       cancel(error instanceof Error ? error.message : String(error));
       process.exit(ExitCode.Failure);
     }

@@ -26,7 +26,7 @@ Atomize has two validation modes that affect how warnings are treated.
 **Set mode via CLI:**
 ```bash
 atomize validate my-template.yaml --strict    # Warnings become errors
-atomize validate my-template.yaml --lenient   # Warnings are non-blocking (default)
+atomize validate my-template.yaml             # Warnings are non-blocking (default)
 ```
 
 **Set mode in template YAML:**

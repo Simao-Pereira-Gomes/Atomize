@@ -126,13 +126,13 @@ interface ConcurrencySettings {
 
 async function promptMissingArgs(
   templateArg: string | undefined,
-  options: { platform: string; dryRun: boolean; execute: boolean },
+  options: { platform: string; execute: boolean },
 ): Promise<{ templatePath: string; platform: string; dryRun: boolean }> {
   if (templateArg) {
     return {
       templatePath: templateArg,
       platform: options.platform,
-      dryRun: options.execute ? false : options.dryRun,
+      dryRun: !options.execute,
     };
   }
 
@@ -156,14 +156,7 @@ async function promptMissingArgs(
     }),
   ) as string;
 
-  const dryRun = assertNotCancelled(
-    await confirm({
-      message: "Dry run (preview only, no actual creation)?",
-      initialValue: true,
-    }),
-  );
-
-  return { templatePath, platform, dryRun: options.execute ? false : dryRun };
+  return { templatePath, platform, dryRun: !options.execute };
 }
 
 
@@ -378,8 +371,7 @@ export const generateCommand = new Command("generate")
   .description("Generate tasks from user stories using a template")
   .argument("[template]", "Path to template file (YAML)")
   .option("-p, --platform <platform>", "Platform to use", "azure-devops")
-  .option("--dry-run", "Preview without creating tasks", false)
-  .option("--execute", "Execute task creation (opposite of dry-run)", false)
+  .option("--execute", "Execute task creation (default is dry-run preview)", false)
   .option("--continue-on-error", "Continue processing even if errors occur", false)
   .option("--story-concurrency <number>", "Max concurrent stories to process (default: 3)", "3")
   .option("--task-concurrency <number>", "Max concurrent tasks to create per story (default: 5)", "5")
