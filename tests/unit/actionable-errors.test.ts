@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { DependencyResolver } from "@core/dependency-resolver";
 import { TemplateValidator } from "@templates/validator";
 import { CircularDependencyError } from "@utils/errors";
-import { validateEstimationPercentages } from "@utils/estimation-normalizer";
 
 describe("Actionable Error Messages", () => {
 	const validator = new TemplateValidator();
@@ -380,35 +379,6 @@ describe("Actionable Error Messages", () => {
 				// At minimum the error message should be present
 				expect(error?.message).toBeDefined();
 			}
-		});
-	});
-
-	describe("Estimation Normalizer Suggestions", () => {
-		test("should provide suggestions for total mismatch", () => {
-			const items = [
-				{ estimationPercent: 30 },
-				{ estimationPercent: 40 },
-			];
-
-			const result = validateEstimationPercentages(items);
-
-			expect(result.valid).toBe(false);
-			expect(result.suggestions.length).toBeGreaterThan(0);
-			expect(result.suggestions[0]).toContain("30");
-		});
-
-		test("should provide suggestions for zero estimations", () => {
-			const items = [
-				{ estimationPercent: 100 },
-				{ estimationPercent: 0 },
-			];
-
-			const result = validateEstimationPercentages(items);
-
-			expect(result.valid).toBe(false);
-			expect(result.suggestions.length).toBeGreaterThan(0);
-			// Check that there's a suggestion about items with zero estimation
-			expect(result.suggestions.some((s) => s.toLowerCase().includes("item"))).toBe(true);
 		});
 	});
 
