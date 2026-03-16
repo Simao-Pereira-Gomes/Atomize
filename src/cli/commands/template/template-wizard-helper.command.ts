@@ -12,6 +12,9 @@ import {
   Validators,
 } from "../../utilities/prompt-utilities";
 
+type AdvancedFilterGroup = "scope" | "stateHistory" | "assignment" | "dates" | "custom";
+const ADVANCED_GROUP_ORDER: AdvancedFilterGroup[] = ["scope", "stateHistory", "assignment", "dates", "custom"];
+
 type AreaFilterMode = "none" | "@TeamAreas" | "exact" | "under" | "mixed";
 type IterationFilterMode =
   | "none"
@@ -63,53 +66,79 @@ export async function configureFilter(): Promise<FilterCriteria> {
 
   if (await promptExcludeIfHasTasks()) filter.excludeIfHasTasks = true;
 
-  const advancedFilter = assertNotCancelled(
-    await confirm({ message: "Add advanced filter options?", initialValue: false }),
-  );
+  const selectedGroups = assertNotCancelled(
+    await multiselect<AdvancedFilterGroup>({
+      message: "Advanced filters (press Enter to skip):",
+      options: [
+        { label: "Scope  — team, area paths, iterations", value: "scope" },
+        { label: "State history  — exclude states, were ever in", value: "stateHistory" },
+        { label: "Assignment  — assigned-to, priority", value: "assignment" },
+        { label: "Dates  — changed after, created after", value: "dates" },
+        { label: "Custom  — field filters, custom query", value: "custom" },
+      ],
+      required: false,
+    }),
+  ) as AdvancedFilterGroup[];
 
-  if (advancedFilter) {
-    const team = await promptTeam();
-    if (team) filter.team = team;
+  // Process groups in a fixed order regardless of tick order
+  for (const group of ADVANCED_GROUP_ORDER.filter((g) => selectedGroups.includes(g))) {
+    switch (group) {
+      case "scope": {
+        const team = await promptTeam();
+        if (team) filter.team = team;
 
-    const { exact: areaPaths, under: areaPathsUnder } = await promptAreaPaths();
-    if (areaPaths.length > 0) filter.areaPaths = areaPaths;
-    if (areaPathsUnder.length > 0) filter.areaPathsUnder = areaPathsUnder;
+        const { exact: areaPaths, under: areaPathsUnder } = await promptAreaPaths();
+        if (areaPaths.length > 0) filter.areaPaths = areaPaths;
+        if (areaPathsUnder.length > 0) filter.areaPathsUnder = areaPathsUnder;
 
-    const { exact: iterations, under: iterationsUnder } = await promptIterations();
-    if (iterations.length > 0) filter.iterations = iterations;
-    if (iterationsUnder.length > 0) filter.iterationsUnder = iterationsUnder;
+        const { exact: iterations, under: iterationsUnder } = await promptIterations();
+        if (iterations.length > 0) filter.iterations = iterations;
+        if (iterationsUnder.length > 0) filter.iterationsUnder = iterationsUnder;
+        break;
+      }
+      case "stateHistory": {
+        const statesExclude = await promptStatesExclude();
+        if (statesExclude.length > 0) filter.statesExclude = statesExclude;
 
-    const statesExclude = await promptStatesExclude();
-    if (statesExclude.length > 0) filter.statesExclude = statesExclude;
+        const statesWereEver = await promptStatesWereEver();
+        if (statesWereEver.length > 0) filter.statesWereEver = statesWereEver;
+        break;
+      }
+      case "assignment": {
+        const assignedTo = await promptAssignedTo();
+        if (assignedTo.length > 0) filter.assignedTo = assignedTo;
 
-    const statesWereEver = await promptStatesWereEver();
-    if (statesWereEver.length > 0) filter.statesWereEver = statesWereEver;
+        const priority = await promptPriority();
+        if (priority) filter.priority = priority;
+        break;
+      }
+      case "dates": {
+        const changedAfter = await promptDateFilter(
+          "Filter by last modified date:",
+          "Changed after (date or @Today offset):",
+        );
+        if (changedAfter) filter.changedAfter = changedAfter;
 
-    const assignedTo = await promptAssignedTo();
-    if (assignedTo.length > 0) filter.assignedTo = assignedTo;
+        const createdAfter = await promptDateFilter(
+          "Filter by creation date:",
+          "Created after (date or @Today offset):",
+        );
+        if (createdAfter) filter.createdAfter = createdAfter;
+        break;
+      }
+      case "custom": {
+        // Custom fields and query have their own inner gates since users
+        // may want one but not the other
+        const useCustomFields = assertNotCancelled(
+          await confirm({ message: "Add custom field filters?", initialValue: false }),
+        );
+        if (useCustomFields) filter.customFields = await configureCustomFields();
 
-    const priority = await promptPriority();
-    if (priority) filter.priority = priority;
-
-    const changedAfter = await promptDateFilter(
-      "Filter by last modified date:",
-      "Changed after (date or @Today offset):",
-    );
-    if (changedAfter) filter.changedAfter = changedAfter;
-
-    const createdAfter = await promptDateFilter(
-      "Filter by creation date:",
-      "Created after (date or @Today offset):",
-    );
-    if (createdAfter) filter.createdAfter = createdAfter;
-
-    const useCustomFields = assertNotCancelled(
-      await confirm({ message: "Add custom field filters?", initialValue: false }),
-    );
-    if (useCustomFields) filter.customFields = await configureCustomFields();
-
-    const customQuery = await promptCustomQuery();
-    if (customQuery) filter.customQuery = customQuery;
+        const customQuery = await promptCustomQuery();
+        if (customQuery) filter.customQuery = customQuery;
+        break;
+      }
+    }
   }
 
   return filter;
@@ -384,11 +413,16 @@ async function promptStatesWereEver(): Promise<string[]> {
 }
 
 async function promptAssignedTo(): Promise<string[]> {
+  const use = assertNotCancelled(
+    await confirm({ message: "Filter by assigned-to?", initialValue: false }),
+  );
+  if (!use) return [];
+
   return Filters.commaSeparated(
     assertNotCancelled(
       await text({
-        message: "Assigned to (comma-separated email addresses):",
-        placeholder: "e.g. alice@example.com, bob@example.com",
+        message: "Assigned to (comma-separated email addresses or @Me):",
+        placeholder: "e.g. alice@example.com, @Me",
       }),
     ),
   );
