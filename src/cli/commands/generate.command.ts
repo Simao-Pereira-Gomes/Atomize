@@ -167,7 +167,7 @@ async function loadAndValidateTemplate(
   logger.info(`Loading template: ${templatePath}`);
   const template = await new TemplateLoader().load(templatePath);
 
-  print(chalk.cyan(`Template: ${template.name}`));
+  console.log(chalk.cyan(`Template: ${template.name}`));
   print(chalk.gray(`Description: ${template.description || "N/A"}`));
   print(chalk.gray(`Tasks: ${template.tasks.length}\n`));
 
@@ -400,6 +400,15 @@ export const generateCommand = new Command("generate")
         process.exit(ExitCode.Failure);
       }
 
+      if (options.profile) {
+        const { getProfile } = await import("@config/connections.config");
+        const profile = await getProfile(options.profile);
+        if (!profile) {
+          cancel(`Profile "${options.profile}" not found. Run: atomize auth list`);
+          process.exit(ExitCode.Failure);
+        }
+      }
+
       const { templatePath, platform, dryRun } = await promptMissingArgs(templateArg, options);
       options.platform = platform;
 
@@ -431,18 +440,26 @@ export const generateCommand = new Command("generate")
         template.filter.tags?.include ||
         template.filter.excludeIfHasTasks;
 
-      print(chalk.cyan(" Filter Criteria:"));
-      if (template.filter.workItemTypes)
-        print(chalk.gray(`  Types: ${template.filter.workItemTypes.join(", ")}`));
-      if (template.filter.states)
-        print(chalk.gray(`  States: ${template.filter.states.join(", ")}`));
-      if (template.filter.tags?.include)
-        print(chalk.gray(`  Tags (include): ${template.filter.tags.include.join(", ")}`));
-      if (template.filter.excludeIfHasTasks)
-        print(chalk.gray("  Exclude if has tasks: Yes"));
-      if (!hasFilterCriteria)
-        print(chalk.gray("  Matches all work items"));
-      print("");
+      if (isQuiet) {
+        const filterLabel = [
+          template.filter.workItemTypes?.join(", "),
+          template.filter.states ? `states: ${template.filter.states.join(", ")}` : undefined,
+        ].filter(Boolean).join(" · ") || "All items";
+        console.log(chalk.gray(`Filter:   ${filterLabel}`));
+      } else {
+        console.log(chalk.cyan(" Filter Criteria:"));
+        if (template.filter.workItemTypes)
+          console.log(chalk.gray(`  Types: ${template.filter.workItemTypes.join(", ")}`));
+        if (template.filter.states)
+          console.log(chalk.gray(`  States: ${template.filter.states.join(", ")}`));
+        if (template.filter.tags?.include)
+          console.log(chalk.gray(`  Tags (include): ${template.filter.tags.include.join(", ")}`));
+        if (template.filter.excludeIfHasTasks)
+          console.log(chalk.gray("  Exclude if has tasks: Yes"));
+        if (!hasFilterCriteria)
+          console.log(chalk.gray("  Matches all work items"));
+      }
+      console.log("");
 
       if (!dryRun && isTTYSession) {
         await confirmLiveExecution(template, { platform });
