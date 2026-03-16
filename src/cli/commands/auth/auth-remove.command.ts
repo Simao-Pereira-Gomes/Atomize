@@ -38,7 +38,7 @@ export const authRemoveCommand = new Command("remove")
     }
 
     const operationSpinner = spinner();
-    operationSpinner.start(`Removing "${name}"...`);
+    operationSpinner.start(`Deleting profile and token for "${name}"...`);
 
     try {
       const { wasDefault } = await deleteProfile(name, profile);

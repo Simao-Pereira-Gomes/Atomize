@@ -43,7 +43,7 @@ export const authAddCommand = new Command("add")
     if (ci || nameArg) {
       if (!nameArg) {
         console.error(
-          "Error: Profile name is required (pass it as an argument)",
+          "Error: Profile name is required.\nUsage: atomize auth add <name> --org-url <url> --project <name> --team <name> --pat <token>",
         );
         process.exit(ExitCode.Failure);
       }

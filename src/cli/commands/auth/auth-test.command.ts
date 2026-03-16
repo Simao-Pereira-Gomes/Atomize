@@ -21,6 +21,11 @@ export const authTestCommand = new Command("test")
       return;
     }
 
+    if (nameArg && !file.profiles.find((p) => p.name === nameArg)) {
+      cancel(`Profile "${nameArg}" not found. Run: atomize auth list`);
+      process.exit(ExitCode.Failure);
+    }
+
     const profileName = await promptProfileToTest(nameArg);
 
     const s = spinner();
