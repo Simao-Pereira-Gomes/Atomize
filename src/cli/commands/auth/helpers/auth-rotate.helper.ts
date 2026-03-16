@@ -39,7 +39,7 @@ export async function rotateToken(
   profile: ConnectionProfile,
   newPat: string,
 ): Promise<{ useKeychain: boolean }> {
-  await deleteToken(profile.name, profile.token.strategy);
+  await deleteToken(profile.name, profile.token);
   const tokenData = await storeToken(profile.name, newPat);
   await saveProfile({ ...profile, token: tokenData, updatedAt: new Date().toISOString() });
   return { useKeychain: tokenData.strategy === "keychain" };

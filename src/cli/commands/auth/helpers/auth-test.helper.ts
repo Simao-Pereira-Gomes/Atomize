@@ -37,6 +37,8 @@ export type TestResult =
   | { ok: false; reason: string };
 
 export async function testPlatformConnection(platform: IPlatformAdapter): Promise<TestResult> {
+  await platform.authenticate();
+
   if (platform.testConnection) {
     const ok = await platform.testConnection();
     return ok
@@ -44,7 +46,6 @@ export async function testPlatformConnection(platform: IPlatformAdapter): Promis
       : { ok: false, reason: "Could not connect. Check credentials." };
   }
 
-  await platform.authenticate();
   const meta = platform.getPlatformMetadata();
   return { ok: true, label: `Connected: ${meta.name} v${meta.version} ✓` };
 }

@@ -11,13 +11,7 @@ export async function resolveAzureConfig(
     const profile = await getProfile(name);
     if (!profile)
       throw new Error(`Profile "${name}" not found. Run: atomize auth list`);
-    const token = await retrieveToken(
-      profile.name,
-      profile.token.strategy,
-      profile.token.iv,
-      profile.token.authTag,
-      profile.token.ciphertext,
-    );
+    const token = await retrieveToken(profile.name, profile.token);
     return {
       type: "azure-devops",
       organizationUrl: profile.organizationUrl,
@@ -29,13 +23,7 @@ export async function resolveAzureConfig(
 
   const defaultProfile = await getDefaultProfile();
   if (defaultProfile) {
-    const token = await retrieveToken(
-      defaultProfile.name,
-      defaultProfile.token.strategy,
-      defaultProfile.token.iv,
-      defaultProfile.token.authTag,
-      defaultProfile.token.ciphertext,
-    );
+    const token = await retrieveToken(defaultProfile.name, defaultProfile.token);
     return {
       type: "azure-devops",
       organizationUrl: defaultProfile.organizationUrl,

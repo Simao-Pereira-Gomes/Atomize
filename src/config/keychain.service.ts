@@ -1,6 +1,7 @@
 import { AuthError } from "@utils/errors";
 import type keytar from "keytar";
 import { decryptWithKeyfile, encryptWithKeyfile } from "./keyfile.service";
+import type { EncryptedToken } from "./connections.interface";
 
 type KeytarModule = typeof keytar;
 
@@ -26,12 +27,7 @@ const SERVICE_NAME = "atomize";
 export async function storeToken(
   profileName: string,
   token: string,
-): Promise<{
-  strategy: "keychain" | "keyfile";
-  iv?: string;
-  authTag?: string;
-  ciphertext?: string;
-}> {
+): Promise<EncryptedToken> {
   const kt = await getKeytar();
   if (kt) {
     await kt.setPassword(SERVICE_NAME, profileName, token);
@@ -43,37 +39,29 @@ export async function storeToken(
 
 export async function retrieveToken(
   profileName: string,
-  strategy: "keychain" | "keyfile",
-  iv?: string,
-  authTag?: string,
-  ciphertext?: string,
+  token: EncryptedToken,
 ): Promise<string> {
-  if (strategy === "keychain") {
+  if (token.strategy === "keychain") {
     const kt = await getKeytar();
     if (!kt)
       throw new AuthError(
         `keytar unavailable — cannot retrieve token for profile "${profileName}"`,
       );
-    const token = await kt.getPassword(SERVICE_NAME, profileName);
-    if (!token)
+    const stored = await kt.getPassword(SERVICE_NAME, profileName);
+    if (!stored)
       throw new AuthError(
         `No token found in keychain for profile "${profileName}"`,
       );
-    return token;
+    return stored;
   }
-  if (!iv || !authTag || !ciphertext) {
-    throw new AuthError(
-      `Encrypted token data missing for profile "${profileName}"`,
-    );
-  }
-  return decryptWithKeyfile(iv, authTag, ciphertext);
+  return decryptWithKeyfile(token.iv, token.authTag, token.ciphertext);
 }
 
 export async function deleteToken(
   profileName: string,
-  strategy: "keychain" | "keyfile",
+  token: EncryptedToken,
 ): Promise<void> {
-  if (strategy === "keychain") {
+  if (token.strategy === "keychain") {
     const kt = await getKeytar();
     if (kt) await kt.deletePassword(SERVICE_NAME, profileName);
   }

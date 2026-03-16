@@ -1,9 +1,6 @@
-export interface EncryptedToken {
-  strategy: "keychain" | "keyfile";
-  iv?: string;       // hex — only when strategy=keyfile
-  authTag?: string;  // hex — only when strategy=keyfile
-  ciphertext?: string; // hex — only when strategy=keyfile
-}
+export type EncryptedToken =
+  | { strategy: "keychain" }
+  | { strategy: "keyfile"; iv: string; authTag: string; ciphertext: string };
 
 export interface ConnectionProfile {
   name: string;

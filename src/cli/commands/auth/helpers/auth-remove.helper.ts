@@ -35,6 +35,6 @@ export async function deleteProfile(
   name: string,
   profile: ConnectionProfile,
 ): Promise<{ wasDefault: boolean }> {
-  await deleteToken(name, profile.token.strategy);
+  await deleteToken(name, profile.token);
   return removeProfile(name);
 }

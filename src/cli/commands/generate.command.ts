@@ -193,7 +193,8 @@ async function loadAndValidateTemplate(
   return template;
 }
 
-function parseConcurrency(
+/** @internal Exported for testing */
+export function parseConcurrency(
   options: {
     taskConcurrency: string;
     storyConcurrency: string;
@@ -290,7 +291,8 @@ async function confirmLiveExecution(
   }
 }
 
-function printReport(
+/** @internal Exported for testing */
+export function printReport(
   report: Awaited<ReturnType<Atomizer["atomize"]>>,
   options: { verbose: boolean },
   dryRun: boolean,
