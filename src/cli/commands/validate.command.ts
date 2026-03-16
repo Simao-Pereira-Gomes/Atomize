@@ -78,7 +78,7 @@ function printValidationResult(
   result: ValidationResult,
   quiet?: boolean,
 ) {
-  console.log("");
+  if (!quiet) console.log("");
 
   if (result.valid) {
     printValidSummary(template, result.warnings, result.mode, quiet);

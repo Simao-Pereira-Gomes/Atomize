@@ -4,11 +4,11 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
-export const templateListCommand = new Command("list")
+export const templateListCommand = new Command("presets")
   .alias("ls")
-  .description("List available template presets")
+  .description("List available built-in template presets")
   .action(async () => {
-    intro(" Atomize — Template Presets");
+    intro(" Atomize — Built-in Template Presets");
     try {
       const presetManager = new PresetManager();
       const presets = await presetManager.listPresets();

@@ -156,8 +156,7 @@ export const templateCreateCommand = new Command("create")
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
   if (options.ai) {
-    cancel("AI generation is temporarily disabled.");
-    process.exit(ExitCode.Failure);
+    console.log(chalk.yellow("  AI generation is temporarily disabled. Select a mode below.\n"));
   }
   if (options.preset) return "preset";
   if (options.fromStories) return "stories";

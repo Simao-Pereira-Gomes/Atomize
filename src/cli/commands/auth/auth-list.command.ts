@@ -28,6 +28,7 @@ export const authListCommand = new Command("list")
       console.log(`    Team:     ${profile.team}`);
       console.log(`    Token:    ${tokenDisplay}`);
       console.log(`    Created:  ${profile.createdAt.slice(0, 16).replace("T", " ")}`);
+      console.log(`    Updated:  ${profile.updatedAt.slice(0, 16).replace("T", " ")}`);
       console.log("");
     }
 
