@@ -159,7 +159,7 @@ describe("persistProfile", () => {
     const file = await readConnectionsFile();
     const saved = file.profiles.find((p) => p.name === "token-strategy-test");
     expect(saved).toBeDefined();
-    expect(["keychain", "keyfile"]).toContain(saved!.token.strategy);
+    expect(["keychain", "keyfile"]).toContain(saved?.token.strategy);
   });
 });
 

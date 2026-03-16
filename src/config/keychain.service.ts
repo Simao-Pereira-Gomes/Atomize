@@ -1,7 +1,7 @@
 import { AuthError } from "@utils/errors";
 import type keytar from "keytar";
-import { decryptWithKeyfile, encryptWithKeyfile } from "./keyfile.service";
 import type { EncryptedToken } from "./connections.interface";
+import { decryptWithKeyfile, encryptWithKeyfile } from "./keyfile.service";
 
 type KeytarModule = typeof keytar;
 

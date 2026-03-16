@@ -1,7 +1,9 @@
-import { cancel, intro, outro, spinner } from "@clack/prompts";
+import { cancel, intro, outro, select, spinner } from "@clack/prompts";
+import { readConnectionsFile, setDefaultProfile } from "@config/connections.config";
 import chalk from "chalk";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
+import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 import {
   confirmRemoval,
   deleteProfile,
@@ -43,11 +45,21 @@ export const authRemoveCommand = new Command("remove")
       operationSpinner.stop(`Profile "${name}" removed`);
 
       if (wasDefault) {
-        console.log(
-          chalk.yellow(
-            `  Warning: "${name}" was the default profile. Use "atomize auth use" to set a new default.`,
-          ),
-        );
+        const remaining = await readConnectionsFile();
+        const [onlyProfile] = remaining.profiles;
+        if (remaining.profiles.length === 1 && onlyProfile) {
+          await setDefaultProfile(onlyProfile.name);
+          console.log(chalk.green(`  "${onlyProfile.name}" is now the default profile.`));
+        } else if (remaining.profiles.length > 1) {
+          const newDefault = assertNotCancelled(
+            await select({
+              message: "Choose a new default profile:",
+              options: remaining.profiles.map((p) => ({ label: p.name, value: p.name })),
+            }),
+          ) as string;
+          await setDefaultProfile(newDefault);
+          console.log(chalk.green(`  "${newDefault}" is now the default profile.`));
+        }
       }
 
       outro("Done.");
