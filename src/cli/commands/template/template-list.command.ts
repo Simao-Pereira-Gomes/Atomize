@@ -14,7 +14,7 @@ export const templateListCommand = new Command("presets")
       const presets = await presetManager.listPresets();
 
       if (presets.length === 0) {
-        outro("No presets found.");
+        outro("No presets found. Create a template with: atomize template create --scratch");
         return;
       }
 

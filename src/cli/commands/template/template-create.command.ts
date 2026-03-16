@@ -336,12 +336,17 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
   console.log(chalk.cyan("\n Create from Preset\n"));
 
   const presetManager = new PresetManager();
+  const choices = await presetManager.getPresetChoices();
 
   let presetName = options.preset;
 
-  if (!presetName) {
-    const choices = await presetManager.getPresetChoices();
-
+  if (presetName) {
+    if (!choices.find((c) => c.value === presetName)) {
+      throw new ConfigurationError(
+        `Preset "${presetName}" not found. Run: atomize template presets`,
+      );
+    }
+  } else {
     if (choices.length === 0) {
       throw new Error(
         "No presets found. Create some in templates/presets/ first.",
@@ -354,10 +359,6 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
         options: choices.map((c) => ({ label: c.name, value: c.value })),
       }),
     ) as string;
-  }
-
-  if (!presetName) {
-    throw new ConfigurationError("Preset name is required");
   }
 
   const template = await presetManager.loadPreset(presetName);
@@ -381,6 +382,54 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
 /**
  * Create from multiple existing stories
  */
+/**
+ * Validates that story IDs exist on the platform before running analysis.
+ * Returns the filtered list of valid IDs, prompting the user if some are missing.
+ * Skipped gracefully if the platform does not implement getWorkItem.
+ * Throws ConfigurationError if none exist, CancellationError if user declines to continue.
+ */
+async function validateStoryIds(
+  platform: IPlatformAdapter,
+  storyIds: string[],
+): Promise<string[]> {
+  if (!platform.getWorkItem) return storyIds;
+
+  const validateSpinner = spinner();
+  validateSpinner.start(`Validating ${storyIds.length} story ID(s)...`);
+
+  const results = await Promise.all(
+    storyIds.map(async (id) => ({ id, found: !!(await platform.getWorkItem!(id)) })),
+  );
+
+  const missing = results.filter((r) => !r.found).map((r) => r.id);
+
+  if (missing.length === storyIds.length) {
+    validateSpinner.stop("Validation failed");
+    throw new ConfigurationError(
+      `None of the provided story IDs exist: ${missing.join(", ")}. Check the IDs and try again.`,
+    );
+  }
+
+  if (missing.length > 0) {
+    validateSpinner.stop(`${missing.length} story ID(s) not found`);
+    console.log(chalk.yellow(`  Not found: ${missing.join(", ")}`));
+
+    const proceed = assertNotCancelled(
+      await confirm({
+        message: `Continue with the ${storyIds.length - missing.length} remaining story ID(s)?`,
+        initialValue: true,
+      }),
+    );
+
+    if (!proceed) throw new CancellationError("Story ID validation cancelled");
+
+    return storyIds.filter((id) => !missing.includes(id));
+  }
+
+  validateSpinner.stop(`All ${storyIds.length} story ID(s) found ✓`);
+  return storyIds;
+}
+
 async function createFromStories(
   options: CreateOptions,
 ): Promise<TaskTemplate> {
@@ -439,6 +488,8 @@ async function createFromStories(
 
   await platform.authenticate();
   connectSpinner.stop("Connected ✓");
+
+  storyIds = await validateStoryIds(platform, storyIds);
 
   const learner = new StoryLearner(platform);
   const learnSpinner = spinner();
@@ -811,19 +862,6 @@ export async function createFromScratch(
         ),
       );
       throw new CancellationError("Template creation cancelled by user");
-    }
-
-    // Final confirmation before saving
-    console.log("");
-    const finalConfirm = assertNotCancelled(
-      await confirm({
-        message: "Save this template?",
-        initialValue: true,
-      }),
-    );
-
-    if (!finalConfirm) {
-      throw new CancellationError("Template save cancelled by user");
     }
 
     return template;

@@ -652,6 +652,13 @@ export async function configureValidation(): Promise<
         message: "Maximum total estimation %:",
         defaultValue: "105",
         placeholder: "e.g. 105",
+        validate: (input): string | undefined => {
+          if (!input || input.trim() === "") return undefined;
+          const n = Number(input);
+          if (Number.isNaN(n)) return "Must be a valid number";
+          if (n < Number(minRaw)) return `Maximum must be ≥ minimum (${minRaw}%)`;
+          return undefined;
+        },
       }),
     );
     validation.totalEstimationRange = {
