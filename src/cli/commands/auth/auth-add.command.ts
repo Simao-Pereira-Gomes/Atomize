@@ -3,8 +3,10 @@ import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   applyDefault,
+  checkProfileNameAvailable,
   persistProfile,
-  promptProfileInputs,
+  promptProfileName,
+  promptRemainingInputs,
   promptSetAsDefault,
   resolveDefaultBehaviour,
   validateProfileName,
@@ -37,28 +39,42 @@ export const authAddCommand = new Command("add")
     const ci = isNonInteractive(options);
 
     if (!ci) intro(" Atomize — Add Connection Profile");
-
-    if (nameArg) {
+    let resolvedName: string;
+    if (ci || nameArg) {
+      if (!nameArg) {
+        console.error(
+          "Error: Profile name is required (pass it as an argument)",
+        );
+        process.exit(ExitCode.Failure);
+      }
       const nameError = validateProfileName(nameArg);
       if (nameError) {
         if (ci) console.error(`Error: ${nameError}`);
         else cancel(nameError);
         process.exit(ExitCode.Failure);
       }
-    } else if (ci) {
-      console.error("Error: Profile name is required (pass it as an argument)");
+      resolvedName = nameArg;
+    } else {
+      resolvedName = await promptProfileName();
+    }
+
+    const dupError = await checkProfileNameAvailable(resolvedName);
+    if (dupError) {
+      if (ci) console.error(`Error: ${dupError}`);
+      else cancel(dupError);
       process.exit(ExitCode.Failure);
     }
+
     const inputs = ci
       ? {
-          name: nameArg as string,
+          name: resolvedName,
           platform: "azure-devops" as const,
           organizationUrl: options.orgUrl as string,
           project: options.project as string,
           team: options.team as string,
           pat: options.pat as string,
         }
-      : await promptProfileInputs(nameArg);
+      : await promptRemainingInputs(resolvedName);
 
     const savingSpinner = ci ? null : spinner();
     savingSpinner?.start("Saving profile...");

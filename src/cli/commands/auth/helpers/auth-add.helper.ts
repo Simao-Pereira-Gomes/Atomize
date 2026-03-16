@@ -27,19 +27,29 @@ export function validateProfileName(
   return undefined;
 }
 
-export async function promptProfileInputs(
-  nameArg?: string,
-): Promise<ProfileInputs> {
-  const name =
-    nameArg ??
-    assertNotCancelled(
-      await text({
-        message: "Profile name:",
-        placeholder: "work-ado",
-        validate: validateProfileName,
-      }),
-    );
+export async function checkProfileNameAvailable(
+  name: string,
+): Promise<string | undefined> {
+  const file = await readConnectionsFile();
+  if (file.profiles.some((p) => p.name === name)) {
+    return `Profile "${name}" already exists. Use "atomize auth rotate ${name}" to update its token.`;
+  }
+  return undefined;
+}
 
+export async function promptProfileName(): Promise<string> {
+  return assertNotCancelled(
+    await text({
+      message: "Profile name:",
+      placeholder: "work-ado",
+      validate: validateProfileName,
+    }),
+  );
+}
+
+export async function promptRemainingInputs(
+  name: string,
+): Promise<ProfileInputs> {
   const platform = assertNotCancelled(
     await select({
       message: "Platform:",
