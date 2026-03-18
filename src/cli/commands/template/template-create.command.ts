@@ -17,7 +17,7 @@ import { PresetManager } from "@services/template/preset-manager";
 import { StoryLearner } from "@services/template/story-learner";
 import { TemplateValidator } from "@templates/validator";
 import chalk from "chalk";
-import { Command, Option } from "commander";
+import { Command } from "commander";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
 import { ExitCode } from "@/cli/utilities/exit-codes";
@@ -32,10 +32,7 @@ import type {
   TaskTemplate,
   ValidationConfig,
 } from "@/templates/schema";
-import {
-  CancellationError,
-  ConfigurationError,
-} from "@/utils/errors";
+import { CancellationError, ConfigurationError } from "@/utils/errors";
 import {
   configureBasicInfo,
   configureEstimation,
@@ -99,7 +96,10 @@ export const templateCreateCommand = new Command("create")
       const template = await match(mode)
         .with("preset", async () => await createFromPreset(options))
         .with("stories", async () => await createFromStories(options))
-        .with("scratch", async () => await createFromScratch({ quiet: options.quiet }))
+        .with(
+          "scratch",
+          async () => await createFromScratch({ quiet: options.quiet }),
+        )
         .exhaustive();
 
       if (!options.output) {
@@ -232,7 +232,10 @@ async function validateStoryIds(
   validateSpinner.start(`Validating ${storyIds.length} story ID(s)...`);
 
   const results = await Promise.all(
-    storyIds.map(async (id) => ({ id, found: !!(await platform.getWorkItem?.(id)) })),
+    storyIds.map(async (id) => ({
+      id,
+      found: !!(await platform.getWorkItem?.(id)),
+    })),
   );
 
   const missing = results.filter((r) => !r.found).map((r) => r.id);

@@ -1,6 +1,7 @@
 import { cancel, intro, outro, spinner } from "@clack/prompts";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
+import { isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 import {
   applyDefault,
   checkProfileNameAvailable,
@@ -20,8 +21,12 @@ interface AddOptions {
   default?: boolean;
 }
 
-function isNonInteractive(options: AddOptions): boolean {
+function hasAllFlags(options: AddOptions): boolean {
   return !!(options.orgUrl && options.project && options.team && options.pat);
+}
+
+function isNonInteractive(options: AddOptions): boolean {
+  return !isInteractiveTerminal() || hasAllFlags(options);
 }
 
 export const authAddCommand = new Command("add")
@@ -38,8 +43,7 @@ export const authAddCommand = new Command("add")
   .action(async (nameArg: string | undefined, options: AddOptions) => {
     const ci = isNonInteractive(options);
 
-    if (!ci) intro(" Atomize — Add Connection Profile");
-    let resolvedName: string;
+    // Validate and check availability before showing any UI when name is already known
     if (ci || nameArg) {
       if (!nameArg) {
         console.error(
@@ -53,16 +57,26 @@ export const authAddCommand = new Command("add")
         else cancel(nameError);
         process.exit(ExitCode.Failure);
       }
-      resolvedName = nameArg;
-    } else {
-      resolvedName = await promptProfileName();
+      const dupError = await checkProfileNameAvailable(nameArg);
+      if (dupError) {
+        if (ci) console.error(`Error: ${dupError}`);
+        else cancel(dupError);
+        process.exit(ExitCode.Failure);
+      }
     }
 
-    const dupError = await checkProfileNameAvailable(resolvedName);
-    if (dupError) {
-      if (ci) console.error(`Error: ${dupError}`);
-      else cancel(dupError);
-      process.exit(ExitCode.Failure);
+    if (!ci) intro(" Atomize — Add Connection Profile");
+
+    let resolvedName: string;
+    if (ci || nameArg) {
+      resolvedName = nameArg as string;
+    } else {
+      resolvedName = await promptProfileName();
+      const dupError = await checkProfileNameAvailable(resolvedName);
+      if (dupError) {
+        cancel(dupError);
+        process.exit(ExitCode.Failure);
+      }
     }
 
     const inputs = ci

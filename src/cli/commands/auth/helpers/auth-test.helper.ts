@@ -9,7 +9,8 @@ export async function promptProfileToTest(nameArg?: string): Promise<string | un
   if (nameArg) return nameArg;
 
   const file = await readConnectionsFile();
-  if (file.profiles.length <= 1) return undefined;
+  if (file.profiles.length === 1) return file.profiles[0]?.name;
+  if (file.profiles.length === 0) return undefined;
 
   return assertNotCancelled(
     await select({

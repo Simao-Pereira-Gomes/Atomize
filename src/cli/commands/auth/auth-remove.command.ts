@@ -51,6 +51,7 @@ export const authRemoveCommand = new Command("remove")
           await setDefaultProfile(onlyProfile.name);
           console.log(chalk.green(`  "${onlyProfile.name}" is now the default profile.`));
         } else if (remaining.profiles.length > 1) {
+          console.log(chalk.yellow(`\n  "${name}" was the default profile. Please select a new default:`));
           const newDefault = assertNotCancelled(
             await select({
               message: "Choose a new default profile:",
@@ -64,8 +65,8 @@ export const authRemoveCommand = new Command("remove")
 
       outro("Done.");
     } catch (error) {
-      operationSpinner.stop("Failed");
-      cancel(error instanceof Error ? error.message : String(error));
+      const msg = error instanceof Error ? error.message : String(error);
+      operationSpinner.stop(`Failed to remove profile: ${msg}`);
       process.exit(ExitCode.Failure);
     }
   });

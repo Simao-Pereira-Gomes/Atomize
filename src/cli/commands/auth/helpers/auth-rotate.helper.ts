@@ -13,7 +13,7 @@ export async function promptProfileToRotate(nameArg?: string): Promise<string> {
   const file = await readConnectionsFile();
   return assertNotCancelled(
     await select({
-      message: "Select profile:",
+      message: "Select profile to rotate:",
       options: file.profiles.map((p) => ({
         label: p.name === file.defaultProfile ? `${p.name} (default)` : p.name,
         value: p.name,

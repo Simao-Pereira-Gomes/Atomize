@@ -384,9 +384,18 @@ export const generateCommand = new Command("generate")
   .option("-v, --verbose", "Show detailed output", false)
   .option("-o, --output <file>", "Write JSON report to file")
   .option("-q, --quiet", "Suppress non-essential output", false)
-  .option("--profile <name>", "Named connection profile to use")
+  .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .action(async (templateArg: string | undefined, options) => {
     try {
+      if (options.profile) {
+        const { getProfile } = await import("@config/connections.config");
+        const profile = await getProfile(options.profile);
+        if (!profile) {
+          cancel(`Profile "${options.profile}" not found. Run: atomize auth list`);
+          process.exit(ExitCode.Failure);
+        }
+      }
+
       intro(" Atomize — Task Generator");
 
       const isTTYSession = isInteractiveTerminal();
@@ -398,15 +407,6 @@ export const generateCommand = new Command("generate")
       if (options.quiet && options.verbose) {
         cancel("--quiet and --verbose are mutually exclusive.");
         process.exit(ExitCode.Failure);
-      }
-
-      if (options.profile) {
-        const { getProfile } = await import("@config/connections.config");
-        const profile = await getProfile(options.profile);
-        if (!profile) {
-          cancel(`Profile "${options.profile}" not found. Run: atomize auth list`);
-          process.exit(ExitCode.Failure);
-        }
       }
 
       const { templatePath, platform, dryRun } = await promptMissingArgs(templateArg, options);
@@ -427,10 +427,20 @@ export const generateCommand = new Command("generate")
 
       const authSpinner = spinner();
       if (isTTYSession) authSpinner.start("Authenticating...");
-      await platform_.authenticate();
+      const AUTH_TIMEOUT_MS = 15_000;
+      await Promise.race([
+        platform_.authenticate(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Authentication timed out after 15s. Check your network connection and credentials.")),
+            AUTH_TIMEOUT_MS,
+          ),
+        ),
+      ]);
       const metadata = platform_.getPlatformMetadata();
-      if (isTTYSession) authSpinner.stop(`Connected: ${metadata.name} v${metadata.version} ✓`);
-      else print(`Connected: ${metadata.name} v${metadata.version} ✓`);
+      const profileLabel = options.profile ? ` · profile: ${options.profile}` : "";
+      if (isTTYSession) authSpinner.stop(`Connected: ${metadata.name} v${metadata.version}${profileLabel} ✓`);
+      else print(`Connected: ${metadata.name} v${metadata.version}${profileLabel} ✓`);
 
       const atomizer = new Atomizer(platform_);
 

@@ -11,7 +11,7 @@ import {
 
 export const authRotateCommand = new Command("rotate")
   .description("Replace the access token for a connection profile")
-  .argument("[name]", "Profile name")
+  .argument("[name]", "Profile name (uses default if omitted)")
   .action(async (nameArg: string | undefined) => {
     intro(" Atomize — Rotate Token");
 
@@ -40,8 +40,8 @@ export const authRotateCommand = new Command("rotate")
       );
       outro(`Profile "${name}" updated.`);
     } catch (error) {
-      rotationSpinner.stop("Failed to rotate token");
-      cancel(error instanceof Error ? error.message : String(error));
+      const msg = error instanceof Error ? error.message : String(error);
+      rotationSpinner.stop(`Failed to rotate token: ${msg}`);
       process.exit(ExitCode.Failure);
     }
   });
