@@ -9,6 +9,7 @@ export const AtomizeErrorCode = {
   TemplateGenerationError: "TemplateGenerationError",
   CancellationError: "CancellationError",
   TemplateCreationError: "TemplateCreationError",
+  AuthError: "AuthError",
 } as const;
 
 export type AtomizeErrorCode =
@@ -81,6 +82,12 @@ export class TemplateCreationError extends AtomizeError {
 export class CancellationError extends AtomizeError {
   constructor(message: string) {
     super(AtomizeErrorCode.CancellationError, message);
+  }
+}
+
+export class AuthError extends AtomizeError {
+  constructor(message: string) {
+    super(AtomizeErrorCode.AuthError, message);
   }
 }
 

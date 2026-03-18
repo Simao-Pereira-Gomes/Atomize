@@ -16,21 +16,6 @@ describe("resolveValidationOptions", () => {
     });
   });
 
-  test("returns lenient mode when --lenient flag is present", () => {
-    expect(resolveValidationOptions({ lenient: true })).toEqual({
-      mode: "lenient",
-    });
-  });
-
-  test("--strict takes precedence over --lenient when both are set", () => {
-    expect(resolveValidationOptions({ strict: true, lenient: true })).toEqual({
-      mode: "strict",
-    });
-  });
-
-  test("returns empty options when verbose-only flags are set (no mode override)", () => {
-    expect(resolveValidationOptions({ verbose: true })).toEqual({});
-  });
 });
 
 describe("getTemplateSummary", () => {

@@ -42,7 +42,7 @@ Complete setup guide for Azure DevOps Services.
    ```
    https://dev.azure.com/{organization}
    ```
-   
+
    Example: `https://dev.azure.com/contoso`
 
 2. **Create a Personal Access Token (PAT)**
@@ -52,57 +52,52 @@ Complete setup guide for Azure DevOps Services.
    - Set scopes: **Work Items (Read, Write)**
    - Copy the token (you won't see it again!)
 
-3. **Configure environment variables**
+3. **Save a connection profile**
 
    ```bash
-   # Create .env file
-   cat > .env << EOF
-   AZURE_DEVOPS_ORG_URL=https://dev.azure.com/yourorg
-   AZURE_DEVOPS_PROJECT=YourProject
-   AZURE_DEVOPS_PAT=your-token-here
-   AZURE_DEVOPS_TEAM=YourTeam  # Optional
-   EOF
+   atomize auth add work-ado
+   # Prompts for org URL, project, team, and PAT
+   # Set as default when prompted
    ```
 
 4. **Test connection**
 
    ```bash
-   atomize generate templates/backend-api.yaml --dry-run
+   atomize auth test work-ado
    ```
 
-### Configuration Options
+### Configuration
 
-#### Option 1: Environment Variables (Recommended)
+Credentials are managed as named profiles using the `auth` commands. Profiles store your connection details securely (PAT in OS keychain when available, otherwise encrypted file).
 
+**Add a profile:**
 ```bash
-# Required
-export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/myorg"
-export AZURE_DEVOPS_PROJECT="MyProject"
-export AZURE_DEVOPS_PAT="your-pat-token"
-
-# Optional
-export AZURE_DEVOPS_TEAM="MyTeam"
-export AZURE_DEVOPS_API_VERSION="7.0"
+atomize auth add <name>
 ```
 
-#### Option 2: .env File
-
+**Use a specific profile for generate:**
 ```bash
-# .env
-AZURE_DEVOPS_ORG_URL=https://dev.azure.com/myorg
-AZURE_DEVOPS_PROJECT=MyProject
-AZURE_DEVOPS_PAT=your-pat-token
-AZURE_DEVOPS_TEAM=MyTeam
+atomize generate templates/backend-api.yaml --profile work-ado
 ```
 
-#### Option 3: Interactive Prompts
-
+**Set a profile as default (used when `--profile` is not specified):**
 ```bash
+atomize auth use work-ado
+```
+
+**Select a profile via environment variable:**
+```bash
+export ATOMIZE_PROFILE=work-ado
 atomize generate templates/backend-api.yaml
+```
 
-# You'll be prompted:
-# ✔ Load Azure DevOps configuration from environment variables? (Y/n)
-# If you select "no", you'll enter configuration manually
+**Multiple profiles example:**
+```bash
+atomize auth add personal --org-url https://dev.azure.com/personal-org ...
+atomize auth add work     --org-url https://dev.azure.com/work-org ...
+
+atomize generate template.yaml --profile personal
+atomize generate template.yaml --profile work
 ```
 
 ### PAT Permissions
@@ -302,10 +297,11 @@ Maps to Azure DevOps fields:
 **Problem:** `Authentication failed: 401 Unauthorized`
 
 **Solutions:**
-1. Verify PAT hasn't expired
+1. Verify PAT hasn't expired — rotate it with `atomize auth rotate <name>`
 2. Check PAT has correct scopes (Work Items Read/Write)
 3. Verify organization URL format: `https://dev.azure.com/org`
 4. Don't include project in organization URL
+5. Test the profile: `atomize auth test <name>`
 
 #### No Work Items Found
 
@@ -317,7 +313,7 @@ Maps to Azure DevOps fields:
 3. Check area/iteration paths are correct (case-sensitive)
 4. Test with mock platform first:
    ```bash
-   atomize generate templates/backend-api.yaml --platform mock --dry-run
+   atomize generate templates/backend-api.yaml --platform mock
    ```
 
 #### Permission Errors
@@ -348,9 +344,7 @@ The mock platform provides sample data for testing and development.
 ### Usage
 
 ```bash
-atomize generate templates/backend-api.yaml \
-  --platform mock \
-  --dry-run
+atomize generate templates/backend-api.yaml --platform mock
 ```
 
 ### Features
@@ -402,7 +396,7 @@ STORY-007: Implement data export feature
 atomize template create --scratch -o test-template.yaml
 
 # Test with mock data
-atomize generate test-template.yaml --platform mock --dry-run
+atomize generate test-template.yaml --platform mock
 
 # Iterate until satisfied
 ```
@@ -410,7 +404,7 @@ atomize generate test-template.yaml --platform mock --dry-run
 **2. Filter Testing:**
 ```bash
 # Test different filters
-atomize generate test-template.yaml --platform mock --dry-run
+atomize generate test-template.yaml --platform mock
 
 # Check which stories match
 # Adjust filter criteria
@@ -424,7 +418,7 @@ atomize generate test-template.yaml --platform mock --dry-run
   run: |
     for template in templates/*.yaml; do
       atomize validate "$template"
-      atomize generate "$template" --platform mock --dry-run
+      atomize generate "$template" --platform mock
     done
 ```
 

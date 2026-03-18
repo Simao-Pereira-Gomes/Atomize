@@ -116,9 +116,6 @@ Override the mode at the command line for the current run:
 # Use strict mode for this validation
 atomize validate my-template.yaml --strict
 
-# Use lenient mode explicitly (default, but can be set explicitly)
-atomize validate my-template.yaml --lenient
-
 # Verbose output shows all details
 atomize validate my-template.yaml --strict --verbose
 ```
@@ -139,7 +136,7 @@ validation:
 CLI flags override the template's `validation.mode` setting:
 
 ```
-CLI --strict / --lenient  >  template validation.mode  >  lenient (default)
+CLI --strict  >  template validation.mode  >  lenient (default)
 ```
 
 ---

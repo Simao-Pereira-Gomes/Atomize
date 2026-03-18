@@ -2,13 +2,20 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { cancel, confirm, intro, outro, select, spinner, text } from "@clack/prompts";
+import {
+  cancel,
+  confirm,
+  intro,
+  outro,
+  select,
+  spinner,
+  text,
+} from "@clack/prompts";
 import {
   type AIConfig,
   getAIConfig,
   getAIConfigForProvider,
 } from "@config/ai.config";
-import { getAzureDevOpsConfigInteractive } from "@config/azure-devops.config";
 import { logger } from "@config/logger";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { AIGeneratorFactory } from "@services/template/ai-factory";
@@ -16,9 +23,10 @@ import { PresetManager } from "@services/template/preset-manager";
 import { StoryLearner } from "@services/template/story-learner";
 import { TemplateValidator } from "@templates/validator";
 import chalk from "chalk";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
+import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   isInteractiveTerminal,
@@ -47,7 +55,6 @@ import {
 } from "./template-wizard";
 
 interface CreateFromScratchOptions {
-  interactive?: boolean;
   quiet?: boolean;
 }
 
@@ -59,32 +66,28 @@ interface CreateOptions {
   fromStories?: string;
   scratch?: boolean;
   output?: string;
-  interactive?: boolean;
   aiProvider?: "gemini" | "ollama";
   apiKey?: string;
   model?: string;
   platform?: string;
+  profile?: string;
   normalize?: boolean;
   quiet?: boolean;
 }
 
 export const templateCreateCommand = new Command("create")
   .description("Create a new template interactively")
-  .option("--ai <prompt>", "Generate template using AI")
-  .option("--ai-provider <provider>", "Force AI provider: gemini|ollama")
-  .option("--api-key <key>", "Google Gemini API key (if not in environment)")
-  .option("--model <n>", "AI model name (e.g., gemini-2.0-flash-exp, llama3.2)")
+  .addOption(new Option("--ai <prompt>", "Generate template using AI").hideHelp())
+  .addOption(new Option("--ai-provider <provider>", "Force AI provider: gemini|ollama").hideHelp())
+  .addOption(new Option("--api-key <key>", "Google Gemini API key (if not in environment)").hideHelp())
+  .addOption(new Option("--model <n>", "AI model name (e.g., gemini-2.0-flash-exp, llama3.2)").hideHelp())
   .option("--preset <name>", "Start from a preset template")
   .option(
     "--from-stories <ids>",
     "Learn template from multiple stories (comma-separated IDs)",
   )
-  .option(
-    "-p, --platform <platform>",
-    "Platform to use",
-    "azure-devops",
-  )
-  .option("--normalize", "Normalize task estimation percentages to sum to 100%")
+  .option("-p, --platform <platform>", "Platform to use", "azure-devops")
+  .option("--profile <name>", "Named connection profile to use")
   .option("--no-normalize", "Keep original estimation percentages")
   .option("--scratch", "Create from scratch (skip mode selection)")
   .option(
@@ -96,13 +99,16 @@ export const templateCreateCommand = new Command("create")
       generateTemplateFilename("template"),
     ),
   )
-  .option("--no-interactive", "Skip all prompts (use with flags only)")
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (options: CreateOptions) => {
     try {
-      intro(" Atomize Template Creator");
+      intro(" Atomize — Template Creator");
       if (isInteractiveTerminal()) {
-        console.log(chalk.gray("  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n"));
+        console.log(
+          chalk.gray(
+            "  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n",
+          ),
+        );
       }
       const mode = await determineMode(options);
 
@@ -110,7 +116,7 @@ export const templateCreateCommand = new Command("create")
         .with("ai", async () => await createWithAI(options))
         .with("preset", async () => await createFromPreset(options))
         .with("stories", async () => await createFromStories(options))
-        .with("scratch", async () => await createFromScratch({ interactive: options.interactive, quiet: options.quiet }))
+        .with("scratch", async () => await createFromScratch({ quiet: options.quiet }))
         .otherwise(() => {
           throw new Error("Invalid creation mode");
         });
@@ -129,6 +135,11 @@ export const templateCreateCommand = new Command("create")
       console.log("");
       outro(`Template saved → ${options.output}`);
     } catch (error) {
+      if (error instanceof CancellationError) {
+        outro("Cancelled.");
+        process.exit(ExitCode.Success);
+      }
+
       cancel("Template creation failed");
       logger.error(chalk.red("Template creation failed"));
 
@@ -136,7 +147,7 @@ export const templateCreateCommand = new Command("create")
         console.log(chalk.red(error.message));
       }
 
-      process.exit(1);
+      process.exit(ExitCode.Failure);
     }
   });
 
@@ -145,48 +156,40 @@ export const templateCreateCommand = new Command("create")
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
   if (options.ai) {
-    cancel("AI generation is temporarily disabled.");
-    process.exit(1);
+    console.log(chalk.yellow("  AI generation is temporarily disabled. Select a mode below.\n"));
   }
   if (options.preset) return "preset";
   if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
 
   // No flags - show interactive menu
-  if (options.interactive !== false) {
-    const mode = assertNotCancelled(
-      await select({
-        message: "How would you like to create your template?",
-        options: [
-          {
-            label: " AI-Powered - Describe what you need (free)",
-            value: "ai",
-            hint: "coming soon",
-            disabled: true,
-          },
-          {
-            label: "From Preset - Start with a common template",
-            value: "preset",
-          },
-          {
-            label:
-              "From Multiple Stories - Learn patterns from several examples",
-            value: "stories",
-          },
-          {
-            label: " From Scratch - Build step-by-step",
-            value: "scratch",
-          },
-        ],
-      }),
-    );
-    return mode as CreationMode;
-  }
-
-  cancel(
-    "--no-interactive requires a mode flag: --ai <prompt>, --preset <name>, or --from-stories <ids>",
+  const mode = assertNotCancelled(
+    await select({
+      message: "How would you like to create your template?",
+      options: [
+        {
+          label: " AI-Powered - Describe what you need (free)",
+          value: "ai",
+          hint: "coming soon",
+          disabled: true,
+        },
+        {
+          label: "From Preset - Start with a common template",
+          value: "preset",
+        },
+        {
+          label:
+            "From Multiple Stories - Learn patterns from several examples",
+          value: "stories",
+        },
+        {
+          label: " From Scratch - Build step-by-step",
+          value: "scratch",
+        },
+      ],
+    }),
   );
-  process.exit(1);
+  return mode as CreationMode;
 }
 
 /**
@@ -212,7 +215,7 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
 
   if (aiConfig.provider === "none") {
     console.log(chalk.yellow("\nFalling back to manual creation...\n"));
-    return await createFromScratch(options);
+    return await createFromScratch({ quiet: options.quiet });
   }
 
   let prompt = options.ai;
@@ -226,15 +229,12 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
     );
   }
 
-  let usePreset = false;
-  if (options.interactive !== false) {
-    usePreset = assertNotCancelled(
-      await confirm({
-        message: "Use a preset as starting point?",
-        initialValue: false,
-      }),
-    );
-  }
+  const usePreset = assertNotCancelled(
+    await confirm({
+      message: "Use a preset as starting point?",
+      initialValue: false,
+    }),
+  );
 
   let context = {};
   if (usePreset) {
@@ -264,11 +264,7 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
   genSpinner.start(`Generating with ${aiConfig.provider}...`);
   let template = await generator.generateTemplate(prompt, context);
   genSpinner.stop("Template generated ✓");
-  template = await refineTemplateInteractively(
-    generator,
-    template,
-    options.interactive !== false,
-  );
+  template = await refineTemplateInteractively(generator, template);
 
   return template;
 }
@@ -279,12 +275,7 @@ async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
 async function refineTemplateInteractively(
   generator: IAIGenerator,
   template: TaskTemplate,
-  interactive = true,
 ): Promise<TaskTemplate> {
-  if (!interactive) {
-    return template;
-  }
-
   while (true) {
     console.log(chalk.cyan("\n Generated Template:\n"));
     console.log(chalk.gray(stringifyYaml(template)));
@@ -345,12 +336,17 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
   console.log(chalk.cyan("\n Create from Preset\n"));
 
   const presetManager = new PresetManager();
+  const choices = await presetManager.getPresetChoices();
 
   let presetName = options.preset;
 
-  if (!presetName) {
-    const choices = await presetManager.getPresetChoices();
-
+  if (presetName) {
+    if (!choices.find((c) => c.value === presetName)) {
+      throw new ConfigurationError(
+        `Preset "${presetName}" not found. Run: atomize template presets`,
+      );
+    }
+  } else {
     if (choices.length === 0) {
       throw new Error(
         "No presets found. Create some in templates/presets/ first.",
@@ -363,10 +359,6 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
         options: choices.map((c) => ({ label: c.name, value: c.value })),
       }),
     ) as string;
-  }
-
-  if (!presetName) {
-    throw new ConfigurationError("Preset name is required");
   }
 
   const template = await presetManager.loadPreset(presetName);
@@ -390,6 +382,54 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
 /**
  * Create from multiple existing stories
  */
+/**
+ * Validates that story IDs exist on the platform before running analysis.
+ * Returns the filtered list of valid IDs, prompting the user if some are missing.
+ * Skipped gracefully if the platform does not implement getWorkItem.
+ * Throws ConfigurationError if none exist, CancellationError if user declines to continue.
+ */
+async function validateStoryIds(
+  platform: IPlatformAdapter,
+  storyIds: string[],
+): Promise<string[]> {
+  if (!platform.getWorkItem) return storyIds;
+
+  const validateSpinner = spinner();
+  validateSpinner.start(`Validating ${storyIds.length} story ID(s)...`);
+
+  const results = await Promise.all(
+    storyIds.map(async (id) => ({ id, found: !!(await platform.getWorkItem!(id)) })),
+  );
+
+  const missing = results.filter((r) => !r.found).map((r) => r.id);
+
+  if (missing.length === storyIds.length) {
+    validateSpinner.stop("Validation failed");
+    throw new ConfigurationError(
+      `None of the provided story IDs exist: ${missing.join(", ")}. Check the IDs and try again.`,
+    );
+  }
+
+  if (missing.length > 0) {
+    validateSpinner.stop(`${missing.length} story ID(s) not found`);
+    console.log(chalk.yellow(`  Not found: ${missing.join(", ")}`));
+
+    const proceed = assertNotCancelled(
+      await confirm({
+        message: `Continue with the ${storyIds.length - missing.length} remaining story ID(s)?`,
+        initialValue: true,
+      }),
+    );
+
+    if (!proceed) throw new CancellationError("Story ID validation cancelled");
+
+    return storyIds.filter((id) => !missing.includes(id));
+  }
+
+  validateSpinner.stop(`All ${storyIds.length} story ID(s) found ✓`);
+  return storyIds;
+}
+
 async function createFromStories(
   options: CreateOptions,
 ): Promise<TaskTemplate> {
@@ -418,7 +458,7 @@ async function createFromStories(
   }
 
   let platformType = options.platform || "azure-devops";
-  if (!options.platform && options.interactive !== false) {
+  if (!options.platform) {
     platformType = assertNotCancelled(
       await select({
         message: "Select platform:",
@@ -432,22 +472,15 @@ async function createFromStories(
     ) as string;
   }
 
-  let shouldNormalize = options.normalize ?? true;
-  if (options.normalize === undefined && options.interactive !== false) {
-    shouldNormalize = assertNotCancelled(
-      await confirm({
-        message: "Normalize task percentages to sum to 100%?",
-        initialValue: true,
-      }),
-    );
-  }
+  const shouldNormalize = options.normalize !== false;
 
   const connectSpinner = spinner();
   connectSpinner.start(`Connecting to ${platformType}...`);
 
   let platform: IPlatformAdapter | null = null;
   if (platformType === "azure-devops") {
-    const config = await getAzureDevOpsConfigInteractive();
+    const { resolveAzureConfig } = await import("@config/profile-resolver");
+    const config = await resolveAzureConfig(options.profile);
     platform = PlatformFactory.create("azure-devops", config);
   } else {
     platform = PlatformFactory.create(platformType as PlatformType);
@@ -455,6 +488,8 @@ async function createFromStories(
 
   await platform.authenticate();
   connectSpinner.stop("Connected ✓");
+
+  storyIds = await validateStoryIds(platform, storyIds);
 
   const learner = new StoryLearner(platform);
   const learnSpinner = spinner();
@@ -466,7 +501,7 @@ async function createFromStories(
 
   displayMultiStoryResults(result);
 
-  if (result.variations.length > 1 && options.interactive !== false) {
+  if (result.variations.length > 1) {
     const choice = assertNotCancelled(
       await select({
         message: "Select template variation:",
@@ -633,9 +668,11 @@ export async function createFromScratch(
   _options: CreateFromScratchOptions = {},
 ): Promise<TaskTemplate> {
   const quiet = _options.quiet === true;
-  const printStep = (msg: string) => { if (!quiet) console.log(msg); };
+  const printStep = (msg: string) => {
+    if (!quiet) console.log(msg);
+  };
 
-  printStep(chalk.cyan("\n✨ Create Template from Scratch\n"));
+  printStep(chalk.cyan("\nCreate Template from Scratch\n"));
   printStep(chalk.gray("Interactive template builder wizard"));
   printStep(chalk.gray("You can review and edit before saving\n"));
 
@@ -644,9 +681,7 @@ export async function createFromScratch(
 
   try {
     // Step 1: Basic Information
-    printStep(
-      chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`),
-    );
+    printStep(chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`));
     printStep(chalk.gray("█░░░░░"));
     printStep(
       chalk.gray("Tip: Choose a clear, descriptive name for your template\n"),
@@ -657,17 +692,6 @@ export async function createFromScratch(
     // Validate basic info before continuing
     if (!basicInfo.name || basicInfo.name.trim() === "") {
       throw new ConfigurationError("Template name is required");
-    }
-
-    const confirmStep1 = assertNotCancelled(
-      await confirm({
-        message: "Continue to filter configuration?",
-        initialValue: true,
-      }),
-    );
-
-    if (!confirmStep1) {
-      throw new CancellationError("Template creation cancelled by user");
     }
 
     currentStep++;
@@ -713,17 +737,6 @@ export async function createFromScratch(
       }
     }
 
-    const confirmStep2 = assertNotCancelled(
-      await confirm({
-        message: "Continue to task configuration?",
-        initialValue: true,
-      }),
-    );
-
-    if (!confirmStep2) {
-      throw new CancellationError("Template creation cancelled by user");
-    }
-
     currentStep++;
 
     // Step 3: Task Configuration
@@ -752,17 +765,6 @@ export async function createFromScratch(
       );
     }
 
-    const confirmStep3 = assertNotCancelled(
-      await confirm({
-        message: "Continue to estimation settings?",
-        initialValue: true,
-      }),
-    );
-
-    if (!confirmStep3) {
-      throw new CancellationError("Template creation cancelled by user");
-    }
-
     currentStep++;
 
     // Step 4: Estimation Settings
@@ -777,17 +779,6 @@ export async function createFromScratch(
     );
 
     const estimation = await configureEstimation();
-
-    const confirmStep4 = assertNotCancelled(
-      await confirm({
-        message: "Continue to validation rules?",
-        initialValue: true,
-      }),
-    );
-
-    if (!confirmStep4) {
-      throw new CancellationError("Template creation cancelled by user");
-    }
 
     currentStep++;
 
@@ -816,17 +807,6 @@ export async function createFromScratch(
       validation = await configureValidation();
     }
 
-    const confirmStep5 = assertNotCancelled(
-      await confirm({
-        message: "Continue to metadata?",
-        initialValue: true,
-      }),
-    );
-
-    if (!confirmStep5) {
-      throw new CancellationError("Template creation cancelled by user");
-    }
-
     currentStep++;
 
     // Step 6: Metadata (Optional)
@@ -836,7 +816,7 @@ export async function createFromScratch(
     printStep(chalk.gray("██████"));
     printStep(
       chalk.gray(
-        "💡 Tip: Metadata helps others understand when to use this template\n",
+        "Tip: Metadata helps others understand when to use this template\n",
       ),
     );
 
@@ -884,23 +864,9 @@ export async function createFromScratch(
       throw new CancellationError("Template creation cancelled by user");
     }
 
-    // Final confirmation before saving
-    console.log(chalk.cyan("\n📋 Final confirmation before saving...\n"));
-    const finalConfirm = assertNotCancelled(
-      await confirm({
-        message: "Save this template?",
-        initialValue: true,
-      }),
-    );
-
-    if (!finalConfirm) {
-      throw new CancellationError("Template save cancelled by user");
-    }
-
     return template;
   } catch (error) {
     if (error instanceof CancellationError) {
-      console.log(chalk.yellow("\n Template creation cancelled"));
       throw error;
     }
 
@@ -967,105 +933,4 @@ function generateTemplateFilename(templateName = "template") {
   const shortId = randomBytes(2).toString("hex");
 
   return `${templateName}-${date}-${shortId}.yaml`;
-}
-
-/**
- * Validation helper for the entire template
- */
-export function validateTemplate(template: TaskTemplate): {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-} {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  // Basic validation
-  if (!template.name || template.name.trim() === "") {
-    errors.push("Template name is required");
-  }
-
-  if (template.name && template.name.length > 200) {
-    errors.push("Template name must be 200 characters or less");
-  }
-
-  if (template.description && template.description.length > 500) {
-    errors.push("Description must be 500 characters or less");
-  }
-
-  // Filter validation
-  if (
-    (!template.filter.workItemTypes ||
-      template.filter.workItemTypes.length === 0) &&
-    (!template.filter.states || template.filter.states.length === 0) &&
-    !template.filter.customQuery
-  ) {
-    warnings.push(
-      "Filter has no work item types, states, or custom query. Will match all items.",
-    );
-  }
-
-  // Task validation
-  if (!template.tasks || template.tasks.length === 0) {
-    errors.push("At least one task is required");
-  }
-
-  // Check for empty task titles
-  template.tasks.forEach((task, index) => {
-    if (!task.title || task.title.trim() === "") {
-      errors.push(`Task #${index + 1} has no title`);
-    }
-
-    if (task.title && task.title.length > 500) {
-      errors.push(`Task #${index + 1} title must be 500 characters or less`);
-    }
-
-    if (task.description && task.description.length > 2000) {
-      errors.push(
-        `Task #${index + 1} description must be 2000 characters or less`,
-      );
-    }
-
-    if (
-      task.estimationPercent !== undefined &&
-      (task.estimationPercent < 0 || task.estimationPercent > 100)
-    ) {
-      errors.push(`Task #${index + 1} estimation must be between 0 and 100%`);
-    }
-  });
-
-  // Estimation validation
-  const totalEstimation = template.tasks.reduce(
-    (sum, task) => sum + (task.estimationPercent || 0),
-    0,
-  );
-
-  if (totalEstimation !== 100 && !template.validation?.totalEstimationRange) {
-    warnings.push(
-      `Total estimation is ${totalEstimation}% instead of 100%. Consider normalizing.`,
-    );
-  }
-
-  // Dependency validation
-  const taskIds = new Set(
-    template.tasks.map((t) => t.id).filter((id): id is string => !!id),
-  );
-
-  template.tasks.forEach((task, index) => {
-    if (task.dependsOn) {
-      task.dependsOn.forEach((depId) => {
-        if (!taskIds.has(depId)) {
-          errors.push(
-            `Task #${index + 1} depends on non-existent task ID: "${depId}"`,
-          );
-        }
-      });
-    }
-  });
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings,
-  };
 }

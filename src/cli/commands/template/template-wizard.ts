@@ -527,7 +527,7 @@ function displayNormalizedEstimations(tasks: TaskDefinition[]): void {
  * Prompt user to retry after error
  */
 async function promptRetry(error: unknown): Promise<boolean> {
-  console.log(chalk.red(`\nError configuring tasks: ${error}`));
+  console.log(chalk.red(`\nError configuring tasks: ${error instanceof Error ? error.message : String(error)}`));
 
   return assertNotCancelled(
     await confirm({
