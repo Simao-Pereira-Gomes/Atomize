@@ -61,6 +61,39 @@ function wiqlEscape(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/** Escapes a string for use inside a RegExp. */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const SELECT_FROM_WORKITEMS_RE = /^\s*SELECT\s+.+?\s+FROM\s+WorkItems\b/i;
+
+/**
+ * Validates a raw WIQL customQuery for structural correctness and project scoping.
+ * Throws ConfigurationError if the query is structurally invalid or does not
+ * constrain [System.TeamProject] to the configured project.
+ */
+export function validateCustomQuery(query: string, project: string): void {
+  if (!SELECT_FROM_WORKITEMS_RE.test(query)) {
+    throw new ConfigurationError(
+      "customQuery must be a SELECT statement targeting WorkItems",
+    );
+  }
+
+  const projectConstraintRe = new RegExp(
+    `\\[System\\.TeamProject\\]\\s*=\\s*'${escapeRegex(wiqlEscape(project))}'`,
+    "i",
+  );
+  const projectMacroRe = /\[System\.TeamProject\]\s*=\s*@[Pp]roject/i;
+
+  if (!projectConstraintRe.test(query) && !projectMacroRe.test(query)) {
+    throw new ConfigurationError(
+      `customQuery must constrain [System.TeamProject] to '${project}'. ` +
+        `Add: [System.TeamProject] = '${wiqlEscape(project)}'`,
+    );
+  }
+}
+
 /** Returns the WIQL macro string for an iteration value, or null if it is a real path. */
 function parseIterationMacro(value: string): string | null {
   if (value === CURRENT_ITERATION) return "@CurrentIteration";
@@ -72,7 +105,8 @@ function parseIterationMacro(value: string): string | null {
 /** Returns true if the filter uses any team-scoped macros (@CurrentIteration, @TeamAreas). */
 function requiresTeam(filter: FilterCriteria): boolean {
   if (filter.areaPaths?.includes(TEAM_AREAS)) return true;
-  if (filter.iterations?.some((i) => parseIterationMacro(i) !== null)) return true;
+  if (filter.iterations?.some((i) => parseIterationMacro(i) !== null))
+    return true;
   return false;
 }
 
@@ -104,7 +138,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     if (!config.token) {
       throw new PlatformError(
         "Personal Access Token is required",
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -117,12 +151,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.info("AzureDevOps: Authenticating...");
 
       const authHandler = azdev.getPersonalAccessTokenHandler(
-        this.config.token
+        this.config.token,
       );
 
       this.connection = new azdev.WebApi(
         this.config.organizationUrl.replace(/\/+$/, ""),
-        authHandler
+        authHandler,
       );
 
       this.witApi = await this.connection.getWorkItemTrackingApi();
@@ -136,7 +170,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.error("AzureDevOps: Authentication failed", { error: message });
       throw new PlatformError(
         `Authentication failed: ${message}`,
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -168,7 +202,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       if (requiresTeam(filter) && !effectiveTeam) {
         throw new ConfigurationError(
           "A team is required when using @CurrentIteration or @TeamAreas macros. " +
-          "Set AZURE_DEVOPS_TEAM in your environment or add 'team' to the template filter.",
+            "Set AZURE_DEVOPS_TEAM in your environment or add 'team' to the template filter.",
         );
       }
 
@@ -196,13 +230,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         WorkItemExpand.All,
         undefined,
-        this.config.project
+        this.config.project,
       );
 
       let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
 
       logger.debug(
-        `Excluding work items with tasks: ${filter.excludeIfHasTasks}`
+        `Excluding work items with tasks: ${filter.excludeIfHasTasks}`,
       );
       if (filter.excludeIfHasTasks) {
         const itemsWithoutTasks: AzureWorkItem[] = [];
@@ -218,7 +252,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
         filtered = itemsWithoutTasks;
         logger.info(
-          `AzureDevOps: ${filtered.length} work item(s) without tasks`
+          `AzureDevOps: ${filtered.length} work item(s) without tasks`,
         );
       }
 
@@ -261,7 +295,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         undefined,
         WorkItemExpand.All,
-        this.config.project
+        this.config.project,
       );
 
       if (!workItem) {
@@ -430,7 +464,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined, // customHeaders
         patchDocument,
         this.config.project,
-        "Task" // work item type
+        "Task", // work item type
       );
 
       logger.info(`AzureDevOps: Created task ${createdItem.id}: ${task.title}`);
@@ -441,7 +475,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.error(`AzureDevOps: Failed to create task`, { error: message });
       throw new PlatformError(
         `Failed to create task: ${message}`,
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -452,13 +486,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
    */
   async createTasksBulk(
     parentId: string,
-    tasks: TaskDefinition[]
+    tasks: TaskDefinition[],
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
     const concurrency = this.config.maxConcurrency ?? 5;
     logger.debug(
-      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
+      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`,
     );
 
     const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
@@ -487,7 +521,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     const createdTasks = results.filter((r): r is WorkItem => r !== null);
 
     logger.info(
-      `AzureDevOps: Created ${createdTasks.length} of ${tasks.length} tasks`
+      `AzureDevOps: Created ${createdTasks.length} of ${tasks.length} tasks`,
     );
 
     return createdTasks;
@@ -522,7 +556,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         },
         { project: this.config.project },
         false,
-        1
+        1,
       );
 
       logger.info("Connection test succeeded");
@@ -554,7 +588,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         undefined,
         WorkItemExpand.All,
-        this.config.project
+        this.config.project,
       );
 
       if (!parent || !parent.relations) {
@@ -586,7 +620,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         WorkItemExpand.All,
         WorkItemErrorPolicy.Fail,
-        this.config.project
+        this.config.project,
       );
 
       return children
@@ -607,13 +641,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
    */
   async createDependencyLink(
     dependentId: string,
-    predecessorId: string
+    predecessorId: string,
   ): Promise<void> {
     this.ensureAuthenticated();
 
     try {
       logger.debug(
-        `AzureDevOps: Creating dependency link: ${dependentId} depends on ${predecessorId}`
+        `AzureDevOps: Creating dependency link: ${dependentId} depends on ${predecessorId}`,
       );
 
       const numericDependentId = parseInt(dependentId, 10);
@@ -648,21 +682,21 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined, // customHeaders
         patchDocument,
         numericDependentId,
-        this.config.project
+        this.config.project,
       );
 
       logger.info(
-        `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`
+        `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(
         `AzureDevOps: Failed to create dependency link between ${dependentId} and ${predecessorId}`,
-        { error: message }
+        { error: message },
       );
       throw new PlatformError(
         `Failed to create dependency link: ${message}`,
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -673,11 +707,15 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private buildWiqlQuery(filter: FilterCriteria): string {
     const conditions: string[] = [];
 
-    conditions.push(`[System.TeamProject] = '${wiqlEscape(this.config.project)}'`);
+    conditions.push(
+      `[System.TeamProject] = '${wiqlEscape(this.config.project)}'`,
+    );
 
     // Work item types
     if (filter.workItemTypes && filter.workItemTypes.length > 0) {
-      const types = filter.workItemTypes.map((t) => `'${wiqlEscape(t)}'`).join(", ");
+      const types = filter.workItemTypes
+        .map((t) => `'${wiqlEscape(t)}'`)
+        .join(", ");
       conditions.push(`[System.WorkItemType] IN (${types})`);
     }
 
@@ -689,7 +727,9 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     // States (exclude)
     if (filter.statesExclude && filter.statesExclude.length > 0) {
-      const states = filter.statesExclude.map((s) => `'${wiqlEscape(s)}'`).join(", ");
+      const states = filter.statesExclude
+        .map((s) => `'${wiqlEscape(s)}'`)
+        .join(", ");
       conditions.push(`[System.State] NOT IN (${states})`);
     }
 
@@ -775,7 +815,9 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     }
 
     if (filter.assignedTo && filter.assignedTo.length > 0) {
-      const users = filter.assignedTo.map((u) => `'${wiqlEscape(u)}'`).join(", ");
+      const users = filter.assignedTo
+        .map((u) => `'${wiqlEscape(u)}'`)
+        .join(", ");
       conditions.push(`[System.AssignedTo] IN (${users})`);
     }
 
@@ -817,8 +859,8 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     }
 
     // Custom query (if provided, use it instead).
-    // SECURITY: this bypasses all escaping — only use with templates from trusted sources.
     if (filter.customQuery) {
+      validateCustomQuery(filter.customQuery, this.config.project);
       return filter.customQuery;
     }
 
@@ -900,7 +942,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     // Check for child relations (Hierarchy-Forward means this item has children)
     return workItem.relations.some(
-      (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward"
+      (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward",
     );
   }
 
@@ -911,7 +953,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     if (!this.authenticated || !this.witApi) {
       throw new PlatformError(
         "Not authenticated. Call authenticate() first.",
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
