@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { rename, rm } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { getAtomizeTestDir } from "@config/atomize-paths";
 import {
   getDefaultProfile,
   getProfile,
@@ -13,9 +13,9 @@ import {
 } from "@config/connections.config";
 import type { ConnectionProfile } from "@config/connections.interface";
 
-const ATOMIZE_DIR = join(homedir(), ".atomize");
+const ORIGINAL_ATOMIZE_HOME = process.env.ATOMIZE_HOME;
+const ATOMIZE_DIR = getAtomizeTestDir("atomize-connections-config-test");
 const CONNECTIONS_PATH = join(ATOMIZE_DIR, "connections.json");
-const BACKUP_PATH = join(ATOMIZE_DIR, "connections.json.bak-test");
 
 const testProfile: ConnectionProfile = {
   name: "test-profile",
@@ -50,20 +50,17 @@ const testProfile2: ConnectionProfile = {
 };
 
 beforeAll(async () => {
-  // Back up any existing connections.json so tests don't destroy user data
-  if (existsSync(CONNECTIONS_PATH)) {
-    await rename(CONNECTIONS_PATH, BACKUP_PATH);
-  }
+  process.env.ATOMIZE_HOME = ATOMIZE_DIR;
+  await rm(ATOMIZE_DIR, { recursive: true, force: true });
+  await mkdir(ATOMIZE_DIR, { recursive: true });
 });
 
 afterAll(async () => {
-  // Remove any test-written connections.json
-  if (existsSync(CONNECTIONS_PATH)) {
-    await rm(CONNECTIONS_PATH, { force: true });
-  }
-  // Restore the original file if it was backed up
-  if (existsSync(BACKUP_PATH)) {
-    await rename(BACKUP_PATH, CONNECTIONS_PATH);
+  await rm(ATOMIZE_DIR, { recursive: true, force: true });
+  if (ORIGINAL_ATOMIZE_HOME === undefined) {
+    delete process.env.ATOMIZE_HOME;
+  } else {
+    process.env.ATOMIZE_HOME = ORIGINAL_ATOMIZE_HOME;
   }
 });
 

@@ -30,8 +30,12 @@ export async function storeToken(
 ): Promise<EncryptedToken> {
   const kt = await getKeytar();
   if (kt) {
-    await kt.setPassword(SERVICE_NAME, profileName, token);
-    return { strategy: "keychain" };
+    try {
+      await kt.setPassword(SERVICE_NAME, profileName, token);
+      return { strategy: "keychain" };
+    } catch {
+      // Fall back to the local keyfile strategy instead of failing auth setup.
+    }
   }
   const encrypted = await encryptWithKeyfile(token);
   return { strategy: "keyfile", ...encrypted };
@@ -63,6 +67,12 @@ export async function deleteToken(
 ): Promise<void> {
   if (token.strategy === "keychain") {
     const kt = await getKeytar();
-    if (kt) await kt.deletePassword(SERVICE_NAME, profileName);
+    if (kt) {
+      try {
+        await kt.deletePassword(SERVICE_NAME, profileName);
+      } catch {
+        // Ignore keychain cleanup errors so token rotation/removal can continue.
+      }
+    }
   }
 }

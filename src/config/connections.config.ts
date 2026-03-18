@@ -1,11 +1,7 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getAtomizeDir } from "./atomize-paths";
 import type { ConnectionProfile, ConnectionsFile } from "./connections.interface";
-
-const ATOMIZE_DIR = join(homedir(), ".atomize");
-const CONNECTIONS_PATH = join(ATOMIZE_DIR, "connections.json");
-const CONNECTIONS_TMP_PATH = join(ATOMIZE_DIR, "connections.json.tmp");
 
 const EMPTY_FILE: ConnectionsFile = {
   version: "1",
@@ -13,10 +9,18 @@ const EMPTY_FILE: ConnectionsFile = {
   profiles: [],
 };
 
+function getConnectionsPath(): string {
+  return join(getAtomizeDir(), "connections.json");
+}
+
+function getConnectionsTmpPath(): string {
+  return join(getAtomizeDir(), "connections.json.tmp");
+}
+
 export async function readConnectionsFile(): Promise<ConnectionsFile> {
   try {
     const { readFile } = await import("node:fs/promises");
-    const raw = await readFile(CONNECTIONS_PATH, "utf-8");
+    const raw = await readFile(getConnectionsPath(), "utf-8");
     return JSON.parse(raw) as ConnectionsFile;
   } catch {
     return { ...EMPTY_FILE };
@@ -24,9 +28,13 @@ export async function readConnectionsFile(): Promise<ConnectionsFile> {
 }
 
 async function writeConnectionsFile(data: ConnectionsFile): Promise<void> {
-  await mkdir(ATOMIZE_DIR, { recursive: true });
-  await writeFile(CONNECTIONS_TMP_PATH, JSON.stringify(data, null, 2), "utf-8");
-  await rename(CONNECTIONS_TMP_PATH, CONNECTIONS_PATH);
+  const atomizeDir = getAtomizeDir();
+  const connectionsPath = getConnectionsPath();
+  const connectionsTmpPath = getConnectionsTmpPath();
+
+  await mkdir(atomizeDir, { recursive: true });
+  await writeFile(connectionsTmpPath, JSON.stringify(data, null, 2), "utf-8");
+  await rename(connectionsTmpPath, connectionsPath);
 }
 
 export async function saveProfile(profile: ConnectionProfile): Promise<void> {

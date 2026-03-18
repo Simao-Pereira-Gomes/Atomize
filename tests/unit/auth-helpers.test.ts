@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
-import { existsSync } from "node:fs";
-import { rename, rm } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { mkdir, rm } from "node:fs/promises";
+import {
+  getAtomizeTestDir,
+} from "@config/atomize-paths";
 import {
   saveProfile,
   setDefaultProfile,
@@ -22,30 +22,28 @@ import type { IPlatformAdapter } from "@/platforms";
 
 // ─── file backup ──────────────────────────────────────────────────────────────
 
-const ATOMIZE_DIR = join(homedir(), ".atomize");
-const CONNECTIONS_PATH = join(ATOMIZE_DIR, "connections.json");
-const BACKUP_PATH = join(ATOMIZE_DIR, "connections.json.bak-auth-helpers-test");
+const ORIGINAL_ATOMIZE_HOME = process.env.ATOMIZE_HOME;
+const ATOMIZE_DIR = getAtomizeTestDir("atomize-auth-helpers-test");
 
 beforeAll(async () => {
-  if (existsSync(CONNECTIONS_PATH)) {
-    await rename(CONNECTIONS_PATH, BACKUP_PATH);
-  }
+  process.env.ATOMIZE_HOME = ATOMIZE_DIR;
+  await rm(ATOMIZE_DIR, { recursive: true, force: true });
+  await mkdir(ATOMIZE_DIR, { recursive: true });
 });
 
 afterAll(async () => {
-  if (existsSync(CONNECTIONS_PATH)) {
-    await rm(CONNECTIONS_PATH, { force: true });
-  }
-  if (existsSync(BACKUP_PATH)) {
-    await rename(BACKUP_PATH, CONNECTIONS_PATH);
+  await rm(ATOMIZE_DIR, { recursive: true, force: true });
+  if (ORIGINAL_ATOMIZE_HOME === undefined) {
+    delete process.env.ATOMIZE_HOME;
+  } else {
+    process.env.ATOMIZE_HOME = ORIGINAL_ATOMIZE_HOME;
   }
 });
 
 // Reset the connections file before each test so tests are isolated
 beforeEach(async () => {
-  if (existsSync(CONNECTIONS_PATH)) {
-    await rm(CONNECTIONS_PATH, { force: true });
-  }
+  await rm(ATOMIZE_DIR, { recursive: true, force: true });
+  await mkdir(ATOMIZE_DIR, { recursive: true });
 });
 
 // ─── shared fixture ───────────────────────────────────────────────────────────

@@ -5,10 +5,8 @@ import {
 	expect,
 	test,
 } from "bun:test";
-import { existsSync } from "node:fs";
-import { rename, rm } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { mkdir, rm } from "node:fs/promises";
+import { getAtomizeTestDir } from "@config/atomize-paths";
 import {
 	removeProfile,
 	saveProfile,
@@ -17,9 +15,9 @@ import {
 import type { ConnectionProfile } from "@config/connections.interface";
 import { resolveAzureConfig } from "@config/profile-resolver";
 
-const ATOMIZE_DIR = join(homedir(), ".atomize");
-const CONNECTIONS_PATH = join(ATOMIZE_DIR, "connections.json");
-const BACKUP_PATH = join(ATOMIZE_DIR, "connections.json.bak-resolver-test");
+const ORIGINAL_ATOMIZE_HOME = process.env.ATOMIZE_HOME;
+const ORIGINAL_ATOMIZE_PROFILE = process.env.ATOMIZE_PROFILE;
+const ATOMIZE_DIR = getAtomizeTestDir("atomize-profile-resolver-test");
 
 // A profile that uses keyfile strategy so we don't need keychain
 const profileWithKeyfile: ConnectionProfile = {
@@ -58,13 +56,10 @@ const profileWithKeyfile2: ConnectionProfile = {
 let encryptedToken1: { iv: string; authTag: string; ciphertext: string };
 let encryptedToken2: { iv: string; authTag: string; ciphertext: string };
 
-const ORIGINAL_ATOMIZE_PROFILE = process.env.ATOMIZE_PROFILE;
-
 beforeAll(async () => {
-	// Back up any existing connections.json
-	if (existsSync(CONNECTIONS_PATH)) {
-		await rename(CONNECTIONS_PATH, BACKUP_PATH);
-	}
+	process.env.ATOMIZE_HOME = ATOMIZE_DIR;
+	await rm(ATOMIZE_DIR, { recursive: true, force: true });
+	await mkdir(ATOMIZE_DIR, { recursive: true });
 
 	// Encrypt a real token using keyfile so retrieveToken works in tests
 	const { encryptWithKeyfile } = await import("@config/keyfile.service");
@@ -92,15 +87,13 @@ afterAll(async () => {
 		process.env.ATOMIZE_PROFILE = ORIGINAL_ATOMIZE_PROFILE;
 	}
 
-	// Clean up test profiles
-	if (existsSync(CONNECTIONS_PATH)) {
-		await rm(CONNECTIONS_PATH, { force: true });
+	if (ORIGINAL_ATOMIZE_HOME === undefined) {
+		delete process.env.ATOMIZE_HOME;
+	} else {
+		process.env.ATOMIZE_HOME = ORIGINAL_ATOMIZE_HOME;
 	}
 
-	// Restore original connections.json
-	if (existsSync(BACKUP_PATH)) {
-		await rename(BACKUP_PATH, CONNECTIONS_PATH);
-	}
+	await rm(ATOMIZE_DIR, { recursive: true, force: true });
 });
 
 describe("profile-resolver", () => {
