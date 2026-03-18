@@ -5,6 +5,7 @@ dotenv.config({ override: true });
 
 import chalk from "chalk";
 import { Command } from "commander";
+import { version } from "../../package.json";
 import { authCommand } from "./commands/auth/auth.command";
 import { generateCommand } from "./commands/generate.command";
 import { templateCommand } from "./commands/template/template.command";
@@ -15,7 +16,7 @@ const program = new Command();
 program
 	.name("atomize")
 	.description("Automatically generate tasks from user stories")
-	.version("0.1.0");
+	.version(version);
 
 const banner = `
 ${chalk.cyan("    ___  __                  _         ")}

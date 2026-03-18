@@ -9,13 +9,12 @@
 
 **Break down stories, build up velocity.**
 
-Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with AI-powered task breakdowns, preset templates, and smart estimation distribution.
+Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with preset templates, story learning, and smart estimation distribution.
 
 ---
 
 ## Features
 
-- **AI-Powered Generation** - Create templates using Google Gemini or local Ollama (completely free)
 - **Preset Templates** - Start with battle-tested templates for common workflows
 - **Story Learning** - Generate templates by analyzing your existing work items (single or multiple stories)
 - **Pattern Detection** - Identify common task patterns across multiple stories with confidence scoring
@@ -69,9 +68,6 @@ atomize generate
 ### 2. Create Your First Template
 
 ```bash
-# AI-powered creation (free!)
-atomize template create --ai "Backend API with authentication"
-
 # From a preset
 atomize template create --preset backend-api
 
@@ -148,9 +144,6 @@ Summary:
 #### Create a Template
 
 ```bash
-# best for quick starts
-atomize template create --ai "Create template for React component development"
-
 # From preset (fastest)
 atomize template create --preset frontend-feature
 
@@ -166,7 +159,7 @@ atomize template create --scratch
 #### List Available Presets
 
 ```bash
-atomize template list
+atomize template presets
 ```
 
 **Available Presets:**
@@ -294,50 +287,6 @@ tasks:
     estimationPercent: 60
     dependsOn: ["design"]   # Must complete design first
 ```
-
----
-
-## AI-Powered Template Creation
-
-Atomize supports two free AI providers:
-
-### Google Gemini (Cloud — Recommended)
-
-1. Get a free API key: https://makersuite.google.com/app/apikey
-2. Set environment variable:
-   ```bash
-   export GOOGLE_AI_API_KEY="your-key-here"
-   ```
-   For windows
-  ```bash
-    set GOOGLE_AI_API_KEY=your-key
-  ```
-4. Create templates:
-   ```bash
-   atomize template create --ai "Backend API with OAuth authentication"
-   ```
-
-### Ollama (Local — Complete Privacy)
-
-1. Install Ollama: https://ollama.ai
-2. Download a model:
-   ```bash
-   ollama pull llama3.2
-   ```
-3. Start the service:
-   ```bash
-   ollama serve
-   ```
-4. Create templates:
-   ```bash
-   atomize template create --ai-provider ollama --ai "Mobile-first React component"
-   ```
-
-### AI Tips
-
-- Be specific: "Backend API with JWT auth, rate limiting, and PostgreSQL"
-- Specify testing requirements: "Include unit tests and E2E tests"
-- Use the refinement loop to iterate: Accept, Refine, Regenerate, or Cancel
 
 ---
 
@@ -541,18 +490,6 @@ atomize validate templates/my-template.yaml --verbose
 # - Total estimation must equal 100%
 # - Task dependencies reference non-existent IDs
 # - Missing required fields
-```
-
-### "AI provider not available"
-
-```bash
-# For Gemini
-export GOOGLE_AI_API_KEY="your-key"
-set GOOGLE_AI_API_KEY="your-key"
-
-# For Ollama
-ollama serve          # Must be running
-ollama pull llama3.2  # Model must be downloaded
 ```
 
 ---

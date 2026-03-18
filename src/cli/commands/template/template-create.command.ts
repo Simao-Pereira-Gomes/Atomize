@@ -11,14 +11,8 @@ import {
   spinner,
   text,
 } from "@clack/prompts";
-import {
-  type AIConfig,
-  getAIConfig,
-  getAIConfigForProvider,
-} from "@config/ai.config";
 import { logger } from "@config/logger";
 import { PlatformFactory } from "@platforms/platform-factory";
-import { AIGeneratorFactory } from "@services/template/ai-factory";
 import { PresetManager } from "@services/template/preset-manager";
 import { StoryLearner } from "@services/template/story-learner";
 import { TemplateValidator } from "@templates/validator";
@@ -32,7 +26,6 @@ import {
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter, PlatformType } from "@/platforms";
-import type { IAIGenerator } from "@/services/template";
 import type { MultiStoryLearningResult } from "@/services/template/story-learner.types";
 import type {
   Metadata,
@@ -42,7 +35,6 @@ import type {
 import {
   CancellationError,
   ConfigurationError,
-  UnknownError,
 } from "@/utils/errors";
 import {
   configureBasicInfo,
@@ -58,17 +50,13 @@ interface CreateFromScratchOptions {
   quiet?: boolean;
 }
 
-type CreationMode = "ai" | "preset" | "story" | "stories" | "scratch";
+type CreationMode = "preset" | "stories" | "scratch";
 
 interface CreateOptions {
-  ai?: string;
   preset?: string;
   fromStories?: string;
   scratch?: boolean;
   output?: string;
-  aiProvider?: "gemini" | "ollama";
-  apiKey?: string;
-  model?: string;
   platform?: string;
   profile?: string;
   normalize?: boolean;
@@ -77,10 +65,6 @@ interface CreateOptions {
 
 export const templateCreateCommand = new Command("create")
   .description("Create a new template interactively")
-  .addOption(new Option("--ai <prompt>", "Generate template using AI").hideHelp())
-  .addOption(new Option("--ai-provider <provider>", "Force AI provider: gemini|ollama").hideHelp())
-  .addOption(new Option("--api-key <key>", "Google Gemini API key (if not in environment)").hideHelp())
-  .addOption(new Option("--model <n>", "AI model name (e.g., gemini-2.0-flash-exp, llama3.2)").hideHelp())
   .option("--preset <name>", "Start from a preset template")
   .option(
     "--from-stories <ids>",
@@ -113,13 +97,10 @@ export const templateCreateCommand = new Command("create")
       const mode = await determineMode(options);
 
       const template = await match(mode)
-        .with("ai", async () => await createWithAI(options))
         .with("preset", async () => await createFromPreset(options))
         .with("stories", async () => await createFromStories(options))
         .with("scratch", async () => await createFromScratch({ quiet: options.quiet }))
-        .otherwise(() => {
-          throw new Error("Invalid creation mode");
-        });
+        .exhaustive();
 
       if (!options.output) {
         throw new ConfigurationError("Output path is not defined");
@@ -155,9 +136,6 @@ export const templateCreateCommand = new Command("create")
  * Determine creation mode
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
-  if (options.ai) {
-    console.log(chalk.yellow("  AI generation is temporarily disabled. Select a mode below.\n"));
-  }
   if (options.preset) return "preset";
   if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
@@ -168,165 +146,21 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
       message: "How would you like to create your template?",
       options: [
         {
-          label: " AI-Powered - Describe what you need (free)",
-          value: "ai",
-          hint: "coming soon",
-          disabled: true,
-        },
-        {
           label: "From Preset - Start with a common template",
           value: "preset",
         },
         {
-          label:
-            "From Multiple Stories - Learn patterns from several examples",
+          label: "From Multiple Stories - Learn patterns from several examples",
           value: "stories",
         },
         {
-          label: " From Scratch - Build step-by-step",
+          label: "From Scratch - Build step-by-step",
           value: "scratch",
         },
       ],
     }),
   );
   return mode as CreationMode;
-}
-
-/**
- * Create template with AI
- */
-async function createWithAI(options: CreateOptions): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\n AI Template Generation\n"));
-
-  let aiConfig: AIConfig | null = null;
-  if (options.aiProvider) {
-    aiConfig = await getAIConfigForProvider(options.aiProvider, {
-      apiKey: options.apiKey,
-      model: options.model,
-    });
-  } else if (options.apiKey || options.model) {
-    aiConfig = await getAIConfigForProvider("gemini", {
-      apiKey: options.apiKey,
-      model: options.model,
-    });
-  } else {
-    aiConfig = await getAIConfig();
-  }
-
-  if (aiConfig.provider === "none") {
-    console.log(chalk.yellow("\nFalling back to manual creation...\n"));
-    return await createFromScratch({ quiet: options.quiet });
-  }
-
-  let prompt = options.ai;
-  if (!prompt) {
-    prompt = assertNotCancelled(
-      await text({
-        message: "Describe the template you need:",
-        placeholder:
-          "e.g. Generate tasks for User Stories with Dev and Testing tasks",
-      }),
-    );
-  }
-
-  const usePreset = assertNotCancelled(
-    await confirm({
-      message: "Use a preset as starting point?",
-      initialValue: false,
-    }),
-  );
-
-  let context = {};
-  if (usePreset) {
-    const presetManager = new PresetManager();
-    const choices = await presetManager.getPresetChoices();
-
-    if (choices.length === 0) {
-      console.log(chalk.yellow("No presets available"));
-    } else {
-      const presetName = assertNotCancelled(
-        await select({
-          message: "Select preset:",
-          options: choices.map((c) => ({ label: c.name, value: c.value })),
-        }),
-      );
-
-      const preset = await presetManager.loadPreset(presetName as string);
-      context = { preset };
-    }
-  }
-
-  const generator = AIGeneratorFactory.create(aiConfig);
-  if (!prompt) {
-    throw new ConfigurationError("AI prompt is required");
-  }
-  const genSpinner = spinner();
-  genSpinner.start(`Generating with ${aiConfig.provider}...`);
-  let template = await generator.generateTemplate(prompt, context);
-  genSpinner.stop("Template generated ✓");
-  template = await refineTemplateInteractively(generator, template);
-
-  return template;
-}
-
-/**
- * Interactive refinement loop
- */
-async function refineTemplateInteractively(
-  generator: IAIGenerator,
-  template: TaskTemplate,
-): Promise<TaskTemplate> {
-  while (true) {
-    console.log(chalk.cyan("\n Generated Template:\n"));
-    console.log(chalk.gray(stringifyYaml(template)));
-
-    const action = assertNotCancelled(
-      await select({
-        message: "What would you like to do?",
-        options: [
-          { label: "Accept and save", value: "accept" },
-          { label: "Refine with additional instructions", value: "refine" },
-          { label: "Regenerate", value: "regenerate" },
-          { label: "Cancel", value: "cancel" },
-        ],
-      }),
-    );
-
-    if (action === "accept") {
-      return template;
-    }
-
-    if (action === "refine") {
-      const refinement = assertNotCancelled(
-        await text({
-          message: "How should I refine it?",
-          placeholder: "e.g. Add more detailed testing tasks",
-        }),
-      );
-
-      const refineSpinner = spinner();
-      refineSpinner.start("Refining...");
-      template = await generator.refineTemplate(template, refinement);
-      refineSpinner.stop("Refined ✓");
-    }
-
-    if (action === "regenerate") {
-      const prompt = assertNotCancelled(
-        await text({
-          message: "New description:",
-        }),
-      );
-
-      const regenSpinner = spinner();
-      regenSpinner.start("Regenerating...");
-      template = await generator.generateTemplate(prompt);
-      regenSpinner.stop("Regenerated ✓");
-    }
-
-    if (action === "cancel") {
-      throw new UnknownError("Template generation cancelled by user");
-    }
-  }
 }
 
 /**
@@ -398,7 +232,7 @@ async function validateStoryIds(
   validateSpinner.start(`Validating ${storyIds.length} story ID(s)...`);
 
   const results = await Promise.all(
-    storyIds.map(async (id) => ({ id, found: !!(await platform.getWorkItem!(id)) })),
+    storyIds.map(async (id) => ({ id, found: !!(await platform.getWorkItem?.(id)) })),
   );
 
   const missing = results.filter((r) => !r.found).map((r) => r.id);

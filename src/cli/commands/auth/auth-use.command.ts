@@ -18,6 +18,10 @@ export const authUseCommand = new Command("use")
 
     let name: string;
     if (nameArg) {
+      if (!file.profiles.find((p) => p.name === nameArg)) {
+        cancel(`Profile "${nameArg}" not found. Run: atomize auth list`);
+        process.exit(ExitCode.Failure);
+      }
       name = nameArg;
     } else {
       name = assertNotCancelled(

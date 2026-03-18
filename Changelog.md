@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`auth` command** — manage named Azure DevOps connection profiles
+  - `auth add [name]` — add a profile interactively or via flags (`--org-url`, `--project`, `--team`, `--pat`, `--default`)
+  - `auth list` (`ls`) — list all saved profiles with token storage method and timestamps
+  - `auth use [name]` — set a profile as the default (interactive selection if name omitted)
+  - `auth remove [name]` (`rm`) — remove a profile; prompts to reassign default if needed
+  - `auth test [name]` — test live connectivity for a profile
+  - `auth rotate [name]` — replace the stored PAT for a profile
+  - Tokens stored in OS keychain when available, encrypted file otherwise
+  - `--profile <name>` flag on `generate` and `template create` to select a profile per-run
+  - `ATOMIZE_PROFILE` environment variable as alternative to `--profile`
+
+### Removed
+- **AI template generation** — removed Google Gemini and Ollama integrations; the `--ai`, `--ai-provider`, `--api-key`, and `--model` flags on `template create` no longer exist. AI-powered generation will return in a future release with a redesigned approach.
+
+### Fixed
+- `atomize --version` now correctly reports `1.1.0` (was hardcoded to `0.1.0`)
+- `atomize auth use <name>` now validates that the profile exists before attempting to set it as default
+
+### Changed
+- `template list` command renamed to `template presets` (alias `ls` unchanged)
+- Version string is now sourced directly from `package.json` instead of being hardcoded
+
 ### Planned
 - GitHub Issues integration
 - Jira Cloud integration
@@ -98,11 +121,7 @@ The first public release of Atomize - a CLI tool for automatically generating ta
 - **Mock Platform** - Testing adapter with sample data for development
 
 #### Template Creation Methods
-- **AI-Powered Generation** 
-  - Google Gemini integration (free tier support)
-  - Ollama integration (local, completely free)
-  - Interactive refinement loop
-- **Preset Templates** 
+- **Preset Templates**
   - `backend-api` - Backend API development workflow
   - `frontend-feature` - React/Vue UI component workflow
   - `bug-fix` - Bug investigation and resolution workflow
@@ -177,9 +196,8 @@ The first public release of Atomize - a CLI tool for automatically generating ta
 #### Dependencies
 - Bun runtime for fast execution
 - Commander.js for CLI framework
-- Inquirer.js for interactive prompts
+- @clack/prompts for interactive prompts
 - Azure DevOps Node API for platform integration
-- Google Generative AI for Gemini support
 - Zod for schema validation
 - Winston for logging
 

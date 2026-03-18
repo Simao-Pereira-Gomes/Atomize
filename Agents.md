@@ -96,7 +96,6 @@ Use fakes/mocks for:
 
 - filesystem
 - Azure DevOps API
-- Gemini client
 - time
 
 ---

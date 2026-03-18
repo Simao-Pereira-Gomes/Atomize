@@ -12,7 +12,7 @@ Complete command-line interface documentation for Atomize v1.1.
   - [generate](#generate)
   - [validate](#validate)
   - [template create](#template-create)
-  - [template list](#template-list)
+  - [template presets](#template-presets)
 - [Configuration](#configuration)
 - [Interactive Prompts & Navigation](#interactive-prompts--navigation)
 - [Examples](#examples)
@@ -63,7 +63,7 @@ These options work with any command:
 | `validate` | - | Validate a template file |
 | `template` | `tpl` | Template management commands |
 | `template create` | - | Create a new template interactively |
-| `template list` | `ls` | List available template presets |
+| `template presets` | `ls` | List available template presets |
 
 ---
 
@@ -425,10 +425,6 @@ atomize tpl create [options]  # alias
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--ai <prompt>` | string | Generate template using AI with this description |
-| `--ai-provider <provider>` | string | Force AI provider: `gemini` or `ollama` |
-| `--api-key <key>` | string | Google Gemini API key (if not in `GOOGLE_AI_API_KEY` env var) |
-| `--model <name>` | string | AI model name (e.g., `gemini-2.0-flash-exp`, `llama3.2`) |
 | `--preset <name>` | string | Start from a preset: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack` |
 | `--from-stories <ids>` | string | Learn template from multiple stories (comma-separated IDs) |
 | `--profile <name>` | string | Named connection profile for `--from-stories` (see `auth add`) |
@@ -436,47 +432,11 @@ atomize tpl create [options]  # alias
 | `--no-normalize` | flag | Keep original estimation percentages (default normalizes to 100%) |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `-o, --output <path>` | string | Output file path (default: `createdTemplates/template-YYYYMMDD-XXXX.yaml`) |
-| `--no-interactive` | flag | Skip all prompts (use with flags only, for automation) |
 | `-q, --quiet` | flag | Suppress non-essential output |
 
 #### Creation Modes
 
-**1. AI-Powered (Free)**
-
-Generate templates from natural language descriptions using Google Gemini or local Ollama.
-
-```bash
-# Interactive provider selection
-atomize template create --ai "backend API with JWT auth and rate limiting"
-
-# Force Gemini (requires GOOGLE_AI_API_KEY env var)
-atomize template create --ai "React dashboard" --ai-provider gemini
-
-# Force Ollama (local, completely free)
-atomize template create --ai "bug fix workflow" --ai-provider ollama --model llama3.2
-```
-
-After generation, you can interactively:
-- **Accept** — Save the template as-is
-- **Refine** — Provide feedback to improve it
-- **Regenerate** — Generate a fresh version
-- **Cancel** — Discard and exit
-
-**Setup for Gemini:**
-```bash
-export GOOGLE_AI_API_KEY="your-api-key-here"
-# Get a free key at https://makersuite.google.com/app/apikey
-```
-
-**Setup for Ollama:**
-```bash
-ollama pull llama3.2   # Download a model
-ollama serve           # Start the server
-```
-
----
-
-**2. From Preset**
+**1. From Preset**
 
 Start with a battle-tested built-in template.
 
@@ -499,7 +459,7 @@ Available presets:
 
 ---
 
-**3. Learn from Multiple Stories**
+**2. Learn from Multiple Stories**
 
 Analyze multiple stories to detect patterns and build a higher-confidence template.
 
@@ -516,7 +476,7 @@ Pattern detection includes confidence scoring, outlier detection, and conditiona
 
 ---
 
-**5. Interactive Wizard (From Scratch)**
+**3. Interactive Wizard (From Scratch)**
 
 Step-by-step guided builder for full control over every aspect.
 
@@ -553,16 +513,16 @@ Use it:        atomize generate createdTemplates/template-20260101-a3f2.yaml --e
 
 ---
 
-### template list
+### template presets
 
 List all available built-in template presets.
 
 #### Usage
 
 ```bash
-atomize template list
+atomize template presets
 atomize template ls       # alias
-atomize tpl list          # alias
+atomize tpl presets       # alias
 atomize tpl ls            # alias
 ```
 
@@ -626,12 +586,6 @@ Profile resolution order for `generate`:
 2. `ATOMIZE_PROFILE` environment variable
 3. Default profile (set via `atomize auth use`)
 
-**AI Template Generation:**
-
-```bash
-export GOOGLE_AI_API_KEY="your-gemini-api-key"  # For Google Gemini
-```
-
 **Logging:**
 
 ```bash
@@ -642,7 +596,6 @@ export LOG_LEVEL="info"   # debug, info, warn, error
 
 ```bash
 ATOMIZE_PROFILE=work-ado
-GOOGLE_AI_API_KEY=your-gemini-api-key
 ```
 
 ---
@@ -686,18 +639,6 @@ atomize generate my-backend.yaml
 
 # 6. Execute
 atomize generate my-backend.yaml --execute
-```
-
-### AI-Powered Template
-
-```bash
-export GOOGLE_AI_API_KEY="your-key"
-
-# Generate and interactively refine
-atomize template create --ai "REST API with PostgreSQL and Redis caching"
-
-# Then use it
-atomize generate createdTemplates/template-*.yaml
 ```
 
 ### Multi-Story Learning
@@ -817,20 +758,6 @@ atomize generate templates/my-template.yaml --platform mock
 # - Add more states: ["New", "Active", "Approved"]
 # - Remove or broaden tag filters
 # - Set excludeIfHasTasks: false
-```
-
-### "AI provider not available"
-
-```bash
-# For Gemini
-export GOOGLE_AI_API_KEY="your-api-key"
-
-# For Ollama — make sure it's running
-ollama serve
-ollama pull llama3.2
-
-# Verify Ollama is accessible
-curl http://localhost:11434/api/tags
 ```
 
 ### Permission denied (Windows)

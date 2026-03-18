@@ -23,7 +23,6 @@ Atomize automatically generates sub-tasks from user stories using smart YAML tem
 - **Creates consistent task breakdowns** across your team
 - **Saves time** on repetitive planning work
 - **Distributes estimation** intelligently across tasks
-- **Supports AI-powered** template generation
 - **Works with** Azure DevOps (Jira & GitHub coming soon)
 
 ### How It Works
@@ -141,26 +140,11 @@ That's it! You've generated your first batch of tasks.
 
 Let's create a custom template for your team's workflow.
 
-### Option 1: AI-Powered (Easiest)
-
-```bash
-# Using Google Gemini (free tier)
-export GOOGLE_AI_API_KEY="your-api-key"  # Get from https://makersuite.google.com/app/apikey
-
-atomize template create --ai "backend API with authentication and database"
-```
-
-The AI generates a complete template and lets you refine it interactively:
-- **Accept** — Save the template
-- **Refine** — Provide feedback to improve it
-- **Regenerate** — Try a different version
-- **Cancel** — Discard and exit
-
-### Option 2: Start from Preset
+### Option 1: Start from Preset
 
 ```bash
 # List available presets
-atomize template list
+atomize template presets
 
 # Create from a preset
 atomize template create --preset backend-api
@@ -168,7 +152,7 @@ atomize template create --preset backend-api
 
 Available presets: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack`
 
-### Option 3: Interactive Wizard
+### Option 2: Interactive Wizard
 
 ```bash
 atomize template create --scratch
@@ -182,7 +166,7 @@ Follow the step-by-step wizard:
 5. Validation rules (optional)
 6. Metadata (optional)
 
-### Option 4: Learn from Existing Work
+### Option 3: Learn from Existing Work
 
 ```bash
 # Learn from multiple stories for pattern detection
@@ -393,7 +377,7 @@ estimation:
 atomize generate templates/backend-api.yaml --execute
 
 # Create a custom template for a special case
-atomize template create --ai "database migration with rollback"
+atomize template create --scratch
 
 # Test the new template
 atomize validate my-new-template.yaml
@@ -511,20 +495,6 @@ jobs:
    - Total estimation not 100%: Adjust task percentages
    - Missing required fields: Add `title` to all tasks
    - Invalid dependencies: Ensure task IDs exist
-
-### "AI not available"
-
-**For Gemini (cloud, free tier):**
-```bash
-export GOOGLE_AI_API_KEY="your-api-key"
-# Get key: https://makersuite.google.com/app/apikey
-```
-
-**For Ollama (local, completely free):**
-```bash
-ollama pull llama3.2
-ollama serve
-```
 
 ---
 
