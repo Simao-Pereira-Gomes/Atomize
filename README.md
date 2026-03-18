@@ -55,17 +55,32 @@ bun run dev
 
 ## Quick Start
 
-### 1. Generate Tasks from a Template
+### 1. Connect to Azure DevOps
 
 ```bash
-# Use a preset template
+# Add your first connection profile (interactive wizard)
+atomize auth add work-ado
+
+# Verify it works
+atomize auth test work-ado
+```
+
+You'll be prompted for your Organization URL, project, team, and a [Personal Access Token](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate).
+
+### 2. Generate Tasks from a Template
+
+```bash
+# Use a preset template (dry-run by default — safe to try)
 atomize generate templates/backend-api.yaml
 
-# Interactive mode (prompts for template and options)
+# When ready to create tasks for real
+atomize generate templates/backend-api.yaml --execute
+
+# Interactive mode (prompts for everything)
 atomize generate
 ```
 
-### 2. Create Your First Template
+### 3. Create Your First Template
 
 ```bash
 # From a preset
@@ -78,7 +93,7 @@ atomize template create --from-stories STORY-1,STORY-2,STORY-3
 atomize template create --scratch
 ```
 
-### 3. Validate a Template
+### 4. Validate a Template
 
 ```bash
 # Lenient mode (default) — only hard errors block use
