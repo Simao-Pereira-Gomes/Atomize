@@ -1,13 +1,8 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getAtomizeDir } from "./atomize-paths";
 import type { ConnectionProfile, ConnectionsFile } from "./connections.interface";
 
-const EMPTY_FILE: ConnectionsFile = {
-  version: "1",
-  defaultProfile: null,
-  profiles: [],
-};
 
 function getConnectionsPath(): string {
   return join(getAtomizeDir(), "connections.json");
@@ -23,7 +18,7 @@ export async function readConnectionsFile(): Promise<ConnectionsFile> {
     const raw = await readFile(getConnectionsPath(), "utf-8");
     return JSON.parse(raw) as ConnectionsFile;
   } catch {
-    return { ...EMPTY_FILE };
+    return { version: "1", defaultProfile: null, profiles: [] };
   }
 }
 
@@ -35,6 +30,7 @@ async function writeConnectionsFile(data: ConnectionsFile): Promise<void> {
   await mkdir(atomizeDir, { recursive: true, mode: 0o700 });
   await writeFile(connectionsTmpPath, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
   await rename(connectionsTmpPath, connectionsPath);
+  await chmod(connectionsPath, 0o600);
 }
 
 export async function saveProfile(profile: ConnectionProfile): Promise<void> {
