@@ -20,7 +20,7 @@ export const authListCommand = new Command("list")
     const defaultMark = (name: string) => name === file.defaultProfile ? chalk.green(" (default)") : "";
 
     for (const profile of file.profiles) {
-      const tokenDisplay = profile.token.strategy === "keychain" ? chalk.gray("[keychain]") : chalk.gray("[file fallback]");
+      const tokenDisplay = chalk.gray("[stored]");
       console.log(`  ${chalk.cyan(profile.name)}${defaultMark(profile.name)}`);
       console.log(`    Platform: ${profile.platform}`);
       console.log(`    URL:      ${profile.organizationUrl}`);

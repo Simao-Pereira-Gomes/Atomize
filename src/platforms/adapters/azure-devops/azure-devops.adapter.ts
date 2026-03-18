@@ -56,6 +56,11 @@ const DATE_MACRO_CANONICAL: Record<string, string> = {
   "@startofyear": "@StartOfYear",
 };
 
+/** Escapes a string value for safe interpolation inside a WIQL single-quoted literal. */
+function wiqlEscape(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
 /** Returns the WIQL macro string for an iteration value, or null if it is a real path. */
 function parseIterationMacro(value: string): string | null {
   if (value === CURRENT_ITERATION) return "@CurrentIteration";
@@ -151,10 +156,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     this.ensureAuthenticated();
 
     try {
-      logger.debug("AzureDevOps: Querying work items", { filter });
+      logger.debug("AzureDevOps: Querying work items");
 
       const wiql = this.buildWiqlQuery(filter);
-      logger.debug("AzureDevOps: WIQL query", { wiql });
+      logger.debug("AzureDevOps: WIQL query built");
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
       }
@@ -668,30 +673,30 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private buildWiqlQuery(filter: FilterCriteria): string {
     const conditions: string[] = [];
 
-    conditions.push(`[System.TeamProject] = '${this.config.project}'`);
+    conditions.push(`[System.TeamProject] = '${wiqlEscape(this.config.project)}'`);
 
     // Work item types
     if (filter.workItemTypes && filter.workItemTypes.length > 0) {
-      const types = filter.workItemTypes.map((t) => `'${t}'`).join(", ");
+      const types = filter.workItemTypes.map((t) => `'${wiqlEscape(t)}'`).join(", ");
       conditions.push(`[System.WorkItemType] IN (${types})`);
     }
 
     // States (include)
     if (filter.states && filter.states.length > 0) {
-      const states = filter.states.map((s) => `'${s}'`).join(", ");
+      const states = filter.states.map((s) => `'${wiqlEscape(s)}'`).join(", ");
       conditions.push(`[System.State] IN (${states})`);
     }
 
     // States (exclude)
     if (filter.statesExclude && filter.statesExclude.length > 0) {
-      const states = filter.statesExclude.map((s) => `'${s}'`).join(", ");
+      const states = filter.statesExclude.map((s) => `'${wiqlEscape(s)}'`).join(", ");
       conditions.push(`[System.State] NOT IN (${states})`);
     }
 
     // States (WAS EVER)
     if (filter.statesWereEver && filter.statesWereEver.length > 0) {
       const clauses = filter.statesWereEver.map(
-        (s) => `[System.State] WAS EVER '${s}'`,
+        (s) => `[System.State] WAS EVER '${wiqlEscape(s)}'`,
       );
       conditions.push(
         clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
@@ -701,7 +706,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     // Tags (include)
     if (filter.tags?.include && filter.tags.include.length > 0) {
       const tagConditions = filter.tags.include.map(
-        (tag) => `[System.Tags] CONTAINS '${tag}'`
+        (tag) => `[System.Tags] CONTAINS '${wiqlEscape(tag)}'`,
       );
       conditions.push(`(${tagConditions.join(" OR ")})`);
     }
@@ -709,7 +714,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     // Tags (exclude)
     if (filter.tags?.exclude && filter.tags.exclude.length > 0) {
       for (const tag of filter.tags.exclude) {
-        conditions.push(`[System.Tags] NOT CONTAINS '${tag}'`);
+        conditions.push(`[System.Tags] NOT CONTAINS '${wiqlEscape(tag)}'`);
       }
     }
 
@@ -721,10 +726,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       if (hasTeamAreas && realPaths.length === 0) {
         conditions.push(`[System.AreaPath] IN (@TeamAreas)`);
       } else if (!hasTeamAreas && realPaths.length > 0) {
-        const quoted = realPaths.map((p) => `'${p}'`).join(", ");
+        const quoted = realPaths.map((p) => `'${wiqlEscape(p)}'`).join(", ");
         conditions.push(`[System.AreaPath] IN (${quoted})`);
       } else if (hasTeamAreas && realPaths.length > 0) {
-        const quoted = realPaths.map((p) => `'${p}'`).join(", ");
+        const quoted = realPaths.map((p) => `'${wiqlEscape(p)}'`).join(", ");
         conditions.push(
           `([System.AreaPath] IN (${quoted}) OR [System.AreaPath] IN (@TeamAreas))`,
         );
@@ -734,7 +739,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     // Area paths (UNDER)
     if (filter.areaPathsUnder && filter.areaPathsUnder.length > 0) {
       const clauses = filter.areaPathsUnder.map(
-        (p) => `[System.AreaPath] UNDER '${p}'`,
+        (p) => `[System.AreaPath] UNDER '${wiqlEscape(p)}'`,
       );
       conditions.push(
         clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
@@ -756,7 +761,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       }
 
       if (realPaths.length > 0) {
-        const quoted = realPaths.map((i) => `'${i}'`).join(", ");
+        const quoted = realPaths.map((i) => `'${wiqlEscape(i)}'`).join(", ");
         iterConditions.push(`[System.IterationPath] IN (${quoted})`);
       }
 
@@ -770,7 +775,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     }
 
     if (filter.assignedTo && filter.assignedTo.length > 0) {
-      const users = filter.assignedTo.map((u) => `'${u}'`).join(", ");
+      const users = filter.assignedTo.map((u) => `'${wiqlEscape(u)}'`).join(", ");
       conditions.push(`[System.AssignedTo] IN (${users})`);
     }
 
@@ -778,12 +783,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     if (filter.priority) {
       if (filter.priority.min !== undefined) {
         conditions.push(
-          `[Microsoft.VSTS.Common.Priority] >= ${filter.priority.min}`
+          `[Microsoft.VSTS.Common.Priority] >= ${filter.priority.min}`,
         );
       }
       if (filter.priority.max !== undefined) {
         conditions.push(
-          `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`
+          `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`,
         );
       }
     }
@@ -791,7 +796,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     // Iterations (UNDER)
     if (filter.iterationsUnder && filter.iterationsUnder.length > 0) {
       const clauses = filter.iterationsUnder.map(
-        (p) => `[System.IterationPath] UNDER '${p}'`,
+        (p) => `[System.IterationPath] UNDER '${wiqlEscape(p)}'`,
       );
       conditions.push(
         clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
@@ -811,7 +816,8 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       );
     }
 
-    // Custom query (if provided, use it instead)
+    // Custom query (if provided, use it instead).
+    // SECURITY: this bypasses all escaping — only use with templates from trusted sources.
     if (filter.customQuery) {
       return filter.customQuery;
     }

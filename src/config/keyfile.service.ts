@@ -18,7 +18,7 @@ async function ensureKeyFile(): Promise<Buffer> {
     const keyHex = await readFile(keyFilePath, "utf-8");
     return Buffer.from(keyHex.trim(), "hex");
   } catch {
-    await mkdir(atomizeDir, { recursive: true });
+    await mkdir(atomizeDir, { recursive: true, mode: 0o700 });
     const key = randomBytes(KEY_BYTES);
     await writeFile(keyFilePath, key.toString("hex"), {
       encoding: "utf-8",
