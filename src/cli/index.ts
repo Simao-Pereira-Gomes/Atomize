@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-import dotenv from "dotenv";
-
-dotenv.config({ override: true });
-
 import chalk from "chalk";
 import { Command } from "commander";
 import { version } from "../../package.json";
@@ -10,13 +6,30 @@ import { authCommand } from "./commands/auth/auth.command";
 import { generateCommand } from "./commands/generate.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
+import { loadEnvFile } from "./env-loader";
 
 const program = new Command();
 
 program
 	.name("atomize")
 	.description("Automatically generate tasks from user stories")
-	.version(version);
+	.version(version)
+	.option(
+		"--env-file <path>",
+		"load environment variables from file (shell env takes precedence)",
+	);
+
+program.hook("preAction", () => {
+	const { envFile } = program.opts();
+	if (envFile) {
+		try {
+			loadEnvFile(envFile);
+		} catch (err) {
+			console.error(chalk.red(`Error: ${(err as Error).message}`));
+			process.exit(1);
+		}
+	}
+});
 
 const banner = `
 ${chalk.cyan("    ___  __                  _         ")}
