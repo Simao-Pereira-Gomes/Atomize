@@ -428,12 +428,13 @@ jobs:
           done
 
       - name: Save connection profile
+        env:
+          ATOMIZE_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
           atomize auth add ci \
             --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
             --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
             --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
-            --pat "${{ secrets.AZURE_DEVOPS_PAT }}" \
             --default
 
       - name: Generate Tasks

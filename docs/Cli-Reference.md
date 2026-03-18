@@ -86,8 +86,9 @@ atomize auth add [name] [options]
 | `--org-url <url>` | Organization URL (e.g. `https://dev.azure.com/myorg`) |
 | `--project <name>` | Project name |
 | `--team <name>` | Team name |
-| `--pat <token>` | Personal Access Token |
 | `--default` | Set this profile as the default |
+
+The PAT must be provided via the `ATOMIZE_PAT` environment variable when running non-interactively.
 
 **Interactive (recommended for first-time setup):**
 ```bash
@@ -97,11 +98,20 @@ atomize auth add work-ado
 
 **Non-interactive (for CI/CD or scripting):**
 ```bash
-atomize auth add work-ado \
+# macOS / Linux
+ATOMIZE_PAT=YOUR_PAT atomize auth add work-ado \
   --org-url https://dev.azure.com/myorg \
   --project MyProject \
   --team MyTeam \
-  --pat YOUR_PAT \
+  --default
+```
+```powershell
+# Windows (PowerShell)
+$env:ATOMIZE_PAT = "YOUR_PAT"
+atomize auth add work-ado `
+  --org-url https://dev.azure.com/myorg `
+  --project MyProject `
+  --team MyTeam `
   --default
 ```
 
@@ -575,10 +585,30 @@ atomize generate templates/backend-api.yaml
 
 ### Environment Variables
 
+**Authentication:**
+
+```bash
+# macOS / Linux
+export ATOMIZE_PAT="your-personal-access-token"
+```
+```powershell
+# Windows (PowerShell)
+$env:ATOMIZE_PAT = "your-personal-access-token"
+```
+```cmd
+# Windows (Command Prompt)
+set ATOMIZE_PAT=your-personal-access-token
+```
+
 **Profile selection:**
 
 ```bash
-export ATOMIZE_PROFILE="work-ado"   # Use this profile when --profile is not specified
+# macOS / Linux
+export ATOMIZE_PROFILE="work-ado"
+```
+```powershell
+# Windows (PowerShell)
+$env:ATOMIZE_PROFILE = "work-ado"
 ```
 
 Profile resolution order for `generate`:
@@ -675,12 +705,13 @@ jobs:
         run: npm install -g @sppg2001/atomize
 
       - name: Save connection profile
+        env:
+          ATOMIZE_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
           atomize auth add ci \
             --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
             --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
             --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
-            --pat "${{ secrets.AZURE_DEVOPS_PAT }}" \
             --default
 
       - name: Validate Templates
