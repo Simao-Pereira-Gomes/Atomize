@@ -5,6 +5,7 @@ import {
   setDefaultProfile,
 } from "@config/connections.config";
 import { storeToken } from "@config/keychain.service";
+import { z } from "zod";
 import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 
 export interface ProfileInputs {
@@ -17,6 +18,42 @@ export interface ProfileInputs {
 }
 
 const PROFILE_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const AZURE_DEVOPS_HOST_RE =
+  /^(dev\.azure\.com|vsrm\.dev\.azure\.com|[^.]+\.visualstudio\.com)$/i;
+
+const OrganizationUrlSchema = z
+  .preprocess(
+    (value) => (typeof value === "string" ? value.trim() : value),
+    z.string().min(1, "Organization URL is required"),
+  )
+  .superRefine((input, ctx) => {
+    let parsed: URL;
+
+    try {
+      parsed = new URL(input);
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "Organization URL must be a valid URL",
+      });
+      return;
+    }
+
+    if (parsed.protocol !== "https:") {
+      ctx.addIssue({
+        code: "custom",
+        message: "Organization URL must use https://",
+      });
+    }
+
+    if (!AZURE_DEVOPS_HOST_RE.test(parsed.hostname)) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Organization URL must be an Azure DevOps host (dev.azure.com or *.visualstudio.com)",
+      });
+    }
+  });
 
 export function validateProfileName(
   name: string | undefined,
@@ -25,6 +62,16 @@ export function validateProfileName(
   if (!PROFILE_NAME_PATTERN.test(name))
     return "Only letters, numbers, hyphens, and underscores are allowed";
   return undefined;
+}
+
+export function validateOrganizationUrl(
+  organizationUrl: string | undefined,
+): string | undefined {
+  if (organizationUrl === undefined) {
+    return "Organization URL is required";
+  }
+  const result = OrganizationUrlSchema.safeParse(organizationUrl);
+  return result.success ? undefined : result.error.issues[0]?.message;
 }
 
 export async function checkProfileNameAvailable(
@@ -49,6 +96,7 @@ export async function promptProfileName(): Promise<string> {
 
 export async function promptRemainingInputs(
   name: string,
+  prefill: Partial<Omit<ProfileInputs, "name" | "platform">> = {},
 ): Promise<ProfileInputs> {
   const platform = assertNotCancelled(
     await select({
@@ -58,21 +106,15 @@ export async function promptRemainingInputs(
     }),
   ) as "azure-devops";
 
-  const organizationUrl = assertNotCancelled(
+  const organizationUrl = prefill.organizationUrl ?? assertNotCancelled(
     await text({
       message: "Organization URL:",
       placeholder: "https://dev.azure.com/myorg",
-      validate: (input: string | undefined): string | undefined => {
-        if (!input || input.trim() === "")
-          return "Organization URL is required";
-        if (!input.startsWith("https://"))
-          return "URL must start with https://";
-        return undefined;
-      },
+      validate: validateOrganizationUrl,
     }),
   );
 
-  const project = assertNotCancelled(
+  const project = prefill.project ?? assertNotCancelled(
     await text({
       message: "Project name:",
       validate: (input: string | undefined): string | undefined => {
@@ -82,7 +124,7 @@ export async function promptRemainingInputs(
     }),
   );
 
-  const team = assertNotCancelled(
+  const team = prefill.team ?? assertNotCancelled(
     await text({
       message: "Team name:",
       placeholder: "e.g. MyTeam",

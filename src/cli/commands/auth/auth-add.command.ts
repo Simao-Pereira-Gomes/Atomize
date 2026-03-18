@@ -10,6 +10,7 @@ import {
   promptRemainingInputs,
   promptSetAsDefault,
   resolveDefaultBehaviour,
+  validateOrganizationUrl,
   validateProfileName,
 } from "./helpers/auth-add.helper";
 
@@ -17,12 +18,11 @@ interface AddOptions {
   orgUrl?: string;
   project?: string;
   team?: string;
-  pat?: string;
   default?: boolean;
 }
 
 function hasAllFlags(options: AddOptions): boolean {
-  return !!(options.orgUrl && options.project && options.team && options.pat);
+  return !!(options.orgUrl && options.project && options.team && process.env.ATOMIZE_PAT);
 }
 
 function isNonInteractive(options: AddOptions): boolean {
@@ -38,16 +38,23 @@ export const authAddCommand = new Command("add")
   )
   .option("--project <name>", "Project name")
   .option("--team <name>", "Team name")
-  .option("--pat <token>", "Personal Access Token")
   .option("--default", "Set as default profile", false)
   .action(async (nameArg: string | undefined, options: AddOptions) => {
+    const resolvedPat = process.env.ATOMIZE_PAT;
     const ci = isNonInteractive(options);
+
+    if (ci && !resolvedPat) {
+      console.error(
+        "Error: PAT is required. Set the ATOMIZE_PAT environment variable or use --pat (deprecated).",
+      );
+      process.exit(ExitCode.Failure);
+    }
 
     // Validate and check availability before showing any UI when name is already known
     if (ci || nameArg) {
       if (!nameArg) {
         console.error(
-          "Error: Profile name is required.\nUsage: atomize auth add <name> --org-url <url> --project <name> --team <name> --pat <token>",
+          "Error: Profile name is required.\nUsage: ATOMIZE_PAT=<token> atomize auth add <name> --org-url <url> --project <name> --team <name>",
         );
         process.exit(ExitCode.Failure);
       }
@@ -86,9 +93,21 @@ export const authAddCommand = new Command("add")
           organizationUrl: options.orgUrl as string,
           project: options.project as string,
           team: options.team as string,
-          pat: options.pat as string,
+          pat: resolvedPat as string,
         }
-      : await promptRemainingInputs(resolvedName);
+      : await promptRemainingInputs(resolvedName, {
+          organizationUrl: options.orgUrl,
+          project: options.project,
+          team: options.team,
+        });
+
+    if (ci) {
+      const organizationUrlError = validateOrganizationUrl(inputs.organizationUrl);
+      if (organizationUrlError) {
+        console.error(`Error: ${organizationUrlError}`);
+        process.exit(ExitCode.Failure);
+      }
+    }
 
     const savingSpinner = ci ? null : spinner();
     savingSpinner?.start("Saving profile...");

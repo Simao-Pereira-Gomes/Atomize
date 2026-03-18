@@ -13,6 +13,7 @@ import {
   applyDefault,
   persistProfile,
   resolveDefaultBehaviour,
+  validateOrganizationUrl,
   validateProfileName,
 } from "@/cli/commands/auth/helpers/auth-add.helper";
 import { deleteProfile } from "@/cli/commands/auth/helpers/auth-remove.helper";
@@ -91,6 +92,38 @@ describe("validateProfileName", () => {
     expect(validateProfileName("my@profile")).toBeDefined();
     expect(validateProfileName("my/profile")).toBeDefined();
     expect(validateProfileName("my.profile")).toBeDefined();
+  });
+});
+
+describe("validateOrganizationUrl", () => {
+  test("accepts Azure DevOps cloud URLs", () => {
+    expect(validateOrganizationUrl("https://dev.azure.com/myorg")).toBeUndefined();
+    expect(
+      validateOrganizationUrl("https://customdomain.visualstudio.com"),
+    ).toBeUndefined();
+  });
+
+  test("rejects missing URL", () => {
+    expect(validateOrganizationUrl("")).toBe("Organization URL is required");
+    expect(validateOrganizationUrl(undefined)).toBe("Organization URL is required");
+  });
+
+  test("rejects non-https URLs", () => {
+    expect(validateOrganizationUrl("http://dev.azure.com/myorg")).toBe(
+      "Organization URL must use https://",
+    );
+  });
+
+  test("rejects non-Azure DevOps hosts", () => {
+    expect(validateOrganizationUrl("https://example.com")).toBe(
+      "Organization URL must be an Azure DevOps host (dev.azure.com or *.visualstudio.com)",
+    );
+  });
+
+  test("rejects malformed URLs", () => {
+    expect(validateOrganizationUrl("not-a-url")).toBe(
+      "Organization URL must be a valid URL",
+    );
   });
 });
 
