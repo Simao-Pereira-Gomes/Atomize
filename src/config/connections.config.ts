@@ -1,8 +1,35 @@
-import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
+import { chmod, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getAtomizeDir } from "./atomize-paths";
+import { z } from "zod";
+import { assertSafeFilePermissions, ensureAtomizeDir, getAtomizeDir } from "./atomize-paths";
 import type { ConnectionProfile, ConnectionsFile } from "./connections.interface";
 
+const EncryptedTokenSchema = z.discriminatedUnion("strategy", [
+  z.object({ strategy: z.literal("keychain") }),
+  z.object({
+    strategy: z.literal("keyfile"),
+    iv: z.string(),
+    authTag: z.string(),
+    ciphertext: z.string(),
+  }),
+]);
+
+const ConnectionProfileSchema = z.object({
+  name: z.string(),
+  platform: z.literal("azure-devops"),
+  organizationUrl: z.string(),
+  project: z.string(),
+  team: z.string(),
+  token: EncryptedTokenSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const ConnectionsFileSchema = z.object({
+  version: z.literal("1"),
+  defaultProfile: z.string().nullable(),
+  profiles: z.array(ConnectionProfileSchema),
+});
 
 function getConnectionsPath(): string {
   return join(getAtomizeDir(), "connections.json");
@@ -13,21 +40,49 @@ function getConnectionsTmpPath(): string {
 }
 
 export async function readConnectionsFile(): Promise<ConnectionsFile> {
+  await ensureAtomizeDir();
+  await assertSafeFilePermissions(getConnectionsPath());
+  let raw: string;
   try {
-    const { readFile } = await import("node:fs/promises");
-    const raw = await readFile(getConnectionsPath(), "utf-8");
-    return JSON.parse(raw) as ConnectionsFile;
-  } catch {
-    return { version: "1", defaultProfile: null, profiles: [] };
+    raw = await readFile(getConnectionsPath(), "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { version: "1", defaultProfile: null, profiles: [] };
+    }
+    throw new Error(
+      `Failed to read connections file: ${err instanceof Error ? err.message : String(err)}. ` +
+        `Repair or remove ${getConnectionsPath()} and try again.`,
+    );
   }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `Connections file at ${getConnectionsPath()} contains invalid JSON. ` +
+        `Repair or remove it and try again.`,
+    );
+  }
+
+  const result = ConnectionsFileSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    throw new Error(
+      `Connections file at ${getConnectionsPath()} failed validation: ${issues}. ` +
+        `Repair or remove it and try again.`,
+    );
+  }
+  return result.data;
 }
 
 async function writeConnectionsFile(data: ConnectionsFile): Promise<void> {
-  const atomizeDir = getAtomizeDir();
+  await ensureAtomizeDir();
   const connectionsPath = getConnectionsPath();
   const connectionsTmpPath = getConnectionsTmpPath();
 
-  await mkdir(atomizeDir, { recursive: true, mode: 0o700 });
   await writeFile(connectionsTmpPath, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
   await rename(connectionsTmpPath, connectionsPath);
   await chmod(connectionsPath, 0o600);

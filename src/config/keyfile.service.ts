@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getAtomizeDir } from "./atomize-paths";
+import { assertSafeFilePermissions, ensureAtomizeDir, getAtomizeDir } from "./atomize-paths";
 
 const ALGORITHM = "aes-256-gcm";
 const KEY_BYTES = 32;
@@ -11,14 +11,14 @@ function getKeyFilePath(): string {
 }
 
 async function ensureKeyFile(): Promise<Buffer> {
-  const atomizeDir = getAtomizeDir();
   const keyFilePath = getKeyFilePath();
 
+  await ensureAtomizeDir();
+  await assertSafeFilePermissions(keyFilePath);
   try {
     const keyHex = await readFile(keyFilePath, "utf-8");
     return Buffer.from(keyHex.trim(), "hex");
   } catch {
-    await mkdir(atomizeDir, { recursive: true, mode: 0o700 });
     const key = randomBytes(KEY_BYTES);
     await writeFile(keyFilePath, key.toString("hex"), {
       encoding: "utf-8",
