@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import process from "node:process";
 import type { AtomizationReport } from "@core/atomizer";
 import {
   getNonInteractiveLiveExecutionError,
@@ -315,6 +316,13 @@ describe("writeReportFile", () => {
       await chmod(outputPath, 0o644);
 
       await writeReportFile(outputPath, makeReport(), false);
+
+      const raw = await readFile(outputPath, "utf-8");
+      expect(raw).toContain('"templateName": "test-template"');
+
+      if (process.platform === "win32") {
+        return;
+      }
 
       const mode = (await stat(outputPath)).mode & 0o777;
       expect(mode).toBe(0o600);
