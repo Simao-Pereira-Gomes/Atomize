@@ -27,7 +27,6 @@ export async function assertSafeFilePermissions(
   if (platform() === "win32") {
     // On Windows, chmod is a no-op and mode bits are not meaningful.
     // The file is implicitly protected by the user's account/NTFS ACL.
-    // Skip the Unix-style permission check entirely.
     return;
   }
 
