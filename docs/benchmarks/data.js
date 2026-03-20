@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774025139431,
+  "lastUpdate": 1774027159250,
   "repoUrl": "https://github.com/Simao-Pereira-Gomes/Atomize",
   "entries": {
     "Atomize Benchmarks": [
@@ -115,6 +115,65 @@ window.BENCHMARK_DATA = {
           {
             "name": "Build Map 500 tasks",
             "value": 53039.6797282204,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "simaogomes75@gmail.com",
+            "name": "Simao-Pereira-Gomes",
+            "username": "Simao-Pereira-Gomes"
+          },
+          "committer": {
+            "email": "simaogomes75@gmail.com",
+            "name": "Simao-Pereira-Gomes",
+            "username": "Simao-Pereira-Gomes"
+          },
+          "distinct": true,
+          "id": "1228297fc9d761be31b2817bb8da5ff7b5113fd2",
+          "message": "chore: update version to 1.2.2, enhance keychain service with probing functionality and improve logging",
+          "timestamp": "2026-03-20T17:18:43Z",
+          "tree_id": "35ccdac35568d76f4e875edd043919973a067bee",
+          "url": "https://github.com/Simao-Pereira-Gomes/Atomize/commit/1228297fc9d761be31b2817bb8da5ff7b5113fd2"
+        },
+        "date": 1774027158610,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Validate 50 tasks",
+            "value": 42732.506428571425,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 100 tasks",
+            "value": 83133.74837982531,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 200 tasks",
+            "value": 147266.0120593692,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 500 tasks",
+            "value": 396945.7314923619,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 100 tasks (Chain)",
+            "value": 227735.15957078573,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 500 tasks (Chain)",
+            "value": 3893979.8700564974,
+            "unit": "ns"
+          },
+          {
+            "name": "Build Map 500 tasks",
+            "value": 52236.8303802141,
             "unit": "ns"
           }
         ]
