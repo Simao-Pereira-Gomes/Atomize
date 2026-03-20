@@ -150,8 +150,9 @@ export async function promptRemainingInputs(
 
 export async function persistProfile(
   inputs: ProfileInputs,
+  { allowKeyfileStorage = false }: { allowKeyfileStorage?: boolean } = {},
 ): Promise<{ useKeychain: boolean }> {
-  const tokenData = await storeToken(inputs.name, inputs.pat);
+  const tokenData = await storeToken(inputs.name, inputs.pat, { allowKeyfileStorage });
   const now = new Date().toISOString();
   await saveProfile({
     name: inputs.name,

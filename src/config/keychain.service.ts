@@ -27,6 +27,7 @@ const SERVICE_NAME = "atomize";
 export async function storeToken(
   profileName: string,
   token: string,
+  { allowKeyfileStorage = false }: { allowKeyfileStorage?: boolean } = {},
 ): Promise<EncryptedToken> {
   const kt = await getKeytar();
   if (kt) {
@@ -34,8 +35,13 @@ export async function storeToken(
       await kt.setPassword(SERVICE_NAME, profileName, token);
       return { strategy: "keychain" };
     } catch {
-      // Fall back to the local keyfile strategy instead of failing auth setup.
+      // Keychain write failed — fall through to keyfile if explicitly allowed.
     }
+  }
+  if (!allowKeyfileStorage) {
+    throw new AuthError(
+      "System keychain is unavailable. Re-run with --insecure-storage to use the insecure local file fallback instead.",
+    );
   }
   const encrypted = await encryptWithKeyfile(token);
   return { strategy: "keyfile", ...encrypted };

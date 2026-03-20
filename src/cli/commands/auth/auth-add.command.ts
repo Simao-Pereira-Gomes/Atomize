@@ -1,7 +1,12 @@
-import { cancel, intro, outro, spinner } from "@clack/prompts";
+import { readFileSync } from "node:fs";
+import { cancel, confirm, intro, log, outro, spinner } from "@clack/prompts";
+import { keychainAvailable } from "@config/keychain.service";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
-import { isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  isInteractiveTerminal,
+} from "@/cli/utilities/prompt-utilities";
 import {
   applyDefault,
   checkProfileNameAvailable,
@@ -19,14 +24,29 @@ interface AddOptions {
   project?: string;
   team?: string;
   default?: boolean;
+  insecureStorage?: boolean;
+  patStdin?: boolean;
 }
 
-function hasAllFlags(options: AddOptions): boolean {
-  return !!(options.orgUrl && options.project && options.team && process.env.ATOMIZE_PAT);
+function readPatFromStdin(): string | undefined {
+  try {
+    return readFileSync("/dev/stdin", "utf-8").trim() || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-function isNonInteractive(options: AddOptions): boolean {
-  return !isInteractiveTerminal() || hasAllFlags(options);
+function resolvePat(options: AddOptions): string | undefined {
+  if (options.patStdin) return readPatFromStdin();
+  return process.env.ATOMIZE_PAT;
+}
+
+function hasAllFlags(options: AddOptions, pat: string | undefined): boolean {
+  return !!(options.orgUrl && options.project && options.team && pat);
+}
+
+function isNonInteractive(options: AddOptions, pat: string | undefined): boolean {
+  return !isInteractiveTerminal() || hasAllFlags(options, pat);
 }
 
 export const authAddCommand = new Command("add")
@@ -39,13 +59,23 @@ export const authAddCommand = new Command("add")
   .option("--project <name>", "Project name")
   .option("--team <name>", "Team name")
   .option("--default", "Set as default profile", false)
+  .option(
+    "--insecure-storage",
+    "Allow storing the token in an insecure local file fallback when the OS keychain is unavailable",
+    false,
+  )
+  .option(
+    "--pat-stdin",
+    "Read the Personal Access Token from stdin instead of ATOMIZE_PAT (safer in CI — avoids env var exposure in logs)",
+    false,
+  )
   .action(async (nameArg: string | undefined, options: AddOptions) => {
-    const resolvedPat = process.env.ATOMIZE_PAT;
-    const ci = isNonInteractive(options);
+    const resolvedPat = resolvePat(options);
+    const ci = isNonInteractive(options, resolvedPat);
 
     if (ci && !resolvedPat) {
       console.error(
-        "Error: PAT is required. Set the ATOMIZE_PAT environment variable or use --pat (deprecated).",
+        "Error: PAT is required. Use --pat-stdin to pipe from stdin (recommended in CI), or set the ATOMIZE_PAT environment variable.",
       );
       process.exit(ExitCode.Failure);
     }
@@ -54,7 +84,7 @@ export const authAddCommand = new Command("add")
     if (ci || nameArg) {
       if (!nameArg) {
         console.error(
-          "Error: Profile name is required.\nUsage: ATOMIZE_PAT=<token> atomize auth add <name> --org-url <url> --project <name> --team <name>",
+          "Error: Profile name is required.\nUsage: echo <token> | atomize auth add <name> --pat-stdin --org-url <url> --project <name> --team <name>",
         );
         process.exit(ExitCode.Failure);
       }
@@ -109,13 +139,40 @@ export const authAddCommand = new Command("add")
       }
     }
 
+    const keychainOk = await keychainAvailable();
+    let allowKeyfileStorage = options.insecureStorage ?? false;
+
+    if (!keychainOk && !allowKeyfileStorage) {
+      const insecureMsg =
+        "System keychain is unavailable. The token would be stored in an insecure local file fallback — " +
+        "anyone who can read ~/.atomize/ can recover it.";
+      if (ci) {
+        console.error(
+          `Error: ${insecureMsg}\nRe-run with --insecure-storage to accept the insecure local file fallback.`,
+        );
+        process.exit(ExitCode.Failure);
+      } else {
+        log.warn(insecureMsg);
+        allowKeyfileStorage = assertNotCancelled(
+          await confirm({
+            message: "Continue with the insecure local file fallback?",
+            initialValue: false,
+          }),
+        );
+        if (!allowKeyfileStorage) {
+          cancel("Aborted — token not saved.");
+          process.exit(ExitCode.Failure);
+        }
+      }
+    }
+
     const savingSpinner = ci ? null : spinner();
     savingSpinner?.start("Saving profile...");
 
     try {
-      const { useKeychain } = await persistProfile(inputs);
+      const { useKeychain } = await persistProfile(inputs, { allowKeyfileStorage });
       savingSpinner?.stop(
-        `Profile "${inputs.name}" saved (token stored in ${useKeychain ? "OS keychain" : "encrypted file"})`,
+        `Profile "${inputs.name}" saved (token stored in ${useKeychain ? "OS keychain" : "local file — recoverable by anyone with read access to ~/.atomize/"})`,
       );
 
       const defaultBehaviour = await resolveDefaultBehaviour(
