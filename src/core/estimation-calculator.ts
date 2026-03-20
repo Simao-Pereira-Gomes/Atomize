@@ -117,7 +117,6 @@ export class EstimationCalculator {
         completedWork: 0, // Default to 0 for new tasks
         iteration: story.iteration, // Inherit from parent
         areaPath: story.areaPath, // Inherit from parent
-        customFields: templateTask.customFields,
         templateId: templateTask.id,
         estimationPercent: resolvedPercent ?? templateTask.estimationPercent,
       };
@@ -205,7 +204,6 @@ export class EstimationCalculator {
         completedWork: 0, // Default to 0 for new tasks
         iteration: story.iteration, // Inherit from parent
         areaPath: story.areaPath, // Inherit from parent
-        customFields: templateTask.customFields,
         templateId: templateTask.id,
         estimationPercent:
           this.resolveEffectivePercent(templateTask, story) ??

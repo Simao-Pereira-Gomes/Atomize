@@ -5,15 +5,23 @@ import type {
   Metadata,
   ValidationConfig,
 } from "@templates/schema";
-import type { CustomFieldFilter } from "@/platforms";
 import {
   assertNotCancelled,
   Filters,
   Validators,
 } from "../../utilities/prompt-utilities";
 
-type AdvancedFilterGroup = "scope" | "stateHistory" | "assignment" | "dates" | "custom";
-const ADVANCED_GROUP_ORDER: AdvancedFilterGroup[] = ["scope", "stateHistory", "assignment", "dates", "custom"];
+type AdvancedFilterGroup =
+  | "scope"
+  | "stateHistory"
+  | "assignment"
+  | "dates";
+const ADVANCED_GROUP_ORDER: AdvancedFilterGroup[] = [
+  "scope",
+  "stateHistory",
+  "assignment",
+  "dates",
+];
 
 type AreaFilterMode = "none" | "@TeamAreas" | "exact" | "under" | "mixed";
 type IterationFilterMode =
@@ -71,29 +79,36 @@ export async function configureFilter(): Promise<FilterCriteria> {
       message: "Advanced filters (press Enter to skip):",
       options: [
         { label: "Scope  — team, area paths, iterations", value: "scope" },
-        { label: "State history  — exclude states, were ever in", value: "stateHistory" },
+        {
+          label: "State history  — exclude states, were ever in",
+          value: "stateHistory",
+        },
         { label: "Assignment  — assigned-to, priority", value: "assignment" },
         { label: "Dates  — changed after, created after", value: "dates" },
-        { label: "Custom  — field filters, custom query", value: "custom" },
       ],
       required: false,
     }),
   ) as AdvancedFilterGroup[];
 
   // Process groups in a fixed order regardless of tick order
-  for (const group of ADVANCED_GROUP_ORDER.filter((g) => selectedGroups.includes(g))) {
+  for (const group of ADVANCED_GROUP_ORDER.filter((g) =>
+    selectedGroups.includes(g),
+  )) {
     switch (group) {
       case "scope": {
         const team = await promptTeam();
         if (team) filter.team = team;
 
-        const { exact: areaPaths, under: areaPathsUnder } = await promptAreaPaths();
+        const { exact: areaPaths, under: areaPathsUnder } =
+          await promptAreaPaths();
         if (areaPaths.length > 0) filter.areaPaths = areaPaths;
         if (areaPathsUnder.length > 0) filter.areaPathsUnder = areaPathsUnder;
 
-        const { exact: iterations, under: iterationsUnder } = await promptIterations();
+        const { exact: iterations, under: iterationsUnder } =
+          await promptIterations();
         if (iterations.length > 0) filter.iterations = iterations;
-        if (iterationsUnder.length > 0) filter.iterationsUnder = iterationsUnder;
+        if (iterationsUnder.length > 0)
+          filter.iterationsUnder = iterationsUnder;
         break;
       }
       case "stateHistory": {
@@ -124,18 +139,6 @@ export async function configureFilter(): Promise<FilterCriteria> {
           "Created after (date or @Today offset):",
         );
         if (createdAfter) filter.createdAfter = createdAfter;
-        break;
-      }
-      case "custom": {
-        // Custom fields and query have their own inner gates since users
-        // may want one but not the other
-        const useCustomFields = assertNotCancelled(
-          await confirm({ message: "Add custom field filters?", initialValue: false }),
-        );
-        if (useCustomFields) filter.customFields = await configureCustomFields();
-
-        const customQuery = await promptCustomQuery();
-        if (customQuery) filter.customQuery = customQuery;
         break;
       }
     }
@@ -249,7 +252,8 @@ async function promptExcludeIfHasTasks(): Promise<boolean> {
 async function promptTeam(): Promise<string | undefined> {
   const override = assertNotCancelled(
     await confirm({
-      message: "Override team for this template? (affects @CurrentIteration and @TeamAreas)",
+      message:
+        "Override team for this template? (affects @CurrentIteration and @TeamAreas)",
       initialValue: false,
     }),
   );
@@ -268,13 +272,19 @@ async function promptTeam(): Promise<string | undefined> {
   return team.trim();
 }
 
-async function promptAreaPaths(): Promise<{ exact: string[]; under: string[] }> {
+async function promptAreaPaths(): Promise<{
+  exact: string[];
+  under: string[];
+}> {
   const mode = assertNotCancelled(
     await select<AreaFilterMode>({
       message: "Area path filter:",
       options: [
         { label: "No area path filter", value: "none" as const },
-        { label: "@TeamAreas  (all areas for this team)", value: "@TeamAreas" as const },
+        {
+          label: "@TeamAreas  (all areas for this team)",
+          value: "@TeamAreas" as const,
+        },
         { label: "Exact paths  (IN)", value: "exact" as const },
         { label: "Path and descendants  (UNDER)", value: "under" as const },
         { label: "@TeamAreas + exact paths", value: "mixed" as const },
@@ -291,7 +301,8 @@ async function promptAreaPaths(): Promise<{ exact: string[]; under: string[] }> 
       message: "Area paths (comma-separated):",
       placeholder: "e.g. MyProject\\\\Backend, MyProject\\\\API",
       validate: (input): string | undefined => {
-        if (!input || input.trim() === "") return "At least one area path is required";
+        if (!input || input.trim() === "")
+          return "At least one area path is required";
         return undefined;
       },
     }),
@@ -303,15 +314,27 @@ async function promptAreaPaths(): Promise<{ exact: string[]; under: string[] }> 
   return { exact: paths, under: [] };
 }
 
-async function promptIterations(): Promise<{ exact: string[]; under: string[] }> {
+async function promptIterations(): Promise<{
+  exact: string[];
+  under: string[];
+}> {
   const mode = assertNotCancelled(
     await select<IterationFilterMode>({
       message: "Iteration filter:",
       options: [
         { label: "No iteration filter", value: "none" as const },
-        { label: "@CurrentIteration       (active sprint)", value: "@CurrentIteration" as const },
-        { label: "@CurrentIteration + 1  (next sprint)", value: "@CurrentIteration+1" as const },
-        { label: "@CurrentIteration - 1  (previous sprint)", value: "@CurrentIteration-1" as const },
+        {
+          label: "@CurrentIteration       (active sprint)",
+          value: "@CurrentIteration" as const,
+        },
+        {
+          label: "@CurrentIteration + 1  (next sprint)",
+          value: "@CurrentIteration+1" as const,
+        },
+        {
+          label: "@CurrentIteration - 1  (previous sprint)",
+          value: "@CurrentIteration-1" as const,
+        },
         { label: "Exact iteration paths  (IN)", value: "exact" as const },
         { label: "Iteration and children  (UNDER)", value: "under" as const },
         { label: "@CurrentIteration + exact paths", value: "mixed" as const },
@@ -321,16 +344,20 @@ async function promptIterations(): Promise<{ exact: string[]; under: string[] }>
   );
 
   if (mode === "none") return { exact: [], under: [] };
-  if (mode === "@CurrentIteration") return { exact: ["@CurrentIteration"], under: [] };
-  if (mode === "@CurrentIteration+1") return { exact: ["@CurrentIteration + 1"], under: [] };
-  if (mode === "@CurrentIteration-1") return { exact: ["@CurrentIteration - 1"], under: [] };
+  if (mode === "@CurrentIteration")
+    return { exact: ["@CurrentIteration"], under: [] };
+  if (mode === "@CurrentIteration+1")
+    return { exact: ["@CurrentIteration + 1"], under: [] };
+  if (mode === "@CurrentIteration-1")
+    return { exact: ["@CurrentIteration - 1"], under: [] };
 
   const raw = assertNotCancelled(
     await text({
       message: "Iteration paths (comma-separated):",
       placeholder: "e.g. MyProject\\\\Sprint 1, MyProject\\\\Sprint 2",
       validate: (input): string | undefined => {
-        if (!input || input.trim() === "") return "At least one iteration path is required";
+        if (!input || input.trim() === "")
+          return "At least one iteration path is required";
         return undefined;
       },
     }),
@@ -338,7 +365,8 @@ async function promptIterations(): Promise<{ exact: string[]; under: string[] }>
   const paths = Filters.commaSeparated(raw);
 
   if (mode === "under") return { exact: [], under: paths };
-  if (mode === "mixed") return { exact: ["@CurrentIteration", ...paths], under: [] };
+  if (mode === "mixed")
+    return { exact: ["@CurrentIteration", ...paths], under: [] };
   return { exact: paths, under: [] };
 }
 
@@ -379,7 +407,10 @@ async function promptStatesExclude(): Promise<string[]> {
 
 async function promptStatesWereEver(): Promise<string[]> {
   const use = assertNotCancelled(
-    await confirm({ message: "Filter by states the item was ever in?", initialValue: false }),
+    await confirm({
+      message: "Filter by states the item was ever in?",
+      initialValue: false,
+    }),
   );
   if (!use) return [];
 
@@ -430,7 +461,10 @@ async function promptAssignedTo(): Promise<string[]> {
 
 async function promptPriority(): Promise<FilterCriteria["priority"]> {
   const use = assertNotCancelled(
-    await confirm({ message: "Filter by priority range?", initialValue: false }),
+    await confirm({
+      message: "Filter by priority range?",
+      initialValue: false,
+    }),
   );
   if (!use) return undefined;
 
@@ -482,100 +516,6 @@ async function promptDateFilter(
   }
 
   return preset;
-}
-
-async function promptCustomQuery(): Promise<string | undefined> {
-  const use = assertNotCancelled(
-    await confirm({
-      message: "Use a custom query string? (overrides other filters)",
-      initialValue: false,
-    }),
-  );
-  if (!use) return undefined;
-
-  return assertNotCancelled(
-    await text({
-      message: "Enter custom query (e.g., WIQL for Azure DevOps):",
-      validate: (input): string | undefined => {
-        if (!input || input.trim() === "") return "Custom query cannot be empty";
-        return undefined;
-      },
-    }),
-  );
-}
-
-/**
- * Configure custom field filters
- */
-async function configureCustomFields(): Promise<CustomFieldFilter[]> {
-  const customFields: CustomFieldFilter[] = [];
-  let addMore = true;
-
-  console.log("\nCustom Fields Configuration:");
-
-  while (addMore) {
-    const fieldName = assertNotCancelled(
-      await text({
-        message: "Field name:",
-        placeholder: "e.g. Custom.TeamPriority, System.Tags",
-        validate: (input): string | undefined => {
-          if (!input || input.trim() === "") {
-            return "Field name is required";
-          }
-          return undefined;
-        },
-      }),
-    );
-
-    const operator = assertNotCancelled(
-      await select({
-        message: "Operator:",
-        options: [
-          { label: "Equals", value: "equals" },
-          { label: "Not Equals", value: "notEquals" },
-          { label: "Contains", value: "contains" },
-          { label: "Greater Than", value: "greaterThan" },
-          { label: "Less Than", value: "lessThan" },
-        ],
-      }),
-    );
-
-    const valueStr = assertNotCancelled(
-      await text({
-        message: "Value:",
-        validate: (input): string | undefined => {
-          if (!input || input.trim() === "") {
-            return "Value is required";
-          }
-          return undefined;
-        },
-      }),
-    );
-
-    let parsedValue: string | number | boolean = valueStr;
-    if (!Number.isNaN(Number(valueStr))) {
-      parsedValue = Number(valueStr);
-    } else if (valueStr.toLowerCase() === "true") {
-      parsedValue = true;
-    } else if (valueStr.toLowerCase() === "false") {
-      parsedValue = false;
-    }
-
-    customFields.push({
-      field: fieldName,
-      operator: operator as CustomFieldFilter["operator"],
-      value: parsedValue,
-    });
-
-    addMore = assertNotCancelled(
-      await confirm({
-        message: "Add another custom field filter?",
-        initialValue: false,
-      }),
-    );
-  }
-
-  return customFields;
 }
 
 /**
@@ -656,7 +596,8 @@ export async function configureValidation(): Promise<
           if (!input || input.trim() === "") return undefined;
           const n = Number(input);
           if (Number.isNaN(n)) return "Must be a valid number";
-          if (n < Number(minRaw)) return `Maximum must be ≥ minimum (${minRaw}%)`;
+          if (n < Number(minRaw))
+            return `Maximum must be ≥ minimum (${minRaw}%)`;
           return undefined;
         },
       }),

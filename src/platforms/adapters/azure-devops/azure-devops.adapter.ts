@@ -61,39 +61,6 @@ function wiqlEscape(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-/** Escapes a string for use inside a RegExp. */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-const SELECT_FROM_WORKITEMS_RE = /^\s*SELECT\s+.+?\s+FROM\s+WorkItems\b/i;
-
-/**
- * Validates a raw WIQL customQuery for structural correctness and project scoping.
- * Throws ConfigurationError if the query is structurally invalid or does not
- * constrain [System.TeamProject] to the configured project.
- */
-export function validateCustomQuery(query: string, project: string): void {
-  if (!SELECT_FROM_WORKITEMS_RE.test(query)) {
-    throw new ConfigurationError(
-      "customQuery must be a SELECT statement targeting WorkItems",
-    );
-  }
-
-  const projectConstraintRe = new RegExp(
-    `\\[System\\.TeamProject\\]\\s*=\\s*'${escapeRegex(wiqlEscape(project))}'`,
-    "i",
-  );
-  const projectMacroRe = /\[System\.TeamProject\]\s*=\s*@[Pp]roject/i;
-
-  if (!projectConstraintRe.test(query) && !projectMacroRe.test(query)) {
-    throw new ConfigurationError(
-      `customQuery must constrain [System.TeamProject] to '${project}'. ` +
-        `Add: [System.TeamProject] = '${wiqlEscape(project)}'`,
-    );
-  }
-}
-
 /** Returns the WIQL macro string for an iteration value, or null if it is a real path. */
 function parseIterationMacro(value: string): string | null {
   if (value === CURRENT_ITERATION) return "@CurrentIteration";
@@ -113,7 +80,7 @@ function requiresTeam(filter: FilterCriteria): boolean {
 /** Returns the WIQL representation of a date value — macro or quoted literal. */
 function formatDateMacro(value: string): string {
   const match = value.match(DATE_MACRO_RE);
-  if (!match?.[1]) return `'${value}'`;
+  if (!match?.[1]) return `'${wiqlEscape(value)}'`;
   const canonical = DATE_MACRO_CANONICAL[match[1].toLowerCase()] ?? match[1];
   if (!match[2] || !match[3]) return canonical;
   return `${canonical} ${match[2]} ${match[3]}`;
@@ -321,11 +288,11 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     try {
       logger.debug(`AzureDevOps: Creating task for parent ${parentId}`, {
-        task,
+        taskTitle: task.title,
+        assignTo: task.assignTo,
       });
 
       const numericParentId = parseInt(parentId, 10);
-      logger.debug("AzureDevOps: Assigning task", { assignTo: task.assignTo });
       if (Number.isNaN(numericParentId)) {
         throw new Error(`Invalid parent ID: ${parentId}`);
       }
@@ -443,18 +410,6 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
           },
         },
       ];
-
-      // Add custom fields
-      if (task.customFields) {
-        for (const [field, value] of Object.entries(task.customFields)) {
-          // biome-ignore lint : The any type is used here for flexibility
-          (patchDocument as Array<any>).push({
-            op: "add",
-            path: `/fields/${field}`,
-            value,
-          });
-        }
-      }
 
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
@@ -856,12 +811,6 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       conditions.push(
         `[System.CreatedDate] >= ${formatDateMacro(filter.createdAfter)}`,
       );
-    }
-
-    // Custom query (if provided, use it instead).
-    if (filter.customQuery) {
-      validateCustomQuery(filter.customQuery, this.config.project);
-      return filter.customQuery;
     }
 
     const whereClause = conditions.join(" AND ");

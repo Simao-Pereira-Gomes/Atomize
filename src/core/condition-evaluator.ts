@@ -27,7 +27,7 @@ export class ConditionEvaluator {
       }
 
       const interpolated = this.interpolateVariables(normalizedCondition, story);
-      logger.debug(`Evaluating condition: "${condition}" => "${interpolated}"`);
+      logger.debug(`Evaluating condition: "${condition}"`);
       const result = this.evaluateExpression(interpolated);
 
       logger.debug(`Condition result: ${result}`);

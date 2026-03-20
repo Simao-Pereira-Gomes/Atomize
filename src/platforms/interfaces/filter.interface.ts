@@ -48,12 +48,6 @@ export interface FilterCriteria {
 	/** Exclude work items that already have child tasks */
 	excludeIfHasTasks?: boolean;
 
-	/** Custom field filters */
-	customFields?: CustomFieldFilter[];
-
-	/** Platform-specific query string (escape hatch) */
-	customQuery?: string;
-
 	/** Date range filter */
 	dateRange?: {
 		field: string;
@@ -69,15 +63,6 @@ export interface FilterCriteria {
 
 	/** Limit number of results */
 	limit?: number;
-}
-
-/**
- * Custom field filter
- */
-export interface CustomFieldFilter {
-	field: string;
-	operator: "equals" | "notEquals" | "contains" | "greaterThan" | "lessThan";
-	value: string | number | boolean;
 }
 
 /**

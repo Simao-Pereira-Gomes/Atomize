@@ -550,12 +550,11 @@ export async function createFromScratch(
     if (
       (!filterConfig.workItemTypes ||
         filterConfig.workItemTypes.length === 0) &&
-      (!filterConfig.states || filterConfig.states.length === 0) &&
-      !filterConfig.customQuery
+      (!filterConfig.states || filterConfig.states.length === 0)
     ) {
       console.log(
         chalk.yellow(
-          "\n Warning: No work item types, states, or custom query configured.",
+          "\n Warning: No work item types or states configured.",
         ),
       );
       console.log(chalk.yellow("   This template will match ALL work items."));

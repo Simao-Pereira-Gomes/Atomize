@@ -5,31 +5,25 @@ import {
   formatCyclePath,
 } from "@/utils/graph.js";
 
-// Custom field type definitions for validation
-export const CustomFieldTypeSchema = z.enum([
-  "string",
-  "number",
-  "boolean",
-  "date",
-  "array",
-]);
+/**
+ * Accepts an ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDThh:mm:ss[.sss][Z|±hh:mm])
+ * or an approved WIQL date macro (@Today, @StartOfDay, @StartOfMonth,
+ * @StartOfWeek, @StartOfYear) with an optional integer offset (+N / -N).
+ * Anything else — including strings that contain single-quotes — is rejected,
+ * preventing WIQL injection through date filter fields.
+ */
+const DATE_OR_MACRO_RE =
+  /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(\s*[+-]\s*\d+)?$|^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/i;
 
-export const CustomFieldDefinitionSchema = z.object({
-  name: z.string().min(1, "Custom field name is required"),
-  type: CustomFieldTypeSchema,
-  required: z.boolean().optional(),
-  // For number fields
-  min: z.number().optional(),
-  max: z.number().optional(),
-  // For string fields
-  minLength: z.number().optional(),
-  maxLength: z.number().optional(),
-  pattern: z.string().optional(), // regex pattern
-  // For enum/allowed values
-  allowedValues: z
-    .array(z.union([z.string(), z.number(), z.boolean()]))
-    .optional(),
-});
+const DateOrMacroSchema = z
+  .string()
+  .refine((v) => DATE_OR_MACRO_RE.test(v), {
+    message:
+      "Must be an ISO 8601 date (YYYY-MM-DD) or an approved date macro " +
+      "(@Today, @StartOfDay, @StartOfMonth, @StartOfWeek, @StartOfYear) " +
+      "with an optional numeric offset (e.g. @Today-7).",
+  });
+
 
 export const FilterCriteriaSchema = z.object({
   /** Override the team from config for this template's queries (affects @CurrentIteration and @TeamAreas resolution) */
@@ -53,8 +47,8 @@ export const FilterCriteriaSchema = z.object({
     .optional(),
   iterationsUnder: z.array(z.string()).optional(),
   assignedTo: z.array(z.union([z.email(), z.literal("@Me")])).optional(),
-  changedAfter: z.string().optional(),
-  createdAfter: z.string().optional(),
+  changedAfter: DateOrMacroSchema.optional(),
+  createdAfter: DateOrMacroSchema.optional(),
   priority: z
     .object({
       min: z.number().optional(),
@@ -62,22 +56,6 @@ export const FilterCriteriaSchema = z.object({
     })
     .optional(),
   excludeIfHasTasks: z.boolean().optional(),
-  customQuery: z.string().optional(),
-  customFields: z
-    .array(
-      z.object({
-        field: z.string(),
-        operator: z.enum([
-          "equals",
-          "notEquals",
-          "contains",
-          "greaterThan",
-          "lessThan",
-        ]),
-        value: z.union([z.string(), z.number(), z.boolean()]),
-      }),
-    )
-    .optional(),
 });
 
 export const EstimationPercentConditionSchema = z.object({
@@ -109,7 +87,6 @@ export const TaskDefinitionSchema = z.object({
   priority: z.number().optional(),
   activity: z.string().optional(),
   remainingWork: z.number().optional(),
-  customFields: z.record(z.string(), z.any()).optional(),
   acceptanceCriteria: z.array(z.string()).optional(),
   acceptanceCriteriaAsChecklist: z.boolean().optional(),
 });
@@ -151,7 +128,6 @@ export const ValidationConfigSchema = z.object({
       }),
     )
     .optional(),
-  customFieldDefinitions: z.array(CustomFieldDefinitionSchema).optional(),
 });
 
 export const MetadataSchema = z.object({
@@ -206,7 +182,6 @@ export const TaskTemplateSchema = z
 
     validateTaskConstraints(v, tasks, ctx);
     validateRequiredTasks(v, tasks, ctx);
-    validateCustomFields(v, tasks, ctx);
 
     const availableIds = Array.from(taskIds);
     const taskIndexById = new Map<string, number>();
@@ -324,148 +299,6 @@ function validateRequiredTasks(
   }
 }
 
-function validateCustomFields(
-  v: TaskTemplate["validation"] | undefined,
-  tasks: TaskTemplate["tasks"],
-  ctx: z.RefinementCtx,
-) {
-  const customFieldDefinitions = v?.customFieldDefinitions;
-  if (!customFieldDefinitions || customFieldDefinitions.length === 0) return;
-
-  const definitions = new Map(customFieldDefinitions.map((d) => [d.name, d]));
-
-  tasks.forEach((task, taskIndex) => {
-    // Check required fields are present
-    for (const def of customFieldDefinitions) {
-      if (
-        def.required &&
-        (!task.customFields || !(def.name in task.customFields))
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["tasks", taskIndex, "customFields", def.name],
-          message: `Required custom field "${def.name}" is missing in task "${task.title}".`,
-          params: { code: "MISSING_REQUIRED_CUSTOM_FIELD" },
-        });
-      }
-    }
-
-    if (!task.customFields) return;
-
-    for (const [fieldName, fieldValue] of Object.entries(task.customFields)) {
-      const def = definitions.get(fieldName);
-      if (!def) continue;
-      validateCustomFieldValue(
-        def,
-        fieldName,
-        fieldValue,
-        taskIndex,
-        task.title,
-        ctx,
-      );
-    }
-  });
-}
-
-function validateCustomFieldValue(
-  def: z.infer<typeof CustomFieldDefinitionSchema>,
-  fieldName: string,
-  value: unknown,
-  taskIndex: number,
-  taskTitle: string,
-  ctx: z.RefinementCtx,
-) {
-  const path = ["tasks", taskIndex, "customFields", fieldName];
-
-  // Type validation
-  const actualType = getValueType(value);
-  if (actualType !== def.type) {
-    ctx.addIssue({
-      code: "custom",
-      path,
-      message: `Custom field "${fieldName}" in task "${taskTitle}" has type "${actualType}", expected "${def.type}".`,
-      params: { code: "INVALID_CUSTOM_FIELD_TYPE" },
-    });
-    return;
-  }
-
-  // Number range validation
-  if (def.type === "number" && typeof value === "number") {
-    if (def.min !== undefined && value < def.min) {
-      ctx.addIssue({
-        code: "custom",
-        path,
-        message: `Custom field "${fieldName}" in task "${taskTitle}" is ${value}, but minimum is ${def.min}.`,
-        params: { code: "CUSTOM_FIELD_BELOW_MIN" },
-      });
-    }
-    if (def.max !== undefined && value > def.max) {
-      ctx.addIssue({
-        code: "custom",
-        path,
-        message: `Custom field "${fieldName}" in task "${taskTitle}" is ${value}, but maximum is ${def.max}.`,
-        params: { code: "CUSTOM_FIELD_ABOVE_MAX" },
-      });
-    }
-  }
-
-  // String length validation
-  if (def.type === "string" && typeof value === "string") {
-    if (def.minLength !== undefined && value.length < def.minLength) {
-      ctx.addIssue({
-        code: "custom",
-        path,
-        message: `Custom field "${fieldName}" in task "${taskTitle}" has length ${value.length}, but minimum is ${def.minLength}.`,
-        params: { code: "CUSTOM_FIELD_TOO_SHORT" },
-      });
-    }
-    if (def.maxLength !== undefined && value.length > def.maxLength) {
-      ctx.addIssue({
-        code: "custom",
-        path,
-        message: `Custom field "${fieldName}" in task "${taskTitle}" has length ${value.length}, but maximum is ${def.maxLength}.`,
-        params: { code: "CUSTOM_FIELD_TOO_LONG" },
-      });
-    }
-    if (def.pattern !== undefined) {
-      const regex = new RegExp(def.pattern);
-      if (!regex.test(value)) {
-        ctx.addIssue({
-          code: "custom",
-          path,
-          message: `Custom field "${fieldName}" in task "${taskTitle}" does not match pattern "${def.pattern}".`,
-          params: { code: "CUSTOM_FIELD_PATTERN_MISMATCH" },
-        });
-      }
-    }
-  }
-
-  // Allowed values validation
-  if (def.allowedValues && def.allowedValues.length > 0) {
-    if (!def.allowedValues.includes(value as string | number | boolean)) {
-      const allowed = def.allowedValues.map((v) => `"${v}"`).join(", ");
-      ctx.addIssue({
-        code: "custom",
-        path,
-        message: `Custom field "${fieldName}" in task "${taskTitle}" has value "${value}", but must be one of: ${allowed}.`,
-        params: { code: "CUSTOM_FIELD_INVALID_VALUE" },
-      });
-    }
-  }
-}
-
-function getValueType(value: unknown): string {
-  if (value === null || value === undefined) return "null";
-  if (Array.isArray(value)) return "array";
-  if (value instanceof Date) return "date";
-  if (typeof value === "string") {
-    const dateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/;
-    if (dateRegex.test(value)) return "date";
-    return "string";
-  }
-  return typeof value; // "number", "boolean", "object"
-}
-
 /**
  * Detects circular dependencies in task graph and reports them as validation issues.
  */
@@ -509,5 +342,3 @@ export type ValidationMode = z.infer<typeof ValidationModeSchema>;
 export type ValidationConfig = z.infer<typeof ValidationConfigSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
 export type TaskTemplate = z.infer<typeof TaskTemplateSchema>;
-export type CustomFieldType = z.infer<typeof CustomFieldTypeSchema>;
-export type CustomFieldDefinition = z.infer<typeof CustomFieldDefinitionSchema>;

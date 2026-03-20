@@ -93,14 +93,6 @@ export class FilterEngine {
       platformFilter.excludeIfHasTasks = templateFilter.excludeIfHasTasks;
     }
 
-    if (templateFilter.customFields) {
-      platformFilter.customFields = templateFilter.customFields;
-    }
-
-    if (templateFilter.customQuery) {
-      platformFilter.customQuery = templateFilter.customQuery;
-    }
-
     if (templateFilter.changedAfter) {
       platformFilter.changedAfter = templateFilter.changedAfter;
     }
@@ -126,8 +118,6 @@ export class FilterEngine {
       filter.iterations ||
       filter.assignedTo ||
       filter.priority ||
-      filter.customFields ||
-      filter.customQuery ||
       filter.changedAfter ||
       filter.createdAfter ||
       filter.statesExclude ||
@@ -197,9 +187,6 @@ export class FilterEngine {
 
       if (filter.excludeIfHasTasks !== undefined) {
         merged.excludeIfHasTasks = filter.excludeIfHasTasks;
-      }
-      if (filter.customQuery) {
-        merged.customQuery = filter.customQuery;
       }
     }
 

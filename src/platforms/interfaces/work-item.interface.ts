@@ -116,10 +116,6 @@ export interface TaskDefinition {
   /** Parent work item ID */
   parentId?: string;
 
-  /** Custom fields */
-  // biome-ignore lint : The any type is used here for flexibility
-  customFields?: Record<string, any>;
-
   /** Conditional expression - task only created if condition evaluates to true */
   condition?: string;
 
