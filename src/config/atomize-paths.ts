@@ -1,5 +1,5 @@
 import { chmod, mkdir, stat } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 import { join } from "node:path";
 
 export function getAtomizeDir(): string {
@@ -21,8 +21,18 @@ export async function ensureAtomizeDir(): Promise<void> {
  * never silently consume world- or group-readable credential material.
  * Silently returns when the file does not exist (callers handle ENOENT).
  */
-export async function assertSafeFilePermissions(filePath: string): Promise<void> {
+export async function assertSafeFilePermissions(
+  filePath: string,
+): Promise<void> {
+  if (platform() === "win32") {
+    // On Windows, chmod is a no-op and mode bits are not meaningful.
+    // The file is implicitly protected by the user's account/NTFS ACL.
+    // Skip the Unix-style permission check entirely.
+    return;
+  }
+
   let stats: Awaited<ReturnType<typeof stat>>;
+
   try {
     stats = await stat(filePath);
   } catch {
