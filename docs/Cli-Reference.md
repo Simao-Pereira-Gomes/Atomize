@@ -243,6 +243,7 @@ atomize gen [template] [options]  # alias
 | `-p, --platform <platform>` | string | `azure-devops` | Platform to use. Options: `azure-devops`, `mock` |
 | `--profile <name>` | string | - | Named connection profile to use (see `auth add`) |
 | `--execute` | flag | - | Actually create tasks (default is dry-run preview) |
+| `--auto-approve` | flag | - | Required with `--execute` in non-interactive mode to acknowledge live task creation |
 | `--continue-on-error` | flag | - | Keep processing other stories if one fails |
 | `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
@@ -267,6 +268,11 @@ atomize generate templates/backend-api.yaml
 **Execute for real:**
 ```bash
 atomize generate templates/backend-api.yaml --execute
+```
+
+**Execute for real in CI/non-interactive mode:**
+```bash
+atomize generate templates/backend-api.yaml --execute --auto-approve
 ```
 
 **Mock platform (no credentials needed):**

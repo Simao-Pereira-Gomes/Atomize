@@ -127,6 +127,7 @@ atomize generate templates/backend-api.yaml
 # CI/CD mode with JSON report
 atomize generate templates/backend-api.yaml \
   --execute \
+  --yes \
   --output report.json
 ```
 
@@ -134,12 +135,15 @@ atomize generate templates/backend-api.yaml \
 - `--platform <type>` - Platform: `azure-devops` or `mock`
 - `--profile <name>` - Named connection profile to use (see `atomize auth add`)
 - `--execute` - Actually create tasks (default is dry-run preview)
+- `-y, --yes` - Required with `--execute` in non-interactive mode to acknowledge live task creation
 - `--continue-on-error` - Keep processing if errors occur
 - `--story-concurrency <n>` - Parallel story processing (default: 3, max: 10)
 - `--task-concurrency <n>` - Parallel task creation per story (default: 5, max: 20)
 - `--dependency-concurrency <n>` - Parallel dependency link creation (default: 5, max: 10)
 - `--verbose` - Show detailed output
 - `-o, --output <file>` - Write JSON report to file
+
+In non-interactive mode, `--execute` now requires `--yes`. This prevents unattended task creation from wrapper scripts or CI jobs that did not explicitly acknowledge the mutation.
 
 **Example Output:**
 ```

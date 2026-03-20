@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AtomizationReport } from "@core/atomizer";
-import { parseConcurrency, printReport } from "@/cli/commands/generate.command";
+import {
+  getNonInteractiveLiveExecutionError,
+  parseConcurrency,
+  printReport,
+  writeReportFile,
+} from "@/cli/commands/generate.command";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -194,6 +202,17 @@ describe("printReport", () => {
     expect(calls).toContain("estimation exceeds 100%");
   });
 
+  test("sanitizes warning output before printing", () => {
+    printReport(
+      makeReport({ warnings: ["bad\u001b[31m-warning"] }),
+      { verbose: false },
+      false,
+    );
+    const calls = consoleSpy.mock.calls.flat().join(" ");
+    expect(calls).toContain("bad-warning");
+    expect(calls).not.toContain("\u001b[31m");
+  });
+
   test("prints errors when present", () => {
     printReport(
       makeReport({
@@ -206,5 +225,101 @@ describe("printReport", () => {
     const calls = consoleSpy.mock.calls.flat().join(" ");
     expect(calls).toContain("AB#9");
     expect(calls).toContain("connection timeout");
+  });
+});
+
+describe("getNonInteractiveLiveExecutionError", () => {
+  test("returns undefined for dry-run mode", () => {
+    expect(
+      getNonInteractiveLiveExecutionError({
+        dryRun: true,
+        isTTYSession: false,
+        autoApprove: false,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("returns undefined for interactive live mode", () => {
+    expect(
+      getNonInteractiveLiveExecutionError({
+        dryRun: false,
+        isTTYSession: true,
+        autoApprove: false,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("returns undefined when non-interactive live mode is explicitly acknowledged", () => {
+    expect(
+      getNonInteractiveLiveExecutionError({
+        dryRun: false,
+        isTTYSession: false,
+        autoApprove: true,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("returns an error for non-interactive live mode without --yes", () => {
+    expect(
+      getNonInteractiveLiveExecutionError({
+        dryRun: false,
+        isTTYSession: false,
+        autoApprove: false,
+      }),
+    ).toContain("--auto-approve");
+  });
+});
+
+describe("writeReportFile", () => {
+  test("writes sanitized report data by default", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "atomize-generate-test-"));
+    const outputPath = join(tempDir, "report.json");
+
+    try {
+      await writeReportFile(
+        outputPath,
+        makeReport({
+          results: [
+            {
+              success: true,
+              story: {
+                id: "AB#1",
+                title: "Story One",
+                description: "secret",
+                customFields: { foo: "bar" },
+                platformSpecific: { raw: true },
+              } as never,
+              tasksCalculated: [],
+              tasksCreated: [],
+            },
+          ],
+        }),
+        false,
+      );
+
+      const raw = await readFile(outputPath, "utf-8");
+      expect(raw).not.toContain("secret");
+      expect(raw).not.toContain("customFields");
+      expect(raw).not.toContain("platformSpecific");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test("forces owner-only permissions even when overwriting an existing file", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "atomize-generate-test-"));
+    const outputPath = join(tempDir, "report.json");
+
+    try {
+      await writeFile(outputPath, "{}", { encoding: "utf-8", mode: 0o644 });
+      await chmod(outputPath, 0o644);
+
+      await writeReportFile(outputPath, makeReport(), false);
+
+      const mode = (await stat(outputPath)).mode & 0o777;
+      expect(mode).toBe(0o600);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });

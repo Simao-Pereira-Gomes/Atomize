@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { chmod, writeFile } from "node:fs/promises";
 import {
   cancel,
   confirm,
@@ -47,6 +47,36 @@ export function sanitizeReport(report: AtomizationReport): AtomizationReport {
       tasksCreated: result.tasksCreated.map(sanitizeWorkItem),
     })),
   };
+}
+
+export async function writeReportFile(
+  outputPath: string,
+  report: AtomizationReport,
+  includeSensitiveReportData: boolean,
+): Promise<void> {
+  const reportToWrite = includeSensitiveReportData
+    ? report
+    : sanitizeReport(report);
+  await writeFile(outputPath, JSON.stringify(reportToWrite, null, 2), {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
+  await chmod(outputPath, 0o600);
+}
+
+export function getNonInteractiveLiveExecutionError(options: {
+  dryRun: boolean;
+  isTTYSession: boolean;
+  autoApprove?: boolean;
+}): string | undefined {
+  if (options.dryRun || options.isTTYSession || options.autoApprove) {
+    return undefined;
+  }
+
+  return (
+    "Refusing live execution without confirmation in non-interactive mode. " +
+    "Re-run with --auto-approve to acknowledge task creation."
+  );
 }
 
 /**
@@ -195,7 +225,11 @@ async function loadAndValidateTemplate(
   if (!validation.valid) {
     cancel("Template validation failed");
     for (const err of validation.errors) {
-      console.log(chalk.red(`  ${err.path}: ${err.message}`));
+      console.log(
+        chalk.red(
+          `  ${sanitizeTty(err.path)}: ${sanitizeTty(err.message)}`,
+        ),
+      );
     }
     process.exit(ExitCode.Failure);
   }
@@ -267,7 +301,7 @@ async function initPlatform(
       .otherwise(() => PlatformFactory.create(options.platform as import("@platforms/interfaces/platform.interface").PlatformType));
   } catch (error) {
     if (error instanceof Error) {
-      cancel(error.message);
+      cancel(sanitizeTty(error.message));
       match(options.platform)
         .with("azure-devops", () => {
           console.log(chalk.yellow(" Setup Azure DevOps:"));
@@ -287,17 +321,23 @@ async function confirmLiveExecution(
 ): Promise<void> {
   const filterParts: string[] = [];
   if (template.filter.workItemTypes)
-    filterParts.push(`Types: ${template.filter.workItemTypes.join(", ")}`);
+    filterParts.push(
+      `Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
+    );
   if (template.filter.states)
-    filterParts.push(`States: ${template.filter.states.join(", ")}`);
+    filterParts.push(
+      `States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
+    );
   if (template.filter.tags?.include)
-    filterParts.push(`Tags: ${template.filter.tags.include.join(", ")}`);
+    filterParts.push(
+      `Tags: ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
+    );
 
   note(
     [
-      `Template:  ${template.name}`,
+      `Template:  ${sanitizeTty(template.name)}`,
       `Filter:    ${filterParts.join(" · ") || "All items"}`,
-      `Platform:  ${options.platform}`,
+      `Platform:  ${sanitizeTty(options.platform)}`,
       "",
       "This will CREATE tasks in your work tracking system.",
     ].join("\n"),
@@ -376,7 +416,7 @@ export function printReport(
   if (report.warnings.length > 0) {
     console.log(chalk.yellow.bold("Warnings:\n"));
     for (const warn of report.warnings) {
-      console.log(chalk.yellow(`  • ${warn}`));
+      console.log(chalk.yellow(`  • ${sanitizeTty(warn)}`));
     }
     console.log("");
   }
@@ -400,6 +440,7 @@ export const generateCommand = new Command("generate")
   .option("-p, --platform <platform>", "Platform to use")
   .option("--execute", "Execute task creation (default is dry-run preview)", false)
   .option("--continue-on-error", "Continue processing remaining stories if one fails", false)
+  .option("--auto-approve", "Acknowledge live execution in non-interactive mode", false)
   .addOption(new Option("--story-concurrency <number>", "Max concurrent stories to process").default("3").hideHelp())
   .addOption(new Option("--task-concurrency <number>", "Max concurrent tasks to create per story").default("5").hideHelp())
   .addOption(new Option("--dependency-concurrency <number>", "Max concurrent dependency links to create").default("5").hideHelp())
@@ -438,6 +479,16 @@ export const generateCommand = new Command("generate")
 
       const { templatePath, platform, dryRun } = await promptMissingArgs(templateArg, options);
       options.platform = platform;
+
+      const liveExecutionError = getNonInteractiveLiveExecutionError({
+        dryRun,
+        isTTYSession,
+        autoApprove: options.autoApprove,
+      });
+      if (liveExecutionError) {
+        cancel(liveExecutionError);
+        process.exit(ExitCode.Failure);
+      }
 
       const isQuiet = options.quiet === true;
       const print = createPrinter(isQuiet);
@@ -479,18 +530,34 @@ export const generateCommand = new Command("generate")
 
       if (isQuiet) {
         const filterLabel = [
-          template.filter.workItemTypes?.join(", "),
-          template.filter.states ? `states: ${template.filter.states.join(", ")}` : undefined,
+          template.filter.workItemTypes
+            ?.map((value) => sanitizeTty(value))
+            .join(", "),
+          template.filter.states
+            ? `states: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`
+            : undefined,
         ].filter(Boolean).join(" · ") || "All items";
         console.log(chalk.gray(`Filter:   ${filterLabel}`));
       } else {
         console.log(chalk.cyan(" Filter Criteria:"));
         if (template.filter.workItemTypes)
-          console.log(chalk.gray(`  Types: ${template.filter.workItemTypes.join(", ")}`));
+          console.log(
+            chalk.gray(
+              `  Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
+            ),
+          );
         if (template.filter.states)
-          console.log(chalk.gray(`  States: ${template.filter.states.join(", ")}`));
+          console.log(
+            chalk.gray(
+              `  States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
+            ),
+          );
         if (template.filter.tags?.include)
-          console.log(chalk.gray(`  Tags (include): ${template.filter.tags.include.join(", ")}`));
+          console.log(
+            chalk.gray(
+              `  Tags (include): ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
+            ),
+          );
         if (template.filter.excludeIfHasTasks)
           console.log(chalk.gray("  Exclude if has tasks: Yes"));
         if (!hasFilterCriteria)
@@ -501,7 +568,7 @@ export const generateCommand = new Command("generate")
       if (!dryRun && isTTYSession) {
         await confirmLiveExecution(template, { platform });
       } else if (!dryRun) {
-        log.warn("Live mode — running without confirmation (non-interactive)");
+        log.warn("Live mode — acknowledged for non-interactive execution");
       }
 
       logger.info("Starting atomization...");
@@ -544,10 +611,15 @@ export const generateCommand = new Command("generate")
       const exitCode = printReport(report, options, dryRun);
 
       if (options.output) {
-        const reportToWrite = options.includeSensitiveReportData ? report : sanitizeReport(report);
-        await writeFile(options.output, JSON.stringify(reportToWrite, null, 2), { encoding: "utf-8", mode: 0o600 });
+        await writeReportFile(
+          options.output,
+          report,
+          options.includeSensitiveReportData,
+        );
         if (!isQuiet) {
-          console.log(chalk.gray(`\n  Report saved to ${options.output}`));
+          console.log(
+            chalk.gray(`\n  Report saved to ${sanitizeTty(options.output)}`),
+          );
           if (options.includeSensitiveReportData) {
             console.log(chalk.yellow(`  Note: report contains full work-item data (descriptions, custom fields). Keep it out of shared or CI artifact directories.`));
           }
@@ -564,7 +636,7 @@ export const generateCommand = new Command("generate")
     } catch (error) {
       cancel("Generation failed");
       if (error instanceof Error) {
-        console.log(chalk.red(error.message));
+        console.log(chalk.red(sanitizeTty(error.message)));
       }
       process.exit(ExitCode.Failure);
     }
