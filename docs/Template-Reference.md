@@ -82,7 +82,6 @@ filter:
     - field: "Custom.Team"
       operator: "equals"
       value: "Platform Engineering"
-  customQuery: "SELECT [System.Id] FROM WorkItems WHERE ..."
 ```
 
 ### Filter Fields
@@ -107,7 +106,6 @@ filter:
 | `priority.max` | number | Maximum priority |
 | `excludeIfHasTasks` | boolean | Skip work items that already have child tasks |
 | `customFields` | array | Additional field filters (see below) |
-| `customQuery` | string | Raw WIQL query that overrides all other filters |
 
 ### Special Values
 
@@ -179,22 +177,6 @@ filter:
 
 **Supported operators:** `equals`, `notEquals`, `contains`, `greaterThan`, `lessThan`
 
-### Custom WIQL Query
-
-Use `customQuery` when you need advanced filtering that standard fields cannot express. This overrides all other filter criteria.
-
-```yaml
-filter:
-  customQuery: |
-    SELECT [System.Id]
-    FROM WorkItems
-    WHERE [System.TeamProject] = 'MyProject'
-      AND [System.WorkItemType] = 'User Story'
-      AND [System.State] IN ('New', 'Active')
-      AND [Custom.Team] = 'Platform Engineering'
-      AND [Microsoft.VSTS.Common.Priority] <= 2
-```
-
 ---
 
 ## tasks
@@ -216,9 +198,7 @@ tasks:
     acceptanceCriteria:
       - "Criteria 1"
       - "Criteria 2"
-    customFields:
-      Custom.Complexity: "High"
-```
+  ```
 
 ### Task Fields
 
@@ -238,7 +218,6 @@ tasks:
 | `condition` | No | string | Expression to conditionally create this task |
 | `dependsOn` | No | string[] | IDs of tasks this task depends on |
 | `acceptanceCriteria` | No | string[] | List of acceptance criteria |
-| `customFields` | No | object | Custom Azure DevOps fields to set |
 
 ### Variable Interpolation
 
@@ -423,10 +402,6 @@ validation:
   requiredTasks:              # Tasks that must be present
     - title: "Code Review"
       id: "review"
-  customFieldDefinitions:     # Define allowed custom field values
-    - name: "Complexity"
-      type: "string"
-      allowedValues: ["Low", "Medium", "High"]
 ```
 
 | Field | Type | Description |
@@ -438,7 +413,6 @@ validation:
 | `maxTasks` | number | Maximum number of tasks allowed |
 | `taskEstimationRange` | object | Each individual task's resolved estimation must fall within this range |
 | `requiredTasks` | array | Tasks that must exist (matched by `id` or `title`) |
-| `customFieldDefinitions` | array | Definitions for custom fields used in tasks |
 
 > **Note:** `totalEstimationMustBe` and `totalEstimationRange` are mutually exclusive.
 

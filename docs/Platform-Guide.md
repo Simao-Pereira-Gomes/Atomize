@@ -54,10 +54,21 @@ Complete setup guide for Azure DevOps Services.
 
 3. **Save a connection profile**
 
+   Interactive (recommended for local setup):
    ```bash
    atomize auth add work-ado
    # Prompts for org URL, project, team, and PAT
    # Set as default when prompted
+   ```
+
+   Non-interactive for CI/CD (use `--pat-stdin` to avoid token exposure in env vars):
+   ```bash
+   echo "$AZURE_DEVOPS_PAT" | atomize auth add ci \
+     --org-url https://dev.azure.com/myorg \
+     --project MyProject \
+     --team MyTeam \
+     --default \
+     --pat-stdin
    ```
 
 4. **Test connection**
@@ -68,7 +79,7 @@ Complete setup guide for Azure DevOps Services.
 
 ### Configuration
 
-Credentials are managed as named profiles using the `auth` commands. Profiles store your connection details securely (PAT in OS keychain when available, otherwise encrypted file).
+Credentials are managed as named profiles using the `auth` commands. PATs are stored in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` explicitly opts into an insecure local file fallback under `~/.atomize/`.
 
 **Add a profile:**
 ```bash
@@ -201,21 +212,6 @@ WHERE [System.TeamProject] = 'MyProject'
   AND [System.WorkItemType] IN ('User Story')
   AND [System.State] IN ('New', 'Active')
   AND [System.Tags] CONTAINS 'backend'
-```
-
-**Custom WIQL queries:**
-
-```yaml
-filter:
-  customQuery: |
-    SELECT [System.Id] 
-    FROM WorkItems 
-    WHERE [System.TeamProject] = 'MyProject'
-      AND [System.WorkItemType] = 'User Story'
-      AND [System.State] IN ('New', 'Active')
-      AND [Custom.Team] = 'Platform Engineering'
-      AND [Microsoft.VSTS.Common.Priority] <= 2
-      AND [System.Tags] CONTAINS 'backend'
 ```
 
 ### Custom Fields

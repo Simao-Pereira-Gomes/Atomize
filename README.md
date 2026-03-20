@@ -451,7 +451,6 @@ estimation:
 | Variable | Description | Default |
 |---|---|---|
 | `ATOMIZE_PROFILE` | Default connection profile when `--profile` is not specified | _(none)_ |
-| `ATOMIZE_HOME` | Directory where Atomize stores connection profiles | `~/.atomize` |
 | `LOG_LEVEL` | Log verbosity: `error`, `warn`, `info`, `debug` | `warn` |
 
 #### macOS / Linux
@@ -460,7 +459,6 @@ Add to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) and restart your termi
 
 ```bash
 export ATOMIZE_PROFILE=work-ado   # Default connection profile
-export ATOMIZE_HOME=~/.atomize    # Config directory (optional)
 export LOG_LEVEL=warn             # Log verbosity (optional)
 ```
 
@@ -470,7 +468,6 @@ To persist across sessions, set them as user environment variables:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("ATOMIZE_PROFILE", "work-ado", "User")
-[Environment]::SetEnvironmentVariable("ATOMIZE_HOME", "$env:USERPROFILE\.atomize", "User")
 [Environment]::SetEnvironmentVariable("LOG_LEVEL", "warn", "User")
 ```
 
@@ -478,7 +475,6 @@ Or for the current session only:
 
 ```powershell
 $env:ATOMIZE_PROFILE = "work-ado"
-$env:ATOMIZE_HOME    = "$env:USERPROFILE\.atomize"
 $env:LOG_LEVEL       = "warn"
 ```
 
@@ -488,7 +484,6 @@ For the current session only:
 
 ```cmd
 set ATOMIZE_PROFILE=work-ado
-set ATOMIZE_HOME=%USERPROFILE%\.atomize
 set LOG_LEVEL=warn
 ```
 
@@ -496,7 +491,6 @@ To persist, use **System Properties → Environment Variables** or `setx`:
 
 ```cmd
 setx ATOMIZE_PROFILE "work-ado"
-setx ATOMIZE_HOME "%USERPROFILE%\.atomize"
 ```
 
 > **Note:** `setx` changes take effect in new terminal windows, not the current one.

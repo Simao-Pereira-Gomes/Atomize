@@ -71,7 +71,7 @@ These options work with any command:
 
 ### auth
 
-Manage named connection profiles for Azure DevOps. Profiles store your organization URL, project, team, and PAT securely (in the OS keychain when available, otherwise in an encrypted file at `~/.atomize/`).
+Manage named connection profiles for Azure DevOps. Profiles store your organization URL, project, team, and PAT in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
 
 #### auth add
 
@@ -87,8 +87,10 @@ atomize auth add [name] [options]
 | `--project <name>` | Project name |
 | `--team <name>` | Team name |
 | `--default` | Set this profile as the default |
+| `--pat-stdin` | Read the PAT from stdin instead of `ATOMIZE_PAT` (preferred in CI — avoids token exposure in environment variables, process listings, and CI logs) |
+| `--insecure-storage` | Allow storing the token in an insecure local file fallback when the OS keychain is unavailable. The token data is encrypted, but the key is stored in the same directory, so anyone who can read `~/.atomize/` can recover it. Treat this as compatibility fallback storage, not secure secret storage. |
 
-The PAT must be provided via the `ATOMIZE_PAT` environment variable when running non-interactively.
+In non-interactive mode the PAT must be supplied via `ATOMIZE_PAT` or `--pat-stdin`.
 
 **Interactive (recommended for first-time setup):**
 ```bash
@@ -96,7 +98,18 @@ atomize auth add work-ado
 # Prompts for org URL, project, team, and PAT
 ```
 
-**Non-interactive (for CI/CD or scripting):**
+**Non-interactive with `--pat-stdin` (recommended for CI/CD):**
+```bash
+# Pipe the token — never appears in env or shell history
+echo "$AZURE_DEVOPS_PAT" | atomize auth add work-ado \
+  --org-url https://dev.azure.com/myorg \
+  --project MyProject \
+  --team MyTeam \
+  --default \
+  --pat-stdin
+```
+
+**Non-interactive with `ATOMIZE_PAT` (simpler, but token visible in env):**
 ```bash
 # macOS / Linux
 ATOMIZE_PAT=YOUR_PAT atomize auth add work-ado \
@@ -566,7 +579,7 @@ Use with: atomize template create --preset <name>
 
 ### Connection Profiles
 
-Azure DevOps credentials are managed as named profiles using the `auth` commands. Profiles are stored at `~/.atomize/connections.json` and tokens are kept in the OS keychain (or an encrypted fallback file).
+Azure DevOps credentials are managed as named profiles using the `auth` commands. Profiles are stored at `~/.atomize/connections.json` and tokens are kept in the OS keychain. When the keychain is unavailable, `--insecure-storage` enables an insecure local file fallback. The token data is encrypted, but the key lives in the same directory, so treat it as unprotected against a local attacker.
 
 ```bash
 # Add a profile
@@ -705,14 +718,13 @@ jobs:
         run: npm install -g @sppg2001/atomize
 
       - name: Save connection profile
-        env:
-          ATOMIZE_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
-          atomize auth add ci \
+          echo "${{ secrets.AZURE_DEVOPS_PAT }}" | atomize auth add ci \
             --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
             --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
             --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
-            --default
+            --default \
+            --pat-stdin
 
       - name: Validate Templates
         run: |
