@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 import chalk from "chalk";
 import { Command } from "commander";
-import { version } from "../../package.json";
+import { name, version } from "../../package.json";
 import { authCommand } from "./commands/auth/auth.command";
 import { generateCommand } from "./commands/generate.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
+import { runUpdateNotifier } from "./update-notifier";
+
+await runUpdateNotifier({ name, version });
 
 const program = new Command();
 
