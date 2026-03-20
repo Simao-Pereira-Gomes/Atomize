@@ -1,8 +1,16 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAtomizeTestDir } from "@config/atomize-paths";
+
+const ATOMIZE_DIR = join(tmpdir(), `atomize-connections-config-test-${process.pid}`);
+
+mock.module("@config/atomize-paths", () => ({
+  getAtomizeDir: () => ATOMIZE_DIR,
+  ensureAtomizeDir: async () => { await mkdir(ATOMIZE_DIR, { recursive: true }); },
+}));
+
 import {
   getDefaultProfile,
   getProfile,
@@ -13,8 +21,6 @@ import {
 } from "@config/connections.config";
 import type { ConnectionProfile } from "@config/connections.interface";
 
-const ORIGINAL_ATOMIZE_HOME = process.env.ATOMIZE_HOME;
-const ATOMIZE_DIR = getAtomizeTestDir("atomize-connections-config-test");
 const CONNECTIONS_PATH = join(ATOMIZE_DIR, "connections.json");
 
 const testProfile: ConnectionProfile = {
@@ -50,18 +56,12 @@ const testProfile2: ConnectionProfile = {
 };
 
 beforeAll(async () => {
-  process.env.ATOMIZE_HOME = ATOMIZE_DIR;
   await rm(ATOMIZE_DIR, { recursive: true, force: true });
   await mkdir(ATOMIZE_DIR, { recursive: true });
 });
 
 afterAll(async () => {
   await rm(ATOMIZE_DIR, { recursive: true, force: true });
-  if (ORIGINAL_ATOMIZE_HOME === undefined) {
-    delete process.env.ATOMIZE_HOME;
-  } else {
-    process.env.ATOMIZE_HOME = ORIGINAL_ATOMIZE_HOME;
-  }
 });
 
 describe("connections.config", () => {

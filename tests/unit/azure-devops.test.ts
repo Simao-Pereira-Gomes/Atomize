@@ -367,18 +367,6 @@ describe("AzureDevOpsAdapter", () => {
       expect(true).toBe(true);
     });
 
-    test("should create task with custom fields", async () => {
-      const task = {
-        title: "Task with custom fields",
-        customFields: {
-          "Custom.Field": "Custom Value",
-        },
-      };
-      const created = await adapter.createTask("100", task);
-      expect(created).toBeDefined();
-      expect(true).toBe(true);
-    });
-
     test("should set CompletedWork and IterationPath from task definition", async () => {
       const task = {
         title: "Task with inherited fields",
@@ -731,6 +719,28 @@ describe("AzureDevOps WIQL Query Building", () => {
     // @ts-ignore
     const wiql: string = adapter.buildWiqlQuery({ changedAfter: "@startofmonth-1" });
     expect(wiql).toContain("[System.ChangedDate] >= @StartOfMonth - 1");
+  });
+
+  test("should escape single-quotes in literal changedAfter to prevent WIQL injection", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      changedAfter: "2026-01-01' OR [System.State] <> ''",
+    });
+    // The injected quote must be doubled (escaped), not passed through raw.
+    expect(wiql).toContain("[System.ChangedDate] >= '2026-01-01'' OR [System.State] <> ''''");
+    expect(wiql).not.toMatch(/\[System\.State\] <> ''(?!')/);
+  });
+
+  test("should escape single-quotes in literal createdAfter to prevent WIQL injection", () => {
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
+    // @ts-ignore
+    const wiql: string = adapter.buildWiqlQuery({
+      createdAfter: "2026-06-01' OR 1=1--",
+    });
+    expect(wiql).toContain("[System.CreatedDate] >= '2026-06-01'' OR 1=1--'");
   });
 
   test("should emit NOT IN for excluded states", () => {

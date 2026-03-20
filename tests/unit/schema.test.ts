@@ -30,36 +30,6 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
-    test("should accept custom fields", () => {
-      const filter = {
-        customFields: [
-          {
-            field: "Custom.Team",
-            operator: "equals",
-            value: "Platform",
-          },
-        ],
-      };
-
-      const result = FilterCriteriaSchema.safeParse(filter);
-      expect(result.success).toBe(true);
-    });
-
-    test("should reject invalid operator", () => {
-      const filter = {
-        customFields: [
-          {
-            field: "Custom.Team",
-            operator: "invalid",
-            value: "Platform",
-          },
-        ],
-      };
-
-      const result = FilterCriteriaSchema.safeParse(filter);
-      expect(result.success).toBe(false);
-    });
-
     test("should accept valid email in assignedTo", () => {
       const filter = {
         assignedTo: ["john@example.com", "jane@example.com"],
@@ -154,6 +124,42 @@ describe("Schema Validation", () => {
         createdAfter: "2026-01-01",
       });
       expect(result.success).toBe(true);
+    });
+
+    test("should reject WIQL-injected changedAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        changedAfter: "2026-01-01' OR [System.State] <> ''",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject WIQL-injected createdAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        createdAfter: "2026-06-01' OR 1=1--",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject arbitrary strings in changedAfter", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        changedAfter: "last week",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("should accept all approved date macros in changedAfter", () => {
+      for (const macro of [
+        "@Today",
+        "@StartOfDay",
+        "@StartOfMonth",
+        "@StartOfWeek",
+        "@StartOfYear",
+        "@Today-7",
+        "@StartOfMonth + 1",
+      ]) {
+        const result = FilterCriteriaSchema.safeParse({ changedAfter: macro });
+        expect(result.success, `Expected ${macro} to be accepted`).toBe(true);
+      }
     });
 
     test("should accept statesExclude", () => {

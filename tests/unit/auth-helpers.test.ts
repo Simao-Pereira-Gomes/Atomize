@@ -1,8 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
-import {
-  getAtomizeTestDir,
-} from "@config/atomize-paths";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const ATOMIZE_DIR = join(tmpdir(), `atomize-auth-helpers-test-${process.pid}`);
+
+mock.module("@config/atomize-paths", () => ({
+  getAtomizeDir: () => ATOMIZE_DIR,
+  ensureAtomizeDir: async () => { await mkdir(ATOMIZE_DIR, { recursive: true }); },
+}));
+
 import {
   saveProfile,
   setDefaultProfile,
@@ -21,24 +28,13 @@ import { rotateToken } from "@/cli/commands/auth/helpers/auth-rotate.helper";
 import { testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
 import type { IPlatformAdapter } from "@/platforms";
 
-// ─── file backup ──────────────────────────────────────────────────────────────
-
-const ORIGINAL_ATOMIZE_HOME = process.env.ATOMIZE_HOME;
-const ATOMIZE_DIR = getAtomizeTestDir("atomize-auth-helpers-test");
-
 beforeAll(async () => {
-  process.env.ATOMIZE_HOME = ATOMIZE_DIR;
   await rm(ATOMIZE_DIR, { recursive: true, force: true });
   await mkdir(ATOMIZE_DIR, { recursive: true });
 });
 
 afterAll(async () => {
   await rm(ATOMIZE_DIR, { recursive: true, force: true });
-  if (ORIGINAL_ATOMIZE_HOME === undefined) {
-    delete process.env.ATOMIZE_HOME;
-  } else {
-    process.env.ATOMIZE_HOME = ORIGINAL_ATOMIZE_HOME;
-  }
 });
 
 // Reset the connections file before each test so tests are isolated

@@ -3,7 +3,6 @@ import type { TaskDefinition } from "../../src/templates/schema";
 interface GeneratorOptions {
   withDependencies?: boolean;
   withConditions?: boolean;
-  withCustomFields?: boolean;
   withDeepChain?: boolean;
   withDiamondPattern?: boolean;
 }
@@ -63,15 +62,6 @@ export function generateLargeTemplate(
     filter: {
       workItemTypes: ["User Story"],
       states: ["New", "Active"],
-      customFields: options.withCustomFields
-        ? [
-            {
-              field: "Custom.Priority",
-              operator: "equals" as const,
-              value: "High",
-            },
-          ]
-        : undefined,
     },
     tasks,
     validation: { totalEstimationMustBe: 100 },
