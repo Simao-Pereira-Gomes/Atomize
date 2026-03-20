@@ -503,7 +503,6 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         return false;
       }
 
-      console.log("Testing connection to Azure DevOps...");
       await this.witApi.queryByWiql(
         {
           query:
