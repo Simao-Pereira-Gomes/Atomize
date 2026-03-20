@@ -36,24 +36,27 @@ jobs:
       - name: Process benchmark results
         id: process
         run: |
-          # Convert mitata JSON output to benchmark-action compatible format
           node << 'EOF'
           const fs = require('fs');
           const output = JSON.parse(fs.readFileSync('benchmark-output.json', 'utf8'));
           const results = [];
 
-          // mitata JSON format has benchmarks array with stats
           for (const bench of output.benchmarks || []) {
-            const name = bench.name || bench.alias;
-            const stats = bench.stats || bench;
+            const name = bench.alias || bench.name;
+            const runs = bench.runs || [];
 
-            // Use avg time (smaller is better)
-            if (stats.avg !== undefined) {
-              results.push({
-                name: name,
-                unit: 'ns',
-                value: stats.avg
-              });
+            for (let i = 0; i < runs.length; i++) {
+              const stats = runs[i]?.stats;
+              const runName = runs.length > 1 ? `${name} (run ${i + 1})` : name;
+
+              // Use avg time in ns (smaller is better)
+              if (stats?.avg !== undefined) {
+                results.push({
+                  name: runName,
+                  unit: 'ns',
+                  value: stats.avg
+                });
+              }
             }
           }
 
@@ -62,15 +65,27 @@ jobs:
           console.log(JSON.stringify(results, null, 2));
           EOF
 
+      - name: Initialize gh-pages branch if needed
+        run: |
+          if ! git fetch origin gh-pages; then
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git checkout --orphan gh-pages
+            git rm -rf .
+            git commit --allow-empty -m "Initialize gh-pages"
+            git push origin gh-pages
+            git checkout main
+          fi
+
       - name: Store benchmark results
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Atomize Benchmarks
-          tool: 'customSmallerIsBetter'
+          tool: "customSmallerIsBetter"
           output-file-path: benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          alert-threshold: '150%'
+          alert-threshold: "150%"
           comment-on-alert: true
           fail-on-alert: false
           benchmark-data-dir-path: docs/benchmarks

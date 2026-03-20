@@ -8,10 +8,11 @@ Complete command-line interface documentation for Atomize v1.1.
 - [Global Options](#global-options)
 - [Commands Overview](#commands-overview)
 - [Command Reference](#command-reference)
+  - [auth](#auth)
   - [generate](#generate)
   - [validate](#validate)
   - [template create](#template-create)
-  - [template list](#template-list)
+  - [template presets](#template-presets)
 - [Configuration](#configuration)
 - [Interactive Prompts & Navigation](#interactive-prompts--navigation)
 - [Examples](#examples)
@@ -51,15 +52,172 @@ These options work with any command:
 
 | Command | Alias | Description |
 |---------|-------|-------------|
+| `auth` | - | Manage named connection profiles |
+| `auth add` | - | Add a new connection profile |
+| `auth list` | `auth ls` | List all saved profiles |
+| `auth use` | - | Set a profile as the default |
+| `auth remove` | `auth rm` | Remove a profile |
+| `auth test` | - | Test connectivity for a profile |
+| `auth rotate` | - | Replace the PAT for a profile |
 | `generate` | `gen` | Generate tasks from user stories using a template |
 | `validate` | - | Validate a template file |
 | `template` | `tpl` | Template management commands |
 | `template create` | - | Create a new template interactively |
-| `template list` | `ls` | List available template presets |
+| `template presets` | `ls` | List available template presets |
 
 ---
 
 ## Command Reference
+
+### auth
+
+Manage named connection profiles for Azure DevOps. Profiles store your organization URL, project, team, and PAT in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
+
+#### auth add
+
+Add a new connection profile.
+
+```bash
+atomize auth add [name] [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--org-url <url>` | Organization URL (e.g. `https://dev.azure.com/myorg`) |
+| `--project <name>` | Project name |
+| `--team <name>` | Team name |
+| `--default` | Set this profile as the default |
+| `--pat-stdin` | Read the PAT from stdin instead of `ATOMIZE_PAT` (preferred in CI — avoids token exposure in environment variables, process listings, and CI logs) |
+| `--insecure-storage` | Allow storing the token in an insecure local file fallback when the OS keychain is unavailable. The token data is encrypted, but the key is stored in the same directory, so anyone who can read `~/.atomize/` can recover it. Treat this as compatibility fallback storage, not secure secret storage. |
+
+In non-interactive mode the PAT must be supplied via `ATOMIZE_PAT` or `--pat-stdin`.
+
+**Interactive (recommended for first-time setup):**
+```bash
+atomize auth add work-ado
+# Prompts for org URL, project, team, and PAT
+```
+
+**Non-interactive with `--pat-stdin` (recommended for CI/CD):**
+```bash
+# Pipe the token — never appears in env or shell history
+echo "$AZURE_DEVOPS_PAT" | atomize auth add work-ado \
+  --org-url https://dev.azure.com/myorg \
+  --project MyProject \
+  --team MyTeam \
+  --default \
+  --pat-stdin
+```
+
+**Non-interactive with `ATOMIZE_PAT` (simpler, but token visible in env):**
+```bash
+# macOS / Linux
+ATOMIZE_PAT=YOUR_PAT atomize auth add work-ado \
+  --org-url https://dev.azure.com/myorg \
+  --project MyProject \
+  --team MyTeam \
+  --default
+```
+```powershell
+# Windows (PowerShell)
+$env:ATOMIZE_PAT = "YOUR_PAT"
+atomize auth add work-ado `
+  --org-url https://dev.azure.com/myorg `
+  --project MyProject `
+  --team MyTeam `
+  --default
+```
+
+Profile names may contain letters, numbers, hyphens, and underscores.
+
+---
+
+#### auth list
+
+List all saved connection profiles.
+
+```bash
+atomize auth list
+atomize auth ls   # alias
+```
+
+**Output:**
+```
+  work-ado (default)
+    Platform: azure-devops
+    URL:      https://dev.azure.com/myorg
+    Project:  MyProject
+    Team:     MyTeam
+    Token:    [keychain]
+    Created:  1/3/2026, 10:00:00 AM
+```
+
+---
+
+#### auth use
+
+Set a profile as the default. The default profile is used automatically by `generate` when `--profile` is not specified.
+
+```bash
+atomize auth use [name]
+```
+
+```bash
+atomize auth use work-ado
+# or omit the name to pick interactively
+atomize auth use
+```
+
+---
+
+#### auth remove
+
+Remove a saved connection profile.
+
+```bash
+atomize auth remove [name]
+atomize auth rm [name]   # alias
+```
+
+```bash
+atomize auth remove old-profile
+# or omit the name to pick interactively
+atomize auth remove
+```
+
+---
+
+#### auth test
+
+Test connectivity for a profile by making a live request to the platform.
+
+```bash
+atomize auth test [name]
+```
+
+```bash
+atomize auth test work-ado
+# or omit the name to test the default profile
+atomize auth test
+```
+
+---
+
+#### auth rotate
+
+Replace the stored PAT for a profile (e.g. after a token expires).
+
+```bash
+atomize auth rotate [name]
+```
+
+```bash
+atomize auth rotate work-ado
+# or omit the name to pick interactively
+atomize auth rotate
+```
+
+---
 
 ### generate
 
@@ -83,15 +241,14 @@ atomize gen [template] [options]  # alias
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `-p, --platform <platform>` | string | `azure-devops` | Platform to use. Options: `azure-devops`, `mock` |
-| `--project <name>` | string | - | Override the project name |
-| `--dry-run` | flag | `true` | Preview tasks without creating them (default) |
-| `--execute` | flag | - | Actually create tasks in the platform |
+| `--profile <name>` | string | - | Named connection profile to use (see `auth add`) |
+| `--execute` | flag | - | Actually create tasks (default is dry-run preview) |
+| `--auto-approve` | flag | - | Required with `--execute` in non-interactive mode to acknowledge live task creation |
 | `--continue-on-error` | flag | - | Keep processing other stories if one fails |
 | `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
 | `--dependency-concurrency <n>` | number | `5` | Max dependency links created in parallel (max: 10) |
 | `-v, --verbose` | flag | - | Show detailed output including per-task breakdown |
-| `--no-interactive` | flag | - | Skip all prompts (requires template arg and env vars) |
 | `-o, --output <file>` | string | - | Write a JSON report to this file path (for CI/CD) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 
@@ -100,12 +257,12 @@ atomize gen [template] [options]  # alias
 **Interactive mode (no template specified):**
 ```bash
 atomize generate
-# Prompts for: template file, platform, dry-run preference
+# Prompts for: template file, platform (dry-run by default)
 ```
 
-**Dry run with explicit template:**
+**Dry run (default — no --execute):**
 ```bash
-atomize generate templates/backend-api.yaml --dry-run
+atomize generate templates/backend-api.yaml
 ```
 
 **Execute for real:**
@@ -113,9 +270,14 @@ atomize generate templates/backend-api.yaml --dry-run
 atomize generate templates/backend-api.yaml --execute
 ```
 
+**Execute for real in CI/non-interactive mode:**
+```bash
+atomize generate templates/backend-api.yaml --execute --auto-approve
+```
+
 **Mock platform (no credentials needed):**
 ```bash
-atomize generate templates/backend-api.yaml --platform mock --dry-run
+atomize generate templates/backend-api.yaml --platform mock
 ```
 
 **Verbose output:**
@@ -136,11 +298,10 @@ atomize generate templates/backend-api.yaml \
   --task-concurrency 10
 ```
 
-**Non-interactive for CI/CD with JSON report:**
+**CI/CD with JSON report:**
 ```bash
 atomize generate templates/backend-api.yaml \
   --execute \
-  --no-interactive \
   --output report.json \
   --quiet
 ```
@@ -209,8 +370,6 @@ atomize validate <template> [options]
 |--------|------|---------|-------------|
 | `-v, --verbose` | flag | - | Show detailed validation information including all checked rules |
 | `-s, --strict` | flag | - | Use strict mode: warnings are treated as errors |
-| `-l, --lenient` | flag | - | Use lenient mode: warnings are non-blocking (default) |
-| `--no-interactive` | flag | - | Run without prompts (suitable for CI/scripts) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 
 > See [Validation Modes](./Validation-Modes.md) for a full explanation of strict vs lenient behavior.
@@ -295,59 +454,18 @@ atomize tpl create [options]  # alias
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--ai <prompt>` | string | Generate template using AI with this description |
-| `--ai-provider <provider>` | string | Force AI provider: `gemini` or `ollama` |
-| `--api-key <key>` | string | Google Gemini API key (if not in `GOOGLE_AI_API_KEY` env var) |
-| `--model <name>` | string | AI model name (e.g., `gemini-2.0-flash-exp`, `llama3.2`) |
 | `--preset <name>` | string | Start from a preset: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack` |
-| `--from-story <id>` | string | Learn template from a single existing story |
 | `--from-stories <ids>` | string | Learn template from multiple stories (comma-separated IDs) |
-| `-p, --platform <platform>` | string | Platform for `--from-story` / `--from-stories` (default: `azure-devops`) |
-| `--normalize` | flag | Normalize task estimation percentages to 100% |
-| `--no-normalize` | flag | Keep original estimation percentages |
+| `--profile <name>` | string | Named connection profile for `--from-stories` (see `auth add`) |
+| `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
+| `--no-normalize` | flag | Keep original estimation percentages (default normalizes to 100%) |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `-o, --output <path>` | string | Output file path (default: `createdTemplates/template-YYYYMMDD-XXXX.yaml`) |
-| `--no-interactive` | flag | Skip all prompts (use with flags only, for automation) |
 | `-q, --quiet` | flag | Suppress non-essential output |
 
 #### Creation Modes
 
-**1. AI-Powered (Free)**
-
-Generate templates from natural language descriptions using Google Gemini or local Ollama.
-
-```bash
-# Interactive provider selection
-atomize template create --ai "backend API with JWT auth and rate limiting"
-
-# Force Gemini (requires GOOGLE_AI_API_KEY env var)
-atomize template create --ai "React dashboard" --ai-provider gemini
-
-# Force Ollama (local, completely free)
-atomize template create --ai "bug fix workflow" --ai-provider ollama --model llama3.2
-```
-
-After generation, you can interactively:
-- **Accept** — Save the template as-is
-- **Refine** — Provide feedback to improve it
-- **Regenerate** — Generate a fresh version
-- **Cancel** — Discard and exit
-
-**Setup for Gemini:**
-```bash
-export GOOGLE_AI_API_KEY="your-api-key-here"
-# Get a free key at https://makersuite.google.com/app/apikey
-```
-
-**Setup for Ollama:**
-```bash
-ollama pull llama3.2   # Download a model
-ollama serve           # Start the server
-```
-
----
-
-**2. From Preset**
+**1. From Preset**
 
 Start with a battle-tested built-in template.
 
@@ -370,19 +488,7 @@ Available presets:
 
 ---
 
-**3. Learn from an Existing Story**
-
-Analyze a story that already has tasks and create a reusable template from it.
-
-```bash
-atomize template create --from-story STORY-123 --platform azure-devops
-atomize template create --from-story STORY-123 --normalize
-atomize template create --from-story STORY-001 --platform mock  # Testing
-```
-
----
-
-**4. Learn from Multiple Stories**
+**2. Learn from Multiple Stories**
 
 Analyze multiple stories to detect patterns and build a higher-confidence template.
 
@@ -392,7 +498,6 @@ atomize template create --from-stories STORY-1,STORY-2,STORY-3
 atomize template create \
   --from-stories STORY-123,STORY-456,STORY-789 \
   --platform azure-devops \
-  --normalize \
   --output learned-templates/api-pattern.yaml
 ```
 
@@ -400,7 +505,7 @@ Pattern detection includes confidence scoring, outlier detection, and conditiona
 
 ---
 
-**5. Interactive Wizard (From Scratch)**
+**3. Interactive Wizard (From Scratch)**
 
 Step-by-step guided builder for full control over every aspect.
 
@@ -431,22 +536,22 @@ Template created successfully!
 Template saved to: createdTemplates/template-20260101-a3f2.yaml
 
 Validate it:   atomize validate createdTemplates/template-20260101-a3f2.yaml
-Test it:       atomize generate createdTemplates/template-20260101-a3f2.yaml --platform mock --dry-run
+Test it:       atomize generate createdTemplates/template-20260101-a3f2.yaml --platform mock
 Use it:        atomize generate createdTemplates/template-20260101-a3f2.yaml --execute
 ```
 
 ---
 
-### template list
+### template presets
 
 List all available built-in template presets.
 
 #### Usage
 
 ```bash
-atomize template list
+atomize template presets
 atomize template ls       # alias
-atomize tpl list          # alias
+atomize tpl presets       # alias
 atomize tpl ls            # alias
 ```
 
@@ -478,22 +583,57 @@ Use with: atomize template create --preset <name>
 
 ## Configuration
 
+### Connection Profiles
+
+Azure DevOps credentials are managed as named profiles using the `auth` commands. Profiles are stored at `~/.atomize/connections.json` and tokens are kept in the OS keychain. When the keychain is unavailable, `--insecure-storage` enables an insecure local file fallback. The token data is encrypted, but the key lives in the same directory, so treat it as unprotected against a local attacker.
+
+```bash
+# Add a profile
+atomize auth add work-ado
+
+# Verify it works
+atomize auth test work-ado
+
+# Use it in generate
+atomize generate templates/backend-api.yaml --profile work-ado
+
+# Or set it as default so --profile is not needed
+atomize auth use work-ado
+atomize generate templates/backend-api.yaml
+```
+
 ### Environment Variables
 
-**Azure DevOps (required for azure-devops platform):**
+**Authentication:**
 
 ```bash
-export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/myorg"  # Required
-export AZURE_DEVOPS_PROJECT="MyProject"                     # Required
-export AZURE_DEVOPS_PAT="your-personal-access-token"        # Required
-export AZURE_DEVOPS_TEAM="MyTeam"                           # Optional
+# macOS / Linux
+export ATOMIZE_PAT="your-personal-access-token"
+```
+```powershell
+# Windows (PowerShell)
+$env:ATOMIZE_PAT = "your-personal-access-token"
+```
+```cmd
+# Windows (Command Prompt)
+set ATOMIZE_PAT=your-personal-access-token
 ```
 
-**AI Template Generation:**
+**Profile selection:**
 
 ```bash
-export GOOGLE_AI_API_KEY="your-gemini-api-key"  # For Google Gemini
+# macOS / Linux
+export ATOMIZE_PROFILE="work-ado"
 ```
+```powershell
+# Windows (PowerShell)
+$env:ATOMIZE_PROFILE = "work-ado"
+```
+
+Profile resolution order for `generate`:
+1. `--profile <name>` flag
+2. `ATOMIZE_PROFILE` environment variable
+3. Default profile (set via `atomize auth use`)
 
 **Logging:**
 
@@ -503,14 +643,8 @@ export LOG_LEVEL="info"   # debug, info, warn, error
 
 ### .env File
 
-You can place all variables in a `.env` file in your working directory:
-
 ```bash
-AZURE_DEVOPS_ORG_URL=https://dev.azure.com/myorg
-AZURE_DEVOPS_PROJECT=MyProject
-AZURE_DEVOPS_PAT=your-personal-access-token
-AZURE_DEVOPS_TEAM=MyTeam
-GOOGLE_AI_API_KEY=your-gemini-api-key
+ATOMIZE_PROFILE=work-ado
 ```
 
 ---
@@ -535,34 +669,25 @@ When you cancel with `Ctrl+C`, no files are created or modified.
 ### Complete Workflow: Azure DevOps
 
 ```bash
-# 1. Configure credentials
-export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/myorg"
-export AZURE_DEVOPS_PROJECT="MyProject"
-export AZURE_DEVOPS_PAT="your-pat-here"
+# 1. Save your credentials as a named profile
+atomize auth add work-ado
+# Prompts for org URL, project, team, and PAT
+# Set it as default when prompted
 
-# 2. Create a template
+# 2. Verify the connection
+atomize auth test work-ado
+
+# 3. Create a template
 atomize template create --preset backend-api -o my-backend.yaml
 
-# 3. Validate it
+# 4. Validate it
 atomize validate my-backend.yaml
 
-# 4. Preview (dry run)
-atomize generate my-backend.yaml --dry-run
+# 5. Preview (dry run — default, no --execute)
+atomize generate my-backend.yaml
 
-# 5. Execute
+# 6. Execute
 atomize generate my-backend.yaml --execute
-```
-
-### AI-Powered Template
-
-```bash
-export GOOGLE_AI_API_KEY="your-key"
-
-# Generate and interactively refine
-atomize template create --ai "REST API with PostgreSQL and Redis caching"
-
-# Then use it
-atomize generate createdTemplates/template-*.yaml --dry-run
 ```
 
 ### Multi-Story Learning
@@ -571,7 +696,6 @@ atomize generate createdTemplates/template-*.yaml --dry-run
 atomize template create \
   --from-stories STORY-1,STORY-2,STORY-3,STORY-4,STORY-5 \
   --platform azure-devops \
-  --normalize \
   --output team-templates/backend-standard.yaml
 
 atomize validate team-templates/backend-standard.yaml --strict --verbose
@@ -579,6 +703,8 @@ atomize generate team-templates/backend-standard.yaml --execute
 ```
 
 ### CI/CD Integration
+
+Create a profile once (locally or in a setup step) and reference it by name in CI. The profile name can be passed via `--profile` or the `ATOMIZE_PROFILE` env var.
 
 ```yaml
 # .github/workflows/generate-tasks.yml
@@ -597,6 +723,15 @@ jobs:
       - name: Install Atomize
         run: npm install -g @sppg2001/atomize
 
+      - name: Save connection profile
+        run: |
+          echo "${{ secrets.AZURE_DEVOPS_PAT }}" | atomize auth add ci \
+            --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
+            --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
+            --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
+            --default \
+            --pat-stdin
+
       - name: Validate Templates
         run: |
           for template in templates/*.yaml; do
@@ -604,14 +739,9 @@ jobs:
           done
 
       - name: Generate Tasks
-        env:
-          AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-          AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
           atomize generate templates/backend-api.yaml \
             --execute \
-            --no-interactive \
             --output task-report.json \
             --continue-on-error
 
@@ -639,13 +769,20 @@ done
 ### "Not authenticated" error
 
 ```bash
-# Check your environment variables
-echo $AZURE_DEVOPS_ORG_URL
-echo $AZURE_DEVOPS_PROJECT
-echo $AZURE_DEVOPS_PAT
+# Check what profiles are saved
+atomize auth list
 
-# Or use interactive mode (will prompt for credentials)
-atomize generate templates/backend-api.yaml
+# Add a profile if none exist
+atomize auth add work-ado
+
+# Test the profile
+atomize auth test work-ado
+
+# Use it explicitly
+atomize generate templates/backend-api.yaml --profile work-ado
+
+# Or set it as default
+atomize auth use work-ado
 ```
 
 ### "Template validation failed"
@@ -664,26 +801,12 @@ atomize validate templates/my-template.yaml --verbose
 
 ```bash
 # Test with mock platform first
-atomize generate templates/my-template.yaml --platform mock --dry-run
+atomize generate templates/my-template.yaml --platform mock
 
 # Make filter less restrictive:
 # - Add more states: ["New", "Active", "Approved"]
 # - Remove or broaden tag filters
 # - Set excludeIfHasTasks: false
-```
-
-### "AI provider not available"
-
-```bash
-# For Gemini
-export GOOGLE_AI_API_KEY="your-api-key"
-
-# For Ollama — make sure it's running
-ollama serve
-ollama pull llama3.2
-
-# Verify Ollama is accessible
-curl http://localhost:11434/api/tags
 ```
 
 ### Permission denied (Windows)

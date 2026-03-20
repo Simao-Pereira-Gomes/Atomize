@@ -59,14 +59,21 @@ Defines which work items this template applies to. All criteria are combined wit
 
 ```yaml
 filter:
+  team: "Backend Team"           # Override team (replaces AZURE_DEVOPS_TEAM env var)
   workItemTypes: ["User Story", "Bug"]
   states: ["New", "Active"]
+  statesExclude: ["Done", "Removed"]      # Exclude items in these states
+  statesWereEver: ["In Review"]           # Items that were ever in these states
   tags:
     include: ["backend"]
     exclude: ["deprecated"]
   areaPaths: ["MyProject\\Backend"]
+  areaPathsUnder: ["MyProject\\Backend"]  # Match area path and all descendants
   iterations: ["MyProject\\Sprint 23"]
+  iterationsUnder: ["MyProject\\Release 2"] # Match iteration and all descendants
   assignedTo: ["user@company.com", "@Me"]
+  changedAfter: "@Today-7"               # Changed in the last 7 days
+  createdAfter: "@Today-30"              # Created in the last 30 days
   priority:
     min: 1
     max: 3
@@ -75,25 +82,84 @@ filter:
     - field: "Custom.Team"
       operator: "equals"
       value: "Platform Engineering"
-  customQuery: "SELECT [System.Id] FROM WorkItems WHERE ..."
 ```
 
 ### Filter Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `team` | string | Override the team for this template (replaces `AZURE_DEVOPS_TEAM` env var) |
 | `workItemTypes` | string[] | Work item types to match (e.g., `"User Story"`, `"Bug"`) |
-| `states` | string[] | Work item states to match (e.g., `"New"`, `"Active"`) |
+| `states` | string[] | Work item states to include (e.g., `"New"`, `"Active"`) |
+| `statesExclude` | string[] | Work item states to exclude (e.g., `"Done"`, `"Removed"`) |
+| `statesWereEver` | string[] | Match items that were ever in these states |
 | `tags.include` | string[] | Must have at least one of these tags |
 | `tags.exclude` | string[] | Must not have any of these tags |
-| `areaPaths` | string[] | Area paths to match (case-sensitive) |
-| `iterations` | string[] | Iteration paths to match |
-| `assignedTo` | string[] | Assigned user emails, or `"@Me"` for current user |
+| `areaPaths` | string[] | Area paths to match exactly (case-sensitive). Use `"@TeamAreas"` for the team's areas |
+| `areaPathsUnder` | string[] | Area paths — matches the path and all descendants (UNDER query) |
+| `iterations` | string[] | Iteration paths to match. Use `"@CurrentIteration"` for the team's current sprint |
+| `iterationsUnder` | string[] | Iteration paths — matches the iteration and all descendants (UNDER query) |
+| `assignedTo` | string[] | Assigned user emails, or `"@Me"` for the current user |
+| `changedAfter` | string | Only match items changed on or after this date. Supports `@Today` macros |
+| `createdAfter` | string | Only match items created on or after this date. Supports `@Today` macros |
 | `priority.min` | number | Minimum priority (1 = highest) |
 | `priority.max` | number | Maximum priority |
 | `excludeIfHasTasks` | boolean | Skip work items that already have child tasks |
 | `customFields` | array | Additional field filters (see below) |
-| `customQuery` | string | Raw WIQL query that overrides all other filters |
+
+### Special Values
+
+Some filter fields accept special macro values:
+
+| Value | Used in | Behavior |
+|-------|---------|----------|
+| `"@Me"` | `assignedTo` | Resolves to the currently authenticated user's email |
+| `"@TeamAreas"` | `areaPaths` | Resolves to all area paths owned by the configured team |
+| `"@CurrentIteration"` | `iterations` | Resolves to the team's current sprint/iteration |
+
+### Date Filters
+
+`changedAfter` and `createdAfter` accept either a literal date string or an `@Today` macro for relative dates.
+
+**`@Today` macro syntax:** `@Today`, `@Today-N`, `@Today+N`
+
+```yaml
+filter:
+  changedAfter: "@Today-7"     # Changed in the last 7 days
+  changedAfter: "@Today-30"    # Changed in the last 30 days
+  createdAfter: "@Today"       # Created today
+  createdAfter: "2026-01-01"   # Created on or after a specific date
+```
+
+**Other supported macros:** `@StartOfDay`, `@StartOfWeek`, `@StartOfMonth`, `@StartOfYear` (also support `±N` offsets)
+
+### Area Paths: exact vs. descendants
+
+Use `areaPaths` for exact matches and `areaPathsUnder` to include all sub-areas:
+
+```yaml
+# Only items directly in "MyProject\Backend"
+filter:
+  areaPaths: ["MyProject\\Backend"]
+
+# Items in "MyProject\Backend" AND any sub-area (e.g. "MyProject\Backend\API")
+filter:
+  areaPathsUnder: ["MyProject\\Backend"]
+```
+
+### Iterations: exact vs. descendants
+
+Use `iterations` for exact matches and `iterationsUnder` to include all child iterations:
+
+```yaml
+# Only items in Sprint 23
+filter:
+  iterations: ["MyProject\\Sprint 23"]
+
+# All sprints under Release 2 (e.g. Sprint 1, Sprint 2, ...)
+filter:
+  iterationsUnder: ["MyProject\\Release 2"]
+```
 
 ### Custom Field Filters
 
@@ -110,22 +176,6 @@ filter:
 ```
 
 **Supported operators:** `equals`, `notEquals`, `contains`, `greaterThan`, `lessThan`
-
-### Custom WIQL Query
-
-Use `customQuery` when you need advanced filtering that standard fields cannot express. This overrides all other filter criteria.
-
-```yaml
-filter:
-  customQuery: |
-    SELECT [System.Id]
-    FROM WorkItems
-    WHERE [System.TeamProject] = 'MyProject'
-      AND [System.WorkItemType] = 'User Story'
-      AND [System.State] IN ('New', 'Active')
-      AND [Custom.Team] = 'Platform Engineering'
-      AND [Microsoft.VSTS.Common.Priority] <= 2
-```
 
 ---
 
@@ -148,9 +198,7 @@ tasks:
     acceptanceCriteria:
       - "Criteria 1"
       - "Criteria 2"
-    customFields:
-      Custom.Complexity: "High"
-```
+  ```
 
 ### Task Fields
 
@@ -170,7 +218,6 @@ tasks:
 | `condition` | No | string | Expression to conditionally create this task |
 | `dependsOn` | No | string[] | IDs of tasks this task depends on |
 | `acceptanceCriteria` | No | string[] | List of acceptance criteria |
-| `customFields` | No | object | Custom Azure DevOps fields to set |
 
 ### Variable Interpolation
 
@@ -355,10 +402,6 @@ validation:
   requiredTasks:              # Tasks that must be present
     - title: "Code Review"
       id: "review"
-  customFieldDefinitions:     # Define allowed custom field values
-    - name: "Complexity"
-      type: "string"
-      allowedValues: ["Low", "Medium", "High"]
 ```
 
 | Field | Type | Description |
@@ -370,7 +413,6 @@ validation:
 | `maxTasks` | number | Maximum number of tasks allowed |
 | `taskEstimationRange` | object | Each individual task's resolved estimation must fall within this range |
 | `requiredTasks` | array | Tasks that must exist (matched by `id` or `title`) |
-| `customFieldDefinitions` | array | Definitions for custom fields used in tasks |
 
 > **Note:** `totalEstimationMustBe` and `totalEstimationRange` are mutually exclusive.
 

@@ -3,22 +3,22 @@ name: Code Quality
 on:
   push:
     branches:
-    - main
-    - 'feat/**'
-    - 'fix/**'
+      - main
+      - "release/**"
   pull_request:
-    branches: 
-    - main
+    branches:
+      - main
+      - "release/**"
 
-env:
-  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+permissions: {}
+
 jobs:
   lint-and-format:
     name: Lint & Format
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,7 +38,9 @@ jobs:
   test-quality:
     name: Test Quality
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,7 +73,9 @@ jobs:
   build-quality:
     name: Build Quality
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -106,7 +110,9 @@ jobs:
   cli-performance:
     name: CLI Performance
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -125,26 +131,26 @@ jobs:
           npm pack
           PACKAGE=$(ls *.tgz)
           npm install -g "$PACKAGE"
-          
+
           # Warmup
           atomize --help > /dev/null 2>&1 || true
-          
+
           # Measure
           START=$(date +%s%N)
           atomize --help > /dev/null
           END=$(date +%s%N)
-          
+
           DURATION=$((($END - $START) / 1000000))
           echo "CLI startup time: ${DURATION}ms"
-          
+
           echo "### CLI Performance" >> $GITHUB_STEP_SUMMARY
           echo "Startup time: ${DURATION}ms" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ $DURATION -gt 1000 ]; then
             echo "Warning: CLI startup is slow (${DURATION}ms)" >> $GITHUB_STEP_SUMMARY
             echo "::warning::CLI startup time is ${DURATION}ms (target: <1000ms)"
           else
             echo "CLI startup time is acceptable" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           rm "$PACKAGE"

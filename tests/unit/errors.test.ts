@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	AtomizeError,
+	AuthError,
 	ConfigurationError,
 	PlatformError,
 	TemplateLoadError,
@@ -118,6 +119,27 @@ describe("Error Classes", () => {
 		});
 	});
 
+	describe("AuthError", () => {
+		test("should create error with message", () => {
+			const error = new AuthError("Authentication failed");
+
+			expect(error.message).toBe("Authentication failed");
+		});
+
+		test("should have name 'AuthError'", () => {
+			const error = new AuthError("Authentication failed");
+
+			expect(error.name).toBe("AuthError");
+		});
+
+		test("should be instanceof AtomizeError", () => {
+			const error = new AuthError("Authentication failed");
+
+			expect(error).toBeInstanceOf(AtomizeError);
+			expect(error).toBeInstanceOf(Error);
+		});
+	});
+
 	describe("Error Hierarchy", () => {
 		test("all custom errors should extend AtomizeError", () => {
 			const errors = [
@@ -125,6 +147,7 @@ describe("Error Classes", () => {
 				new TemplateValidationError("Test", []),
 				new PlatformError("Test", "platform"),
 				new ConfigurationError("Test"),
+				new AuthError("Test"),
 			];
 
 			errors.forEach((error) => {

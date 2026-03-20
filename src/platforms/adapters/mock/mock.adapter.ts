@@ -171,7 +171,6 @@ export class MockPlatformAdapter implements IPlatformAdapter {
       description: task.description,
       priority: task.priority,
       parentId: parentId,
-      customFields: task.customFields,
       createdDate: new Date(),
       updatedDate: new Date(),
     };

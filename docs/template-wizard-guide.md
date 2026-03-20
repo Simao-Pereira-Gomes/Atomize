@@ -477,8 +477,8 @@ atomize validate path/to/template.yaml --strict
 # List available presets
 atomize template list
 
-# Generate tasks using your template
-atomize generate path/to/template.yaml --dry-run
+# Generate tasks using your template (dry-run by default)
+atomize generate path/to/template.yaml
 atomize generate path/to/template.yaml --execute
 ```
 
@@ -491,12 +491,12 @@ After creating your template:
 
 2. **Test with mock data:**
    ```bash
-   atomize generate path/to/template.yaml --platform mock --dry-run
+   atomize generate path/to/template.yaml --platform mock
    ```
 
 3. **Review generated tasks** before applying to production:
    ```bash
-   atomize generate path/to/template.yaml --dry-run --verbose
+   atomize generate path/to/template.yaml --verbose
    ```
 
 ## Support

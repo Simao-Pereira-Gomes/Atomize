@@ -8,14 +8,14 @@ on:
   pull_request:
     branches:
       - main
-env:
-  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+permissions: {}
+
 jobs:
   test:
     name: Test & Lint (${{ matrix.os }}, node ${{ matrix.node-version }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
 
     strategy:
       fail-fast: false
@@ -61,6 +61,8 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -77,6 +79,8 @@ jobs:
   validate-templates:
     name: Validate Templates
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code

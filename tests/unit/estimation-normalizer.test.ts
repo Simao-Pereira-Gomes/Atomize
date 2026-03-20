@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  normalizeEstimationPercentages,
-  validateEstimationPercentages,
-} from "@utils/estimation-normalizer";
+import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
 
 interface TestItem {
   name: string;
@@ -191,70 +188,3 @@ describe("normalizeEstimationPercentages", () => {
   });
 });
 
-describe("validateEstimationPercentages", () => {
-  test("should validate when total is 100", () => {
-    const items: TestItem[] = [
-      { name: "Item 1", estimationPercent: 40 },
-      { name: "Item 2", estimationPercent: 60 },
-    ];
-
-    const result = validateEstimationPercentages(items);
-
-    expect(result.valid).toBe(true);
-    expect(result.total).toBe(100);
-    expect(result.warnings).toHaveLength(0);
-  });
-
-  test("should warn when total differs from 100", () => {
-    const items: TestItem[] = [
-      { name: "Item 1", estimationPercent: 40 },
-      { name: "Item 2", estimationPercent: 50 },
-    ];
-
-    const result = validateEstimationPercentages(items);
-
-    expect(result.valid).toBe(false);
-    expect(result.total).toBe(90);
-    expect(result.warnings.length).toBeGreaterThan(0);
-    expect(result.warnings[0]).toContain("differs from 100%");
-  });
-
-  test("should warn about zero estimations", () => {
-    const items: TestItem[] = [
-      { name: "Item 1", estimationPercent: 100 },
-      { name: "Item 2", estimationPercent: 0 },
-    ];
-
-    const result = validateEstimationPercentages(items);
-
-    expect(result.valid).toBe(false);
-    expect(result.warnings.some((w) => w.includes("zero estimation"))).toBe(
-      true
-    );
-  });
-
-  test("should allow small differences within tolerance", () => {
-    const items: TestItem[] = [
-      { name: "Item 1", estimationPercent: 50.2 },
-      { name: "Item 2", estimationPercent: 49.9 },
-    ];
-
-    const result = validateEstimationPercentages(items, 0.5);
-
-    // 100.1 vs 100 = 0.1 difference, within 0.5 tolerance
-    expect(result.valid).toBe(true);
-  });
-
-  test("should report multiple warnings", () => {
-    const items: TestItem[] = [
-      { name: "Item 1", estimationPercent: 50 },
-      { name: "Item 2", estimationPercent: 0 },
-    ];
-
-    const result = validateEstimationPercentages(items);
-
-    expect(result.valid).toBe(false);
-    // Should have warnings for both total != 100 and zero estimation
-    expect(result.warnings.length).toBeGreaterThanOrEqual(2);
-  });
-});

@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 1.2.3 or use release_type)'
+        description: "Release version (e.g., 1.2.3 or use release_type)"
         required: false
         type: string
       release_type:
-        description: 'Release type (used if version not specified)'
+        description: "Release type (used if version not specified)"
         required: false
         type: choice
         default: patch
@@ -17,15 +17,12 @@ on:
           - minor
           - major
       prerelease:
-        description: 'Mark as pre-release?'
+        description: "Mark as pre-release?"
         required: false
         type: boolean
         default: false
 
-env:
-  AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-  AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-  AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+permissions: {}
 
 jobs:
   create-release:
@@ -46,7 +43,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         run: bun install
@@ -80,7 +77,7 @@ jobs:
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           VERSION="${{ steps.version.outputs.version }}"
-          
+
           if [ -z "$LAST_TAG" ]; then
             echo "No previous tags found, including all commits"
             COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
@@ -90,7 +87,7 @@ jobs:
             COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
             COMPARE_URL="https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${VERSION}"
           fi
-          
+
           # Build changelog
           {
             echo "changelog<<EOF"

@@ -11,7 +11,8 @@ import type {
   WorkItem,
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
-import { PlatformError, UnknownError } from "@utils/errors";
+import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
+import { ConfigurationError, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import {
@@ -34,14 +35,55 @@ export interface AzureDevOpsConfig extends PlatformConfig {
   /** Personal Access Token for authentication */
   token: string;
 
-  /** Team (optional) */
-  team?: string;
+  /** Team name (can be overridden per-template via filter.team) */
+  team: string;
 
   /** API version (optional) */
   apiVersion?: string;
 
   /** Maximum concurrent API requests for bulk operations (default: 5) */
   maxConcurrency?: number;
+}
+
+const CURRENT_ITERATION_OFFSET_RE = /^@CurrentIteration\s*([+-])\s*(\d+)$/i;
+const DATE_MACRO_RE =
+  /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(?:\s*([+-])\s*(\d+))?$/i;
+const DATE_MACRO_CANONICAL: Record<string, string> = {
+  "@today": "@Today",
+  "@startofday": "@StartOfDay",
+  "@startofmonth": "@StartOfMonth",
+  "@startofweek": "@StartOfWeek",
+  "@startofyear": "@StartOfYear",
+};
+
+/** Escapes a string value for safe interpolation inside a WIQL single-quoted literal. */
+function wiqlEscape(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+/** Returns the WIQL macro string for an iteration value, or null if it is a real path. */
+function parseIterationMacro(value: string): string | null {
+  if (value === CURRENT_ITERATION) return "@CurrentIteration";
+  const match = value.match(CURRENT_ITERATION_OFFSET_RE);
+  if (match) return `@CurrentIteration ${match[1]} ${match[2]}`;
+  return null;
+}
+
+/** Returns true if the filter uses any team-scoped macros (@CurrentIteration, @TeamAreas). */
+function requiresTeam(filter: FilterCriteria): boolean {
+  if (filter.areaPaths?.includes(TEAM_AREAS)) return true;
+  if (filter.iterations?.some((i) => parseIterationMacro(i) !== null))
+    return true;
+  return false;
+}
+
+/** Returns the WIQL representation of a date value — macro or quoted literal. */
+function formatDateMacro(value: string): string {
+  const match = value.match(DATE_MACRO_RE);
+  if (!match?.[1]) return `'${wiqlEscape(value)}'`;
+  const canonical = DATE_MACRO_CANONICAL[match[1].toLowerCase()] ?? match[1];
+  if (!match[2] || !match[3]) return canonical;
+  return `${canonical} ${match[2]} ${match[3]}`;
 }
 
 /**
@@ -63,7 +105,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     if (!config.token) {
       throw new PlatformError(
         "Personal Access Token is required",
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -76,12 +118,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.info("AzureDevOps: Authenticating...");
 
       const authHandler = azdev.getPersonalAccessTokenHandler(
-        this.config.token
+        this.config.token,
       );
 
       this.connection = new azdev.WebApi(
-        this.config.organizationUrl,
-        authHandler
+        this.config.organizationUrl.replace(/\/+$/, ""),
+        authHandler,
       );
 
       this.witApi = await this.connection.getWorkItemTrackingApi();
@@ -95,7 +137,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.error("AzureDevOps: Authentication failed", { error: message });
       throw new PlatformError(
         `Authentication failed: ${message}`,
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -115,17 +157,25 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     this.ensureAuthenticated();
 
     try {
-      logger.debug("AzureDevOps: Querying work items", { filter });
+      logger.debug("AzureDevOps: Querying work items");
 
       const wiql = this.buildWiqlQuery(filter);
-      logger.debug("AzureDevOps: WIQL query", { wiql });
+      logger.debug("AzureDevOps: WIQL query built");
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
       }
 
+      const effectiveTeam = filter.team ?? this.config.team;
+      if (requiresTeam(filter) && !effectiveTeam) {
+        throw new ConfigurationError(
+          "A team is required when using @CurrentIteration or @TeamAreas macros. " +
+            "Set AZURE_DEVOPS_TEAM in your environment or add 'team' to the template filter.",
+        );
+      }
+
       const result = await this.witApi.queryByWiql(
         { query: wiql },
-        { project: this.config.project }
+        { project: this.config.project, team: effectiveTeam },
       );
 
       if (!result.workItems || result.workItems.length === 0) {
@@ -147,13 +197,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         WorkItemExpand.All,
         undefined,
-        this.config.project
+        this.config.project,
       );
 
       let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
 
       logger.debug(
-        `Excluding work items with tasks: ${filter.excludeIfHasTasks}`
+        `Excluding work items with tasks: ${filter.excludeIfHasTasks}`,
       );
       if (filter.excludeIfHasTasks) {
         const itemsWithoutTasks: AzureWorkItem[] = [];
@@ -169,7 +219,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
         filtered = itemsWithoutTasks;
         logger.info(
-          `AzureDevOps: ${filtered.length} work item(s) without tasks`
+          `AzureDevOps: ${filtered.length} work item(s) without tasks`,
         );
       }
 
@@ -212,7 +262,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         undefined,
         WorkItemExpand.All,
-        this.config.project
+        this.config.project,
       );
 
       if (!workItem) {
@@ -238,11 +288,11 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     try {
       logger.debug(`AzureDevOps: Creating task for parent ${parentId}`, {
-        task,
+        taskTitle: task.title,
+        assignTo: task.assignTo,
       });
 
       const numericParentId = parseInt(parentId, 10);
-      logger.debug("AzureDevOps: Assigning task", { assignTo: task.assignTo });
       if (Number.isNaN(numericParentId)) {
         throw new Error(`Invalid parent ID: ${parentId}`);
       }
@@ -361,18 +411,6 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         },
       ];
 
-      // Add custom fields
-      if (task.customFields) {
-        for (const [field, value] of Object.entries(task.customFields)) {
-          // biome-ignore lint : The any type is used here for flexibility
-          (patchDocument as Array<any>).push({
-            op: "add",
-            path: `/fields/${field}`,
-            value,
-          });
-        }
-      }
-
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
       }
@@ -381,7 +419,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined, // customHeaders
         patchDocument,
         this.config.project,
-        "Task" // work item type
+        "Task", // work item type
       );
 
       logger.info(`AzureDevOps: Created task ${createdItem.id}: ${task.title}`);
@@ -392,7 +430,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.error(`AzureDevOps: Failed to create task`, { error: message });
       throw new PlatformError(
         `Failed to create task: ${message}`,
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -403,13 +441,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
    */
   async createTasksBulk(
     parentId: string,
-    tasks: TaskDefinition[]
+    tasks: TaskDefinition[],
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
     const concurrency = this.config.maxConcurrency ?? 5;
     logger.debug(
-      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
+      `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`,
     );
 
     const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
@@ -438,7 +476,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     const createdTasks = results.filter((r): r is WorkItem => r !== null);
 
     logger.info(
-      `AzureDevOps: Created ${createdTasks.length} of ${tasks.length} tasks`
+      `AzureDevOps: Created ${createdTasks.length} of ${tasks.length} tasks`,
     );
 
     return createdTasks;
@@ -473,7 +511,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         },
         { project: this.config.project },
         false,
-        1
+        1,
       );
 
       logger.info("Connection test succeeded");
@@ -505,7 +543,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         undefined,
         WorkItemExpand.All,
-        this.config.project
+        this.config.project,
       );
 
       if (!parent || !parent.relations) {
@@ -537,7 +575,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined,
         WorkItemExpand.All,
         WorkItemErrorPolicy.Fail,
-        this.config.project
+        this.config.project,
       );
 
       return children
@@ -558,13 +596,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
    */
   async createDependencyLink(
     dependentId: string,
-    predecessorId: string
+    predecessorId: string,
   ): Promise<void> {
     this.ensureAuthenticated();
 
     try {
       logger.debug(
-        `AzureDevOps: Creating dependency link: ${dependentId} depends on ${predecessorId}`
+        `AzureDevOps: Creating dependency link: ${dependentId} depends on ${predecessorId}`,
       );
 
       const numericDependentId = parseInt(dependentId, 10);
@@ -599,21 +637,21 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined, // customHeaders
         patchDocument,
         numericDependentId,
-        this.config.project
+        this.config.project,
       );
 
       logger.info(
-        `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`
+        `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(
         `AzureDevOps: Failed to create dependency link between ${dependentId} and ${predecessorId}`,
-        { error: message }
+        { error: message },
       );
       throw new PlatformError(
         `Failed to create dependency link: ${message}`,
-        "azure-devops"
+        "azure-devops",
       );
     }
   }
@@ -624,24 +662,46 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private buildWiqlQuery(filter: FilterCriteria): string {
     const conditions: string[] = [];
 
-    conditions.push(`[System.TeamProject] = '${this.config.project}'`);
+    conditions.push(
+      `[System.TeamProject] = '${wiqlEscape(this.config.project)}'`,
+    );
 
     // Work item types
     if (filter.workItemTypes && filter.workItemTypes.length > 0) {
-      const types = filter.workItemTypes.map((t) => `'${t}'`).join(", ");
+      const types = filter.workItemTypes
+        .map((t) => `'${wiqlEscape(t)}'`)
+        .join(", ");
       conditions.push(`[System.WorkItemType] IN (${types})`);
     }
 
-    // States
+    // States (include)
     if (filter.states && filter.states.length > 0) {
-      const states = filter.states.map((s) => `'${s}'`).join(", ");
+      const states = filter.states.map((s) => `'${wiqlEscape(s)}'`).join(", ");
       conditions.push(`[System.State] IN (${states})`);
+    }
+
+    // States (exclude)
+    if (filter.statesExclude && filter.statesExclude.length > 0) {
+      const states = filter.statesExclude
+        .map((s) => `'${wiqlEscape(s)}'`)
+        .join(", ");
+      conditions.push(`[System.State] NOT IN (${states})`);
+    }
+
+    // States (WAS EVER)
+    if (filter.statesWereEver && filter.statesWereEver.length > 0) {
+      const clauses = filter.statesWereEver.map(
+        (s) => `[System.State] WAS EVER '${wiqlEscape(s)}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
     }
 
     // Tags (include)
     if (filter.tags?.include && filter.tags.include.length > 0) {
       const tagConditions = filter.tags.include.map(
-        (tag) => `[System.Tags] CONTAINS '${tag}'`
+        (tag) => `[System.Tags] CONTAINS '${wiqlEscape(tag)}'`,
       );
       conditions.push(`(${tagConditions.join(" OR ")})`);
     }
@@ -649,24 +709,70 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     // Tags (exclude)
     if (filter.tags?.exclude && filter.tags.exclude.length > 0) {
       for (const tag of filter.tags.exclude) {
-        conditions.push(`[System.Tags] NOT CONTAINS '${tag}'`);
+        conditions.push(`[System.Tags] NOT CONTAINS '${wiqlEscape(tag)}'`);
       }
     }
 
     // Area paths
     if (filter.areaPaths && filter.areaPaths.length > 0) {
-      const paths = filter.areaPaths.map((p) => `'${p}'`).join(", ");
-      conditions.push(`[System.AreaPath] IN (${paths})`);
+      const hasTeamAreas = filter.areaPaths.includes(TEAM_AREAS);
+      const realPaths = filter.areaPaths.filter((p) => p !== TEAM_AREAS);
+
+      if (hasTeamAreas && realPaths.length === 0) {
+        conditions.push(`[System.AreaPath] IN (@TeamAreas)`);
+      } else if (!hasTeamAreas && realPaths.length > 0) {
+        const quoted = realPaths.map((p) => `'${wiqlEscape(p)}'`).join(", ");
+        conditions.push(`[System.AreaPath] IN (${quoted})`);
+      } else if (hasTeamAreas && realPaths.length > 0) {
+        const quoted = realPaths.map((p) => `'${wiqlEscape(p)}'`).join(", ");
+        conditions.push(
+          `([System.AreaPath] IN (${quoted}) OR [System.AreaPath] IN (@TeamAreas))`,
+        );
+      }
+    }
+
+    // Area paths (UNDER)
+    if (filter.areaPathsUnder && filter.areaPathsUnder.length > 0) {
+      const clauses = filter.areaPathsUnder.map(
+        (p) => `[System.AreaPath] UNDER '${wiqlEscape(p)}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
     }
 
     // Iterations
     if (filter.iterations && filter.iterations.length > 0) {
-      const iterations = filter.iterations.map((i) => `'${i}'`).join(", ");
-      conditions.push(`[System.IterationPath] IN (${iterations})`);
+      const iterConditions: string[] = [];
+      const realPaths: string[] = [];
+
+      for (const iter of filter.iterations) {
+        const macro = parseIterationMacro(iter);
+        if (macro) {
+          iterConditions.push(`[System.IterationPath] = ${macro}`);
+        } else {
+          realPaths.push(iter);
+        }
+      }
+
+      if (realPaths.length > 0) {
+        const quoted = realPaths.map((i) => `'${wiqlEscape(i)}'`).join(", ");
+        iterConditions.push(`[System.IterationPath] IN (${quoted})`);
+      }
+
+      if (iterConditions.length > 0) {
+        conditions.push(
+          iterConditions.length === 1
+            ? iterConditions.join("")
+            : `(${iterConditions.join(" OR ")})`,
+        );
+      }
     }
 
     if (filter.assignedTo && filter.assignedTo.length > 0) {
-      const users = filter.assignedTo.map((u) => `'${u}'`).join(", ");
+      const users = filter.assignedTo
+        .map((u) => `'${wiqlEscape(u)}'`)
+        .join(", ");
       conditions.push(`[System.AssignedTo] IN (${users})`);
     }
 
@@ -674,19 +780,37 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     if (filter.priority) {
       if (filter.priority.min !== undefined) {
         conditions.push(
-          `[Microsoft.VSTS.Common.Priority] >= ${filter.priority.min}`
+          `[Microsoft.VSTS.Common.Priority] >= ${filter.priority.min}`,
         );
       }
       if (filter.priority.max !== undefined) {
         conditions.push(
-          `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`
+          `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`,
         );
       }
     }
 
-    // Custom query (if provided, use it instead)
-    if (filter.customQuery) {
-      return filter.customQuery;
+    // Iterations (UNDER)
+    if (filter.iterationsUnder && filter.iterationsUnder.length > 0) {
+      const clauses = filter.iterationsUnder.map(
+        (p) => `[System.IterationPath] UNDER '${wiqlEscape(p)}'`,
+      );
+      conditions.push(
+        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
+      );
+    }
+
+    // Date filters
+    if (filter.changedAfter) {
+      conditions.push(
+        `[System.ChangedDate] >= ${formatDateMacro(filter.changedAfter)}`,
+      );
+    }
+
+    if (filter.createdAfter) {
+      conditions.push(
+        `[System.CreatedDate] >= ${formatDateMacro(filter.createdAfter)}`,
+      );
     }
 
     const whereClause = conditions.join(" AND ");
@@ -767,7 +891,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     // Check for child relations (Hierarchy-Forward means this item has children)
     return workItem.relations.some(
-      (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward"
+      (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward",
     );
   }
 
@@ -778,7 +902,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     if (!this.authenticated || !this.witApi) {
       throw new PlatformError(
         "Not authenticated. Call authenticate() first.",
-        "azure-devops"
+        "azure-devops",
       );
     }
   }

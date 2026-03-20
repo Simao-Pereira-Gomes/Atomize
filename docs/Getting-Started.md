@@ -23,7 +23,6 @@ Atomize automatically generates sub-tasks from user stories using smart YAML tem
 - **Creates consistent task breakdowns** across your team
 - **Saves time** on repetitive planning work
 - **Distributes estimation** intelligently across tasks
-- **Supports AI-powered** template generation
 - **Works with** Azure DevOps (Jira & GitHub coming soon)
 
 ### How It Works
@@ -82,7 +81,7 @@ Let's generate tasks for some user stories in **5 minutes**!
 curl -o backend-api.yaml https://raw.githubusercontent.com/Simao-Pereira-Gomes/atomize/main/templates/presets/backend-api.yaml
 
 # Preview without connecting to any platform
-atomize generate backend-api.yaml --platform mock --dry-run
+atomize generate backend-api.yaml --platform mock
 ```
 
 You'll see:
@@ -106,28 +105,28 @@ Tasks created:     0 (dry run)
 
 ### Step 2: Connect to Azure DevOps
 
-```bash
-# Set up environment variables
-export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/yourorg"
-export AZURE_DEVOPS_PROJECT="YourProject"
-export AZURE_DEVOPS_PAT="your-personal-access-token"
+Save your credentials as a named profile:
 
-# Or create a .env file
-cat > .env << EOF
-AZURE_DEVOPS_ORG_URL=https://dev.azure.com/yourorg
-AZURE_DEVOPS_PROJECT=YourProject
-AZURE_DEVOPS_PAT=your-pat-token
-EOF
+```bash
+atomize auth add work-ado
+# Prompts for org URL, project, team, and PAT
+# Set as default when prompted
 ```
 
 **Get a PAT:** `https://dev.azure.com/[your-org]/_usersSettings/tokens`
 **Scopes needed:** Work Items (Read, Write)
 
+Test the connection before generating:
+
+```bash
+atomize auth test work-ado
+```
+
 ### Step 3: Generate Real Tasks
 
 ```bash
-# Dry run first (always recommended)
-atomize generate backend-api.yaml --dry-run
+# Dry run (default — no --execute)
+atomize generate backend-api.yaml
 
 # Execute for real
 atomize generate backend-api.yaml --execute
@@ -141,26 +140,11 @@ That's it! You've generated your first batch of tasks.
 
 Let's create a custom template for your team's workflow.
 
-### Option 1: AI-Powered (Easiest)
-
-```bash
-# Using Google Gemini (free tier)
-export GOOGLE_AI_API_KEY="your-api-key"  # Get from https://makersuite.google.com/app/apikey
-
-atomize template create --ai "backend API with authentication and database"
-```
-
-The AI generates a complete template and lets you refine it interactively:
-- **Accept** — Save the template
-- **Refine** — Provide feedback to improve it
-- **Regenerate** — Try a different version
-- **Cancel** — Discard and exit
-
-### Option 2: Start from Preset
+### Option 1: Start from Preset
 
 ```bash
 # List available presets
-atomize template list
+atomize template presets
 
 # Create from a preset
 atomize template create --preset backend-api
@@ -168,7 +152,7 @@ atomize template create --preset backend-api
 
 Available presets: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack`
 
-### Option 3: Interactive Wizard
+### Option 2: Interactive Wizard
 
 ```bash
 atomize template create --scratch
@@ -182,20 +166,13 @@ Follow the step-by-step wizard:
 5. Validation rules (optional)
 6. Metadata (optional)
 
-### Option 4: Learn from Existing Work
+### Option 3: Learn from Existing Work
 
 ```bash
-# Learn from a single well-structured story
-atomize template create \
-  --from-story STORY-123 \
-  --platform azure-devops \
-  --normalize
-
-# Learn from multiple stories for better pattern detection
+# Learn from multiple stories for pattern detection
 atomize template create \
   --from-stories STORY-100,STORY-115,STORY-132 \
-  --platform azure-devops \
-  --normalize
+  --platform azure-devops
 ```
 
 Atomize analyzes the story's existing tasks and generates a reusable template. When using multiple stories, it detects patterns, scores confidence, and filters outliers. See [Story Learner](./Story-Learner.md) for details.
@@ -208,7 +185,7 @@ Atomize analyzes the story's existing tasks and generates a reusable template. W
 
 ```bash
 # Preview first (always recommended)
-atomize generate my-template.yaml --dry-run
+atomize generate my-template.yaml
 
 # Execute when satisfied
 atomize generate my-template.yaml --execute
@@ -224,7 +201,7 @@ atomize generate my-template.yaml --execute --continue-on-error
 atomize generate my-template.yaml --execute --verbose
 
 # Mock platform (testing, no credentials needed)
-atomize generate my-template.yaml --platform mock --dry-run
+atomize generate my-template.yaml --platform mock
 
 # Increase concurrency for large backlogs
 atomize generate my-template.yaml --execute --story-concurrency 8
@@ -400,11 +377,11 @@ estimation:
 atomize generate templates/backend-api.yaml --execute
 
 # Create a custom template for a special case
-atomize template create --ai "database migration with rollback"
+atomize template create --scratch
 
 # Test the new template
 atomize validate my-new-template.yaml
-atomize generate my-new-template.yaml --dry-run
+atomize generate my-new-template.yaml
 
 # Apply it
 atomize generate my-new-template.yaml --execute
@@ -450,15 +427,20 @@ jobs:
             atomize validate "$template" --strict --quiet
           done
 
-      - name: Generate Tasks
+      - name: Save connection profile
         env:
-          AZURE_DEVOPS_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-          AZURE_DEVOPS_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+          ATOMIZE_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+        run: |
+          atomize auth add ci \
+            --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
+            --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
+            --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
+            --default
+
+      - name: Generate Tasks
         run: |
           atomize generate templates/backend-api.yaml \
             --execute \
-            --no-interactive \
             --continue-on-error
 ```
 
@@ -471,7 +453,7 @@ jobs:
 **Solutions:**
 1. Test with mock platform first:
    ```bash
-   atomize generate my-template.yaml --platform mock --dry-run
+   atomize generate my-template.yaml --platform mock
    ```
 
 2. Make the filter less restrictive:
@@ -485,16 +467,22 @@ jobs:
 ### "Authentication failed"
 
 **Solutions:**
-1. Verify environment variables:
+1. Check what profiles are saved:
    ```bash
-   echo $AZURE_DEVOPS_ORG_URL
-   echo $AZURE_DEVOPS_PROJECT
-   echo $AZURE_DEVOPS_PAT
+   atomize auth list
    ```
 
-2. Check PAT hasn't expired
+2. Test the profile:
+   ```bash
+   atomize auth test work-ado
+   ```
 
-3. Verify PAT has Work Items (Read, Write) scope
+3. If the PAT has expired, rotate it:
+   ```bash
+   atomize auth rotate work-ado
+   ```
+
+4. Verify PAT has Work Items (Read, Write) scope
 
 ### "Validation failed"
 
@@ -508,20 +496,6 @@ jobs:
    - Total estimation not 100%: Adjust task percentages
    - Missing required fields: Add `title` to all tasks
    - Invalid dependencies: Ensure task IDs exist
-
-### "AI not available"
-
-**For Gemini (cloud, free tier):**
-```bash
-export GOOGLE_AI_API_KEY="your-api-key"
-# Get key: https://makersuite.google.com/app/apikey
-```
-
-**For Ollama (local, completely free):**
-```bash
-ollama pull llama3.2
-ollama serve
-```
 
 ---
 

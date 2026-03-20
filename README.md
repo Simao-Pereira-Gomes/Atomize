@@ -9,13 +9,12 @@
 
 **Break down stories, build up velocity.**
 
-Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with AI-powered task breakdowns, preset templates, and smart estimation distribution.
+Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with preset templates, story learning, and smart estimation distribution.
 
 ---
 
 ## Features
 
-- **AI-Powered Generation** - Create templates using Google Gemini or local Ollama (completely free)
 - **Preset Templates** - Start with battle-tested templates for common workflows
 - **Story Learning** - Generate templates by analyzing your existing work items (single or multiple stories)
 - **Pattern Detection** - Identify common task patterns across multiple stories with confidence scoring
@@ -25,7 +24,7 @@ Atomize is a CLI tool that automatically generates granular tasks from user stor
 - **Zero Config** - Works out of the box with sensible defaults
 - **Interactive Wizards** - User-friendly prompts guide you through everything
 - **Built-in Validation** - Catch template errors before they cause problems
-- **CI/CD Ready** - Automation-friendly with `--no-interactive` and JSON report output
+- **CI/CD Ready** - Automation-friendly with JSON report output
 
 ---
 
@@ -56,27 +55,36 @@ bun run dev
 
 ## Quick Start
 
-### 1. Generate Tasks from a Template
+### 1. Connect to Azure DevOps
 
 ```bash
-# Use a preset template
+# Add your first connection profile (interactive wizard)
+atomize auth add work-ado
+
+# Verify it works
+atomize auth test work-ado
+```
+
+You'll be prompted for your Organization URL, project, team, and a [Personal Access Token](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate).
+
+### 2. Generate Tasks from a Template
+
+```bash
+# Use a preset template (dry-run by default — safe to try)
 atomize generate templates/backend-api.yaml
 
-# Interactive mode (prompts for template and options)
+# When ready to create tasks for real
+atomize generate templates/backend-api.yaml --execute
+
+# Interactive mode (prompts for everything)
 atomize generate
 ```
 
-### 2. Create Your First Template
+### 3. Create Your First Template
 
 ```bash
-# AI-powered creation (free!)
-atomize template create --ai "Backend API with authentication"
-
 # From a preset
 atomize template create --preset backend-api
-
-# Learn from one existing story
-atomize template create --from-story STORY-123
 
 # Learn from multiple stories (better pattern detection)
 atomize template create --from-stories STORY-1,STORY-2,STORY-3
@@ -85,7 +93,7 @@ atomize template create --from-stories STORY-1,STORY-2,STORY-3
 atomize template create --scratch
 ```
 
-### 3. Validate a Template
+### 4. Validate a Template
 
 ```bash
 # Lenient mode (default) — only hard errors block use
@@ -113,27 +121,29 @@ atomize generate templates/backend-api.yaml \
   --execute \
   --verbose
 
-# Dry run (preview only — default behavior)
-atomize generate templates/backend-api.yaml --dry-run
+# Dry run (default — no --execute needed)
+atomize generate templates/backend-api.yaml
 
 # CI/CD mode with JSON report
 atomize generate templates/backend-api.yaml \
   --execute \
-  --no-interactive \
+  --yes \
   --output report.json
 ```
 
 **Key Options:**
 - `--platform <type>` - Platform: `azure-devops` or `mock`
+- `--profile <name>` - Named connection profile to use (see `atomize auth add`)
 - `--execute` - Actually create tasks (default is dry-run preview)
-- `--dry-run` - Preview without creating tasks
+- `-y, --yes` - Required with `--execute` in non-interactive mode to acknowledge live task creation
 - `--continue-on-error` - Keep processing if errors occur
 - `--story-concurrency <n>` - Parallel story processing (default: 3, max: 10)
 - `--task-concurrency <n>` - Parallel task creation per story (default: 5, max: 20)
 - `--dependency-concurrency <n>` - Parallel dependency link creation (default: 5, max: 10)
 - `--verbose` - Show detailed output
-- `--no-interactive` - Skip all prompts (for automation)
 - `-o, --output <file>` - Write JSON report to file
+
+In non-interactive mode, `--execute` now requires `--yes`. This prevents unattended task creation from wrapper scripts or CI jobs that did not explicitly acknowledge the mutation.
 
 **Example Output:**
 ```
@@ -153,19 +163,12 @@ Summary:
 #### Create a Template
 
 ```bash
-# best for quick starts
-atomize template create --ai "Create template for React component development"
-
 # From preset (fastest)
 atomize template create --preset frontend-feature
-
-# Learn from a single story (matches your workflow)
-atomize template create --from-story STORY-456 --platform azure-devops
 
 # Learn from multiple stories (best pattern detection)
 atomize template create \
   --from-stories STORY-1,STORY-2,STORY-3 \
-  --normalize \
   --output my-templates/learned.yaml
 
 # Interactive wizard (most control)
@@ -175,7 +178,7 @@ atomize template create --scratch
 #### List Available Presets
 
 ```bash
-atomize template list
+atomize template presets
 ```
 
 **Available Presets:**
@@ -306,50 +309,6 @@ tasks:
 
 ---
 
-## AI-Powered Template Creation
-
-Atomize supports two free AI providers:
-
-### Google Gemini (Cloud — Recommended)
-
-1. Get a free API key: https://makersuite.google.com/app/apikey
-2. Set environment variable:
-   ```bash
-   export GOOGLE_AI_API_KEY="your-key-here"
-   ```
-   For windows
-  ```bash
-    set GOOGLE_AI_API_KEY=your-key
-  ```
-4. Create templates:
-   ```bash
-   atomize template create --ai "Backend API with OAuth authentication"
-   ```
-
-### Ollama (Local — Complete Privacy)
-
-1. Install Ollama: https://ollama.ai
-2. Download a model:
-   ```bash
-   ollama pull llama3.2
-   ```
-3. Start the service:
-   ```bash
-   ollama serve
-   ```
-4. Create templates:
-   ```bash
-   atomize template create --ai-provider ollama --ai "Mobile-first React component"
-   ```
-
-### AI Tips
-
-- Be specific: "Backend API with JWT auth, rate limiting, and PostgreSQL"
-- Specify testing requirements: "Include unit tests and E2E tests"
-- Use the refinement loop to iterate: Accept, Refine, Regenerate, or Cancel
-
----
-
 ## Platform Setup
 
 ### Azure DevOps
@@ -358,24 +317,28 @@ Atomize supports two free AI providers:
    - Go to: `https://dev.azure.com/[your-org]/_usersSettings/tokens`
    - Create token with `Work Items (Read, Write)` scope
 
-2. **Configure Environment Variables**
+2. **Save a connection profile**
    ```bash
-   export AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
-   export AZURE_DEVOPS_PROJECT="YourProject"
-   export AZURE_DEVOPS_PAT="your-personal-access-token"
-   ```
-   For Windows
-    ```bash
-   set AZURE_DEVOPS_ORG_URL="https://dev.azure.com/your-org"
-   set AZURE_DEVOPS_PROJECT="YourProject"
-   set AZURE_DEVOPS_PAT="your-personal-access-token"
+   atomize auth add work-ado
+   # Prompts for org URL, project, team, and PAT
    ```
 
-4. **Or Use Interactive Setup**
+3. **Test the connection**
    ```bash
-   atomize generate templates/backend-api.yaml
-   # CLI will prompt for configuration
+   atomize auth test work-ado
    ```
+
+4. **Generate tasks**
+   ```bash
+   # Use the profile explicitly
+   atomize generate templates/backend-api.yaml --profile work-ado
+
+   # Or set it as default once
+   atomize auth use work-ado
+   atomize generate templates/backend-api.yaml
+   ```
+
+See `atomize auth --help` for all profile management commands (`list`, `remove`, `rotate`).
 
 ### Mock Platform (Testing)
 
@@ -435,7 +398,6 @@ validation:
 atomize template create \
   --from-stories STORY-100,STORY-115,STORY-132,STORY-148 \
   --platform azure-devops \
-  --normalize \
   --output team-templates/backend-standard.yaml
 
 # Validate the learned template
@@ -453,14 +415,21 @@ atomize generate team-templates/backend-standard.yaml --execute
 
 ```yaml
 filter:
+  team: "Backend Team"                    # Override team (replaces AZURE_DEVOPS_TEAM env var)
   workItemTypes: ["User Story", "Bug"]
   states: ["New", "Approved"]
+  statesExclude: ["Done", "Removed"]      # Exclude items in these states
+  statesWereEver: ["In Review"]           # Items that were ever in these states
   tags:
     include: ["backend"]
     exclude: ["deprecated"]
-  areaPaths: ["MyProject\\Backend\\API"]
-  iterations: ["Sprint 23", "Sprint 24"]
-  assignedTo: ["john@company.com", "jane@company.com"]
+  areaPaths: ["MyProject\\Backend\\API"]  # Exact match
+  areaPathsUnder: ["MyProject\\Backend"]  # Match and all sub-areas
+  iterations: ["@CurrentIteration"]       # Current sprint
+  iterationsUnder: ["MyProject\\Release 2"] # All sprints under a release
+  assignedTo: ["@Me", "jane@company.com"]
+  changedAfter: "@Today-7"               # Changed in the last 7 days
+  createdAfter: "@Today-30"              # Created in the last 30 days
   priority:
     min: 1
     max: 2
@@ -480,6 +449,71 @@ estimation:
   minimumTaskPoints: 0.5    # Minimum points per task
   ifParentHasNoEstimation: "skip"   # skip, warn, use-default
 ```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|---|---|---|
+| `ATOMIZE_PROFILE` | Default connection profile when `--profile` is not specified | _(none)_ |
+| `LOG_LEVEL` | Log verbosity: `error`, `warn`, `info`, `debug` | `warn` |
+
+#### macOS / Linux
+
+Add to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) and restart your terminal:
+
+```bash
+export ATOMIZE_PROFILE=work-ado   # Default connection profile
+export LOG_LEVEL=warn             # Log verbosity (optional)
+```
+
+#### Windows (PowerShell)
+
+To persist across sessions, set them as user environment variables:
+
+```powershell
+[Environment]::SetEnvironmentVariable("ATOMIZE_PROFILE", "work-ado", "User")
+[Environment]::SetEnvironmentVariable("LOG_LEVEL", "warn", "User")
+```
+
+Or for the current session only:
+
+```powershell
+$env:ATOMIZE_PROFILE = "work-ado"
+$env:LOG_LEVEL       = "warn"
+```
+
+#### Windows (Command Prompt)
+
+For the current session only:
+
+```cmd
+set ATOMIZE_PROFILE=work-ado
+set LOG_LEVEL=warn
+```
+
+To persist, use **System Properties → Environment Variables** or `setx`:
+
+```cmd
+setx ATOMIZE_PROFILE "work-ado"
+```
+
+> **Note:** `setx` changes take effect in new terminal windows, not the current one.
+
+#### Using `--env-file` for explicit file-based config
+
+If you prefer file-based configuration (e.g. in CI/CD), pass `--env-file` explicitly:
+
+```bash
+# macOS / Linux
+atomize --env-file ~/.config/atomize.env generate templates/backend-api.yaml
+
+# Windows (PowerShell)
+atomize --env-file $env:USERPROFILE\.config\atomize.env generate templates/backend-api.yaml
+```
+
+Shell environment variables always take precedence over values in the file, so it is safe to use `--env-file` as a fallback without risk of overriding real environment config.
+
+See `.env.example` in the repository for a documented template.
 
 ---
 
@@ -517,11 +551,17 @@ bun run build
 ### "Not authenticated" error
 
 ```bash
-# Check environment variables are set
-echo $AZURE_DEVOPS_PAT
+# Check what profiles are saved
+atomize auth list
 
-# Or use interactive mode (will prompt)
-atomize generate templates/backend-api.yaml
+# Add a profile if none exist
+atomize auth add work-ado
+
+# Test the profile
+atomize auth test work-ado
+
+# Use it explicitly
+atomize generate templates/backend-api.yaml --profile work-ado
 ```
 
 ### "Template validation failed"
@@ -534,18 +574,6 @@ atomize validate templates/my-template.yaml --verbose
 # - Total estimation must equal 100%
 # - Task dependencies reference non-existent IDs
 # - Missing required fields
-```
-
-### "AI provider not available"
-
-```bash
-# For Gemini
-export GOOGLE_AI_API_KEY="your-key"
-set GOOGLE_AI_API_KEY="your-key"
-
-# For Ollama
-ollama serve          # Must be running
-ollama pull llama3.2  # Model must be downloaded
 ```
 
 ---

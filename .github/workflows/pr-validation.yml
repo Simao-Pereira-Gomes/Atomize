@@ -2,7 +2,9 @@ name: PR Validation
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    
+
+permissions: {}
+
 jobs:
   validate:
     permissions:
@@ -106,7 +108,10 @@ jobs:
     name: Dependency Review
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -119,7 +124,9 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

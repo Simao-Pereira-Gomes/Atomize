@@ -1,17 +1,38 @@
 #!/usr/bin/env node
-import "dotenv/config";
 import chalk from "chalk";
 import { Command } from "commander";
+import { name, version } from "../../package.json";
+import { authCommand } from "./commands/auth/auth.command";
 import { generateCommand } from "./commands/generate.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
+import { loadEnvFile } from "./env-loader";
+import { runUpdateNotifier } from "./update-notifier";
+
+await runUpdateNotifier({ name, version });
 
 const program = new Command();
 
 program
 	.name("atomize")
 	.description("Automatically generate tasks from user stories")
-	.version("0.1.0");
+	.version(version)
+	.option(
+		"--env-file <path>",
+		"load environment variables from file (shell env takes precedence)",
+	);
+
+program.hook("preAction", () => {
+	const { envFile } = program.opts();
+	if (envFile) {
+		try {
+			loadEnvFile(envFile);
+		} catch (err) {
+			console.error(chalk.red(`Error: ${(err as Error).message}`));
+			process.exit(1);
+		}
+	}
+});
 
 const banner = `
 ${chalk.cyan("    ___  __                  _         ")}
@@ -24,11 +45,11 @@ ${chalk.gray("Break down stories, build up velocity.")}
 `;
 
 program.addHelpText("beforeAll", banner);
+program.addCommand(authCommand);
 program.addCommand(validateCommand);
 program.addCommand(generateCommand);
 program.addCommand(templateCommand);
 if (process.argv.length === 2) {
-	console.log(banner);
 	program.help();
 }
 
