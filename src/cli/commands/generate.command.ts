@@ -12,7 +12,9 @@ import {
   text,
 } from "@clack/prompts";
 import { logger } from "@config/logger";
+import type { AtomizationReport, StoryAtomizationResult } from "@core/atomizer";
 import { Atomizer, type ProgressEvent } from "@core/atomizer";
+import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { TemplateLoader } from "@templates/loader";
 import { TemplateValidator } from "@templates/validator";
@@ -24,8 +26,28 @@ import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   isInteractiveTerminal,
+  sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter } from "@/platforms";
+
+
+/** Strips sensitive fields from a WorkItem for safe report output. */
+function sanitizeWorkItem(item: WorkItem): WorkItem {
+  const { description: _d, customFields: _cf, platformSpecific: _ps, children, ...safe } = item;
+  return children ? { ...safe, children: children.map(sanitizeWorkItem) } : safe;
+}
+
+/** Returns a copy of the report with sensitive fields stripped from all work items. */
+export function sanitizeReport(report: AtomizationReport): AtomizationReport {
+  return {
+    ...report,
+    results: report.results.map((result: StoryAtomizationResult) => ({
+      ...result,
+      story: sanitizeWorkItem(result.story),
+      tasksCreated: result.tasksCreated.map(sanitizeWorkItem),
+    })),
+  };
+}
 
 /**
  * Returns a print function that writes to stdout only when quiet mode is off.
@@ -81,13 +103,13 @@ export function createProgressHandler(
       case "story_start":
         if (!isTTYSession)
           print(
-            `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${event.story?.id}...`,
+            `Processing ${(event.storyIndex ?? 0) + 1}/${event.totalStories}: ${sanitizeTty(event.story?.id)}...`,
           );
         break;
       case "story_complete":
         if (isTTYSession && storyProgressRef.current) {
           logSuccess(
-            `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+            `[${event.completedStories}/${event.totalStories}] ${sanitizeTty(event.story?.id)}: ${sanitizeTty(event.story?.title)}`,
           );
           storyProgressRef.current.advance(
             1,
@@ -95,14 +117,14 @@ export function createProgressHandler(
           );
         } else {
           print(
-            `✓ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.story?.title}`,
+            `✓ [${event.completedStories}/${event.totalStories}] ${sanitizeTty(event.story?.id)}: ${sanitizeTty(event.story?.title)}`,
           );
         }
         break;
       case "story_error":
         if (isTTYSession && storyProgressRef.current) {
           logError(
-            `[${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+            `[${event.completedStories}/${event.totalStories}] ${sanitizeTty(event.story?.id)}: ${sanitizeTty(event.error)}`,
           );
           storyProgressRef.current.advance(
             1,
@@ -110,7 +132,7 @@ export function createProgressHandler(
           );
         } else {
           print(
-            `✗ [${event.completedStories}/${event.totalStories}] ${event.story?.id}: ${event.error}`,
+            `✗ [${event.completedStories}/${event.totalStories}] ${sanitizeTty(event.story?.id)}: ${sanitizeTty(event.error)}`,
           );
         }
         break;
@@ -167,10 +189,6 @@ async function loadAndValidateTemplate(
   logger.info(`Loading template: ${templatePath}`);
   const template = await new TemplateLoader().load(templatePath);
 
-  console.log(chalk.cyan(`Template: ${template.name}`));
-  print(chalk.gray(`Description: ${template.description || "N/A"}`));
-  print(chalk.gray(`Tasks: ${template.tasks.length}\n`));
-
   logger.info("Validating template...");
   const validation = new TemplateValidator().validate(template);
 
@@ -181,6 +199,10 @@ async function loadAndValidateTemplate(
     }
     process.exit(ExitCode.Failure);
   }
+
+  console.log(chalk.cyan(`Template: ${sanitizeTty(template.name)}`));
+  print(chalk.gray(`Description: ${sanitizeTty(template.description) || "N/A"}`));
+  print(chalk.gray(`Tasks: ${template.tasks.length}\n`));
 
   if (validation.warnings.length > 0) {
     print(chalk.yellow(" Template warnings:"));
@@ -319,7 +341,7 @@ export function printReport(
     console.log(chalk.cyan(" Details:\n"));
     for (const result of report.results) {
       if (result.success) {
-        console.log(chalk.green(`✓ ${result.story.id}: ${result.story.title}`));
+        console.log(chalk.green(`✓ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
         console.log(chalk.gray(`  Estimation: ${result.story.estimation || 0} points`));
         console.log(chalk.gray(`  Tasks: ${result.tasksCalculated.length}`));
         if (result.estimationSummary) {
@@ -332,12 +354,12 @@ export function printReport(
         if (options.verbose && result.tasksCalculated.length > 0) {
           console.log(chalk.gray("  Task breakdown:"));
           for (const task of result.tasksCalculated) {
-            console.log(chalk.gray(`    - ${task.title}: ${task.estimation} points (${task.estimationPercent}%)`));
+            console.log(chalk.gray(`    - ${sanitizeTty(task.title)}: ${task.estimation} points (${task.estimationPercent}%)`));
           }
         }
       } else {
-        console.log(chalk.red(`✗ ${result.story.id}: ${result.story.title}`));
-        console.log(chalk.red(`  Error: ${result.error}`));
+        console.log(chalk.red(`✗ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
+        console.log(chalk.red(`  Error: ${sanitizeTty(result.error)}`));
       }
       console.log("");
     }
@@ -346,7 +368,7 @@ export function printReport(
   if (report.errors.length > 0) {
     console.log(chalk.red.bold("Errors:\n"));
     for (const err of report.errors) {
-      console.log(chalk.red(`  • ${err.storyId}: ${err.error}`));
+      console.log(chalk.red(`  • ${sanitizeTty(err.storyId)}: ${sanitizeTty(err.error)}`));
     }
     console.log("");
   }
@@ -383,6 +405,11 @@ export const generateCommand = new Command("generate")
   .addOption(new Option("--dependency-concurrency <number>", "Max concurrent dependency links to create").default("5").hideHelp())
   .option("-v, --verbose", "Show detailed output", false)
   .option("-o, --output <file>", "Write JSON report to file")
+  .option(
+    "--include-sensitive-report-data",
+    "Include work item descriptions, custom fields, and platform-specific data in the JSON report (--output only)",
+    false,
+  )
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .action(async (templateArg: string | undefined, options) => {
@@ -484,21 +511,30 @@ export const generateCommand = new Command("generate")
       if (isTTYSession) querySpinner.start("Querying work items...");
       else print("Querying work items...");
 
-      const report = await atomizer.atomize(template, {
-        dryRun,
-        continueOnError: options.continueOnError,
-        storyConcurrency,
-        dependencyConcurrency,
-        onProgress: createProgressHandler(
-          isTTYSession,
-          querySpinner,
-          storyProgressRef,
-          print,
-          log.success,
-          log.error,
-          (total) => progress({ max: total, style: "block" }),
+      const ATOMIZE_TIMEOUT_MS = 5 * 60 * 1_000;
+      const report = await Promise.race([
+        atomizer.atomize(template, {
+          dryRun,
+          continueOnError: options.continueOnError,
+          storyConcurrency,
+          dependencyConcurrency,
+          onProgress: createProgressHandler(
+            isTTYSession,
+            querySpinner,
+            storyProgressRef,
+            print,
+            log.success,
+            log.error,
+            (total) => progress({ max: total, style: "block" }),
+          ),
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Generation timed out after 5 minutes. The Azure DevOps API may be unresponsive.")),
+            ATOMIZE_TIMEOUT_MS,
+          ),
         ),
-      });
+      ]);
 
       if (report.storiesProcessed > 0) {
         if (isTTYSession && storyProgressRef.current) storyProgressRef.current.stop("Processing complete");
@@ -508,8 +544,14 @@ export const generateCommand = new Command("generate")
       const exitCode = printReport(report, options, dryRun);
 
       if (options.output) {
-        await writeFile(options.output, JSON.stringify(report, null, 2), "utf-8");
-        if (!isQuiet) console.log(chalk.gray(`\n  Report saved to ${options.output}`));
+        const reportToWrite = options.includeSensitiveReportData ? report : sanitizeReport(report);
+        await writeFile(options.output, JSON.stringify(reportToWrite, null, 2), { encoding: "utf-8", mode: 0o600 });
+        if (!isQuiet) {
+          console.log(chalk.gray(`\n  Report saved to ${options.output}`));
+          if (options.includeSensitiveReportData) {
+            console.log(chalk.yellow(`  Note: report contains full work-item data (descriptions, custom fields). Keep it out of shared or CI artifact directories.`));
+          }
+        }
       }
 
       outro(
@@ -523,10 +565,6 @@ export const generateCommand = new Command("generate")
       cancel("Generation failed");
       if (error instanceof Error) {
         console.log(chalk.red(error.message));
-        if (options.verbose) {
-          console.log("");
-          console.log(chalk.gray(error.stack));
-        }
       }
       process.exit(ExitCode.Failure);
     }
