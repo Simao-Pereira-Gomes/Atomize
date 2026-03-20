@@ -1,28 +1,64 @@
+import { randomUUID } from "node:crypto";
+import { logger } from "@config/logger";
 import { AuthError } from "@utils/errors";
 import type keytar from "keytar";
 import type { EncryptedToken } from "./connections.interface";
 import { decryptWithKeyfile, encryptWithKeyfile } from "./keyfile.service";
 
 type KeytarModule = typeof keytar;
+type KeytarProbe = Pick<KeytarModule, "setPassword" | "getPassword" | "deletePassword">;
 
 let _keytar: KeytarModule | null | undefined;
 
 async function getKeytar(): Promise<KeytarModule | null> {
   if (_keytar !== undefined) return _keytar;
   try {
-    _keytar = (await import("keytar")) as KeytarModule;
+    _keytar = normalizeKeytarModule(await import("keytar"));
     return _keytar;
-  } catch {
+  } catch (error) {
+    logger.debug(`Failed to load keytar: ${describeError(error)}`);
     _keytar = null;
     return null;
   }
 }
 
-export async function keychainAvailable(): Promise<boolean> {
-  return (await getKeytar()) !== null;
+const SERVICE_NAME = "atomize";
+
+export async function probeKeychainAccess(
+  keytarModule: KeytarProbe,
+  probeId: string,
+  onError: (error: unknown) => void = () => {},
+): Promise<boolean> {
+  const service = `${SERVICE_NAME}-probe`;
+  const account = `atomize-probe-${probeId}`;
+  const secret = `atomize-probe-secret-${probeId}`;
+
+  try {
+    await keytarModule.setPassword(service, account, secret);
+    const stored = await keytarModule.getPassword(service, account);
+    await keytarModule.deletePassword(service, account);
+    return stored === secret;
+  } catch (error) {
+    onError(error);
+    try {
+      await keytarModule.deletePassword(service, account);
+    } catch {
+      // Best-effort cleanup only.
+    }
+    return false;
+  }
 }
 
-const SERVICE_NAME = "atomize";
+export async function keychainAvailable(): Promise<boolean> {
+  const kt = await getKeytar();
+  if (!kt) {
+    return false;
+  }
+
+  return probeKeychainAccess(kt, randomUUID(), (error) => {
+    logger.debug(`Keychain probe failed: ${describeError(error)}`);
+  });
+}
 
 export async function storeToken(
   profileName: string,
@@ -34,7 +70,8 @@ export async function storeToken(
     try {
       await kt.setPassword(SERVICE_NAME, profileName, token);
       return { strategy: "keychain" };
-    } catch {
+    } catch (error) {
+      logger.debug(`Failed to store token in keychain: ${describeError(error)}`);
       // Keychain write failed — fall through to keyfile if explicitly allowed.
     }
   }
@@ -76,9 +113,18 @@ export async function deleteToken(
     if (kt) {
       try {
         await kt.deletePassword(SERVICE_NAME, profileName);
-      } catch {
+      } catch (error) {
+        logger.debug(`Failed to delete token from keychain: ${describeError(error)}`);
         // Ignore keychain cleanup errors so token rotation/removal can continue.
       }
     }
   }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function normalizeKeytarModule<T extends object>(imported: T | { default: T }): T {
+  return "default" in imported ? imported.default : imported;
 }

@@ -7,7 +7,7 @@ const consoleFormat = printf(({ level, message, timestamp }) => {
 });
 
 export const logger = winston.createLogger({
-	level: process.env.LOG_LEVEL || "warn",
+	level: process.env.ATOMIZE_DEBUG === "1" ? "debug" : process.env.LOG_LEVEL || "warn",
 	format: combine(timestamp({ format: "HH:mm:ss" }), consoleFormat),
 	transports: [
 		new winston.transports.Console({
