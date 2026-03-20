@@ -38,9 +38,10 @@ export async function promptNewPat(): Promise<string> {
 export async function rotateToken(
   profile: ConnectionProfile,
   newPat: string,
+  { allowKeyfileStorage = false }: { allowKeyfileStorage?: boolean } = {},
 ): Promise<{ useKeychain: boolean }> {
   await deleteToken(profile.name, profile.token);
-  const tokenData = await storeToken(profile.name, newPat);
+  const tokenData = await storeToken(profile.name, newPat, { allowKeyfileStorage });
   await saveProfile({ ...profile, token: tokenData, updatedAt: new Date().toISOString() });
   return { useKeychain: tokenData.strategy === "keychain" };
 }

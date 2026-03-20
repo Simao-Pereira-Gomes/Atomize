@@ -1,6 +1,8 @@
-import { cancel, intro, outro, spinner } from "@clack/prompts";
+import { cancel, confirm, intro, log, outro, spinner } from "@clack/prompts";
+import { keychainAvailable } from "@config/keychain.service";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
+import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 import {
   hasProfiles,
   loadProfileOrFail,
@@ -12,7 +14,12 @@ import {
 export const authRotateCommand = new Command("rotate")
   .description("Replace the access token for a connection profile")
   .argument("[name]", "Profile name (uses default if omitted)")
-  .action(async (nameArg: string | undefined) => {
+  .option(
+    "--insecure-storage",
+    "Allow storing the token in an insecure local file fallback when the OS keychain is unavailable",
+    false,
+  )
+  .action(async (nameArg: string | undefined, options: { insecureStorage?: boolean }) => {
     intro(" Atomize — Rotate Token");
 
     if (!(await hasProfiles())) {
@@ -30,11 +37,31 @@ export const authRotateCommand = new Command("rotate")
 
     const newPat = await promptNewPat();
 
+    const keychainOk = await keychainAvailable();
+    let allowKeyfileStorage = options.insecureStorage ?? false;
+
+    if (!keychainOk && !allowKeyfileStorage) {
+      const insecureMsg =
+        "System keychain is unavailable. The token would be stored in an insecure local file fallback — " +
+        "anyone who can read ~/.atomize/ can recover it.";
+      log.warn(insecureMsg);
+      allowKeyfileStorage = assertNotCancelled(
+        await confirm({
+          message: "Continue with the insecure local file fallback?",
+          initialValue: false,
+        }),
+      );
+      if (!allowKeyfileStorage) {
+        cancel("Aborted — token not rotated.");
+        process.exit(ExitCode.Failure);
+      }
+    }
+
     const rotationSpinner = spinner();
     rotationSpinner.start("Rotating token...");
 
     try {
-      const { useKeychain } = await rotateToken(profile, newPat);
+      const { useKeychain } = await rotateToken(profile, newPat, { allowKeyfileStorage });
       rotationSpinner.stop(
         `Token rotated (stored in ${useKeychain ? "OS keychain" : "insecure local file fallback"})`,
       );

@@ -158,7 +158,7 @@ describe("persistProfile", () => {
       project: "Proj",
       team: "Team",
       pat: "some-pat-token",
-    });
+    }, { allowKeyfileStorage: true });
 
     // In test environments keytar is typically unavailable → keyfile
     expect(typeof useKeychain).toBe("boolean");
@@ -180,7 +180,7 @@ describe("persistProfile", () => {
       project: "P",
       team: "T",
       pat: "my-secret-token",
-    });
+    }, { allowKeyfileStorage: true });
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
@@ -251,7 +251,7 @@ describe("rotateToken", () => {
     const profile = await makeKeyfileProfile("rotate-test");
     await saveProfile(profile);
 
-    const { useKeychain } = await rotateToken(profile, "new-pat-token");
+    const { useKeychain } = await rotateToken(profile, "new-pat-token", { allowKeyfileStorage: true });
 
     expect(typeof useKeychain).toBe("boolean");
 
@@ -268,7 +268,7 @@ describe("rotateToken", () => {
     const profile = await makeKeyfileProfile("rotate-metadata");
     await saveProfile(profile);
 
-    await rotateToken(profile, "brand-new-token");
+    await rotateToken(profile, "brand-new-token", { allowKeyfileStorage: true });
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
@@ -283,7 +283,7 @@ describe("rotateToken", () => {
     const profile = await makeKeyfileProfile("rotate-timestamp");
     await saveProfile(profile);
 
-    await rotateToken(profile, "another-token");
+    await rotateToken(profile, "another-token", { allowKeyfileStorage: true });
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
