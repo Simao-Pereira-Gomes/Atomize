@@ -15,6 +15,21 @@ export function isInteractiveTerminal(): boolean {
   return isTTY(process.stdout) && !isCI();
 }
 
+/**
+ * Strips ANSI escape sequences and C0/C1 control characters from a string
+ * before it is written to the terminal. Use on any value that originated
+ * outside the current process (disk, network, user input stored on disk).
+ */
+export function sanitizeTty(value: unknown): string {
+  return (
+    String(value ?? "")
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — strips ANSI/VT escape sequences
+      .replace(/\x1b(?:\[[0-9;]*[a-zA-Z]|[@-Z\\-_])/g, "")
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — strips C0 control characters (preserves \t \n \r)
+      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+  );
+}
+
 const emailSchema = z.string().email();
 
 /**

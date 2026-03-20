@@ -2,6 +2,7 @@ import { intro, outro } from "@clack/prompts";
 import { readConnectionsFile } from "@config/connections.config";
 import chalk from "chalk";
 import { Command } from "commander";
+import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 
 export const authListCommand = new Command("list")
   .alias("ls")
@@ -20,15 +21,16 @@ export const authListCommand = new Command("list")
     const defaultMark = (name: string) => name === file.defaultProfile ? chalk.green(" (default)") : "";
 
     for (const profile of file.profiles) {
+      const name = sanitizeTty(profile.name);
       const tokenDisplay = chalk.gray("[stored]");
-      console.log(`  ${chalk.cyan(profile.name)}${defaultMark(profile.name)}`);
-      console.log(`    Platform: ${profile.platform}`);
-      console.log(`    URL:      ${profile.organizationUrl}`);
-      console.log(`    Project:  ${profile.project}`);
-      console.log(`    Team:     ${profile.team}`);
+      console.log(`  ${chalk.cyan(name)}${defaultMark(profile.name)}`);
+      console.log(`    Platform: ${sanitizeTty(profile.platform)}`);
+      console.log(`    URL:      ${sanitizeTty(profile.organizationUrl)}`);
+      console.log(`    Project:  ${sanitizeTty(profile.project)}`);
+      console.log(`    Team:     ${sanitizeTty(profile.team)}`);
       console.log(`    Token:    ${tokenDisplay}`);
-      console.log(`    Created:  ${profile.createdAt.slice(0, 16).replace("T", " ")}`);
-      console.log(`    Updated:  ${profile.updatedAt.slice(0, 16).replace("T", " ")}`);
+      console.log(`    Created:  ${sanitizeTty(profile.createdAt).slice(0, 16).replace("T", " ")}`);
+      console.log(`    Updated:  ${sanitizeTty(profile.updatedAt).slice(0, 16).replace("T", " ")}`);
       console.log("");
     }
 

@@ -36,7 +36,7 @@ export const authRotateCommand = new Command("rotate")
     try {
       const { useKeychain } = await rotateToken(profile, newPat);
       rotationSpinner.stop(
-        `Token rotated (stored in ${useKeychain ? "OS keychain" : "encrypted file"})`,
+        `Token rotated (stored in ${useKeychain ? "OS keychain" : "insecure local file fallback"})`,
       );
       outro(`Profile "${name}" updated.`);
     } catch (error) {
