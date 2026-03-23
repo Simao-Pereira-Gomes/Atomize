@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { cancel, confirm, intro, log, outro, spinner } from "@clack/prompts";
+import { cancel, confirm, intro, log, outro } from "@clack/prompts";
 import { keychainAvailable } from "@config/keychain.service";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
+  createManagedSpinner,
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import {
@@ -166,7 +167,7 @@ export const authAddCommand = new Command("add")
       }
     }
 
-    const savingSpinner = ci ? null : spinner();
+    const savingSpinner = ci ? null : createManagedSpinner();
     savingSpinner?.start("Saving profile...");
 
     try {

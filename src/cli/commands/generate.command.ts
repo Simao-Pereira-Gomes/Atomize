@@ -8,7 +8,6 @@ import {
   outro,
   progress,
   select,
-  spinner,
   text,
 } from "@clack/prompts";
 import { logger } from "@config/logger";
@@ -25,6 +24,7 @@ import { match } from "ts-pattern";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
+  createManagedSpinner,
   isInteractiveTerminal,
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
@@ -61,7 +61,11 @@ export async function writeReportFile(
     encoding: "utf-8",
     mode: 0o600,
   });
-  await chmod(outputPath, 0o600);
+
+  // Windows file permissions are ACL-based; chmod/stat POSIX mode bits are not reliable there.
+  if (process.platform !== "win32") {
+    await chmod(outputPath, 0o600);
+  }
 }
 
 export function getNonInteractiveLiveExecutionError(options: {
@@ -503,7 +507,7 @@ export const generateCommand = new Command("generate")
       const { storyConcurrency, taskConcurrency, dependencyConcurrency } = parseConcurrency(options, print);
       const platform_ = await initPlatform({ platform, profile: options.profile }, taskConcurrency);
 
-      const authSpinner = spinner();
+      const authSpinner = createManagedSpinner();
       if (isTTYSession) authSpinner.start("Authenticating...");
       const AUTH_TIMEOUT_MS = 15_000;
       await Promise.race([
@@ -572,7 +576,7 @@ export const generateCommand = new Command("generate")
       }
 
       logger.info("Starting atomization...");
-      const querySpinner = spinner();
+      const querySpinner = createManagedSpinner();
       const storyProgressRef: { current: ProgressHandle | undefined } = { current: undefined };
 
       if (isTTYSession) querySpinner.start("Querying work items...");

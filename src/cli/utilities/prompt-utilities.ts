@@ -10,6 +10,8 @@ import {
 import z from "zod";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
+export { createManagedSpinner } from "@/cli/utilities/terminal-output";
+
 /** Returns true when running in a real interactive terminal (not piped/CI). */
 export function isInteractiveTerminal(): boolean {
   return isTTY(process.stdout) && !isCI();

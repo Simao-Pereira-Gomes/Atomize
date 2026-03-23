@@ -306,18 +306,25 @@ describe("writeReportFile", () => {
     }
   });
 
-  test("forces owner-only permissions even when overwriting an existing file", async () => {
+  test("enforces strict file permissions where POSIX modes are supported", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "atomize-generate-test-"));
     const outputPath = join(tempDir, "report.json");
 
     try {
       await writeFile(outputPath, "{}", { encoding: "utf-8", mode: 0o644 });
-      await chmod(outputPath, 0o644);
+      if (process.platform !== "win32") {
+        await chmod(outputPath, 0o644);
+      }
 
       await writeReportFile(outputPath, makeReport(), false);
 
-      const mode = (await stat(outputPath)).mode & 0o777;
-      expect(mode).toBe(0o600);
+      if (process.platform === "win32") {
+        const raw = await readFile(outputPath, "utf-8");
+        expect(raw).toContain("\"templateName\": \"test-template\"");
+      } else {
+        const mode = (await stat(outputPath)).mode & 0o777;
+        expect(mode).toBe(0o600);
+      }
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
