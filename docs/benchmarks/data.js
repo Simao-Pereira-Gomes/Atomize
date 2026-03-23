@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774027159250,
+  "lastUpdate": 1774305025485,
   "repoUrl": "https://github.com/Simao-Pereira-Gomes/Atomize",
   "entries": {
     "Atomize Benchmarks": [
@@ -174,6 +174,65 @@ window.BENCHMARK_DATA = {
           {
             "name": "Build Map 500 tasks",
             "value": 52236.8303802141,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "81998432+Simao-Pereira-Gomes@users.noreply.github.com",
+            "name": "Simao-Pereira-Gomes",
+            "username": "Simao-Pereira-Gomes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dbab48951415f82d189e25915d10ccdfb11869a8",
+          "message": "fix: Remove debug log and improve terminal output coordination (#46)\n\n* fix: remove debug log for Azure DevOps connection testing\n\n* fix: implement managed spinner for improved terminal output coordination\n\n* 1.2.3\n\n* chore: update version to 1.2.4 in package.json and package-lock.json",
+          "timestamp": "2026-03-23T22:29:58Z",
+          "tree_id": "6819fbe1b6a17764a8a1842e4f2a5dce6724fb8c",
+          "url": "https://github.com/Simao-Pereira-Gomes/Atomize/commit/dbab48951415f82d189e25915d10ccdfb11869a8"
+        },
+        "date": 1774305024899,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Validate 50 tasks",
+            "value": 40761.96731171548,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 100 tasks",
+            "value": 76113.96423562412,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 200 tasks",
+            "value": 139765.22323462414,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 500 tasks",
+            "value": 373944.1743421053,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 100 tasks (Chain)",
+            "value": 203281.07097933514,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 500 tasks (Chain)",
+            "value": 3706431.704301075,
+            "unit": "ns"
+          },
+          {
+            "name": "Build Map 500 tasks",
+            "value": 48838.85468916249,
             "unit": "ns"
           }
         ]
