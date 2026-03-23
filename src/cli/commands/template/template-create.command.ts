@@ -8,7 +8,6 @@ import {
   intro,
   outro,
   select,
-  spinner,
   text,
 } from "@clack/prompts";
 import { logger } from "@config/logger";
@@ -23,6 +22,7 @@ import { stringify as stringifyYaml } from "yaml";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
+  createManagedSpinner,
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter, PlatformType } from "@/platforms";
@@ -228,7 +228,7 @@ async function validateStoryIds(
 ): Promise<string[]> {
   if (!platform.getWorkItem) return storyIds;
 
-  const validateSpinner = spinner();
+  const validateSpinner = createManagedSpinner();
   validateSpinner.start(`Validating ${storyIds.length} story ID(s)...`);
 
   const results = await Promise.all(
@@ -311,7 +311,7 @@ async function createFromStories(
 
   const shouldNormalize = options.normalize !== false;
 
-  const connectSpinner = spinner();
+  const connectSpinner = createManagedSpinner();
   connectSpinner.start(`Connecting to ${platformType}...`);
 
   let platform: IPlatformAdapter | null = null;
@@ -329,7 +329,7 @@ async function createFromStories(
   storyIds = await validateStoryIds(platform, storyIds);
 
   const learner = new StoryLearner(platform);
-  const learnSpinner = spinner();
+  const learnSpinner = createManagedSpinner();
   learnSpinner.start(`Learning from ${storyIds.length} stories...`);
   const result = await learner.learnFromStories(storyIds, {
     normalizePercentages: shouldNormalize,

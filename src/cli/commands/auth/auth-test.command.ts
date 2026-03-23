@@ -1,8 +1,9 @@
-import { cancel, intro, outro, spinner } from "@clack/prompts";
+import { cancel, intro, outro } from "@clack/prompts";
 import { readConnectionsFile } from "@config/connections.config";
 import chalk from "chalk";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
+import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
 import {
   buildPlatform,
   promptProfileToTest,
@@ -28,7 +29,7 @@ export const authTestCommand = new Command("test")
 
     const profileName = await promptProfileToTest(nameArg);
 
-    const s = spinner();
+    const s = createManagedSpinner();
     s.start("Resolving configuration...");
 
     try {

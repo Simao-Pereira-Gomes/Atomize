@@ -1,9 +1,12 @@
-import { cancel, intro, outro, select, spinner } from "@clack/prompts";
+import { cancel, intro, outro, select } from "@clack/prompts";
 import { readConnectionsFile, setDefaultProfile } from "@config/connections.config";
 import chalk from "chalk";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
-import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  createManagedSpinner,
+} from "@/cli/utilities/prompt-utilities";
 import {
   confirmRemoval,
   deleteProfile,
@@ -37,7 +40,7 @@ export const authRemoveCommand = new Command("remove")
       return;
     }
 
-    const operationSpinner = spinner();
+    const operationSpinner = createManagedSpinner();
     operationSpinner.start(`Deleting profile and token for "${name}"...`);
 
     try {
