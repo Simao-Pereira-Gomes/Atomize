@@ -179,6 +179,60 @@ filter:
 
 ---
 
+### savedQuery
+
+Delegate query composition entirely to an existing Azure DevOps saved query. Atomize resolves the query via the ADO Queries API, executes its WIQL, and pipes the results into the standard task-creation pipeline.
+
+Reference by ID (most stable — unaffected by renames or moves):
+
+```yaml
+filter:
+  savedQuery:
+    id: "a1b2c3d4-0000-0000-0000-000000000000"
+```
+
+Reference by path (human-readable, matches the query browser hierarchy):
+
+```yaml
+filter:
+  savedQuery:
+    path: "Shared Queries/Teams/Backend Team/Sprint Active Stories"
+```
+
+**Rules:**
+
+- `id` and `path` are mutually exclusive — provide exactly one.
+- `id` must be a valid UUID (visible in the ADO query URL).
+- Only **flat (Work Items)** queries are supported. Tree and one-hop queries are rejected at runtime with a clear error.
+- `savedQuery` takes precedence over all structured filter fields (`workItemTypes`, `states`, `tags`, etc.). A validator warning is emitted if both are present.
+
+**Post-processing still applies:** `excludeIfHasTasks` and `limit` are applied to the query results after resolution, so they can be combined with `savedQuery`.
+
+```yaml
+filter:
+  savedQuery:
+    path: "Shared Queries/All Active Stories"
+  excludeIfHasTasks: true
+  limit: 20
+```
+
+**Permission requirements:**
+
+The PAT used by Atomize must have **Work Items (Read)** scope on the project containing the query. Only shared queries are accessible — private queries owned by another user will return a "Query not found" error even if the ID is correct.
+
+**Permission error reference:**
+
+| Scenario | Error |
+|----------|-------|
+| Query ID or path does not exist | `Query not found: "...". Verify the ID or path and that the query has been shared with your account.` |
+| PAT lacks read permission | `Access denied to query "...". Ensure your PAT includes the Work Items (Read) scope.` |
+| Resolved path is a folder | `"..." is a query folder, not a runnable query.` |
+| Tree or one-hop query type | `Only flat (Work Items) queries are supported. "..." is a tree or one-hop query.` |
+
+**Tip:** Use `atomize queries list` to browse available query paths and IDs without leaving the terminal.
+
+---
+
 ## tasks
 
 Defines the tasks to create for each matching work item. Tasks are created as child items.

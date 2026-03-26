@@ -9,8 +9,6 @@ The Template Creation Wizard is an interactive command-line tool that helps you 
 ✅ **Interactive Step-by-Step Wizard** - Six clear steps guide you through template creation
 ✅ **Input Validation** - All inputs are validated in real-time with helpful error messages
 ✅ **Preview Before Saving** - Review and edit your template before committing
-✅ **Estimation Normalization** - Automatic percentage normalization to ensure 100% total
-✅ **Cross-Platform Compatible** - Works on Windows, macOS, and Linux
 ✅ **Error Recovery** - Cancel at any step or retry on errors
 
 ## Getting Started
@@ -53,7 +51,19 @@ Configure the fundamental properties of your template:
 
 ### Step 2: Filter Configuration
 
-Define which work items this template applies to:
+Define which work items this template applies to.
+
+The wizard first asks **how you want to select work items**:
+
+```
+How do you want to select work items?
+› Build a filter  — choose types, states, tags, etc.
+  Use a saved query  — reference an existing Azure DevOps query by ID or path
+```
+
+---
+
+#### Option A: Build a filter (structured)
 
 **Basic Filters:**
 - **Work Item Types** - Select from common types or add custom ones
@@ -73,9 +83,56 @@ Define which work items this template applies to:
 - Custom fields
 - Custom WIQL query
 
+---
+
+#### Option B: Use a saved query
+
+Reference an existing flat query saved in your Azure DevOps project. Atomize fetches the query's WIQL at run time and applies any supported post-filters on top of it.
+
+**Prompts:**
+
+1. **Reference by path or ID?**
+   ```
+   How do you want to reference the saved query?
+   › By path  — e.g. Shared Queries/My Team/Open Stories
+     By ID    — paste the query's UUID
+   ```
+
+2. **Query path** (if path selected)
+   ```
+   Saved query path:
+   › Shared Queries/My Team/Open Stories
+   ```
+   Run `atomize queries list` beforehand to discover available paths.
+
+3. **Query ID** (if ID selected)
+   ```
+   Saved query ID (UUID):
+   › xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+   ```
+   Must be a valid UUID v4 (format: `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`).
+   Run `atomize queries list` to copy the exact ID from the table.
+
+4. **Exclude if has tasks** - Prevent applying to items that already have tasks
+   (Available even when using a saved query.)
+
+> **Tip:** Run `atomize queries list` to see all saved queries with their paths and IDs before creating a template.
+> ```bash
+> atomize queries list
+> atomize queries list --folder "Shared Queries/My Team"
+> ```
+
+**Rules:**
+- The referenced query must be a **flat list** query (not a tree or direct-links query).
+- The query must already exist in Azure DevOps — it is not created by Atomize.
+- You cannot specify both a path and an ID; the wizard enforces this automatically.
+
+---
+
 **Validation:**
 - Warning shown if no filters are configured
 - Can continue with empty filter (will match all work items)
+- Mixed use of a saved query and structured filter fields produces a warning at generate time
 
 ### Step 3: Task Configuration
 
@@ -361,7 +418,40 @@ Add metadata? No
 # Preview → Save → Confirm
 ```
 
-### Example 2: Complex Template with Dependencies
+### Example 2: Saved Query Filter
+
+```bash
+atomize queries list --folder "Shared Queries"
+
+atomize template create --scratch
+
+# Step 2: Filter Configuration
+How do you want to select work items?
+› Use a saved query
+
+Reference by path or ID?
+› By path
+
+Saved query path:
+› Shared Queries/My Team/Open Stories
+
+Exclude if has tasks: Yes
+
+# Continue with Steps 3–6 as normal
+```
+
+The generated YAML will include:
+
+```yaml
+filter:
+  savedQuery:
+    path: "Shared Queries/My Team/Open Stories"
+  excludeIfHasTasks: true
+```
+
+---
+
+### Example 3: Complex Template with Dependencies
 
 ```bash
 atomize template create --scratch
@@ -420,6 +510,8 @@ Task 4:
 - Be specific to avoid accidental matches
 - Use "excludeIfHasTasks" to prevent duplicate applications
 - Test filters with your actual work items
+- Prefer **saved queries** when your team already maintains a query in Azure DevOps — it keeps filter logic in one place
+- Run `atomize queries list` to explore available queries before creating a template
 
 ### Estimation
 - Use percentage-based for flexibility
@@ -480,6 +572,11 @@ atomize template list
 # Generate tasks using your template (dry-run by default)
 atomize generate path/to/template.yaml
 atomize generate path/to/template.yaml --execute
+
+# Discover saved queries (useful before configuring a savedQuery filter)
+atomize queries list
+atomize queries list --folder "Shared Queries/My Team"
+atomize queries list --json
 ```
 
 After creating your template:

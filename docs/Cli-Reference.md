@@ -13,6 +13,7 @@ Complete command-line interface documentation for Atomize v1.1.
   - [validate](#validate)
   - [template create](#template-create)
   - [template presets](#template-presets)
+  - [queries list](#queries-list)
 - [Configuration](#configuration)
 - [Interactive Prompts & Navigation](#interactive-prompts--navigation)
 - [Examples](#examples)
@@ -64,6 +65,8 @@ These options work with any command:
 | `template` | `tpl` | Template management commands |
 | `template create` | - | Create a new template interactively |
 | `template presets` | `ls` | List available template presets |
+| `queries` | - | Browse Azure DevOps saved queries |
+| `queries list` | `queries ls` | List saved queries with paths and IDs |
 
 ---
 
@@ -516,13 +519,42 @@ atomize template create --scratch --output my-templates/custom.yaml
 
 The wizard walks through 6 steps:
 1. **Basic Information** — name, description, author, tags
-2. **Filter Configuration** — work item types, states, tags, area paths, etc.
+2. **Filter Configuration** — choose how work items are selected (see below)
 3. **Task Configuration** — add tasks with estimations, conditions, dependencies
 4. **Estimation Settings** — rounding, minimum points
 5. **Validation Rules** — optional constraints
 6. **Metadata** — optional categorization info
 
 After all steps, a preview is shown before saving. See [Template Wizard Guide](./template-wizard-guide.md) for the full walkthrough.
+
+**Filter Configuration (Step 2)**
+
+The filter step opens with a mode selector:
+
+```
+? How do you want to select work items?
+  ● Build a filter  — choose types, states, tags, etc.
+  ○ Use a saved query  — reference an existing Azure DevOps query by ID or path
+```
+
+**Build a filter** walks through types, states, tags, area paths, iterations, assignment, and date filters interactively.
+
+**Use a saved query** prompts for either a path or a UUID:
+
+```
+? Reference the saved query by:
+  ● Path  (e.g. Shared Queries/Teams/Backend/Sprint Stories)
+  ○ ID    (UUID from the query URL)
+```
+
+Use `atomize queries list` first to find the path or ID of an existing query:
+
+```bash
+atomize queries list --folder "Shared Queries"
+# then pick a path and paste it into the wizard prompt
+```
+
+The saved query option also asks whether to skip work items that already have tasks (`excludeIfHasTasks`), which applies as a post-filter on the query results.
 
 #### Output
 
@@ -577,6 +609,67 @@ fullstack
   Complete full-stack feature with backend and frontend work
 
 Use with: atomize template create --preset <name>
+```
+
+---
+
+### queries
+
+Browse Azure DevOps saved queries — discover query paths and IDs without leaving the terminal.
+
+#### queries list
+
+List all saved queries accessible with the current profile.
+
+```bash
+atomize queries list [options]
+atomize queries ls   # alias
+```
+
+| Option | Description |
+|--------|-------------|
+| `--folder <path>` | Scope results to queries under this folder path prefix |
+| `--profile <name>` | Named connection profile to use (uses default if omitted) |
+| `--json` | Print results as JSON to stdout; progress messages go to stderr |
+
+**Examples:**
+
+```bash
+# List all accessible queries (table)
+atomize queries list
+
+# Scope to a specific folder
+atomize queries list --folder "Shared Queries/Teams/Backend"
+
+# Use a specific profile
+atomize queries list --profile work-ado
+
+# JSON to stdout — progress visible in terminal, JSON piped cleanly
+atomize queries list --json | jq '.[] | select(.isPublic) | .path'
+
+# Redirect JSON to a file — progress still visible in terminal
+atomize queries list --json > queries.json
+
+# Silent JSON to file — suppress progress messages too
+atomize queries list --json 2>/dev/null > queries.json
+```
+
+**Output (table format):**
+
+```
+  PATH                                                  ID                                    VISIBILITY
+  ----                                                  --                                    ----------
+  Shared Queries/Teams/Backend/Sprint Active Stories    a1b2c3d4-e5f6-47b8-8901-234567890123  shared
+  Shared Queries/Teams/Frontend/Open Bugs              b2c3d4e5-0000-4000-8000-000000000000  shared
+  My Queries/Unassigned Stories                        c3d4e5f6-0000-4000-8000-000000000000  private
+```
+
+Copy an ID or path directly into your template:
+
+```yaml
+filter:
+  savedQuery:
+    id: "a1b2c3d4-e5f6-47b8-8901-234567890123"
 ```
 
 ---
