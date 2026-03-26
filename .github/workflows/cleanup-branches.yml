@@ -1,0 +1,24 @@
+name: Cleanup Stale Branches
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  delete-stale-branches:
+    name: Delete Stale Branches
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete copilot/resolve-security-issues branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api repos/${{ github.repository }}/git/refs/heads/copilot/resolve-security-issues --silent 2>/dev/null; then
+            gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/copilot/resolve-security-issues
+            echo "Branch 'copilot/resolve-security-issues' deleted successfully."
+          else
+            echo "Branch 'copilot/resolve-security-issues' does not exist, nothing to do."
+          fi
