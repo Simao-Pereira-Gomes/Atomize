@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774305025485,
+  "lastUpdate": 1774560011688,
   "repoUrl": "https://github.com/Simao-Pereira-Gomes/Atomize",
   "entries": {
     "Atomize Benchmarks": [
@@ -233,6 +233,65 @@ window.BENCHMARK_DATA = {
           {
             "name": "Build Map 500 tasks",
             "value": 48838.85468916249,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "198982749+Copilot@users.noreply.github.com",
+            "name": "Copilot",
+            "username": "Copilot"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a42f10aa33fdf0dc1e8fbbed1110a66797ffd52c",
+          "message": "Delete stale copilot/resolve-security-issues branch via cleanup workflow (#48)\n\n* Initial plan\n\n* feat: add workflow to delete stale copilot/resolve-security-issues branch\n\nAgent-Logs-Url: https://github.com/Simao-Pereira-Gomes/Atomize/sessions/a2d4565a-6cab-46e4-a8e0-741f705559dc\n\nCo-authored-by: Simao-Pereira-Gomes <81998432+Simao-Pereira-Gomes@users.noreply.github.com>\n\n---------\n\nCo-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>\nCo-authored-by: Simao-Pereira-Gomes <81998432+Simao-Pereira-Gomes@users.noreply.github.com>",
+          "timestamp": "2026-03-26T21:19:44Z",
+          "tree_id": "5b898252ab94b61c98aafc1e418a4596401ad045",
+          "url": "https://github.com/Simao-Pereira-Gomes/Atomize/commit/a42f10aa33fdf0dc1e8fbbed1110a66797ffd52c"
+        },
+        "date": 1774560011312,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Validate 50 tasks",
+            "value": 54985.96308457712,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 100 tasks",
+            "value": 85535.1584341637,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 200 tasks",
+            "value": 146555.4975147929,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 500 tasks",
+            "value": 374051.1377012771,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 100 tasks (Chain)",
+            "value": 228282.96004169562,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 500 tasks (Chain)",
+            "value": 4161578.1818181816,
+            "unit": "ns"
+          },
+          {
+            "name": "Build Map 500 tasks",
+            "value": 51632.9906124681,
             "unit": "ns"
           }
         ]
