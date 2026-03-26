@@ -218,6 +218,51 @@ describe("Schema Validation", () => {
         expect(result.data.team).toBeUndefined();
       }
     });
+
+    test("should accept savedQuery with id", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        savedQuery: { id: "a1b2c3d4-e5f6-47b8-8901-234567890123" },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept savedQuery with path", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        savedQuery: { path: "Shared Queries/Sprint Active Stories" },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should reject savedQuery with neither id nor path", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        savedQuery: {},
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject savedQuery with both id and path", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        savedQuery: {
+          id: "a1b2c3d4-e5f6-47b8-8901-234567890123",
+          path: "Shared Queries/Sprint Active Stories",
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject savedQuery with non-UUID id", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        savedQuery: { id: "not-a-uuid" },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject savedQuery with empty path", () => {
+      const result = FilterCriteriaSchema.safeParse({
+        savedQuery: { path: "" },
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("TaskDefinitionSchema", () => {
