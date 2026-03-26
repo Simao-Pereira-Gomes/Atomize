@@ -101,6 +101,10 @@ export class FilterEngine {
       platformFilter.createdAfter = templateFilter.createdAfter;
     }
 
+    if (templateFilter.savedQuery) {
+      platformFilter.savedQuery = templateFilter.savedQuery;
+    }
+
     return platformFilter;
   }
 
@@ -123,7 +127,8 @@ export class FilterEngine {
       filter.statesExclude ||
       filter.statesWereEver ||
       filter.areaPathsUnder ||
-      filter.iterationsUnder;
+      filter.iterationsUnder ||
+      filter.savedQuery;
 
     if (!hasCriteria) {
       errors.push("Filter must have at least one criterion");
