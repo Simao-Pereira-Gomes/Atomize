@@ -1,0 +1,129 @@
+version: "1.0"
+name: "Custom Example — Saved Query"
+description: "Same task breakdown as the custom example, but work item selection is delegated to an existing Azure DevOps saved query instead of a structured filter. Useful when your team already maintains a query that encodes complex area path, iteration, and tag logic."
+author: "Atomize"
+tags: []
+
+filter:
+  savedQuery:
+    path: "Shared Queries/Teams/Platform/Ready for Sprint"
+  excludeIfHasTasks: true
+
+tasks:
+  - title: "Analysis & Playback"
+    estimationPercent: 20
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+  - title: "Build"
+    estimationPercent: 50
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+  - title: "Developer Test"
+    estimationPercent: 25
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+  - title: "QA Smoke Test"
+    estimationPercent: 0
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+  - title: "Wiki"
+    estimationPercent: 5
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+  - title: "Code Review"
+    estimationPercent: 0
+    activity: "Development"
+    tags: []
+    assignTo: "@Unassigned"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+  - title: "Physical Data Model Updated"
+    estimationPercent: 0
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+  - title: "Test Preparation"
+    estimationPercent: 40
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "Testing Only" OR ${story.tags} CONTAINS "Test Only"'
+        percent: 59.70
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Test Execution"
+    estimationPercent: 27
+    estimationPercentCondition:
+      - condition: '${story.tags} CONTAINS "Testing Only" OR ${story.tags} CONTAINS "Test Only"'
+        percent: 40.30
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Automation Testing"
+    estimationPercent: 0
+    activity: "Test Automation"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Test Review"
+    estimationPercent: 0
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Release Notes"
+    estimationPercent: 0
+    activity: "Testing"
+    tags: []
+    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    assignTo: "@Unassigned"
+
+  - title: "Merge to Stable"
+    estimationPercent: 10
+    activity: "Development"
+    tags: []
+    assignTo: "@ParentAssignee"
+    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  minimumTaskPoints: 0
+
+metadata:
+  category: "Agile Project"
+  recommendedFor: []
+  estimationGuidelines: |
+    Identical task breakdown to the structured-filter custom example.
+    The only difference is in the filter: work item selection is handled
+    entirely by the saved query at the configured path. The query should
+    already encode area path, iteration, and tag constraints so this
+    template stays clean. Update the savedQuery path to match your project.
+
+    Handles three story archetypes in one template:
+    - Dev and Test story (no special tag): dev tasks + test tasks, base percentages apply.
+    - Testing Only / Test Only story: dev tasks skipped; Test Preparation gets 59.70%
+      and Test Execution gets 40.30%.
+    - Dev Only story: test tasks skipped.
