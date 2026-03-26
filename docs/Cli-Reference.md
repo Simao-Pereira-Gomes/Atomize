@@ -251,6 +251,7 @@ atomize gen [template] [options]  # alias
 | `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
 | `--dependency-concurrency <n>` | number | `5` | Max dependency links created in parallel (max: 10) |
+| `--limit <n>` | number | - | Cap the number of work items processed (useful for testing before a full `--execute` run) |
 | `-v, --verbose` | flag | - | Show detailed output including per-task breakdown |
 | `-o, --output <file>` | string | - | Write a JSON report to this file path (for CI/CD) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
@@ -291,6 +292,15 @@ atomize generate templates/backend-api.yaml --execute --verbose
 **Continue on error:**
 ```bash
 atomize generate templates/backend-api.yaml --execute --continue-on-error
+```
+
+**Test against a subset of items before a full run:**
+```bash
+# Dry run on the first 5 matching work items
+atomize generate templates/backend-api.yaml --limit 5
+
+# Execute on the first 5 only
+atomize generate templates/backend-api.yaml --limit 5 --execute
 ```
 
 **Increase concurrency for large backlogs:**

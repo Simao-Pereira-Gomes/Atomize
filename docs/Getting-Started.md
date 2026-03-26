@@ -441,6 +441,7 @@ jobs:
         run: |
           atomize generate templates/backend-api.yaml \
             --execute \
+            --auto-approve \
             --continue-on-error
 ```
 
