@@ -462,6 +462,7 @@ export const generateCommand = new Command("generate")
     false,
   )
   .option("-q, --quiet", "Suppress non-essential output", false)
+  .option("--limit <number>", "Cap the number of work items processed (useful for testing)")
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .action(async (templateArg: string | undefined, options) => {
     try {
@@ -577,6 +578,8 @@ export const generateCommand = new Command("generate")
           if (template.filter.excludeIfHasTasks)
             console.log(chalk.gray("  Exclude if has tasks: Yes"));
         }
+        if (options.limit !== undefined)
+          console.log(chalk.gray(`  Limit: ${options.limit} items`));
         if (!hasFilterCriteria)
           console.log(chalk.gray("  Matches all work items"));
       }
@@ -600,6 +603,7 @@ export const generateCommand = new Command("generate")
         atomizer.atomize(template, {
           dryRun,
           continueOnError: options.continueOnError,
+          limit: options.limit !== undefined ? parseInt(options.limit, 10) : undefined,
           storyConcurrency,
           dependencyConcurrency,
           onProgress: createProgressHandler(

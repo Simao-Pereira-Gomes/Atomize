@@ -70,6 +70,9 @@ export interface AtomizationOptions {
   /** Maximum concurrent dependency links to create (default: 5) */
   dependencyConcurrency?: number;
 
+  /** Cap the number of work items processed (useful for testing) */
+  limit?: number;
+
   /** Progress callback for reporting progress */
   onProgress?: ProgressCallback;
 }
@@ -169,6 +172,7 @@ export class Atomizer {
       template.filter,
       connectUserEmail,
     );
+    if (options.limit !== undefined) platformFilter.limit = options.limit;
 
     const filterValidation = this.filterEngine.validateFilter(template.filter);
     if (!filterValidation.valid) {
