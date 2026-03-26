@@ -86,6 +86,7 @@ export class TemplateValidator {
     }
     this.validateTaskConditions(template, warnings);
     this.validateTaskDependencies(template, warnings);
+    this.validateSavedQueryConflict(template, warnings);
 
     return warnings;
   }
@@ -140,6 +141,40 @@ export class TemplateValidator {
         }
       }
     });
+  }
+
+  private validateSavedQueryConflict(
+    template: TaskTemplate,
+    warnings: ValidationWarning[],
+  ) {
+    const f = template.filter;
+    if (!f.savedQuery) return;
+
+    const hasStructuredFields =
+      f.workItemTypes ||
+      f.states ||
+      f.statesExclude ||
+      f.statesWereEver ||
+      f.tags?.include ||
+      f.tags?.exclude ||
+      f.areaPaths ||
+      f.areaPathsUnder ||
+      f.iterations ||
+      f.iterationsUnder ||
+      f.assignedTo ||
+      f.changedAfter ||
+      f.createdAfter ||
+      f.priority;
+
+    if (hasStructuredFields) {
+      warnings.push({
+        path: "filter.savedQuery",
+        message:
+          "savedQuery and structured filter fields are both set. Structured filter fields will be ignored — the saved query controls which items are returned.",
+        suggestion:
+          "Remove workItemTypes, states, tags, etc. from the filter when using savedQuery.",
+      });
+    }
   }
 
   private generateIdFromTitle(title: string): string {

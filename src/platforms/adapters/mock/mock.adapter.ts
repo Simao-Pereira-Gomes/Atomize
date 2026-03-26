@@ -7,6 +7,7 @@ import type {
   AuthConfig,
   IPlatformAdapter,
   PlatformMetadata,
+  SavedQueryInfo,
 } from "@platforms/interfaces/platform.interface";
 import type {
   TaskDefinition,
@@ -328,6 +329,10 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     );
 
     return children;
+  }
+
+  async listSavedQueries(_folder?: string): Promise<SavedQueryInfo[]> {
+    return [];
   }
 
   /**

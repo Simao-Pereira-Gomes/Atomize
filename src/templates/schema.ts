@@ -25,8 +25,19 @@ const DateOrMacroSchema = z
   });
 
 
+export const SavedQuerySchema = z
+  .object({
+    id: z.uuid().optional(),
+    path: z.string().min(1).optional(),
+  })
+  .refine((d) => !!(d.id ?? d.path), {
+    message: "savedQuery requires either id or path",
+  })
+  .refine((d) => !(d.id && d.path), {
+    message: "savedQuery accepts id or path, not both",
+  });
+
 export const FilterCriteriaSchema = z.object({
-  /** Override the team from config for this template's queries (affects @CurrentIteration and @TeamAreas resolution) */
   team: z.string().optional(),
   workItemTypes: z.array(z.string()).optional(),
   states: z.array(z.string()).optional(),
@@ -56,6 +67,7 @@ export const FilterCriteriaSchema = z.object({
     })
     .optional(),
   excludeIfHasTasks: z.boolean().optional(),
+  savedQuery: SavedQuerySchema.optional(),
 });
 
 export const EstimationPercentConditionSchema = z.object({
@@ -333,6 +345,7 @@ export const START_OF_YEAR = "@StartOfYear" as const;
 export const ME = "@Me" as const;
 
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
+export type SavedQuery = z.infer<typeof SavedQuerySchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;
 export type EstimationPercentCondition = z.infer<
   typeof EstimationPercentConditionSchema

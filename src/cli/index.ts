@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { name, version } from "../../package.json";
 import { authCommand } from "./commands/auth/auth.command";
 import { generateCommand } from "./commands/generate.command";
+import { queriesCommand } from "./commands/queries/queries.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
@@ -46,6 +47,7 @@ ${chalk.gray("Break down stories, build up velocity.")}
 
 program.addHelpText("beforeAll", banner);
 program.addCommand(authCommand);
+program.addCommand(queriesCommand);
 program.addCommand(validateCommand);
 program.addCommand(generateCommand);
 program.addCommand(templateCommand);
