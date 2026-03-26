@@ -61,6 +61,27 @@ const DATE_FILTER_OPTIONS: { label: string; value: DateFilterPreset }[] = [
  * Configure filter criteria with support for custom query and custom fields
  */
 export async function configureFilter(): Promise<FilterCriteria> {
+  const filterMode = assertNotCancelled(
+    await select({
+      message: "How do you want to select work items?",
+      options: [
+        {
+          label: "Build a filter  — choose types, states, tags, etc.",
+          value: "structured",
+        },
+        {
+          label: "Use a saved query  — reference an existing Azure DevOps query by ID or path",
+          value: "savedQuery",
+        },
+      ],
+      initialValue: "structured",
+    }),
+  ) as "structured" | "savedQuery";
+
+  if (filterMode === "savedQuery") {
+    return promptSavedQuery();
+  }
+
   const filter: FilterCriteria = {};
 
   const workItemTypes = await promptWorkItemTypes();
@@ -145,6 +166,71 @@ export async function configureFilter(): Promise<FilterCriteria> {
   }
 
   return filter;
+}
+
+async function promptSavedQuery(): Promise<FilterCriteria> {
+  const refMode = assertNotCancelled(
+    await select({
+      message: "Reference the saved query by:",
+      options: [
+        { label: "Path  (e.g. Shared Queries/Teams/Backend/Sprint Stories)", value: "path" },
+        { label: "ID  (UUID from the query URL)", value: "id" },
+      ],
+      initialValue: "path",
+    }),
+  ) as "path" | "id";
+
+  if (refMode === "path") {
+    const path = assertNotCancelled(
+      await text({
+        message: "Query path:",
+        placeholder: "e.g. Shared Queries/Teams/Backend Team/Sprint Active Stories",
+        validate: (input): string | undefined => {
+          if (!input || input.trim() === "") return "Query path is required";
+          return undefined;
+        },
+      }),
+    );
+
+    const excludeIfHasTasks = assertNotCancelled(
+      await confirm({
+        message: "Exclude work items that already have tasks?",
+        initialValue: true,
+      }),
+    );
+
+    return {
+      savedQuery: { path: path.trim() },
+      ...(excludeIfHasTasks && { excludeIfHasTasks: true }),
+    };
+  }
+
+  const id = assertNotCancelled(
+    await text({
+      message: "Query ID (UUID):",
+      placeholder: "e.g. a1b2c3d4-e5f6-47b8-8901-234567890123",
+      validate: (input): string | undefined => {
+        if (!input || input.trim() === "") return "Query ID is required";
+        const UUID_RE =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!UUID_RE.test(input.trim()))
+          return "Must be a valid UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Run: atomize queries list";
+        return undefined;
+      },
+    }),
+  );
+
+  const excludeIfHasTasks = assertNotCancelled(
+    await confirm({
+      message: "Exclude work items that already have tasks?",
+      initialValue: true,
+    }),
+  );
+
+  return {
+    savedQuery: { id: id.trim() },
+    ...(excludeIfHasTasks && { excludeIfHasTasks: true }),
+  };
 }
 
 async function promptWorkItemTypes(): Promise<string[]> {

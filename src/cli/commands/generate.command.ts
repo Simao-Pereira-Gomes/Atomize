@@ -324,18 +324,24 @@ async function confirmLiveExecution(
   options: { platform: string },
 ): Promise<void> {
   const filterParts: string[] = [];
-  if (template.filter.workItemTypes)
-    filterParts.push(
-      `Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
-    );
-  if (template.filter.states)
-    filterParts.push(
-      `States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
-    );
-  if (template.filter.tags?.include)
-    filterParts.push(
-      `Tags: ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
-    );
+  if (template.filter.savedQuery?.id)
+    filterParts.push(`Saved query ID: ${sanitizeTty(template.filter.savedQuery.id)}`);
+  else if (template.filter.savedQuery?.path)
+    filterParts.push(`Saved query: ${sanitizeTty(template.filter.savedQuery.path)}`);
+  else {
+    if (template.filter.workItemTypes)
+      filterParts.push(
+        `Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
+      );
+    if (template.filter.states)
+      filterParts.push(
+        `States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
+      );
+    if (template.filter.tags?.include)
+      filterParts.push(
+        `Tags: ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
+      );
+  }
 
   note(
     [
@@ -527,6 +533,7 @@ export const generateCommand = new Command("generate")
       const atomizer = new Atomizer(platform_);
 
       const hasFilterCriteria =
+        template.filter.savedQuery ||
         template.filter.workItemTypes ||
         template.filter.states ||
         template.filter.tags?.include ||
@@ -544,26 +551,32 @@ export const generateCommand = new Command("generate")
         console.log(chalk.gray(`Filter:   ${filterLabel}`));
       } else {
         console.log(chalk.cyan(" Filter Criteria:"));
-        if (template.filter.workItemTypes)
-          console.log(
-            chalk.gray(
-              `  Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
-            ),
-          );
-        if (template.filter.states)
-          console.log(
-            chalk.gray(
-              `  States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
-            ),
-          );
-        if (template.filter.tags?.include)
-          console.log(
-            chalk.gray(
-              `  Tags (include): ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
-            ),
-          );
-        if (template.filter.excludeIfHasTasks)
-          console.log(chalk.gray("  Exclude if has tasks: Yes"));
+        if (template.filter.savedQuery?.id)
+          console.log(chalk.gray(`  Saved query ID: ${sanitizeTty(template.filter.savedQuery.id)}`));
+        else if (template.filter.savedQuery?.path)
+          console.log(chalk.gray(`  Saved query: ${sanitizeTty(template.filter.savedQuery.path)}`));
+        else {
+          if (template.filter.workItemTypes)
+            console.log(
+              chalk.gray(
+                `  Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
+              ),
+            );
+          if (template.filter.states)
+            console.log(
+              chalk.gray(
+                `  States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
+              ),
+            );
+          if (template.filter.tags?.include)
+            console.log(
+              chalk.gray(
+                `  Tags (include): ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
+              ),
+            );
+          if (template.filter.excludeIfHasTasks)
+            console.log(chalk.gray("  Exclude if has tasks: Yes"));
+        }
         if (!hasFilterCriteria)
           console.log(chalk.gray("  Matches all work items"));
       }
