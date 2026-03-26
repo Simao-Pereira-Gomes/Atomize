@@ -2,6 +2,16 @@ import type { FilterCriteria, QueryResult } from "./filter.interface";
 import type { TaskDefinition, WorkItem } from "./work-item.interface";
 
 /**
+ * A single Azure DevOps saved query returned by listSavedQueries
+ */
+export interface SavedQueryInfo {
+  id: string;
+  name: string;
+  path: string;
+  isPublic: boolean;
+}
+
+/**
  * Authentication configuration
  */
 export interface AuthConfig {
@@ -102,6 +112,12 @@ export interface IPlatformAdapter {
     dependentId: string,
     predecessorId: string
   ): Promise<void>;
+
+  /**
+   * List saved queries in the project (Azure DevOps only).
+   * @param folder Optional folder path prefix to filter results.
+   */
+  listSavedQueries?(folder?: string): Promise<SavedQueryInfo[]>;
 }
 
 /**
