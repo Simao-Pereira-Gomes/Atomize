@@ -160,15 +160,21 @@ Create the tasks that will be added to matching work items:
 - Acceptance criteria (with optional checklist format)
 - Tags
 - Dependencies (task IDs this task depends on)
-- Condition (template expression)
+- Condition (structured task condition)
+- Custom fields (browse ADO task fields and store them by reference name)
 - Priority (1-4)
-- Remaining work (hours)
 
 **Validation:**
 - At least one task is required
 - All tasks must have titles
 - Estimation percentages validated (0-100)
 - Dependencies must reference valid task IDs
+
+**Custom field authoring:**
+- The wizard can fetch available task fields from ADO and present them by display name
+- Picklist fields use a constrained select prompt instead of free-form entry
+- When the same field exists on the parent story, the wizard can insert `{{ story.customFields['Reference.Name'] }}` as the task value
+- The saved template always stores the field reference name internally
 
 **Normalization:**
 If total estimation ≠ 100%, you'll be prompted to normalize:
@@ -602,4 +608,3 @@ For issues or questions:
 - GitHub: https://github.com/Simao-Pereira-Gomes/Atomize/issues
 - Check validation output for detailed error messages
 - Review the template YAML for syntax issues
-

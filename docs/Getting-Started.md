@@ -250,6 +250,9 @@ atomize validate my-template.yaml --verbose
 
 # Strict mode — warnings become errors (good for team templates)
 atomize validate my-template.yaml --strict
+
+# Validate custom fields and saved queries against ADO
+atomize validate my-template.yaml --profile work-ado
 ```
 
 **Valid template:**
@@ -260,6 +263,7 @@ Summary:
   Name: Backend API Development
   Tasks: 6
   Total Estimation: 100%
+  Custom Fields: 2 (verified against ADO)
 
 Ready to use with: atomize generate my-template.yaml
 ```
@@ -352,7 +356,10 @@ estimation:
 ```yaml
 - title: "Security Review"
   estimationPercent: 10
-  condition: '${story.tags} CONTAINS "security"'  # Only created if story has "security" tag
+  condition:
+    field: "tags"
+    operator: "contains"
+    value: "security"  # Only created if story has "security" tag
 ```
 
 **Conditional Estimation** (v1.1)
@@ -360,11 +367,27 @@ estimation:
 - title: "Implementation"
   estimationPercent: 50    # Default
   estimationPercentCondition:
-    - condition: '${story.tags} CONTAINS "critical"'
+    - condition:
+        field: "tags"
+        operator: "contains"
+        value: "critical"
       percent: 60          # Higher weight for critical stories
-    - condition: "${story.estimation} >= 13"
+    - condition:
+        field: "estimation"
+        operator: "gte"
+        value: 13
       percent: 55          # More work for large stories
 ```
+
+**Task Custom Fields**
+```yaml
+- title: "Backend Implementation"
+  customFields:
+    Custom.ClientTier: "Enterprise"
+    Custom.ReleaseVersion: "{{ story.customFields['Custom.ReleaseVersion'] }}"
+```
+
+Use `atomize fields list --type Task` to browse the available field names before authoring templates.
 
 ---
 
@@ -497,6 +520,7 @@ jobs:
    - Total estimation not 100%: Adjust task percentages
    - Missing required fields: Add `title` to all tasks
    - Invalid dependencies: Ensure task IDs exist
+   - Custom fields not verified offline: Re-run with `--profile <name>`
 
 ---
 

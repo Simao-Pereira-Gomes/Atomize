@@ -10,6 +10,7 @@ Complete command-line interface documentation for Atomize v1.1.
 - [Command Reference](#command-reference)
   - [auth](#auth)
   - [generate](#generate)
+  - [fields](#fields)
   - [validate](#validate)
   - [template create](#template-create)
   - [template presets](#template-presets)
@@ -61,6 +62,8 @@ These options work with any command:
 | `auth test` | - | Test connectivity for a profile |
 | `auth rotate` | - | Replace the PAT for a profile |
 | `generate` | `gen` | Generate tasks from user stories using a template |
+| `fields` | - | Browse Azure DevOps work item fields |
+| `fields list` | `fields ls` | List available fields for the current project or work item type |
 | `validate` | - | Validate a template file |
 | `template` | `tpl` | Template management commands |
 | `template create` | - | Create a new template interactively |
@@ -384,8 +387,15 @@ atomize validate <template> [options]
 | `-v, --verbose` | flag | - | Show detailed validation information including all checked rules |
 | `-s, --strict` | flag | - | Use strict mode: warnings are treated as errors |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
+| `--profile <name>` | string | - | Connect to ADO using a named profile for live saved-query and custom-field validation |
 
 > See [Validation Modes](./Validation-Modes.md) for a full explanation of strict vs lenient behavior.
+
+**Validation modes for ADO-backed features:**
+- Without `--profile`, validation runs offline and checks template structure only
+- With `--profile`, Atomize connects to ADO to validate task `customFields`, custom fields referenced in task conditions, and `filter.savedQuery`
+- In interactive terminals, if ADO-backed validation is needed, Atomize can prompt you to choose offline vs online validation
+- In `--strict` mode, offline custom-field verification warnings are promoted to errors
 
 #### Examples
 
@@ -402,6 +412,11 @@ atomize validate templates/backend-api.yaml --verbose
 **Strict mode (warnings become errors):**
 ```bash
 atomize validate templates/backend-api.yaml --strict
+```
+
+**Validate custom fields against ADO before generate:**
+```bash
+atomize validate templates/backend-api.yaml --profile work-ado
 ```
 
 **Validate multiple templates in CI:**
@@ -421,6 +436,7 @@ Summary:
   Name: Backend API Development
   Tasks: 6
   Total Estimation: 100%
+  Custom Fields: 3 (verified against ADO)
 
 Ready to use with: atomize generate templates/backend-api.yaml
 ```
@@ -437,8 +453,8 @@ Errors:
      💡 Either add a task with id: "nonexistent-task" or update the dependsOn field.
 
 Warnings:
-  ⚠ tasks[1].condition: Condition "true" might be invalid (no variables found)
-     💡 Use variables like ${story.tags} or operators like CONTAINS, ==, !=.
+  ⚠ tasks[1].customFields: 1 task(s) have custom fields that could not be verified.
+     💡 Run with --profile <name> to validate field names, types, and picklist values.
 
 Fix the errors above and try again.
 ```
@@ -449,6 +465,56 @@ Fix the errors above and try again.
 |------|---------|
 | `0` | Template is valid |
 | `1` | Template validation failed |
+
+---
+
+### fields
+
+Browse Azure DevOps work item fields available to the current profile.
+
+#### fields list
+
+List fields for the current project, optionally scoped to a work item type.
+
+```bash
+atomize fields list [options]
+atomize fields ls   # alias
+```
+
+| Option | Description |
+|--------|-------------|
+| `--type <WorkItemType>` | Scope results to a specific work item type such as `Task` or `Bug` |
+| `--custom-only` | Show only custom fields (`Custom.*`) |
+| `--profile <name>` | Named connection profile to use (uses default if omitted) |
+| `--json` | Print results as JSON to stdout; progress messages go to stderr |
+
+**Examples:**
+
+```bash
+# List all fields visible in the current project
+atomize fields list
+
+# List only task fields
+atomize fields list --type Task
+
+# Show only custom task fields
+atomize fields list --type Task --custom-only
+
+# Export as JSON
+atomize fields list --type Task --json > task-fields.json
+```
+
+**Output (table format):**
+
+```
+  REFERENCE NAME            DISPLAY NAME          TYPE         PICKLIST VALUES
+  --------------            ------------          ----         ---------------
+  Custom.ClientTier         Client Tier           picklist-str Standard, Premium, Enterprise
+  Custom.ReleaseVersion     Release Version       string       —
+  Custom.IsBillable         Is Billable           boolean      —
+```
+
+Read-only fields are dimmed in the table output, and multi-line fields are tagged so they are easy to identify while authoring templates.
 
 ---
 
@@ -530,7 +596,7 @@ atomize template create --scratch --output my-templates/custom.yaml
 The wizard walks through 6 steps:
 1. **Basic Information** — name, description, author, tags
 2. **Filter Configuration** — choose how work items are selected (see below)
-3. **Task Configuration** — add tasks with estimations, conditions, dependencies
+3. **Task Configuration** — add tasks with estimations, conditions, dependencies, and custom fields
 4. **Estimation Settings** — rounding, minimum points
 5. **Validation Rules** — optional constraints
 6. **Metadata** — optional categorization info
@@ -565,6 +631,8 @@ atomize queries list --folder "Shared Queries"
 ```
 
 The saved query option also asks whether to skip work items that already have tasks (`excludeIfHasTasks`), which applies as a post-filter on the query results.
+
+In task configuration, the wizard can also browse Azure DevOps task fields and add `customFields` entries using human-readable field names. Picklist fields are enforced with a select prompt, and when the same custom field exists on the parent story, the wizard can insert `{{ story.customFields['...'] }}` for you.
 
 #### Output
 
@@ -733,7 +801,7 @@ export ATOMIZE_PROFILE="work-ado"
 $env:ATOMIZE_PROFILE = "work-ado"
 ```
 
-Profile resolution order for `generate`:
+Profile resolution order for commands that connect to ADO (`generate`, `fields list`, `queries list`, and `validate --profile`):
 1. `--profile <name>` flag
 2. `ATOMIZE_PROFILE` environment variable
 3. Default profile (set via `atomize auth use`)

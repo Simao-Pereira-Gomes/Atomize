@@ -11,6 +11,7 @@ Complete reference for Atomize YAML template files.
   - [Task Fields](#task-fields)
   - [Variable Interpolation](#variable-interpolation)
   - [Assignment Patterns](#assignment-patterns)
+  - [Task Custom Fields](#task-custom-fields)
   - [Conditional Tasks](#conditional-tasks)
   - [Conditional Estimation](#conditional-estimation)
   - [Task Dependencies](#task-dependencies)
@@ -78,10 +79,6 @@ filter:
     min: 1
     max: 3
   excludeIfHasTasks: true
-  customFields:
-    - field: "Custom.Team"
-      operator: "equals"
-      value: "Platform Engineering"
 ```
 
 ### Filter Fields
@@ -105,7 +102,6 @@ filter:
 | `priority.min` | number | Minimum priority (1 = highest) |
 | `priority.max` | number | Maximum priority |
 | `excludeIfHasTasks` | boolean | Skip work items that already have child tasks |
-| `customFields` | array | Additional field filters (see below) |
 
 ### Special Values
 
@@ -161,24 +157,6 @@ filter:
   iterationsUnder: ["MyProject\\Release 2"]
 ```
 
-### Custom Field Filters
-
-```yaml
-filter:
-  customFields:
-    - field: "Custom.Team"
-      operator: "equals"
-      value: "Platform Engineering"
-
-    - field: "Microsoft.VSTS.Common.Priority"
-      operator: "lessThan"
-      value: 3
-```
-
-**Supported operators:** `equals`, `notEquals`, `contains`, `greaterThan`, `lessThan`
-
----
-
 ### savedQuery
 
 Delegate query composition entirely to an existing Azure DevOps saved query. Atomize resolves the query via the ADO Queries API, executes its WIQL, and pipes the results into the standard task-creation pipeline.
@@ -206,14 +184,17 @@ filter:
 - Only **flat (Work Items)** queries are supported. Tree and one-hop queries are rejected at runtime with a clear error.
 - `savedQuery` takes precedence over all structured filter fields (`workItemTypes`, `states`, `tags`, etc.). A validator warning is emitted if both are present.
 
-**Post-processing still applies:** `excludeIfHasTasks` and `limit` are applied to the query results after resolution, so they can be combined with `savedQuery`.
+**Post-processing still applies:** `excludeIfHasTasks` still applies to the query results after resolution, and you can still cap execution with the CLI `--limit` option.
 
 ```yaml
 filter:
   savedQuery:
     path: "Shared Queries/All Active Stories"
   excludeIfHasTasks: true
-  limit: 20
+```
+
+```bash
+atomize generate my-template.yaml --limit 20
 ```
 
 **Permission requirements:**
@@ -247,7 +228,10 @@ tasks:
     tags: ["design"]
     assignTo: "@ParentAssignee"
     priority: 2
-    condition: '${story.tags} CONTAINS "backend"'
+    condition:
+      field: "tags"
+      operator: "contains"
+      value: "backend"
     dependsOn: []
     acceptanceCriteria:
       - "Criteria 1"
@@ -268,10 +252,10 @@ tasks:
 | `tags` | No | string[] | Tags to apply to the task |
 | `assignTo` | No | string | Who to assign the task to (see assignment patterns) |
 | `priority` | No | number | Task priority (1-4) |
-| `remainingWork` | No | number | Override remaining work in hours |
-| `condition` | No | string | Expression to conditionally create this task |
+| `condition` | No | object | Structured condition to conditionally create this task |
 | `dependsOn` | No | string[] | IDs of tasks this task depends on |
 | `acceptanceCriteria` | No | string[] | List of acceptance criteria |
+| `customFields` | No | object | Task-level Azure DevOps field values keyed by reference name |
 
 ### Variable Interpolation
 
@@ -295,6 +279,15 @@ tasks:
 
       Story ID: ${story.id}
       Estimation: ${story.estimation} points
+```
+
+Task custom field values also support story custom-field interpolation using moustache syntax:
+
+```yaml
+tasks:
+  - title: "Backend Implementation"
+    customFields:
+      Custom.ReleaseVersion: "{{ story.customFields['Custom.ReleaseVersion'] }}"
 ```
 
 ### Assignment Patterns
@@ -321,35 +314,89 @@ tasks:
     assignTo: "@Me"               # Whoever runs the command
 ```
 
+### Task Custom Fields
+
+Use `customFields` to set Azure DevOps fields when Atomize creates tasks. Keys are always ADO reference names such as `Custom.ClientTier` or `Microsoft.VSTS.Common.Priority`.
+
+```yaml
+tasks:
+  - id: "backend"
+    title: "Backend Implementation"
+    customFields:
+      Custom.ClientTier: "Enterprise"
+      Custom.ReleaseVersion: "{{ story.customFields['Custom.ReleaseVersion'] }}"
+      Custom.IsBillable: true
+      Custom.TierRank: 3
+      Custom.ReleaseDate: "@Today"
+```
+
+**Supported value types:**
+
+| ADO field type | Template value type | Notes |
+|----------------|---------------------|-------|
+| Text (single line) | string | Free-form string |
+| Text (multi-line) | string | Multi-line values are allowed |
+| Boolean | boolean | `true` or `false` |
+| Date/Time | string | ISO 8601 date/time or supported macros such as `@Today` |
+| Decimal | number | Floating-point values |
+| Identity | string | Email address or values such as `@Me` when supported by ADO |
+| Integer | number | Whole-number values |
+| Picklist (String) | string | Must match one of the allowed values |
+| Picklist (Integer) | number | Must match one of the allowed values |
+
+**Validation behavior:**
+- `atomize validate` without `--profile` checks structure only and warns that custom fields were not verified against ADO
+- `atomize validate --profile <name>` connects to ADO and validates field names, read-only status, types, and picklist values
+- `atomize generate` always validates custom fields against live ADO field metadata before creating work items
+
+Use `atomize fields list` to browse available field names and types for a project before authoring templates.
+
 ### Conditional Tasks
 
-Tasks with a `condition` are only created when the condition evaluates to `true`. When a conditional task is skipped, its estimation is redistributed to other tasks proportionally.
+Tasks with a `condition` are only created when the condition evaluates to `true`. Conditions are structured objects evaluated against the parent story at generate time. When a conditional task is skipped, its estimation is redistributed to other tasks proportionally.
 
 ```yaml
 tasks:
   - title: "Security Review"
     estimationPercent: 10
-    condition: '${story.tags} CONTAINS "security"'
+    condition:
+      field: "tags"
+      operator: "contains"
+      value: "security"
 
   - title: "Database Migration"
     estimationPercent: 15
-    condition: '${story.tags} CONTAINS "database" AND ${story.estimation} > 5'
+    condition:
+      all:
+        - field: "tags"
+          operator: "contains"
+          value: "database"
+        - field: "estimation"
+          operator: "gt"
+          value: 5
 ```
 
-**Condition operators:**
+**Simple clause fields:**
 
-| Operator | Usage | Example |
-|----------|-------|---------|
-| `CONTAINS` | Tag/string contains value | `${story.tags} CONTAINS "backend"` |
-| `NOT CONTAINS` | Tag/string doesn't contain value | `${story.tags} NOT CONTAINS "frontend"` |
-| `==` | Equality | `${story.estimation} == 8` |
-| `!=` | Inequality | `${story.estimation} != 0` |
-| `>` | Greater than | `${story.estimation} > 5` |
-| `<` | Less than | `${story.estimation} < 13` |
-| `>=` | Greater than or equal | `${story.estimation} >= 8` |
-| `<=` | Less than or equal | `${story.estimation} <= 3` |
-| `AND` | Both conditions must be true | `... AND ...` |
-| `OR` | Either condition must be true | `... OR ...` |
+| Property | Description |
+|----------|-------------|
+| `field` | Built-in story field such as `title`, `tags`, or `estimation` |
+| `customField` | Parent story custom field reference name such as `Custom.ClientTier` |
+| `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte` |
+| `value` | String, number, or boolean to compare against |
+
+**Compound clauses:**
+- `{ all: [...] }` means every nested clause must match
+- `{ any: [...] }` means at least one nested clause must match
+
+```yaml
+tasks:
+  - title: "Enterprise Review"
+    condition:
+      customField: "Custom.ClientTier"
+      operator: "equals"
+      value: "Enterprise"
+```
 
 ### Conditional Estimation
 
@@ -360,11 +407,20 @@ tasks:
   - title: "Implementation"
     estimationPercent: 50       # Default/fallback
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "critical"'
+      - condition:
+          field: "tags"
+          operator: "contains"
+          value: "critical"
         percent: 60             # Higher weight for critical stories
-      - condition: "${story.estimation} >= 13"
+      - condition:
+          field: "estimation"
+          operator: "gte"
+          value: 13
         percent: 55             # More work for large stories
-      - condition: '${story.tags} CONTAINS "fullstack"'
+      - condition:
+          field: "tags"
+          operator: "contains"
+          value: "fullstack"
         percent: 40             # Less backend work for fullstack stories
 ```
 
@@ -533,7 +589,10 @@ tasks:
     description: "Create or update database schema and migrations"
     estimationPercent: 15
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "complex-db"'
+      - condition:
+          field: "tags"
+          operator: "contains"
+          value: "complex-db"
         percent: 25
     activity: "Development"
     dependsOn: ["design"]
@@ -562,7 +621,14 @@ tasks:
     title: "Security Review"
     estimationPercent: 10
     activity: "Testing"
-    condition: '${story.tags} CONTAINS "security" OR ${story.tags} CONTAINS "auth"'
+    condition:
+      any:
+        - field: "tags"
+          operator: "contains"
+          value: "security"
+        - field: "tags"
+          operator: "contains"
+          value: "auth"
     dependsOn: ["implement"]
 
   - id: "review"

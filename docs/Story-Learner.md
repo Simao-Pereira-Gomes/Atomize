@@ -98,7 +98,10 @@ If certain tasks only appear when stories have specific tags or properties, Atom
 tasks:
   - title: "Security Review"
     estimationPercent: 10
-    condition: '${story.tags} CONTAINS "security"'  # Suggested based on pattern
+    condition:
+      field: "tags"
+      operator: "contains"
+      value: "security"  # Suggested based on pattern
 ```
 
 ### 6. Tag Pattern Analysis
@@ -251,7 +254,7 @@ After generating, always:
 
 After generation, consider:
 - Renaming generic task titles to be more specific
-- Adding `condition` fields for tasks that don't always apply
+- Adding structured `condition` fields for tasks that don't always apply
 - Adding `dependsOn` to enforce task ordering
 - Adding `assignTo` patterns appropriate for your team
 - Adding `${story.title}` variable interpolation to task titles
