@@ -13,14 +13,18 @@ import {
 import { logger } from "@config/logger";
 import type { AtomizationReport, StoryAtomizationResult } from "@core/atomizer";
 import { Atomizer, type ProgressEvent } from "@core/atomizer";
+import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
+import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { TemplateLoader } from "@templates/loader";
+import type { TaskTemplate } from "@templates/schema";
 import { TemplateValidator } from "@templates/validator";
 import { clampConcurrency } from "@utils/math";
 import chalk from "chalk";
 import { Command, Option } from "commander";
 import { match } from "ts-pattern";
+import { checkValueType } from "@/cli/commands/validate.command";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
@@ -28,7 +32,7 @@ import {
   isInteractiveTerminal,
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
-import type { IPlatformAdapter } from "@/platforms";
+import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 
 
 /** Strips sensitive fields from a WorkItem for safe report output. */
@@ -531,6 +535,10 @@ export const generateCommand = new Command("generate")
       if (isTTYSession) authSpinner.stop(`Connected: ${metadata.name} v${metadata.version}${profileLabel} ✓`);
       else print(`Connected: ${metadata.name} v${metadata.version}${profileLabel} ✓`);
 
+      await validateCustomFieldsPreFlight(template, platform_);
+
+      const forceNormalize = await resolveNormalization(template, isTTYSession);
+
       const atomizer = new Atomizer(platform_);
 
       const hasFilterCriteria =
@@ -606,6 +614,7 @@ export const generateCommand = new Command("generate")
           limit: options.limit !== undefined ? parseInt(options.limit, 10) : undefined,
           storyConcurrency,
           dependencyConcurrency,
+          forceNormalize,
           onProgress: createProgressHandler(
             isTTYSession,
             querySpinner,
@@ -662,3 +671,141 @@ export const generateCommand = new Command("generate")
       process.exit(ExitCode.Failure);
     }
   });
+
+async function resolveNormalization(
+  template: TaskTemplate,
+  isTTYSession: boolean,
+): Promise<boolean> {
+  const total = template.tasks.reduce((s, t) => s + (t.estimationPercent ?? 0), 0);
+  if (total <= 100) return false;
+
+  if (isTTYSession) {
+    return assertNotCancelled(
+      await confirm({
+        message: `Total task estimation is ${total}% (exceeds 100%). Normalise to 100% before generating?`,
+        initialValue: false,
+      }),
+    );
+  }
+
+  logger.warn(`Template total estimation is ${total}% (exceeds 100%). Proceeding without normalisation. Run interactively to be prompted.`);
+  return false;
+}
+
+async function collectTaskFieldErrors(
+  tasks: TaskTemplate["tasks"],
+  getFieldSchemas: NonNullable<IPlatformAdapter["getFieldSchemas"]>,
+  errors: string[],
+): Promise<void> {
+  const schemas = await getFieldSchemas("Task");
+  const schemaByRef = new Map<string, ADoFieldSchema>(schemas.map((f) => [f.referenceName, f]));
+
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    if (!task?.customFields) continue;
+
+    for (const [refName, value] of Object.entries(task.customFields)) {
+      const schema = schemaByRef.get(refName);
+      const fieldPath = `tasks[${i}].customFields`;
+
+      if (!schema) {
+        errors.push(`${fieldPath}: Field "${refName}" not found for work item type "Task".`);
+        continue;
+      }
+
+      if (schema.isReadOnly) {
+        errors.push(`${fieldPath}: Field "${refName}" is read-only and cannot be set.`);
+        continue;
+      }
+
+      if (typeof value === "string" && value.includes("{{")) continue;
+
+      if (schema.allowedValues && schema.allowedValues.length > 0) {
+        const strValue = String(value);
+        if (!schema.allowedValues.includes(strValue)) {
+          errors.push(
+            `${fieldPath}: Value "${strValue}" is not in the allowed values for "${refName}": [${schema.allowedValues.join(", ")}].`,
+          );
+        }
+        continue;
+      }
+
+      const typeError = checkValueType(refName, value, schema.type, `${fieldPath}["${refName}"]`);
+      if (typeError) errors.push(`${typeError.path}: ${typeError.message}`);
+    }
+  }
+}
+
+async function collectConditionFieldErrors(
+  conditionRefs: string[],
+  workItemTypes: string[],
+  getFieldSchemas: NonNullable<IPlatformAdapter["getFieldSchemas"]>,
+  errors: string[],
+): Promise<void> {
+  const schemasByWit = new Map<string, Map<string, ADoFieldSchema>>();
+  for (const wit of workItemTypes) {
+    const witSchemas = await getFieldSchemas(wit);
+    schemasByWit.set(wit, new Map(witSchemas.map((f) => [f.referenceName, f])));
+  }
+
+  for (const ref of conditionRefs) {
+    for (const wit of workItemTypes) {
+      const witSchemaMap = schemasByWit.get(wit);
+      if (witSchemaMap && !witSchemaMap.has(ref)) {
+        errors.push(
+          `tasks[condition]: Custom field "${ref}" referenced in condition not found for work item type "${wit}".`,
+        );
+      }
+    }
+  }
+}
+
+export async function validateCustomFieldsPreFlight(
+  template: TaskTemplate,
+  platform: IPlatformAdapter,
+): Promise<void> {
+  if (!platform.getFieldSchemas) return;
+
+  const tasksWithFields = template.tasks.filter(
+    (t) => t.customFields && Object.keys(t.customFields).length > 0,
+  );
+  const conditionRefs = Array.from(
+    new Set(
+      template.tasks.flatMap((t) =>
+        t.condition ? extractCustomFieldRefs(t.condition) : [],
+      ),
+    ),
+  );
+
+  if (tasksWithFields.length === 0 && conditionRefs.length === 0) return;
+
+  const s = createManagedSpinner();
+  s.start("Validating custom fields against ADO schema...");
+
+  const errors: string[] = [];
+
+  if (tasksWithFields.length > 0) {
+    await collectTaskFieldErrors(template.tasks, platform.getFieldSchemas, errors);
+  }
+
+  if (conditionRefs.length > 0 && template.filter.workItemTypes?.length) {
+    await collectConditionFieldErrors(
+      conditionRefs,
+      template.filter.workItemTypes,
+      platform.getFieldSchemas,
+      errors,
+    );
+  }
+
+  if (errors.length > 0) {
+    s.stop("Custom field validation failed");
+    console.log(chalk.red("\n  Custom field errors:\n"));
+    for (const err of errors) {
+      console.log(chalk.red(`  • ${err}`));
+    }
+    cancel("Fix custom field errors before generating.");
+    process.exit(ExitCode.Failure);
+  }
+
+  s.stop(`Custom fields valid ✓`);
+}
