@@ -75,6 +75,9 @@ export interface AtomizationOptions {
 
   /** Progress callback for reporting progress */
   onProgress?: ProgressCallback;
+
+  /** Force normalisation of task estimations to 100% even when total exceeds 100% */
+  forceNormalize?: boolean;
 }
 
 /**
@@ -410,6 +413,7 @@ export class Atomizer {
         connectUserEmail,
         orderedTasks,
         template.estimation,
+        options.forceNormalize,
       );
 
     logger.info(

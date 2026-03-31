@@ -1,3 +1,4 @@
+import type { ADoFieldSchema } from "./field-schema.interface";
 import type { FilterCriteria, QueryResult } from "./filter.interface";
 import type { TaskDefinition, WorkItem } from "./work-item.interface";
 
@@ -118,6 +119,23 @@ export interface IPlatformAdapter {
    * @param folder Optional folder path prefix to filter results.
    */
   listSavedQueries?(folder?: string): Promise<SavedQueryInfo[]>;
+
+  /**
+   * Fetch field schemas for a given work item type (or all fields if omitted).
+   * Results are cached per session by the implementation.
+   */
+  getFieldSchemas?(workItemType?: string): Promise<ADoFieldSchema[]>;
+
+  /** Returns available work item type names for the project */
+  getWorkItemTypes?(): Promise<string[]>;
+  /** Returns available state names for a given work item type */
+  getStatesForWorkItemType?(workItemType: string): Promise<string[]>;
+  /** Returns all area paths in the project */
+  getAreaPaths?(): Promise<string[]>;
+  /** Returns all iteration paths in the project */
+  getIterationPaths?(): Promise<string[]>;
+  /** Returns team names in the project */
+  getTeams?(): Promise<string[]>;
 }
 
 /**

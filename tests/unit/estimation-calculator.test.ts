@@ -158,14 +158,13 @@ describe("EstimationCalculator", () => {
       expect(calculated[0]?.estimation).toBe(0.5); // Minimum enforced
     });
 
-    test("should skip conditional tasks", () => {
+    test("should skip conditional tasks when condition not met", () => {
       const tasks: TaskDefinition[] = [
         { title: "Task 1", estimationPercent: 50 },
         {
           title: "Conditional",
           estimationPercent: 30,
-          //biome-ignore lint/suspicious: The template is needed for user input
-          condition: "${someCondition}",
+          condition: { field: "tags", operator: "contains", value: "frontend" },
         },
         { title: "Task 2", estimationPercent: 20 },
       ];
@@ -176,27 +175,25 @@ describe("EstimationCalculator", () => {
         tasks
       );
 
-      // Should only calculate non-conditional tasks
+      // Should only calculate non-conditional tasks (story has no "frontend" tag)
       expect(calculated).toHaveLength(2);
       expect(calculated[0]?.title).toBe("Task 1");
       expect(calculated[1]?.title).toBe("Task 2");
     });
 
-    test("should evaluate conditions with outer quotes from YAML", () => {
+    test("should include conditional tasks when condition is met", () => {
       const story = { ...mockStory, estimation: 1 };
       const tasks: TaskDefinition[] = [
         { title: "Task 1", estimationPercent: 50 },
         {
           title: "High Estimation Task",
           estimationPercent: 30,
-          //biome-ignore lint/suspicious: The template is needed for user input
-          condition: "'${story.estimation} >= 3'",
+          condition: { field: "estimation", operator: "gte", value: 3 },
         },
         {
           title: "Low Estimation Task",
           estimationPercent: 20,
-          //biome-ignore lint/suspicious: The template is needed for user input
-          condition: '"${story.estimation} < 3"',
+          condition: { field: "estimation", operator: "lt", value: 3 },
         },
       ];
 
@@ -206,6 +203,7 @@ describe("EstimationCalculator", () => {
         tasks
       );
 
+      // story.estimation = 1, so only "Low Estimation Task" condition passes
       expect(calculated).toHaveLength(2);
       expect(calculated[0]?.title).toBe("Task 1");
       expect(calculated[1]?.title).toBe("Low Estimation Task");
@@ -424,8 +422,7 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task",
           estimationPercent: 30,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.tags} CONTAINS "backend"',
+          condition: { field: "tags", operator: "contains", value: "backend" },
         },
         { title: "Task 3", estimationPercent: 20 },
       ];
@@ -473,14 +470,12 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task 1",
           estimationPercent: 25,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.tags} CONTAINS "backend"',
+          condition: { field: "tags", operator: "contains", value: "backend" },
         },
         {
           title: "Backend Task 2",
           estimationPercent: 25,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.tags} CONTAINS "backend"',
+          condition: { field: "tags", operator: "contains", value: "backend" },
         },
         { title: "Frontend Task 2", estimationPercent: 20 },
       ];
@@ -545,14 +540,12 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task 1",
           estimationPercent: 30,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.tags} CONTAINS "backend"',
+          condition: { field: "tags", operator: "contains", value: "backend" },
         },
         {
           title: "Backend Task 2",
           estimationPercent: 30,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.tags} CONTAINS "backend"',
+          condition: { field: "tags", operator: "contains", value: "backend" },
         },
       ];
 
@@ -581,8 +574,7 @@ describe("EstimationCalculator", () => {
         {
           title: "Backend Task",
           estimationPercent: 100,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.tags} CONTAINS "backend"',
+          condition: { field: "tags", operator: "contains", value: "backend" },
         },
       ];
 
@@ -619,15 +611,13 @@ describe("EstimationCalculator", () => {
         {
           title: "Database Task",
           estimationPercent: 20,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.customFields.component} == "api"',
+          condition: { field: "customFields.component", operator: "equals", value: "api" },
         },
         { title: "API Task", estimationPercent: 30 },
         {
           title: "Mobile Task",
           estimationPercent: 15,
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          condition: '${story.tags} CONTAINS "mobile"',
+          condition: { field: "tags", operator: "contains", value: "mobile" },
         },
         { title: "Testing Task", estimationPercent: 10 },
       ];
@@ -663,8 +653,7 @@ describe("EstimationCalculator", () => {
           title: "Task",
           estimationPercent: 40,
           estimationPercentCondition: [
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 8", percent: 60 },
+            { condition: { field: "estimation", operator: "gte", value: 8 }, percent: 60 },
           ],
         },
       ];
@@ -682,8 +671,7 @@ describe("EstimationCalculator", () => {
           title: "Task",
           estimationPercent: 40,
           estimationPercentCondition: [
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 50", percent: 80 },
+            { condition: { field: "estimation", operator: "gte", value: 50 }, percent: 80 },
           ],
         },
       ];
@@ -700,10 +688,8 @@ describe("EstimationCalculator", () => {
           title: "Design",
           estimationPercent: 10,
           estimationPercentCondition: [
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 13", percent: 20 },
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 5", percent: 15 },
+            { condition: { field: "estimation", operator: "gte", value: 13 }, percent: 20 },
+            { condition: { field: "estimation", operator: "gte", value: 5 }, percent: 15 },
           ],
         },
       ];
@@ -736,8 +722,7 @@ describe("EstimationCalculator", () => {
           estimationPercent: 60,
           estimationPercentCondition: [
             {
-              // biome-ignore lint/suspicious: template condition
-              condition: '${story.tags} CONTAINS "fullstack"',
+              condition: { field: "tags", operator: "contains", value: "fullstack" },
               percent: 40,
             },
           ],
@@ -767,22 +752,19 @@ describe("EstimationCalculator", () => {
           title: "Task A",
           estimationPercent: 20,
           estimationPercentCondition: [
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 5", percent: 30 },
+            { condition: { field: "estimation", operator: "gte", value: 5 }, percent: 30 },
           ],
         },
         {
           title: "Skipped Task",
           estimationPercent: 50,
-          // biome-ignore lint/suspicious: template condition
-          condition: '${story.tags} CONTAINS "frontend"',
+          condition: { field: "tags", operator: "contains", value: "frontend" },
         },
         {
           title: "Task C",
           estimationPercent: 30,
           estimationPercentCondition: [
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 5", percent: 70 },
+            { condition: { field: "estimation", operator: "gte", value: 5 }, percent: 70 },
           ],
         },
       ];
@@ -807,22 +789,19 @@ describe("EstimationCalculator", () => {
           title: "Design",
           estimationPercent: 10,
           estimationPercentCondition: [
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 5", percent: 20 },
+            { condition: { field: "estimation", operator: "gte", value: 5 }, percent: 20 },
           ],
         },
         {
           title: "Backend",
           estimationPercent: 60,
-          // biome-ignore lint/suspicious: template condition
-          condition: '${story.tags} CONTAINS "backend"',
+          condition: { field: "tags", operator: "contains", value: "backend" },
         },
         {
           title: "Frontend",
           estimationPercent: 30,
           estimationPercentCondition: [
-            // biome-ignore lint/suspicious: template condition
-            { condition: "${story.estimation} >= 5", percent: 50 },
+            { condition: { field: "estimation", operator: "gte", value: 5 }, percent: 50 },
           ],
         },
       ];

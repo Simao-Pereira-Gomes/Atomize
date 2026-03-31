@@ -1,4 +1,5 @@
 import { logger } from "@config/logger";
+import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import type {
   FilterCriteria,
   QueryResult,
@@ -332,6 +333,10 @@ export class MockPlatformAdapter implements IPlatformAdapter {
   }
 
   async listSavedQueries(_folder?: string): Promise<SavedQueryInfo[]> {
+    return [];
+  }
+
+  async getFieldSchemas(_workItemType?: string): Promise<ADoFieldSchema[]> {
     return [];
   }
 

@@ -3,6 +3,7 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { name, version } from "../../package.json";
 import { authCommand } from "./commands/auth/auth.command";
+import { fieldsCommand } from "./commands/fields/fields.command";
 import { generateCommand } from "./commands/generate.command";
 import { queriesCommand } from "./commands/queries/queries.command";
 import { templateCommand } from "./commands/template/template.command";
@@ -47,6 +48,7 @@ ${chalk.gray("Break down stories, build up velocity.")}
 
 program.addHelpText("beforeAll", banner);
 program.addCommand(authCommand);
+program.addCommand(fieldsCommand);
 program.addCommand(queriesCommand);
 program.addCommand(validateCommand);
 program.addCommand(generateCommand);

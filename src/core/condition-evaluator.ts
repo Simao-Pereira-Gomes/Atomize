@@ -1,309 +1,151 @@
 import { logger } from "../config/logger.js";
 import type { WorkItem } from "../platforms/interfaces/work-item.interface.js";
+import type { Condition, ConditionOperator } from "../templates/schema.js";
 
 /**
- * Evaluates conditional expressions for task conditions
- * Supports: ${variable}, CONTAINS, NOT CONTAINS, ==, !=, >, <, >=, <=, AND, OR
+ * Extracts all ADO custom field reference names (e.g. "Custom.ClientTier") from a
+ * structured Condition by recursively traversing compound clauses.
+ */
+export function extractCustomFieldRefs(condition: Condition): string[] {
+  const refs: string[] = [];
+
+  function traverse(cond: Condition): void {
+    if ("customField" in cond) {
+      if (!refs.includes(cond.customField)) refs.push(cond.customField);
+    } else if ("all" in cond) {
+      cond.all.forEach(traverse);
+    } else if ("any" in cond) {
+      cond.any.forEach(traverse);
+    }
+  }
+
+  traverse(condition);
+  return refs;
+}
+
+/**
+ * Evaluates structured task conditions against a parent work item (story).
  */
 export class ConditionEvaluator {
   /**
-   * Evaluates a condition string against a work item (story)
-   * @param condition - The condition string (e.g., '${story.tags} CONTAINS "backend"' or '${story.tags} NOT CONTAINS "frontend"')
-   * @param story - The work item to evaluate against
-   * @returns true if condition passes, false otherwise
+   * Evaluates a structured condition against a work item.
+   * @returns true if the condition passes (or condition is absent), false otherwise.
    */
-  public evaluateCondition(condition: string, story: WorkItem): boolean {
-    if (!condition || condition.trim() === "") {
-      return true; // Empty conditions always pass
-    }
+  public evaluateCondition(
+    condition: Condition | undefined | null,
+    story: WorkItem,
+  ): boolean {
+    if (!condition) return true;
 
     try {
-      let normalizedCondition = condition.trim();
-      if (
-        (normalizedCondition.startsWith('"') && normalizedCondition.endsWith('"')) ||
-        (normalizedCondition.startsWith("'") && normalizedCondition.endsWith("'"))
-      ) {
-        normalizedCondition = normalizedCondition.slice(1, -1);
-      }
-
-      const interpolated = this.interpolateVariables(normalizedCondition, story);
-      logger.debug(`Evaluating condition: "${condition}"`);
-      const result = this.evaluateExpression(interpolated);
-
-      logger.debug(`Condition result: ${result}`);
-
-      return result;
+      return this.evaluate(condition, story);
     } catch (error) {
       logger.error(
-        `Error evaluating condition "${condition}": ${
-          error instanceof Error ? error.message : String(error)
-        }`
+        `Error evaluating condition: ${error instanceof Error ? error.message : String(error)}`,
       );
-      return false; // Fail-safe: invalid conditions evaluate to false
+      return false;
     }
   }
 
-  /**
-   * Interpolates ${...} variables in the condition string
-   */
-  private interpolateVariables(condition: string, story: WorkItem): string {
-    return condition.replace(/\$\{([^}]+)\}/g, (_match, path) => {
-      const value = this.resolveVariablePath(path.trim(), story);
-      const stringValue = this.valueToString(value);
-      if (stringValue === "") {
-        return '""';
-      }
-      return stringValue;
-    });
+  private evaluate(condition: Condition, story: WorkItem): boolean {
+    if ("all" in condition) {
+      return condition.all.every((c) => this.evaluate(c, story));
+    }
+    if ("any" in condition) {
+      return condition.any.some((c) => this.evaluate(c, story));
+    }
+    if ("customField" in condition) {
+      const fieldValue = story.customFields?.[condition.customField];
+      return this.applyOperator(fieldValue, condition.operator, condition.value);
+    }
+    const fieldValue = this.resolveField(condition.field, story);
+    return this.applyOperator(fieldValue, condition.operator, condition.value);
   }
 
   /**
-   * Resolves a variable path like "story.tags" or "story.customFields.component"
+   * Resolves a dot-notation field path against a story (e.g. "tags", "customFields.Foo").
    */
-  private resolveVariablePath(path: string, story: WorkItem): unknown {
-    const normalizedPath = path.replace(/^story\./, "");
-    const parts = normalizedPath.split(".");
+  private resolveField(field: string, story: WorkItem): unknown {
+    const parts = field.split(".");
     let value: unknown = story;
-
     for (const part of parts) {
-      if (value === null || value === undefined) {
-        return undefined;
-      }
-      if (typeof value === "object" && part in value) {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === "object" && part in (value as object)) {
         value = (value as Record<string, unknown>)[part];
       } else {
         return undefined;
       }
     }
-
     return value;
   }
 
-  /**
-   * Converts a value to a string representation for comparison
-   */
-  private valueToString(value: unknown): string {
-    if (value === null || value === undefined) {
-      return "";
-    }
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        return "";
-      }
-      return value.join(",");
-    }
-    if (typeof value === "object") {
-      return JSON.stringify(value);
-    }
-    return String(value);
-  }
-
-  /**
-   * Evaluates an expression with operators (AND, OR, CONTAINS, ==, etc.)
-   */
-  private evaluateExpression(expression: string): boolean {
-    // Handle logical operators (AND, OR) - process from left to right
-    // Split by OR first (lower precedence)
-    if (expression.includes(" OR ")) {
-      const parts = this.splitByOperator(expression, " OR ");
-      return parts.some((part) => this.evaluateExpression(part.trim()));
-    }
-
-    // Split by AND (higher precedence)
-    if (expression.includes(" AND ")) {
-      const parts = this.splitByOperator(expression, " AND ");
-      return parts.every((part) => this.evaluateExpression(part.trim()));
-    }
-
-    // Evaluate single comparison
-    return this.evaluateComparison(expression);
-  }
-
-  /**
-   * Splits expression by operator, respecting quoted strings
-   */
-  private splitByOperator(expression: string, operator: string): string[] {
-    const parts: string[] = [];
-    let current = "";
-    let inQuotes = false;
-    let quoteChar = "";
-
-    for (let i = 0; i < expression.length; i++) {
-      const char = expression[i];
-
-      if ((char === '"' || char === "'") && expression[i - 1] !== "\\") {
-        if (!inQuotes) {
-          inQuotes = true;
-          quoteChar = char;
-        } else if (char === quoteChar) {
-          inQuotes = false;
-        }
-      }
-
-      if (
-        !inQuotes &&
-        expression.substring(i, i + operator.length) === operator
-      ) {
-        parts.push(current);
-        current = "";
-        i += operator.length - 1;
-      } else {
-        current += char;
-      }
-    }
-
-    parts.push(current);
-    return parts;
-  }
-
-  /**
-   * Evaluates a single comparison (CONTAINS, NOT CONTAINS, ==, !=, >, <, >=, <=)
-   */
-  private evaluateComparison(expression: string): boolean {
-    expression = expression.trim();
-
-    // Check each operator (check NOT CONTAINS before CONTAINS to avoid false matches)
-    if (expression.includes(" NOT CONTAINS ")) {
-      return this.evaluateNotContains(expression);
-    }
-    if (expression.includes(" CONTAINS ")) {
-      return this.evaluateContains(expression);
-    }
-    // Check for operators with flexible spacing (==, !=, >=, <=, >, <)
-    // Match operators with at least one space on either side or no spaces at all
-    if (/\s*==\s*/.test(expression) && expression.includes("==")) {
-      return this.evaluateEquals(expression, "==");
-    }
-    if (/\s*!=\s*/.test(expression) && expression.includes("!=")) {
-      return this.evaluateEquals(expression, "!=");
-    }
-    if (/\s*>=\s*/.test(expression) && expression.includes(">=")) {
-      return this.evaluateNumericComparison(expression, ">=");
-    }
-    if (/\s*<=\s*/.test(expression) && expression.includes("<=")) {
-      return this.evaluateNumericComparison(expression, "<=");
-    }
-    if (/\s*>\s*/.test(expression) && expression.includes(">") && !expression.includes(">=")) {
-      return this.evaluateNumericComparison(expression, ">");
-    }
-    if (/\s*<\s*/.test(expression) && expression.includes("<") && !expression.includes("<=")) {
-      return this.evaluateNumericComparison(expression, "<");
-    }
-
-    // If no operator, check truthiness
-    return this.evaluateTruthiness(expression);
-  }
-
-  /**
-   * Evaluates CONTAINS operator
-   */
-  private evaluateContains(expression: string): boolean {
-    const parts = expression.split(" CONTAINS ");
-    if (parts.length < 2 || !parts[0] || !parts[1]) return false;
-
-    const leftValue = this.unquote(parts[0].trim()).toLowerCase();
-    const rightValue = this.unquote(parts[1].trim()).toLowerCase();
-
-    // If left side is empty, it can't contain anything
-    if (leftValue === "") {
-      return false;
-    }
-
-    return leftValue.includes(rightValue);
-  }
-
-  /**
-   * Evaluates NOT CONTAINS operator
-   */
-  private evaluateNotContains(expression: string): boolean {
-    const parts = expression.split(" NOT CONTAINS ");
-    if (parts.length < 2 || !parts[0] || !parts[1]) return false;
-
-    const leftValue = this.unquote(parts[0].trim()).toLowerCase();
-    const rightValue = this.unquote(parts[1].trim()).toLowerCase();
-
-    // If left side is empty, it doesn't contain anything (so NOT CONTAINS is true)
-    if (leftValue === "") {
-      return true;
-    }
-
-    return !leftValue.includes(rightValue);
-  }
-
-  /**
-   * Evaluates == or != operator
-   */
-  private evaluateEquals(expression: string, operator: "==" | "!="): boolean {
-    const regex = new RegExp(`\\s*${operator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`);
-    const parts = expression.split(regex);
-    if (parts.length < 2 || !parts[0] || !parts[1]) return false;
-
-    const leftValue = this.unquote(parts[0].trim());
-    const rightValue = this.unquote(parts[1].trim());
-    const isEqual = leftValue === rightValue;
-    return operator === "==" ? isEqual : !isEqual;
-  }
-
-  /**
-   * Evaluates numeric comparisons (>, <, >=, <=)
-   */
-  private evaluateNumericComparison(
-    expression: string,
-    operator: ">" | "<" | ">=" | "<="
+  private applyOperator(
+    fieldValue: unknown,
+    operator: ConditionOperator,
+    compareValue: string | number | boolean,
   ): boolean {
-    const regex = new RegExp(`\\s*${operator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`);
-    const parts = expression.split(regex);
-    if (parts.length < 2 || !parts[0] || !parts[1]) return false;
+    switch (operator) {
+      case "equals":
+        return this.compareEquals(fieldValue, compareValue);
+      case "not-equals":
+        return !this.compareEquals(fieldValue, compareValue);
+      case "contains":
+        return this.compareContains(fieldValue, compareValue);
+      case "not-contains":
+        return !this.compareContains(fieldValue, compareValue);
+      case "gt":
+        return this.compareNumeric(fieldValue, compareValue, (a, b) => a > b);
+      case "lt":
+        return this.compareNumeric(fieldValue, compareValue, (a, b) => a < b);
+      case "gte":
+        return this.compareNumeric(fieldValue, compareValue, (a, b) => a >= b);
+      case "lte":
+        return this.compareNumeric(fieldValue, compareValue, (a, b) => a <= b);
+    }
+  }
 
-    const leftValue = Number.parseFloat(this.unquote(parts[0].trim()));
-    const rightValue = Number.parseFloat(this.unquote(parts[1].trim()));
-
-    if (Number.isNaN(leftValue) || Number.isNaN(rightValue)) {
-      logger.warn(
-        `Non-numeric values in comparison: "${parts[0]}" ${operator} "${parts[1]}"`
+  private compareEquals(
+    left: unknown,
+    right: string | number | boolean,
+  ): boolean {
+    if (left === null || left === undefined) return false;
+    if (Array.isArray(left)) {
+      return left.some(
+        (item) => String(item).toLowerCase() === String(right).toLowerCase(),
       );
+    }
+    if (typeof left === "boolean") {
+      return left === (right === true || right === "true");
+    }
+    if (typeof left === "number" || typeof right === "number") {
+      return Number(left) === Number(right);
+    }
+    return String(left).toLowerCase() === String(right).toLowerCase();
+  }
+
+  private compareContains(
+    left: unknown,
+    right: string | number | boolean,
+  ): boolean {
+    if (left === null || left === undefined) return false;
+    const target = String(right).toLowerCase();
+    if (Array.isArray(left)) {
+      return left.some((item) => String(item).toLowerCase().includes(target));
+    }
+    return String(left).toLowerCase().includes(target);
+  }
+
+  private compareNumeric(
+    left: unknown,
+    right: string | number | boolean,
+    compare: (a: number, b: number) => boolean,
+  ): boolean {
+    const a = Number(left);
+    const b = Number(right);
+    if (Number.isNaN(a) || Number.isNaN(b)) {
+      logger.warn(`Non-numeric values in numeric comparison: "${left}" vs "${right}"`);
       return false;
     }
-
-    switch (operator) {
-      case ">":
-        return leftValue > rightValue;
-      case "<":
-        return leftValue < rightValue;
-      case ">=":
-        return leftValue >= rightValue;
-      case "<=":
-        return leftValue <= rightValue;
-    }
-  }
-
-  /**
-   * Evaluates truthiness of a value
-   */
-  private evaluateTruthiness(value: string): boolean {
-    const unquoted = this.unquote(value).toLowerCase();
-
-    if (unquoted === "true") return true;
-    if (unquoted === "false") return false;
-    if (unquoted === "") return false;
-    if (unquoted === "0") return false;
-    if (unquoted === "null") return false;
-    if (unquoted === "undefined") return false;
-
-    return true;
-  }
-
-  /**
-   * Removes surrounding quotes from a string
-   */
-  private unquote(str: string): string {
-    str = str.trim();
-    if (
-      (str.startsWith('"') && str.endsWith('"')) ||
-      (str.startsWith("'") && str.endsWith("'"))
-    ) {
-      return str.slice(1, -1);
-    }
-    return str;
+    return compare(a, b);
   }
 }

@@ -274,7 +274,6 @@ tasks:
     activity: "Development"
     assignTo: "john@company.com"
     priority: 2
-    remainingWork: 16
 ```
 
 Maps to Azure DevOps fields:

@@ -336,11 +336,11 @@ tasks:
 
 **Error Message:**
 ```
-Condition "true" might be invalid (no variables found)
-💡 Use variables like ${story.tags} or operators like CONTAINS, ==, !=. Example: "${story.tags} CONTAINS 'backend'"
+Invalid input for condition
+💡 Conditions use structured objects such as `field`, `customField`, `all`, and `any`.
 ```
 
-**Cause:** Condition doesn't use variables or operators properly.
+**Cause:** Condition uses the old string expression syntax instead of the structured condition format Atomize validates now.
 
 **Solutions:**
 1. **Use story variables:**
@@ -348,7 +348,10 @@ Condition "true" might be invalid (no variables found)
    tasks:
      - title: "Backend Task"
        estimationPercent: 50
-       condition: "${story.tags} CONTAINS 'backend'"
+       condition:
+         field: "tags"
+         operator: "contains"
+         value: "backend"
    ```
 
 2. **Use custom fields:**
@@ -356,7 +359,10 @@ Condition "true" might be invalid (no variables found)
    tasks:
      - title: "High Priority Task"
        estimationPercent: 30
-       condition: "${story.customFields.Priority} == 'High'"
+       condition:
+         customField: "Custom.Priority"
+         operator: "equals"
+         value: "High"
    ```
 
 3. **Combine conditions:**
@@ -364,14 +370,21 @@ Condition "true" might be invalid (no variables found)
    tasks:
      - title: "Complex Condition"
        estimationPercent: 40
-       condition: "${story.tags} CONTAINS 'api' AND ${story.estimation} > 5"
+       condition:
+         all:
+           - field: "tags"
+             operator: "contains"
+             value: "api"
+           - field: "estimation"
+             operator: "gt"
+             value: 5
    ```
 
 **Valid Operators:**
-- `CONTAINS` / `NOT CONTAINS`
-- `==` / `!=`
-- `>` / `<` / `>=` / `<=`
-- `AND` / `OR`
+- `contains` / `not-contains`
+- `equals` / `not-equals`
+- `gt` / `lt` / `gte` / `lte`
+- `all` / `any`
 
 ---
 
@@ -473,8 +486,8 @@ Errors:
    💡 Add 30% to existing tasks or create a new task with 30% estimation.
 
 Warnings:
- tasks[0].condition: Condition "true" might be invalid (no variables found)
-   💡 Use variables like ${story.tags} or operators like CONTAINS, ==, !=. Example: "${story.tags} CONTAINS 'backend'"
+ tasks[0].condition: Condition must be a structured object
+   💡 Example: `condition: { field: "tags", operator: "contains", value: "backend" }`
 ```
 
 ### Validation Commands
@@ -514,7 +527,7 @@ fi
 | Invalid dependency | "non-existent task ID" | Fix ID or add missing task |
 | Missing ID | "no id field" | Add `id: "task-name"` |
 | Circular dependency | "Circular dependency detected" | Remove one dependency from cycle |
-| Invalid condition | "no variables found" | Use `${variable}` syntax |
+| Invalid condition | "structured object" | Use `field` / `customField` conditions |
 | Invalid email | "Invalid email" | Use valid email or "@Me" |
 | Wrong type | "Expected X but received Y" | Fix value type (number vs string) |
 

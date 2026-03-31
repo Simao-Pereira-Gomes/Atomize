@@ -41,10 +41,12 @@ import {
   configureTasksWithValidation,
   configureValidation,
   previewTemplate,
+  type TemplateWizardContext,
 } from "./template-wizard";
 
 interface CreateFromScratchOptions {
   quiet?: boolean;
+  profile?: string;
 }
 
 type CreationMode = "preset" | "stories" | "scratch";
@@ -56,7 +58,6 @@ interface CreateOptions {
   output?: string;
   platform?: string;
   profile?: string;
-  normalize?: boolean;
   quiet?: boolean;
 }
 
@@ -68,8 +69,7 @@ export const templateCreateCommand = new Command("create")
     "Learn template from multiple stories (comma-separated IDs)",
   )
   .option("-p, --platform <platform>", "Platform to use", "azure-devops")
-  .option("--profile <name>", "Named connection profile to use")
-  .option("--no-normalize", "Keep original estimation percentages")
+  .option("--profile <name>", "Connect to ADO using a named profile for field suggestions (uses default profile if omitted)")
   .option("--scratch", "Create from scratch (skip mode selection)")
   .option(
     "-o, --output <path>",
@@ -98,7 +98,7 @@ export const templateCreateCommand = new Command("create")
         .with("stories", async () => await createFromStories(options))
         .with(
           "scratch",
-          async () => await createFromScratch({ quiet: options.quiet }),
+          async () => await createFromScratch({ quiet: options.quiet, profile: options.profile }),
         )
         .exhaustive();
 
@@ -309,8 +309,6 @@ async function createFromStories(
     ) as string;
   }
 
-  const shouldNormalize = options.normalize !== false;
-
   const connectSpinner = createManagedSpinner();
   connectSpinner.start(`Connecting to ${platformType}...`);
 
@@ -331,9 +329,7 @@ async function createFromStories(
   const learner = new StoryLearner(platform);
   const learnSpinner = createManagedSpinner();
   learnSpinner.start(`Learning from ${storyIds.length} stories...`);
-  const result = await learner.learnFromStories(storyIds, {
-    normalizePercentages: shouldNormalize,
-  });
+  const result = await learner.learnFromStories(storyIds);
   learnSpinner.stop(`Analyzed ${result.analyses.length} stories ✓`);
 
   displayMultiStoryResults(result);
@@ -505,6 +501,7 @@ export async function createFromScratch(
   _options: CreateFromScratchOptions = {},
 ): Promise<TaskTemplate> {
   const quiet = _options.quiet === true;
+  const profile = _options.profile;
   const printStep = (msg: string) => {
     if (!quiet) console.log(msg);
   };
@@ -517,7 +514,37 @@ export async function createFromScratch(
   let currentStep = 1;
 
   try {
-    // Step 1: Basic Information
+    let connectionSettled = false;
+    const connectionPromise = (async () => {
+      const { resolveAzureConfig } = await import("@config/profile-resolver");
+      const { AzureDevOpsAdapter } = await import("@platforms/adapters/azure-devops/azure-devops.adapter");
+      const azureConfig = await resolveAzureConfig(profile);
+      const adapter = new AzureDevOpsAdapter(azureConfig);
+      await adapter.authenticate();
+      const [taskSchemas, liveWorkItemTypes, liveAreaPaths, liveIterationPaths, liveTeams, liveSavedQueries] = await Promise.all([
+        adapter.getFieldSchemas("Task"),
+        adapter.getWorkItemTypes(),
+        adapter.getAreaPaths(),
+        adapter.getIterationPaths(),
+        adapter.getTeams(),
+        adapter.listSavedQueries(),
+      ]);
+
+      return {
+        adapter,
+        fieldSchemas: taskSchemas,
+        filterCtx: {
+          workItemTypes: liveWorkItemTypes,
+          getStatesForType: (type: string) => adapter.getStatesForWorkItemType(type),
+          areaPaths: liveAreaPaths,
+          iterationPaths: liveIterationPaths,
+          teams: liveTeams,
+          savedQueries: liveSavedQueries,
+        },
+      };
+    })().finally(() => { connectionSettled = true; });
+
+    // Step 1: Basic Information (runs concurrently with the connection above)
     printStep(chalk.blue(`\n[${currentStep}/${totalSteps}] Basic Information`));
     printStep(chalk.gray("█░░░░░"));
     printStep(
@@ -526,12 +553,33 @@ export async function createFromScratch(
 
     const basicInfo = await configureBasicInfo();
 
-    // Validate basic info before continuing
     if (!basicInfo.name || basicInfo.name.trim() === "") {
       throw new ConfigurationError("Template name is required");
     }
 
     currentStep++;
+
+    let filterCtx: import("./template-wizard-helper.command").FilterWizardContext;
+    let fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
+    let adapterForWizard: import("@platforms/adapters/azure-devops/azure-devops.adapter").AzureDevOpsAdapter;
+
+    const wasAlreadyConnected = connectionSettled;
+    const connectSpinner = createManagedSpinner();
+    if (!wasAlreadyConnected) connectSpinner.start("Connecting to ADO...");
+    try {
+      const conn = await connectionPromise;
+      if (!wasAlreadyConnected) connectSpinner.stop("Connected ✓");
+      filterCtx = conn.filterCtx;
+      fieldSchemas = conn.fieldSchemas;
+      adapterForWizard = conn.adapter;
+    } catch (err) {
+      if (!wasAlreadyConnected) connectSpinner.stop("Connection failed");
+      const message = err instanceof Error ? err.message : String(err);
+      const hint = err instanceof ConfigurationError
+        ? '\n\n  Run "atomize auth add" to configure a connection profile.'
+        : "";
+      throw new ConfigurationError(`${message}${hint}`);
+    }
 
     // Step 2: Filter Configuration
     printStep(
@@ -544,7 +592,7 @@ export async function createFromScratch(
       ),
     );
 
-    const filterConfig = await configureFilter();
+    const filterConfig = await configureFilter(filterCtx);
 
     // Validate filter has at least work item types or states
     if (
@@ -582,7 +630,12 @@ export async function createFromScratch(
     printStep(chalk.gray("███░░░"));
     printStep(chalk.gray("Tip: Break work into clear, actionable tasks\n"));
 
-    const tasks = await configureTasksWithValidation();
+    const workItemType = filterConfig.workItemTypes?.[0];
+    const storyFieldSchemas = workItemType
+      ? await adapterForWizard.getFieldSchemas(workItemType)
+      : [];
+
+    const tasks = await configureTasksWithValidation(fieldSchemas, storyFieldSchemas);
 
     // Validate we have at least one task
     if (!tasks || tasks.length === 0) {
@@ -689,7 +742,13 @@ export async function createFromScratch(
       chalk.gray("Review your template and choose an action below.\n"),
     );
 
-    const confirmed = await previewTemplate(template);
+    const wizardCtx: TemplateWizardContext = {
+      filterCtx,
+      fieldSchemas,
+      storyFieldSchemas,
+      workItemType,
+    };
+    const confirmed = await previewTemplate(template, wizardCtx);
 
     if (!confirmed) {
       console.log(

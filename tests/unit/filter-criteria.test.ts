@@ -266,7 +266,8 @@ describe("FilterEngine", () => {
           id: "task-2",
           title: "Task 2",
           estimationPercent: 30,
-          condition: "priority == 1", // This condition will NOT be met (priority is 2)
+          // This condition will NOT be met (story priority is 2, not 1)
+          condition: { field: "priority", operator: "equals" as const, value: 1 },
         },
         {
           id: "task-3",

@@ -1,5 +1,6 @@
-import { confirm, text } from "@clack/prompts";
-import type { EstimationPercentCondition, TaskDefinition } from "@templates/schema";
+import { confirm, select, text } from "@clack/prompts";
+import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
+import type { Condition, EstimationPercentCondition, TaskDefinition } from "@templates/schema";
 import {
   assertNotCancelled,
   ChoiceSets,
@@ -7,14 +8,209 @@ import {
   promptConditionalSelect,
   promptMultipleItems,
   promptOptionalFeature,
+  selectOrAutocomplete,
   Validators,
 } from "../../utilities/prompt-utilities";
+import {
+  configureCustomFields,
+  hasPickableFields,
+  pickFieldOnline,
+  promptPicklistValue,
+  promptTypedValue,
+} from "./custom-fields-wizard";
+
+/** Known story fields a condition clause can reference, with human-readable labels. */
+const STORY_FIELDS: Array<{ label: string; value: string }> = [
+  { label: "Tags (array)", value: "tags" },
+  { label: "Title", value: "title" },
+  { label: "State", value: "state" },
+  { label: "Estimation (points)", value: "estimation" },
+  { label: "Priority", value: "priority" },
+  { label: "Description", value: "description" },
+  { label: "Assigned To", value: "assignedTo" },
+  { label: "Work Item Type", value: "type" },
+  { label: "Area Path", value: "areaPath" },
+  { label: "Iteration", value: "iteration" },
+];
+
+type OperatorSet = "string" | "number" | "boolean" | "array" | "enum" | "datetime";
+
+const OPERATORS: Record<OperatorSet, Array<{ label: string; value: string }>> = {
+  string: [
+    { label: "equals", value: "equals" },
+    { label: "not-equals", value: "not-equals" },
+    { label: "contains (substring)", value: "contains" },
+    { label: "not-contains", value: "not-contains" },
+  ],
+  number: [
+    { label: "equals", value: "equals" },
+    { label: "not-equals", value: "not-equals" },
+    { label: "greater than (>)", value: "gt" },
+    { label: "less than (<)", value: "lt" },
+    { label: "greater than or equal (>=)", value: "gte" },
+    { label: "less than or equal (<=)", value: "lte" },
+  ],
+  boolean: [
+    { label: "equals", value: "equals" },
+    { label: "not-equals", value: "not-equals" },
+  ],
+  array: [
+    { label: "contains (array element)", value: "contains" },
+    { label: "not-contains", value: "not-contains" },
+  ],
+  enum: [
+    { label: "equals", value: "equals" },
+    { label: "not-equals", value: "not-equals" },
+  ],
+  datetime: [
+    { label: "equals", value: "equals" },
+    { label: "not-equals", value: "not-equals" },
+    { label: "greater than (>)", value: "gt" },
+    { label: "less than (<)", value: "lt" },
+    { label: "greater than or equal (>=)", value: "gte" },
+    { label: "less than or equal (<=)", value: "lte" },
+  ],
+};
+
+const STORY_FIELD_OPERATOR_SET: Record<string, OperatorSet> = {
+  tags:        "array",
+  estimation:  "number",
+  priority:    "number",
+  title:       "string",
+  state:       "string",
+  description: "string",
+  assignedTo:  "string",
+  type:        "string",
+  areaPath:    "string",
+  iteration:   "string",
+};
+const ACTIVITY_FIELD_REF = "Microsoft.VSTS.Common.Activity";
+
+
+function operatorSetForSchema(schema: ADoFieldSchema): OperatorSet {
+  if (schema.allowedValues && schema.allowedValues.length > 0) return "enum";
+  switch (schema.type) {
+    case "boolean":  return "boolean";
+    case "integer":
+    case "decimal":  return "number";
+    case "datetime": return "datetime";
+    default:         return "string";
+  }
+}
+
+/**
+ * Interactively build a single Condition clause or compound condition.
+ * Called recursively for compound conditions.
+ *
+ * @param storyFieldSchemas  Live ADO field schemas for the parent story WIT.
+ *   Used to power the autocomplete picker and type-aware value prompts for
+ *   the custom-field branch.  Pass an empty array when no schemas are available
+ *   (e.g. no WIT was selected); the picker will fall back to free-text entry.
+ */
+async function buildConditionNode(storyFieldSchemas: ADoFieldSchema[]): Promise<Condition> {
+  const conditionOptions = [
+    { label: "Story field  (tags, state, estimation, …)", value: "field" },
+    ...(hasPickableFields(storyFieldSchemas)
+      ? [{ label: "Custom ADO field", value: "customField" }]
+      : []),
+    { label: "ALL must be true  (AND)", value: "all" },
+    { label: "ANY must be true  (OR)", value: "any" },
+  ];
+
+  const type = assertNotCancelled(
+    await select({
+      message: "Condition type:",
+      options: conditionOptions,
+    }),
+  ) as string;
+
+  if (type === "field") {
+    const field = assertNotCancelled(
+      await select({
+        message: "Story field:",
+        options: STORY_FIELDS,
+      }),
+    ) as string;
+
+    const operator = assertNotCancelled(
+      await select({
+        message: "Operator:",
+        options: OPERATORS[STORY_FIELD_OPERATOR_SET[field] ?? "string"],
+      }),
+    ) as string;
+
+    const valueRaw = assertNotCancelled(
+      await text({
+        message: "Value to compare:",
+        validate: Validators.required("Value"),
+      }),
+    );
+
+    const value = valueRaw.trim();
+    const numericValue = Number(value);
+    const parsedValue: string | number | boolean =
+      value === "true" ? true
+      : value === "false" ? false
+      : !Number.isNaN(numericValue) && value !== "" ? numericValue
+      : value;
+
+    return { field, operator: operator as Condition extends { field: string; operator: infer O } ? O : never, value: parsedValue };
+  }
+
+  if (type === "customField") {
+    const fieldSchema = await pickFieldOnline(storyFieldSchemas);
+    if (!fieldSchema) return buildConditionNode(storyFieldSchemas); // unreachable in practice
+
+    const operator = assertNotCancelled(
+      await select({
+        message: "Operator:",
+        options: OPERATORS[operatorSetForSchema(fieldSchema)],
+      }),
+    ) as string;
+
+    const rawValue =
+      fieldSchema.allowedValues && fieldSchema.allowedValues.length > 0
+        ? await promptPicklistValue(fieldSchema)
+        : await promptTypedValue(fieldSchema);
+
+    return { customField: fieldSchema.referenceName, operator: operator as Condition extends { customField: string; operator: infer O } ? O : never, value: rawValue as string | number | boolean };
+  }
+
+  // Compound: all or any — collect at least 2 clauses
+  const clauses: Condition[] = [];
+  let adding = true;
+  while (adding) {
+    const isFirst = clauses.length === 0;
+    const isSecond = clauses.length === 1;
+
+    console.log(
+      isFirst
+        ? "  Add the first clause:"
+        : isSecond
+          ? "  Add the second clause:"
+          : `  Clause #${clauses.length + 1}:`,
+    );
+    clauses.push(await buildConditionNode(storyFieldSchemas));
+
+    if (clauses.length < 2) {
+      // Need at least 2 clauses for a compound condition
+      adding = true;
+    } else {
+      adding = assertNotCancelled(
+        await confirm({ message: "Add another clause?", initialValue: false }),
+      );
+    }
+  }
+
+  return type === "all" ? { all: clauses } : { any: clauses };
+}
 
 /**
  * Configure basic task information (title, description, estimation)
  */
 export async function configureBasicTaskInfo(
   isFirstTask: boolean,
+  storyFieldSchemas: ADoFieldSchema[],
 ): Promise<
   Pick<
     TaskDefinition,
@@ -66,14 +262,8 @@ export async function configureBasicTaskInfo(
       promptMultipleItems<EstimationPercentCondition>(
         "conditional percentage",
         async (index) => {
-          const condition = assertNotCancelled(
-            await text({
-              message: `Condition #${index}:`,
-              //biome-ignore lint/suspicious: Simple string replacement for pattern
-              placeholder: "${story.tags} CONTAINS 'backend'",
-              validate: Validators.required("Condition"),
-            }),
-          );
+          console.log(`  Configure condition #${index}:`);
+          const condition = await buildConditionNode(storyFieldSchemas);
           const percentRaw = assertNotCancelled(
             await text({
               message: `Percentage for condition #${index} (0-100):`,
@@ -120,29 +310,46 @@ export async function configureTaskAssignment(): Promise<string | undefined> {
   return result.value === "custom" ? result.customValue : result.value;
 }
 
-/**
- * Configure task activity
- */
-export async function configureTaskActivity(): Promise<string | undefined> {
-  const result = await promptConditionalSelect({
-    selectPrompt: {
-      name: "activity",
-      message: "Activity type:",
-      choices: ChoiceSets.activityTypes,
-      defaultValue: "Development",
-    },
-    conditionalPrompt: {
-      name: "customActivity",
-      message: "Enter custom activity:",
-      triggerValue: "Custom",
-    },
-  });
 
-  if (result.value === "None") {
-    return undefined;
+/**
+ * Configure task activity.
+ *
+ * Live allowed values are fetched from `Microsoft.VSTS.Common.Activity` and
+ * presented to the user. Falls back to free-text input when the Activity field
+ * has no picklist values.
+ */
+export async function configureTaskActivity(
+  fieldSchemas: ADoFieldSchema[],
+): Promise<string | undefined> {
+  const liveValues = fieldSchemas
+    .find((f) => f.referenceName === ACTIVITY_FIELD_REF)
+    ?.allowedValues;
+
+  if (liveValues && liveValues.length > 0) {
+    const options = [
+      ...liveValues.map((v) => ({ label: v, value: v })),
+      { label: "None (no activity)", value: "" },
+    ];
+
+    const defaultValue = liveValues.includes("Development") ? "Development" : liveValues[0];
+    const chosen = await selectOrAutocomplete({
+      message: "Activity type:",
+      options,
+      placeholder: "Type to filter…",
+      initialValue: defaultValue,
+    });
+
+    return chosen || undefined;
   }
 
-  return result.value === "Custom" ? result.customValue : result.value;
+  // Activity field not a picklist in this project — free-text entry
+  const raw = assertNotCancelled(
+    await text({
+      message: "Activity type (leave blank for none):",
+      placeholder: "e.g. Development, Testing",
+    }),
+  );
+  return raw.trim() || undefined;
 }
 
 /**
@@ -221,9 +428,9 @@ export async function configureTaskTags(): Promise<string[] | undefined> {
 /**
  * Configure advanced task options
  */
-export async function configureAdvancedTaskOptions(): Promise<
-  Pick<TaskDefinition, "dependsOn" | "condition" | "priority" | "remainingWork">
-> {
+export async function configureAdvancedTaskOptions(
+  storyFieldSchemas: ADoFieldSchema[],
+): Promise<Pick<TaskDefinition, "dependsOn" | "condition" | "priority">> {
   const dependsOnRaw = assertNotCancelled(
     await text({
       message: "Depends on task IDs (comma-separated, optional):",
@@ -232,13 +439,14 @@ export async function configureAdvancedTaskOptions(): Promise<
   );
   const dependsOn = Filters.commaSeparated(dependsOnRaw);
 
-  const condition = assertNotCancelled(
-    await text({
-      message: "Condition (optional):",
-      //biome-ignore lint/suspicious: Simple string replacement for pattern
-      placeholder: "e.g. ${story.tags CONTAINS 'Backend'}",
-    }),
+  const addCondition = assertNotCancelled(
+    await confirm({ message: "Add a task condition?", initialValue: false }),
   );
+
+  let condition: Condition | undefined;
+  if (addCondition) {
+    condition = await buildConditionNode(storyFieldSchemas);
+  }
 
   const priorityRaw = assertNotCancelled(
     await text({
@@ -248,23 +456,11 @@ export async function configureAdvancedTaskOptions(): Promise<
     }),
   );
 
-  const remainingWorkRaw = assertNotCancelled(
-    await text({
-      message: "Remaining work in hours (optional):",
-      placeholder: "e.g. 8",
-      validate: Validators.nonNegative("Remaining work"),
-    }),
-  );
-
-  const result: Pick<
-    TaskDefinition,
-    "dependsOn" | "condition" | "priority" | "remainingWork"
-  > = {};
+  const result: Pick<TaskDefinition, "dependsOn" | "condition" | "priority"> = {};
 
   if (dependsOn.length > 0) result.dependsOn = dependsOn;
   if (condition) result.condition = condition;
   if (priorityRaw) result.priority = Number(priorityRaw);
-  if (remainingWorkRaw) result.remainingWork = Number(remainingWorkRaw);
 
   return result;
 }
@@ -275,8 +471,10 @@ export async function configureAdvancedTaskOptions(): Promise<
 export async function buildTaskDefinition(
   isFirstTask: boolean,
   includeAdvanced: boolean,
+  fieldSchemas: ADoFieldSchema[],
+  storyFieldSchemas: ADoFieldSchema[],
 ): Promise<TaskDefinition> {
-  const basic = await configureBasicTaskInfo(isFirstTask);
+  const basic = await configureBasicTaskInfo(isFirstTask, storyFieldSchemas);
 
   const taskDef: TaskDefinition = {
     id: basic.id,
@@ -297,7 +495,7 @@ export async function buildTaskDefinition(
     if (assignTo) {
       taskDef.assignTo = assignTo;
     }
-    const activity = await configureTaskActivity();
+    const activity = await configureTaskActivity(fieldSchemas);
     if (activity) {
       taskDef.activity = activity;
     }
@@ -312,8 +510,13 @@ export async function buildTaskDefinition(
     if (tags) {
       taskDef.tags = tags;
     }
-    const advanced = await configureAdvancedTaskOptions();
+    const advanced = await configureAdvancedTaskOptions(storyFieldSchemas);
     Object.assign(taskDef, advanced);
+  }
+
+  const customFields = await configureCustomFields(fieldSchemas, storyFieldSchemas);
+  if (Object.keys(customFields).length > 0) {
+    taskDef.customFields = customFields;
   }
 
   return taskDef;

@@ -1,4 +1,5 @@
 import { confirm, select } from "@clack/prompts";
+import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import type { TaskDefinition, TaskTemplate } from "@templates/schema";
 import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
 import chalk from "chalk";
@@ -7,6 +8,15 @@ import { stringify as stringifyYaml } from "yaml";
 import { CancellationError } from "@/utils/errors";
 import { assertNotCancelled } from "../../utilities/prompt-utilities";
 import { buildTaskDefinition } from "./task-configuration";
+import type { FilterWizardContext } from "./template-wizard-helper.command";
+
+/** ADO data carried through the whole template-creation session. */
+export interface TemplateWizardContext {
+  filterCtx: FilterWizardContext;
+  fieldSchemas: ADoFieldSchema[];
+  storyFieldSchemas: ADoFieldSchema[];
+  workItemType: string | undefined;
+}
 
 const Actions = {
   Save: "save",
@@ -56,7 +66,8 @@ export function normalizeEstimations(tasks: TaskDefinition[]): void {
  * @throws CancellationError if user chooses to cancel
  */
 export async function previewTemplate(
-  template: TaskTemplate
+  template: TaskTemplate,
+  ctx: TemplateWizardContext,
 ): Promise<boolean> {
   displayTemplatePreview(template);
 
@@ -72,7 +83,7 @@ export async function previewTemplate(
     })
   );
 
-  return await handlePreviewAction(action as Action, template);
+  return await handlePreviewAction(action as Action, template, ctx);
 }
 
 /**
@@ -209,7 +220,7 @@ function displayMetadata(template: TaskTemplate): void {
 /**
  * Edit template interactively
  */
-async function editTemplate(template: TaskTemplate): Promise<void> {
+async function editTemplate(template: TaskTemplate, ctx: TemplateWizardContext): Promise<void> {
   const section = assertNotCancelled(
     await select({
       message: "What would you like to edit?",
@@ -255,7 +266,7 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
       const { configureFilter } = await import(
         "./template-wizard-helper.command"
       );
-      const filterConfig = await configureFilter();
+      const filterConfig = await configureFilter(ctx.filterCtx);
       template.filter = filterConfig;
     })
     .with("tasks", async () => {
@@ -272,7 +283,10 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
       );
 
       if (confirmed) {
-        const tasks = await configureTasksWithValidation();
+        const tasks = await configureTasksWithValidation(
+          ctx.fieldSchemas,
+          ctx.storyFieldSchemas,
+        );
         template.tasks = tasks;
       }
     })
@@ -334,7 +348,7 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
   );
 
   if (editMore) {
-    await editTemplate(template);
+    await editTemplate(template, ctx);
   }
 }
 
@@ -343,18 +357,19 @@ async function editTemplate(template: TaskTemplate): Promise<void> {
  */
 async function handlePreviewAction(
   action: Action,
-  template: TaskTemplate
+  template: TaskTemplate,
+  ctx: TemplateWizardContext,
 ): Promise<boolean> {
   return await match<Action>(action)
     .with(Actions.ViewYaml, async () => {
       console.log(chalk.cyan("\nFull YAML:\n"));
       console.log(chalk.gray(stringifyYaml(template)));
       console.log("");
-      return await previewTemplate(template);
+      return await previewTemplate(template, ctx);
     })
     .with(Actions.Edit, async () => {
-      await editTemplate(template);
-      return await previewTemplate(template);
+      await editTemplate(template, ctx);
+      return await previewTemplate(template, ctx);
     })
     .with(Actions.Cancel, () => {
       throw new CancellationError("Template creation cancelled by user");
@@ -388,12 +403,13 @@ export function showStepHint(stepName: string): void {
 /**
  * Configure tasks with improved flow and error handling
  */
-export async function configureTasksWithValidation(): Promise<
-  TaskDefinition[]
-> {
+export async function configureTasksWithValidation(
+  fieldSchemas: ADoFieldSchema[],
+  storyFieldSchemas: ADoFieldSchema[],
+): Promise<TaskDefinition[]> {
   while (true) {
     try {
-      const tasks = await collectTasks();
+      const tasks = await collectTasks(fieldSchemas, storyFieldSchemas);
       await handleEstimationNormalization(tasks);
       return tasks;
     } catch (error) {
@@ -408,7 +424,10 @@ export async function configureTasksWithValidation(): Promise<
 /**
  * Collect tasks from user
  */
-async function collectTasks(): Promise<TaskDefinition[]> {
+async function collectTasks(
+  fieldSchemas: ADoFieldSchema[],
+  storyFieldSchemas: ADoFieldSchema[],
+): Promise<TaskDefinition[]> {
   showStepHint("tasks");
 
   const tasks: TaskDefinition[] = [];
@@ -419,7 +438,7 @@ async function collectTasks(): Promise<TaskDefinition[]> {
     console.log(chalk.gray(`\nTask #${taskCounter}:`));
 
     const wantsAdvanced = await promptForAdvancedOptions();
-    const task = await buildTaskDefinition(taskCounter === 1, wantsAdvanced);
+    const task = await buildTaskDefinition(taskCounter === 1, wantsAdvanced, fieldSchemas, storyFieldSchemas);
 
     tasks.push(task);
     taskCounter++;

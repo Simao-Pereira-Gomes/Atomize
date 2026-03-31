@@ -31,7 +31,10 @@ tasks:
     estimationPercent: 30
     activity: "Development"
     dependsOn: ["design"]
-    condition: '${story.tags} CONTAINS "backend"'
+    condition:
+      field: tags
+      operator: contains
+      value: backend
     tags:
       - "backend"
       - "api"
@@ -43,7 +46,10 @@ tasks:
     estimationPercent: 35
     activity: "Development"
     dependsOn: ["design"]
-    condition: '${story.tags} CONTAINS "frontend"'
+    condition:
+      field: tags
+      operator: contains
+      value: frontend
     tags:
       - "frontend"
 
@@ -54,7 +60,14 @@ tasks:
     estimationPercent: 7
     activity: "Testing"
     dependsOn: ["frontend-ui"]
-    condition: '${story.tags} CONTAINS "frontend" OR ${story.tags} NOT CONTAINS "legacy"'
+    condition:
+      any:
+        - field: tags
+          operator: contains
+          value: frontend
+        - field: tags
+          operator: not-contains
+          value: legacy
     tags:
       - "accessibility"
       - "testing"
@@ -66,7 +79,14 @@ tasks:
     estimationPercent: 8
     activity: "Testing"
     dependsOn: ["backend-api", "frontend-ui"]
-    condition: '${story.tags} CONTAINS "security" AND ${story.priority} <= 2'
+    condition:
+      all:
+        - field: tags
+          operator: contains
+          value: security
+        - field: priority
+          operator: lte
+          value: 2
     priority: 1
     tags:
       - "security"
@@ -97,7 +117,10 @@ tasks:
     estimationPercent: 10
     activity: "Testing"
     dependsOn: ["integration-tests"]
-    condition: '${story.estimation} >= 13'
+    condition:
+      field: estimation
+      operator: gte
+      value: 13
     tags:
       - "performance"
 
