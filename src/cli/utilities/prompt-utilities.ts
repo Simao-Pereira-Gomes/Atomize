@@ -1,4 +1,5 @@
 import {
+  autocomplete,
   cancel,
   confirm,
   isCancel,
@@ -153,6 +154,46 @@ export const Filters = {
 
   toNumber: (input: string): number => Number(input),
 };
+
+/**
+ * List length at which `selectOrAutocomplete` switches from a plain `select`
+ * to a filterable `autocomplete` control.
+ */
+export const AUTOCOMPLETE_THRESHOLD = 6;
+
+/**
+ * Shows a `select` prompt when the effective list size is ≤ AUTOCOMPLETE_THRESHOLD,
+ * and an `autocomplete` prompt otherwise.
+ *
+ * Pass `thresholdCount` when calling this inside a loop where `options` shrinks
+ * on each iteration (e.g. picking from a remaining set), so the control type
+ * stays consistent for the entire interaction.
+ */
+export async function selectOrAutocomplete(opts: {
+  message: string;
+  options: Array<{ label: string; value: string; hint?: string }>;
+  placeholder?: string;
+  initialValue?: string;
+  thresholdCount?: number;
+}): Promise<string> {
+  const count = opts.thresholdCount ?? opts.options.length;
+  if (count > AUTOCOMPLETE_THRESHOLD) {
+    return assertNotCancelled(
+      await autocomplete({
+        message: opts.message,
+        options: opts.options,
+        placeholder: opts.placeholder ?? "Type to filter...",
+      }),
+    ) as string;
+  }
+  return assertNotCancelled(
+    await select({
+      message: opts.message,
+      options: opts.options,
+      initialValue: opts.initialValue,
+    }),
+  ) as string;
+}
 
 /**
  * Choice definitions for common select prompts (clack format: label/value)

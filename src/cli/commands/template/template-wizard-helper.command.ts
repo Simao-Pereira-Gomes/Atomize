@@ -1,4 +1,5 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
+import type { SavedQueryInfo } from "@platforms/interfaces/platform.interface";
 import type {
   EstimationConfig,
   FilterCriteria,
@@ -8,8 +9,22 @@ import type {
 import {
   assertNotCancelled,
   Filters,
+  selectOrAutocomplete,
   Validators,
 } from "../../utilities/prompt-utilities";
+
+/**
+ * Live ADO data required by the filter wizard.  All fields are populated from
+ * the connected Azure DevOps adapter before the wizard starts.
+ */
+export interface FilterWizardContext {
+  workItemTypes: string[];
+  getStatesForType: (type: string) => Promise<string[]>;
+  areaPaths: string[];
+  iterationPaths: string[];
+  teams: string[];
+  savedQueries: SavedQueryInfo[];
+}
 
 type AdvancedFilterGroup =
   | "scope"
@@ -60,34 +75,32 @@ const DATE_FILTER_OPTIONS: { label: string; value: DateFilterPreset }[] = [
 /**
  * Configure filter criteria with support for custom query and custom fields
  */
-export async function configureFilter(): Promise<FilterCriteria> {
+export async function configureFilter(ctx: FilterWizardContext): Promise<FilterCriteria> {
+  const filterOptions = [
+    { label: "Build a filter  — choose types, states, tags, etc.", value: "structured" },
+    ...(ctx.savedQueries.length > 0
+      ? [{ label: "Use a saved query  — pick from your Azure DevOps queries", value: "savedQuery" }]
+      : []),
+  ];
+
   const filterMode = assertNotCancelled(
     await select({
       message: "How do you want to select work items?",
-      options: [
-        {
-          label: "Build a filter  — choose types, states, tags, etc.",
-          value: "structured",
-        },
-        {
-          label: "Use a saved query  — reference an existing Azure DevOps query by ID or path",
-          value: "savedQuery",
-        },
-      ],
+      options: filterOptions,
       initialValue: "structured",
     }),
   ) as "structured" | "savedQuery";
 
   if (filterMode === "savedQuery") {
-    return promptSavedQuery();
+    return promptSavedQuery(ctx.savedQueries);
   }
 
   const filter: FilterCriteria = {};
 
-  const workItemTypes = await promptWorkItemTypes();
+  const workItemTypes = await promptWorkItemTypes(ctx);
   if (workItemTypes.length > 0) filter.workItemTypes = workItemTypes;
 
-  const states = await promptStates();
+  const states = await promptStates(ctx, workItemTypes);
   if (states.length > 0) filter.states = states;
 
   const tags = await promptTags();
@@ -117,26 +130,26 @@ export async function configureFilter(): Promise<FilterCriteria> {
   )) {
     switch (group) {
       case "scope": {
-        const team = await promptTeam();
+        const team = await promptTeam(ctx);
         if (team) filter.team = team;
 
         const { exact: areaPaths, under: areaPathsUnder } =
-          await promptAreaPaths();
+          await promptAreaPaths(ctx);
         if (areaPaths.length > 0) filter.areaPaths = areaPaths;
         if (areaPathsUnder.length > 0) filter.areaPathsUnder = areaPathsUnder;
 
         const { exact: iterations, under: iterationsUnder } =
-          await promptIterations();
+          await promptIterations(ctx);
         if (iterations.length > 0) filter.iterations = iterations;
         if (iterationsUnder.length > 0)
           filter.iterationsUnder = iterationsUnder;
         break;
       }
       case "stateHistory": {
-        const statesExclude = await promptStatesExclude();
+        const statesExclude = await promptStatesExclude(ctx, workItemTypes);
         if (statesExclude.length > 0) filter.statesExclude = statesExclude;
 
-        const statesWereEver = await promptStatesWereEver();
+        const statesWereEver = await promptStatesWereEver(ctx, workItemTypes);
         if (statesWereEver.length > 0) filter.statesWereEver = statesWereEver;
         break;
       }
@@ -168,57 +181,22 @@ export async function configureFilter(): Promise<FilterCriteria> {
   return filter;
 }
 
-async function promptSavedQuery(): Promise<FilterCriteria> {
-  const refMode = assertNotCancelled(
-    await select({
-      message: "Reference the saved query by:",
-      options: [
-        { label: "Path  (e.g. Shared Queries/Teams/Backend/Sprint Stories)", value: "path" },
-        { label: "ID  (UUID from the query URL)", value: "id" },
-      ],
-      initialValue: "path",
-    }),
-  ) as "path" | "id";
+async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriteria> {
+  // queries is guaranteed non-empty — the option is hidden in configureFilter when the list is empty
+  const sorted = [...queries].sort((a, b) => {
+    if (a.isPublic !== b.isPublic) return a.isPublic ? -1 : 1;
+    return a.path.localeCompare(b.path);
+  });
 
-  if (refMode === "path") {
-    const path = assertNotCancelled(
-      await text({
-        message: "Query path:",
-        placeholder: "e.g. Shared Queries/Teams/Backend Team/Sprint Active Stories",
-        validate: (input): string | undefined => {
-          if (!input || input.trim() === "") return "Query path is required";
-          return undefined;
-        },
-      }),
-    );
-
-    const excludeIfHasTasks = assertNotCancelled(
-      await confirm({
-        message: "Exclude work items that already have tasks?",
-        initialValue: true,
-      }),
-    );
-
-    return {
-      savedQuery: { path: path.trim() },
-      ...(excludeIfHasTasks && { excludeIfHasTasks: true }),
-    };
-  }
-
-  const id = assertNotCancelled(
-    await text({
-      message: "Query ID (UUID):",
-      placeholder: "e.g. a1b2c3d4-e5f6-47b8-8901-234567890123",
-      validate: (input): string | undefined => {
-        if (!input || input.trim() === "") return "Query ID is required";
-        const UUID_RE =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!UUID_RE.test(input.trim()))
-          return "Must be a valid UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Run: atomize queries list";
-        return undefined;
-      },
-    }),
-  );
+  const selectedId = await selectOrAutocomplete({
+    message: "Select saved query:",
+    options: sorted.map((q) => ({
+      label: q.path,
+      hint: q.id,
+      value: q.id,
+    })),
+    placeholder: "Type to filter by path or name...",
+  });
 
   const excludeIfHasTasks = assertNotCancelled(
     await confirm({
@@ -228,72 +206,57 @@ async function promptSavedQuery(): Promise<FilterCriteria> {
   );
 
   return {
-    savedQuery: { id: id.trim() },
+    savedQuery: { id: selectedId.trim() },
     ...(excludeIfHasTasks && { excludeIfHasTasks: true }),
   };
 }
 
-async function promptWorkItemTypes(): Promise<string[]> {
+async function promptWorkItemTypes(ctx: FilterWizardContext): Promise<string[]> {
+  const defaultType = ctx.workItemTypes.includes("User Story") ? "User Story" : undefined;
+  const sorted = [
+    ...(defaultType ? [defaultType] : []),
+    ...ctx.workItemTypes.filter((t) => t !== defaultType).sort((a, b) => a.localeCompare(b)),
+  ];
   const selected = assertNotCancelled(
     await multiselect({
       message: "Select work item types:",
-      options: [
-        { label: "User Story", value: "User Story" },
-        { label: "Bug", value: "Bug" },
-        { label: "Task", value: "Task" },
-        { label: "Epic", value: "Epic" },
-        { label: "Feature", value: "Feature" },
-        { label: "Issue", value: "Issue" },
-        { label: "+ Add custom type", value: "__custom__" },
-      ],
-      initialValues: ["User Story"],
+      options: sorted.map((t) => ({ label: t, value: t })),
+      initialValues: defaultType ? [defaultType] : [],
       required: false,
     }),
   );
-
-  let custom: string[] = [];
-  if (selected.includes("__custom__")) {
-    const raw = assertNotCancelled(
-      await text({
-        message: "Enter custom work item types (comma-separated):",
-        placeholder: "e.g. Requirement, Test Case",
-      }),
-    );
-    custom = Filters.commaSeparated(raw);
-  }
-
-  return [...selected.filter((t) => t !== "__custom__"), ...custom];
+  return selected as string[];
 }
 
-async function promptStates(): Promise<string[]> {
-  const selected = assertNotCancelled(
-    await multiselect({
-      message: "Select states:",
-      options: [
-        { label: "New", value: "New" },
-        { label: "Active", value: "Active" },
-        { label: "Removed", value: "Removed" },
-        { label: "Resolved", value: "Resolved" },
-        { label: "Closed", value: "Closed" },
-        { label: "+ Add custom state", value: "__custom__" },
-      ],
-      initialValues: ["New", "Active"],
-      required: false,
-    }),
-  );
+async function promptStates(ctx: FilterWizardContext, selectedTypes?: string[]): Promise<string[]> {
+  if (!selectedTypes || selectedTypes.length === 0) return [];
 
-  let custom: string[] = [];
-  if (selected.includes("__custom__")) {
-    const raw = assertNotCancelled(
-      await text({
-        message: "Enter custom states (comma-separated):",
-        placeholder: "e.g. In Review, On Hold",
-      }),
-    );
-    custom = Filters.commaSeparated(raw);
+  const allStates = await Promise.all(selectedTypes.map((t) => ctx.getStatesForType(t)));
+  const stateSet = [...new Set(allStates.flat())];
+  if (stateSet.length === 0) return [];
+
+  const initialCount = stateSet.length;
+  const selected: string[] = [];
+  let addMore = true;
+  while (addMore) {
+    const remaining = stateSet.filter((s) => !selected.includes(s));
+    if (remaining.length === 0) break;
+    const pick = await selectOrAutocomplete({
+      message: selected.length === 0 ? "Select state:" : "Add another state (or press Esc to finish):",
+      options: remaining.map((s) => ({ label: s, value: s })),
+      placeholder: "Type to filter...",
+      thresholdCount: initialCount,
+    });
+    selected.push(pick);
+    if (remaining.length > 1) {
+      addMore = assertNotCancelled(
+        await confirm({ message: "Add another state?", initialValue: false }),
+      );
+    } else {
+      addMore = false;
+    }
   }
-
-  return [...selected.filter((s) => s !== "__custom__"), ...custom];
+  return selected;
 }
 
 async function promptTags(): Promise<FilterCriteria["tags"]> {
@@ -335,30 +298,20 @@ async function promptExcludeIfHasTasks(): Promise<boolean> {
   );
 }
 
-async function promptTeam(): Promise<string | undefined> {
-  const override = assertNotCancelled(
-    await confirm({
-      message:
-        "Override team for this template? (affects @CurrentIteration and @TeamAreas)",
-      initialValue: false,
-    }),
-  );
-  if (!override) return undefined;
-
-  const team = assertNotCancelled(
-    await text({
-      message: "Team name:",
-      placeholder: "e.g. MyProject Team",
-      validate(input): string | undefined {
-        if (!input?.trim()) return "Team name is required";
-        return undefined;
-      },
-    }),
-  );
-  return team.trim();
+async function promptTeam(ctx: FilterWizardContext): Promise<string | undefined> {
+  const options = [
+    { label: "No team filter", value: "" },
+    ...ctx.teams.map((t) => ({ label: t, value: t })),
+  ];
+  const pick = await selectOrAutocomplete({
+    message: "Override team for this template? (affects @CurrentIteration and @TeamAreas) — select or press Esc to skip:",
+    options,
+    placeholder: "Type to filter teams...",
+  });
+  return pick || undefined;
 }
 
-async function promptAreaPaths(): Promise<{
+async function promptAreaPaths(ctx: FilterWizardContext): Promise<{
   exact: string[];
   under: string[];
 }> {
@@ -367,10 +320,7 @@ async function promptAreaPaths(): Promise<{
       message: "Area path filter:",
       options: [
         { label: "No area path filter", value: "none" as const },
-        {
-          label: "@TeamAreas  (all areas for this team)",
-          value: "@TeamAreas" as const,
-        },
+        { label: "@TeamAreas  (all areas for this team)", value: "@TeamAreas" as const },
         { label: "Exact paths  (IN)", value: "exact" as const },
         { label: "Path and descendants  (UNDER)", value: "under" as const },
         { label: "@TeamAreas + exact paths", value: "mixed" as const },
@@ -382,25 +332,35 @@ async function promptAreaPaths(): Promise<{
   if (mode === "none") return { exact: [], under: [] };
   if (mode === "@TeamAreas") return { exact: ["@TeamAreas"], under: [] };
 
-  const raw = assertNotCancelled(
-    await text({
-      message: "Area paths (comma-separated):",
-      placeholder: "e.g. MyProject\\\\Backend, MyProject\\\\API",
-      validate: (input): string | undefined => {
-        if (!input || input.trim() === "")
-          return "At least one area path is required";
-        return undefined;
-      },
-    }),
-  );
-  const paths = Filters.commaSeparated(raw);
+  // "exact" / "under" / "mixed" — pick from live area paths
+  const initialAreaCount = ctx.areaPaths.length;
+  const selected: string[] = [];
+  let addMore = true;
+  while (addMore) {
+    const remaining = ctx.areaPaths.filter((p) => !selected.includes(p));
+    if (remaining.length === 0) break;
+    const pick = await selectOrAutocomplete({
+      message: selected.length === 0 ? "Select area path:" : "Add another area path (or press Esc to finish):",
+      options: remaining.map((p) => ({ label: p, value: p })),
+      placeholder: "Type to filter...",
+      thresholdCount: initialAreaCount,
+    });
+    selected.push(pick);
+    if (remaining.length > 1) {
+      addMore = assertNotCancelled(
+        await confirm({ message: "Add another area path?", initialValue: false }),
+      );
+    } else {
+      addMore = false;
+    }
+  }
 
-  if (mode === "under") return { exact: [], under: paths };
-  if (mode === "mixed") return { exact: ["@TeamAreas", ...paths], under: [] };
-  return { exact: paths, under: [] };
+  if (mode === "under") return { exact: [], under: selected };
+  if (mode === "mixed") return { exact: ["@TeamAreas", ...selected], under: [] };
+  return { exact: selected, under: [] };
 }
 
-async function promptIterations(): Promise<{
+async function promptIterations(ctx: FilterWizardContext): Promise<{
   exact: string[];
   under: string[];
 }> {
@@ -409,18 +369,9 @@ async function promptIterations(): Promise<{
       message: "Iteration filter:",
       options: [
         { label: "No iteration filter", value: "none" as const },
-        {
-          label: "@CurrentIteration       (active sprint)",
-          value: "@CurrentIteration" as const,
-        },
-        {
-          label: "@CurrentIteration + 1  (next sprint)",
-          value: "@CurrentIteration+1" as const,
-        },
-        {
-          label: "@CurrentIteration - 1  (previous sprint)",
-          value: "@CurrentIteration-1" as const,
-        },
+        { label: "@CurrentIteration       (active sprint)", value: "@CurrentIteration" as const },
+        { label: "@CurrentIteration + 1  (next sprint)", value: "@CurrentIteration+1" as const },
+        { label: "@CurrentIteration - 1  (previous sprint)", value: "@CurrentIteration-1" as const },
         { label: "Exact iteration paths  (IN)", value: "exact" as const },
         { label: "Iteration and children  (UNDER)", value: "under" as const },
         { label: "@CurrentIteration + exact paths", value: "mixed" as const },
@@ -430,103 +381,89 @@ async function promptIterations(): Promise<{
   );
 
   if (mode === "none") return { exact: [], under: [] };
-  if (mode === "@CurrentIteration")
-    return { exact: ["@CurrentIteration"], under: [] };
-  if (mode === "@CurrentIteration+1")
-    return { exact: ["@CurrentIteration + 1"], under: [] };
-  if (mode === "@CurrentIteration-1")
-    return { exact: ["@CurrentIteration - 1"], under: [] };
+  if (mode === "@CurrentIteration") return { exact: ["@CurrentIteration"], under: [] };
+  if (mode === "@CurrentIteration+1") return { exact: ["@CurrentIteration + 1"], under: [] };
+  if (mode === "@CurrentIteration-1") return { exact: ["@CurrentIteration - 1"], under: [] };
 
-  const raw = assertNotCancelled(
-    await text({
-      message: "Iteration paths (comma-separated):",
-      placeholder: "e.g. MyProject\\\\Sprint 1, MyProject\\\\Sprint 2",
-      validate: (input): string | undefined => {
-        if (!input || input.trim() === "")
-          return "At least one iteration path is required";
-        return undefined;
-      },
-    }),
-  );
-  const paths = Filters.commaSeparated(raw);
+  // "exact" / "under" / "mixed" — pick from live iteration paths
+  const initialIterCount = ctx.iterationPaths.length;
+  const selected: string[] = [];
+  let addMore = true;
+  while (addMore) {
+    const remaining = ctx.iterationPaths.filter((p) => !selected.includes(p));
+    if (remaining.length === 0) break;
+    const pick = await selectOrAutocomplete({
+      message: selected.length === 0 ? "Select iteration path:" : "Add another iteration path (or press Esc to finish):",
+      options: remaining.map((p) => ({ label: p, value: p })),
+      placeholder: "Type to filter...",
+      thresholdCount: initialIterCount,
+    });
+    selected.push(pick);
+    if (remaining.length > 1) {
+      addMore = assertNotCancelled(
+        await confirm({ message: "Add another iteration path?", initialValue: false }),
+      );
+    } else {
+      addMore = false;
+    }
+  }
 
-  if (mode === "under") return { exact: [], under: paths };
-  if (mode === "mixed")
-    return { exact: ["@CurrentIteration", ...paths], under: [] };
-  return { exact: paths, under: [] };
+  if (mode === "under") return { exact: [], under: selected };
+  if (mode === "mixed") return { exact: ["@CurrentIteration", ...selected], under: [] };
+  return { exact: selected, under: [] };
 }
 
-async function promptStatesExclude(): Promise<string[]> {
+async function promptStatesExclude(ctx: FilterWizardContext, selectedTypes?: string[]): Promise<string[]> {
   const use = assertNotCancelled(
     await confirm({ message: "Exclude specific states?", initialValue: false }),
   );
   if (!use) return [];
-
-  const selected = assertNotCancelled(
-    await multiselect({
-      message: "States to exclude:",
-      options: [
-        { label: "New", value: "New" },
-        { label: "Active", value: "Active" },
-        { label: "Resolved", value: "Resolved" },
-        { label: "Closed", value: "Closed" },
-        { label: "Removed", value: "Removed" },
-        { label: "+ Add custom state", value: "__custom__" },
-      ],
-      required: true,
-    }),
-  );
-
-  let custom: string[] = [];
-  if (selected.includes("__custom__")) {
-    const raw = assertNotCancelled(
-      await text({
-        message: "Custom states to exclude (comma-separated):",
-        placeholder: "e.g. On Hold, Cancelled",
-      }),
-    );
-    custom = Filters.commaSeparated(raw);
-  }
-
-  return [...selected.filter((s) => s !== "__custom__"), ...custom];
+  return pickStates(ctx, selectedTypes, "Select state to exclude:", "Add another state to exclude (or press Esc to finish):");
 }
 
-async function promptStatesWereEver(): Promise<string[]> {
+async function promptStatesWereEver(ctx: FilterWizardContext, selectedTypes?: string[]): Promise<string[]> {
   const use = assertNotCancelled(
-    await confirm({
-      message: "Filter by states the item was ever in?",
-      initialValue: false,
-    }),
+    await confirm({ message: "Filter by states the item was ever in?", initialValue: false }),
   );
   if (!use) return [];
+  return pickStates(ctx, selectedTypes, "Select state:", "Add another state (or press Esc to finish):");
+}
 
-  const selected = assertNotCancelled(
-    await multiselect({
-      message: "States the item was ever in:",
-      options: [
-        { label: "New", value: "New" },
-        { label: "Active", value: "Active" },
-        { label: "Resolved", value: "Resolved" },
-        { label: "Closed", value: "Closed" },
-        { label: "Removed", value: "Removed" },
-        { label: "+ Add custom state", value: "__custom__" },
-      ],
-      required: true,
-    }),
-  );
+/** Shared autocomplete loop for state-picking prompts. */
+async function pickStates(
+  ctx: FilterWizardContext,
+  selectedTypes: string[] | undefined,
+  firstMessage: string,
+  moreMessage: string,
+): Promise<string[]> {
+  if (!selectedTypes || selectedTypes.length === 0) return [];
 
-  let custom: string[] = [];
-  if (selected.includes("__custom__")) {
-    const raw = assertNotCancelled(
-      await text({
-        message: "Custom states (comma-separated):",
-        placeholder: "e.g. In Review, On Hold",
-      }),
-    );
-    custom = Filters.commaSeparated(raw);
+  const allStates = await Promise.all(selectedTypes.map((t) => ctx.getStatesForType(t)));
+  const stateSet = [...new Set(allStates.flat())];
+  if (stateSet.length === 0) return [];
+
+  const initialCount = stateSet.length;
+  const selected: string[] = [];
+  let addMore = true;
+  while (addMore) {
+    const remaining = stateSet.filter((s) => !selected.includes(s));
+    if (remaining.length === 0) break;
+    const pick = await selectOrAutocomplete({
+      message: selected.length === 0 ? firstMessage : moreMessage,
+      options: remaining.map((s) => ({ label: s, value: s })),
+      placeholder: "Type to filter...",
+      thresholdCount: initialCount,
+    });
+    selected.push(pick);
+    if (remaining.length > 1) {
+      addMore = assertNotCancelled(
+        await confirm({ message: "Add another state?", initialValue: false }),
+      );
+    } else {
+      addMore = false;
+    }
   }
-
-  return [...selected.filter((s) => s !== "__custom__"), ...custom];
+  return selected;
 }
 
 async function promptAssignedTo(): Promise<string[]> {
