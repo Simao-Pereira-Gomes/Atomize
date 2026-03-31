@@ -54,7 +54,10 @@ tasks:
     estimationPercent: 15
     tags: ["database", "backend"]
     activity: "Development"
-    condition: '${story.tags} CONTAINS "database"'
+    condition:
+      field: tags
+      operator: contains
+      value: database
 
   - id: "backend-tests"
     title: "Backend Tests"

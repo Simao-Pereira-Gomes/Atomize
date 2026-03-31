@@ -15,89 +15,167 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
   - title: "Build"
     estimationPercent: 50
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
   - title: "Developer Test"
     estimationPercent: 25
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
   - title: "QA Smoke Test"
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
   - title: "Wiki"
     estimationPercent: 5
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
   - title: "Code Review"
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@Unassigned"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
   - title: "Physical Data Model Updated"
     estimationPercent: 0
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
   - title: "Test Preparation"
     estimationPercent: 40
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "Testing Only" OR ${story.tags} CONTAINS "Test Only"'
+      - condition:
+          any:
+            - field: tags
+              operator: contains
+              value: Testing Only
+            - field: tags
+              operator: contains
+              value: Test Only
         percent: 59.70
     activity: "Testing"
     tags: []
-    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    condition:
+      field: tags
+      operator: not-contains
+      value: Dev Only
     assignTo: "@Unassigned"
 
   - title: "Test Execution"
     estimationPercent: 27
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "Testing Only" OR ${story.tags} CONTAINS "Test Only"'
+      - condition:
+          any:
+            - field: tags
+              operator: contains
+              value: Testing Only
+            - field: tags
+              operator: contains
+              value: Test Only
         percent: 40.30
     activity: "Testing"
     tags: []
-    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    condition:
+      field: tags
+      operator: not-contains
+      value: Dev Only
     assignTo: "@Unassigned"
 
   - title: "Automation Testing"
     estimationPercent: 0
     activity: "Test Automation"
     tags: []
-    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    condition:
+      field: tags
+      operator: not-contains
+      value: Dev Only
     assignTo: "@Unassigned"
 
   - title: "Test Review"
     estimationPercent: 0
     activity: "Testing"
     tags: []
-    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    condition:
+      field: tags
+      operator: not-contains
+      value: Dev Only
     assignTo: "@Unassigned"
 
   - title: "Release Notes"
     estimationPercent: 0
     activity: "Testing"
     tags: []
-    condition: '${story.tags} NOT CONTAINS "Dev Only"'
+    condition:
+      field: tags
+      operator: not-contains
+      value: Dev Only
     assignTo: "@Unassigned"
 
   - title: "Merge to Stable"
@@ -105,7 +183,14 @@ tasks:
     activity: "Development"
     tags: []
     assignTo: "@ParentAssignee"
-    condition: '${story.tags} NOT CONTAINS "Testing Only" AND ${story.tags} NOT CONTAINS "Test Only"'
+    condition:
+      all:
+        - field: tags
+          operator: not-contains
+          value: Testing Only
+        - field: tags
+          operator: not-contains
+          value: Test Only
 
 estimation:
   strategy: "percentage"
