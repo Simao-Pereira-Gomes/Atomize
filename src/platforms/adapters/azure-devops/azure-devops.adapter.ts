@@ -577,7 +577,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         this.config.project,
       );
 
-      if (!parent || !parent.relations) {
+      if (!parent?.relations) {
         return [];
       }
 
