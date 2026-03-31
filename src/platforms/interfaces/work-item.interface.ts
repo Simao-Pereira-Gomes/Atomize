@@ -101,9 +101,6 @@ export interface TaskDefinition {
   /** Activity type (Design, Development, Testing, etc.) */
   activity?: string;
 
-  /** Remaining work in hours */
-  remainingWork?: number;
-
   /** Completed work in hours (defaults to 0 for new tasks) */
   completedWork?: number;
 
@@ -116,9 +113,9 @@ export interface TaskDefinition {
   /** Parent work item ID */
   parentId?: string;
 
-  /** Conditional expression - task only created if condition evaluates to true */
-  condition?: string;
-
   /** IDs of tasks this task depends on */
   dependsOn?: string[];
+
+  /** Custom fields to set on the work item (keyed by reference name, e.g. "Custom.ClientTier") */
+  customFields?: Record<string, string | number | boolean>;
 }

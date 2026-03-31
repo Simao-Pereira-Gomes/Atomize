@@ -1,4 +1,5 @@
 import { logger } from "@config/logger";
+import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import type { FilterCriteria } from "@platforms/interfaces/filter.interface";
 import type {
   AuthConfig,
@@ -21,10 +22,12 @@ import {
   QueryExpand,
   type QueryHierarchyItem,
   QueryType,
+  TreeStructureGroup,
   WorkItemErrorPolicy,
   WorkItemExpand,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
+import { FieldSchemaService } from "./azure-devops-field-schema.service.js";
 
 /**
  * Azure DevOps specific configuration
@@ -108,8 +111,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private connection?: azdev.WebApi;
   private witApi?: IWorkItemTrackingApi;
   private authenticated = false;
+  private readonly fieldSchemaService: FieldSchemaService;
 
-  constructor(private config: AzureDevOpsConfig) {
+  constructor(
+    private config: AzureDevOpsConfig,
+    fieldSchemaService?: FieldSchemaService,
+  ) {
+    this.fieldSchemaService = fieldSchemaService ?? new FieldSchemaService();
     if (!config.organizationUrl) {
       throw new PlatformError("Organization URL is required", "azure-devops");
     }
@@ -415,6 +423,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
               },
             ]
           : []),
+        // Custom fields
+        ...Object.entries(task.customFields ?? {}).map(([referenceName, value]) => ({
+          op: "add",
+          path: `/fields/${referenceName}`,
+          value,
+        })),
         // Parent link
         {
           op: "add",
@@ -842,6 +856,114 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     return results;
   }
 
+  async getFieldSchemas(workItemType?: string): Promise<ADoFieldSchema[]> {
+    this.ensureAuthenticated();
+
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const profileKey = `${this.config.organizationUrl}::${this.config.project}`;
+
+    if (workItemType) {
+      return this.fieldSchemaService.getFieldsForType(
+        this.witApi,
+        this.config.project,
+        workItemType,
+        profileKey,
+      );
+    }
+
+    return this.fieldSchemaService.getAllFields(
+      this.witApi,
+      this.config.project,
+      profileKey,
+    );
+  }
+
+  /**
+   * Returns the list of work item type names available in the project.
+   */
+  async getWorkItemTypes(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const types = await this.witApi.getWorkItemTypes(this.config.project);
+    return types.map((t) => t.name).filter((n): n is string => !!n).sort();
+  }
+
+  /**
+   * Returns the available state names for a given work item type in the project.
+   */
+  async getStatesForWorkItemType(workItemType: string): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const states = await this.witApi.getWorkItemTypeStates(this.config.project, workItemType);
+    return states.map((s) => s.name).filter((n): n is string => !!n);
+  }
+
+  /**
+   * Returns all area paths in the project as flat strings (e.g. "MyProject\\Backend\\API").
+   */
+  async getAreaPaths(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.connection) {
+      throw new UnknownError("Not connected to Azure DevOps");
+    }
+
+    const witApi = await this.connection.getWorkItemTrackingApi();
+    const root = await witApi.getClassificationNode(
+      this.config.project,
+      TreeStructureGroup.Areas,
+      undefined,
+      10, // depth
+    );
+    return flattenClassificationNode(root, this.config.project);
+  }
+
+  /**
+   * Returns all iteration paths in the project as flat strings.
+   */
+  async getIterationPaths(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.connection) {
+      throw new UnknownError("Not connected to Azure DevOps");
+    }
+
+    const witApi = await this.connection.getWorkItemTrackingApi();
+    const root = await witApi.getClassificationNode(
+      this.config.project,
+      TreeStructureGroup.Iterations,
+      undefined,
+      10, // depth
+    );
+    return flattenClassificationNode(root, this.config.project);
+  }
+
+  /**
+   * Returns team names in the project.
+   */
+  async getTeams(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.connection) {
+      throw new UnknownError("Not connected to Azure DevOps");
+    }
+
+    const coreApi = await this.connection.getCoreApi();
+    const teams = await coreApi.getTeams(this.config.project, false, 1000);
+    return teams.map((t) => t.name).filter((n): n is string => !!n).sort();
+  }
+
   /**
    * Build WIQL query from filter criteria
    */
@@ -1092,4 +1214,24 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       );
     }
   }
+}
+
+/**
+ * Recursively flattens a WorkItemClassificationNode tree into path strings.
+ * The root node represents the project itself, so the root path is just the project name.
+ */
+function flattenClassificationNode(
+  node: import("azure-devops-node-api/interfaces/WorkItemTrackingInterfaces").WorkItemClassificationNode,
+  parentPath: string,
+): string[] {
+  const paths: string[] = [parentPath];
+  if (node.children) {
+    for (const child of node.children) {
+      if (child.name) {
+        const childPath = `${parentPath}\\${child.name}`;
+        paths.push(...flattenClassificationNode(child, childPath));
+      }
+    }
+  }
+  return paths;
 }
