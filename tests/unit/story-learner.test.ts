@@ -110,7 +110,7 @@ describe("StoryLearner", () => {
       const platform = createMockPlatform({}, {});
       const learner = new StoryLearner(platform);
 
-      expect(learner.learnFromStory("NONEXISTENT", true)).rejects.toThrow(
+      expect(learner.learnFromStory("NONEXISTENT")).rejects.toThrow(
         TemplateGenerationError,
       );
     });
@@ -122,7 +122,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      expect(learner.learnFromStory("STORY-3", true)).rejects.toThrow(
+      expect(learner.learnFromStory("STORY-3")).rejects.toThrow(
         TemplateGenerationError,
       );
     });
@@ -134,37 +134,25 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const template = await learner.learnFromStory("STORY-1", false);
+      const template = await learner.learnFromStory("STORY-1");
       expect(template.tasks).toHaveLength(3);
       expect(template.name).toContain("STORY-1");
       expect(template.filter.workItemTypes).toContain("User Story");
     });
 
-    test("should normalize percentages when flag is true", async () => {
+    test("should normalise percentages to 100% when total is less than 100%", async () => {
       const platform = createMockPlatform(
         { "STORY-1": story1 },
         { "STORY-1": tasksForStory1 },
       );
       const learner = new StoryLearner(platform);
 
-      const template = await learner.learnFromStory("STORY-1", true);
+      const template = await learner.learnFromStory("STORY-1");
       const total = template.tasks.reduce(
         (sum, t) => sum + (t.estimationPercent ?? 0),
         0,
       );
       expect(total).toBe(100);
-    });
-
-    test("should skip normalization when flag is false", async () => {
-      const platform = createMockPlatform(
-        { "STORY-1": story1 },
-        { "STORY-1": tasksForStory1 },
-      );
-      const learner = new StoryLearner(platform);
-
-      const template = await learner.learnFromStory("STORY-1", false);
-      // Tasks: 4/20=20%, 10/20=50%, 6/20=30% = 100% (happens to be 100 naturally)
-      expect(template.tasks).toHaveLength(3);
     });
   });
 
@@ -174,7 +162,7 @@ describe("StoryLearner", () => {
       const learner = new StoryLearner(platform);
 
       expect(
-        learner.learnFromStories([], { normalizePercentages: true }),
+        learner.learnFromStories([]),
       ).rejects.toThrow(TemplateGenerationError);
     });
 
@@ -185,9 +173,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const result = await learner.learnFromStories(["STORY-1", "STORY-2"], {
-        normalizePercentages: true,
-      });
+      const result = await learner.learnFromStories(["STORY-1", "STORY-2"]);
 
       expect(result.analyses).toHaveLength(2);
       expect(result.skipped).toHaveLength(0);
@@ -201,9 +187,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const result = await learner.learnFromStories(["STORY-1", "STORY-3"], {
-        normalizePercentages: true,
-      });
+      const result = await learner.learnFromStories(["STORY-1", "STORY-3"]);
 
       expect(result.analyses).toHaveLength(1);
       expect(result.skipped).toHaveLength(1);
@@ -222,7 +206,6 @@ describe("StoryLearner", () => {
 
       const result = await learner.learnFromStories(
         ["STORY-1", "NONEXISTENT"],
-        { normalizePercentages: true },
       );
 
       expect(result.analyses).toHaveLength(1);
@@ -240,7 +223,7 @@ describe("StoryLearner", () => {
       const learner = new StoryLearner(platform);
 
       expect(
-        learner.learnFromStories(["STORY-3"], { normalizePercentages: true }),
+        learner.learnFromStories(["STORY-3"]),
       ).rejects.toThrow(TemplateGenerationError);
     });
 
@@ -251,9 +234,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const result = await learner.learnFromStories(["STORY-1", "STORY-2"], {
-        normalizePercentages: true,
-      });
+      const result = await learner.learnFromStories(["STORY-1", "STORY-2"]);
 
       expect(result.confidence).toBeDefined();
       expect(result.confidence.overall).toBeGreaterThanOrEqual(0);
@@ -269,9 +250,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const result = await learner.learnFromStories(["STORY-1", "STORY-2"], {
-        normalizePercentages: true,
-      });
+      const result = await learner.learnFromStories(["STORY-1", "STORY-2"]);
 
       expect(result.patterns).toBeDefined();
       expect(result.patterns.commonTasks.length).toBeGreaterThan(0);
@@ -285,9 +264,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const result = await learner.learnFromStories(["STORY-1"], {
-        normalizePercentages: true,
-      });
+      const result = await learner.learnFromStories(["STORY-1"]);
 
       // Single story => low confidence => should get suggestion to add more
       expect(result.suggestions).toBeDefined();
@@ -301,9 +278,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const result = await learner.learnFromStories(["STORY-1", "STORY-2"], {
-        normalizePercentages: true,
-      });
+      const result = await learner.learnFromStories(["STORY-1", "STORY-2"]);
 
       expect(result.variations).toBeDefined();
       expect(Array.isArray(result.variations)).toBe(true);
@@ -316,9 +291,7 @@ describe("StoryLearner", () => {
       );
       const learner = new StoryLearner(platform);
 
-      const result = await learner.learnFromStories(["STORY-1", "STORY-2"], {
-        normalizePercentages: true,
-      });
+      const result = await learner.learnFromStories(["STORY-1", "STORY-2"]);
 
       // Both stories have "Design API", "Implement logic", "Write tests"
       // so they should merge into 3 tasks, not 6

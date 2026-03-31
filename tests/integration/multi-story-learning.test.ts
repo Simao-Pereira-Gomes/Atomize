@@ -99,7 +99,6 @@ describe("Multi-Story Learning Integration", () => {
 
     const result = await learner.learnFromStories(
       ["STORY-100", "STORY-101", "STORY-102"],
-      { normalizePercentages: true }
     );
 
     // All 3 stories analyzed
@@ -131,7 +130,6 @@ describe("Multi-Story Learning Integration", () => {
 
     const result = await learner.learnFromStories(
       ["STORY-100", "STORY-EMPTY", "STORY-101"],
-      { normalizePercentages: true }
     );
 
     expect(result.analyses).toHaveLength(2);
@@ -149,7 +147,6 @@ describe("Multi-Story Learning Integration", () => {
 
     const result = await learner.learnFromStories(
       ["STORY-100", "STORY-101", "STORY-102"],
-      { normalizePercentages: true }
     );
 
     const validation = validator.validate(result.mergedTemplate);
@@ -165,7 +162,6 @@ describe("Multi-Story Learning Integration", () => {
     // 3 very similar stories => should get decent confidence
     const result = await learner.learnFromStories(
       ["STORY-100", "STORY-101", "STORY-102"],
-      { normalizePercentages: true }
     );
 
     expect(result.confidence.overall).toBeGreaterThanOrEqual(40);
@@ -184,7 +180,6 @@ describe("Multi-Story Learning Integration", () => {
 
     const result = await learner.learnFromStories(
       ["STORY-100"],
-      { normalizePercentages: true }
     );
 
     expect(result.analyses).toHaveLength(1);
@@ -198,7 +193,6 @@ describe("Multi-Story Learning Integration", () => {
 
     const result = await learner.learnFromStories(
       ["STORY-100", "STORY-SINGLE"],
-      { normalizePercentages: true }
     );
 
     expect(result.analyses).toHaveLength(2);
@@ -217,7 +211,6 @@ describe("Multi-Story Learning Integration", () => {
     expect(
       learner.learnFromStories(
         ["STORY-EMPTY"],
-        { normalizePercentages: true }
       )
     ).rejects.toThrow(TemplateGenerationError);
   });
@@ -227,7 +220,6 @@ describe("Multi-Story Learning Integration", () => {
 
     const result = await learner.learnFromStories(
       ["STORY-100", "STORY-101", "STORY-102"],
-      { normalizePercentages: true }
     );
 
     expect(result.variations.length).toBeGreaterThanOrEqual(1);

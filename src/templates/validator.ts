@@ -1,6 +1,7 @@
 import { TemplateValidationError } from "@utils/errors";
 import type { ZodError } from "zod";
 import type { $ZodIssue } from "zod/v4/core";
+import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import { type TaskTemplate, TaskTemplateSchema, type ValidationMode } from "./schema";
 
 export interface ValidationOptions {
@@ -25,6 +26,8 @@ export interface ValidationWarning {
   path: string;
   message: string;
   suggestion?: string;
+  /** When true, strict mode will not promote this warning to an error. */
+  nonBlocking?: boolean;
 }
 
 export class TemplateValidator {
@@ -41,11 +44,11 @@ export class TemplateValidator {
       ? this.collectWarnings(parsed.data)
       : [];
 
-    // In strict mode, promote warnings to errors
     if (effectiveMode === "strict" && warnings.length > 0) {
-      const promotedErrors = warnings.map((w) => this.warningToError(w));
-      errors = [...errors, ...promotedErrors];
-      warnings = [];
+      const promotable = warnings.filter((w) => !w.nonBlocking);
+      const retained = warnings.filter((w) => w.nonBlocking);
+      errors = [...errors, ...promotable.map((w) => this.warningToError(w))];
+      warnings = retained;
     }
 
     return { valid: errors.length === 0, errors, warnings, mode: effectiveMode };
@@ -71,17 +74,11 @@ export class TemplateValidator {
       v?.totalEstimationMustBe !== undefined ||
       v?.totalEstimationRange !== undefined;
 
-    if (!hasStrictRule && total !== 100) {
-      const diff = 100 - total;
-      const suggestion =
-        diff > 0
-          ? `Add ${diff}% to existing tasks or create a new task with ${diff}% estimation.`
-          : `Reduce task estimations by ${Math.abs(diff)}% to reach 100%.`;
-
+    if (!hasStrictRule && total > 100) {
       warnings.push({
         path: "tasks",
-        message: `Total estimation is ${total}% (expected 100%).`,
-        suggestion,
+        message: `Total estimation is ${total}% (exceeds 100%). This is valid when tasks span multiple roles. You will be prompted to normalise at generate time.`,
+        nonBlocking: true,
       });
     }
     this.validateTaskConditions(template, warnings);
@@ -97,13 +94,11 @@ export class TemplateValidator {
   ) {
     template.tasks.forEach((task, index) => {
       if (task.condition) {
-        const hasVariable = task.condition.includes("${");
-        const hasOperator = /AND|OR|==|!=|>|<|CONTAINS/.test(task.condition);
-        if (!hasVariable && !hasOperator) {
+        const customFieldRefs = extractCustomFieldRefs(task.condition);
+        if (customFieldRefs.length > 0) {
           warnings.push({
             path: `tasks[${index}].condition`,
-            message: `Condition "${task.condition}" might be invalid (no variables found)`,
-            suggestion: `Use variables like \${story.tags} or operators like CONTAINS, ==, !=. Example: "\${story.tags} CONTAINS 'backend'"`,
+            message: `Condition references custom field(s) [${customFieldRefs.join(", ")}] on the parent story. Run validation with --profile <name> (or choose Online when prompted) to verify these fields exist in ADO.`,
           });
         }
       }
@@ -315,12 +310,10 @@ export class TemplateValidator {
       if (err.minimum === 1)
         return "This field cannot be empty. Please provide a value.";
       if (path.includes("estimationPercent"))
-        return "Estimation percentage cannot be negative. Use a value between 0 and 100.";
+        return "Estimation percentage cannot be negative.";
     }
-
-    // Number range errors
     if (code === "too_big" && path.includes("estimationPercent")) {
-      return "Estimation percentage must be between 0 and 100. Current value exceeds 100%.";
+      return "A single task's estimation cannot exceed 100%. Split the work across multiple tasks if needed.";
     }
 
     // Type errors

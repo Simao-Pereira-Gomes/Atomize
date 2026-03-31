@@ -341,16 +341,64 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
-    test("should accept condition", () => {
+    test("should accept structured condition (simple clause)", () => {
       const task = {
         title: "Task",
         estimationPercent: 50,
-        //biome-ignore lint/suspicious: The condition field is needed for user input
-        condition: '${story.tags} CONTAINS "security"',
+        condition: { field: "tags", operator: "contains", value: "security" },
       };
 
       const result = TaskDefinitionSchema.safeParse(task);
       expect(result.success).toBe(true);
+    });
+
+    test("should accept compound condition (all)", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: 50,
+        condition: {
+          all: [
+            { field: "tags", operator: "contains", value: "backend" },
+            { field: "estimation", operator: "gte", value: 5 },
+          ],
+        },
+      };
+
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept customField condition", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: 50,
+        condition: { customField: "Custom.ClientTier", operator: "equals", value: "Enterprise" },
+      };
+
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(true);
+    });
+
+    test("should reject string condition", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: 50,
+        condition: `\${story.tags} CONTAINS "security"`,
+      };
+
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject customField with invalid reference format", () => {
+      const task = {
+        title: "Task",
+        estimationPercent: 50,
+        condition: { customField: "invalidName", operator: "equals", value: "x" },
+      };
+
+      const result = TaskDefinitionSchema.safeParse(task);
+      expect(result.success).toBe(false);
     });
   });
 

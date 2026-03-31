@@ -1,5 +1,5 @@
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import type { TaskDefinition, TaskTemplate } from "@templates/schema";
+import type { Condition, TaskDefinition, TaskTemplate } from "@templates/schema";
 
 /** Dependency pattern detected across stories */
 export interface DependencyPattern {
@@ -57,8 +57,8 @@ export interface ConditionalTaskPattern {
   /** Canonical task title this condition applies to */
   taskCanonicalTitle: string;
 
-  /** Generated condition expression */
-  conditionExpression: string;
+  /** Structured condition for the template engine */
+  condition: Condition;
 
   /** Type of correlation detected */
   correlationType: "tag" | "priority" | "estimation" | "areaPath" | "compound";
@@ -111,11 +111,6 @@ export interface LearnedFilterCriteria {
   }>;
 }
 
-/** Options controlling template learning behavior */
-export interface LearnOptions {
-  /** Normalize estimations to percentages */
-  normalizePercentages: boolean;
-}
 
 /** Result of analyzing a single story */
 export interface StoryAnalysis {
@@ -306,8 +301,8 @@ export interface MergedTask {
   /** Learned tag classification */
   tagClassification?: EnhancedTagInfo;
 
-  /** Learned conditional expression */
-  learnedCondition?: string;
+  /** Learned condition */
+  learnedCondition?: Condition;
 }
 
 /** Anomaly detected during analysis */
