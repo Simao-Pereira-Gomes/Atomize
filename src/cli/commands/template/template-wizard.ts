@@ -67,7 +67,7 @@ export function normalizeEstimations(tasks: TaskDefinition[]): void {
  */
 export async function previewTemplate(
   template: TaskTemplate,
-  ctx: TemplateWizardContext,
+  ctx?: TemplateWizardContext,
 ): Promise<boolean> {
   displayTemplatePreview(template);
 
@@ -77,7 +77,7 @@ export async function previewTemplate(
       options: [
         { label: "Save template", value: Actions.Save },
         { label: "View full YAML", value: Actions.ViewYaml },
-        { label: "Edit template", value: Actions.Edit },
+        ...(ctx ? [{ label: "Edit template", value: Actions.Edit }] : []),
         { label: "Cancel", value: Actions.Cancel },
       ],
     })
@@ -266,36 +266,23 @@ async function editTemplate(template: TaskTemplate, ctx: TemplateWizardContext):
       const { configureFilter } = await import(
         "./template-wizard-helper.command"
       );
-      const filterConfig = await configureFilter(ctx.filterCtx);
+      const filterConfig = await configureFilter(ctx.filterCtx, template.filter);
       template.filter = filterConfig;
     })
     .with("tasks", async () => {
       console.log(chalk.cyan("\nEditing Tasks\n"));
-      console.log(
-        chalk.yellow("Note: This will replace all existing tasks.\n")
+      template.tasks = await editTasksInteractively(
+        template.tasks,
+        ctx.fieldSchemas,
+        ctx.storyFieldSchemas,
       );
-
-      const confirmed = assertNotCancelled(
-        await confirm({
-          message: "Are you sure you want to reconfigure all tasks?",
-          initialValue: false,
-        })
-      );
-
-      if (confirmed) {
-        const tasks = await configureTasksWithValidation(
-          ctx.fieldSchemas,
-          ctx.storyFieldSchemas,
-        );
-        template.tasks = tasks;
-      }
     })
     .with("estimation", async () => {
       console.log(chalk.cyan("\nEditing Estimation Settings\n"));
       const { configureEstimation } = await import(
         "./template-wizard-helper.command"
       );
-      const estimation = await configureEstimation();
+      const estimation = await configureEstimation(template.estimation);
       template.estimation = estimation;
     })
     .with("validation", async () => {
@@ -311,7 +298,7 @@ async function editTemplate(template: TaskTemplate, ctx: TemplateWizardContext):
         const { configureValidation } = await import(
           "./template-wizard-helper.command"
         );
-        template.validation = await configureValidation();
+        template.validation = await configureValidation(template.validation);
       } else {
         template.validation = undefined;
       }
@@ -329,7 +316,7 @@ async function editTemplate(template: TaskTemplate, ctx: TemplateWizardContext):
         const { configureMetadata } = await import(
           "./template-wizard-helper.command"
         );
-        template.metadata = await configureMetadata();
+        template.metadata = await configureMetadata(template.metadata);
       } else {
         template.metadata = undefined;
       }
@@ -358,7 +345,7 @@ async function editTemplate(template: TaskTemplate, ctx: TemplateWizardContext):
 async function handlePreviewAction(
   action: Action,
   template: TaskTemplate,
-  ctx: TemplateWizardContext,
+  ctx?: TemplateWizardContext,
 ): Promise<boolean> {
   return await match<Action>(action)
     .with(Actions.ViewYaml, async () => {
@@ -368,7 +355,7 @@ async function handlePreviewAction(
       return await previewTemplate(template, ctx);
     })
     .with(Actions.Edit, async () => {
-      await editTemplate(template, ctx);
+      if (ctx) await editTemplate(template, ctx);
       return await previewTemplate(template, ctx);
     })
     .with(Actions.Cancel, () => {
@@ -401,12 +388,25 @@ export function showStepHint(stepName: string): void {
 }
 
 /**
- * Configure tasks with improved flow and error handling
+ * Configure tasks with improved flow and error handling.
+ * When `defaults` is supplied a summary of the existing tasks is shown before
+ * the user starts building the new list (they always rebuild from scratch, but
+ * can reference what was there before).
  */
 export async function configureTasksWithValidation(
   fieldSchemas: ADoFieldSchema[],
   storyFieldSchemas: ADoFieldSchema[],
+  defaults?: TaskDefinition[],
 ): Promise<TaskDefinition[]> {
+  if (defaults && defaults.length > 0) {
+    console.log(chalk.gray(`\nExisting tasks (${defaults.length}):`));
+    defaults.forEach((t, i) => {
+      const pct = t.estimationPercent !== undefined ? chalk.gray(` [${t.estimationPercent}%]`) : "";
+      console.log(chalk.gray(`  ${i + 1}. ${t.title}${pct}`));
+    });
+    console.log("");
+  }
+
   while (true) {
     try {
       const tasks = await collectTasks(fieldSchemas, storyFieldSchemas);
@@ -554,6 +554,130 @@ async function promptRetry(error: unknown): Promise<boolean> {
       initialValue: true,
     })
   );
+}
+
+/**
+ * Per-task editing loop — lets users edit, add, or remove individual tasks
+ * without having to replace the entire list.  The final task list is
+ * normalization-checked before being returned.
+ */
+export async function editTasksInteractively(
+  tasks: TaskDefinition[],
+  fieldSchemas: ADoFieldSchema[],
+  storyFieldSchemas: ADoFieldSchema[],
+): Promise<TaskDefinition[]> {
+  let currentTasks = [...tasks];
+
+  const displayTasks = () => {
+    const total = currentTasks.reduce((s, t) => s + (t.estimationPercent ?? 0), 0);
+    const totalLabel =
+      total === 100
+        ? chalk.green("100% ✓")
+        : chalk.yellow(`${total}% — doesn't sum to 100`);
+    console.log(chalk.cyan(`\nTasks (${currentTasks.length}) — total: ${totalLabel}\n`));
+    currentTasks.forEach((t, i) => {
+      console.log(chalk.gray(`  ${i + 1}. ${t.title} [${t.estimationPercent ?? 0}%]`));
+    });
+    console.log("");
+  };
+
+  let editing = true;
+  while (editing) {
+    displayTasks();
+
+    const action = assertNotCancelled(
+      await select({
+        message: "What would you like to do?",
+        options: [
+          { label: "Edit a task", value: "edit" },
+          { label: "Add a task", value: "add" },
+          ...(currentTasks.length > 0
+            ? [{ label: "Remove a task", value: "remove" }]
+            : []),
+          { label: "Replace all tasks", value: "replaceAll" },
+          { label: "Done", value: "done" },
+        ],
+      }),
+    ) as string;
+
+    switch (action) {
+      case "edit": {
+        const idx = assertNotCancelled(
+          await select({
+            message: "Select task to edit:",
+            options: currentTasks.map((t, i) => ({
+              label: `${i + 1}. ${t.title} [${t.estimationPercent ?? 0}%]`,
+              value: i,
+            })),
+          }),
+        ) as number;
+        const wantsAdvanced = assertNotCancelled(
+          await confirm({ message: "Configure advanced options?", initialValue: false }),
+        );
+        currentTasks[idx] = await buildTaskDefinition(
+          false,
+          wantsAdvanced,
+          fieldSchemas,
+          storyFieldSchemas,
+          currentTasks[idx],
+        );
+        break;
+      }
+      case "add": {
+        const wantsAdvanced = assertNotCancelled(
+          await confirm({ message: "Configure advanced options?", initialValue: false }),
+        );
+        currentTasks.push(
+          await buildTaskDefinition(
+            currentTasks.length === 0,
+            wantsAdvanced,
+            fieldSchemas,
+            storyFieldSchemas,
+          ),
+        );
+        break;
+      }
+      case "remove": {
+        const idx = assertNotCancelled(
+          await select({
+            message: "Select task to remove:",
+            options: currentTasks.map((t, i) => ({
+              label: `${i + 1}. ${t.title} [${t.estimationPercent ?? 0}%]`,
+              value: i,
+            })),
+          }),
+        ) as number;
+        currentTasks.splice(idx, 1);
+        break;
+      }
+      case "replaceAll": {
+        const confirmed = assertNotCancelled(
+          await confirm({
+            message: "Replace all tasks? This cannot be undone.",
+            initialValue: false,
+          }),
+        );
+        if (confirmed) {
+          currentTasks = await configureTasksWithValidation(fieldSchemas, storyFieldSchemas);
+          editing = false;
+        }
+        break;
+      }
+      case "done": {
+        if (currentTasks.length === 0) {
+          console.log(chalk.yellow("  At least one task is required."));
+          break;
+        }
+        editing = false;
+        break;
+      }
+    }
+  }
+  if (currentTasks.reduce((s, t) => s + (t.estimationPercent ?? 0), 0) !== 100) {
+    await handleEstimationNormalization(currentTasks);
+  }
+
+  return currentTasks;
 }
 
 export {

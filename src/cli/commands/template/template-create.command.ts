@@ -6,6 +6,7 @@ import {
   cancel,
   confirm,
   intro,
+  multiselect,
   outro,
   select,
   text,
@@ -40,6 +41,7 @@ import {
   configureMetadata,
   configureTasksWithValidation,
   configureValidation,
+  editTasksInteractively,
   previewTemplate,
   type TemplateWizardContext,
 } from "./template-wizard";
@@ -207,9 +209,11 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
   );
 
   if (customize) {
-    return await customizeTemplate(template);
+    return await customizeTemplate(template, options.profile);
   }
 
+  // Even without customization, show a preview so the user can confirm before saving.
+  await previewTemplate(template);
   return template;
 }
 
@@ -448,28 +452,218 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
   }
 }
 
+type CustomizeSectionKey = "basicInfo" | "filter" | "tasks" | "estimation" | "validation" | "metadata";
+
 /**
- * Customize template interactively
+ * Customize a preset template interactively.
+ *
+ * Establishes an ADO connection (same fire-and-forget pattern as createFromScratch),
+ * shows a multi-select section picker, then runs only the chosen wizard steps with
+ * every prompt pre-filled from the preset's existing values.  Ends with the same
+ * previewTemplate loop as the scratch path.
  */
 async function customizeTemplate(
   template: TaskTemplate,
+  profile?: string,
 ): Promise<TaskTemplate> {
-  const name = assertNotCancelled(
-    await text({
-      message: "Template name:",
-      defaultValue: template.name,
-    }),
-  );
+  console.log(chalk.cyan("\nCustomize Preset\n"));
+  let connectionSettled = false;
+  const connectionPromise = (async () => {
+    const { resolveAzureConfig } = await import("@config/profile-resolver");
+    const { AzureDevOpsAdapter } = await import(
+      "@platforms/adapters/azure-devops/azure-devops.adapter"
+    );
+    const azureConfig = await resolveAzureConfig(profile);
+    const adapter = new AzureDevOpsAdapter(azureConfig);
+    await adapter.authenticate();
+    const [
+      taskSchemas,
+      liveWorkItemTypes,
+      liveAreaPaths,
+      liveIterationPaths,
+      liveTeams,
+      liveSavedQueries,
+    ] = await Promise.all([
+      adapter.getFieldSchemas("Task"),
+      adapter.getWorkItemTypes(),
+      adapter.getAreaPaths(),
+      adapter.getIterationPaths(),
+      adapter.getTeams(),
+      adapter.listSavedQueries(),
+    ]);
+    return {
+      adapter,
+      fieldSchemas: taskSchemas,
+      filterCtx: {
+        workItemTypes: liveWorkItemTypes,
+        getStatesForType: (type: string) =>
+          adapter.getStatesForWorkItemType(type),
+        areaPaths: liveAreaPaths,
+        iterationPaths: liveIterationPaths,
+        teams: liveTeams,
+        savedQueries: liveSavedQueries,
+      },
+    };
+  })().finally(() => {
+    connectionSettled = true;
+  });
 
-  const description = assertNotCancelled(
-    await text({
-      message: "Description:",
-      defaultValue: template.description,
+  const sections = assertNotCancelled(
+    await multiselect<CustomizeSectionKey>({
+      message: "Which sections would you like to customize?",
+      options: [
+        { label: "Name & Description", value: "basicInfo" },
+        { label: "Filter", value: "filter" },
+        { label: "Tasks", value: "tasks" },
+        { label: "Estimation", value: "estimation" },
+        { label: "Validation Rules", value: "validation" },
+        { label: "Metadata", value: "metadata" },
+      ],
+      required: false,
     }),
-  );
+  ) as CustomizeSectionKey[];
 
-  template.name = name;
-  template.description = description;
+  if (sections.includes("basicInfo")) {
+    console.log(chalk.cyan("\nEditing Name & Description\n"));
+    const basicInfo = await configureBasicInfo({
+      name: template.name,
+      description: template.description,
+      author: template.author,
+      tags: template.tags,
+    });
+    template.name = basicInfo.name;
+    template.description = basicInfo.description;
+    template.author = basicInfo.author;
+    template.tags = basicInfo.tags;
+  }
+
+  // Await the ADO connection (spinner only if not yet settled).
+  const wasAlreadyConnected = connectionSettled;
+  const connectSpinner = createManagedSpinner();
+  if (!wasAlreadyConnected) connectSpinner.start("Connecting to ADO...");
+
+  let filterCtx: import("./template-wizard-helper.command").FilterWizardContext;
+  let fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
+  let adapterForWizard: import("@platforms/adapters/azure-devops/azure-devops.adapter").AzureDevOpsAdapter;
+
+  try {
+    const conn = await connectionPromise;
+    if (!wasAlreadyConnected) connectSpinner.stop("Connected ✓");
+    filterCtx = conn.filterCtx;
+    fieldSchemas = conn.fieldSchemas;
+    adapterForWizard = conn.adapter;
+  } catch (err) {
+    if (!wasAlreadyConnected) connectSpinner.stop("Connection failed");
+    const message = err instanceof Error ? err.message : String(err);
+    const hint =
+      err instanceof ConfigurationError
+        ? '\n\n  Run "atomize auth add" to configure a connection profile.'
+        : "";
+    throw new ConfigurationError(`${message}${hint}`);
+  }
+  let storyFieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[] = [];
+  let storySchemasFetched = false;
+
+  for (const section of (
+    ["filter", "tasks", "estimation", "validation", "metadata"] as const
+  )) {
+    if (!sections.includes(section)) continue;
+
+    switch (section) {
+      case "filter": {
+        console.log(chalk.cyan("\nEditing Filter Configuration\n"));
+        template.filter = await configureFilter(filterCtx, template.filter);
+        // Warn if the filter would match all work items (mirrors createFromScratch behaviour).
+        if (
+          (!template.filter.workItemTypes || template.filter.workItemTypes.length === 0) &&
+          (!template.filter.states || template.filter.states.length === 0)
+        ) {
+          console.log(chalk.yellow("\n Warning: No work item types or states configured."));
+          console.log(chalk.yellow("   This template will match ALL work items."));
+          const continueAnyway = assertNotCancelled(
+            await confirm({ message: "Continue with empty filter?", initialValue: false }),
+          );
+          if (!continueAnyway) {
+            throw new CancellationError(
+              "Template creation cancelled. Please configure filter criteria.",
+            );
+          }
+        }
+        // Story schemas depend on work item type — invalidate cache after filter change.
+        storySchemasFetched = false;
+        break;
+      }
+      case "tasks": {
+        console.log(chalk.cyan("\nEditing Tasks\n"));
+        if (!storySchemasFetched) {
+          const wit = template.filter.workItemTypes?.[0];
+          storyFieldSchemas = wit ? await adapterForWizard.getFieldSchemas(wit) : [];
+          storySchemasFetched = true;
+        }
+        template.tasks = await editTasksInteractively(
+          template.tasks,
+          fieldSchemas,
+          storyFieldSchemas,
+        );
+        break;
+      }
+      case "estimation": {
+        console.log(chalk.cyan("\nEditing Estimation Settings\n"));
+        template.estimation = await configureEstimation(template.estimation);
+        break;
+      }
+      case "validation": {
+        console.log(chalk.cyan("\nEditing Validation Rules\n"));
+        const enable = assertNotCancelled(
+          await confirm({
+            message: "Enable validation rules?",
+            initialValue: !!template.validation,
+          }),
+        );
+        template.validation = enable
+          ? await configureValidation(template.validation)
+          : undefined;
+        break;
+      }
+      case "metadata": {
+        console.log(chalk.cyan("\nEditing Metadata\n"));
+        const enable = assertNotCancelled(
+          await confirm({
+            message: "Enable metadata?",
+            initialValue: !!template.metadata,
+          }),
+        );
+        template.metadata = enable
+          ? await configureMetadata(template.metadata)
+          : undefined;
+        break;
+      }
+    }
+  }
+
+  if (!storySchemasFetched) {
+    const wit = template.filter.workItemTypes?.[0];
+    storyFieldSchemas = wit ? await adapterForWizard.getFieldSchemas(wit) : [];
+  }
+
+  // Stamp a fresh created date — this is a new template derived from a preset.
+  template.created = new Date().toISOString();
+
+  console.log(chalk.green("\n✓ Template customized successfully!\n"));
+  console.log(chalk.gray("Review your template and choose an action below.\n"));
+
+  const wizardCtx: TemplateWizardContext = {
+    filterCtx,
+    fieldSchemas,
+    storyFieldSchemas,
+    workItemType: template.filter.workItemTypes?.[0],
+  };
+
+  const confirmed = await previewTemplate(template, wizardCtx);
+
+  if (!confirmed) {
+    throw new CancellationError("Template customization cancelled by user");
+  }
 
   return template;
 }

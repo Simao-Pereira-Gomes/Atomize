@@ -6,6 +6,7 @@ import type {
   Metadata,
   ValidationConfig,
 } from "@templates/schema";
+import chalk from "chalk";
 import {
   assertNotCancelled,
   Filters,
@@ -72,10 +73,61 @@ const DATE_FILTER_OPTIONS: { label: string; value: DateFilterPreset }[] = [
   { label: "Custom", value: "custom" as const },
 ];
 
+/** Derive which advanced filter groups have values in an existing filter. */
+function deriveActiveGroups(filter: FilterCriteria): AdvancedFilterGroup[] {
+  const groups: AdvancedFilterGroup[] = [];
+  if (
+    filter.team ||
+    (filter.areaPaths && filter.areaPaths.length > 0) ||
+    (filter.areaPathsUnder && filter.areaPathsUnder.length > 0) ||
+    (filter.iterations && filter.iterations.length > 0) ||
+    (filter.iterationsUnder && filter.iterationsUnder.length > 0)
+  ) {
+    groups.push("scope");
+  }
+  if (
+    (filter.statesExclude && filter.statesExclude.length > 0) ||
+    (filter.statesWereEver && filter.statesWereEver.length > 0)
+  ) {
+    groups.push("stateHistory");
+  }
+  if ((filter.assignedTo && filter.assignedTo.length > 0) || filter.priority) {
+    groups.push("assignment");
+  }
+  if (filter.changedAfter || filter.createdAfter) {
+    groups.push("dates");
+  }
+  return groups;
+}
+
+/** Derive the AreaFilterMode from an existing filter's areaPaths / areaPathsUnder. */
+function deriveAreaPathMode(exact: string[], under: string[]): AreaFilterMode {
+  if (exact.length === 0 && under.length === 0) return "none";
+  if (under.length > 0 && exact.length === 0) return "under";
+  if (exact.length === 1 && exact[0] === "@TeamAreas") return "@TeamAreas";
+  if (exact.includes("@TeamAreas")) return "mixed";
+  return "exact";
+}
+
+/** Derive the IterationFilterMode from an existing filter's iterations / iterationsUnder. */
+function deriveIterationMode(exact: string[], under: string[]): IterationFilterMode {
+  if (exact.length === 0 && under.length === 0) return "none";
+  if (under.length > 0 && exact.length === 0) return "under";
+  if (exact.length === 1) {
+    if (exact[0] === "@CurrentIteration") return "@CurrentIteration";
+    if (exact[0] === "@CurrentIteration + 1") return "@CurrentIteration+1";
+    if (exact[0] === "@CurrentIteration - 1") return "@CurrentIteration-1";
+  }
+  if (exact.some((p) => p.startsWith("@CurrentIteration"))) return "mixed";
+  return "exact";
+}
+
 /**
- * Configure filter criteria with support for custom query and custom fields
+ * Configure filter criteria with support for custom query and custom fields.
+ * When `defaults` is supplied the wizard pre-fills every prompt with the
+ * existing template's filter values so only changed fields need new input.
  */
-export async function configureFilter(ctx: FilterWizardContext): Promise<FilterCriteria> {
+export async function configureFilter(ctx: FilterWizardContext, defaults?: FilterCriteria): Promise<FilterCriteria> {
   const filterOptions = [
     { label: "Build a filter  — choose types, states, tags, etc.", value: "structured" },
     ...(ctx.savedQueries.length > 0
@@ -83,11 +135,12 @@ export async function configureFilter(ctx: FilterWizardContext): Promise<FilterC
       : []),
   ];
 
+  const defaultFilterMode = defaults?.savedQuery ? "savedQuery" : "structured";
   const filterMode = assertNotCancelled(
     await select({
       message: "How do you want to select work items?",
       options: filterOptions,
-      initialValue: "structured",
+      initialValue: defaultFilterMode,
     }),
   ) as "structured" | "savedQuery";
 
@@ -97,17 +150,21 @@ export async function configureFilter(ctx: FilterWizardContext): Promise<FilterC
 
   const filter: FilterCriteria = {};
 
-  const workItemTypes = await promptWorkItemTypes(ctx);
+  const workItemTypes = await promptWorkItemTypes(ctx, defaults?.workItemTypes);
   if (workItemTypes.length > 0) filter.workItemTypes = workItemTypes;
 
-  const states = await promptStates(ctx, workItemTypes);
+  const states = await promptStates(ctx, workItemTypes, defaults?.states);
   if (states.length > 0) filter.states = states;
 
-  const tags = await promptTags();
+  const tags = await promptTags(defaults?.tags);
   if (tags) filter.tags = tags;
 
-  if (await promptExcludeIfHasTasks()) filter.excludeIfHasTasks = true;
+  // When defaults are present, use the preset's excludeIfHasTasks value (falsy when not set);
+  // when there are no defaults (scratch path), keep the original UX default of true.
+  const excludeDefault = defaults !== undefined ? (defaults.excludeIfHasTasks ?? false) : undefined;
+  if (await promptExcludeIfHasTasks(excludeDefault)) filter.excludeIfHasTasks = true;
 
+  const activeGroups = defaults ? deriveActiveGroups(defaults) : [];
   const selectedGroups = assertNotCancelled(
     await multiselect<AdvancedFilterGroup>({
       message: "Advanced filters (press Enter to skip):",
@@ -120,6 +177,7 @@ export async function configureFilter(ctx: FilterWizardContext): Promise<FilterC
         { label: "Assignment  — assigned-to, priority", value: "assignment" },
         { label: "Dates  — changed after, created after", value: "dates" },
       ],
+      initialValues: activeGroups,
       required: false,
     }),
   ) as AdvancedFilterGroup[];
@@ -130,34 +188,40 @@ export async function configureFilter(ctx: FilterWizardContext): Promise<FilterC
   )) {
     switch (group) {
       case "scope": {
-        const team = await promptTeam(ctx);
+        const team = await promptTeam(ctx, defaults?.team);
         if (team) filter.team = team;
 
         const { exact: areaPaths, under: areaPathsUnder } =
-          await promptAreaPaths(ctx);
+          await promptAreaPaths(ctx, {
+            exact: defaults?.areaPaths,
+            under: defaults?.areaPathsUnder,
+          });
         if (areaPaths.length > 0) filter.areaPaths = areaPaths;
         if (areaPathsUnder.length > 0) filter.areaPathsUnder = areaPathsUnder;
 
         const { exact: iterations, under: iterationsUnder } =
-          await promptIterations(ctx);
+          await promptIterations(ctx, {
+            exact: defaults?.iterations,
+            under: defaults?.iterationsUnder,
+          });
         if (iterations.length > 0) filter.iterations = iterations;
         if (iterationsUnder.length > 0)
           filter.iterationsUnder = iterationsUnder;
         break;
       }
       case "stateHistory": {
-        const statesExclude = await promptStatesExclude(ctx, workItemTypes);
+        const statesExclude = await promptStatesExclude(ctx, workItemTypes, defaults?.statesExclude);
         if (statesExclude.length > 0) filter.statesExclude = statesExclude;
 
-        const statesWereEver = await promptStatesWereEver(ctx, workItemTypes);
+        const statesWereEver = await promptStatesWereEver(ctx, workItemTypes, defaults?.statesWereEver);
         if (statesWereEver.length > 0) filter.statesWereEver = statesWereEver;
         break;
       }
       case "assignment": {
-        const assignedTo = await promptAssignedTo();
+        const assignedTo = await promptAssignedTo(defaults?.assignedTo);
         if (assignedTo.length > 0) filter.assignedTo = assignedTo;
 
-        const priority = await promptPriority();
+        const priority = await promptPriority(defaults?.priority);
         if (priority) filter.priority = priority;
         break;
       }
@@ -165,12 +229,14 @@ export async function configureFilter(ctx: FilterWizardContext): Promise<FilterC
         const changedAfter = await promptDateFilter(
           "Filter by last modified date:",
           "Changed after (date or @Today offset):",
+          defaults?.changedAfter,
         );
         if (changedAfter) filter.changedAfter = changedAfter;
 
         const createdAfter = await promptDateFilter(
           "Filter by creation date:",
           "Created after (date or @Today offset):",
+          defaults?.createdAfter,
         );
         if (createdAfter) filter.createdAfter = createdAfter;
         break;
@@ -211,29 +277,49 @@ async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriter
   };
 }
 
-async function promptWorkItemTypes(ctx: FilterWizardContext): Promise<string[]> {
+async function promptWorkItemTypes(ctx: FilterWizardContext, defaults?: string[]): Promise<string[]> {
   const defaultType = ctx.workItemTypes.includes("User Story") ? "User Story" : undefined;
   const sorted = [
     ...(defaultType ? [defaultType] : []),
     ...ctx.workItemTypes.filter((t) => t !== defaultType).sort((a, b) => a.localeCompare(b)),
   ];
+  // Use preset values when provided (filtered to types that still exist in ADO),
+  // otherwise fall back to the ADO-default type.
+  const initialValues =
+    defaults && defaults.length > 0
+      ? defaults.filter((t) => ctx.workItemTypes.includes(t))
+      : defaultType
+        ? [defaultType]
+        : [];
   const selected = assertNotCancelled(
     await multiselect({
       message: "Select work item types:",
       options: sorted.map((t) => ({ label: t, value: t })),
-      initialValues: defaultType ? [defaultType] : [],
+      initialValues,
       required: false,
     }),
   );
   return selected as string[];
 }
 
-async function promptStates(ctx: FilterWizardContext, selectedTypes?: string[]): Promise<string[]> {
+async function promptStates(ctx: FilterWizardContext, selectedTypes?: string[], defaults?: string[]): Promise<string[]> {
   if (!selectedTypes || selectedTypes.length === 0) return [];
 
   const allStates = await Promise.all(selectedTypes.map((t) => ctx.getStatesForType(t)));
   const stateSet = [...new Set(allStates.flat())];
   if (stateSet.length === 0) return [];
+
+  // If defaults exist, offer to keep them without re-entering the selection loop.
+  if (defaults && defaults.length > 0) {
+    const valid = defaults.filter((s) => stateSet.includes(s));
+    if (valid.length > 0) {
+      console.log(chalk.gray(`  Current states: ${valid.join(", ")}`));
+      const keep = assertNotCancelled(
+        await confirm({ message: "Keep current states?", initialValue: true }),
+      );
+      if (keep) return valid;
+    }
+  }
 
   const initialCount = stateSet.length;
   const selected: string[] = [];
@@ -259,9 +345,10 @@ async function promptStates(ctx: FilterWizardContext, selectedTypes?: string[]):
   return selected;
 }
 
-async function promptTags(): Promise<FilterCriteria["tags"]> {
+async function promptTags(defaults?: FilterCriteria["tags"]): Promise<FilterCriteria["tags"]> {
+  const hasTags = !!(defaults?.include?.length || defaults?.exclude?.length);
   const useTags = assertNotCancelled(
-    await confirm({ message: "Filter by tags?", initialValue: false }),
+    await confirm({ message: "Filter by tags?", initialValue: hasTags }),
   );
   if (!useTags) return undefined;
 
@@ -269,12 +356,14 @@ async function promptTags(): Promise<FilterCriteria["tags"]> {
     await text({
       message: "Tags to include (comma-separated):",
       placeholder: "e.g. backend, api",
+      initialValue: defaults?.include?.join(", ") ?? "",
     }),
   );
   const excludeRaw = assertNotCancelled(
     await text({
       message: "Tags to exclude (comma-separated):",
       placeholder: "e.g. wip, blocked",
+      initialValue: defaults?.exclude?.join(", ") ?? "",
     }),
   );
 
@@ -289,16 +378,19 @@ async function promptTags(): Promise<FilterCriteria["tags"]> {
   };
 }
 
-async function promptExcludeIfHasTasks(): Promise<boolean> {
+async function promptExcludeIfHasTasks(defaults?: boolean): Promise<boolean> {
   return assertNotCancelled(
     await confirm({
       message: "Exclude work items that already have tasks?",
-      initialValue: true,
+      initialValue: defaults ?? true,
     }),
   );
 }
 
-async function promptTeam(ctx: FilterWizardContext): Promise<string | undefined> {
+async function promptTeam(ctx: FilterWizardContext, defaults?: string): Promise<string | undefined> {
+  if (defaults) {
+    console.log(chalk.gray(`  Current team: ${defaults}`));
+  }
   const options = [
     { label: "No team filter", value: "" },
     ...ctx.teams.map((t) => ({ label: t, value: t })),
@@ -311,10 +403,48 @@ async function promptTeam(ctx: FilterWizardContext): Promise<string | undefined>
   return pick || undefined;
 }
 
-async function promptAreaPaths(ctx: FilterWizardContext): Promise<{
+/** Shared pick-from-list loop for area paths and iteration paths. */
+async function pickPathsFromList(
+  paths: string[],
+  firstMessage: string,
+  moreMessage: string,
+  confirmMessage: string,
+): Promise<string[]> {
+  const initialCount = paths.length;
+  const selected: string[] = [];
+  let addMore = true;
+  while (addMore) {
+    const remaining = paths.filter((p) => !selected.includes(p));
+    if (remaining.length === 0) break;
+    const pick = await selectOrAutocomplete({
+      message: selected.length === 0 ? firstMessage : moreMessage,
+      options: remaining.map((p) => ({ label: p, value: p })),
+      placeholder: "Type to filter...",
+      thresholdCount: initialCount,
+    });
+    selected.push(pick);
+    if (remaining.length > 1) {
+      addMore = assertNotCancelled(
+        await confirm({ message: confirmMessage, initialValue: false }),
+      );
+    } else {
+      addMore = false;
+    }
+  }
+  return selected;
+}
+
+async function promptAreaPaths(ctx: FilterWizardContext, defaults?: {
+  exact?: string[];
+  under?: string[];
+}): Promise<{
   exact: string[];
   under: string[];
 }> {
+  const defaultExact = defaults?.exact ?? [];
+  const defaultUnder = defaults?.under ?? [];
+  const initialMode = deriveAreaPathMode(defaultExact, defaultUnder);
+
   const mode = assertNotCancelled(
     await select<AreaFilterMode>({
       message: "Area path filter:",
@@ -325,34 +455,31 @@ async function promptAreaPaths(ctx: FilterWizardContext): Promise<{
         { label: "Path and descendants  (UNDER)", value: "under" as const },
         { label: "@TeamAreas + exact paths", value: "mixed" as const },
       ],
-      initialValue: "none" as const,
+      initialValue: initialMode,
     }),
   );
 
   if (mode === "none") return { exact: [], under: [] };
   if (mode === "@TeamAreas") return { exact: ["@TeamAreas"], under: [] };
 
-  // "exact" / "under" / "mixed" — pick from live area paths
-  const initialAreaCount = ctx.areaPaths.length;
-  const selected: string[] = [];
-  let addMore = true;
-  while (addMore) {
-    const remaining = ctx.areaPaths.filter((p) => !selected.includes(p));
-    if (remaining.length === 0) break;
-    const pick = await selectOrAutocomplete({
-      message: selected.length === 0 ? "Select area path:" : "Add another area path (or press Esc to finish):",
-      options: remaining.map((p) => ({ label: p, value: p })),
-      placeholder: "Type to filter...",
-      thresholdCount: initialAreaCount,
-    });
-    selected.push(pick);
-    if (remaining.length > 1) {
-      addMore = assertNotCancelled(
-        await confirm({ message: "Add another area path?", initialValue: false }),
-      );
-    } else {
-      addMore = false;
-    }
+  // Derive pre-selected paths from defaults (excluding the @TeamAreas sentinel)
+  const preSelected = (
+    mode === "under"
+      ? defaultUnder
+      : defaultExact.filter((p) => p !== "@TeamAreas")
+  ).filter((p) => ctx.areaPaths.includes(p));
+
+  let selected: string[];
+  if (preSelected.length > 0) {
+    console.log(chalk.gray(`  Current paths: ${preSelected.join(", ")}`));
+    const keep = assertNotCancelled(
+      await confirm({ message: "Keep current area paths?", initialValue: true }),
+    );
+    selected = keep
+      ? preSelected
+      : await pickPathsFromList(ctx.areaPaths, "Select area path:", "Add another area path (or press Esc to finish):", "Add another area path?");
+  } else {
+    selected = await pickPathsFromList(ctx.areaPaths, "Select area path:", "Add another area path (or press Esc to finish):", "Add another area path?");
   }
 
   if (mode === "under") return { exact: [], under: selected };
@@ -360,10 +487,17 @@ async function promptAreaPaths(ctx: FilterWizardContext): Promise<{
   return { exact: selected, under: [] };
 }
 
-async function promptIterations(ctx: FilterWizardContext): Promise<{
+async function promptIterations(ctx: FilterWizardContext, defaults?: {
+  exact?: string[];
+  under?: string[];
+}): Promise<{
   exact: string[];
   under: string[];
 }> {
+  const defaultExact = defaults?.exact ?? [];
+  const defaultUnder = defaults?.under ?? [];
+  const initialMode = deriveIterationMode(defaultExact, defaultUnder);
+
   const mode = assertNotCancelled(
     await select<IterationFilterMode>({
       message: "Iteration filter:",
@@ -376,7 +510,7 @@ async function promptIterations(ctx: FilterWizardContext): Promise<{
         { label: "Iteration and children  (UNDER)", value: "under" as const },
         { label: "@CurrentIteration + exact paths", value: "mixed" as const },
       ],
-      initialValue: "none" as const,
+      initialValue: initialMode,
     }),
   );
 
@@ -385,27 +519,24 @@ async function promptIterations(ctx: FilterWizardContext): Promise<{
   if (mode === "@CurrentIteration+1") return { exact: ["@CurrentIteration + 1"], under: [] };
   if (mode === "@CurrentIteration-1") return { exact: ["@CurrentIteration - 1"], under: [] };
 
-  // "exact" / "under" / "mixed" — pick from live iteration paths
-  const initialIterCount = ctx.iterationPaths.length;
-  const selected: string[] = [];
-  let addMore = true;
-  while (addMore) {
-    const remaining = ctx.iterationPaths.filter((p) => !selected.includes(p));
-    if (remaining.length === 0) break;
-    const pick = await selectOrAutocomplete({
-      message: selected.length === 0 ? "Select iteration path:" : "Add another iteration path (or press Esc to finish):",
-      options: remaining.map((p) => ({ label: p, value: p })),
-      placeholder: "Type to filter...",
-      thresholdCount: initialIterCount,
-    });
-    selected.push(pick);
-    if (remaining.length > 1) {
-      addMore = assertNotCancelled(
-        await confirm({ message: "Add another iteration path?", initialValue: false }),
-      );
-    } else {
-      addMore = false;
-    }
+  // Derive pre-selected paths (excluding @CurrentIteration sentinels)
+  const preSelected = (
+    mode === "under"
+      ? defaultUnder
+      : defaultExact.filter((p) => !p.startsWith("@CurrentIteration"))
+  ).filter((p) => ctx.iterationPaths.includes(p));
+
+  let selected: string[];
+  if (preSelected.length > 0) {
+    console.log(chalk.gray(`  Current iterations: ${preSelected.join(", ")}`));
+    const keep = assertNotCancelled(
+      await confirm({ message: "Keep current iteration paths?", initialValue: true }),
+    );
+    selected = keep
+      ? preSelected
+      : await pickPathsFromList(ctx.iterationPaths, "Select iteration path:", "Add another iteration path (or press Esc to finish):", "Add another iteration path?");
+  } else {
+    selected = await pickPathsFromList(ctx.iterationPaths, "Select iteration path:", "Add another iteration path (or press Esc to finish):", "Add another iteration path?");
   }
 
   if (mode === "under") return { exact: [], under: selected };
@@ -413,20 +544,20 @@ async function promptIterations(ctx: FilterWizardContext): Promise<{
   return { exact: selected, under: [] };
 }
 
-async function promptStatesExclude(ctx: FilterWizardContext, selectedTypes?: string[]): Promise<string[]> {
+async function promptStatesExclude(ctx: FilterWizardContext, selectedTypes?: string[], defaults?: string[]): Promise<string[]> {
   const use = assertNotCancelled(
     await confirm({ message: "Exclude specific states?", initialValue: false }),
   );
   if (!use) return [];
-  return pickStates(ctx, selectedTypes, "Select state to exclude:", "Add another state to exclude (or press Esc to finish):");
+  return pickStates(ctx, selectedTypes, "Select state to exclude:", "Add another state to exclude (or press Esc to finish):", defaults);
 }
 
-async function promptStatesWereEver(ctx: FilterWizardContext, selectedTypes?: string[]): Promise<string[]> {
+async function promptStatesWereEver(ctx: FilterWizardContext, selectedTypes?: string[], defaults?: string[]): Promise<string[]> {
   const use = assertNotCancelled(
     await confirm({ message: "Filter by states the item was ever in?", initialValue: false }),
   );
   if (!use) return [];
-  return pickStates(ctx, selectedTypes, "Select state:", "Add another state (or press Esc to finish):");
+  return pickStates(ctx, selectedTypes, "Select state:", "Add another state (or press Esc to finish):", defaults);
 }
 
 /** Shared autocomplete loop for state-picking prompts. */
@@ -435,12 +566,25 @@ async function pickStates(
   selectedTypes: string[] | undefined,
   firstMessage: string,
   moreMessage: string,
+  defaults?: string[],
 ): Promise<string[]> {
   if (!selectedTypes || selectedTypes.length === 0) return [];
 
   const allStates = await Promise.all(selectedTypes.map((t) => ctx.getStatesForType(t)));
   const stateSet = [...new Set(allStates.flat())];
   if (stateSet.length === 0) return [];
+
+  // If defaults exist, offer to keep them without re-entering the selection loop.
+  if (defaults && defaults.length > 0) {
+    const valid = defaults.filter((s) => stateSet.includes(s));
+    if (valid.length > 0) {
+      console.log(chalk.gray(`  Current: ${valid.join(", ")}`));
+      const keep = assertNotCancelled(
+        await confirm({ message: "Keep current values?", initialValue: true }),
+      );
+      if (keep) return valid;
+    }
+  }
 
   const initialCount = stateSet.length;
   const selected: string[] = [];
@@ -466,9 +610,9 @@ async function pickStates(
   return selected;
 }
 
-async function promptAssignedTo(): Promise<string[]> {
+async function promptAssignedTo(defaults?: string[]): Promise<string[]> {
   const use = assertNotCancelled(
-    await confirm({ message: "Filter by assigned-to?", initialValue: false }),
+    await confirm({ message: "Filter by assigned-to?", initialValue: !!(defaults && defaults.length > 0) }),
   );
   if (!use) return [];
 
@@ -477,16 +621,17 @@ async function promptAssignedTo(): Promise<string[]> {
       await text({
         message: "Assigned to (comma-separated email addresses or @Me):",
         placeholder: "e.g. alice@example.com, @Me",
+        initialValue: defaults?.join(", ") ?? "",
       }),
     ),
   );
 }
 
-async function promptPriority(): Promise<FilterCriteria["priority"]> {
+async function promptPriority(defaults?: FilterCriteria["priority"]): Promise<FilterCriteria["priority"]> {
   const use = assertNotCancelled(
     await confirm({
       message: "Filter by priority range?",
-      initialValue: false,
+      initialValue: !!defaults,
     }),
   );
   if (!use) return undefined;
@@ -494,7 +639,7 @@ async function promptPriority(): Promise<FilterCriteria["priority"]> {
   const minRaw = assertNotCancelled(
     await text({
       message: "Minimum priority (1-5):",
-      defaultValue: "1",
+      initialValue: String(defaults?.min ?? 1),
       placeholder: "e.g. 1",
       validate: Validators.numericRange("Priority", 1, 5),
     }),
@@ -502,7 +647,7 @@ async function promptPriority(): Promise<FilterCriteria["priority"]> {
   const maxRaw = assertNotCancelled(
     await text({
       message: "Maximum priority (1-5):",
-      defaultValue: "3",
+      initialValue: String(defaults?.max ?? 3),
       placeholder: "e.g. 3",
       validate: Validators.numericRange("Priority", 1, 5),
     }),
@@ -514,22 +659,34 @@ async function promptPriority(): Promise<FilterCriteria["priority"]> {
 async function promptDateFilter(
   selectMessage: string,
   customMessage: string,
+  defaults?: string,
 ): Promise<string | undefined> {
+  // Match preset defaults against known options; fall back to "custom" for non-standard values.
+  let initialValue: DateFilterPreset = "none";
+  if (defaults) {
+    const knownOption = DATE_FILTER_OPTIONS.find((o) => o.value === defaults);
+    initialValue = knownOption ? knownOption.value : "custom";
+  }
+
   const preset = assertNotCancelled(
     await select<DateFilterPreset>({
       message: selectMessage,
       options: DATE_FILTER_OPTIONS,
-      initialValue: "none" as const,
+      initialValue,
     }),
   );
 
   if (preset === "none") return undefined;
 
   if (preset === "custom") {
+    // Pre-fill the custom input when the preset value wasn't one of the known options.
+    const customDefault =
+      defaults && !DATE_FILTER_OPTIONS.find((o) => o.value === defaults) ? defaults : "";
     return assertNotCancelled(
       await text({
         message: customMessage,
         placeholder: "e.g. 2026-01-01 or @Today-60",
+        initialValue: customDefault,
         validate: (input): string | undefined => {
           if (!input || input.trim() === "") return "Date is required";
           return undefined;
@@ -542,9 +699,10 @@ async function promptDateFilter(
 }
 
 /**
- * Configure estimation settings
+ * Configure estimation settings.
+ * When `defaults` is supplied each prompt is pre-filled with the existing values.
  */
-export async function configureEstimation(): Promise<
+export async function configureEstimation(defaults?: Partial<EstimationConfig>): Promise<
   EstimationConfig | undefined
 > {
   const rounding = assertNotCancelled(
@@ -556,14 +714,14 @@ export async function configureEstimation(): Promise<
         { label: "Round down", value: "down" },
         { label: "No rounding", value: "none" },
       ],
-      initialValue: "none",
+      initialValue: defaults?.rounding ?? "none",
     }),
   );
 
   const minimumTaskPointsRaw = assertNotCancelled(
     await text({
       message: "Minimum task points (0 for no minimum):",
-      defaultValue: "0",
+      initialValue: String(defaults?.minimumTaskPoints ?? 0),
       validate: (input): string | undefined => {
         const n = Number(input);
         if (Number.isNaN(n)) return "Must be a valid number";
@@ -581,12 +739,25 @@ export async function configureEstimation(): Promise<
 }
 
 /**
- * Configure validation rules
+ * Configure validation rules.
+ * When `defaults` is supplied the prompts are pre-filled with the existing values.
  */
-export async function configureValidation(): Promise<
+export async function configureValidation(defaults?: ValidationConfig): Promise<
   ValidationConfig | undefined
 > {
   const validation: ValidationConfig = {};
+
+  // Derive the initial type selection from defaults.
+  let initialValidationType: "exact" | "range" | "none" = "exact";
+  if (defaults) {
+    if (defaults.totalEstimationMustBe !== undefined) {
+      initialValidationType = "exact";
+    } else if (defaults.totalEstimationRange !== undefined) {
+      initialValidationType = "range";
+    } else {
+      initialValidationType = "none";
+    }
+  }
 
   const validationType = assertNotCancelled(
     await select({
@@ -596,7 +767,7 @@ export async function configureValidation(): Promise<
         { label: "Range (e.g., 95-105%)", value: "range" },
         { label: "No validation", value: "none" },
       ],
-      initialValue: "exact",
+      initialValue: initialValidationType,
     }),
   );
 
@@ -606,14 +777,14 @@ export async function configureValidation(): Promise<
     const minRaw = assertNotCancelled(
       await text({
         message: "Minimum total estimation %:",
-        defaultValue: "95",
+        initialValue: String(defaults?.totalEstimationRange?.min ?? 95),
         placeholder: "e.g. 95",
       }),
     );
     const maxRaw = assertNotCancelled(
       await text({
         message: "Maximum total estimation %:",
-        defaultValue: "105",
+        initialValue: String(defaults?.totalEstimationRange?.max ?? 105),
         placeholder: "e.g. 105",
         validate: (input): string | undefined => {
           if (!input || input.trim() === "") return undefined;
@@ -634,7 +805,7 @@ export async function configureValidation(): Promise<
   const taskLimits = assertNotCancelled(
     await confirm({
       message: "Set task count limits?",
-      initialValue: false,
+      initialValue: !!(defaults?.minTasks || defaults?.maxTasks),
     }),
   );
 
@@ -642,7 +813,7 @@ export async function configureValidation(): Promise<
     const minTasksRaw = assertNotCancelled(
       await text({
         message: "Minimum number of tasks:",
-        defaultValue: "3",
+        initialValue: String(defaults?.minTasks ?? 3),
         validate: Validators.nonNegative("Minimum tasks"),
         placeholder: "e.g. 3",
       }),
@@ -650,7 +821,7 @@ export async function configureValidation(): Promise<
     const maxTasksRaw = assertNotCancelled(
       await text({
         message: "Maximum number of tasks:",
-        defaultValue: "10",
+        initialValue: String(defaults?.maxTasks ?? 10),
         placeholder: "e.g. 10",
         validate: Validators.greaterThan("Maximum tasks", Number(minTasksRaw)),
       }),
@@ -664,15 +835,17 @@ export async function configureValidation(): Promise<
 }
 
 /**
- * Configure metadata
+ * Configure metadata.
+ * When `defaults` is supplied each prompt is pre-filled with the existing values.
  */
-export async function configureMetadata(): Promise<Metadata | undefined> {
+export async function configureMetadata(defaults?: Metadata): Promise<Metadata | undefined> {
   const metadata: Metadata = {};
 
   const category = assertNotCancelled(
     await text({
       message: "Category:",
       placeholder: "e.g. Backend Development",
+      initialValue: defaults?.category ?? "",
     }),
   );
 
@@ -684,6 +857,7 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
         { label: "Intermediate", value: "intermediate" },
         { label: "Advanced", value: "advanced" },
       ],
+      ...(defaults?.difficulty && { initialValue: defaults.difficulty }),
     }),
   );
 
@@ -691,6 +865,7 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
     await text({
       message: "Recommended for (comma-separated):",
       placeholder: "e.g. senior developers, backend teams",
+      initialValue: defaults?.recommendedFor?.join(", ") ?? "",
     }),
   );
   const recommendedFor = Filters.commaSeparated(recommendedForRaw);
@@ -699,6 +874,7 @@ export async function configureMetadata(): Promise<Metadata | undefined> {
     await text({
       message: "Estimation guidelines:",
       placeholder: "e.g. Use story points based on complexity",
+      initialValue: defaults?.estimationGuidelines ?? "",
     }),
   );
 
@@ -727,7 +903,7 @@ export async function configureBasicInfo(
   const name = assertNotCancelled(
     await text({
       message: "Template name:",
-      defaultValue: defaults?.name,
+      initialValue: defaults?.name,
       validate: (input): string | undefined => {
         if (!input || input.trim() === "") {
           return "Template name is required";
@@ -744,7 +920,7 @@ export async function configureBasicInfo(
     await text({
       message: "Description (optional):",
       placeholder: "e.g. Generate tasks for backend API development",
-      defaultValue: defaults?.description || "",
+      initialValue: defaults?.description || "",
       validate: (input): string | undefined => {
         if (input && input.length > 500) {
           return "Description must be 500 characters or less";
@@ -758,7 +934,7 @@ export async function configureBasicInfo(
     await text({
       message: "Author:",
       placeholder: "e.g. John Doe",
-      defaultValue: defaults?.author || "Atomize",
+      initialValue: defaults?.author || "Atomize",
     }),
   );
 
@@ -766,7 +942,7 @@ export async function configureBasicInfo(
     await text({
       message: "Tags (comma-separated, optional):",
       placeholder: "e.g. backend, api, development",
-      defaultValue: defaults?.tags ? defaults.tags.join(", ") : "",
+      initialValue: defaults?.tags ? defaults.tags.join(", ") : "",
     }),
   );
   const tags = Filters.commaSeparated(tagsRaw);

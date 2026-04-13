@@ -206,11 +206,13 @@ async function buildConditionNode(storyFieldSchemas: ADoFieldSchema[]): Promise<
 }
 
 /**
- * Configure basic task information (title, description, estimation)
+ * Configure basic task information (title, description, estimation).
+ * When `defaults` is supplied every prompt is pre-filled with the existing values.
  */
 export async function configureBasicTaskInfo(
   isFirstTask: boolean,
   storyFieldSchemas: ADoFieldSchema[],
+  defaults?: TaskDefinition,
 ): Promise<
   Pick<
     TaskDefinition,
@@ -225,6 +227,7 @@ export async function configureBasicTaskInfo(
     await text({
       message: "Task ID (optional, max 30 characters):",
       placeholder: "e.g. task-setup, task-tests",
+      initialValue: defaults?.id ?? "",
       validate: Validators.maxLength("Task ID", 30),
     }),
   );
@@ -232,6 +235,7 @@ export async function configureBasicTaskInfo(
   const title = assertNotCancelled(
     await text({
       message: "Task title:",
+      initialValue: defaults?.title ?? "",
       validate: Validators.requiredWithMaxLength("Task title", 500),
     }),
   );
@@ -241,15 +245,19 @@ export async function configureBasicTaskInfo(
       message: "Description (optional):",
       placeholder:
         "e.g. Generate tasks for User Stories with Dev and Testing tasks",
+      initialValue: defaults?.description ?? "",
       validate: Validators.maxLength("Description", 2000),
     }),
   );
 
+  const fallbackPct = isFirstTask ? "100" : "0";
   const estimationPercentRaw = assertNotCancelled(
     await text({
       message: "Estimation percentage (0-100):",
-      placeholder: isFirstTask ? "100" : "0",
-      defaultValue: isFirstTask ? "100" : "0",
+      placeholder: fallbackPct,
+      initialValue: defaults?.estimationPercent !== undefined
+        ? String(defaults.estimationPercent)
+        : fallbackPct,
       validate: Validators.estimationPercent,
     }),
   );
@@ -316,10 +324,11 @@ export async function configureTaskAssignment(): Promise<string | undefined> {
  *
  * Live allowed values are fetched from `Microsoft.VSTS.Common.Activity` and
  * presented to the user. Falls back to free-text input when the Activity field
- * has no picklist values.
+ * has no picklist values.  When `defaults` is supplied the prompt is pre-filled.
  */
 export async function configureTaskActivity(
   fieldSchemas: ADoFieldSchema[],
+  defaults?: string,
 ): Promise<string | undefined> {
   const liveValues = fieldSchemas
     .find((f) => f.referenceName === ACTIVITY_FIELD_REF)
@@ -331,12 +340,14 @@ export async function configureTaskActivity(
       { label: "None (no activity)", value: "" },
     ];
 
-    const defaultValue = liveValues.includes("Development") ? "Development" : liveValues[0];
+    const adoDefault = liveValues.includes("Development") ? "Development" : liveValues[0];
+    const initialValue =
+      defaults && liveValues.includes(defaults) ? defaults : adoDefault;
     const chosen = await selectOrAutocomplete({
       message: "Activity type:",
       options,
       placeholder: "Type to filter…",
-      initialValue: defaultValue,
+      initialValue,
     });
 
     return chosen || undefined;
@@ -347,6 +358,7 @@ export async function configureTaskActivity(
     await text({
       message: "Activity type (leave blank for none):",
       placeholder: "e.g. Development, Testing",
+      initialValue: defaults ?? "",
     }),
   );
   return raw.trim() || undefined;
@@ -401,9 +413,10 @@ export async function configureAcceptanceCriteria(): Promise<{
 }
 
 /**
- * Configure task tags
+ * Configure task tags.
+ * When `defaults` is supplied the prompt is pre-filled with existing values.
  */
-export async function configureTaskTags(): Promise<string[] | undefined> {
+export async function configureTaskTags(defaults?: string[]): Promise<string[] | undefined> {
   const feature = await promptOptionalFeature<string[]>(
     "Add tags",
     async () => {
@@ -411,11 +424,12 @@ export async function configureTaskTags(): Promise<string[] | undefined> {
         await text({
           message: "Tags (comma-separated):",
           placeholder: "e.g. api, testing, high-priority",
+          initialValue: defaults?.join(", ") ?? "",
         }),
       );
       return Filters.commaSeparated(raw);
     },
-    false,
+    !!(defaults && defaults.length > 0),
   );
 
   if (!feature.enabled || !feature.data) {
@@ -426,15 +440,18 @@ export async function configureTaskTags(): Promise<string[] | undefined> {
 }
 
 /**
- * Configure advanced task options
+ * Configure advanced task options.
+ * When `defaults` is supplied dependsOn and priority are pre-filled.
  */
 export async function configureAdvancedTaskOptions(
   storyFieldSchemas: ADoFieldSchema[],
+  defaults?: TaskDefinition,
 ): Promise<Pick<TaskDefinition, "dependsOn" | "condition" | "priority">> {
   const dependsOnRaw = assertNotCancelled(
     await text({
       message: "Depends on task IDs (comma-separated, optional):",
       placeholder: "e.g. task-setup, task-db, task-build, task-test",
+      initialValue: defaults?.dependsOn?.join(", ") ?? "",
     }),
   );
   const dependsOn = Filters.commaSeparated(dependsOnRaw);
@@ -452,6 +469,7 @@ export async function configureAdvancedTaskOptions(
     await text({
       message: "Priority (1-4, optional):",
       placeholder: "e.g. 2",
+      initialValue: defaults?.priority !== undefined ? String(defaults.priority) : "",
       validate: Validators.priorityRange,
     }),
   );
@@ -466,15 +484,18 @@ export async function configureAdvancedTaskOptions(
 }
 
 /**
- * Build a complete task definition by orchestrating all configuration steps
+ * Build a complete task definition by orchestrating all configuration steps.
+ * When `defaults` is supplied every prompt is pre-filled with the existing values,
+ * allowing the user to edit only the fields they want to change.
  */
 export async function buildTaskDefinition(
   isFirstTask: boolean,
   includeAdvanced: boolean,
   fieldSchemas: ADoFieldSchema[],
   storyFieldSchemas: ADoFieldSchema[],
+  defaults?: TaskDefinition,
 ): Promise<TaskDefinition> {
-  const basic = await configureBasicTaskInfo(isFirstTask, storyFieldSchemas);
+  const basic = await configureBasicTaskInfo(isFirstTask, storyFieldSchemas, defaults);
 
   const taskDef: TaskDefinition = {
     id: basic.id,
@@ -495,7 +516,7 @@ export async function buildTaskDefinition(
     if (assignTo) {
       taskDef.assignTo = assignTo;
     }
-    const activity = await configureTaskActivity(fieldSchemas);
+    const activity = await configureTaskActivity(fieldSchemas, defaults?.activity);
     if (activity) {
       taskDef.activity = activity;
     }
@@ -506,11 +527,11 @@ export async function buildTaskDefinition(
         taskDef.acceptanceCriteriaAsChecklist = acceptanceCriteria.asChecklist;
       }
     }
-    const tags = await configureTaskTags();
+    const tags = await configureTaskTags(defaults?.tags);
     if (tags) {
       taskDef.tags = tags;
     }
-    const advanced = await configureAdvancedTaskOptions(storyFieldSchemas);
+    const advanced = await configureAdvancedTaskOptions(storyFieldSchemas, defaults);
     Object.assign(taskDef, advanced);
   }
 
