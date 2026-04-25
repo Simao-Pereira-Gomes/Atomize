@@ -84,6 +84,18 @@ export class AuthError extends AtomizeError {
   }
 }
 
+export class LLMGenerationError extends Error {
+  constructor(
+    message: string,
+    public readonly rawOutput: string,
+    public readonly validationErrors: string[],
+  ) {
+    super(message);
+    this.name = "LLMGenerationError";
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 /**
  * Error thrown when circular dependencies are detected
  */
@@ -95,5 +107,6 @@ export class CircularDependencyError extends Error {
   ) {
     super(message);
     this.name = "CircularDependencyError";
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
