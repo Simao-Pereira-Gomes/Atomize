@@ -1,6 +1,10 @@
-import { cancel, intro, outro, select } from "@clack/prompts";
+import { select } from "@clack/prompts";
 import { readConnectionsFile, setDefaultProfile } from "@config/connections.config";
 import { Command } from "commander";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 
@@ -8,18 +12,19 @@ export const authUseCommand = new Command("use")
   .description("Set a profile as the default")
   .argument("[name]", "Profile name")
   .action(async (nameArg: string | undefined) => {
-    intro(" Atomize — Set Default Profile");
+    const output = createCommandOutput(resolveCommandOutputPolicy({}));
+    output.intro(" Atomize — Set Default Profile");
 
     const file = await readConnectionsFile();
     if (file.profiles.length === 0) {
-      outro("No profiles found. Run: atomize auth add");
+      output.outro("No profiles found. Run: atomize auth add");
       return;
     }
 
     let name: string;
     if (nameArg) {
       if (!file.profiles.find((p) => p.name === nameArg)) {
-        cancel(`Profile "${nameArg}" not found. Run: atomize auth list`);
+        output.cancel(`Profile "${nameArg}" not found. Run: atomize auth list`);
         process.exit(ExitCode.Failure);
       }
       name = nameArg;
@@ -28,21 +33,20 @@ export const authUseCommand = new Command("use")
         await select({
           message: "Select default profile:",
           options: file.profiles.map((p) => ({
-            label: p.name === file.defaultProfile
+            label: file.defaultProfiles[p.platform] === p.name
               ? `${sanitizeTty(p.name)} (current default)`
               : sanitizeTty(p.name),
             value: p.name,
           })),
-          initialValue: file.defaultProfile ?? undefined,
         })
       ) as string;
     }
 
     try {
       await setDefaultProfile(name);
-      outro(`"${sanitizeTty(name)}" is now the default profile.`);
+      output.outro(`"${sanitizeTty(name)}" is now the default profile.`);
     } catch (error) {
-      cancel(error instanceof Error ? error.message : String(error));
+      output.cancel(error instanceof Error ? error.message : String(error));
       process.exit(ExitCode.Failure);
     }
   });

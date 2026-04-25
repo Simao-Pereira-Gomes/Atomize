@@ -15,7 +15,7 @@ export async function promptProfileToRemove(nameArg?: string): Promise<string> {
     await select({
       message: "Select profile to remove:",
       options: file.profiles.map((p) => ({
-        label: p.name === file.defaultProfile ? `${p.name} (default)` : p.name,
+        label: file.defaultProfiles[p.platform] === p.name ? `${p.name} (default)` : p.name,
         value: p.name,
       })),
     }),

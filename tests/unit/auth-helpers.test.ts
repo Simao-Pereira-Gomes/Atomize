@@ -14,7 +14,7 @@ import {
   saveProfile,
   setDefaultProfile,
 } from "@config/connections.config";
-import type { ConnectionProfile } from "@config/connections.interface";
+import type { AzureDevOpsProfile, ConnectionProfile } from "@config/connections.interface";
 import { encryptWithKeyfile } from "@config/keyfile.service";
 import {
   applyDefault,
@@ -127,22 +127,22 @@ describe("validateOrganizationUrl", () => {
 
 describe("resolveDefaultBehaviour", () => {
   test("returns 'set-default' when forceDefault is true regardless of file state", async () => {
-    const result = await resolveDefaultBehaviour(true);
+    const result = await resolveDefaultBehaviour(true, "azure-devops");
     expect(result).toBe("set-default");
   });
 
   test("returns 'set-default' when no file exists (no current default)", async () => {
     // CONNECTIONS_PATH was removed in beforeEach — no default profile
-    const result = await resolveDefaultBehaviour(false);
+    const result = await resolveDefaultBehaviour(false, "azure-devops");
     expect(result).toBe("set-default");
   });
 
-  test("returns 'prompt' when a default profile is already set", async () => {
+  test("returns 'prompt' when a default profile is already set for the platform", async () => {
     const profile = await makeKeyfileProfile();
     await saveProfile(profile);
     await setDefaultProfile(profile.name);
 
-    const result = await resolveDefaultBehaviour(false);
+    const result = await resolveDefaultBehaviour(false, "azure-devops");
     expect(result).toBe("prompt");
   });
 });
@@ -165,7 +165,7 @@ describe("persistProfile", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    const saved = file.profiles.find((p) => p.name === "persist-test");
+    const saved = file.profiles.find((p) => p.name === "persist-test") as AzureDevOpsProfile | undefined;
     expect(saved).toBeDefined();
     expect(saved?.organizationUrl).toBe("https://dev.azure.com/org");
     expect(saved?.project).toBe("Proj");
@@ -201,7 +201,7 @@ describe("applyDefault", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    expect(file.defaultProfile).toBe("apply-default-test");
+    expect(file.defaultProfiles["azure-devops"]).toBe("apply-default-test");
   });
 });
 
@@ -240,7 +240,7 @@ describe("deleteProfile", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    expect(file.defaultProfile).toBeNull();
+    expect(file.defaultProfiles["azure-devops"]).toBeUndefined();
   });
 });
 
@@ -272,11 +272,11 @@ describe("rotateToken", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    const updated = file.profiles.find((p) => p.name === "rotate-metadata");
+    const updated = file.profiles.find((p) => p.name === "rotate-metadata") as AzureDevOpsProfile | undefined;
 
-    expect(updated?.organizationUrl).toBe(profile.organizationUrl);
-    expect(updated?.project).toBe(profile.project);
-    expect(updated?.team).toBe(profile.team);
+    expect(updated?.organizationUrl).toBe((profile as AzureDevOpsProfile).organizationUrl);
+    expect(updated?.project).toBe((profile as AzureDevOpsProfile).project);
+    expect(updated?.team).toBe((profile as AzureDevOpsProfile).team);
   });
 
   test("updates updatedAt after rotation", async () => {

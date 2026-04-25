@@ -12,18 +12,19 @@ export async function promptProfileToTest(nameArg?: string): Promise<string | un
   if (file.profiles.length === 1) return file.profiles[0]?.name;
   if (file.profiles.length === 0) return undefined;
 
+  const adoDefault = file.defaultProfiles["azure-devops"];
   return assertNotCancelled(
     await select({
       message: "Select profile to test:",
       options: [
-        ...(file.defaultProfile
-          ? [{ label: `${file.defaultProfile} (default)`, value: file.defaultProfile }]
+        ...(adoDefault
+          ? [{ label: `${adoDefault} (default)`, value: adoDefault }]
           : []),
         ...file.profiles
-          .filter((p) => p.name !== file.defaultProfile)
+          .filter((p) => p.name !== adoDefault)
           .map((p) => ({ label: p.name, value: p.name })),
       ],
-      initialValue: file.defaultProfile ?? undefined,
+      initialValue: adoDefault ?? undefined,
     }),
   ) as string;
 }
