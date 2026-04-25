@@ -1,5 +1,6 @@
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import type { Condition } from "@templates/schema";
+import { match } from "ts-pattern";
 import { SimilarityCalculator } from "./similarity-calculator";
 import type {
   CommonTaskPattern,
@@ -671,24 +672,31 @@ export class ConditionPatternDetector {
     value: string | number,
     isPositive: boolean,
   ): Condition {
-    switch (type) {
-      case "tag":
-        return isPositive
-          ? { field: "tags", operator: "contains", value: value as string }
-          : { field: "tags", operator: "not-contains", value: value as string };
-      case "priority":
-        return isPositive
-          ? { field: "priority", operator: "lte", value: value as number }
-          : { field: "priority", operator: "gt", value: value as number };
-      case "estimation":
-        return isPositive
-          ? { field: "estimation", operator: "gte", value: value as number }
-          : { field: "estimation", operator: "lt", value: value as number };
-      case "areaPath":
-        return { field: "areaPath", operator: "contains", value: value as string };
-      default:
-        return { field: "tags", operator: "contains", value: "" };
-    }
+    return match(type)
+      .with("tag", () =>
+        isPositive
+          ? { field: "tags", operator: "contains" as const, value: value as string }
+          : { field: "tags", operator: "not-contains" as const, value: value as string },
+      )
+      .with("priority", () =>
+        isPositive
+          ? { field: "priority", operator: "lte" as const, value: value as number }
+          : { field: "priority", operator: "gt" as const, value: value as number },
+      )
+      .with("estimation", () =>
+        isPositive
+          ? { field: "estimation", operator: "gte" as const, value: value as number }
+          : { field: "estimation", operator: "lt" as const, value: value as number },
+      )
+      .with("areaPath", () => ({
+        field: "areaPath",
+        operator: "contains" as const,
+        value: value as string,
+      }))
+      .with("compound", () => {
+        throw new Error(`buildCondition called with correlationType "compound" — handle compound patterns before calling this method`);
+      })
+      .exhaustive();
   }
 
   /**
