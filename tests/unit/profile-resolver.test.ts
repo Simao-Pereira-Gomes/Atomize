@@ -133,16 +133,14 @@ describe("profile-resolver", () => {
 
     test("throws when no profile name and no default profile configured", async () => {
       delete process.env.ATOMIZE_PROFILE;
-      // Ensure no default is set by resetting the file defaultProfile
-      // We can verify this works by checking readConnectionsFile first;
-      // the beforeAll doesn't set a default, so this should already be null.
+      // Ensure no ADO default is set by resetting the file defaultProfiles.
+      // The beforeAll doesn't set a default, so this should already be empty.
       const { readConnectionsFile } =
         await import("@config/connections.config");
       const file = await readConnectionsFile();
 
-      if (file.defaultProfile !== null) {
-        // Remove the default by rewriting the file without a default
-        // Use removeProfile + re-add to reset defaultProfile to null
+      if (file.defaultProfiles["azure-devops"]) {
+        // Remove the default by re-adding profiles without setting a default
         const names = file.profiles.map((p) => p.name);
         for (const name of names) {
           await removeProfile(name);
