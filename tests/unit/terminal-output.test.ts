@@ -3,6 +3,9 @@ import {
   createManagedSpinner,
   resetTerminalOutputForTests,
   writeManagedOutput,
+  writeStderr,
+  writeStdout,
+  writeTerminalTransport,
 } from "@/cli/utilities/terminal-output";
 import { logger } from "@/config/logger";
 
@@ -45,6 +48,28 @@ describe("terminal output coordination", () => {
     expect(stdoutWriteSpy).toHaveBeenCalledWith(
       "Testing connection to Azure DevOps...\n",
     );
+  });
+
+  test("writes stdout through the named transport helper", () => {
+    writeStdout("hello stdout");
+
+    expect(stdoutWriteSpy).toHaveBeenCalledWith("hello stdout\n");
+    expect(stderrWriteSpy).not.toHaveBeenCalled();
+  });
+
+  test("writes stderr through the named transport helper", () => {
+    writeStderr("hello stderr");
+
+    expect(stderrWriteSpy).toHaveBeenCalledWith("hello stderr\n");
+    expect(stdoutWriteSpy).not.toHaveBeenCalled();
+  });
+
+  test("routes output by stream through the shared terminal transport", () => {
+    writeTerminalTransport("stdout", "out");
+    writeTerminalTransport("stderr", "err");
+
+    expect(stdoutWriteSpy).toHaveBeenCalledWith("out\n");
+    expect(stderrWriteSpy).toHaveBeenCalledWith("err\n");
   });
 
   test("keeps logs buffered until the last managed spinner stops", () => {
