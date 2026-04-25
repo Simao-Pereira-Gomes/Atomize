@@ -3,11 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  cancel,
   confirm,
-  intro,
-  multiselect,
-  outro,
   select,
   text,
 } from "@clack/prompts";
@@ -20,6 +16,10 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
@@ -34,6 +34,8 @@ import type {
   ValidationConfig,
 } from "@/templates/schema";
 import { CancellationError, ConfigurationError } from "@/utils/errors";
+import { createWithAI } from "./ai-creation";
+import { customizeTemplate } from "./template-customize";
 import {
   configureBasicInfo,
   configureEstimation,
@@ -41,22 +43,26 @@ import {
   configureMetadata,
   configureTasksWithValidation,
   configureValidation,
-  editTasksInteractively,
   previewTemplate,
   type TemplateWizardContext,
 } from "./template-wizard";
+
+const defaultOutput = createCommandOutput(resolveCommandOutputPolicy({}));
 
 interface CreateFromScratchOptions {
   quiet?: boolean;
   profile?: string;
 }
 
-type CreationMode = "preset" | "stories" | "scratch";
+type CreationMode = "preset" | "stories" | "scratch" | "ai";
 
 interface CreateOptions {
   preset?: string;
   fromStories?: string;
   scratch?: boolean;
+  ai?: boolean;
+  ground?: boolean;
+  aiProfile?: string;
   output?: string;
   platform?: string;
   profile?: string;
@@ -73,6 +79,9 @@ export const templateCreateCommand = new Command("create")
   .option("-p, --platform <platform>", "Platform to use", "azure-devops")
   .option("--profile <name>", "Connect to ADO using a named profile for field suggestions (uses default profile if omitted)")
   .option("--scratch", "Create from scratch (skip mode selection)")
+  .option("--ai", "Use AI-assisted generation (describe the template in natural language)")
+  .option("--ground", "Ground AI generation with patterns from your Azure DevOps workspace")
+  .option("--ai-profile <name>", "AI provider profile to use (uses default AI profile if omitted)")
   .option(
     "-o, --output <path>",
     "Output file path",
@@ -84,10 +93,13 @@ export const templateCreateCommand = new Command("create")
   )
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (options: CreateOptions) => {
+    const output = createCommandOutput(
+      resolveCommandOutputPolicy({ quiet: options.quiet, verbose: false }),
+    );
     try {
-      intro(" Atomize — Template Creator");
+      output.intro(" Atomize — Template Creator");
       if (isInteractiveTerminal()) {
-        console.log(
+        output.print(
           chalk.gray(
             "  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n",
           ),
@@ -102,6 +114,7 @@ export const templateCreateCommand = new Command("create")
           "scratch",
           async () => await createFromScratch({ quiet: options.quiet, profile: options.profile }),
         )
+        .with("ai", async () => await createWithAI(options))
         .exhaustive();
 
       if (!options.output) {
@@ -110,24 +123,24 @@ export const templateCreateCommand = new Command("create")
 
       await saveTemplate(template, options.output);
 
-      console.log(chalk.green(`\n Template saved to ${options.output}\n`));
-      console.log(
+      output.print(chalk.green(`\n Template saved to ${options.output}\n`));
+      output.print(
         chalk.cyan("Try it out with: ") +
           chalk.gray(`atomize validate ${options.output}`),
       );
-      console.log("");
-      outro(`Template saved → ${options.output}`);
+      output.blankLine();
+      output.outro(`Template saved → ${options.output}`);
     } catch (error) {
       if (error instanceof CancellationError) {
-        outro("Cancelled.");
+        output.outro("Cancelled.");
         process.exit(ExitCode.Success);
       }
 
-      cancel("Template creation failed");
+      output.cancel("Template creation failed");
       logger.error(chalk.red("Template creation failed"));
 
       if (error instanceof Error) {
-        console.log(chalk.red(error.message));
+        output.print(chalk.red(error.message));
       }
 
       process.exit(ExitCode.Failure);
@@ -141,6 +154,7 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
   if (options.preset) return "preset";
   if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
+  if (options.ai) return "ai";
 
   // No flags - show interactive menu
   const mode = assertNotCancelled(
@@ -148,16 +162,20 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
       message: "How would you like to create your template?",
       options: [
         {
-          label: "From Preset - Start with a common template",
+          label: "AI-assisted — describe in natural language",
+          value: "ai",
+        },
+        {
+          label: "Guided wizard — build step-by-step",
+          value: "scratch",
+        },
+        {
+          label: "From preset — start with a common template",
           value: "preset",
         },
         {
-          label: "From Multiple Stories - Learn patterns from several examples",
+          label: "From stories — learn patterns from existing examples",
           value: "stories",
-        },
-        {
-          label: "From Scratch - Build step-by-step",
-          value: "scratch",
         },
       ],
     }),
@@ -169,7 +187,7 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
  * Create from preset
  */
 async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\n Create from Preset\n"));
+  defaultOutput.print(chalk.cyan("\n Create from Preset\n"));
 
   const presetManager = new PresetManager();
   const choices = await presetManager.getPresetChoices();
@@ -199,7 +217,7 @@ async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
 
   const template = await presetManager.loadPreset(presetName);
 
-  console.log(chalk.green(`\nLoaded preset: ${template.name}`));
+  defaultOutput.print(chalk.green(`\nLoaded preset: ${template.name}`));
 
   const customize = assertNotCancelled(
     await confirm({
@@ -253,7 +271,7 @@ async function validateStoryIds(
 
   if (missing.length > 0) {
     validateSpinner.stop(`${missing.length} story ID(s) not found`);
-    console.log(chalk.yellow(`  Not found: ${missing.join(", ")}`));
+    defaultOutput.print(chalk.yellow(`  Not found: ${missing.join(", ")}`));
 
     const proceed = assertNotCancelled(
       await confirm({
@@ -274,7 +292,7 @@ async function validateStoryIds(
 async function createFromStories(
   options: CreateOptions,
 ): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\n Learn from Multiple Stories\n"));
+  defaultOutput.print(chalk.cyan("\n Learn from Multiple Stories\n"));
 
   let storyIds: string[];
   if (options.fromStories) {
@@ -374,16 +392,16 @@ async function createFromStories(
  * Display multi-story learning results
  */
 function displayMultiStoryResults(result: MultiStoryLearningResult): void {
-  console.log(
+  defaultOutput.print(
     chalk.green(
       `\nAnalyzed ${result.analyses.length} stories, skipped ${result.skipped.length}`,
     ),
   );
 
   if (result.skipped.length > 0) {
-    console.log(chalk.yellow("\nSkipped stories:"));
+    defaultOutput.print(chalk.yellow("\nSkipped stories:"));
     for (const s of result.skipped) {
-      console.log(chalk.yellow(`  - ${s.storyId}: ${s.reason}`));
+      defaultOutput.print(chalk.yellow(`  - ${s.storyId}: ${s.reason}`));
     }
   }
 
@@ -394,29 +412,29 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
       : result.confidence.level === "medium"
         ? chalk.yellow
         : chalk.red;
-  console.log(
+  defaultOutput.print(
     confidenceColor(
       `\nConfidence: ${result.confidence.level} (${result.confidence.overall}%)`,
     ),
   );
   for (const factor of result.confidence.factors) {
-    console.log(
+    defaultOutput.print(
       chalk.gray(`  ${factor.name}: ${factor.score}% - ${factor.description}`),
     );
   }
 
   // Patterns
-  console.log(
+  defaultOutput.print(
     chalk.cyan(
       `\nPatterns: ${result.patterns.commonTasks.length} common tasks detected`,
     ),
   );
-  console.log(
+  defaultOutput.print(
     chalk.gray(`  Avg tasks/story: ${result.patterns.averageTaskCount}`),
   );
 
   // Merged template summary
-  console.log(
+  defaultOutput.print(
     chalk.green(
       `\nMerged template: ${result.mergedTemplate.tasks.length} tasks`,
     ),
@@ -424,7 +442,7 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
 
   // Suggestions
   if (result.suggestions.length > 0) {
-    console.log(chalk.cyan("\nSuggestions:"));
+    defaultOutput.print(chalk.cyan("\nSuggestions:"));
     for (const s of result.suggestions) {
       const icon =
         s.severity === "important"
@@ -432,240 +450,24 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
           : s.severity === "warning"
             ? chalk.yellow("~")
             : chalk.gray("-");
-      console.log(`  ${icon} ${s.message}`);
+      defaultOutput.print(`  ${icon} ${s.message}`);
     }
   }
 
   // Outliers
   if (result.outliers.length > 0) {
-    console.log(chalk.yellow("\nOutliers detected:"));
+    defaultOutput.print(chalk.yellow("\nOutliers detected:"));
     for (const o of result.outliers) {
-      console.log(chalk.yellow(`  - ${o.message}`));
+      defaultOutput.print(chalk.yellow(`  - ${o.message}`));
     }
   }
 
   // Variations
   if (result.variations.length > 0) {
-    console.log(
+    defaultOutput.print(
       chalk.cyan(`\n${result.variations.length} template variations available`),
     );
   }
-}
-
-type CustomizeSectionKey = "basicInfo" | "filter" | "tasks" | "estimation" | "validation" | "metadata";
-
-/**
- * Customize a preset template interactively.
- *
- * Establishes an ADO connection (same fire-and-forget pattern as createFromScratch),
- * shows a multi-select section picker, then runs only the chosen wizard steps with
- * every prompt pre-filled from the preset's existing values.  Ends with the same
- * previewTemplate loop as the scratch path.
- */
-async function customizeTemplate(
-  template: TaskTemplate,
-  profile?: string,
-): Promise<TaskTemplate> {
-  console.log(chalk.cyan("\nCustomize Preset\n"));
-  let connectionSettled = false;
-  const connectionPromise = (async () => {
-    const { resolveAzureConfig } = await import("@config/profile-resolver");
-    const { AzureDevOpsAdapter } = await import(
-      "@platforms/adapters/azure-devops/azure-devops.adapter"
-    );
-    const azureConfig = await resolveAzureConfig(profile);
-    const adapter = new AzureDevOpsAdapter(azureConfig);
-    await adapter.authenticate();
-    const [
-      taskSchemas,
-      liveWorkItemTypes,
-      liveAreaPaths,
-      liveIterationPaths,
-      liveTeams,
-      liveSavedQueries,
-    ] = await Promise.all([
-      adapter.getFieldSchemas("Task"),
-      adapter.getWorkItemTypes(),
-      adapter.getAreaPaths(),
-      adapter.getIterationPaths(),
-      adapter.getTeams(),
-      adapter.listSavedQueries(),
-    ]);
-    return {
-      adapter,
-      fieldSchemas: taskSchemas,
-      filterCtx: {
-        workItemTypes: liveWorkItemTypes,
-        getStatesForType: (type: string) =>
-          adapter.getStatesForWorkItemType(type),
-        areaPaths: liveAreaPaths,
-        iterationPaths: liveIterationPaths,
-        teams: liveTeams,
-        savedQueries: liveSavedQueries,
-      },
-    };
-  })().finally(() => {
-    connectionSettled = true;
-  });
-
-  const sections = assertNotCancelled(
-    await multiselect<CustomizeSectionKey>({
-      message: "Which sections would you like to customize?",
-      options: [
-        { label: "Name & Description", value: "basicInfo" },
-        { label: "Filter", value: "filter" },
-        { label: "Tasks", value: "tasks" },
-        { label: "Estimation", value: "estimation" },
-        { label: "Validation Rules", value: "validation" },
-        { label: "Metadata", value: "metadata" },
-      ],
-      required: false,
-    }),
-  ) as CustomizeSectionKey[];
-
-  if (sections.includes("basicInfo")) {
-    console.log(chalk.cyan("\nEditing Name & Description\n"));
-    const basicInfo = await configureBasicInfo({
-      name: template.name,
-      description: template.description,
-      author: template.author,
-      tags: template.tags,
-    });
-    template.name = basicInfo.name;
-    template.description = basicInfo.description;
-    template.author = basicInfo.author;
-    template.tags = basicInfo.tags;
-  }
-
-  // Await the ADO connection (spinner only if not yet settled).
-  const wasAlreadyConnected = connectionSettled;
-  const connectSpinner = createManagedSpinner();
-  if (!wasAlreadyConnected) connectSpinner.start("Connecting to ADO...");
-
-  let filterCtx: import("./template-wizard-helper.command").FilterWizardContext;
-  let fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
-  let adapterForWizard: import("@platforms/adapters/azure-devops/azure-devops.adapter").AzureDevOpsAdapter;
-
-  try {
-    const conn = await connectionPromise;
-    if (!wasAlreadyConnected) connectSpinner.stop("Connected ✓");
-    filterCtx = conn.filterCtx;
-    fieldSchemas = conn.fieldSchemas;
-    adapterForWizard = conn.adapter;
-  } catch (err) {
-    if (!wasAlreadyConnected) connectSpinner.stop("Connection failed");
-    const message = err instanceof Error ? err.message : String(err);
-    const hint =
-      err instanceof ConfigurationError
-        ? '\n\n  Run "atomize auth add" to configure a connection profile.'
-        : "";
-    throw new ConfigurationError(`${message}${hint}`);
-  }
-  let storyFieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[] = [];
-  let storySchemasFetched = false;
-
-  for (const section of (
-    ["filter", "tasks", "estimation", "validation", "metadata"] as const
-  )) {
-    if (!sections.includes(section)) continue;
-
-    switch (section) {
-      case "filter": {
-        console.log(chalk.cyan("\nEditing Filter Configuration\n"));
-        template.filter = await configureFilter(filterCtx, template.filter);
-        // Warn if the filter would match all work items (mirrors createFromScratch behaviour).
-        if (
-          (!template.filter.workItemTypes || template.filter.workItemTypes.length === 0) &&
-          (!template.filter.states || template.filter.states.length === 0)
-        ) {
-          console.log(chalk.yellow("\n Warning: No work item types or states configured."));
-          console.log(chalk.yellow("   This template will match ALL work items."));
-          const continueAnyway = assertNotCancelled(
-            await confirm({ message: "Continue with empty filter?", initialValue: false }),
-          );
-          if (!continueAnyway) {
-            throw new CancellationError(
-              "Template creation cancelled. Please configure filter criteria.",
-            );
-          }
-        }
-        // Story schemas depend on work item type — invalidate cache after filter change.
-        storySchemasFetched = false;
-        break;
-      }
-      case "tasks": {
-        console.log(chalk.cyan("\nEditing Tasks\n"));
-        if (!storySchemasFetched) {
-          const wit = template.filter.workItemTypes?.[0];
-          storyFieldSchemas = wit ? await adapterForWizard.getFieldSchemas(wit) : [];
-          storySchemasFetched = true;
-        }
-        template.tasks = await editTasksInteractively(
-          template.tasks,
-          fieldSchemas,
-          storyFieldSchemas,
-        );
-        break;
-      }
-      case "estimation": {
-        console.log(chalk.cyan("\nEditing Estimation Settings\n"));
-        template.estimation = await configureEstimation(template.estimation);
-        break;
-      }
-      case "validation": {
-        console.log(chalk.cyan("\nEditing Validation Rules\n"));
-        const enable = assertNotCancelled(
-          await confirm({
-            message: "Enable validation rules?",
-            initialValue: !!template.validation,
-          }),
-        );
-        template.validation = enable
-          ? await configureValidation(template.validation)
-          : undefined;
-        break;
-      }
-      case "metadata": {
-        console.log(chalk.cyan("\nEditing Metadata\n"));
-        const enable = assertNotCancelled(
-          await confirm({
-            message: "Enable metadata?",
-            initialValue: !!template.metadata,
-          }),
-        );
-        template.metadata = enable
-          ? await configureMetadata(template.metadata)
-          : undefined;
-        break;
-      }
-    }
-  }
-
-  if (!storySchemasFetched) {
-    const wit = template.filter.workItemTypes?.[0];
-    storyFieldSchemas = wit ? await adapterForWizard.getFieldSchemas(wit) : [];
-  }
-
-  // Stamp a fresh created date — this is a new template derived from a preset.
-  template.created = new Date().toISOString();
-
-  console.log(chalk.green("\n✓ Template customized successfully!\n"));
-  console.log(chalk.gray("Review your template and choose an action below.\n"));
-
-  const wizardCtx: TemplateWizardContext = {
-    filterCtx,
-    fieldSchemas,
-    storyFieldSchemas,
-    workItemType: template.filter.workItemTypes?.[0],
-  };
-
-  const confirmed = await previewTemplate(template, wizardCtx);
-
-  if (!confirmed) {
-    throw new CancellationError("Template customization cancelled by user");
-  }
-
-  return template;
 }
 
 /**
@@ -696,9 +498,10 @@ export async function createFromScratch(
 ): Promise<TaskTemplate> {
   const quiet = _options.quiet === true;
   const profile = _options.profile;
-  const printStep = (msg: string) => {
-    if (!quiet) console.log(msg);
-  };
+  const output = createCommandOutput(
+    resolveCommandOutputPolicy({ quiet, verbose: false }),
+  );
+  const printStep = output.print;
 
   printStep(chalk.cyan("\nCreate Template from Scratch\n"));
   printStep(chalk.gray("Interactive template builder wizard"));
@@ -794,12 +597,12 @@ export async function createFromScratch(
         filterConfig.workItemTypes.length === 0) &&
       (!filterConfig.states || filterConfig.states.length === 0)
     ) {
-      console.log(
+      output.print(
         chalk.yellow(
           "\n Warning: No work item types or states configured.",
         ),
       );
-      console.log(chalk.yellow("   This template will match ALL work items."));
+      output.print(chalk.yellow("   This template will match ALL work items."));
 
       const continueAnyway = assertNotCancelled(
         await confirm({
@@ -931,8 +734,8 @@ export async function createFromScratch(
     };
 
     // Preview and confirm
-    console.log(chalk.green("\n✓ Template configured successfully!\n"));
-    console.log(
+    output.print(chalk.green("\n✓ Template configured successfully!\n"));
+    output.print(
       chalk.gray("Review your template and choose an action below.\n"),
     );
 
@@ -945,7 +748,7 @@ export async function createFromScratch(
     const confirmed = await previewTemplate(template, wizardCtx);
 
     if (!confirmed) {
-      console.log(
+      output.print(
         chalk.yellow(
           "\n⚠  Template creation cancelled. No changes were saved.",
         ),
@@ -960,13 +763,13 @@ export async function createFromScratch(
     }
 
     if (error instanceof ConfigurationError) {
-      console.log(chalk.red(`\n Configuration error: ${error.message}`));
-      console.log(chalk.gray("  Please check your inputs and try again."));
+      output.print(chalk.red(`\n Configuration error: ${error.message}`));
+      output.print(chalk.gray("  Please check your inputs and try again."));
       throw error;
     }
 
     // Unknown error
-    console.log(
+    output.print(
       chalk.red(` Error creating template: ${(error as Error).message}`),
     );
     throw error;
@@ -980,21 +783,22 @@ async function saveTemplate(
   template: TaskTemplate,
   outputPath: string,
 ): Promise<void> {
+  const output = createCommandOutput(resolveCommandOutputPolicy({}));
   const validator = new TemplateValidator();
   const validation = validator.validate(template);
 
   if (!validation.valid) {
-    console.log(chalk.red("\n  Template validation failed:\n"));
+    output.print(chalk.red("\n  Template validation failed:\n"));
     validation.errors.forEach((err) => {
-      console.log(chalk.red(`  • ${err.path}: ${err.message}`));
+      output.print(chalk.red(`  • ${err.path}: ${err.message}`));
     });
     throw new Error("Template validation failed");
   }
 
   if (validation.warnings.length > 0) {
-    console.log(chalk.yellow("\n  Warnings:\n"));
+    output.print(chalk.yellow("\n  Warnings:\n"));
     validation.warnings.forEach((warn) => {
-      console.log(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
+      output.print(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
     });
   }
 
