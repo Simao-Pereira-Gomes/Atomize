@@ -10,6 +10,7 @@ import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
 import { runUpdateNotifier } from "./update-notifier";
+import { writeManagedOutput } from "./utilities/terminal-output";
 
 await runUpdateNotifier({ name, version });
 
@@ -30,7 +31,7 @@ program.hook("preAction", () => {
 		try {
 			loadEnvFile(envFile);
 		} catch (err) {
-			console.error(chalk.red(`Error: ${(err as Error).message}`));
+			writeManagedOutput("stderr", chalk.red(`Error: ${(err as Error).message}`));
 			process.exit(1);
 		}
 	}

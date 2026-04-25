@@ -20,13 +20,28 @@ function normalizeMessage(message: string): string {
   return message.endsWith("\n") ? message : `${message}\n`;
 }
 
-function writeToStream(stream: OutputStream, message: string): void {
-  const normalized = normalizeMessage(message);
+export function writeStdout(message: string): void {
+  process.stdout.write(normalizeMessage(message));
+}
+
+export function writeStderr(message: string): void {
+  process.stderr.write(normalizeMessage(message));
+}
+
+export function writeTerminalTransport(
+  stream: OutputStream,
+  message: string,
+): void {
   if (stream === "stderr") {
-    process.stderr.write(normalized);
+    writeStderr(message);
     return;
   }
-  process.stdout.write(normalized);
+
+  writeStdout(message);
+}
+
+function writeToStream(stream: OutputStream, message: string): void {
+  writeTerminalTransport(stream, message);
 }
 
 export function beginPromptOutput(): void {

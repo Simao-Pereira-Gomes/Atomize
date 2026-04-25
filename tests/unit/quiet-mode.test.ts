@@ -8,6 +8,10 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { createPrinter } from "@/cli/commands/generate.command";
 import { printValidSummary } from "@/cli/commands/validate.command";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import type { TaskTemplate } from "@/templates/schema";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +29,12 @@ function makeTemplate(name = "Test Template"): TaskTemplate {
 }
 
 const noCustomFields = { count: 0, verificationStatus: "none" } as const;
+
+function makeOutput(quiet?: boolean) {
+  return createCommandOutput(
+    resolveCommandOutputPolicy({ quiet, verbose: false }),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // createPrinter — generate command quiet mode
@@ -85,7 +95,7 @@ describe("printValidSummary", () => {
 
   test("always prints the valid/mode headline regardless of quiet flag", () => {
     const template = makeTemplate();
-    printValidSummary(template, [], "lenient", noCustomFields, true);
+    printValidSummary(template, [], "lenient", noCustomFields, makeOutput(true));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     // The "valid" headline is always shown — it's not suppressed by quiet
@@ -94,7 +104,7 @@ describe("printValidSummary", () => {
 
   test("prints the Summary block when quiet = false", () => {
     const template = makeTemplate("My Template");
-    printValidSummary(template, [], "lenient", noCustomFields, false);
+    printValidSummary(template, [], "lenient", noCustomFields, makeOutput(false));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).toContain("Summary:");
@@ -102,7 +112,7 @@ describe("printValidSummary", () => {
 
   test("suppresses the Summary block when quiet = true", () => {
     const template = makeTemplate("My Template");
-    printValidSummary(template, [], "lenient", noCustomFields, true);
+    printValidSummary(template, [], "lenient", noCustomFields, makeOutput(true));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).not.toContain("Summary:");
@@ -110,7 +120,7 @@ describe("printValidSummary", () => {
 
   test("suppresses template name, task count and estimation in quiet mode", () => {
     const template = makeTemplate("My Template");
-    printValidSummary(template, [], "lenient", noCustomFields, true);
+    printValidSummary(template, [], "lenient", noCustomFields, makeOutput(true));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).not.toContain("My Template");
@@ -120,15 +130,15 @@ describe("printValidSummary", () => {
 
   test("prints template name, task count and estimation when not quiet", () => {
     const template = makeTemplate("My Template");
-    printValidSummary(template, [], "lenient", noCustomFields, false);
+    printValidSummary(template, [], "lenient", noCustomFields, makeOutput(false));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).toContain("My Template");
   });
 
-  test("treats undefined quiet as non-quiet (shows summary by default)", () => {
+  test("shows summary by default when output policy is non-quiet", () => {
     const template = makeTemplate("My Template");
-    printValidSummary(template, [], "lenient", noCustomFields);
+    printValidSummary(template, [], "lenient", noCustomFields, makeOutput(false));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).toContain("Summary:");
@@ -137,7 +147,7 @@ describe("printValidSummary", () => {
   test("shows warnings when quiet = false and warnings exist", () => {
     const template = makeTemplate();
     const warnings = [{ path: "tasks[0]", message: "low estimation" }];
-    printValidSummary(template, warnings, "lenient", noCustomFields, false);
+    printValidSummary(template, warnings, "lenient", noCustomFields, makeOutput(false));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).toContain("low estimation");
@@ -146,7 +156,7 @@ describe("printValidSummary", () => {
   test("suppresses warnings together with summary when quiet = true", () => {
     const template = makeTemplate();
     const warnings = [{ path: "tasks[0]", message: "low estimation" }];
-    printValidSummary(template, warnings, "lenient", noCustomFields, true);
+    printValidSummary(template, warnings, "lenient", noCustomFields, makeOutput(true));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).not.toContain("low estimation");
@@ -154,7 +164,7 @@ describe("printValidSummary", () => {
 
   test("shows [Strict] label in the headline when mode is strict", () => {
     const template = makeTemplate();
-    printValidSummary(template, [], "strict", noCustomFields, true);
+    printValidSummary(template, [], "strict", noCustomFields, makeOutput(true));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).toContain("[Strict]");
@@ -162,7 +172,7 @@ describe("printValidSummary", () => {
 
   test("shows [Lenient] label in the headline when mode is lenient", () => {
     const template = makeTemplate();
-    printValidSummary(template, [], "lenient", noCustomFields, true);
+    printValidSummary(template, [], "lenient", noCustomFields, makeOutput(true));
 
     const allCalls = logSpy.mock.calls.flat().join(" ");
     expect(allCalls).toContain("[Lenient]");
@@ -175,7 +185,7 @@ describe("printValidSummary", () => {
       [],
       "lenient",
       { count: 2, verificationStatus: "offline-unverified" },
-      false,
+      makeOutput(false),
     );
 
     const allCalls = logSpy.mock.calls.flat().join(" ");

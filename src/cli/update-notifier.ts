@@ -2,6 +2,7 @@ import process from "node:process";
 import chalk from "chalk";
 import type { UpdateInfo } from "update-notifier";
 import updateNotifier from "update-notifier";
+import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
 export type UpdateNotifierMode = "background" | "immediate";
 
@@ -53,7 +54,8 @@ function isOutdated(update: UpdateInfo): boolean {
 
 function printImmediateUpdateNotification(update: UpdateInfo): void {
 	const updateCommand = `npm i -g ${update.name}`;
-	console.error(
+	writeManagedOutput(
+		"stderr",
 		chalk.yellow(
 			`Update available ${update.current} -> ${update.latest}. Run ${updateCommand} to update.`,
 		),

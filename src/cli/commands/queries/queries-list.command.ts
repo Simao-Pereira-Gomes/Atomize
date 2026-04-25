@@ -1,9 +1,13 @@
-import { cancel, intro, outro } from "@clack/prompts";
 import { AzureDevOpsAdapter } from "@platforms/adapters/azure-devops/azure-devops.adapter";
 import chalk from "chalk";
 import { Command } from "commander";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
 export const queriesListCommand = new Command("list")
   .alias("ls")
@@ -12,14 +16,15 @@ export const queriesListCommand = new Command("list")
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .option("--json", "Print results as JSON to stdout; progress is written to stderr", false)
   .action(async (options: { folder?: string; profile?: string; json: boolean }) => {
+    const output = createCommandOutput(resolveCommandOutputPolicy({}));
     // In --json mode stdout is reserved for pure JSON output.
     const jsonMode = options.json;
 
     const logProgress = jsonMode
-      ? (msg: string) => process.stderr.write(`${msg}\n`)
+      ? (msg: string) => writeManagedOutput("stderr", msg)
       : undefined;
 
-    if (!jsonMode) intro(" Atomize — Saved Queries");
+    if (!jsonMode) output.intro(" Atomize — Saved Queries");
 
     const s = createManagedSpinner();
     if (!jsonMode) s.start("Resolving configuration...");
@@ -43,41 +48,41 @@ export const queriesListCommand = new Command("list")
       else logProgress?.(`Found ${countLabel}`);
 
       if (jsonMode) {
-        console.log(JSON.stringify(queries, null, 2));
+        output.printJson(queries);
         return;
       }
 
       if (queries.length === 0) {
-        outro(options.folder
+        output.outro(options.folder
           ? `No queries found under "${options.folder}".`
           : "No queries found in this project.");
         return;
       }
 
-      console.log("");
+      output.blankLine();
       const pathWidth = Math.min(
         Math.max(...queries.map((q) => q.path.length), 4),
         60,
       );
-      console.log(chalk.gray(`  ${"PATH".padEnd(pathWidth)}  ${"ID".padEnd(36)}  VISIBILITY`));
-      console.log(chalk.gray(`  ${"-".repeat(pathWidth)}  ${"-".repeat(36)}  ----------`));
+      output.print(chalk.gray(`  ${"PATH".padEnd(pathWidth)}  ${"ID".padEnd(36)}  VISIBILITY`));
+      output.print(chalk.gray(`  ${"-".repeat(pathWidth)}  ${"-".repeat(36)}  ----------`));
 
       for (const q of queries) {
         const path = sanitizeTty(q.path).padEnd(pathWidth).slice(0, pathWidth);
         const id = chalk.dim(sanitizeTty(q.id));
         const visibility = q.isPublic ? chalk.green("shared") : chalk.yellow("private");
-        console.log(`  ${chalk.cyan(path)}  ${id}  ${visibility}`);
+        output.print(`  ${chalk.cyan(path)}  ${id}  ${visibility}`);
       }
 
-      console.log("");
-      outro(`${countLabel} listed`);
+      output.blankLine();
+      output.outro(`${countLabel} listed`);
     } catch (error) {
       const msg = error instanceof Error ? sanitizeTty(error.message) : String(error);
       if (jsonMode) {
-        process.stderr.write(`Error: ${msg}\n`);
+        writeManagedOutput("stderr", `Error: ${msg}`);
       } else {
         s.stop("Failed");
-        cancel(msg);
+        output.cancel(msg);
       }
       process.exit(ExitCode.Failure);
     }

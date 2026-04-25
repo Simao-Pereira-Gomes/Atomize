@@ -8,11 +8,17 @@ import type {
 } from "@templates/schema";
 import chalk from "chalk";
 import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
+import {
   assertNotCancelled,
   Filters,
   selectOrAutocomplete,
   Validators,
 } from "../../utilities/prompt-utilities";
+
+const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
 /**
  * Live ADO data required by the filter wizard.  All fields are populated from
@@ -313,7 +319,7 @@ async function promptStates(ctx: FilterWizardContext, selectedTypes?: string[], 
   if (defaults && defaults.length > 0) {
     const valid = defaults.filter((s) => stateSet.includes(s));
     if (valid.length > 0) {
-      console.log(chalk.gray(`  Current states: ${valid.join(", ")}`));
+      output.print(chalk.gray(`  Current states: ${valid.join(", ")}`));
       const keep = assertNotCancelled(
         await confirm({ message: "Keep current states?", initialValue: true }),
       );
@@ -389,7 +395,7 @@ async function promptExcludeIfHasTasks(defaults?: boolean): Promise<boolean> {
 
 async function promptTeam(ctx: FilterWizardContext, defaults?: string): Promise<string | undefined> {
   if (defaults) {
-    console.log(chalk.gray(`  Current team: ${defaults}`));
+    output.print(chalk.gray(`  Current team: ${defaults}`));
   }
   const options = [
     { label: "No team filter", value: "" },
@@ -471,7 +477,7 @@ async function promptAreaPaths(ctx: FilterWizardContext, defaults?: {
 
   let selected: string[];
   if (preSelected.length > 0) {
-    console.log(chalk.gray(`  Current paths: ${preSelected.join(", ")}`));
+    output.print(chalk.gray(`  Current paths: ${preSelected.join(", ")}`));
     const keep = assertNotCancelled(
       await confirm({ message: "Keep current area paths?", initialValue: true }),
     );
@@ -528,7 +534,7 @@ async function promptIterations(ctx: FilterWizardContext, defaults?: {
 
   let selected: string[];
   if (preSelected.length > 0) {
-    console.log(chalk.gray(`  Current iterations: ${preSelected.join(", ")}`));
+    output.print(chalk.gray(`  Current iterations: ${preSelected.join(", ")}`));
     const keep = assertNotCancelled(
       await confirm({ message: "Keep current iteration paths?", initialValue: true }),
     );
@@ -578,7 +584,7 @@ async function pickStates(
   if (defaults && defaults.length > 0) {
     const valid = defaults.filter((s) => stateSet.includes(s));
     if (valid.length > 0) {
-      console.log(chalk.gray(`  Current: ${valid.join(", ")}`));
+      output.print(chalk.gray(`  Current: ${valid.join(", ")}`));
       const keep = assertNotCancelled(
         await confirm({ message: "Keep current values?", initialValue: true }),
       );

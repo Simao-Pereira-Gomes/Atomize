@@ -1,10 +1,14 @@
-import { cancel, intro, outro } from "@clack/prompts";
 import { AzureDevOpsAdapter } from "@platforms/adapters/azure-devops/azure-devops.adapter";
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import chalk from "chalk";
 import { Command } from "commander";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
 export const fieldsListCommand = new Command("list")
   .alias("ls")
@@ -19,12 +23,13 @@ export const fieldsListCommand = new Command("list")
     profile?: string;
     json: boolean;
   }) => {
+    const output = createCommandOutput(resolveCommandOutputPolicy({}));
     const jsonMode = options.json;
     const logProgress = jsonMode
-      ? (msg: string) => process.stderr.write(`${msg}\n`)
+      ? (msg: string) => writeManagedOutput("stderr", msg)
       : undefined;
 
-    if (!jsonMode) intro(" Atomize — Field Browser");
+    if (!jsonMode) output.intro(" Atomize — Field Browser");
 
     const s = createManagedSpinner();
     if (!jsonMode) s.start("Resolving configuration...");
@@ -51,12 +56,12 @@ export const fieldsListCommand = new Command("list")
       else logProgress?.(`Found ${countLabel}`);
 
       if (jsonMode) {
-        console.log(JSON.stringify(fields, null, 2));
+        output.printJson(fields);
         return;
       }
 
       if (fields.length === 0) {
-        outro(options.customOnly
+        output.outro(options.customOnly
           ? "No custom fields found in this project."
           : options.type
             ? `No fields found for work item type "${options.type}".`
@@ -64,21 +69,24 @@ export const fieldsListCommand = new Command("list")
         return;
       }
 
-      printFieldsTable(fields);
-      outro(`${countLabel} listed`);
+      printFieldsTable(output, fields);
+      output.outro(`${countLabel} listed`);
     } catch (error) {
       const msg = error instanceof Error ? sanitizeTty(error.message) : String(error);
       if (jsonMode) {
-        process.stderr.write(`Error: ${msg}\n`);
+        writeManagedOutput("stderr", `Error: ${msg}`);
       } else {
         s.stop("Failed");
-        cancel(msg);
+        output.cancel(msg);
       }
       process.exit(ExitCode.Failure);
     }
   });
 
-function printFieldsTable(fields: ADoFieldSchema[]): void {
+function printFieldsTable(
+  output: ReturnType<typeof createCommandOutput>,
+  fields: ADoFieldSchema[],
+): void {
   const refWidth = Math.min(Math.max(...fields.map((f) => f.referenceName.length), 14), 50);
   const nameWidth = Math.min(Math.max(...fields.map((f) => f.name.length), 12), 40);
   const typeWidth = 10;
@@ -96,9 +104,9 @@ function printFieldsTable(fields: ADoFieldSchema[]): void {
     "---------------",
   ].join("  ");
 
-  console.log("");
-  console.log(chalk.gray(`  ${header}`));
-  console.log(chalk.gray(`  ${divider}`));
+  output.blankLine();
+  output.print(chalk.gray(`  ${header}`));
+  output.print(chalk.gray(`  ${divider}`));
 
   for (const f of fields) {
     const ref = sanitizeTty(f.referenceName).padEnd(refWidth).slice(0, refWidth);
@@ -118,10 +126,10 @@ function printFieldsTable(fields: ADoFieldSchema[]): void {
     if (f.isMultiline) flags.push(chalk.yellow("[multi-line]"));
     const flagStr = flags.length > 0 ? ` ${flags.join(" ")}` : "";
 
-    console.log(`  ${refColored}  ${name}  ${chalk.blue(typeLabel)}  ${picklist}${flagStr}`);
+    output.print(`  ${refColored}  ${name}  ${chalk.blue(typeLabel)}  ${picklist}${flagStr}`);
   }
 
-  console.log("");
+  output.blankLine();
 }
 
 export function filterFieldsForList(

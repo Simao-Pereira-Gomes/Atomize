@@ -1,5 +1,5 @@
-import { cancel, intro, outro, select } from "@clack/prompts";
-import { logger } from "@config/logger";
+import { select } from "@clack/prompts";
+import { type LogLevel, logger } from "@config/logger";
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import { TemplateLoader } from "@templates/loader";
 import {
@@ -11,6 +11,10 @@ import {
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
@@ -31,6 +35,12 @@ type ValidateOptions = {
   profile?: string;
 };
 
+export function resolveValidateLogLevel(options: {
+  quiet?: boolean;
+}): LogLevel | undefined {
+  return resolveCommandOutputPolicy({ quiet: options.quiet, verbose: false }).logLevel;
+}
+
 export const validateCommand = new Command("validate")
   .description("Validate a template file")
   .argument("<template>", "Path to template file (YAML)")
@@ -38,8 +48,18 @@ export const validateCommand = new Command("validate")
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--profile <name>", "Connect to ADO using a named profile for field verification (uses default profile if omitted)")
   .action(async (templatePath: string, options: ValidateOptions) => {
-    intro(" Atomize — Template Validator");
+    const outputPolicy = resolveCommandOutputPolicy({
+      quiet: options.quiet,
+      verbose: false,
+    });
+    const output = createCommandOutput(outputPolicy);
+    output.intro(" Atomize — Template Validator");
     try {
+      const commandLogLevel = resolveValidateLogLevel(options);
+      if (commandLogLevel) {
+        logger.level = commandLogLevel;
+      }
+
       const template = await loadTemplate(templatePath);
 
       const tasksWithCustomFields = template.tasks.filter(
@@ -95,14 +115,14 @@ export const validateCommand = new Command("validate")
         }
       }
 
-      printValidationResult(template, result, customFieldSummary, options.quiet);
+      printValidationResult(template, result, customFieldSummary, output);
       if (result.valid && !options.quiet) {
-        console.log(chalk.cyan("  Try it with: ") + chalk.gray(`atomize generate ${templatePath}`));
+        output.print(chalk.cyan("  Try it with: ") + chalk.gray(`atomize generate ${templatePath}`));
       }
-      outro(result.valid ? "Validation complete ✓" : "Validation failed ✗");
+      output.outro(result.valid ? "Validation complete ✓" : "Validation failed ✗");
       if (!result.valid) process.exit(ExitCode.Failure);
     } catch (error) {
-      handleFatal(error);
+      handleFatal(error, output);
       process.exit(ExitCode.Failure);
     }
   });
@@ -159,16 +179,16 @@ function printValidationResult(
   template: TaskTemplate,
   result: ValidationResult,
   customFieldSummary: CustomFieldVerificationSummary,
-  quiet?: boolean,
-) {
-  if (!quiet) console.log("");
+  output: ReturnType<typeof createCommandOutput>,
+): void {
+  output.blankLine();
 
   if (result.valid) {
-    printValidSummary(template, result.warnings, result.mode, customFieldSummary, quiet);
+    printValidSummary(template, result.warnings, result.mode, customFieldSummary, output);
     return;
   }
 
-  printInvalidSummary(result.errors, result.warnings, result.mode);
+  printInvalidSummary(result.errors, result.warnings, result.mode, output);
 }
 
 export function printValidSummary(
@@ -176,22 +196,22 @@ export function printValidSummary(
   warnings: ValidationWarning[],
   mode: ValidationMode,
   customFieldSummary: CustomFieldVerificationSummary,
-  quiet?: boolean,
-) {
+  output: Pick<ReturnType<typeof createCommandOutput>, "policy" | "print" | "printAlways" | "blankLine">,
+): void {
   const modeLabel =
     mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
-  console.log(`${chalk.green("Template is valid!")} ${modeLabel}\n`);
+  output.printAlways(`${chalk.green("Template is valid!")} ${modeLabel}\n`);
 
-  if (!quiet) {
+  if (!output.policy.quiet) {
     const summary = getTemplateSummary(template);
-    console.log(chalk.bold("Summary:"));
-    console.log(`  Name: ${chalk.cyan(summary.name)}`);
-    console.log(`  Tasks: ${chalk.cyan(summary.tasks)}`);
-    console.log(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
+    output.print(chalk.bold("Summary:"));
+    output.print(`  Name: ${chalk.cyan(summary.name)}`);
+    output.print(`  Tasks: ${chalk.cyan(summary.tasks)}`);
+    output.print(`  Total Estimation: ${chalk.cyan(summary.totalEstimation)}`);
     if (customFieldSummary.count > 0) {
-      console.log(`  Custom Fields: ${chalk.cyan(customFieldSummary.count)} (${formatVerificationStatus(customFieldSummary.verificationStatus)})`);
+      output.print(`  Custom Fields: ${chalk.cyan(customFieldSummary.count)} (${formatVerificationStatus(customFieldSummary.verificationStatus)})`);
     }
-    printWarnings(warnings);
+    printWarnings(warnings, output);
   }
 }
 
@@ -199,30 +219,35 @@ function printInvalidSummary(
   errors: ValidationError[],
   warnings: ValidationWarning[],
   mode: ValidationMode,
-) {
+  output: Pick<ReturnType<typeof createCommandOutput>, "print" | "printAlways" | "blankLine">,
+): void {
   const modeLabel =
     mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
-  console.log(`${chalk.red("Template validation failed")} ${modeLabel}\n`);
-  console.log(chalk.red.bold("Errors:"));
+  output.printAlways(`${chalk.red("Template validation failed")} ${modeLabel}\n`);
+  output.printAlways(chalk.red.bold("Errors:"));
   errors.forEach((err) => {
-    console.log(chalk.red(`  • ${err.path}: ${err.message}`));
+    output.printAlways(chalk.red(`  • ${err.path}: ${err.message}`));
   });
 
-  printWarnings(warnings, true);
+  printWarnings(warnings, output, true);
 
-  console.log(`\n${chalk.gray("Fix the errors above and try again.")}`);
+  output.printAlways(`\n${chalk.gray("Fix the errors above and try again.")}`);
 }
 
-function printWarnings(warnings: ValidationWarning[], boldTitle = false) {
+function printWarnings(
+  warnings: ValidationWarning[],
+  output: Pick<ReturnType<typeof createCommandOutput>, "print" | "blankLine">,
+  boldTitle = false,
+): void {
   if (!warnings?.length) return;
 
-  console.log("");
-  console.log(
+  output.blankLine();
+  output.print(
     boldTitle ? chalk.yellow.bold("Warnings:") : chalk.yellow("Warnings:"),
   );
 
   warnings.forEach((warn) => {
-    console.log(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
+    output.print(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
   });
 }
 
@@ -304,12 +329,15 @@ export function appendOfflineVerificationWarning(
   result.warnings.push(warning);
 }
 
-function handleFatal(error: unknown) {
-  cancel("Validation failed");
+function handleFatal(
+  error: unknown,
+  output: Pick<ReturnType<typeof createCommandOutput>, "cancel" | "print">,
+): void {
+  output.cancel("Validation failed");
   logger.error(chalk.red("Validation failed"));
 
   const message = error instanceof Error ? error.message : String(error);
-  console.log(chalk.red(message));
+  output.print(chalk.red(message));
 }
 
 export async function validateCustomFieldsOnline(

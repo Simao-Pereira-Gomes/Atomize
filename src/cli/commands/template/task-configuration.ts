@@ -2,6 +2,10 @@ import { confirm, select, text } from "@clack/prompts";
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import type { Condition, EstimationPercentCondition, TaskDefinition } from "@templates/schema";
 import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
+import {
   assertNotCancelled,
   ChoiceSets,
   Filters,
@@ -18,6 +22,8 @@ import {
   promptPicklistValue,
   promptTypedValue,
 } from "./custom-fields-wizard";
+
+const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
 /** Known story fields a condition clause can reference, with human-readable labels. */
 const STORY_FIELDS: Array<{ label: string; value: string }> = [
@@ -183,7 +189,7 @@ async function buildConditionNode(storyFieldSchemas: ADoFieldSchema[]): Promise<
     const isFirst = clauses.length === 0;
     const isSecond = clauses.length === 1;
 
-    console.log(
+    output.print(
       isFirst
         ? "  Add the first clause:"
         : isSecond
@@ -270,7 +276,7 @@ export async function configureBasicTaskInfo(
       promptMultipleItems<EstimationPercentCondition>(
         "conditional percentage",
         async (index) => {
-          console.log(`  Configure condition #${index}:`);
+          output.print(`  Configure condition #${index}:`);
           const condition = await buildConditionNode(storyFieldSchemas);
           const percentRaw = assertNotCancelled(
             await text({

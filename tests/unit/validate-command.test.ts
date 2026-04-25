@@ -4,6 +4,7 @@ import {
   checkValueType,
   getCustomFieldVerificationSummary,
   getTemplateSummary,
+  resolveValidateLogLevel,
   resolveValidationOptions,
 } from "@/cli/commands/validate.command";
 import type { TaskTemplate } from "@/templates/schema";
@@ -18,6 +19,16 @@ describe("resolveValidationOptions", () => {
     expect(resolveValidationOptions({ strict: true })).toEqual({
       mode: "strict",
     });
+  });
+});
+
+describe("resolveValidateLogLevel", () => {
+  test("returns undefined when quiet mode is not enabled", () => {
+    expect(resolveValidateLogLevel({})).toBeUndefined();
+  });
+
+  test("returns error log level in quiet mode", () => {
+    expect(resolveValidateLogLevel({ quiet: true })).toBe("error");
   });
 });
 

@@ -7,6 +7,8 @@ import {
   getNonInteractiveLiveExecutionError,
   parseConcurrency,
   printReport,
+  resolveCommandLogLevel,
+  resolveGenerateOutputPolicy,
   writeReportFile,
 } from "@/cli/commands/generate.command";
 import { ExitCode } from "@/cli/utilities/exit-codes";
@@ -226,6 +228,38 @@ describe("printReport", () => {
     expect(calls).toContain("AB#9");
     expect(calls).toContain("connection timeout");
   });
+
+  test("prints only concise completion output in quiet mode", () => {
+    printReport(
+      makeReport({ storiesProcessed: 2, storiesSuccess: 2, tasksCreated: 4 }),
+      { verbose: false, quiet: true },
+      false,
+    );
+
+    const calls = consoleSpy.mock.calls.flat().join(" ");
+    expect(calls).toContain("Created 4 tasks for 2 stories.");
+    expect(calls).not.toContain("Summary:");
+    expect(calls).not.toContain("Details:");
+  });
+
+  test("prints concise failure output in quiet mode", () => {
+    printReport(
+      makeReport({
+        storiesProcessed: 2,
+        storiesSuccess: 1,
+        storiesFailed: 1,
+        errors: [{ storyId: "AB#9", error: "connection timeout" }],
+      }),
+      { verbose: true, quiet: true },
+      false,
+    );
+
+    const calls = consoleSpy.mock.calls.flat().join(" ");
+    expect(calls).toContain("AB#9");
+    expect(calls).toContain("Generation finished with 1 failed story.");
+    expect(calls).not.toContain("Summary:");
+    expect(calls).not.toContain("Details:");
+  });
 });
 
 describe("getNonInteractiveLiveExecutionError", () => {
@@ -267,6 +301,55 @@ describe("getNonInteractiveLiveExecutionError", () => {
         autoApprove: false,
       }),
     ).toContain("--auto-approve");
+  });
+});
+
+describe("resolveCommandLogLevel", () => {
+  test("defaults to environment-driven logging when no flags are set", () => {
+    expect(resolveCommandLogLevel({ quiet: false, verbose: false })).toBeUndefined();
+  });
+
+  test("uses debug logging when verbose mode is enabled", () => {
+    expect(resolveCommandLogLevel({ quiet: false, verbose: true })).toBe("debug");
+  });
+
+  test("uses error-only logging when quiet mode is enabled", () => {
+    expect(resolveCommandLogLevel({ quiet: true, verbose: false })).toBe("error");
+  });
+});
+
+describe("resolveGenerateOutputPolicy", () => {
+  test("uses standard output in normal mode", () => {
+    expect(resolveGenerateOutputPolicy({ quiet: false, verbose: false })).toEqual({
+      quiet: false,
+      verbose: false,
+      logLevel: undefined,
+      showStandardOutput: true,
+      showVerboseOutput: false,
+      showClackStatus: true,
+    });
+  });
+
+  test("enables verbose output in verbose mode", () => {
+    expect(resolveGenerateOutputPolicy({ quiet: false, verbose: true })).toEqual({
+      quiet: false,
+      verbose: true,
+      logLevel: "debug",
+      showStandardOutput: true,
+      showVerboseOutput: true,
+      showClackStatus: true,
+    });
+  });
+
+  test("suppresses non-essential output in quiet mode", () => {
+    expect(resolveGenerateOutputPolicy({ quiet: true, verbose: false })).toEqual({
+      quiet: true,
+      verbose: false,
+      logLevel: "error",
+      showStandardOutput: false,
+      showVerboseOutput: false,
+      showClackStatus: false,
+    });
   });
 });
 
