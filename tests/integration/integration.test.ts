@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { TemplateLoader } from "@templates/loader";
 import { TemplateValidator } from "@templates/validator";
-import { TemplateLoadError } from "@/utils/errors";
+import { TemplateCompositionError, TemplateLoadError } from "@/utils/errors";
 
 describe("Integration Tests", () => {
   const loader = new TemplateLoader();
@@ -230,6 +230,111 @@ describe("Integration Tests", () => {
       expect(template.metadata?.category).toBe("Backend Development");
       expect(template.metadata?.difficulty).toBe("intermediate");
       expect(template.metadata?.recommendedFor).toBeDefined();
+    });
+  });
+
+  describe("Template Composition", () => {
+    test("child template inherits filter and tasks from parent", async () => {
+      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+
+      expect(template.name).toBe("Child Template");
+      expect(template.filter.workItemTypes).toEqual(["User Story"]);
+      expect(template.filter.states).toEqual(["New", "Active"]);
+    });
+
+    test("child template overrides parent task by id", async () => {
+      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+
+      const designTask = template.tasks.find((t) => t.id === "design");
+      expect(designTask?.estimationPercent).toBe(15);
+      expect(designTask?.description).toBe("Overridden design task");
+    });
+
+    test("child template appends new tasks to parent", async () => {
+      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+
+      const taskIds = template.tasks.map((t) => t.id);
+      expect(taskIds).toContain("implement");
+      expect(taskIds).toContain("test");
+      expect(taskIds).toContain("deploy");
+    });
+
+    test("composed child template is valid at 100% estimation", async () => {
+      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+      const result = validator.validate(template);
+
+      expect(result.valid).toBe(true);
+      const total = template.tasks.reduce((s, t) => s + (t.estimationPercent ?? 0), 0);
+      expect(total).toBe(100);
+    });
+
+    test("template with mixins includes mixin tasks", async () => {
+      const template = await loader.load(resolve(fixturesPath, "template-with-mixins.yaml"));
+
+      const taskIds = template.tasks.map((t) => t.id);
+      expect(taskIds).toContain("dependency-audit");
+      expect(taskIds).toContain("implement");
+    });
+
+    test("child overrides mixin task by matching id", async () => {
+      const template = await loader.load(resolve(fixturesPath, "template-with-mixins.yaml"));
+
+      const securityTask = template.tasks.find((t) => t.id === "security-review");
+      expect(securityTask?.estimationPercent).toBe(8);
+      expect(securityTask?.description).toBe("Overridden security task from mixin");
+    });
+
+    test("mixins-only template (no extends) applies mixin tasks", async () => {
+      const template = await loader.load(resolve(fixturesPath, "mixins-only-template.yaml"));
+
+      const taskIds = template.tasks.map((t) => t.id);
+      expect(taskIds).toContain("dependency-audit");
+      expect(taskIds).toContain("my-task");
+    });
+
+    test("multi-level inheritance resolves full chain", async () => {
+      const template = await loader.load(resolve(fixturesPath, "parent-template.yaml"));
+
+      const taskIds = template.tasks.map((t) => t.id);
+      expect(taskIds).toContain("gp-task");
+      expect(taskIds).toContain("parent-task");
+
+      const gpTask = template.tasks.find((t) => t.id === "gp-task");
+      expect(gpTask?.title).toBe("Overridden by Parent");
+    });
+
+    test("multi-level inheritance inherits grandparent filter", async () => {
+      const template = await loader.load(resolve(fixturesPath, "parent-template.yaml"));
+
+      expect(template.filter.workItemTypes).toEqual(["User Story"]);
+      expect(template.filter.states).toEqual(["New"]);
+    });
+
+    test("loadWithMeta reports composition metadata for inheriting template", async () => {
+      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "child-template.yaml"));
+
+      expect(meta.isComposed).toBe(true);
+      expect(meta.extendsRef).toContain("base-template.yaml");
+      expect(meta.mixinRefs).toHaveLength(0);
+    });
+
+    test("loadWithMeta reports mixin refs", async () => {
+      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "template-with-mixins.yaml"));
+
+      expect(meta.isComposed).toBe(true);
+      expect(meta.mixinRefs).toHaveLength(1);
+    });
+
+    test("loadWithMeta marks plain templates as not composed", async () => {
+      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "valid-template.yaml"));
+
+      expect(meta.isComposed).toBe(false);
+    });
+
+    test("circular inheritance throws TemplateCompositionError", async () => {
+      await expect(
+        loader.load(resolve(fixturesPath, "circular-a.yaml")),
+      ).rejects.toBeInstanceOf(TemplateCompositionError);
     });
   });
 });
