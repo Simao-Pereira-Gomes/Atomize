@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { logger } from "@config/logger";
 import { TemplateCatalog } from "@services/template/template-catalog";
 import { TemplateResolver } from "@services/template/template-resolver";
-import { TemplateCompositionError, TemplateLoadError } from "@utils/errors";
+import { TemplateCompositionError, TemplateLoadError, getErrorMessage } from "@utils/errors";
 import type { TaskTemplate } from "./schema";
 import { loadYamlFile } from "./template-file";
 import {
@@ -77,7 +77,7 @@ export class TemplateLoader {
     } catch (error) {
       if (error instanceof TemplateCompositionError) throw error;
 
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       throw new TemplateLoadError(
         `Failed to load template: ${message}`,
         filePath,

@@ -1,5 +1,5 @@
 import { logger } from "@config/logger";
-import { TemplateCompositionError } from "@utils/errors";
+import { TemplateCompositionError, getErrorMessage } from "@utils/errors";
 import {
   type MixinTemplate,
   MixinTemplateSchema,
@@ -245,7 +245,7 @@ export class TemplateComposer {
     try {
       return await this.resolveTemplateRef(ref);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       throw new TemplateCompositionError(
         `Failed to load template reference "${ref}": ${message}`,
         ref,
@@ -267,7 +267,7 @@ export class TemplateComposer {
     try {
       return await this.resolveNamedMixin(ref);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       throw new TemplateCompositionError(
         `Failed to load mixin reference "${ref}": ${message}`,
         ref,

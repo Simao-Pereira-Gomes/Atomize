@@ -9,6 +9,7 @@ import {
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
+import { getErrorMessage } from "@/utils/errors";
 
 export const fieldsListCommand = new Command("list")
   .alias("ls")
@@ -72,7 +73,7 @@ export const fieldsListCommand = new Command("list")
       printFieldsTable(output, fields);
       output.outro(`${countLabel} listed`);
     } catch (error) {
-      const msg = error instanceof Error ? sanitizeTty(error.message) : String(error);
+      const msg = sanitizeTty(getErrorMessage(error));
       if (jsonMode) {
         writeManagedOutput("stderr", `Error: ${msg}`);
       } else {

@@ -13,6 +13,7 @@ import {
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
+import { getErrorMessage } from "@/utils/errors";
 import {
   applyDefault,
   checkProfileNameAvailable,
@@ -209,8 +210,8 @@ export const authAddCommand = new Command("add")
       }
     } catch (error) {
       savingSpinner?.stop("Failed to save profile");
-      if (ci) writeCliError(error instanceof Error ? error.message : String(error));
-      else output.cancel(error instanceof Error ? error.message : String(error));
+      if (ci) writeCliError(getErrorMessage(error));
+      else output.cancel(getErrorMessage(error));
       process.exit(ExitCode.Failure);
     }
   });

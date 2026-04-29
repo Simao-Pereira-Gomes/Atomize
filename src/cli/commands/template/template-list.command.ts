@@ -11,6 +11,7 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { getErrorMessage } from "@/utils/errors";
 
 type ListOptions = {
   type?: TemplateCatalogKind;
@@ -84,7 +85,7 @@ export const templateListCommand = new Command("list")
         ),
       );
     } catch (error) {
-      output.cancel(error instanceof Error ? error.message : String(error));
+      output.cancel(getErrorMessage(error));
       process.exit(ExitCode.Failure);
     }
   });

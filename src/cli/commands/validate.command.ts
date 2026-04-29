@@ -16,7 +16,9 @@ import {
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
+import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
+import { getErrorMessage } from "@/utils/errors";
 import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import type {
@@ -357,7 +359,7 @@ function handleFatal(
   output.cancel("Validation failed");
   logger.error(chalk.red("Validation failed"));
 
-  const message = error instanceof Error ? error.message : String(error);
+  const message = getErrorMessage(error);
   output.print(chalk.red(message));
 }
 
@@ -369,14 +371,7 @@ export async function validateCustomFieldsOnline(
   s.start("Connecting to ADO to validate custom fields...");
 
   try {
-    const { resolveAzureConfig } = await import("@config/profile-resolver");
-    const { AzureDevOpsAdapter } = await import(
-      "@platforms/adapters/azure-devops/azure-devops.adapter"
-    );
-
-    const azureConfig = await resolveAzureConfig(profile);
-    const adapter = new AzureDevOpsAdapter(azureConfig);
-    await adapter.authenticate();
+    const adapter = await createAzureDevOpsAdapter(profile);
     s.message("Fetching field schemas...");
     const result = await validateCustomFieldsAgainstSchemas(
       template,
@@ -519,14 +514,7 @@ async function validateSavedQueryOnline(
   s.start("Connecting to ADO to validate saved query...");
 
   try {
-    const { resolveAzureConfig } = await import("@config/profile-resolver");
-    const { AzureDevOpsAdapter } = await import(
-      "@platforms/adapters/azure-devops/azure-devops.adapter"
-    );
-
-    const azureConfig = await resolveAzureConfig(profile);
-    const adapter = new AzureDevOpsAdapter(azureConfig);
-    await adapter.authenticate();
+    const adapter = await createAzureDevOpsAdapter(profile);
 
     s.message("Fetching saved queries...");
     const queries = await adapter.listSavedQueries();

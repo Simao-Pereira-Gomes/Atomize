@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { logger } from "@config/logger";
-import { AuthError } from "@utils/errors";
+import { AuthError, getErrorMessage } from "@utils/errors";
 import type keytar from "keytar";
 import type { EncryptedToken } from "./connections.interface";
 import { decryptWithKeyfile, encryptWithKeyfile } from "./keyfile.service";
@@ -16,7 +16,7 @@ async function getKeytar(): Promise<KeytarModule | null> {
     _keytar = normalizeKeytarModule(await import("keytar"));
     return _keytar;
   } catch (error) {
-    logger.debug(`Failed to load keytar: ${describeError(error)}`);
+    logger.debug(`Failed to load keytar: ${getErrorMessage(error)}`);
     _keytar = null;
     return null;
   }
@@ -56,7 +56,7 @@ export async function keychainAvailable(): Promise<boolean> {
   }
 
   return probeKeychainAccess(kt, randomUUID(), (error) => {
-    logger.debug(`Keychain probe failed: ${describeError(error)}`);
+    logger.debug(`Keychain probe failed: ${getErrorMessage(error)}`);
   });
 }
 
@@ -71,7 +71,7 @@ export async function storeToken(
       await kt.setPassword(SERVICE_NAME, profileName, token);
       return { strategy: "keychain" };
     } catch (error) {
-      logger.debug(`Failed to store token in keychain: ${describeError(error)}`);
+      logger.debug(`Failed to store token in keychain: ${getErrorMessage(error)}`);
       // Keychain write failed — fall through to keyfile if explicitly allowed.
     }
   }
@@ -114,15 +114,11 @@ export async function deleteToken(
       try {
         await kt.deletePassword(SERVICE_NAME, profileName);
       } catch (error) {
-        logger.debug(`Failed to delete token from keychain: ${describeError(error)}`);
+        logger.debug(`Failed to delete token from keychain: ${getErrorMessage(error)}`);
         // Ignore keychain cleanup errors so token rotation/removal can continue.
       }
     }
   }
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export function normalizeKeytarModule<T extends object>(imported: T | { default: T }): T {

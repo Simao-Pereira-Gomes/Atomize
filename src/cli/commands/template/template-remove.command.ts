@@ -16,7 +16,7 @@ import {
   isInteractiveTerminal,
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
-import { CancellationError } from "@/utils/errors";
+import { CancellationError, getErrorMessage } from "@/utils/errors";
 
 type RemoveOptions = {
   type?: TemplateCatalogKind;
@@ -80,7 +80,7 @@ export const templateRemoveCommand = new Command("remove")
         output.outro("Cancelled.");
         process.exit(ExitCode.Success);
       }
-      output.cancel(error instanceof Error ? error.message : String(error));
+      output.cancel(getErrorMessage(error));
       process.exit(ExitCode.Failure);
     }
   });

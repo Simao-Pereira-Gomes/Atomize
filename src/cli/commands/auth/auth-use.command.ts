@@ -7,6 +7,7 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { getErrorMessage } from "@/utils/errors";
 
 export const authUseCommand = new Command("use")
   .description("Set a profile as the default")
@@ -46,7 +47,7 @@ export const authUseCommand = new Command("use")
       await setDefaultProfile(name);
       output.outro(`"${sanitizeTty(name)}" is now the default profile.`);
     } catch (error) {
-      output.cancel(error instanceof Error ? error.message : String(error));
+      output.cancel(getErrorMessage(error));
       process.exit(ExitCode.Failure);
     }
   });

@@ -9,7 +9,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { CancellationError } from "@/utils/errors";
+import { CancellationError, getErrorMessage } from "@/utils/errors";
 import { assertNotCancelled } from "../../utilities/prompt-utilities";
 import { buildTaskDefinition } from "./task-configuration";
 import type { FilterWizardContext } from "./template-wizard-helper.command";
@@ -552,7 +552,7 @@ function displayNormalizedEstimations(tasks: TaskDefinition[]): void {
  * Prompt user to retry after error
  */
 async function promptRetry(error: unknown): Promise<boolean> {
-  output.print(chalk.red(`\nError configuring tasks: ${error instanceof Error ? error.message : String(error)}`));
+  output.print(chalk.red(`\nError configuring tasks: ${getErrorMessage(error)}`));
 
   return assertNotCancelled(
     await confirm({

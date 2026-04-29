@@ -10,7 +10,7 @@ import {
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
-import { TemplateCompositionError, TemplateLoadError } from "@/utils/errors";
+import { TemplateCompositionError, TemplateLoadError, getErrorMessage } from "@/utils/errors";
 
 type ResolveOptions = {
   validate?: boolean;
@@ -107,7 +107,7 @@ export const templateResolveCommand = new Command("resolve")
       } else if (error instanceof TemplateLoadError) {
         output.cancel(`Load failed: ${error.message}`);
       } else {
-        output.cancel(error instanceof Error ? error.message : String(error));
+        output.cancel(getErrorMessage(error));
       }
       process.exit(ExitCode.Failure);
     }

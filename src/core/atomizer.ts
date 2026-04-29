@@ -11,6 +11,7 @@ import {
   EstimationCalculator,
 } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
+import { getErrorMessage } from "@utils/errors";
 
 /**
  * Progress event types
@@ -348,7 +349,7 @@ export class Atomizer {
           return result;
         } catch (error) {
           const errorMessage =
-            error instanceof Error ? error.message : String(error);
+            getErrorMessage(error);
 
           logger.error(`Error processing story ${story.id}: ${errorMessage}`);
 
@@ -556,7 +557,7 @@ export class Atomizer {
             } catch (error) {
               logger.warn(
                 `Failed to create dependency link for "${dependentTask.title}" -> "${predecessorTask.title}": ${
-                  error instanceof Error ? error.message : String(error)
+                  getErrorMessage(error)
                 }`,
               );
               return false;

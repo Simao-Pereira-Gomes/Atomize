@@ -14,7 +14,7 @@ import type {
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
 import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
-import { ConfigurationError, PlatformError, UnknownError } from "@utils/errors";
+import { ConfigurationError, PlatformError, UnknownError, getErrorMessage } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import {
@@ -155,7 +155,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       this.authenticated = true;
       logger.info("AzureDevOps: Authentication successful");
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error("AzureDevOps: Authentication failed", { error: message });
       throw new PlatformError(
         `Authentication failed: ${message}`,
@@ -259,7 +259,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.info(`AzureDevOps: Returning ${converted.length} work item(s)`);
       return converted;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error("AzureDevOps: Query failed", { error: message });
       throw new PlatformError(`Query failed: ${message}`, "azure-devops");
     }
@@ -298,7 +298,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       return this.convertWorkItem(workItem);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error(`AzureDevOps: Failed to get work item ${id}`, {
         error: message,
       });
@@ -458,7 +458,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       return this.convertWorkItem(createdItem);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error(`AzureDevOps: Failed to create task`, { error: message });
       throw new PlatformError(
         `Failed to create task: ${message}`,
@@ -548,7 +548,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.info("Connection test succeeded");
       return true;
     } catch (error) {
-      logger.debug(error instanceof Error ? error.message : String(error));
+      logger.debug(getErrorMessage(error));
       return false;
     }
   }
@@ -675,7 +675,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error(
         `AzureDevOps: Failed to create dependency link between ${dependentId} and ${predecessorId}`,
         { error: message },

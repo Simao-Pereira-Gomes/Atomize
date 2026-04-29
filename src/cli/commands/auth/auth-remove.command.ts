@@ -11,6 +11,7 @@ import {
   assertNotCancelled,
   createManagedSpinner,
 } from "@/cli/utilities/prompt-utilities";
+import { getErrorMessage } from "@/utils/errors";
 import {
   confirmRemoval,
   deleteProfile,
@@ -74,8 +75,7 @@ export const authRemoveCommand = new Command("remove")
 
       output.outro("Done.");
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      operationSpinner.stop(`Failed to remove profile: ${msg}`);
+      operationSpinner.stop(`Failed to remove profile: ${getErrorMessage(error)}`);
       process.exit(ExitCode.Failure);
     }
   });

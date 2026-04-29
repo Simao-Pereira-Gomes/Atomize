@@ -7,6 +7,7 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
+import { getErrorMessage } from "@/utils/errors";
 import {
   buildPlatform,
   promptProfileToTest,
@@ -52,7 +53,7 @@ export const authTestCommand = new Command("test")
       }
     } catch (error) {
       s.stop("Test failed");
-      output.cancel(error instanceof Error ? error.message : String(error));
+      output.cancel(getErrorMessage(error));
       process.exit(ExitCode.Failure);
     }
   });

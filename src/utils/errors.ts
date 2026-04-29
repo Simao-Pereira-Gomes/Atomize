@@ -106,6 +106,10 @@ export class LLMGenerationError extends Error {
   }
 }
 
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Error thrown when circular dependencies are detected
  */

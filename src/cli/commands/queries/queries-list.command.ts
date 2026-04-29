@@ -8,6 +8,7 @@ import {
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
+import { getErrorMessage } from "@/utils/errors";
 
 export const queriesListCommand = new Command("list")
   .alias("ls")
@@ -77,7 +78,7 @@ export const queriesListCommand = new Command("list")
       output.blankLine();
       output.outro(`${countLabel} listed`);
     } catch (error) {
-      const msg = error instanceof Error ? sanitizeTty(error.message) : String(error);
+      const msg = sanitizeTty(getErrorMessage(error));
       if (jsonMode) {
         writeManagedOutput("stderr", `Error: ${msg}`);
       } else {

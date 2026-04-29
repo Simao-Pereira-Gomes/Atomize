@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { TemplateLoadError } from "@utils/errors";
+import { TemplateLoadError, getErrorMessage } from "@utils/errors";
 import { parse as parseYaml } from "yaml";
 
 export async function loadYamlFile(filePath: string): Promise<unknown> {
@@ -12,7 +12,7 @@ export async function loadYamlFile(filePath: string): Promise<unknown> {
     return parsed;
   } catch (error) {
     if (error instanceof TemplateLoadError) throw error;
-    const message = error instanceof Error ? error.message : String(error);
+    const message = getErrorMessage(error);
     throw new TemplateLoadError(`Failed to load file: ${message}`, filePath);
   }
 }

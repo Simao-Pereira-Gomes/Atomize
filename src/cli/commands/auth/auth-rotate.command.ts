@@ -10,6 +10,7 @@ import {
   assertNotCancelled,
   createManagedSpinner,
 } from "@/cli/utilities/prompt-utilities";
+import { getErrorMessage } from "@/utils/errors";
 import {
   hasProfiles,
   loadProfileOrFail,
@@ -75,8 +76,7 @@ export const authRotateCommand = new Command("rotate")
       );
       output.outro(`Profile "${name}" updated.`);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      rotationSpinner.stop(`Failed to rotate token: ${msg}`);
+      rotationSpinner.stop(`Failed to rotate token: ${getErrorMessage(error)}`);
       process.exit(ExitCode.Failure);
     }
   });
