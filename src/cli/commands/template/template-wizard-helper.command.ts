@@ -1,5 +1,6 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
 import type { SavedQueryInfo } from "@platforms/interfaces/platform.interface";
+import type { TemplateCatalogItem } from "@services/template/template-catalog";
 import type {
   EstimationConfig,
   FilterCriteria,
@@ -54,7 +55,7 @@ type IterationFilterMode =
   | "exact"
   | "under"
   | "mixed";
-type DateFilterPreset =
+type DateFilterChoice =
   | "none"
   | "@Today"
   | "@Today-7"
@@ -66,7 +67,7 @@ type DateFilterPreset =
   | "@StartOfYear"
   | "custom";
 
-const DATE_FILTER_OPTIONS: { label: string; value: DateFilterPreset }[] = [
+const DATE_FILTER_OPTIONS: { label: string; value: DateFilterChoice }[] = [
   { label: "No filter", value: "none" as const },
   { label: "Today  (@Today)", value: "@Today" as const },
   { label: "Last 7 days  (@Today-7)", value: "@Today-7" as const },
@@ -164,9 +165,6 @@ export async function configureFilter(ctx: FilterWizardContext, defaults?: Filte
 
   const tags = await promptTags(defaults?.tags);
   if (tags) filter.tags = tags;
-
-  // When defaults are present, use the preset's excludeIfHasTasks value (falsy when not set);
-  // when there are no defaults (scratch path), keep the original UX default of true.
   const excludeDefault = defaults !== undefined ? (defaults.excludeIfHasTasks ?? false) : undefined;
   if (await promptExcludeIfHasTasks(excludeDefault)) filter.excludeIfHasTasks = true;
 
@@ -289,8 +287,6 @@ async function promptWorkItemTypes(ctx: FilterWizardContext, defaults?: string[]
     ...(defaultType ? [defaultType] : []),
     ...ctx.workItemTypes.filter((t) => t !== defaultType).sort((a, b) => a.localeCompare(b)),
   ];
-  // Use preset values when provided (filtered to types that still exist in ADO),
-  // otherwise fall back to the ADO-default type.
   const initialValues =
     defaults && defaults.length > 0
       ? defaults.filter((t) => ctx.workItemTypes.includes(t))
@@ -667,25 +663,23 @@ async function promptDateFilter(
   customMessage: string,
   defaults?: string,
 ): Promise<string | undefined> {
-  // Match preset defaults against known options; fall back to "custom" for non-standard values.
-  let initialValue: DateFilterPreset = "none";
+  let initialValue: DateFilterChoice = "none";
   if (defaults) {
     const knownOption = DATE_FILTER_OPTIONS.find((o) => o.value === defaults);
     initialValue = knownOption ? knownOption.value : "custom";
   }
 
-  const preset = assertNotCancelled(
-    await select<DateFilterPreset>({
+  const choice = assertNotCancelled(
+    await select<DateFilterChoice>({
       message: selectMessage,
       options: DATE_FILTER_OPTIONS,
       initialValue,
     }),
   );
 
-  if (preset === "none") return undefined;
+  if (choice === "none") return undefined;
 
-  if (preset === "custom") {
-    // Pre-fill the custom input when the preset value wasn't one of the known options.
+  if (choice === "custom") {
     const customDefault =
       defaults && !DATE_FILTER_OPTIONS.find((o) => o.value === defaults) ? defaults : "";
     return assertNotCancelled(
@@ -701,7 +695,7 @@ async function promptDateFilter(
     );
   }
 
-  return preset;
+  return choice;
 }
 
 /**
@@ -959,4 +953,129 @@ export async function configureBasicInfo(
     author: author || undefined,
     tags: tags.length > 0 ? tags : undefined,
   };
+}
+
+export interface TemplateCompositionResult {
+  /** Logical ref (e.g. "template:feature"). */
+  extendsRef: string | undefined;
+  /** Logical mixin refs (e.g. "mixin:security"). */
+  mixins: string[];
+}
+
+/**
+ * Let the user choose a parent template and mixins.
+ * The user can skip this step entirely.
+ */
+export async function configureTemplateComposition(input: {
+  templates: TemplateCatalogItem[];
+  mixins: TemplateCatalogItem[];
+}): Promise<TemplateCompositionResult> {
+  const output = createCommandOutput(resolveCommandOutputPolicy({}));
+  output.print(chalk.bold("\nTemplate Inheritance & Mixins (optional):"));
+  output.print(
+    chalk.gray(
+      "  Extending a template lets you inherit its filter, tasks, and settings.\n" +
+        "  Mixins add reusable task groups. Fields you configure later override inherited values.\n",
+    ),
+  );
+
+  const useTemplate =
+    input.templates.length > 0
+      ? assertNotCancelled(
+          await confirm({
+            message: "Extend an existing template?",
+            initialValue: false,
+          }),
+        )
+      : false;
+
+  const extendsRef = useTemplate
+    ? await promptTemplateRef(input.templates)
+    : undefined;
+
+  const useMixins =
+    input.mixins.length > 0
+      ? assertNotCancelled(
+          await confirm({
+            message: "Add mixins?",
+            initialValue: false,
+          }),
+        )
+      : false;
+
+  const mixins = useMixins ? await promptMixinRefs(input.mixins) : [];
+  return { extendsRef, mixins };
+}
+
+async function promptTemplateRef(templates: TemplateCatalogItem[]): Promise<string> {
+  const discovered = templates.map((item) => ({
+    label: formatCatalogChoice(item),
+    value: item.ref,
+    hint: item.description,
+  }));
+
+  const chosen = await selectOrAutocomplete({
+    message: "Template:",
+    options: discovered,
+    placeholder: "Type to filter templates...",
+  });
+  return chosen;
+}
+
+export async function promptMixinRefs(
+  mixins: TemplateCatalogItem[],
+): Promise<string[]> {
+  const selected: string[] = [];
+
+  if (mixins.length === 0) {
+    return [];
+  }
+
+  if (mixins.length < 4) {
+    const picked = assertNotCancelled(
+      await multiselect<string>({
+        message: "Select mixins:",
+        options: [
+          ...mixins.map((item) => ({
+            label: formatCatalogChoice(item),
+            value: item.ref,
+            hint: item.description,
+          })),
+        ],
+        required: false,
+      }),
+    );
+
+    return picked;
+  }
+
+  let addMore = true;
+  while (addMore) {
+    const remaining = mixins.filter((item) => !selected.includes(item.ref));
+    if (remaining.length === 0) break;
+
+    const picked = await selectOrAutocomplete({
+      message: selected.length === 0 ? "Select mixin:" : "Add another mixin:",
+      options: [
+        ...remaining.map((item) => ({
+          label: formatCatalogChoice(item),
+          value: item.ref,
+          hint: item.description,
+        })),
+      ],
+      placeholder: "Type to filter mixins...",
+      thresholdCount: mixins.length,
+    });
+
+    selected.push(picked);
+    addMore = assertNotCancelled(
+      await confirm({ message: "Add another mixin?", initialValue: false }),
+    );
+  }
+
+  return selected;
+}
+
+function formatCatalogChoice(item: TemplateCatalogItem): string {
+  return `${item.displayName} (${item.scope})`;
 }

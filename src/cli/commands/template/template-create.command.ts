@@ -1,6 +1,4 @@
-import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   confirm,
@@ -9,13 +7,14 @@ import {
 } from "@clack/prompts";
 import { logger } from "@config/logger";
 import { PlatformFactory } from "@platforms/platform-factory";
-import { PresetManager } from "@services/template/preset-manager";
 import { StoryLearner } from "@services/template/story-learner";
+import { TemplateCatalog } from "@services/template/template-catalog";
+import { TemplateResolver } from "@services/template/template-resolver";
+import type { MixinTemplate, PartialTaskTemplate } from "@templates/schema";
 import { TemplateValidator } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
-import { stringify as stringifyYaml } from "yaml";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -25,6 +24,7 @@ import {
   assertNotCancelled,
   createManagedSpinner,
   isInteractiveTerminal,
+  selectOrAutocomplete,
 } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter, PlatformType } from "@/platforms";
 import type { MultiStoryLearningResult } from "@/services/template/story-learner.types";
@@ -33,6 +33,9 @@ import type {
   TaskTemplate,
   ValidationConfig,
 } from "@/templates/schema";
+
+type AnyTaskTemplate = TaskTemplate | PartialTaskTemplate;
+
 import { CancellationError, ConfigurationError } from "@/utils/errors";
 import { createWithAI } from "./ai-creation";
 import { customizeTemplate } from "./template-customize";
@@ -46,6 +49,10 @@ import {
   previewTemplate,
   type TemplateWizardContext,
 } from "./template-wizard";
+import {
+  configureTemplateComposition,
+  promptMixinRefs,
+} from "./template-wizard-helper.command";
 
 const defaultOutput = createCommandOutput(resolveCommandOutputPolicy({}));
 
@@ -54,16 +61,18 @@ interface CreateFromScratchOptions {
   profile?: string;
 }
 
-type CreationMode = "preset" | "stories" | "scratch" | "ai";
+type CreationMode = "template" | "stories" | "scratch" | "ai";
+type CreationTarget = "template" | "mixin";
 
 interface CreateOptions {
-  preset?: string;
+  type?: CreationTarget;
+  from?: string;
   fromStories?: string;
   scratch?: boolean;
   ai?: boolean;
   ground?: boolean;
   aiProfile?: string;
-  output?: string;
+  saveAs?: string;
   platform?: string;
   profile?: string;
   quiet?: boolean;
@@ -71,7 +80,8 @@ interface CreateOptions {
 
 export const templateCreateCommand = new Command("create")
   .description("Create a new template interactively")
-  .option("--preset <name>", "Start from a preset template")
+  .option("--type <type>", "Create as template or mixin")
+  .option("--from <name>", "Start from an existing template")
   .option(
     "--from-stories <ids>",
     "Learn template from multiple stories (comma-separated IDs)",
@@ -82,15 +92,7 @@ export const templateCreateCommand = new Command("create")
   .option("--ai", "Use AI-assisted generation (describe the template in natural language)")
   .option("--ground", "Ground AI generation with patterns from your Azure DevOps workspace")
   .option("--ai-profile <name>", "AI provider profile to use (uses default AI profile if omitted)")
-  .option(
-    "-o, --output <path>",
-    "Output file path",
-    path.resolve(
-      process.cwd(),
-      "createdTemplates",
-      generateTemplateFilename("template"),
-    ),
-  )
+  .option("--save-as <name>", "Name to save the template under")
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (options: CreateOptions) => {
     const output = createCommandOutput(
@@ -105,31 +107,17 @@ export const templateCreateCommand = new Command("create")
           ),
         );
       }
-      const mode = await determineMode(options);
+      const target = await determineCreationTarget(options);
+      const created =
+        target === "mixin"
+          ? await createMixin({ quiet: options.quiet, profile: options.profile })
+          : await createFullTemplate(options);
 
-      const template = await match(mode)
-        .with("preset", async () => await createFromPreset(options))
-        .with("stories", async () => await createFromStories(options))
-        .with(
-          "scratch",
-          async () => await createFromScratch({ quiet: options.quiet, profile: options.profile }),
-        )
-        .with("ai", async () => await createWithAI(options))
-        .exhaustive();
-
-      if (!options.output) {
-        throw new ConfigurationError("Output path is not defined");
-      }
-
-      await saveTemplate(template, options.output);
-
-      output.print(chalk.green(`\n Template saved to ${options.output}\n`));
-      output.print(
-        chalk.cyan("Try it out with: ") +
-          chalk.gray(`atomize validate ${options.output}`),
-      );
+      const saved = await saveCreatedTemplate(created, target, options.saveAs);
+      output.print(chalk.green(`\n Template saved to ${saved.path}\n`));
+      output.print(chalk.cyan("Use it with: ") + chalk.gray(saved.ref));
       output.blankLine();
-      output.outro(`Template saved → ${options.output}`);
+      output.outro(`Template saved → ${saved.path}`);
     } catch (error) {
       if (error instanceof CancellationError) {
         output.outro("Cancelled.");
@@ -147,11 +135,56 @@ export const templateCreateCommand = new Command("create")
     }
   });
 
+async function createFullTemplate(options: CreateOptions): Promise<AnyTaskTemplate> {
+  const mode = await determineMode(options);
+
+  return await match(mode)
+    .with("template", async () => await createFromTemplate(options))
+    .with("stories", async () => await createFromStories(options))
+    .with(
+      "scratch",
+      async () => await createFromScratch({ quiet: options.quiet, profile: options.profile }),
+    )
+    .with("ai", async () => await createWithAI(options))
+    .exhaustive();
+}
+
+async function determineCreationTarget(options: CreateOptions): Promise<CreationTarget> {
+  if (options.type) {
+    return parseCreationTarget(options.type);
+  }
+
+  if (!isInteractiveTerminal()) {
+    return "template";
+  }
+
+  const target = assertNotCancelled(
+    await select({
+      message: "What are you creating?",
+      options: [
+        { label: "Template — discoverable reusable template", value: "template" },
+        { label: "Mixin — discoverable reusable task group", value: "mixin" },
+      ],
+    }),
+  ) as string;
+
+  return parseCreationTarget(target);
+}
+
+function parseCreationTarget(value: string): CreationTarget {
+  if (value === "template" || value === "mixin") {
+    return value;
+  }
+  throw new ConfigurationError(
+    `Invalid create type "${value}". Expected template or mixin.`,
+  );
+}
+
 /**
  * Determine creation mode
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
-  if (options.preset) return "preset";
+  if (options.from) return "template";
   if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
   if (options.ai) return "ai";
@@ -170,8 +203,8 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
           value: "scratch",
         },
         {
-          label: "From preset — start with a common template",
-          value: "preset",
+          label: "From template — start with a built-in or saved template",
+          value: "template",
         },
         {
           label: "From stories — learn patterns from existing examples",
@@ -184,55 +217,123 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
 }
 
 /**
- * Create from preset
+ * Create from template — offers either an inheritance link or a flat copy.
+ *
+ * Inheritance link: saves `extends: "template:<name>"` + a custom name/description.
+ *   The resulting template is minimal; fields are resolved from the parent template at load time.
+ *   Future updates to the parent template are automatically picked up.
+ *
+ * Flat copy: loads the parent template in full, lets the user customize it, and saves
+ *   the complete resolved template (current behaviour).
  */
-async function createFromPreset(options: CreateOptions): Promise<TaskTemplate> {
-  defaultOutput.print(chalk.cyan("\n Create from Preset\n"));
+async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTemplate> {
+  defaultOutput.print(chalk.cyan("\n Create from Template\n"));
 
-  const presetManager = new PresetManager();
-  const choices = await presetManager.getPresetChoices();
+  const catalog = new TemplateCatalog();
+  const templates = await catalog.listTemplates();
 
-  let presetName = options.preset;
+  let templateName = options.from;
 
-  if (presetName) {
-    if (!choices.find((c) => c.value === presetName)) {
+  if (templateName) {
+    templateName = templateName.startsWith("template:")
+      ? templateName.slice("template:".length)
+      : templateName;
+    if (!templates.find((template) => template.name === templateName)) {
       throw new ConfigurationError(
-        `Preset "${presetName}" not found. Run: atomize template presets`,
+        `Template "${templateName}" not found. Run: atomize template list --type template`,
       );
     }
   } else {
-    if (choices.length === 0) {
+    if (templates.length === 0) {
       throw new Error(
-        "No presets found. Create some in templates/presets/ first.",
+        "No templates found. Create a template first.",
       );
     }
 
-    presetName = assertNotCancelled(
-      await select({
-        message: "Select preset:",
-        options: choices.map((c) => ({ label: c.name, value: c.value })),
+    templateName = await selectOrAutocomplete({
+      message: "Select template:",
+      options: templates.map((template) => ({
+        label: formatCatalogChoice(template.displayName, template.scope),
+        value: template.name,
+        hint: template.description,
+      })),
+      placeholder: "Type to filter templates...",
+    });
+  }
+
+  const resolver = new TemplateResolver(catalog);
+  const parentTemplate = await resolver.loadTemplateRef(`template:${templateName}`);
+  defaultOutput.print(chalk.green(`\nLoaded template: ${parentTemplate.name}`));
+  defaultOutput.print(chalk.gray(`  ${parentTemplate.description ?? ""}\n`));
+
+  const mode = assertNotCancelled(
+    await select({
+      message: "How do you want to use this template?",
+      options: [
+        {
+          label: `Inheritance link  — saves extends: "template:${templateName}" (small template, stays in sync with template updates)`,
+          value: "inherit",
+        },
+        {
+          label: "Flat copy  — saves all fields so the template is fully self-contained",
+          value: "copy",
+        },
+      ],
+    }),
+  ) as string;
+
+  if (mode === "inherit") {
+    const name = assertNotCancelled(
+      await text({
+        message: "Template name:",
+        placeholder: `My ${parentTemplate.name}`,
+        validate: (v): string | undefined => {
+          if (!v || v.trim() === "") return "Name is required";
+          return undefined;
+        },
       }),
     ) as string;
+
+    const description = assertNotCancelled(
+      await text({
+        message: "Description (optional):",
+        placeholder: parentTemplate.description ?? "",
+      }),
+    ) as string;
+
+    const mixins = await configureTemplateMixins(catalog);
+
+    return {
+      version: "1.0",
+      extends: `template:${templateName}`,
+      name: name.trim(),
+      ...(description.trim() ? { description: description.trim() } : {}),
+      ...(mixins.length > 0 ? { mixins } : {}),
+    } satisfies PartialTaskTemplate;
   }
-
-  const template = await presetManager.loadPreset(presetName);
-
-  defaultOutput.print(chalk.green(`\nLoaded preset: ${template.name}`));
 
   const customize = assertNotCancelled(
-    await confirm({
-      message: "Customize the template?",
-      initialValue: false,
-    }),
+    await confirm({ message: "Customize the template?", initialValue: false }),
   );
-
   if (customize) {
-    return await customizeTemplate(template, options.profile);
+    return await customizeTemplate(parentTemplate, options.profile);
   }
+  await previewTemplate(parentTemplate);
+  return parentTemplate;
+}
 
-  // Even without customization, show a preview so the user can confirm before saving.
-  await previewTemplate(template);
-  return template;
+function formatCatalogChoice(label: string, scope: string): string {
+  return `${label} (${scope})`;
+}
+
+async function configureTemplateMixins(catalog: TemplateCatalog): Promise<string[]> {
+  const addMixins = assertNotCancelled(
+    await confirm({ message: "Add mixins?", initialValue: false }),
+  );
+  if (!addMixins) return [];
+
+  const mixins = await catalog.listMixins();
+  return await promptMixinRefs(mixins);
 }
 
 /**
@@ -484,7 +585,7 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
  * ```typescript
  * // Basic usage
  * const template = await createFromScratch();
- * await saveTemplate(template, "./my-template.yaml");
+ * await catalog.saveUserTemplate({ kind: "template", name: "my-template", template });
  * ```
  *
  * @example
@@ -511,6 +612,16 @@ export async function createFromScratch(
   let currentStep = 1;
 
   try {
+    const catalog = new TemplateCatalog();
+    const [templates, mixins] = await Promise.all([
+      catalog.listTemplates(),
+      catalog.listMixins(),
+    ]);
+    const { extendsRef, mixins: selectedMixins } = await configureTemplateComposition({
+      templates,
+      mixins,
+    });
+
     let connectionSettled = false;
     const connectionPromise = (async () => {
       const { resolveAzureConfig } = await import("@config/profile-resolver");
@@ -717,10 +828,10 @@ export async function createFromScratch(
     if (addMetadata) {
       metadata = await configureMetadata();
     }
-
-    // Construct the template
     const template: TaskTemplate = {
       version: "1.0",
+      ...(extendsRef ? { extends: extendsRef } : {}),
+      ...(selectedMixins.length > 0 ? { mixins: selectedMixins } : {}),
       name: basicInfo.name,
       description: basicInfo.description,
       author: basicInfo.author,
@@ -776,54 +887,155 @@ export async function createFromScratch(
   }
 }
 
-/**
- * Save template to file
- */
-async function saveTemplate(
-  template: TaskTemplate,
-  outputPath: string,
-): Promise<void> {
-  const output = createCommandOutput(resolveCommandOutputPolicy({}));
-  const validator = new TemplateValidator();
-  const validation = validator.validate(template);
+async function createMixin(
+  options: CreateFromScratchOptions = {},
+): Promise<MixinTemplate> {
+  const quiet = options.quiet === true;
+  const profile = options.profile;
+  const output = createCommandOutput(
+    resolveCommandOutputPolicy({ quiet, verbose: false }),
+  );
 
-  if (!validation.valid) {
-    output.print(chalk.red("\n  Template validation failed:\n"));
-    validation.errors.forEach((err) => {
-      output.print(chalk.red(`  • ${err.path}: ${err.message}`));
-    });
-    throw new Error("Template validation failed");
+  output.print(chalk.cyan("\nCreate Mixin\n"));
+  output.print(chalk.gray("Reusable task group. Mixins do not define filters or estimation settings.\n"));
+
+  const basicInfo = await configureBasicInfo();
+  const { fieldSchemas, storyFieldSchemas } = await loadTaskWizardSchemas(profile);
+  const tasks = await configureTasksWithValidation(fieldSchemas, storyFieldSchemas);
+
+  if (tasks.length === 0) {
+    throw new ConfigurationError("At least one task is required for a mixin.");
   }
 
-  if (validation.warnings.length > 0) {
-    output.print(chalk.yellow("\n  Warnings:\n"));
-    validation.warnings.forEach((warn) => {
-      output.print(chalk.yellow(`  • ${warn.path}: ${warn.message}`));
-    });
-  }
-
-  if (existsSync(outputPath)) {
-    const overwrite = assertNotCancelled(
-      await confirm({
-        message: "Output file already exists. Overwrite?",
-        initialValue: false,
-      }),
-    );
-    if (!overwrite) {
-      throw new CancellationError("Save cancelled — file not overwritten");
-    }
-  }
-
-  const yaml = stringifyYaml(template);
-  await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, yaml, "utf-8");
-
-  logger.info(`Template saved to ${outputPath}`);
+  return {
+    name: basicInfo.name,
+    description: basicInfo.description,
+    tasks,
+  };
 }
 
-function generateTemplateFilename(templateName = "template") {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const shortId = randomBytes(2).toString("hex");
+async function loadTaskWizardSchemas(
+  profile: string | undefined,
+): Promise<{
+  fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
+  storyFieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
+}> {
+  const { resolveAzureConfig } = await import("@config/profile-resolver");
+  const { AzureDevOpsAdapter } = await import("@platforms/adapters/azure-devops/azure-devops.adapter");
+  const azureConfig = await resolveAzureConfig(profile);
+  const adapter = new AzureDevOpsAdapter(azureConfig);
+  await adapter.authenticate();
 
-  return `${templateName}-${date}-${shortId}.yaml`;
+  const [fieldSchemas, storyFieldSchemas] = await Promise.all([
+    adapter.getFieldSchemas("Task"),
+    adapter.getFieldSchemas("User Story"),
+  ]);
+
+  return { fieldSchemas, storyFieldSchemas };
+}
+
+async function saveCreatedTemplate(
+  created: AnyTaskTemplate | MixinTemplate,
+  target: CreationTarget,
+  requestedName: string | undefined,
+): Promise<{ path: string; ref: string }> {
+  const catalog = new TemplateCatalog();
+  const referenceName = requestedName
+    ? parseReferenceName(requestedName)
+    : await promptReferenceName(created.name);
+  const targetPath = catalog.getUserTemplatePath(target, referenceName);
+  const overwrite = existsSync(targetPath)
+    ? assertNotCancelled(
+        await confirm({
+          message: `${target} "${referenceName}" already exists. Overwrite?`,
+          initialValue: false,
+        }),
+      )
+    : true;
+
+  if (!overwrite) {
+    throw new CancellationError("Save cancelled — catalog item not overwritten");
+  }
+
+  if (target === "mixin") {
+    const item = await catalog.saveUserTemplate({
+      kind: "mixin",
+      name: referenceName,
+      template: created,
+      overwrite: true,
+    });
+    return { path: item.path, ref: item.ref };
+  }
+
+  const validation = await validateForSave(created as AnyTaskTemplate, targetPath);
+  if (!validation.valid) {
+    const firstError = validation.errors[0];
+    const message = firstError
+      ? `${firstError.path}: ${firstError.message}`
+      : "Template validation failed";
+    throw new Error(message);
+  }
+
+  const item = await catalog.saveUserTemplate({
+    kind: target,
+    name: referenceName,
+    template: created,
+    overwrite: true,
+    validate: false,
+  });
+  return { path: item.path, ref: item.ref };
+}
+
+async function promptReferenceName(displayName: string): Promise<string> {
+  const initialValue = slugifyTemplateName(displayName);
+  const value = assertNotCancelled(
+    await text({
+      message: "Save as (used in refs like template:<id>):",
+      placeholder: "e.g. backend-standard",
+      initialValue,
+      validate: (value: string | undefined) => {
+        if (!value || value.trim() === "") return "Save name is required";
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(value.trim())) {
+          return "Letters, numbers, hyphens, and underscores only";
+        }
+        return undefined;
+      },
+    }),
+  ) as string;
+  return parseReferenceName(value);
+}
+
+function parseReferenceName(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new ConfigurationError("Reference name is required");
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(trimmed)) {
+    throw new ConfigurationError("Reference name must use only letters, numbers, underscores, and hyphens.");
+  }
+  return trimmed;
+}
+
+function slugifyTemplateName(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "template";
+}
+
+async function validateForSave(
+  template: AnyTaskTemplate,
+  outputPath: string,
+): Promise<ReturnType<TemplateValidator["validate"]>> {
+  const validator = new TemplateValidator();
+  if (!template.extends && (!template.mixins || template.mixins.length === 0)) {
+    return validator.validate(template);
+  }
+
+  const catalog = new TemplateCatalog();
+  const resolver = new TemplateResolver(catalog);
+  const resolvedTemplate = await resolver.resolveRaw(template, path.resolve(outputPath));
+  return validator.validate(resolvedTemplate);
 }

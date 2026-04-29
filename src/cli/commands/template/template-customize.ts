@@ -29,7 +29,7 @@ export async function customizeTemplate(
   template: TaskTemplate,
   profile?: string,
 ): Promise<TaskTemplate> {
-  output.print(chalk.cyan("\nCustomize Preset\n"));
+  output.print(chalk.cyan("\nCustomize Template\n"));
   let connectionSettled = false;
   const connectionPromise = (async () => {
     const { resolveAzureConfig } = await import("@config/profile-resolver");
