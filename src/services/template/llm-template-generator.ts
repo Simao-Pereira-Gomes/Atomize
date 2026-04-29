@@ -20,7 +20,14 @@ description: string     # optional
 author: string          # optional
 tags: string[]          # optional
 
-filter:                 # required
+extends: string         # optional — inherit from a template reference (e.g. "template:backend-api") or a file path (e.g. "./base.yaml").
+                        # All fields from the parent template are inherited; fields set here override the parent.
+                        # Tasks are merged by id: a task with a matching id replaces the parent task; new tasks are appended.
+mixins: string[]        # optional — list of mixin references or file paths (e.g. ["mixin:security"] or ["./mixins/security.yaml"]).
+                        # Mixins contribute tasks only. Child tasks override mixin tasks with the same id.
+                        # Template names are NOT valid mixin sources.
+
+filter:                 # required (unless inherited via extends)
   workItemTypes: string[]         # e.g. ["User Story"], ["Bug"]
   states: string[]                # e.g. ["New", "Active", "Approved"] — items must be in one of these states
   statesExclude: string[]         # optional: skip items currently in these states
@@ -291,7 +298,32 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Feature"
-  difficulty: "intermediate"`;
+  difficulty: "intermediate"
+
+Example 5 — Extending a template (inheritance):
+extends: "template:backend-api"
+name: "Backend API + Security Review"
+description: "Standard backend API template with an added security review task."
+tasks:
+  - id: "security-review"
+    title: "Security Review: \${story.title}"
+    description: "Review implementation for security vulnerabilities before merge."
+    estimationPercent: 10
+    activity: "Design"
+
+Example 6 — Minimal child that inherits most from base (inheritance):
+extends: "./base-feature.yaml"
+name: "Mobile Feature"
+description: "Feature template tailored for the mobile team."
+filter:
+  workItemTypes: ["User Story"]
+  states: ["Active"]
+  tags:
+    include: ["mobile"]
+tasks:
+  - id: "implement"
+    title: "Implement (Mobile): \${story.title}"
+    estimationPercent: 60`;
 
 export function buildSystemPrompt(): string {
   return SYSTEM_PROMPT;
