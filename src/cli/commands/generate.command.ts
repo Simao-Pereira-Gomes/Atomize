@@ -14,7 +14,8 @@ import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interfac
 import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import { PlatformFactory } from "@platforms/platform-factory";
-import { TemplateLoader } from "@templates/loader";
+import { TemplateCatalog } from "@services/template/template-catalog";
+import { type CompositionMeta, TemplateLoader } from "@templates/loader";
 import type { TaskTemplate } from "@templates/schema";
 import { TemplateValidator } from "@templates/validator";
 import { clampConcurrency } from "@utils/math";
@@ -34,7 +35,9 @@ import {
   createManagedSpinner,
   isInteractiveTerminal,
   sanitizeTty,
+  selectOrAutocomplete,
 } from "@/cli/utilities/prompt-utilities";
+import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 
 
@@ -226,12 +229,44 @@ async function promptMissingArgs(
 ): Promise<{ templatePath: string; platform: string; dryRun: boolean }> {
   const interactive = isInteractiveTerminal();
 
-  const templatePath = templateArg ?? assertNotCancelled(
-    await text({
-      message: "Template file path:",
-      placeholder: "templates/backend-api.yaml",
-    }),
-  );
+  let templatePath: string;
+  if (templateArg !== undefined) {
+    templatePath = templateArg;
+  } else {
+    const source = assertNotCancelled(
+      await select({
+        message: "Template source:",
+        options: [
+          { label: "Pick from catalog", value: "catalog" },
+          { label: "Enter file path", value: "path" },
+        ],
+      }),
+    ) as string;
+
+    if (source === "catalog") {
+      const catalog = new TemplateCatalog();
+      const templates = await catalog.listTemplates();
+      if (templates.length === 0) {
+        throw new Error("No templates found. Create one with: atomize template create");
+      }
+      templatePath = await selectOrAutocomplete({
+        message: "Select template:",
+        options: templates.map((t) => ({
+          label: `${t.displayName} (${t.scope})`,
+          value: t.path,
+          hint: t.description,
+        })),
+        placeholder: "Type to filter templates...",
+      });
+    } else {
+      templatePath = assertNotCancelled(
+        await text({
+          message: "Template file path:",
+          placeholder: "templates/backend-api.yaml",
+        }),
+      ) as string;
+    }
+  }
 
   const platformOptions = [
     ...(process.env.ATOMIZE_DEV === "true"
@@ -256,12 +291,21 @@ async function promptMissingArgs(
 }
 
 
+function formatInheritanceNote(meta: CompositionMeta): string {
+  if (!meta.isComposed) return "";
+  const parts: string[] = [];
+  if (meta.extendsRef) parts.push(`extends ${meta.extendsRef}`);
+  if (meta.mixinRefs.length > 0) parts.push(`${meta.mixinRefs.length} mixin(s)`);
+  return chalk.gray(` (${parts.join(", ")})`);
+}
+
 async function loadAndValidateTemplate(
   templatePath: string,
   output: Pick<ReturnType<typeof createCommandOutput>, "print" | "cancel">,
 ): Promise<TaskTemplate> {
-  logger.info(`Loading template: ${templatePath}`);
-  const template = await new TemplateLoader().load(templatePath);
+  const resolvedPath = await resolveTemplateRefToPath(templatePath);
+  logger.info(`Loading template: ${resolvedPath}`);
+  const { template, meta } = await new TemplateLoader().loadWithMeta(resolvedPath);
 
   logger.info("Validating template...");
   const validation = new TemplateValidator().validate(template);
@@ -278,7 +322,7 @@ async function loadAndValidateTemplate(
     process.exit(ExitCode.Failure);
   }
 
-  output.print(chalk.cyan(`Template: ${sanitizeTty(template.name)}`));
+  output.print(chalk.cyan(`Template: ${sanitizeTty(template.name)}${formatInheritanceNote(meta)}`));
   output.print(chalk.gray(`Description: ${sanitizeTty(template.description) || "N/A"}`));
   output.print(chalk.gray(`Tasks: ${template.tasks.length}\n`));
 
@@ -487,7 +531,7 @@ export function printReport(
             ),
           );
         }
-        if (options.verbose && result.tasksCalculated.length > 0) {
+        if ((options.verbose || dryRun) && result.tasksCalculated.length > 0) {
           output.print(chalk.gray("  Task breakdown:"));
           for (const task of result.tasksCalculated) {
             output.print(chalk.gray(`    - ${sanitizeTty(task.title)}: ${task.estimation} points (${task.estimationPercent}%)`));

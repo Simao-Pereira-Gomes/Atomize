@@ -1,7 +1,7 @@
 import { select } from "@clack/prompts";
 import { type LogLevel, logger } from "@config/logger";
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
-import { TemplateLoader } from "@templates/loader";
+import { type CompositionMeta, TemplateLoader } from "@templates/loader";
 import {
   TemplateValidator,
   type ValidationError,
@@ -17,6 +17,7 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
+import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import type {
   TaskDefinition,
@@ -60,7 +61,9 @@ export const validateCommand = new Command("validate")
         logger.level = commandLogLevel;
       }
 
-      const template = await loadTemplate(templatePath);
+      const { template, meta } = await loadTemplate(templatePath);
+
+      printCompositionMeta(meta, output);
 
       const tasksWithCustomFields = template.tasks.filter(
         (t) => t.customFields && Object.keys(t.customFields).length > 0,
@@ -161,11 +164,29 @@ export function resolveValidationOptions(options: ValidateOptions): ValidationOp
 }
 
 async function loadTemplate(templatePath: string) {
-  logger.info(`Loading template: ${templatePath}`);
+  const resolvedPath = await resolveTemplateRefToPath(templatePath);
+  logger.info(`Loading template: ${resolvedPath}`);
   const loader = new TemplateLoader();
-  const template = await loader.load(templatePath);
+  const { template, meta } = await loader.loadWithMeta(resolvedPath);
   logger.info(`Template loaded: ${template.name}`);
-  return template;
+  return { template, meta };
+}
+
+function printCompositionMeta(
+  meta: CompositionMeta,
+  output: ReturnType<typeof createCommandOutput>,
+): void {
+  if (!meta.isComposed) return;
+
+  output.print(chalk.bold("Inheritance:"));
+  if (meta.extendsRef) {
+    const display = meta.resolvedExtendsPath ?? meta.extendsRef;
+    output.print(chalk.gray(`  extends  → ${display}`));
+  }
+  for (const path of meta.resolvedMixinPaths) {
+    output.print(chalk.gray(`  mixin    → ${path}`));
+  }
+  output.blankLine();
 }
 
 function validateTemplate(template: unknown, options?: ValidationOptions) {

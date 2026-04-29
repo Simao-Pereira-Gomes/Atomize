@@ -1,5 +1,4 @@
 import { confirm, password, select, text } from "@clack/prompts";
-import { assertNotCancelled, createManagedSpinner, selectOrAutocomplete } from "@/cli/utilities/prompt-utilities";
 import {
   readConnectionsFile,
   saveProfile,
@@ -8,6 +7,7 @@ import {
 import type { ConnectionProfile } from "@config/connections.interface";
 import { storeToken } from "@config/keychain.service";
 import { z } from "zod";
+import { assertNotCancelled, createManagedSpinner, selectOrAutocomplete } from "@/cli/utilities/prompt-utilities";
 export interface AzureDevOpsProfileInputs {
   name: string;
   platform: "azure-devops";
