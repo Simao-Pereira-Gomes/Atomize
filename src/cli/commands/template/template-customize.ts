@@ -7,6 +7,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
+import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
 import { CancellationError, ConfigurationError } from "@/utils/errors";
 import {
@@ -32,13 +33,7 @@ export async function customizeTemplate(
   output.print(chalk.cyan("\nCustomize Template\n"));
   let connectionSettled = false;
   const connectionPromise = (async () => {
-    const { resolveAzureConfig } = await import("@config/profile-resolver");
-    const { AzureDevOpsAdapter } = await import(
-      "@platforms/adapters/azure-devops/azure-devops.adapter"
-    );
-    const azureConfig = await resolveAzureConfig(profile);
-    const adapter = new AzureDevOpsAdapter(azureConfig);
-    await adapter.authenticate();
+    const adapter = await createAzureDevOpsAdapter(profile);
     const [
       taskSchemas,
       liveWorkItemTypes,

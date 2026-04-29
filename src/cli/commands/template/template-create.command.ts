@@ -36,6 +36,7 @@ import type {
 
 type AnyTaskTemplate = TaskTemplate | PartialTaskTemplate;
 
+import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import { CancellationError, ConfigurationError } from "@/utils/errors";
 import { createWithAI } from "./ai-creation";
 import { customizeTemplate } from "./template-customize";
@@ -624,11 +625,7 @@ export async function createFromScratch(
 
     let connectionSettled = false;
     const connectionPromise = (async () => {
-      const { resolveAzureConfig } = await import("@config/profile-resolver");
-      const { AzureDevOpsAdapter } = await import("@platforms/adapters/azure-devops/azure-devops.adapter");
-      const azureConfig = await resolveAzureConfig(profile);
-      const adapter = new AzureDevOpsAdapter(azureConfig);
-      await adapter.authenticate();
+      const adapter = await createAzureDevOpsAdapter(profile);
       const [taskSchemas, liveWorkItemTypes, liveAreaPaths, liveIterationPaths, liveTeams, liveSavedQueries] = await Promise.all([
         adapter.getFieldSchemas("Task"),
         adapter.getWorkItemTypes(),
@@ -920,11 +917,7 @@ async function loadTaskWizardSchemas(
   fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
   storyFieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
 }> {
-  const { resolveAzureConfig } = await import("@config/profile-resolver");
-  const { AzureDevOpsAdapter } = await import("@platforms/adapters/azure-devops/azure-devops.adapter");
-  const azureConfig = await resolveAzureConfig(profile);
-  const adapter = new AzureDevOpsAdapter(azureConfig);
-  await adapter.authenticate();
+  const adapter = await createAzureDevOpsAdapter(profile);
 
   const [fieldSchemas, storyFieldSchemas] = await Promise.all([
     adapter.getFieldSchemas("Task"),
