@@ -2,6 +2,7 @@ export const AtomizeErrorCode = {
   AtomizeError: "AtomizeError",
   TemplateLoadError: "TemplateLoadError",
   TemplateValidationError: "TemplateValidationError",
+  TemplateCompositionError: "TemplateCompositionError",
   PlatformError: "PlatformError",
   ConfigurationError: "ConfigurationError",
   UnknownError: "UnknownError",
@@ -39,6 +40,15 @@ export class TemplateValidationError extends AtomizeError {
     public readonly suggestions?: readonly string[]
   ) {
     super(AtomizeErrorCode.TemplateValidationError, message);
+  }
+}
+
+export class TemplateCompositionError extends AtomizeError {
+  constructor(
+    message: string,
+    public readonly source?: string,
+  ) {
+    super(AtomizeErrorCode.TemplateCompositionError, message);
   }
 }
 

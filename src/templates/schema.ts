@@ -247,8 +247,8 @@ export const TaskTemplateSchema = z
     validation: ValidationConfigSchema.optional(),
     metadata: MetadataSchema.optional(),
 
-    variables: z.record(z.string(), z.any()).optional(),
     extends: z.string().optional(),
+    mixins: z.array(z.string()).optional(),
   })
   .superRefine((data, ctx) => {
     const { tasks, validation: v } = data;
@@ -259,6 +259,7 @@ export const TaskTemplateSchema = z
     );
     const taskIds = new Set(tasks.map((t) => t.id).filter(Boolean));
 
+    validateUniqueTaskIds(tasks, ctx);
     validateEstimationConstraints(v, totalPercent, ctx);
 
     validateTaskConstraints(v, tasks, ctx);
@@ -312,6 +313,30 @@ function validateTaskConstraints(
       params: { code: "TOO_MANY_TASKS" },
     });
   }
+}
+
+function validateUniqueTaskIds(
+  tasks: z.infer<typeof TaskDefinitionSchema>[],
+  ctx: z.RefinementCtx,
+) {
+  const firstIndexById = new Map<string, number>();
+
+  tasks.forEach((task, index) => {
+    if (!task.id) return;
+
+    const firstIndex = firstIndexById.get(task.id);
+    if (firstIndex === undefined) {
+      firstIndexById.set(task.id, index);
+      return;
+    }
+
+    ctx.addIssue({
+      code: "custom",
+      path: ["tasks", index, "id"],
+      message: `Duplicate task id "${task.id}". Task IDs must be unique; first defined at tasks[${firstIndex}].`,
+      params: { code: "DUPLICATE_TASK_ID", duplicateId: task.id, firstIndex },
+    });
+  });
 }
 
 function validateEstimationConstraints(
@@ -402,6 +427,18 @@ function reportCircularDependencies(
   }
 }
 
+/**
+ * Schema for mixin files — partial templates that contribute only tasks.
+ * Mixins don't require a filter since they're composed into a full template.
+ */
+export const MixinTemplateSchema = z.object({
+  name: z.string().min(1, "Mixin name is required"),
+  description: z.string().optional(),
+  tasks: z.array(TaskDefinitionSchema).min(1, "At least one task is required"),
+}).superRefine((data, ctx) => {
+  validateUniqueTaskIds(data.tasks, ctx);
+});
+
 export const CURRENT_ITERATION = "@CurrentIteration" as const;
 export const TEAM_AREAS = "@TeamAreas" as const;
 export const TODAY = "@Today" as const;
@@ -411,6 +448,7 @@ export const START_OF_MONTH = "@StartOfMonth" as const;
 export const START_OF_YEAR = "@StartOfYear" as const;
 export const ME = "@Me" as const;
 
+export type MixinTemplate = z.infer<typeof MixinTemplateSchema>;
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
 export type SavedQuery = z.infer<typeof SavedQuerySchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;
@@ -422,3 +460,13 @@ export type ValidationMode = z.infer<typeof ValidationModeSchema>;
 export type ValidationConfig = z.infer<typeof ValidationConfigSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
 export type TaskTemplate = z.infer<typeof TaskTemplateSchema>;
+
+/**
+ * A template that uses `extends` and/or `mixins` and has not yet been resolved.
+ * `filter` and `tasks` are inherited from the parent and therefore optional here.
+ * Always resolve through `TemplateLoader` or `TemplateResolver` before validating.
+ */
+export type PartialTaskTemplate = Omit<TaskTemplate, "filter" | "tasks"> & {
+  filter?: FilterCriteria;
+  tasks?: TaskDefinition[];
+};
