@@ -1,0 +1,11 @@
+extends: "./base-template.yaml"
+mixins:
+  - "./mixins/security.yaml"
+name: "Template With Mixins"
+description: "Base template extended with security mixin"
+
+tasks:
+  - id: "security-review"
+    title: "Security Audit: ${story.title}"
+    description: "Overridden security task from mixin"
+    estimationPercent: 8

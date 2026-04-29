@@ -1,0 +1,15 @@
+extends: "./base-template.yaml"
+name: "Child Template"
+description: "Extends base template with overrides"
+tags: ["child"]
+
+tasks:
+  - id: "design"
+    title: "Custom Design: ${story.title}"
+    description: "Overridden design task"
+    estimationPercent: 15
+
+  - id: "deploy"
+    title: "Deploy: ${story.title}"
+    description: "Deployment phase"
+    estimationPercent: 5

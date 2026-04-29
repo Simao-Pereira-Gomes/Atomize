@@ -1,0 +1,7 @@
+extends: "./circular-b.yaml"
+name: "Circular A"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - title: "Task A"
+    estimationPercent: 100

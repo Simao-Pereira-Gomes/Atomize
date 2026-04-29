@@ -1,0 +1,9 @@
+version: "1.0"
+name: "Package Team Base"
+description: "Package-level base template"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - id: "package-task"
+    title: "Package Task"
+    estimationPercent: 100

@@ -583,9 +583,6 @@ describe("Schema Validation", () => {
           difficulty: "intermediate",
         },
 
-        variables: {
-          customVar: "value",
-        },
       };
 
       const result = TaskTemplateSchema.safeParse(template);
@@ -617,6 +614,25 @@ describe("Schema Validation", () => {
 
       const result = TaskTemplateSchema.safeParse(template);
       expect(result.success).toBe(true);
+    });
+
+    test("should reject duplicate task ids", () => {
+      const template = {
+        version: "1.0",
+        name: "Duplicate IDs",
+        filter: {},
+        tasks: [
+          { id: "same-id", title: "First", estimationPercent: 50 },
+          { id: "same-id", title: "Second", estimationPercent: 50 },
+        ],
+      };
+
+      const result = TaskTemplateSchema.safeParse(template);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toContain("Duplicate task id");
+      }
     });
   });
 });

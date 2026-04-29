@@ -1,0 +1,6 @@
+name: "User Security"
+description: "User-level security mixin"
+tasks:
+  - id: "user-security"
+    title: "User Security"
+    estimationPercent: 10

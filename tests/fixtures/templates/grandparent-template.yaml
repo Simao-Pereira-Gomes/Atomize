@@ -1,0 +1,13 @@
+version: "1.0"
+name: "Grandparent Template"
+description: "Top of the inheritance chain"
+tags: ["grandparent"]
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New"]
+
+tasks:
+  - id: "gp-task"
+    title: "Grandparent Task"
+    estimationPercent: 100
