@@ -1,0 +1,16 @@
+name: "Security Mixin"
+description: "Common security review tasks. Mix into any feature template to enforce a security gate."
+tasks:
+  - id: "security-review"
+    title: "Security Review: ${story.title}"
+    description: "Review the implementation for security vulnerabilities (OWASP Top 10, input validation, auth/authz, secrets handling)."
+    estimationPercent: 10
+    activity: "Design"
+    assignTo: "@Unassigned"
+
+  - id: "dependency-audit"
+    title: "Dependency Audit: ${story.title}"
+    description: "Audit third-party dependencies for known vulnerabilities (e.g. npm audit, OWASP Dependency-Check)."
+    estimationPercent: 5
+    activity: "Development"
+    assignTo: "@Unassigned"

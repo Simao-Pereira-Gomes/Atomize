@@ -1,0 +1,27 @@
+name: "Testing Mixin"
+description: "Expanded testing tasks. Mix into any template to enforce unit, integration, and E2E test coverage."
+tasks:
+  - id: "unit-tests"
+    title: "Unit Tests: ${story.title}"
+    description: "Write unit tests covering the core logic and edge cases. Aim for ≥80% coverage on changed code."
+    estimationPercent: 15
+    activity: "Testing"
+    assignTo: "@ParentAssignee"
+
+  - id: "integration-tests"
+    title: "Integration Tests: ${story.title}"
+    description: "Write integration tests covering interactions between components, APIs, and external dependencies."
+    estimationPercent: 10
+    activity: "Testing"
+    dependsOn: ["unit-tests"]
+
+  - id: "e2e-tests"
+    title: "End-to-End Tests: ${story.title}"
+    description: "Validate the full user journey through the feature using E2E test scenarios."
+    estimationPercent: 10
+    activity: "Testing"
+    assignTo: "@Unassigned"
+    condition:
+      field: "tags"
+      operator: "contains"
+      value: "e2e"
