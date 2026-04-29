@@ -295,43 +295,29 @@ export class TemplateValidator {
     return formatter(...values);
   }
 
-  /**
-   * Handles standard Zod validation errors.
-   */
-  //TODO: fix any type
-  //biome-ignore-start lint/suspicious/noExplicitAny: Need to find a better type here
-  private handleZodError(err: any): string | undefined {
-    const { code, path, expected, validation } = err;
-
-    // Array/Task count errors
-    if (code === "too_small") {
-      if (path.includes("tasks"))
+  private handleZodError(err: $ZodIssue): string | undefined {
+    if (err.code === "too_small") {
+      if (err.path.includes("tasks"))
         return "Add at least one task to the template.";
       if (err.minimum === 1)
         return "This field cannot be empty. Please provide a value.";
-      if (path.includes("estimationPercent"))
+      if (err.path.includes("estimationPercent"))
         return "Estimation percentage cannot be negative.";
     }
-    if (code === "too_big" && path.includes("estimationPercent")) {
+    if (err.code === "too_big" && err.path.includes("estimationPercent")) {
       return "A single task's estimation cannot exceed 100%. Split the work across multiple tasks if needed.";
     }
-
-    // Type errors
-    if (code === "invalid_type") {
-      if (expected === "string")
-        return `Expected a text value but received ${err.received}. Wrap the value in quotes.`;
-      if (expected === "number")
-        return `Expected a number but received ${err.received}. Remove quotes from numeric values.`;
+    if (err.code === "invalid_type") {
+      if (err.expected === "string")
+        return `Expected a text value but received ${String(err.input)}. Wrap the value in quotes.`;
+      if (err.expected === "number")
+        return `Expected a number but received ${String(err.input)}. Remove quotes from numeric values.`;
     }
-
-    // Format errors
-    if (code === "invalid_string" && validation === "email") {
+    if (err.code === "invalid_format" && err.format === "email") {
       return 'Use a valid email address format (e.g., user@example.com) or the special value "@Me".';
     }
-
     return undefined;
   }
-  //biome-ignore-end lint/suspicious/noExplicitAny: Need to find a better type here
 
   /**
    * Helper to extract numeric values from a regex match safely.
