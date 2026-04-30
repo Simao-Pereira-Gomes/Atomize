@@ -23,6 +23,11 @@ export interface TemplateCatalogItem {
   path: string;
 }
 
+export interface CatalogOverride {
+  active: TemplateCatalogItem;
+  overridden: TemplateCatalogItem;
+}
+
 export interface TemplateRefParts {
   kind: TemplateCatalogKind;
   name: string;
@@ -42,20 +47,21 @@ export class TemplateCatalog {
   }
 
   async listTemplates(): Promise<TemplateCatalogItem[]> {
-    const items = new Map<string, TemplateCatalogItem>();
-    await this.addDiscoveredItems(items, "template");
-    return [...items.values()];
+    return (await this.listWithOverrides("template")).items;
   }
 
   async listMixins(): Promise<TemplateCatalogItem[]> {
-    const items = new Map<string, TemplateCatalogItem>();
-    await this.addDiscoveredItems(items, "mixin");
-    return [...items.values()];
+    return (await this.listWithOverrides("mixin")).items;
   }
 
   async listByKind(kind: TemplateCatalogKind): Promise<TemplateCatalogItem[]> {
-    if (kind === "template") return await this.listTemplates();
-    return await this.listMixins();
+    return (await this.listWithOverrides(kind)).items;
+  }
+
+  async listWithOverrides(kind: TemplateCatalogKind): Promise<{ items: TemplateCatalogItem[]; overrides: CatalogOverride[] }> {
+    const items = new Map<string, TemplateCatalogItem>();
+    const overrides = await this.addDiscoveredItems(items, kind);
+    return { items: [...items.values()], overrides };
   }
 
   async findByRef(ref: string, defaultKind: TemplateCatalogKind = "template"): Promise<TemplateCatalogItem | undefined> {
@@ -63,7 +69,11 @@ export class TemplateCatalog {
     return await this.findItem(parsed.kind, parsed.name);
   }
 
-  async installFromFile(sourcePath: string, kind: TemplateCatalogKind): Promise<TemplateCatalogItem> {
+  async installFromFile(
+    sourcePath: string,
+    kind: TemplateCatalogKind,
+    scope: Extract<TemplateCatalogScope, "user" | "project"> = "user",
+  ): Promise<TemplateCatalogItem> {
     const absoluteSourcePath = resolve(sourcePath);
     const raw = await loadYamlFile(absoluteSourcePath);
     this.validateInstallPayload(raw, kind);
@@ -76,7 +86,8 @@ export class TemplateCatalog {
     const name = basename(absoluteSourcePath, extension);
     this.assertValidName(name);
 
-    const targetDir = join(this.userRoot, this.folderForKind(kind));
+    const root = scope === "project" ? this.projectRoot : this.userRoot;
+    const targetDir = join(root, this.folderForKind(kind));
     const targetPath = join(targetDir, `${name}${extension}`);
     await mkdir(targetDir, { recursive: true });
     await copyFile(absoluteSourcePath, targetPath);
@@ -84,7 +95,7 @@ export class TemplateCatalog {
     const metadata = this.extractMetadata(raw);
     return {
       kind,
-      scope: "user",
+      scope,
       name,
       displayName: metadata.name ?? name,
       description: metadata.description ?? "No description",
@@ -130,10 +141,16 @@ export class TemplateCatalog {
     return join(this.userRoot, this.folderForKind(kind), `${name}.yaml`);
   }
 
+  getProjectTemplatePath(kind: TemplateCatalogKind, name: string): string {
+    this.assertValidName(name);
+    return join(this.projectRoot, this.folderForKind(kind), `${name}.yaml`);
+  }
+
   private async addDiscoveredItems(
     items: Map<string, TemplateCatalogItem>,
     kind: TemplateCatalogKind,
-  ): Promise<void> {
+  ): Promise<CatalogOverride[]> {
+    const overrides: CatalogOverride[] = [];
     const roots: Array<{ scope: TemplateCatalogScope; root: string }> = [
       { scope: "builtin", root: join(this.packageRoot, "templates") },
       { scope: "user", root: this.userRoot },
@@ -143,9 +160,15 @@ export class TemplateCatalog {
     for (const { scope, root } of roots) {
       const dir = join(root, this.folderForKind(kind));
       for (const item of await this.listDirectoryItems(kind, scope, dir)) {
+        const existing = items.get(item.name);
+        if (existing) {
+          overrides.push({ active: item, overridden: existing });
+        }
         items.set(item.name, item);
       }
     }
+
+    return overrides;
   }
 
   private async listDirectoryItems(

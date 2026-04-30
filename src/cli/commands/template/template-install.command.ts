@@ -21,22 +21,29 @@ import {
 } from "@/cli/utilities/prompt-utilities";
 import { CancellationError, getErrorMessage } from "@/utils/errors";
 
+type InstallScope = "user" | "project";
+
 type InstallOptions = {
   type?: TemplateCatalogKind;
   overwrite?: boolean;
+  scope?: InstallScope;
 };
+
+const INSTALL_SCOPES: InstallScope[] = ["user", "project"];
 
 const TEMPLATE_TYPES: TemplateCatalogKind[] = ["template", "mixin"];
 
 export const templateInstallCommand = new Command("install")
-  .description("Install a template or mixin into ~/.atomize/templates")
+  .description("Install a template or mixin into the user or project template directory")
   .argument("<file>", "Path to a YAML template file")
   .option("--type <type>", "Template type: template or mixin (auto-detected if omitted)")
   .option("--overwrite", "Overwrite if a template with the same name already exists", false)
+  .option("--scope <scope>", "Installation scope: user (~/.atomize) or project (.atomize in cwd)", "user")
   .action(async (filePath: string, options: InstallOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
     try {
+      const scope = parseInstallScope(options.scope ?? "user");
       const kind = options.type
         ? parseTemplateType(options.type)
         : await detectKind(filePath);
@@ -50,7 +57,10 @@ export const templateInstallCommand = new Command("install")
 
       const ext = extname(resolve(filePath));
       const name = basename(resolve(filePath), ext);
-      const targetPath = catalog.getUserTemplatePath(kind, name);
+      const targetPath =
+        scope === "project"
+          ? catalog.getProjectTemplatePath(kind, name)
+          : catalog.getUserTemplatePath(kind, name);
 
       if (existsSync(targetPath) && !options.overwrite) {
         if (!isInteractiveTerminal()) {
@@ -69,10 +79,11 @@ export const templateInstallCommand = new Command("install")
         }
       }
 
-      const item = await catalog.installFromFile(filePath, kind);
+      const item = await catalog.installFromFile(filePath, kind, scope);
       output.print(chalk.green(`Installed ${kind}: ${sanitizeTty(item.name)}`));
-      output.print(chalk.gray(`  ref:  ${sanitizeTty(item.ref)}`));
-      output.print(chalk.gray(`  path: ${sanitizeTty(item.path)}`));
+      output.print(chalk.gray(`  ref:   ${sanitizeTty(item.ref)}`));
+      output.print(chalk.gray(`  scope: ${item.scope}`));
+      output.print(chalk.gray(`  path:  ${sanitizeTty(item.path)}`));
       output.outro("Installed successfully");
     } catch (error) {
       if (error instanceof CancellationError) {
@@ -83,6 +94,13 @@ export const templateInstallCommand = new Command("install")
       process.exit(ExitCode.Failure);
     }
   });
+
+function parseInstallScope(value: string): InstallScope {
+  if (INSTALL_SCOPES.includes(value as InstallScope)) {
+    return value as InstallScope;
+  }
+  throw new Error(`Invalid scope "${value}". Expected: ${INSTALL_SCOPES.join(", ")}.`);
+}
 
 function parseTemplateType(value: string): TemplateCatalogKind {
   if (TEMPLATE_TYPES.includes(value as TemplateCatalogKind)) {
