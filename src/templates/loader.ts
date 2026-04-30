@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { logger } from "@config/logger";
+import { parse as parseYaml } from "yaml";
 import { TemplateCatalog } from "@services/template/template-catalog";
 import { TemplateResolver } from "@services/template/template-resolver";
 import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@utils/errors";
@@ -82,6 +83,54 @@ export class TemplateLoader {
         `Failed to load template: ${message}`,
         filePath,
       );
+    }
+  }
+
+  /**
+   * Load a template from a YAML string, resolving catalog refs in extends/mixins.
+   * Relative file path refs are not supported since there is no base directory.
+   */
+  async loadFromContent(content: string): Promise<{ template: TaskTemplate; meta: CompositionMeta }> {
+    try {
+      const parsed = parseYaml(content);
+
+      const compositionFields = parseCompositionFields(parsed, "");
+      const extendsRef = compositionFields?.extendsRef;
+      const mixinRefs = compositionFields?.mixinRefs ?? [];
+
+      if (extendsRef && isFilePath(extendsRef)) {
+        throw new TemplateCompositionError(
+          `Cannot resolve relative path "${extendsRef}" from a URL context. ` +
+            `The template author must replace it with a catalog ref (e.g., extends: "template:base").`,
+          "<remote>",
+        );
+      }
+      for (const ref of mixinRefs) {
+        if (isFilePath(ref)) {
+          throw new TemplateCompositionError(
+            `Cannot resolve relative path "${ref}" from a URL context. ` +
+              `The template author must replace it with a catalog ref (e.g., "mixin:name").`,
+            "<remote>",
+          );
+        }
+      }
+
+      const template = await this.resolver.resolveRaw(parsed, "");
+
+      const meta: CompositionMeta = {
+        isComposed: !!(extendsRef || mixinRefs.length > 0),
+        extendsRef,
+        resolvedExtendsPath: extendsRef && !isFilePath(extendsRef) ? extendsRef : undefined,
+        mixinRefs,
+        resolvedMixinPaths: mixinRefs.filter((ref) => !isFilePath(ref)),
+      };
+
+      return { template, meta };
+    } catch (error) {
+      if (error instanceof TemplateCompositionError) throw error;
+      if (error instanceof TemplateLoadError) throw error;
+      const message = getErrorMessage(error);
+      throw new TemplateLoadError(`Failed to load template: ${message}`, "<remote>");
     }
   }
 

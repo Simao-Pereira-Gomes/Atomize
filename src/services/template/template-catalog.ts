@@ -8,7 +8,7 @@ import {
   TaskTemplateSchema,
 } from "@templates/schema";
 import { loadYamlFile } from "@templates/template-file";
-import { stringify as stringifyYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 export type TemplateCatalogKind = "template" | "mixin";
 export type TemplateCatalogScope = "builtin" | "user" | "project";
@@ -91,6 +91,41 @@ export class TemplateCatalog {
     const targetPath = join(targetDir, `${name}${extension}`);
     await mkdir(targetDir, { recursive: true });
     await copyFile(absoluteSourcePath, targetPath);
+
+    const metadata = this.extractMetadata(raw);
+    return {
+      kind,
+      scope,
+      name,
+      displayName: metadata.name ?? name,
+      description: metadata.description ?? "No description",
+      ref: `${kind}:${name}`,
+      path: targetPath,
+    };
+  }
+
+  async installFromContent(
+    content: string,
+    filename: string,
+    kind: TemplateCatalogKind,
+    scope: Extract<TemplateCatalogScope, "user" | "project"> = "user",
+  ): Promise<TemplateCatalogItem> {
+    const extension = extname(filename);
+    if (extension !== ".yaml" && extension !== ".yml") {
+      throw new Error("Template files must use .yaml or .yml extension.");
+    }
+
+    const name = basename(filename, extension);
+    this.assertValidName(name);
+
+    const raw = parseYaml(content);
+    this.validateInstallPayload(raw, kind);
+
+    const root = scope === "project" ? this.projectRoot : this.userRoot;
+    const targetDir = join(root, this.folderForKind(kind));
+    const targetPath = join(targetDir, `${name}${extension}`);
+    await mkdir(targetDir, { recursive: true });
+    await writeFile(targetPath, content, "utf-8");
 
     const metadata = this.extractMetadata(raw);
     return {
