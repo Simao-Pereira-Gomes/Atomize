@@ -1,5 +1,5 @@
 import { logger } from "@config/logger";
-import { TemplateCompositionError, getErrorMessage } from "@utils/errors";
+import { getErrorMessage, TemplateCompositionError } from "@utils/errors";
 import {
   type MixinTemplate,
   MixinTemplateSchema,

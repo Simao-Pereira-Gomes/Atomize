@@ -10,7 +10,7 @@ import {
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
-import { TemplateCompositionError, TemplateLoadError, getErrorMessage } from "@/utils/errors";
+import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@/utils/errors";
 
 type ResolveOptions = {
   validate?: boolean;

@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { logger } from "@config/logger";
 import { TemplateCatalog } from "@services/template/template-catalog";
 import { TemplateResolver } from "@services/template/template-resolver";
-import { TemplateCompositionError, TemplateLoadError, getErrorMessage } from "@utils/errors";
+import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@utils/errors";
 import type { TaskTemplate } from "./schema";
 import { loadYamlFile } from "./template-file";
 import {

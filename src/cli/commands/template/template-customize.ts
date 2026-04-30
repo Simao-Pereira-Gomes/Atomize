@@ -3,11 +3,11 @@ import type { AzureDevOpsAdapter } from "@platforms/adapters/azure-devops/azure-
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import type { TaskTemplate } from "@templates/schema";
 import chalk from "chalk";
+import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
 import { CancellationError, ConfigurationError } from "@/utils/errors";
 import {
