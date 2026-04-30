@@ -1,4 +1,5 @@
 import {
+  type CatalogOverride,
   TemplateCatalog,
   type TemplateCatalogItem,
   type TemplateCatalogKind,
@@ -33,7 +34,7 @@ export const templateListCommand = new Command("list")
         const type = parseTemplateType(options.type);
         output.intro(` Atomize — ${capitalize(type)}s`);
 
-        const items = await catalog.listByKind(type);
+        const { items, overrides } = await catalog.listWithOverrides(type);
         if (items.length === 0) {
           output.outro(`No ${type}s found.`);
           return;
@@ -44,6 +45,8 @@ export const templateListCommand = new Command("list")
           printCatalogItem(item, output);
         }
 
+        printOverrideWarnings(overrides, output);
+
         const usage =
           type === "mixin"
             ? 'Use with: mixins: ["mixin:<name>"]'
@@ -53,10 +56,11 @@ export const templateListCommand = new Command("list")
       }
       output.intro(" Atomize — Templates & Mixins");
 
-      const [templates, mixins] = await Promise.all([
-        catalog.listTemplates(),
-        catalog.listMixins(),
-      ]);
+      const [{ items: templates, overrides: templateShadows }, { items: mixins, overrides: mixinShadows }] =
+        await Promise.all([
+          catalog.listWithOverrides("template"),
+          catalog.listWithOverrides("mixin"),
+        ]);
 
       if (templates.length === 0 && mixins.length === 0) {
         output.outro("No templates or mixins found.");
@@ -78,6 +82,8 @@ export const templateListCommand = new Command("list")
           printCatalogItem(item, output);
         }
       }
+
+      printOverrideWarnings([...templateShadows, ...mixinShadows], output);
 
       output.outro(
         chalk.gray(
@@ -109,5 +115,21 @@ function printCatalogItem(
   output.print(chalk.gray(`    ${sanitizeTty(item.displayName)}`));
   output.print(chalk.gray(`    ${sanitizeTty(item.description)}`));
   output.print(chalk.gray(`    ref: ${sanitizeTty(item.ref)}  scope: ${item.scope}`));
+  output.blankLine();
+}
+
+function printOverrideWarnings(
+  overrides: CatalogOverride[],
+  output: ReturnType<typeof createCommandOutput>,
+): void {
+  if (overrides.length === 0) return;
+  output.print(chalk.yellow("  ⚠ Overridden (not active):"));
+  for (const { overridden, active } of overrides) {
+    output.print(
+      chalk.gray(
+        `    ${sanitizeTty(overridden.ref)} (${overridden.scope}) — overridden by ${active.scope}-scoped "${sanitizeTty(active.name)}"`,
+      ),
+    );
+  }
   output.blankLine();
 }

@@ -1,3 +1,4 @@
+import { log } from "@clack/prompts";
 import { TemplateCatalog } from "@services/template/template-catalog";
 
 /**
@@ -21,5 +22,14 @@ export async function resolveTemplateRefToPath(arg: string): Promise<string> {
   if (!item) {
     throw new Error(`"${arg}" not found. Run: atomize template list`);
   }
+
+  const { overrides } = await catalog.listWithOverrides("template");
+  const override = overrides.find(s => s.active.name === item.name && s.active.scope === item.scope);
+  if (override) {
+    log.warn(
+      `Using ${item.scope}-scoped "${item.name}" — your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
+    );
+  }
+
   return item.path;
 }

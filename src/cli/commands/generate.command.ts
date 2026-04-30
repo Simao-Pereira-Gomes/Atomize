@@ -245,14 +245,18 @@ async function promptMissingArgs(
 
     if (source === "catalog") {
       const catalog = new TemplateCatalog();
-      const templates = await catalog.listTemplates();
+      const { items: templates, overrides } = await catalog.listWithOverrides("template");
       if (templates.length === 0) {
         throw new Error("No templates found. Create one with: atomize template create");
       }
+      const overriddenByScope = new Map(overrides.map((o) => [o.overridden.path, o.active.scope]));
+      const allTemplates = [...templates, ...overrides.map((o) => o.overridden)];
       templatePath = await selectOrAutocomplete({
         message: "Select template:",
-        options: templates.map((t) => ({
-          label: `${t.displayName} (${t.scope})`,
+        options: allTemplates.map((t) => ({
+          label: overriddenByScope.has(t.path)
+            ? `${t.displayName} (${t.scope}) — overridden by ${overriddenByScope.get(t.path)}`
+            : `${t.displayName} (${t.scope})`,
           value: t.path,
           hint: t.description,
         })),
