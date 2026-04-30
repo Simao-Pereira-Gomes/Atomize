@@ -12,6 +12,7 @@ import {
 import chalk from "chalk";
 import { Command } from "commander";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
+import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -46,11 +47,11 @@ export function resolveValidateLogLevel(options: {
 
 export const validateCommand = new Command("validate")
   .description("Validate a template file")
-  .argument("<template>", "Path to template file (YAML)")
+  .argument("<source>", "Path to a YAML template file or an HTTPS URL")
   .option("-s, --strict", "Use strict validation mode (warnings become errors)", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--profile <name>", "Connect to ADO using a named profile for field verification (uses default profile if omitted)")
-  .action(async (templatePath: string, options: ValidateOptions) => {
+  .action(async (source: string, options: ValidateOptions) => {
     const outputPolicy = resolveCommandOutputPolicy({
       quiet: options.quiet,
       verbose: false,
@@ -63,7 +64,14 @@ export const validateCommand = new Command("validate")
         logger.level = commandLogLevel;
       }
 
-      const { template, meta } = await loadTemplate(templatePath);
+      if (source.startsWith("http://")) {
+        throw new Error("Only HTTPS URLs are supported.");
+      }
+
+      const isUrl = source.startsWith("https://");
+      const { template, meta } = isUrl
+        ? await loadTemplateFromUrl(source, output.print)
+        : await loadTemplate(source);
 
       printCompositionMeta(meta, output);
 
@@ -122,7 +130,10 @@ export const validateCommand = new Command("validate")
 
       printValidationResult(template, result, customFieldSummary, output);
       if (result.valid && !options.quiet) {
-        output.print(chalk.cyan("  Try it with: ") + chalk.gray(`atomize generate ${templatePath}`));
+        const hint = isUrl
+          ? chalk.cyan("  Install it with: ") + chalk.gray(`atomize template install ${source}`)
+          : chalk.cyan("  Try it with: ") + chalk.gray(`atomize generate ${source}`);
+        output.print(hint);
       }
       output.outro(result.valid ? "Validation complete ✓" : "Validation failed ✗");
       if (!result.valid) process.exit(ExitCode.Failure);
@@ -163,6 +174,12 @@ export function resolveValidationOptions(options: ValidateOptions): ValidationOp
     return { mode: "strict" };
   }
   return {};
+}
+
+async function loadTemplateFromUrl(url: string, print: (msg: string) => void) {
+  print(chalk.gray(`  Fetching ${url}\n`));
+  const content = await fetchTemplateContent(url);
+  return new TemplateLoader().loadFromContent(content);
 }
 
 async function loadTemplate(templatePath: string) {
