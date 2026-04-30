@@ -57,6 +57,20 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     logger.debug("MockPlatform: Querying work items with filter:", filter);
     // Simulate network delay
     await this.delay(200);
+
+    if (filter.workItemIds && filter.workItemIds.length > 0) {
+      let results = mockUserStories.filter((item) =>
+        filter.workItemIds?.includes(item.id)
+      );
+      if (filter.excludeIfHasTasks) {
+        results = results.filter(
+          (item) => !item.children || item.children.length === 0
+        );
+      }
+      logger.info(`MockPlatform: Found ${results.length} work item(s) by ID`);
+      return results;
+    }
+
     let results = [...mockUserStories];
 
     // Filter by work item types

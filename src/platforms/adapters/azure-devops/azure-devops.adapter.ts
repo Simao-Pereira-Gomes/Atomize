@@ -14,7 +14,7 @@ import type {
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
 import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
-import { ConfigurationError, PlatformError, UnknownError, getErrorMessage } from "@utils/errors";
+import { ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import {
@@ -178,6 +178,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   async queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
+    if (filter.workItemIds && filter.workItemIds.length > 0) {
+      return this.fetchWorkItemsByIds(filter.workItemIds, filter);
+    }
+
     if (filter.savedQuery) {
       return this.resolveAndRunSavedQuery(filter.savedQuery, filter);
     }
@@ -303,6 +307,52 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         error: message,
       });
       return null;
+    }
+  }
+
+  private async fetchWorkItemsByIds(
+    ids: string[],
+    filter: FilterCriteria,
+  ): Promise<WorkItem[]> {
+    try {
+      const numericIds = ids
+        .map((id) => parseInt(id, 10))
+        .filter((id) => !Number.isNaN(id));
+
+      if (numericIds.length === 0) {
+        logger.warn("AzureDevOps: No valid numeric IDs provided");
+        return [];
+      }
+
+      if (!this.witApi) {
+        throw new UnknownError("Work Item Tracking API not initialized");
+      }
+
+      logger.info(`AzureDevOps: Fetching ${numericIds.length} work item(s) by ID`);
+
+      const workItems = await this.witApi.getWorkItems(
+        numericIds,
+        undefined,
+        undefined,
+        WorkItemExpand.All,
+        undefined,
+        this.config.project,
+      );
+
+      let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
+
+      if (filter.excludeIfHasTasks) {
+        filtered = filtered.filter((item) => !this.hasChildRelations(item));
+        logger.info(
+          `AzureDevOps: ${filtered.length} work item(s) without tasks (after excludeIfHasTasks)`,
+        );
+      }
+
+      return filtered.map((wi) => this.convertWorkItem(wi));
+    } catch (error) {
+      const message = getErrorMessage(error);
+      logger.error("AzureDevOps: Failed to fetch work items by ID", { error: message });
+      throw new PlatformError(`Failed to fetch work items by ID: ${message}`, "azure-devops");
     }
   }
 

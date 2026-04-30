@@ -593,6 +593,10 @@ export const generateCommand = new Command("generate")
   )
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--limit <number>", "Cap the number of work items processed (useful for testing)")
+  .option(
+    "--story <ids...>",
+    "Fetch specific work items by ID, bypassing the template filter. excludeIfHasTasks still applies.",
+  )
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .action(async (templateArg: string | undefined, options) => {
       try {
@@ -671,7 +675,10 @@ export const generateCommand = new Command("generate")
 
       const atomizer = new Atomizer(platform_);
 
+      const storyIds: string[] | undefined = options.story?.length ? options.story : undefined;
+
       const hasFilterCriteria =
+        storyIds ||
         template.filter.savedQuery ||
         template.filter.workItemTypes ||
         template.filter.states ||
@@ -679,24 +686,32 @@ export const generateCommand = new Command("generate")
         template.filter.excludeIfHasTasks;
 
       if (isQuiet) {
-        const filterLabel = [
-          template.filter.workItemTypes
-            ?.map((value) => sanitizeTty(value))
-            .join(", "),
-          template.filter.states
-            ? `states: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`
-            : undefined,
-        ].filter(Boolean).join(" · ") || "All items";
+        const filterLabel = storyIds
+          ? `Story IDs: ${storyIds.map((id) => sanitizeTty(id)).join(", ")}`
+          : [
+              template.filter.workItemTypes
+                ?.map((value) => sanitizeTty(value))
+                .join(", "),
+              template.filter.states
+                ? `states: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`
+                : undefined,
+            ].filter(Boolean).join(" · ") || "All items";
         if (outputPolicy.showStandardOutput) {
           output.print(chalk.gray(`Filter:   ${filterLabel}`));
         }
       } else if (outputPolicy.showStandardOutput) {
         output.print(chalk.cyan(" Filter Criteria:"));
-        if (template.filter.savedQuery?.id)
+        if (storyIds) {
+          output.print(
+            chalk.gray(`  Story IDs: ${storyIds.map((id) => sanitizeTty(id)).join(", ")} (template filter bypassed)`),
+          );
+          if (template.filter.excludeIfHasTasks)
+            output.print(chalk.gray("  Exclude if has tasks: Yes"));
+        } else if (template.filter.savedQuery?.id) {
           output.print(chalk.gray(`  Saved query ID: ${sanitizeTty(template.filter.savedQuery.id)}`));
-        else if (template.filter.savedQuery?.path)
+        } else if (template.filter.savedQuery?.path) {
           output.print(chalk.gray(`  Saved query: ${sanitizeTty(template.filter.savedQuery.path)}`));
-        else {
+        } else {
           if (template.filter.workItemTypes)
             output.print(
               chalk.gray(
@@ -718,7 +733,7 @@ export const generateCommand = new Command("generate")
           if (template.filter.excludeIfHasTasks)
             output.print(chalk.gray("  Exclude if has tasks: Yes"));
         }
-        if (options.limit !== undefined)
+        if (!storyIds && options.limit !== undefined)
           output.print(chalk.gray(`  Limit: ${options.limit} items`));
         if (!hasFilterCriteria)
           output.print(chalk.gray("  Matches all work items"));
@@ -731,6 +746,10 @@ export const generateCommand = new Command("generate")
         await confirmLiveExecution(template, { platform }, output);
       } else if (!dryRun && outputPolicy.showClackStatus) {
         output.warn("Live mode — acknowledged for non-interactive execution");
+      }
+
+      if (storyIds && options.limit !== undefined) {
+        output.warn("--limit is ignored when --story is used");
       }
 
       logger.info("Starting atomization...");
@@ -746,6 +765,7 @@ export const generateCommand = new Command("generate")
           dryRun,
           continueOnError: options.continueOnError,
           limit: options.limit !== undefined ? parseInt(options.limit, 10) : undefined,
+          storyIds,
           storyConcurrency,
           dependencyConcurrency,
           forceNormalize,

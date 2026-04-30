@@ -1,17 +1,18 @@
 import { logger } from "@config/logger";
+import type { FilterCriteria } from "@platforms/interfaces/filter.interface";
 import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
 } from "@templates/schema";
+import { getErrorMessage } from "@utils/errors";
 import { DependencyResolver } from "./dependency-resolver.js";
 import {
   type CalculatedTask,
   EstimationCalculator,
 } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
-import { getErrorMessage } from "@utils/errors";
 
 /**
  * Progress event types
@@ -79,6 +80,9 @@ export interface AtomizationOptions {
 
   /** Force normalisation of task estimations to 100% even when total exceeds 100% */
   forceNormalize?: boolean;
+
+  /** Fetch these specific work item IDs directly, bypassing the template filter (excludeIfHasTasks still applies) */
+  storyIds?: string[];
 }
 
 /**
@@ -172,15 +176,25 @@ export class Atomizer {
     logger.info(`Dry run: ${options.dryRun ? "Yes" : "No"}`);
 
     const connectUserEmail = await this.platform.getConnectUserEmail();
-    const platformFilter = this.filterEngine.convertFilter(
-      template.filter,
-      connectUserEmail,
-    );
-    if (options.limit !== undefined) platformFilter.limit = options.limit;
 
-    const filterValidation = this.filterEngine.validateFilter(template.filter);
-    if (!filterValidation.valid) {
-      throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
+    let platformFilter: FilterCriteria;
+    if (options.storyIds && options.storyIds.length > 0) {
+      logger.info(`Fetching ${options.storyIds.length} specific work item(s) by ID`);
+      platformFilter = {
+        workItemIds: options.storyIds,
+        excludeIfHasTasks: template.filter.excludeIfHasTasks,
+      };
+    } else {
+      platformFilter = this.filterEngine.convertFilter(
+        template.filter,
+        connectUserEmail,
+      );
+      if (options.limit !== undefined) platformFilter.limit = options.limit;
+
+      const filterValidation = this.filterEngine.validateFilter(template.filter);
+      if (!filterValidation.valid) {
+        throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
+      }
     }
 
     const onProgress = options.onProgress;

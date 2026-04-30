@@ -198,6 +198,64 @@ describe("Atomizer", () => {
         "Invalid filter"
       );
     });
+
+    describe("storyIds option", () => {
+      const minimalTemplate: TaskTemplate = {
+        version: "1.0",
+        name: "Minimal Template",
+        filter: {
+          // states: ["New"] — STORY-002 is "Active" and would not match this filter
+          states: ["New"],
+        },
+        tasks: [{ id: "task1", title: "Task", estimationPercent: 100 }],
+      };
+
+      test("bypasses template filter and fetches specific IDs", async () => {
+        await platform.authenticate();
+
+        // STORY-002 has state "Active" — it would be excluded by the template filter
+        // but storyIds should bypass that and return it directly
+        const report = await atomizer.atomize(minimalTemplate, {
+          dryRun: true,
+          storyIds: ["STORY-002"],
+        });
+
+        expect(report.storiesProcessed).toBe(1);
+        expect(report.results[0]?.story.id).toBe("STORY-002");
+      });
+
+      test("multiple IDs are all fetched", async () => {
+        await platform.authenticate();
+
+        const report = await atomizer.atomize(minimalTemplate, {
+          dryRun: true,
+          storyIds: ["STORY-001", "STORY-002", "STORY-003"],
+        });
+
+        expect(report.storiesProcessed).toBe(3);
+        const ids = report.results.map((r) => r.story.id);
+        expect(ids).toContain("STORY-001");
+        expect(ids).toContain("STORY-002");
+        expect(ids).toContain("STORY-003");
+      });
+
+      test("excludeIfHasTasks still applies when storyIds is set", async () => {
+        await platform.authenticate();
+
+        // STORY-007 has children in mock data — should be excluded
+        const templateWithExclude: TaskTemplate = {
+          ...minimalTemplate,
+          filter: { excludeIfHasTasks: true },
+        };
+
+        const report = await atomizer.atomize(templateWithExclude, {
+          dryRun: true,
+          storyIds: ["STORY-007"],
+        });
+
+        expect(report.storiesProcessed).toBe(0);
+      });
+    });
   });
 
   describe("preview", () => {

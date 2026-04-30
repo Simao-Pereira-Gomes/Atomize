@@ -69,6 +69,9 @@ export interface FilterCriteria {
 		id?: string;
 		path?: string;
 	};
+
+	/** Fetch these specific work item IDs directly, bypassing all other filter criteria except excludeIfHasTasks */
+	workItemIds?: string[];
 }
 
 /**
