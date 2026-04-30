@@ -1,9 +1,9 @@
 import { resolve } from "node:path";
 import { logger } from "@config/logger";
-import { parse as parseYaml } from "yaml";
 import { TemplateCatalog } from "@services/template/template-catalog";
 import { TemplateResolver } from "@services/template/template-resolver";
 import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@utils/errors";
+import { parse as parseYaml } from "yaml";
 import type { TaskTemplate } from "./schema";
 import { loadYamlFile } from "./template-file";
 import {

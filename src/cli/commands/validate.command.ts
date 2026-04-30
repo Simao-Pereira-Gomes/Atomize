@@ -12,13 +12,13 @@ import {
 import chalk from "chalk";
 import { Command } from "commander";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
-import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
+import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
 import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import type {
