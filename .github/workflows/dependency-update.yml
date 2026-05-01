@@ -7,7 +7,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  issues: write
 jobs:
   update-dependencies:
     name: Update Dependencies
@@ -32,12 +31,11 @@ jobs:
 
       - name: Run tests
         run: bun test
-        continue-on-error: true
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.PAT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore(deps): update dependencies"
           title: "chore(deps): Weekly dependency updates"
           body: |
@@ -65,6 +63,9 @@ jobs:
   security-updates:
     name: Security Updates
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - name: Checkout code
@@ -76,12 +77,12 @@ jobs:
       - name: Check for security issues
         id: security_audit
         run: |
-          npm audit --audit-level=moderate > audit-report.txt || true
+          bun audit --audit-level=moderate > audit-report.txt || true
 
-          if grep -q "vulnerabilities" audit-report.txt; then
+          if grep -qi "vulnerab\\|advisory\\|critical\\|high\\|moderate" audit-report.txt; then
             echo "Security vulnerabilities found"
             cat audit-report.txt
-            echo "security_issues=true" >> $$GITHUB_OUTPUT
+            echo "security_issues=true" >> $GITHUB_OUTPUT
           else
             echo "No security vulnerabilities"
           fi
@@ -109,4 +110,5 @@ jobs:
                 2. Update affected packages
                 3. Test thoroughly
                 4. Deploy the fixes
+              `
             });

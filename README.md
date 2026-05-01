@@ -1,7 +1,7 @@
 # Atomize
 
 [![CI](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/ci.yml/badge.svg)](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/ci.yml)
-[![Code Quality](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/code-quality.yml/badge.svg)](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/code-quality.yml)
+[![CodeQL](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/codeql.yml/badge.svg)](https://github.com/Simao-Pereira-Gomes/atomize/actions/workflows/codeql.yml)
 [![NPM Version](https://img.shields.io/npm/v/@sppg2001/atomize)](https://www.npmjs.com/package/@sppg2001/atomize)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node Version](https://img.shields.io/node/v/@sppg2001/atomize)](https://nodejs.org)
