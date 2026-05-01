@@ -7,6 +7,7 @@ import { TemplateResolver } from "@services/template/template-resolver";
 import { MAX_INHERITANCE_DEPTH, TemplateComposer } from "@templates/composer";
 import { TemplateLoader } from "@templates/loader";
 import { TemplateCompositionError } from "@utils/errors";
+import { expectToReject } from "../utils/matchers";
 
 const fixturesPath = resolve(__dirname, "../fixtures/templates");
 
@@ -118,9 +119,7 @@ describe("TemplateComposer", () => {
       const circularA = resolve(fixturesPath, "circular-a.yaml");
       const loader = new TemplateLoader();
 
-      await expect(loader.load(circularA)).rejects.toThrow(
-        TemplateCompositionError,
-      );
+      await expectToReject(loader.load(circularA), TemplateCompositionError);
     });
 
     test("resolves relative paths from context", async () => {

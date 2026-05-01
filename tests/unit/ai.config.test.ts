@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "b
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { expectToReject } from "../utils/matchers";
 
 const ATOMIZE_DIR = join(tmpdir(), `atomize-ai-config-test-${process.pid}`);
 
@@ -68,12 +69,12 @@ describe("resolveAIProvider", () => {
   });
 
   test("throws when named profile does not exist", async () => {
-    await expect(resolveAIProvider("nonexistent")).rejects.toThrow("not found");
+    await expectToReject(resolveAIProvider("nonexistent"), "not found");
   });
 
   test("throws when named profile is not a github-models profile", async () => {
     await makeAzureDevOpsProfile("my-ado");
-    await expect(resolveAIProvider("my-ado")).rejects.toThrow("azure-devops");
+    await expectToReject(resolveAIProvider("my-ado"), "azure-devops");
   });
 
   test("resolves default github-models profile when no name given", async () => {
@@ -93,7 +94,7 @@ describe("resolveAIProvider", () => {
 
   test("throws when no github-models profile exists", async () => {
     await makeAzureDevOpsProfile("only-ado");
-    await expect(resolveAIProvider()).rejects.toThrow("No AI provider profile configured");
+    await expectToReject(resolveAIProvider(), "No AI provider profile configured");
   });
 
   test("uses ATOMIZE_AI_PROFILE env var when no profileName given", async () => {

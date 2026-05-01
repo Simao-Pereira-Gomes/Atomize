@@ -4,6 +4,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AzureDevOpsProfile } from "@config/connections.interface";
+import { expectToReject } from "../utils/matchers";
 
 const ATOMIZE_DIR = join(tmpdir(), `atomize-connections-config-test-${process.pid}`);
 
@@ -171,9 +172,7 @@ describe("connections.config", () => {
     });
 
     test("throws when profile does not exist", async () => {
-      await expect(setDefaultProfile("non-existent-profile")).rejects.toThrow(
-        'Profile "non-existent-profile" not found',
-      );
+      await expectToReject(setDefaultProfile("non-existent-profile"), 'Profile "non-existent-profile" not found');
     });
 
     test("can change the default profile for a platform", async () => {

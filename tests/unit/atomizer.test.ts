@@ -3,6 +3,7 @@ import { inspect } from "node:util";
 import { Atomizer } from "@core/atomizer";
 import { MockPlatformAdapter } from "@platforms/adapters/mock/mock.adapter";
 import type { TaskTemplate } from "@templates/schema";
+import { expectToReject } from "../utils/matchers";
 
 describe("Atomizer", () => {
   let platform: MockPlatformAdapter;
@@ -194,9 +195,7 @@ describe("Atomizer", () => {
         filter: {}, // Empty filter (invalid)
       };
 
-      await expect(atomizer.atomize(invalidTemplate)).rejects.toThrow(
-        "Invalid filter"
-      );
+      await expectToReject(atomizer.atomize(invalidTemplate), "Invalid filter");
     });
 
     describe("storyIds option", () => {
