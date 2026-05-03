@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.0.0-alpha.0] - 2026-05-03
+## [2.0.0] - 2026-05-03
 
 ### Added
 - **`auth` command** — manage named connection profiles
@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `template list` now lists the full template catalog instead of only built-in presets
 - Version string is now sourced directly from `package.json` instead of being hardcoded
-- The npm prerelease is published under the `alpha` dist-tag
+- The npm release is published under the `latest` dist-tag
 
 ### Planned
 - GitHub Issues integration
@@ -255,7 +255,7 @@ N/A - Initial release
 
 ## Version History
 
-- **[2.0.0-alpha.0]** - 2026-05-03 - Template catalog, composition, auth profiles, and GitHub Models AI template generation
+- **[2.0.0]** - 2026-05-03 - Template catalog, composition, auth profiles, and GitHub Models AI template generation
 - **[1.1.0]** - 2026-03-09 - Conditional estimation, multi-story learning, strict/lenient validation modes
 - **[0.0.1]** - 2024-12-29 - Initial release
 
@@ -274,7 +274,7 @@ See [Contributing.md](Contributing.md) for information on how to contribute to t
 
 ---
 
-[Unreleased]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v2.0.0-alpha.0...HEAD
-[2.0.0-alpha.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v1.1.0...v2.0.0-alpha.0
+[Unreleased]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v0.0.1...v1.1.0
 [0.0.1]: https://github.com/Simao-Pereira-Gomes/atomize/releases/tag/v0.0.1

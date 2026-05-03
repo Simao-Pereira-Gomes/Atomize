@@ -1,6 +1,6 @@
 # Atomize CLI Reference
 
-Complete command-line interface documentation for Atomize v2.0.0-alpha.0.
+Complete command-line interface documentation for Atomize v2.0.0.
 
 ## Table of Contents
 
@@ -30,9 +30,6 @@ Complete command-line interface documentation for Atomize v2.0.0-alpha.0.
 ```bash
 # Global installation (recommended)
 npm install -g @sppg2001/atomize
-
-# Install the alpha
-npm install -g @sppg2001/atomize@alpha
 
 # Verify installation
 atomize --version
@@ -875,7 +872,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Atomize
-        run: npm install -g @sppg2001/atomize@alpha
+        run: npm install -g @sppg2001/atomize
 
       - name: Save connection profile
         run: |
