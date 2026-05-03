@@ -53,6 +53,7 @@ These options work with any command:
 |--------|-------------|
 | `--version` | Print the installed version |
 | `--help` | Show help for a command |
+| `--env-file <path>` | Load environment variables from a file before running the command (shell environment takes precedence over file values) |
 
 ---
 
@@ -277,6 +278,13 @@ atomize generate template:backend-api --execute
 atomize generate template:backend-api --story STORY-123 STORY-456
 ```
 
+Use `--story` to skip the template's `filter` criteria and process explicit work items directly. Useful for:
+- Re-running a generation that failed partway through
+- Processing a one-off story that does not match the template's usual filter
+- Testing the template against a known story before a full run
+
+`excludeIfHasTasks` still applies — stories that already have tasks are skipped unless you remove that flag from the template.
+
 **Execute for real in CI/non-interactive mode:**
 ```bash
 atomize generate template:backend-api --execute --auto-approve
@@ -299,6 +307,22 @@ atomize generate template:backend-api \
   --output report.json \
   --quiet
 ```
+
+By default the JSON report omits story descriptions, custom field values, and raw platform payloads to avoid accidentally writing sensitive data to disk or log collectors. Pass `--include-sensitive-report-data` to include them:
+
+```bash
+atomize generate template:backend-api \
+  --execute \
+  --output report.json \
+  --include-sensitive-report-data
+```
+
+When to use `--include-sensitive-report-data`:
+- Debugging unexpected task output (custom field values, description interpolation)
+- Auditing exactly what was sent to the platform
+- Internal tooling that processes the full report programmatically
+
+Do not use it in shared CI pipelines where the report artifact may be visible to other users.
 
 #### Exit Codes
 
@@ -329,7 +353,6 @@ atomize validate <template> [options]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `-v, --verbose` | flag | - | Show detailed validation information including all checked rules |
 | `-s, --strict` | flag | - | Use strict mode: warnings are treated as errors |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 | `--profile <name>` | string | - | Connect to ADO using a named profile for live saved-query and custom-field validation |
@@ -743,6 +766,17 @@ export LOG_LEVEL="info"   # debug, info, warn, error
 
 ### .env File
 
+No `.env` file is loaded automatically. Use the global `--env-file` flag to load one explicitly:
+
+```bash
+atomize --env-file .env.work generate template:backend-api
+atomize --env-file /etc/atomize/ci.env generate template:backend-api --execute
+```
+
+Shell environment variables always take precedence over values in the file.
+
+Example `.env` file:
+
 ```bash
 ATOMIZE_PROFILE=work-ado
 ATOMIZE_AI_PROFILE=my-ai
@@ -883,7 +917,7 @@ atomize auth use work-ado
 ### "Template validation failed"
 
 ```bash
-atomize validate templates/my-template.yaml --verbose
+atomize validate template:my-template --strict
 ```
 
 ### "No matching stories found"
@@ -917,6 +951,7 @@ atomize generate template:backend-api --verbose
 
 ## See Also
 
+- [Auth Guide](./Auth-Guide.md) - Credential storage, profile resolution, and CI/CD setup
 - [Template Reference](./Template-Reference.md) - Complete template schema including composition
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors

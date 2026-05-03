@@ -5,6 +5,7 @@ The Story Learner analyzes existing work items with their tasks and generates a 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Learn from a Single Story](#learn-from-a-single-story)
 - [Learn from Multiple Stories](#learn-from-multiple-stories)
 - [How Pattern Detection Works](#how-pattern-detection-works)
 - [Normalization](#normalization)
@@ -25,6 +26,20 @@ Instead of building a template from scratch, the Story Learner:
 4. Generates a YAML template you can use immediately
 
 This is ideal when your team has a well-established workflow and you want to replicate it consistently.
+
+---
+
+## Learn from a Single Story
+
+Pass a single story ID to capture its task breakdown as a template directly — no pattern detection, no confidence scoring. The tasks are taken as-is and normalized to 100%.
+
+```bash
+atomize template create --from-stories STORY-123 --save-as my-template
+```
+
+This is useful when one story was broken down particularly well and you want to replicate it exactly. The generated template will include a note in its metadata that it was learned from a single story.
+
+> **When to use more stories:** With a single source story, the template reflects that story's specific breakdown, including any idiosyncrasies. Use [multiple stories](#learn-from-multiple-stories) to get a template that reflects your team's general pattern rather than one instance.
 
 ---
 

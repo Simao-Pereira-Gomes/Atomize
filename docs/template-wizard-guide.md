@@ -11,6 +11,135 @@ The Template Creation Wizard is an interactive command-line tool that helps you 
 ✅ **Preview Before Saving** - Review and edit your template before committing
 ✅ **Error Recovery** - Cancel at any step or retry on errors
 
+## Creation Modes
+
+`template create` supports four modes. If you run it without flags, you are prompted to pick one:
+
+| Mode | Flag | Best for |
+|------|------|----------|
+| From existing template | `--from <name>` | Customizing a built-in or team template |
+| AI-assisted | `--ai` | Generating a first draft from a plain-language description |
+| Story Learner | `--from-stories <ids>` | Capturing proven patterns from real work items |
+| From scratch | `--scratch` | Full control via the interactive wizard |
+
+---
+
+## From an Existing Template
+
+Start from a built-in or previously installed catalog template and customise it. This is the quickest way to create a team-specific variant of a standard template.
+
+```bash
+# See what's available
+atomize template list
+
+# Copy backend-api as a starting point
+atomize template create --from backend-api
+```
+
+The wizard opens pre-populated with the source template's tasks, filter, and estimation settings. Edit what you need and save under a new name.
+
+```bash
+# Skip the mode prompt and go straight to the wizard with a pre-filled template
+atomize template create --from backend-api --save-as my-backend-api
+```
+
+> **Migrating from v1?** The `--preset` flag was replaced by `--from` in v2. `--from backend-api` is the direct equivalent of the old `--preset backend-api`.
+
+---
+
+## AI-Assisted Generation
+
+Describe the template you need in plain language and let the AI generate a first draft. You review, validate, and refine the result — the AI handles the structural boilerplate.
+
+### Prerequisites
+
+You need a **GitHub Models** connection profile:
+
+```bash
+atomize auth add my-ai
+# When prompted for profile type, select: GitHub Models
+# Enter your GitHub personal access token (models:read scope required)
+atomize auth test my-ai
+```
+
+### Basic AI generation
+
+```bash
+atomize template create --ai
+```
+
+You will be prompted to describe the template you want. Example prompt:
+
+```
+Describe the template:
+› A template for backend API stories. Tasks should cover API design,
+  database schema, core implementation, unit tests, integration tests,
+  and a code review. Estimation split should reflect that implementation
+  takes roughly twice the time of testing.
+```
+
+Atomize sends your description to GitHub Models and returns a ready-to-review YAML template. You can accept it, edit it in the wizard, or regenerate with a refined prompt.
+
+### Grounded generation
+
+Pass `--ground` to give the AI additional context from your actual Azure DevOps workspace — field names, common tags, work item types, and past story patterns. This produces output that fits your team's conventions without manual editing.
+
+```bash
+atomize template create --ai --ground --profile work-ado
+```
+
+Use `--ground` when:
+- Your ADO project uses custom fields or non-standard work item types
+- You want task titles and activity types to match your team's existing naming
+- You are generating a template that will run against real stories (not mock)
+
+Skip `--ground` when:
+- You are prototyping a generic template for testing
+- You do not have an ADO profile configured yet
+
+### Specifying an AI profile
+
+If you have more than one GitHub Models profile, pass `--ai-profile` to select one:
+
+```bash
+atomize template create --ai --ai-profile my-ai
+```
+
+You can also set `ATOMIZE_AI_PROFILE` to avoid passing the flag every time.
+
+### Post-generation workflow
+
+AI-generated templates are a starting point, not a finished product. Always:
+
+1. **Review the generated YAML** — the wizard shows a full preview before saving.
+2. **Validate:**
+   ```bash
+   atomize validate template:<name> --strict --verbose
+   ```
+3. **Test with mock data:**
+   ```bash
+   atomize generate template:<name> --platform mock
+   ```
+4. **Refine** — common things to adjust: estimation splits, task titles, filter criteria, `condition` fields.
+
+### Troubleshooting
+
+**"No GitHub Models profile found"**
+
+You have not yet added a GitHub Models profile. Run `atomize auth add` and select GitHub Models as the profile type.
+
+**"AI generation failed"**
+
+- Run `atomize auth test <profile>` to verify the token is valid.
+- GitHub Models may be rate-limiting your token — wait a moment and retry.
+- If the error persists, try without `--ground` to rule out an ADO connectivity issue.
+
+**"Generated template does not validate"**
+
+The AI occasionally produces YAML that fails strict validation (e.g. estimation not summing to 100%). Open the template for editing from the preview screen and fix the flagged fields.
+
+---
+
 ## Getting Started
 
 ### Basic Usage
@@ -552,51 +681,53 @@ Task 4:
 
 ## Command-Line Options
 
-```bash
-# Create from scratch (skip mode selection)
-atomize template create --scratch
-
-# Specify the catalog save name
-atomize template create --scratch --save-as my-template
-```
+| Flag | Description |
+|------|-------------|
+| `--from <name>` | Start from an existing catalog template |
+| `--from-stories <ids>` | Learn from existing stories (comma-separated IDs) |
+| `--ai` | AI-assisted generation |
+| `--ground` | Ground AI generation with ADO workspace context (requires `--ai`) |
+| `--ai-profile <name>` | GitHub Models profile to use for AI (uses default if omitted) |
+| `--scratch` | Go directly to the interactive wizard |
+| `--type <type>` | Create a `template` or `mixin` |
+| `--save-as <name>` | Catalog name for the saved result |
+| `--profile <name>` | ADO profile for `--from-stories` and field suggestions |
 
 ## Related Commands
 
 ```bash
-# Validate a template
-atomize validate path/to/template.yaml
-
-# Validate in strict mode
-atomize validate path/to/template.yaml --strict
-
-# List available templates
+# List available catalog templates and mixins
 atomize template list
 
-# Generate tasks using your template (dry-run by default)
-atomize generate path/to/template.yaml
-atomize generate path/to/template.yaml --execute
+# Validate a template before using it
+atomize validate template:<name> --strict
+
+# Test with mock data (no ADO connection needed)
+atomize generate template:<name> --platform mock
+
+# Generate for real
+atomize generate template:<name> --execute
 
 # Discover saved queries (useful before configuring a savedQuery filter)
 atomize queries list
 atomize queries list --folder "Shared Queries/My Team"
-atomize queries list --json
 ```
 
 After creating your template:
 
 1. **Validate it:**
    ```bash
-   atomize validate path/to/template.yaml
+   atomize validate template:<name> --strict --verbose
    ```
 
 2. **Test with mock data:**
    ```bash
-   atomize generate path/to/template.yaml --platform mock
+   atomize generate template:<name> --platform mock
    ```
 
 3. **Review generated tasks** before applying to production:
    ```bash
-   atomize generate path/to/template.yaml --verbose
+   atomize generate template:<name> --verbose
    ```
 
 ## Support

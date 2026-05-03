@@ -6,6 +6,7 @@ Setup and configuration guide for different work item management platforms.
 
 - [Overview](#overview)
 - [Azure DevOps](#azure-devops)
+- [GitHub Models (AI)](#github-models-ai)
 - [Mock Platform](#mock-platform)
 - [Adding New Platforms](#adding-new-platforms)
 
@@ -13,7 +14,9 @@ Setup and configuration guide for different work item management platforms.
 
 ## Overview
 
-Atomize supports multiple work item management platforms through a unified adapter interface. Currently supported:
+Atomize connects to two kinds of external service — work item platforms (where tasks are created) and AI providers (for template generation). Each is configured as a named profile.
+
+**Work item platforms:**
 
 | Platform | Status | Features |
 |----------|--------|----------|
@@ -21,6 +24,12 @@ Atomize supports multiple work item management platforms through a unified adapt
 | Mock | ✅ Production | Testing and development |
 | Jira | 🚧 Planned | Coming soon |
 | GitHub Issues | 🚧 Planned | Coming soon |
+
+**AI providers:**
+
+| Provider | Status | Used for |
+|----------|--------|----------|
+| GitHub Models | ✅ Production | `template create --ai` |
 
 ---
 
@@ -332,6 +341,41 @@ Maps to Azure DevOps fields:
 
 ---
 
+## GitHub Models (AI)
+
+GitHub Models is the AI provider used by `template create --ai`. It is not a work item platform — no tasks are created through it — but it requires its own connection profile.
+
+### Prerequisites
+
+- A GitHub personal access token with the `models:read` scope
+  - Create one at `https://github.com/settings/tokens`
+
+### Setup
+
+```bash
+atomize auth add my-ai
+# → select "GitHub Models (AI template generation)" when prompted for platform type
+# → enter your GitHub PAT
+
+atomize auth test my-ai
+```
+
+### Usage
+
+Once the profile is saved, pass it when generating AI templates:
+
+```bash
+atomize template create --ai                        # uses default GitHub Models profile
+atomize template create --ai --ai-profile my-ai     # explicit profile
+atomize template create --ai --ground --profile work-ado  # grounded with ADO context
+```
+
+`ATOMIZE_AI_PROFILE` can be set as an alternative to `--ai-profile`.
+
+See [Template Creation Wizard — AI-Assisted Generation](./template-wizard-guide.md#ai-assisted-generation) for the full workflow.
+
+---
+
 ## Mock Platform
 
 The mock platform provides sample data for testing and development.
@@ -612,6 +656,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platf
 
 ## See Also
 
+- [Auth Guide](./Auth-Guide.md) - Credential storage, profile resolution, and CI/CD setup
 - [CLI Reference](./Cli-Reference.md) - Command-line usage
 - [Template Reference](./Template-Reference.md) - Template schema
 - [Examples](../examples/) - Real-world examples

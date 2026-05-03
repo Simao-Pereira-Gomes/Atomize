@@ -123,10 +123,10 @@ atomize auth test work-ado
 
 ```bash
 # Dry run (default — no --execute)
-atomize generate backend-api.yaml
+atomize generate template:backend-api
 
 # Execute for real
-atomize generate backend-api.yaml --execute
+atomize generate template:backend-api --execute
 ```
 
 That's it! You've generated your first batch of tasks.
