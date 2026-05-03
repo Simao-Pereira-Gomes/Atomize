@@ -10,6 +10,7 @@ import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
+  createManagedSpinner,
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
@@ -178,6 +179,7 @@ export const authAddCommand = new Command("add")
       }
     }
 
+    const savingSpinner = ci ? null : createManagedSpinner();
     const savingSpinner = ci ? null : createManagedSpinner();
     savingSpinner?.start("Saving profile...");
 

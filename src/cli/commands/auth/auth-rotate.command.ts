@@ -67,6 +67,7 @@ export const authRotateCommand = new Command("rotate")
     }
 
     const rotationSpinner = createManagedSpinner();
+    const rotationSpinner = createManagedSpinner();
     rotationSpinner.start("Rotating token...");
 
     try {

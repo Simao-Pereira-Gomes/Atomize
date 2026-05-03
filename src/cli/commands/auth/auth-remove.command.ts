@@ -47,6 +47,7 @@ export const authRemoveCommand = new Command("remove")
     }
 
     const operationSpinner = createManagedSpinner();
+    const operationSpinner = createManagedSpinner();
     operationSpinner.start(`Deleting profile and token for "${name}"...`);
 
     try {

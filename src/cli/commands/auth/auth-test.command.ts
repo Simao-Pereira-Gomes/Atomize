@@ -36,6 +36,7 @@ export const authTestCommand = new Command("test")
     const profileName = await promptProfileToTest(nameArg);
 
     const s = createManagedSpinner();
+    const s = createManagedSpinner();
     s.start("Resolving configuration...");
 
     try {
