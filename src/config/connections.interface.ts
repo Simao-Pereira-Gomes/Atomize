@@ -2,19 +2,29 @@ export type EncryptedToken =
   | { strategy: "keychain" }
   | { strategy: "keyfile"; iv: string; authTag: string; ciphertext: string };
 
-export interface ConnectionProfile {
+interface BaseConnectionProfile {
   name: string;
-  platform: "azure-devops";
-  organizationUrl: string;
-  project: string;
-  team: string;
   token: EncryptedToken;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface AzureDevOpsProfile extends BaseConnectionProfile {
+  platform: "azure-devops";
+  organizationUrl: string;
+  project: string;
+  team: string;
+}
+
+export interface GitHubModelsProfile extends BaseConnectionProfile {
+  platform: "github-models";
+  model?: string;
+}
+
+export type ConnectionProfile = AzureDevOpsProfile | GitHubModelsProfile;
+
 export interface ConnectionsFile {
-  version: "1";
-  defaultProfile: string | null;
+  version: "1" | "2";
+  defaultProfiles: Partial<Record<ConnectionProfile["platform"], string>>;
   profiles: ConnectionProfile[];
 }

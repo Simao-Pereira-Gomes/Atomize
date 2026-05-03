@@ -1,0 +1,55 @@
+version: "1.0"
+name: "Feature Template"
+description: "Foundation for feature development templates. Extend this to inherit a standard task set and filter."
+author: "Atomize"
+tags: ["template", "feature"]
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active", "Approved"]
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "design"
+    title: "Design: ${story.title}"
+    description: "Define the solution design, including API contracts, data models, and UI wireframes."
+    estimationPercent: 15
+    activity: "Design"
+    assignTo: "@ParentAssignee"
+
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    description: "Implement the feature according to the agreed design."
+    estimationPercent: 50
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+    dependsOn: ["design"]
+
+  - id: "review"
+    title: "Code Review: ${story.title}"
+    description: "Review the implementation for quality, maintainability, and adherence to standards."
+    estimationPercent: 10
+    activity: "Development"
+    dependsOn: ["implement"]
+
+  - id: "test"
+    title: "Test: ${story.title}"
+    description: "Write and execute tests to validate the feature against acceptance criteria."
+    estimationPercent: 20
+    activity: "Testing"
+    dependsOn: ["implement"]
+
+  - id: "deploy"
+    title: "Deploy: ${story.title}"
+    description: "Deploy to the target environment and verify the feature is live."
+    estimationPercent: 5
+    activity: "Development"
+    dependsOn: ["test", "review"]
+
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  ifParentHasNoEstimation: "warn"
+
+validation:
+  totalEstimationMustBe: 100

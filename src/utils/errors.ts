@@ -2,6 +2,7 @@ export const AtomizeErrorCode = {
   AtomizeError: "AtomizeError",
   TemplateLoadError: "TemplateLoadError",
   TemplateValidationError: "TemplateValidationError",
+  TemplateCompositionError: "TemplateCompositionError",
   PlatformError: "PlatformError",
   ConfigurationError: "ConfigurationError",
   UnknownError: "UnknownError",
@@ -39,6 +40,15 @@ export class TemplateValidationError extends AtomizeError {
     public readonly suggestions?: readonly string[]
   ) {
     super(AtomizeErrorCode.TemplateValidationError, message);
+  }
+}
+
+export class TemplateCompositionError extends AtomizeError {
+  constructor(
+    message: string,
+    public readonly source?: string,
+  ) {
+    super(AtomizeErrorCode.TemplateCompositionError, message);
   }
 }
 
@@ -84,6 +94,22 @@ export class AuthError extends AtomizeError {
   }
 }
 
+export class LLMGenerationError extends Error {
+  constructor(
+    message: string,
+    public readonly rawOutput: string,
+    public readonly validationErrors: string[],
+  ) {
+    super(message);
+    this.name = "LLMGenerationError";
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Error thrown when circular dependencies are detected
  */
@@ -95,5 +121,6 @@ export class CircularDependencyError extends Error {
   ) {
     super(message);
     this.name = "CircularDependencyError";
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }

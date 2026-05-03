@@ -1,11 +1,16 @@
-import { cancel, confirm, intro, log, outro } from "@clack/prompts";
+import { confirm } from "@clack/prompts";
 import { keychainAvailable } from "@config/keychain.service";
 import { Command } from "commander";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
 } from "@/cli/utilities/prompt-utilities";
+import { getErrorMessage } from "@/utils/errors";
 import {
   hasProfiles,
   loadProfileOrFail,
@@ -23,10 +28,11 @@ export const authRotateCommand = new Command("rotate")
     false,
   )
   .action(async (nameArg: string | undefined, options: { insecureStorage?: boolean }) => {
-    intro(" Atomize — Rotate Token");
+    const output = createCommandOutput(resolveCommandOutputPolicy({}));
+    output.intro(" Atomize — Rotate Token");
 
     if (!(await hasProfiles())) {
-      outro("No profiles found. Run: atomize auth add");
+      output.outro("No profiles found. Run: atomize auth add");
       return;
     }
 
@@ -34,7 +40,7 @@ export const authRotateCommand = new Command("rotate")
 
     const profile = await loadProfileOrFail(name);
     if (!profile) {
-      cancel(`Profile "${name}" not found.`);
+      output.cancel(`Profile "${name}" not found.`);
       process.exit(ExitCode.Failure);
     }
 
@@ -47,7 +53,7 @@ export const authRotateCommand = new Command("rotate")
       const insecureMsg =
         "System keychain is unavailable. The token would be stored in an insecure local file fallback — " +
         "anyone who can read ~/.atomize/ can recover it.";
-      log.warn(insecureMsg);
+      output.warn(insecureMsg);
       allowKeyfileStorage = assertNotCancelled(
         await confirm({
           message: "Continue with the insecure local file fallback?",
@@ -55,7 +61,7 @@ export const authRotateCommand = new Command("rotate")
         }),
       );
       if (!allowKeyfileStorage) {
-        cancel("Aborted — token not rotated.");
+        output.cancel("Aborted — token not rotated.");
         process.exit(ExitCode.Failure);
       }
     }
@@ -68,10 +74,9 @@ export const authRotateCommand = new Command("rotate")
       rotationSpinner.stop(
         `Token rotated (stored in ${useKeychain ? "OS keychain" : "insecure local file fallback"})`,
       );
-      outro(`Profile "${name}" updated.`);
+      output.outro(`Profile "${name}" updated.`);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      rotationSpinner.stop(`Failed to rotate token: ${msg}`);
+      rotationSpinner.stop(`Failed to rotate token: ${getErrorMessage(error)}`);
       process.exit(ExitCode.Failure);
     }
   });

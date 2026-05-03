@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { ConditionEvaluator } from "../../src/core/condition-evaluator";
+import { ConditionEvaluator, extractCustomFieldRefs } from "../../src/core/condition-evaluator";
 import type { WorkItem } from "../../src/platforms/interfaces/work-item.interface";
+import type { Condition } from "../../src/templates/schema";
 
 describe("ConditionEvaluator", () => {
   const evaluator = new ConditionEvaluator();
@@ -21,468 +22,279 @@ describe("ConditionEvaluator", () => {
     },
   };
 
-  describe("Empty and invalid conditions", () => {
-    test("should return true for empty condition", () => {
-      expect(evaluator.evaluateCondition("", sampleStory)).toBe(true);
-    });
-
+  describe("Absent / null conditions", () => {
     test("should return true for undefined condition", () => {
-      expect(
-        evaluator.evaluateCondition(undefined as unknown as string, sampleStory)
-      ).toBe(true);
+      expect(evaluator.evaluateCondition(undefined, sampleStory)).toBe(true);
     });
 
-    test("should handle malformed variable expressions", () => {
-      expect(evaluator.evaluateCondition("${invalidVar", sampleStory)).toBe(
-        true
-      );
+    test("should return true for null condition", () => {
+      expect(evaluator.evaluateCondition(null, sampleStory)).toBe(true);
     });
   });
 
-  describe("CONTAINS operator", () => {
-    test("should evaluate CONTAINS with tags array", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "backend"',
-          sampleStory
-        )
-      ).toBe(true);
+  describe("contains / not-contains operator", () => {
+    test("should evaluate contains with tags array", () => {
+      const cond: Condition = { field: "tags", operator: "contains", value: "backend" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
     });
 
-    test("should evaluate CONTAINS case-insensitively", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "BACKEND"',
-          sampleStory
-        )
-      ).toBe(true);
+    test("should evaluate contains case-insensitively", () => {
+      const cond: Condition = { field: "tags", operator: "contains", value: "BACKEND" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
     });
 
     test("should return false when tag not found", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "frontend"',
-          sampleStory
-        )
-      ).toBe(false);
+      const cond: Condition = { field: "tags", operator: "contains", value: "frontend" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(false);
     });
 
-    test("should evaluate CONTAINS with title", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.title} CONTAINS "Authentication"',
-          sampleStory
-        )
-      ).toBe(true);
+    test("should evaluate contains with title substring", () => {
+      const cond: Condition = { field: "title", operator: "contains", value: "Authentication" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
+    });
+
+    test("should evaluate not-contains", () => {
+      const cond: Condition = { field: "tags", operator: "not-contains", value: "frontend" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
+    });
+
+    test("should return false for not-contains when tag is present", () => {
+      const cond: Condition = { field: "tags", operator: "not-contains", value: "backend" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(false);
     });
   });
 
-  describe("Equality operators (==, !=)", () => {
-    test("should evaluate == with numbers", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} == 13", sampleStory)
-      ).toBe(true);
+  describe("equals / not-equals operator", () => {
+    test("should evaluate equals with numbers", () => {
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "equals", value: 13 }, sampleStory)).toBe(true);
     });
 
-    test("should evaluate == with strings", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition('${story.state} == "Active"', sampleStory)
-      ).toBe(true);
+    test("should evaluate equals with strings", () => {
+      expect(evaluator.evaluateCondition({ field: "state", operator: "equals", value: "Active" }, sampleStory)).toBe(true);
     });
 
-    test("should evaluate != with numbers", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} != 8", sampleStory)
-      ).toBe(true);
+    test("should evaluate not-equals with numbers", () => {
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "not-equals", value: 8 }, sampleStory)).toBe(true);
     });
 
-    test("should evaluate != with strings", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition('${story.state} != "Closed"', sampleStory)
-      ).toBe(true);
-    });
-
-    test("should handle custom fields", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.customFields.component} == "auth"',
-          sampleStory
-        )
-      ).toBe(true);
+    test("should evaluate not-equals with strings", () => {
+      expect(evaluator.evaluateCondition({ field: "state", operator: "not-equals", value: "Closed" }, sampleStory)).toBe(true);
     });
 
     test("should evaluate boolean custom fields", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "${story.customFields.needsDatabase} == true",
-          sampleStory
-        )
-      ).toBe(true);
+      const cond: Condition = { customField: "Custom.NeedsDatabase", operator: "equals", value: true };
+      const story = { ...sampleStory, customFields: { "Custom.NeedsDatabase": true } };
+      expect(evaluator.evaluateCondition(cond, story)).toBe(true);
+    });
+
+    test("should be case-insensitive for string equals", () => {
+      expect(evaluator.evaluateCondition({ field: "state", operator: "equals", value: "active" }, sampleStory)).toBe(true);
     });
   });
 
-  describe("Comparison operators (>, <, >=, <=)", () => {
-    test("should evaluate > operator", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} > 10", sampleStory)
-      ).toBe(true);
+  describe("Numeric comparison operators (gt, lt, gte, lte)", () => {
+    test("should evaluate gt", () => {
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "gt", value: 10 }, sampleStory)).toBe(true);
     });
 
-    test("should evaluate < operator", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} < 5", sampleStory)
-      ).toBe(false);
+    test("should evaluate lt", () => {
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "lt", value: 5 }, sampleStory)).toBe(false);
     });
 
-    test("should evaluate >= operator", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} >= 13", sampleStory)
-      ).toBe(true);
+    test("should evaluate gte", () => {
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "gte", value: 13 }, sampleStory)).toBe(true);
     });
 
-    test("should evaluate <= operator", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} <= 20", sampleStory)
-      ).toBe(true);
+    test("should evaluate lte", () => {
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "lte", value: 20 }, sampleStory)).toBe(true);
     });
 
-    test("should evaluate priority with > operator", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.priority} > 0", sampleStory)
-      ).toBe(true);
+    test("should evaluate priority with gt operator", () => {
+      expect(evaluator.evaluateCondition({ field: "priority", operator: "gt", value: 0 }, sampleStory)).toBe(true);
     });
   });
 
-  describe("Logical operators (AND, OR)", () => {
-    test("should evaluate AND with both true", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "backend" AND ${story.estimation} > 10',
-          sampleStory
-        )
-      ).toBe(true);
-    });
-
-    test("should evaluate AND with one false", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "backend" AND ${story.estimation} < 5',
-          sampleStory
-        )
-      ).toBe(false);
-    });
-
-    test("should evaluate OR with one true", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "frontend" OR ${story.tags} CONTAINS "backend"',
-          sampleStory
-        )
-      ).toBe(true);
-    });
-
-    test("should evaluate OR with both false", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "frontend" OR ${story.tags} CONTAINS "mobile"',
-          sampleStory
-        )
-      ).toBe(false);
-    });
-
-    test("should evaluate complex AND/OR expression", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "backend" AND ${story.estimation} > 5 OR ${story.priority} == 1',
-          sampleStory
-        )
-      ).toBe(true);
-    });
-  });
-
-  describe("Truthiness evaluation", () => {
-    test("should evaluate true literal", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "${story.customFields.needsDatabase}",
-          sampleStory
-        )
-      ).toBe(true);
-    });
-
-    test("should return false for undefined variables", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "${story.customFields.nonExistent}",
-          sampleStory
-        )
-      ).toBe(false);
-    });
-
-    test("should evaluate non-empty strings as true", () => {
-      const story: WorkItem = {
-        ...sampleStory,
-        customFields: { flag: "yes" },
+  describe("Compound operators (all, any)", () => {
+    test("should evaluate all with both true", () => {
+      const cond: Condition = {
+        all: [
+          { field: "tags", operator: "contains", value: "backend" },
+          { field: "estimation", operator: "gt", value: 10 },
+        ],
       };
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.customFields.flag}", story)
-      ).toBe(true);
-    });
-  });
-
-  describe("Variable path resolution", () => {
-    test("should resolve story.title", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.title} CONTAINS "Authentication"',
-          sampleStory
-        )
-      ).toBe(true);
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
     });
 
-    test("should resolve nested custom fields", () => {
-      const story: WorkItem = {
-        ...sampleStory,
-        customFields: {
-          nested: {
-            value: "test",
+    test("should evaluate all with one false", () => {
+      const cond: Condition = {
+        all: [
+          { field: "tags", operator: "contains", value: "backend" },
+          { field: "estimation", operator: "lt", value: 5 },
+        ],
+      };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(false);
+    });
+
+    test("should evaluate any with one true", () => {
+      const cond: Condition = {
+        any: [
+          { field: "tags", operator: "contains", value: "frontend" },
+          { field: "tags", operator: "contains", value: "backend" },
+        ],
+      };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
+    });
+
+    test("should evaluate any with all false", () => {
+      const cond: Condition = {
+        any: [
+          { field: "tags", operator: "contains", value: "frontend" },
+          { field: "tags", operator: "contains", value: "mobile" },
+        ],
+      };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(false);
+    });
+
+    test("should evaluate nested compound conditions", () => {
+      const cond: Condition = {
+        any: [
+          {
+            all: [
+              { field: "tags", operator: "contains", value: "backend" },
+              { field: "estimation", operator: "gt", value: 5 },
+            ],
           },
-        },
+          { field: "priority", operator: "equals", value: 1 },
+        ],
       };
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.customFields.nested} CONTAINS "test"',
-          story
-        )
-      ).toBe(true);
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
+    });
+  });
+
+  describe("Custom field conditions", () => {
+    test("should evaluate custom field equals", () => {
+      const cond: Condition = { customField: "Custom.Component", operator: "equals", value: "auth" };
+      const story = { ...sampleStory, customFields: { "Custom.Component": "auth" } };
+      expect(evaluator.evaluateCondition(cond, story)).toBe(true);
     });
 
-    test("should handle missing nested paths", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "${story.customFields.missing.path}",
-          sampleStory
-        )
-      ).toBe(false);
+    test("should return false for missing custom field", () => {
+      const cond: Condition = { customField: "Custom.Missing", operator: "equals", value: "auth" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(false);
     });
 
-    test("should work without story. prefix", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition('${tags} CONTAINS "backend"', sampleStory)
-      ).toBe(true);
+    test("should evaluate custom field contains", () => {
+      const cond: Condition = { customField: "Custom.Complexity", operator: "contains", value: "high" };
+      const story = { ...sampleStory, customFields: { "Custom.Complexity": "high-priority" } };
+      expect(evaluator.evaluateCondition(cond, story)).toBe(true);
     });
   });
 
   describe("Edge cases", () => {
-    test("should handle quotes in strings", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "${story.title} CONTAINS 'Authentication'",
-          sampleStory
-        )
-      ).toBe(true);
+    test("should return false for equals when field is undefined", () => {
+      const cond: Condition = { field: "customFields.nonExistent", operator: "equals", value: "x" };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(false);
     });
 
-    test("should handle condition wrapped in outer quotes (YAML parsing)", () => {
-      // When YAML parses: condition: "'${story.estimation} >= 3'"
-      // It results in a string with outer single quotes
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "'${story.estimation} >= 13'",
-          sampleStory
-        )
-      ).toBe(true);
+    test("should handle empty array for contains — returns false", () => {
+      const story: WorkItem = { ...sampleStory, tags: [] };
+      expect(evaluator.evaluateCondition({ field: "tags", operator: "contains", value: "backend" }, story)).toBe(false);
     });
 
-    test("should handle condition wrapped in double quotes (YAML parsing)", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '"${story.estimation} >= 13"',
-          sampleStory
-        )
-      ).toBe(true);
+    test("should handle empty array for not-contains — returns true", () => {
+      const story: WorkItem = { ...sampleStory, tags: [] };
+      expect(evaluator.evaluateCondition({ field: "tags", operator: "not-contains", value: "backend" }, story)).toBe(true);
     });
 
-    test("should handle condition with outer quotes and comparison", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "'${story.estimation} >= 3'",
-          sampleStory
-        )
-      ).toBe(true);
-
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "'${story.estimation} < 3'",
-          sampleStory
-        )
-      ).toBe(false);
+    test("should handle zero estimation with equals", () => {
+      const story: WorkItem = { ...sampleStory, estimation: 0 };
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "equals", value: 0 }, story)).toBe(true);
     });
 
-    test("should handle empty arrays", () => {
-      const story: WorkItem = {
-        ...sampleStory,
-        tags: [],
-      };
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition('${story.tags} CONTAINS "backend"', story)
-      ).toBe(false);
-    });
-
-    test("should handle null values", () => {
-      const story: WorkItem = {
-        ...sampleStory,
-        description: undefined,
-      };
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.description} CONTAINS "test"',
-          story
-        )
-      ).toBe(false);
-    });
-
-    test("should handle zero estimation", () => {
-      const story: WorkItem = {
-        ...sampleStory,
-        estimation: 0,
-      };
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} == 0", story)
-      ).toBe(true);
-    });
-
-    test("should handle operators without spaces", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation}==13", sampleStory)
-      ).toBe(true);
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation}!=8", sampleStory)
-      ).toBe(true);
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation}>10", sampleStory)
-      ).toBe(true);
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation}<20", sampleStory)
-      ).toBe(true);
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation}>=13", sampleStory)
-      ).toBe(true);
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation}<=13", sampleStory)
-      ).toBe(true);
-    });
-
-    test("should handle operators with mixed spacing", () => {
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation} ==13", sampleStory)
-      ).toBe(true);
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("${story.estimation}!= 8", sampleStory)
-      ).toBe(true);
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition('${story.state}!="Closed"', sampleStory)
-      ).toBe(true);
-    });
-
-    test("should handle YAML condition format without spaces", () => {
-      // Test the specific case from the YAML: '${story.state} !=Active'
-      // When story.state = "Active", it becomes "Active !=Active" which is false
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("'${story.state} !=Active'", sampleStory)
-      ).toBe(false);
-      // When story.state = "Active", comparing with "Closed" should be true
-      expect(
-        // biome-ignore lint/suspicious : We want to test the template interpolation here
-        evaluator.evaluateCondition("'${story.state}!=Closed'", sampleStory)
-      ).toBe(true);
+    test("should handle numeric comparison with string value", () => {
+      expect(evaluator.evaluateCondition({ field: "estimation", operator: "equals", value: "13" }, sampleStory)).toBe(true);
     });
   });
 
   describe("Real-world scenarios", () => {
     test("should evaluate security-related condition", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "security" AND ${story.priority} <= 2',
-          sampleStory
-        )
-      ).toBe(true);
+      const cond: Condition = {
+        all: [
+          { field: "tags", operator: "contains", value: "security" },
+          { field: "priority", operator: "lte", value: 2 },
+        ],
+      };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(true);
     });
 
-    test("should evaluate database requirement condition", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          "${story.customFields.needsDatabase} == true",
-          sampleStory
-        )
-      ).toBe(true);
+    test("should evaluate database requirement with custom field", () => {
+      const cond: Condition = { customField: "Custom.NeedsDatabase", operator: "equals", value: true };
+      const story = { ...sampleStory, customFields: { "Custom.NeedsDatabase": true } };
+      expect(evaluator.evaluateCondition(cond, story)).toBe(true);
     });
 
     test("should evaluate high complexity condition", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.customFields.complexity} == "high" AND ${story.estimation} > 8',
-          sampleStory
-        )
-      ).toBe(true);
+      const cond: Condition = {
+        all: [
+          { customField: "Custom.Complexity", operator: "equals", value: "high" },
+          { field: "estimation", operator: "gt", value: 8 },
+        ],
+      };
+      const story = { ...sampleStory, customFields: { "Custom.Complexity": "high" } };
+      expect(evaluator.evaluateCondition(cond, story)).toBe(true);
     });
 
     test("should skip frontend-only tasks", () => {
-      expect(
-        evaluator.evaluateCondition(
-          // biome-ignore lint/suspicious : We want to test the template interpolation here
-          '${story.tags} CONTAINS "frontend" AND ${story.tags} CONTAINS "backend"',
-          sampleStory
-        )
-      ).toBe(false);
+      const cond: Condition = {
+        all: [
+          { field: "tags", operator: "contains", value: "frontend" },
+          { field: "tags", operator: "contains", value: "backend" },
+        ],
+      };
+      expect(evaluator.evaluateCondition(cond, sampleStory)).toBe(false);
     });
+  });
+});
+
+describe("extractCustomFieldRefs", () => {
+  test("should extract custom field from simple clause", () => {
+    const cond: Condition = { customField: "Custom.ClientTier", operator: "equals", value: "Enterprise" };
+    expect(extractCustomFieldRefs(cond)).toEqual(["Custom.ClientTier"]);
+  });
+
+  test("should return empty array for field clause", () => {
+    const cond: Condition = { field: "tags", operator: "contains", value: "backend" };
+    expect(extractCustomFieldRefs(cond)).toEqual([]);
+  });
+
+  test("should extract refs from all compound", () => {
+    const cond: Condition = {
+      all: [
+        { customField: "Custom.A", operator: "equals", value: "x" },
+        { field: "tags", operator: "contains", value: "backend" },
+        { customField: "Custom.B", operator: "equals", value: "y" },
+      ],
+    };
+    expect(extractCustomFieldRefs(cond)).toEqual(["Custom.A", "Custom.B"]);
+  });
+
+  test("should deduplicate refs", () => {
+    const cond: Condition = {
+      any: [
+        { customField: "Custom.Tier", operator: "equals", value: "Gold" },
+        { customField: "Custom.Tier", operator: "equals", value: "Platinum" },
+      ],
+    };
+    expect(extractCustomFieldRefs(cond)).toEqual(["Custom.Tier"]);
+  });
+
+  test("should extract from nested compound", () => {
+    const cond: Condition = {
+      all: [
+        { any: [{ customField: "Custom.X", operator: "equals", value: 1 }] },
+        { customField: "Custom.Y", operator: "equals", value: 2 },
+      ],
+    };
+    expect(extractCustomFieldRefs(cond)).toEqual(["Custom.X", "Custom.Y"]);
   });
 });

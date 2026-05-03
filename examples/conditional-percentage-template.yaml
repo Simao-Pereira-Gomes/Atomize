@@ -31,9 +31,15 @@ tasks:
     assignTo: "@ParentAssignee"
     estimationPercent: 10
     estimationPercentCondition:
-      - condition: "${story.estimation} >= 13"
+      - condition:
+          field: estimation
+          operator: gte
+          value: 13
         percent: 20
-      - condition: "${story.estimation} >= 5"
+      - condition:
+          field: estimation
+          operator: gte
+          value: 5
         percent: 15
     tags: ["design"]
 
@@ -51,9 +57,15 @@ tasks:
     dependsOn: ["design"]
     estimationPercent: 60
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "fullstack"'
+      - condition:
+          field: tags
+          operator: contains
+          value: fullstack
         percent: 40
-      - condition: "${story.estimation} >= 5"
+      - condition:
+          field: estimation
+          operator: gte
+          value: 5
         percent: 50
     tags: ["backend"]
 
@@ -70,10 +82,16 @@ tasks:
     activity: "Development"
     assignTo: "@ParentAssignee"
     dependsOn: ["design"]
-    condition: '${story.tags} CONTAINS "fullstack"'
+    condition:
+      field: tags
+      operator: contains
+      value: fullstack
     estimationPercent: 30
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "complex-ui"'
+      - condition:
+          field: tags
+          operator: contains
+          value: complex-ui
         percent: 40
     tags: ["frontend"]
 
@@ -90,9 +108,19 @@ tasks:
     dependsOn: ["backend-impl"]
     estimationPercent: 20
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "critical" AND ${story.estimation} >= 8'
+      - condition:
+          all:
+            - field: tags
+              operator: contains
+              value: critical
+            - field: estimation
+              operator: gte
+              value: 8
         percent: 30
-      - condition: '${story.tags} CONTAINS "critical"'
+      - condition:
+          field: tags
+          operator: contains
+          value: critical
         percent: 25
     tags: ["testing"]
 
@@ -120,13 +148,13 @@ metadata:
 
     Scenario A — small backend-only story (< 5 pts, no "fullstack" tag):
       design=10  backend=60  testing=20  review=5  → total=95 → normalised to 100
-    Scenario B — medium backend-only story (5–12 pts):
+    Scenario B — medium backend-only story (5/12 pts):
       design=15  backend=50  testing=20  review=5  → total=90 → normalised to 100
-    Scenario C — medium fullstack story (5–12 pts, "fullstack" tag):
+    Scenario C — medium fullstack story (5/12 pts, "fullstack" tag):
       design=15  backend=40  frontend=30  testing=20  review=5  → total=110 → normalised
     Scenario D — large critical fullstack story (≥ 13 pts, "critical" + "fullstack" tags):
       design=20  backend=40  frontend=30  testing=30  review=5  → total=125 → normalised
-    Scenario E — medium critical backend-only story (5–12 pts, "critical", no "fullstack"):
+    Scenario E — medium critical backend-only story (5/12 pts, "critical", no "fullstack"):
       design=15  backend=50  testing=25  review=5  → total=95 → normalised to 100
 
     Key behaviour: when frontend-impl is skipped (no "fullstack" tag) the

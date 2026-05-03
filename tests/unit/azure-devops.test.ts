@@ -367,6 +367,55 @@ describe("AzureDevOpsAdapter", () => {
       expect(true).toBe(true);
     });
 
+    test("should emit patch operations for custom fields", async () => {
+      const task = {
+        title: "Task with custom fields",
+        customFields: {
+          "Custom.ClientTier": "Enterprise",
+          "Custom.IsBillable": true,
+        },
+      };
+
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      let capturedPatchDocument: any;
+      mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(
+        async (
+          _customHeaders: any,
+          document: any,
+          _project: string,
+          type: string
+        ) => {
+          capturedPatchDocument = document;
+          return {
+            id: 123,
+            fields: {
+              "System.Title": "Task with custom fields",
+              "System.WorkItemType": type,
+              "System.State": "New",
+            },
+            relations: [],
+          };
+        }
+      );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+
+      await adapter.createTask("100", task);
+
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      const clientTierOp = capturedPatchDocument.find(
+        (op: any) => op.path === "/fields/Custom.ClientTier"
+      );
+      const billableOp = capturedPatchDocument.find(
+        (op: any) => op.path === "/fields/Custom.IsBillable"
+      );
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+
+      expect(clientTierOp).toBeDefined();
+      expect(clientTierOp.value).toBe("Enterprise");
+      expect(billableOp).toBeDefined();
+      expect(billableOp.value).toBe(true);
+    });
+
     test("should set CompletedWork and IterationPath from task definition", async () => {
       const task = {
         title: "Task with inherited fields",

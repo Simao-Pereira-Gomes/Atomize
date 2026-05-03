@@ -52,7 +52,7 @@ User Story (8 points)
 ### Install Globally
 
 ```bash
-npm install -g @sppg2001/atomize
+npm install -g @sppg2001/atomize@alpha
 ```
 
 ### Verify Installation
@@ -65,7 +65,7 @@ atomize --help
 ### Alternative: Use without Installing
 
 ```bash
-npx @sppg2001/atomize generate templates/backend-api.yaml
+npx @sppg2001/atomize@alpha generate template:backend-api
 ```
 
 ---
@@ -77,11 +77,8 @@ Let's generate tasks for some user stories in **5 minutes**!
 ### Step 1: Test with Mock Data
 
 ```bash
-# Download a preset template
-curl -o backend-api.yaml https://raw.githubusercontent.com/Simao-Pereira-Gomes/atomize/main/templates/presets/backend-api.yaml
-
-# Preview without connecting to any platform
-atomize generate backend-api.yaml --platform mock
+# Preview without connecting to any platform (templates are bundled)
+atomize generate template:backend-api --platform mock
 ```
 
 You'll see:
@@ -126,10 +123,10 @@ atomize auth test work-ado
 
 ```bash
 # Dry run (default — no --execute)
-atomize generate backend-api.yaml
+atomize generate template:backend-api
 
 # Execute for real
-atomize generate backend-api.yaml --execute
+atomize generate template:backend-api --execute
 ```
 
 That's it! You've generated your first batch of tasks.
@@ -143,14 +140,14 @@ Let's create a custom template for your team's workflow.
 ### Option 1: Start from Preset
 
 ```bash
-# List available presets
-atomize template presets
+# List available templates
+atomize template list
 
-# Create from a preset
-atomize template create --preset backend-api
+# Create from an existing template
+atomize template create --from backend-api
 ```
 
-Available presets: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack`
+Built-in templates include `backend-api`, `feature`, `bug`, `custom`, and `custom-saved-query`.
 
 ### Option 2: Interactive Wizard
 
@@ -245,11 +242,11 @@ Always validate templates before using them:
 # Basic validation
 atomize validate my-template.yaml
 
-# Verbose output
-atomize validate my-template.yaml --verbose
-
 # Strict mode — warnings become errors (good for team templates)
 atomize validate my-template.yaml --strict
+
+# Validate custom fields and saved queries against ADO
+atomize validate my-template.yaml --profile work-ado
 ```
 
 **Valid template:**
@@ -260,6 +257,7 @@ Summary:
   Name: Backend API Development
   Tasks: 6
   Total Estimation: 100%
+  Custom Fields: 2 (verified against ADO)
 
 Ready to use with: atomize generate my-template.yaml
 ```
@@ -352,7 +350,10 @@ estimation:
 ```yaml
 - title: "Security Review"
   estimationPercent: 10
-  condition: '${story.tags} CONTAINS "security"'  # Only created if story has "security" tag
+  condition:
+    field: "tags"
+    operator: "contains"
+    value: "security"  # Only created if story has "security" tag
 ```
 
 **Conditional Estimation** (v1.1)
@@ -360,11 +361,27 @@ estimation:
 - title: "Implementation"
   estimationPercent: 50    # Default
   estimationPercentCondition:
-    - condition: '${story.tags} CONTAINS "critical"'
+    - condition:
+        field: "tags"
+        operator: "contains"
+        value: "critical"
       percent: 60          # Higher weight for critical stories
-    - condition: "${story.estimation} >= 13"
+    - condition:
+        field: "estimation"
+        operator: "gte"
+        value: 13
       percent: 55          # More work for large stories
 ```
+
+**Task Custom Fields**
+```yaml
+- title: "Backend Implementation"
+  customFields:
+    Custom.ClientTier: "Enterprise"
+    Custom.ReleaseVersion: "{{ story.customFields['Custom.ReleaseVersion'] }}"
+```
+
+Use `atomize fields list --type Task` to browse the available field names before authoring templates.
 
 ---
 
@@ -374,7 +391,7 @@ estimation:
 
 ```bash
 # Generate tasks for new stories
-atomize generate templates/backend-api.yaml --execute
+atomize generate template:backend-api --execute
 
 # Create a custom template for a special case
 atomize template create --scratch
@@ -392,14 +409,14 @@ atomize generate my-new-template.yaml --execute
 ```
 templates/
 ├── backend-api.yaml       # API development
-├── frontend-feature.yaml  # UI features
-├── bug-fix.yaml           # Bug fixes
+├── feature.yaml           # Feature work
+├── bug.yaml               # Bug fixes
 └── database-change.yaml   # Schema changes
 ```
 
 ```bash
-atomize generate templates/backend-api.yaml --execute
-atomize generate templates/bug-fix.yaml --execute
+atomize generate template:backend-api --execute
+atomize generate template:bug --execute
 ```
 
 ### CI/CD Integration
@@ -419,7 +436,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Atomize
-        run: npm install -g @sppg2001/atomize
+        run: npm install -g @sppg2001/atomize@alpha
 
       - name: Validate Templates
         run: |
@@ -435,12 +452,14 @@ jobs:
             --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
             --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
             --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
-            --default
+            --default \
+            --insecure-storage
 
       - name: Generate Tasks
         run: |
-          atomize generate templates/backend-api.yaml \
+          atomize generate template:backend-api \
             --execute \
+            --auto-approve \
             --continue-on-error
 ```
 
@@ -487,15 +506,16 @@ jobs:
 ### "Validation failed"
 
 **Solutions:**
-1. Run validation with verbose flag:
+1. Run validation in strict mode for detailed error output:
    ```bash
-   atomize validate my-template.yaml --verbose
+   atomize validate my-template.yaml --strict
    ```
 
 2. Common issues:
    - Total estimation not 100%: Adjust task percentages
    - Missing required fields: Add `title` to all tasks
    - Invalid dependencies: Ensure task IDs exist
+   - Custom fields not verified offline: Re-run with `--profile <name>`
 
 ---
 

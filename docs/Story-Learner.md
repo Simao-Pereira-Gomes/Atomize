@@ -5,6 +5,7 @@ The Story Learner analyzes existing work items with their tasks and generates a 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Learn from a Single Story](#learn-from-a-single-story)
 - [Learn from Multiple Stories](#learn-from-multiple-stories)
 - [How Pattern Detection Works](#how-pattern-detection-works)
 - [Normalization](#normalization)
@@ -28,6 +29,20 @@ This is ideal when your team has a well-established workflow and you want to rep
 
 ---
 
+## Learn from a Single Story
+
+Pass a single story ID to capture its task breakdown as a template directly — no pattern detection, no confidence scoring. The tasks are taken as-is and normalized to 100%.
+
+```bash
+atomize template create --from-stories STORY-123 --save-as my-template
+```
+
+This is useful when one story was broken down particularly well and you want to replicate it exactly. The generated template will include a note in its metadata that it was learned from a single story.
+
+> **When to use more stories:** With a single source story, the template reflects that story's specific breakdown, including any idiosyncrasies. Use [multiple stories](#learn-from-multiple-stories) to get a template that reflects your team's general pattern rather than one instance.
+
+---
+
 ## Learn from Multiple Stories
 
 Use `--from-stories` to analyze multiple stories at once. This produces higher-quality templates because it detects patterns, filters out outliers, and generates confidence scores.
@@ -42,7 +57,7 @@ atomize template create --from-stories STORY-1,STORY-2,STORY-3
 atomize template create \
   --from-stories STORY-123,STORY-456,STORY-789 \
   --platform azure-devops \
-  --output learned-templates/backend-pattern.yaml
+  --save-as backend-pattern
 ```
 
 ### Options
@@ -51,12 +66,12 @@ atomize template create \
 |--------|-------------|
 | `--from-stories <ids>` | Comma-separated list of story IDs |
 | `--platform <name>` | Platform to fetch from |
-| `--no-normalize` | Keep original estimation percentages (default normalizes to 100%) |
-| `-o, --output <path>` | Where to save the generated template |
+| `--profile <name>` | Azure DevOps connection profile to use |
+| `--save-as <name>` | Catalog name to save the generated template under |
 
 ### Minimum Requirements
 
-- At least **2 stories** required (3+ recommended for best results)
+- At least **1 story** required (3+ recommended for pattern detection)
 - Each story must have **at least 1 child task**
 - Stories should be similar in type and complexity
 
@@ -98,7 +113,10 @@ If certain tasks only appear when stories have specific tags or properties, Atom
 tasks:
   - title: "Security Review"
     estimationPercent: 10
-    condition: '${story.tags} CONTAINS "security"'  # Suggested based on pattern
+    condition:
+      field: "tags"
+      operator: "contains"
+      value: "security"  # Suggested based on pattern
 ```
 
 ### 6. Tag Pattern Analysis
@@ -109,14 +127,9 @@ Tags that consistently appear on matching stories are incorporated into the temp
 
 ## Normalization
 
-By default, task percentages are adjusted to sum to exactly 100%. Pass `--no-normalize` to keep the original percentages.
+Task percentages are adjusted to sum to exactly 100% so the generated template is ready to validate and use.
 
-**Without normalization (`--no-normalize`):**
-- Original percentages are preserved
-- The template may have a total estimation ≠ 100%
-- Validation will flag this unless `totalEstimationRange` is configured
-
-**With normalization (default):**
+**Normalization behavior:**
 - Percentages are scaled proportionally to sum to 100%
 - Remainder is added to the largest task
 - Result always validates against `totalEstimationMustBe: 100`
@@ -206,13 +219,13 @@ metadata:
 atomize template create \
   --from-stories STORY-100,STORY-115,STORY-132,STORY-148 \
   --platform azure-devops \
-  --output team-templates/backend-standard.yaml
+  --save-as backend-standard
 
 # Validate the result
-atomize validate team-templates/backend-standard.yaml --strict --verbose
+atomize validate template:backend-standard --strict
 
 # Apply to new stories
-atomize generate team-templates/backend-standard.yaml
+atomize generate template:backend-standard
 ```
 
 ---
@@ -232,26 +245,26 @@ After generating, always:
 
 1. **Validate the template:**
    ```bash
-   atomize validate my-learned-template.yaml --verbose
+	   atomize validate template:my-learned-template --strict
    ```
 
 2. **Review the YAML** — the learner may suggest conditions or patterns you want to refine
 
 3. **Test with mock data:**
    ```bash
-   atomize generate my-learned-template.yaml --platform mock
+	   atomize generate template:my-learned-template --platform mock
    ```
 
 4. **Preview against real data before executing:**
    ```bash
-   atomize generate my-learned-template.yaml
+	   atomize generate template:my-learned-template
    ```
 
 ### Improving Generated Templates
 
 After generation, consider:
 - Renaming generic task titles to be more specific
-- Adding `condition` fields for tasks that don't always apply
+- Adding structured `condition` fields for tasks that don't always apply
 - Adding `dependsOn` to enforce task ordering
 - Adding `assignTo` patterns appropriate for your team
 - Adding `${story.title}` variable interpolation to task titles
@@ -298,8 +311,8 @@ If all detected patterns have low confidence:
 
 ### "Generated template has estimation ≠ 100%"
 
-- Use `--no-normalize` to keep original percentages, or let the default normalize them
-- Or manually edit the generated YAML to balance estimations
+- Manually edit the saved catalog template to balance estimations
+- Run `atomize validate template:<name> --strict` again before using it
 
 ---
 

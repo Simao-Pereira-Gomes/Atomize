@@ -3,13 +3,14 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { name, version } from "../../package.json";
 import { authCommand } from "./commands/auth/auth.command";
+import { fieldsCommand } from "./commands/fields/fields.command";
 import { generateCommand } from "./commands/generate.command";
+import { queriesCommand } from "./commands/queries/queries.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
 import { runUpdateNotifier } from "./update-notifier";
-
-await runUpdateNotifier({ name, version });
+import { writeManagedOutput } from "./utilities/terminal-output";
 
 const program = new Command();
 
@@ -22,16 +23,18 @@ program
 		"load environment variables from file (shell env takes precedence)",
 	);
 
-program.hook("preAction", () => {
+program.hook("preAction", async () => {
 	const { envFile } = program.opts();
 	if (envFile) {
 		try {
 			loadEnvFile(envFile);
 		} catch (err) {
-			console.error(chalk.red(`Error: ${(err as Error).message}`));
+			writeManagedOutput("stderr", chalk.red(`Error: ${(err as Error).message}`));
 			process.exit(1);
 		}
 	}
+
+	await runUpdateNotifier({ name, version });
 });
 
 const banner = `
@@ -46,6 +49,8 @@ ${chalk.gray("Break down stories, build up velocity.")}
 
 program.addHelpText("beforeAll", banner);
 program.addCommand(authCommand);
+program.addCommand(fieldsCommand);
+program.addCommand(queriesCommand);
 program.addCommand(validateCommand);
 program.addCommand(generateCommand);
 program.addCommand(templateCommand);

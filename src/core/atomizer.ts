@@ -1,10 +1,12 @@
 import { logger } from "@config/logger";
+import type { FilterCriteria } from "@platforms/interfaces/filter.interface";
 import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
 } from "@templates/schema";
+import { getErrorMessage } from "@utils/errors";
 import { DependencyResolver } from "./dependency-resolver.js";
 import {
   type CalculatedTask,
@@ -70,8 +72,17 @@ export interface AtomizationOptions {
   /** Maximum concurrent dependency links to create (default: 5) */
   dependencyConcurrency?: number;
 
+  /** Cap the number of work items processed (useful for testing) */
+  limit?: number;
+
   /** Progress callback for reporting progress */
   onProgress?: ProgressCallback;
+
+  /** Force normalisation of task estimations to 100% even when total exceeds 100% */
+  forceNormalize?: boolean;
+
+  /** Fetch these specific work item IDs directly, bypassing the template filter (excludeIfHasTasks still applies) */
+  storyIds?: string[];
 }
 
 /**
@@ -165,14 +176,25 @@ export class Atomizer {
     logger.info(`Dry run: ${options.dryRun ? "Yes" : "No"}`);
 
     const connectUserEmail = await this.platform.getConnectUserEmail();
-    const platformFilter = this.filterEngine.convertFilter(
-      template.filter,
-      connectUserEmail,
-    );
 
-    const filterValidation = this.filterEngine.validateFilter(template.filter);
-    if (!filterValidation.valid) {
-      throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
+    let platformFilter: FilterCriteria;
+    if (options.storyIds && options.storyIds.length > 0) {
+      logger.info(`Fetching ${options.storyIds.length} specific work item(s) by ID`);
+      platformFilter = {
+        workItemIds: options.storyIds,
+        excludeIfHasTasks: template.filter.excludeIfHasTasks,
+      };
+    } else {
+      platformFilter = this.filterEngine.convertFilter(
+        template.filter,
+        connectUserEmail,
+      );
+      if (options.limit !== undefined) platformFilter.limit = options.limit;
+
+      const filterValidation = this.filterEngine.validateFilter(template.filter);
+      if (!filterValidation.valid) {
+        throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
+      }
     }
 
     const onProgress = options.onProgress;
@@ -341,7 +363,7 @@ export class Atomizer {
           return result;
         } catch (error) {
           const errorMessage =
-            error instanceof Error ? error.message : String(error);
+            getErrorMessage(error);
 
           logger.error(`Error processing story ${story.id}: ${errorMessage}`);
 
@@ -406,6 +428,7 @@ export class Atomizer {
         connectUserEmail,
         orderedTasks,
         template.estimation,
+        options.forceNormalize,
       );
 
     logger.info(
@@ -548,7 +571,7 @@ export class Atomizer {
             } catch (error) {
               logger.warn(
                 `Failed to create dependency link for "${dependentTask.title}" -> "${predecessorTask.title}": ${
-                  error instanceof Error ? error.message : String(error)
+                  getErrorMessage(error)
                 }`,
               );
               return false;

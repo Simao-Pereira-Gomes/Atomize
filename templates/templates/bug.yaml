@@ -1,0 +1,54 @@
+version: "1.0"
+name: "Bug Template"
+description: "Foundation for bug-fix templates. Extend this to inherit a standard investigation and fix task set."
+author: "Atomize"
+tags: ["template", "bug"]
+
+filter:
+  workItemTypes: ["Bug"]
+  states: ["New", "Active", "Committed"]
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "investigate"
+    title: "Investigate: ${story.title}"
+    description: "Reproduce the bug, identify the root cause, and document findings."
+    estimationPercent: 30
+    activity: "Requirements"
+    assignTo: "@ParentAssignee"
+    estimationPercentCondition:
+      - condition:
+          field: "Priority"
+          operator: "lte"
+          value: 2
+        percent: 40
+
+  - id: "fix"
+    title: "Fix: ${story.title}"
+    description: "Implement the fix for the identified root cause."
+    estimationPercent: 40
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+    dependsOn: ["investigate"]
+
+  - id: "verify"
+    title: "Verify Fix: ${story.title}"
+    description: "Verify the fix resolves the issue and does not introduce regressions."
+    estimationPercent: 20
+    activity: "Testing"
+    dependsOn: ["fix"]
+
+  - id: "close"
+    title: "Close & Document: ${story.title}"
+    description: "Update documentation, close the bug, and notify stakeholders."
+    estimationPercent: 10
+    activity: "Documentation"
+    dependsOn: ["verify"]
+
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  ifParentHasNoEstimation: "warn"
+
+validation:
+  totalEstimationMustBe: 100

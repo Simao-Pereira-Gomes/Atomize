@@ -1,10 +1,12 @@
 import { logger } from "@config/logger";
+import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import type { FilterCriteria } from "@platforms/interfaces/filter.interface";
 import type {
   AuthConfig,
   IPlatformAdapter,
   PlatformConfig,
   PlatformMetadata,
+  SavedQueryInfo,
 } from "@platforms/interfaces/platform.interface";
 import type {
   TaskDefinition,
@@ -12,15 +14,20 @@ import type {
   WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
 import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
-import { ConfigurationError, PlatformError, UnknownError } from "@utils/errors";
+import { ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import {
   type WorkItem as AzureWorkItem,
+  QueryExpand,
+  type QueryHierarchyItem,
+  QueryType,
+  TreeStructureGroup,
   WorkItemErrorPolicy,
   WorkItemExpand,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
+import { FieldSchemaService } from "./azure-devops-field-schema.service.js";
 
 /**
  * Azure DevOps specific configuration
@@ -69,6 +76,16 @@ function parseIterationMacro(value: string): string | null {
   return null;
 }
 
+/** Extracts an HTTP status code from an ADO SDK error, if present. */
+function getHttpStatusCode(error: unknown): number | undefined {
+  if (error && typeof error === "object") {
+    const e = error as Record<string, unknown>;
+    if (typeof e.statusCode === "number") return e.statusCode;
+    if (typeof e.status === "number") return e.status;
+  }
+  return undefined;
+}
+
 /** Returns true if the filter uses any team-scoped macros (@CurrentIteration, @TeamAreas). */
 function requiresTeam(filter: FilterCriteria): boolean {
   if (filter.areaPaths?.includes(TEAM_AREAS)) return true;
@@ -94,8 +111,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private connection?: azdev.WebApi;
   private witApi?: IWorkItemTrackingApi;
   private authenticated = false;
+  private readonly fieldSchemaService: FieldSchemaService;
 
-  constructor(private config: AzureDevOpsConfig) {
+  constructor(
+    private config: AzureDevOpsConfig,
+    fieldSchemaService?: FieldSchemaService,
+  ) {
+    this.fieldSchemaService = fieldSchemaService ?? new FieldSchemaService();
     if (!config.organizationUrl) {
       throw new PlatformError("Organization URL is required", "azure-devops");
     }
@@ -133,7 +155,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       this.authenticated = true;
       logger.info("AzureDevOps: Authentication successful");
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error("AzureDevOps: Authentication failed", { error: message });
       throw new PlatformError(
         `Authentication failed: ${message}`,
@@ -155,6 +177,14 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
    */
   async queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]> {
     this.ensureAuthenticated();
+
+    if (filter.workItemIds && filter.workItemIds.length > 0) {
+      return this.fetchWorkItemsByIds(filter.workItemIds, filter);
+    }
+
+    if (filter.savedQuery) {
+      return this.resolveAndRunSavedQuery(filter.savedQuery, filter);
+    }
 
     try {
       logger.debug("AzureDevOps: Querying work items");
@@ -233,7 +263,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.info(`AzureDevOps: Returning ${converted.length} work item(s)`);
       return converted;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error("AzureDevOps: Query failed", { error: message });
       throw new PlatformError(`Query failed: ${message}`, "azure-devops");
     }
@@ -272,11 +302,57 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       return this.convertWorkItem(workItem);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error(`AzureDevOps: Failed to get work item ${id}`, {
         error: message,
       });
       return null;
+    }
+  }
+
+  private async fetchWorkItemsByIds(
+    ids: string[],
+    filter: FilterCriteria,
+  ): Promise<WorkItem[]> {
+    try {
+      const numericIds = ids
+        .map((id) => parseInt(id, 10))
+        .filter((id) => !Number.isNaN(id));
+
+      if (numericIds.length === 0) {
+        logger.warn("AzureDevOps: No valid numeric IDs provided");
+        return [];
+      }
+
+      if (!this.witApi) {
+        throw new UnknownError("Work Item Tracking API not initialized");
+      }
+
+      logger.info(`AzureDevOps: Fetching ${numericIds.length} work item(s) by ID`);
+
+      const workItems = await this.witApi.getWorkItems(
+        numericIds,
+        undefined,
+        undefined,
+        WorkItemExpand.All,
+        undefined,
+        this.config.project,
+      );
+
+      let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
+
+      if (filter.excludeIfHasTasks) {
+        filtered = filtered.filter((item) => !this.hasChildRelations(item));
+        logger.info(
+          `AzureDevOps: ${filtered.length} work item(s) without tasks (after excludeIfHasTasks)`,
+        );
+      }
+
+      return filtered.map((wi) => this.convertWorkItem(wi));
+    } catch (error) {
+      const message = getErrorMessage(error);
+      logger.error("AzureDevOps: Failed to fetch work items by ID", { error: message });
+      throw new PlatformError(`Failed to fetch work items by ID: ${message}`, "azure-devops");
     }
   }
 
@@ -397,6 +473,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
               },
             ]
           : []),
+        // Custom fields
+        ...Object.entries(task.customFields ?? {}).map(([referenceName, value]) => ({
+          op: "add",
+          path: `/fields/${referenceName}`,
+          value,
+        })),
         // Parent link
         {
           op: "add",
@@ -426,7 +508,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       return this.convertWorkItem(createdItem);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error(`AzureDevOps: Failed to create task`, { error: message });
       throw new PlatformError(
         `Failed to create task: ${message}`,
@@ -516,7 +598,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       logger.info("Connection test succeeded");
       return true;
     } catch (error) {
-      logger.debug(error instanceof Error ? error.message : String(error));
+      logger.debug(getErrorMessage(error));
       return false;
     }
   }
@@ -545,7 +627,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         this.config.project,
       );
 
-      if (!parent || !parent.relations) {
+      if (!parent?.relations) {
         return [];
       }
 
@@ -643,7 +725,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       logger.error(
         `AzureDevOps: Failed to create dependency link between ${dependentId} and ${predecessorId}`,
         { error: message },
@@ -653,6 +735,283 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         "azure-devops",
       );
     }
+  }
+
+  /**
+   * Fetch a saved query by ID or path and return its WIQL string.
+   * Throws PlatformError with actionable messages for all failure modes.
+   */
+  private async resolveSavedQueryWiql(savedQuery: {
+    id?: string;
+    path?: string;
+  }): Promise<string> {
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const queryRef = savedQuery.id ?? savedQuery.path ?? "";
+    const label = savedQuery.path ?? savedQuery.id ?? queryRef;
+    logger.debug(`AzureDevOps: Resolving saved query "${queryRef}"`);
+
+    let queryItem: QueryHierarchyItem;
+    try {
+      queryItem = await this.witApi.getQuery(
+        this.config.project,
+        queryRef,
+        QueryExpand.Wiql,
+      );
+    } catch (err) {
+      const status = getHttpStatusCode(err);
+      if (status === 401 || status === 403) {
+        throw new PlatformError(
+          `Access denied to query "${label}". Ensure your PAT includes the Work Items (Read) scope.`,
+          "azure-devops",
+        );
+      }
+      // 404, network errors, and anything else: surface as not-found
+      // (ADO returns 404 for missing, private-to-others, and wrong-project queries)
+      throw new PlatformError(
+        `Query not found: "${label}". Verify the ID or path and that the query has been shared with your account.`,
+        "azure-devops",
+      );
+    }
+
+    if (!queryItem) {
+      throw new PlatformError(
+        `Query not found: "${label}". Verify the ID or path and that the query has been shared with your account.`,
+        "azure-devops",
+      );
+    }
+
+    if (queryItem.isFolder) {
+      throw new PlatformError(
+        `"${label}" is a query folder, not a runnable query. Specify a query, not a folder path.`,
+        "azure-devops",
+      );
+    }
+
+    if (queryItem.queryType !== undefined && queryItem.queryType !== QueryType.Flat) {
+      const kind = queryItem.queryType === QueryType.Tree ? "tree" : "one-hop";
+      throw new PlatformError(
+        `Only flat (Work Items) queries are supported. "${label}" is a ${kind} query.`,
+        "azure-devops",
+      );
+    }
+
+    if (!queryItem.wiql) {
+      throw new PlatformError(
+        `Saved query "${label}" has no WIQL content and cannot be executed.`,
+        "azure-devops",
+      );
+    }
+
+    return queryItem.wiql;
+  }
+
+  /**
+   * Resolve a saved query by ID or path, execute its WIQL, and return work items.
+   */
+  private async resolveAndRunSavedQuery(
+    savedQuery: { id?: string; path?: string },
+    filter: FilterCriteria,
+  ): Promise<WorkItem[]> {
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const wiql = await this.resolveSavedQueryWiql(savedQuery);
+
+    logger.debug(`AzureDevOps: Executing WIQL from saved query`);
+    const effectiveTeam = filter.team ?? this.config.team;
+    const result = await this.witApi.queryByWiql(
+      { query: wiql },
+      { project: this.config.project, team: effectiveTeam },
+    );
+
+    if (!result.workItems || result.workItems.length === 0) {
+      logger.info("AzureDevOps: Saved query returned no work items");
+      return [];
+    }
+
+    const ids = result.workItems
+      .map((wi) => wi.id)
+      .filter((id): id is number => id !== undefined);
+    logger.info(`AzureDevOps: Saved query matched ${ids.length} work item(s)`);
+
+    const workItems = await this.witApi.getWorkItems(
+      ids,
+      undefined,
+      undefined,
+      WorkItemExpand.All,
+      undefined,
+      this.config.project,
+    );
+
+    let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
+
+    if (filter.excludeIfHasTasks) {
+      filtered = filtered.filter((item) => !this.hasChildRelations(item));
+      logger.info(
+        `AzureDevOps: ${filtered.length} work item(s) without tasks (after excludeIfHasTasks)`,
+      );
+    }
+
+    if (filter.limit) {
+      filtered = filtered.slice(0, filter.limit);
+    }
+
+    return filtered.map((wi) => this.convertWorkItem(wi));
+  }
+
+  /**
+   * List saved queries in the project, optionally scoped to a folder path prefix.
+   */
+  async listSavedQueries(folder?: string): Promise<SavedQueryInfo[]> {
+    this.ensureAuthenticated();
+
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    // Depth 2: top-level folders (My Queries, Shared Queries) + their immediate children
+    const roots = await this.witApi.getQueries(
+      this.config.project,
+      QueryExpand.None,
+      2,
+    );
+
+    if (!roots) return [];
+
+    const results: SavedQueryInfo[] = [];
+
+    const flatten = (items: QueryHierarchyItem[]) => {
+      for (const item of items) {
+        if (item.isFolder) {
+          if (item.children) flatten(item.children);
+        } else {
+          const itemPath = item.path ?? item.name ?? "";
+          if (!folder || itemPath.startsWith(folder)) {
+            results.push({
+              id: item.id ?? "",
+              name: item.name ?? "",
+              path: itemPath,
+              isPublic: item.isPublic ?? false,
+            });
+          }
+        }
+      }
+    };
+
+    flatten(roots);
+    return results;
+  }
+
+  async getFieldSchemas(workItemType?: string): Promise<ADoFieldSchema[]> {
+    this.ensureAuthenticated();
+
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const profileKey = `${this.config.organizationUrl}::${this.config.project}`;
+
+    if (workItemType) {
+      return this.fieldSchemaService.getFieldsForType(
+        this.witApi,
+        this.config.project,
+        workItemType,
+        profileKey,
+      );
+    }
+
+    return this.fieldSchemaService.getAllFields(
+      this.witApi,
+      this.config.project,
+      profileKey,
+    );
+  }
+
+  /**
+   * Returns the list of work item type names available in the project.
+   */
+  async getWorkItemTypes(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const types = await this.witApi.getWorkItemTypes(this.config.project);
+    return types.map((t) => t.name).filter((n): n is string => !!n).sort();
+  }
+
+  /**
+   * Returns the available state names for a given work item type in the project.
+   */
+  async getStatesForWorkItemType(workItemType: string): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
+    }
+
+    const states = await this.witApi.getWorkItemTypeStates(this.config.project, workItemType);
+    return states.map((s) => s.name).filter((n): n is string => !!n);
+  }
+
+  /**
+   * Returns all area paths in the project as flat strings (e.g. "MyProject\\Backend\\API").
+   */
+  async getAreaPaths(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.connection) {
+      throw new UnknownError("Not connected to Azure DevOps");
+    }
+
+    const witApi = await this.connection.getWorkItemTrackingApi();
+    const root = await witApi.getClassificationNode(
+      this.config.project,
+      TreeStructureGroup.Areas,
+      undefined,
+      10, // depth
+    );
+    return flattenClassificationNode(root, this.config.project);
+  }
+
+  /**
+   * Returns all iteration paths in the project as flat strings.
+   */
+  async getIterationPaths(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.connection) {
+      throw new UnknownError("Not connected to Azure DevOps");
+    }
+
+    const witApi = await this.connection.getWorkItemTrackingApi();
+    const root = await witApi.getClassificationNode(
+      this.config.project,
+      TreeStructureGroup.Iterations,
+      undefined,
+      10, // depth
+    );
+    return flattenClassificationNode(root, this.config.project);
+  }
+
+  /**
+   * Returns team names in the project.
+   */
+  async getTeams(): Promise<string[]> {
+    this.ensureAuthenticated();
+
+    if (!this.connection) {
+      throw new UnknownError("Not connected to Azure DevOps");
+    }
+
+    const coreApi = await this.connection.getCoreApi();
+    const teams = await coreApi.getTeams(this.config.project, false, 1000);
+    return teams.map((t) => t.name).filter((n): n is string => !!n).sort();
   }
 
   /**
@@ -905,4 +1264,24 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       );
     }
   }
+}
+
+/**
+ * Recursively flattens a WorkItemClassificationNode tree into path strings.
+ * The root node represents the project itself, so the root path is just the project name.
+ */
+function flattenClassificationNode(
+  node: import("azure-devops-node-api/interfaces/WorkItemTrackingInterfaces").WorkItemClassificationNode,
+  parentPath: string,
+): string[] {
+  const paths: string[] = [parentPath];
+  if (node.children) {
+    for (const child of node.children) {
+      if (child.name) {
+        const childPath = `${parentPath}\\${child.name}`;
+        paths.push(...flattenClassificationNode(child, childPath));
+      }
+    }
+  }
+  return paths;
 }

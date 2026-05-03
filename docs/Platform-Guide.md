@@ -6,6 +6,7 @@ Setup and configuration guide for different work item management platforms.
 
 - [Overview](#overview)
 - [Azure DevOps](#azure-devops)
+- [GitHub Models (AI)](#github-models-ai)
 - [Mock Platform](#mock-platform)
 - [Adding New Platforms](#adding-new-platforms)
 
@@ -13,7 +14,9 @@ Setup and configuration guide for different work item management platforms.
 
 ## Overview
 
-Atomize supports multiple work item management platforms through a unified adapter interface. Currently supported:
+Atomize connects to two kinds of external service — work item platforms (where tasks are created) and AI providers (for template generation). Each is configured as a named profile.
+
+**Work item platforms:**
 
 | Platform | Status | Features |
 |----------|--------|----------|
@@ -21,6 +24,12 @@ Atomize supports multiple work item management platforms through a unified adapt
 | Mock | ✅ Production | Testing and development |
 | Jira | 🚧 Planned | Coming soon |
 | GitHub Issues | 🚧 Planned | Coming soon |
+
+**AI providers:**
+
+| Provider | Status | Used for |
+|----------|--------|----------|
+| GitHub Models | ✅ Production | `template create --ai` |
 
 ---
 
@@ -88,7 +97,7 @@ atomize auth add <name>
 
 **Use a specific profile for generate:**
 ```bash
-atomize generate templates/backend-api.yaml --profile work-ado
+atomize generate template:backend-api --profile work-ado
 ```
 
 **Set a profile as default (used when `--profile` is not specified):**
@@ -99,7 +108,7 @@ atomize auth use work-ado
 **Select a profile via environment variable:**
 ```bash
 export ATOMIZE_PROFILE=work-ado
-atomize generate templates/backend-api.yaml
+atomize generate template:backend-api
 ```
 
 **Multiple profiles example:**
@@ -274,7 +283,6 @@ tasks:
     activity: "Development"
     assignTo: "john@company.com"
     priority: 2
-    remainingWork: 16
 ```
 
 Maps to Azure DevOps fields:
@@ -309,7 +317,7 @@ Maps to Azure DevOps fields:
 3. Check area/iteration paths are correct (case-sensitive)
 4. Test with mock platform first:
    ```bash
-   atomize generate templates/backend-api.yaml --platform mock
+   atomize generate template:backend-api --platform mock
    ```
 
 #### Permission Errors
@@ -333,6 +341,41 @@ Maps to Azure DevOps fields:
 
 ---
 
+## GitHub Models (AI)
+
+GitHub Models is the AI provider used by `template create --ai`. It is not a work item platform — no tasks are created through it — but it requires its own connection profile.
+
+### Prerequisites
+
+- A GitHub personal access token with the `models:read` scope
+  - Create one at `https://github.com/settings/tokens`
+
+### Setup
+
+```bash
+atomize auth add my-ai
+# → select "GitHub Models (AI template generation)" when prompted for platform type
+# → enter your GitHub PAT
+
+atomize auth test my-ai
+```
+
+### Usage
+
+Once the profile is saved, pass it when generating AI templates:
+
+```bash
+atomize template create --ai                        # uses default GitHub Models profile
+atomize template create --ai --ai-profile my-ai     # explicit profile
+atomize template create --ai --ground --profile work-ado  # grounded with ADO context
+```
+
+`ATOMIZE_AI_PROFILE` can be set as an alternative to `--ai-profile`.
+
+See [Template Creation Wizard — AI-Assisted Generation](./template-wizard-guide.md#ai-assisted-generation) for the full workflow.
+
+---
+
 ## Mock Platform
 
 The mock platform provides sample data for testing and development.
@@ -340,7 +383,7 @@ The mock platform provides sample data for testing and development.
 ### Usage
 
 ```bash
-atomize generate templates/backend-api.yaml --platform mock
+atomize generate template:backend-api --platform mock
 ```
 
 ### Features
@@ -389,7 +432,7 @@ STORY-007: Implement data export feature
 **1. Template Development:**
 ```bash
 # Create template
-atomize template create --scratch -o test-template.yaml
+atomize template create --scratch --save-as test-template
 
 # Test with mock data
 atomize generate test-template.yaml --platform mock
@@ -613,6 +656,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platf
 
 ## See Also
 
+- [Auth Guide](./Auth-Guide.md) - Credential storage, profile resolution, and CI/CD setup
 - [CLI Reference](./Cli-Reference.md) - Command-line usage
 - [Template Reference](./Template-Reference.md) - Template schema
 - [Examples](../examples/) - Real-world examples

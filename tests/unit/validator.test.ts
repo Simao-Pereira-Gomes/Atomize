@@ -138,12 +138,15 @@ describe("TemplateValidator", () => {
 			expect(taskCountError).toBeDefined();
 		});
 
-		test("should warn on estimation not 100% without validation config", () => {
+		test("should warn when total estimation exceeds 100% without validation config", () => {
 			const template = {
 				version: "1.0",
 				name: "Test",
 				filter: {},
-				tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				tasks: [
+					{ title: "Task 1", estimationPercent: 60 },
+					{ title: "Task 2", estimationPercent: 60 },
+				],
 				// No validation config
 			};
 
@@ -154,7 +157,7 @@ describe("TemplateValidator", () => {
 			expect(result.warnings.length).toBeGreaterThan(0);
 
 			const estimationWarning = result.warnings.find((w) =>
-				w.message.includes("80%"),
+				w.message.includes("120%"),
 			);
 			expect(estimationWarning).toBeDefined();
 		});
@@ -266,7 +269,10 @@ describe("TemplateValidator", () => {
 				version: "1.0",
 				name: "Test",
 				filter: {},
-				tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				tasks: [
+					{ title: "Task 1", estimationPercent: 60 },
+					{ title: "Task 2", estimationPercent: 60 },
+				],
 			};
 
 			const result = validator.validate(template);
@@ -319,8 +325,7 @@ describe("TemplateValidator", () => {
 					{
 						title: "Conditional Task",
 						estimationPercent: 20,
-						//biome-ignore lint/suspicious: The condition is for user input
-						condition: "${someCondition}",
+						condition: { field: "tags", operator: "contains", value: "some-tag" },
 					},
 				],
 				validation: {
@@ -333,7 +338,7 @@ describe("TemplateValidator", () => {
 			expect(result.valid).toBe(true);
 		});
 
-		test("should warn on suspicious conditionals", () => {
+		test("should warn when condition references custom fields (needs online verification)", () => {
 			const template = {
 				version: "1.0",
 				name: "Test",
@@ -342,14 +347,15 @@ describe("TemplateValidator", () => {
 					{
 						title: "Task",
 						estimationPercent: 100,
-						condition: "true", // Suspicious: no variables or operators
+						condition: { customField: "Custom.ClientTier", operator: "equals", value: "Enterprise" },
 					},
 				],
 			};
 
 			const result = validator.validate(template);
 
-			expect(result.warnings.length).toBeGreaterThan(0);
+			// Should warn that custom field needs online verification
+			expect(result.warnings.some((w) => w.path.includes("condition"))).toBe(true);
 		});
 
 		test("should validate max tasks limit", () => {
@@ -399,7 +405,7 @@ describe("TemplateValidator", () => {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [{ title: "Task 1", estimationPercent: 60 }, { title: "Task 2", estimationPercent: 60 }],
 				};
 
 				const result = validator.validate(template);
@@ -414,7 +420,7 @@ describe("TemplateValidator", () => {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [{ title: "Task 1", estimationPercent: 60 }, { title: "Task 2", estimationPercent: 60 }],
 					validation: {
 						mode: "lenient",
 					},
@@ -430,11 +436,15 @@ describe("TemplateValidator", () => {
 
 		describe("strict mode", () => {
 			test("should promote warnings to errors in strict mode", () => {
+				// A task with dependsOn but no id generates a warning → error in strict mode
 				const template = {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [
+						{ id: "t1", title: "Task 1", estimationPercent: 50 },
+						{ title: "Task 2 (no id)", estimationPercent: 50, dependsOn: ["t1"] },
+					],
 					validation: {
 						mode: "strict",
 					},
@@ -469,7 +479,7 @@ describe("TemplateValidator", () => {
 				expect(result.mode).toBe("strict");
 			});
 
-			test("should fail on suspicious conditionals in strict mode", () => {
+			test("should promote custom field condition warning to error in strict mode", () => {
 				const template = {
 					version: "1.0",
 					name: "Test",
@@ -478,7 +488,7 @@ describe("TemplateValidator", () => {
 						{
 							title: "Task",
 							estimationPercent: 100,
-							condition: "true", // Suspicious condition
+							condition: { customField: "Custom.ClientTier", operator: "equals", value: "Enterprise" },
 						},
 					],
 					validation: {
@@ -533,7 +543,7 @@ describe("TemplateValidator", () => {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [{ title: "Task 1", estimationPercent: 100, condition: "true" }],
 					validation: {
 						mode: "lenient",
 					},
@@ -551,7 +561,7 @@ describe("TemplateValidator", () => {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [{ title: "Task 1", estimationPercent: 60 }, { title: "Task 2", estimationPercent: 60 }],
 					validation: {
 						mode: "strict",
 					},
@@ -565,11 +575,15 @@ describe("TemplateValidator", () => {
 			});
 
 			test("should use CLI option when template has no mode specified", () => {
+				// Task with dependsOn but no id → warning in lenient, error in strict
 				const template = {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [
+						{ id: "t1", title: "Task 1", estimationPercent: 50 },
+						{ title: "Task 2 (no id)", estimationPercent: 50, dependsOn: ["t1"] },
+					],
 				};
 
 				const strictResult = validator.validate(template, { mode: "strict" });
@@ -585,11 +599,15 @@ describe("TemplateValidator", () => {
 
 		describe("validateOrThrow with modes", () => {
 			test("should throw in strict mode when warnings exist", () => {
+				// Task with dependsOn but no id → warning in lenient, error in strict
 				const template = {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [
+						{ id: "t1", title: "Task 1", estimationPercent: 50 },
+						{ title: "Task 2 (no id)", estimationPercent: 50, dependsOn: ["t1"] },
+					],
 				};
 
 				// Lenient mode should not throw
@@ -680,11 +698,15 @@ describe("TemplateValidator", () => {
 			});
 
 			test("should preserve suggestion in promoted errors", () => {
+				// Dependency-related warning has a suggestion that should be preserved
 				const template = {
 					version: "1.0",
 					name: "Test",
 					filter: {},
-					tasks: [{ title: "Task 1", estimationPercent: 80 }],
+					tasks: [
+						{ id: "t1", title: "Task 1", estimationPercent: 50 },
+						{ title: "Task 2 (no id)", estimationPercent: 50, dependsOn: ["t1"] },
+					],
 				};
 
 				const result = validator.validate(template, { mode: "strict" });
@@ -693,7 +715,6 @@ describe("TemplateValidator", () => {
 				);
 
 				expect(promotedError?.suggestion).toBeDefined();
-				expect(promotedError?.suggestion).toContain("20%");
 			});
 		});
 	});

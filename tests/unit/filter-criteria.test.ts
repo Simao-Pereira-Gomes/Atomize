@@ -194,6 +194,50 @@ describe("FilterEngine", () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toContain("states cannot be empty array");
     });
+
+    test("should accept savedQuery-only filter as valid", () => {
+      const filter: TemplateFilter = {
+        savedQuery: { id: "a1b2c3d4-0000-0000-0000-000000000000" },
+      };
+
+      const result = engine.validateFilter(filter);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    test("should accept savedQuery path-only filter as valid", () => {
+      const filter: TemplateFilter = {
+        savedQuery: { path: "Shared Queries/Sprint Stories" },
+      };
+
+      const result = engine.validateFilter(filter);
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("convertFilter — savedQuery", () => {
+    test("passes savedQuery.id through to platform filter", () => {
+      const filter: TemplateFilter = {
+        savedQuery: { id: "a1b2c3d4-0000-0000-0000-000000000000" },
+      };
+
+      const platformFilter = engine.convertFilter(filter);
+
+      expect(platformFilter.savedQuery?.id).toBe("a1b2c3d4-0000-0000-0000-000000000000");
+      expect(platformFilter.savedQuery?.path).toBeUndefined();
+    });
+
+    test("passes savedQuery.path through to platform filter", () => {
+      const filter: TemplateFilter = {
+        savedQuery: { path: "Shared Queries/Sprint Stories" },
+      };
+
+      const platformFilter = engine.convertFilter(filter);
+
+      expect(platformFilter.savedQuery?.path).toBe("Shared Queries/Sprint Stories");
+    });
   });
 
   describe("conditional task filtering with normalization", () => {
@@ -222,7 +266,8 @@ describe("FilterEngine", () => {
           id: "task-2",
           title: "Task 2",
           estimationPercent: 30,
-          condition: "priority == 1", // This condition will NOT be met (priority is 2)
+          // This condition will NOT be met (story priority is 2, not 1)
+          condition: { field: "priority", operator: "equals" as const, value: 1 },
         },
         {
           id: "task-3",

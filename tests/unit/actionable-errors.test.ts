@@ -290,7 +290,7 @@ describe("Actionable Error Messages", () => {
 	});
 
 	describe("Condition Errors", () => {
-		test("should suggest proper condition syntax when invalid", () => {
+		test("should warn when condition uses a custom field (needs online verification)", () => {
 			const template = {
 				version: "1.0",
 				name: "Test",
@@ -299,7 +299,7 @@ describe("Actionable Error Messages", () => {
 					{
 						title: "Task 1",
 						estimationPercent: 100,
-						condition: "true",
+						condition: { customField: "Custom.ClientTier", operator: "equals", value: "Enterprise" },
 					},
 				],
 			};
@@ -307,12 +307,28 @@ describe("Actionable Error Messages", () => {
 			const result = validator.validate(template);
 
 			const warning = result.warnings.find((w) =>
-				w.message.includes("might be invalid"),
+				w.message.includes("custom field"),
 			);
 			expect(warning).toBeDefined();
-			expect(warning?.suggestion).toBeDefined();
-			expect(warning?.suggestion).toContain("${");
-			expect(warning?.suggestion).toContain("CONTAINS");
+			expect(warning?.path).toContain("condition");
+		});
+
+		test("should reject invalid customField reference name", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{
+						title: "Task 1",
+						estimationPercent: 100,
+						condition: { customField: "not-valid", operator: "equals", value: "x" },
+					},
+				],
+			};
+
+			const result = validator.validate(template);
+			expect(result.valid).toBe(false);
 		});
 	});
 
@@ -402,11 +418,23 @@ describe("Actionable Error Messages", () => {
 		});
 
 		test("should display suggestions for warnings", () => {
+			// Use a task with dependsOn but no id — generates a suggestion
 			const template = {
 				version: "1.0",
 				name: "Test",
 				filter: {},
-				tasks: [{ title: "Task 1", estimationPercent: 80 }],
+				tasks: [
+					{
+						id: "task-1",
+						title: "Task 1",
+						estimationPercent: 50,
+					},
+					{
+						title: "Task 2 (no id)",
+						estimationPercent: 50,
+						dependsOn: ["task-1"],
+					},
+				],
 			};
 
 			const result = validator.validate(template);

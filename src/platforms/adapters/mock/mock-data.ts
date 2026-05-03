@@ -151,37 +151,6 @@ export const mockUserStories: WorkItem[] = [
 ];
 
 /**
- * Get mock stories by filter
- */
-export function getMockStoriesByTags(
-	includeTags?: string[],
-	excludeTags?: string[],
-): WorkItem[] {
-	let stories = [...mockUserStories];
-
-	if (includeTags && includeTags.length > 0) {
-		stories = stories.filter((story) => {
-			return includeTags.some((tag) => story.tags?.includes(tag));
-		});
-	}
-
-	if (excludeTags && excludeTags.length > 0) {
-		stories = stories.filter((story) => {
-			return !excludeTags.some((tag) => story.tags?.includes(tag));
-		});
-	}
-
-	return stories;
-}
-
-/**
- * Get mock stories by state
- */
-export function getMockStoriesByState(states: string[]): WorkItem[] {
-	return mockUserStories.filter((story) => states.includes(story.state));
-}
-
-/**
  * Get mock story by ID
  */
 export function getMockStoryById(id: string): WorkItem | undefined {

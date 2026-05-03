@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { MockPlatformAdapter } from "@platforms/adapters/mock/mock.adapter";
 import type { FilterCriteria } from "@platforms/interfaces/filter.interface";
+import { expectToReject } from "../utils/matchers";
 
 describe("MockPlatformAdapter", () => {
 	let adapter: MockPlatformAdapter;
@@ -20,9 +21,7 @@ describe("MockPlatformAdapter", () => {
 		test("should throw error if not authenticated", async () => {
 			const filter: FilterCriteria = { states: ["New"] };
 
-			await expect(adapter.queryWorkItems(filter)).rejects.toThrow(
-				"Not authenticated",
-			);
+			await expectToReject(adapter.queryWorkItems(filter), "Not authenticated");
 		});
 	});
 

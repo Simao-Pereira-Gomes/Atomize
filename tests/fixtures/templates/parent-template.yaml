@@ -1,0 +1,11 @@
+extends: "./grandparent-template.yaml"
+name: "Parent Template"
+tags: ["parent"]
+
+tasks:
+  - id: "parent-task"
+    title: "Parent Task"
+    estimationPercent: 50
+  - id: "gp-task"
+    title: "Overridden by Parent"
+    estimationPercent: 50

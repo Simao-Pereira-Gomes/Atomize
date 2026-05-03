@@ -6,7 +6,7 @@ import type {
   MergedTask,
   StoryAnalysis,
 } from "@services/template/story-learner.types";
-import type { TaskTemplate } from "@templates/schema";
+import type { Condition, TaskTemplate } from "@templates/schema";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -180,8 +180,7 @@ describe("ConditionPatternDetector", () => {
 
       expect(tagPattern).toBeDefined();
       expect(tagPattern?.confidence).toBeGreaterThanOrEqual(0.7);
-      expect(tagPattern?.conditionExpression).toContain("CONTAINS");
-      expect(tagPattern?.conditionExpression).toContain("security");
+      expect(tagPattern?.condition).toEqual({ field: "tags", operator: "contains", value: "security" });
       expect(tagPattern?.taskCanonicalTitle).toBe("Security Review");
     });
 
@@ -205,7 +204,7 @@ describe("ConditionPatternDetector", () => {
         (p) =>
           p.correlationType === "tag" &&
           p.correlatedValue === "premium" &&
-          p.conditionExpression.includes("NOT CONTAINS"),
+          "field" in p.condition && p.condition.operator === "not-contains",
       );
 
       expect(negativePattern).toBeDefined();
@@ -275,9 +274,9 @@ describe("ConditionPatternDetector", () => {
 
       expect(priorityPattern).toBeDefined();
       expect(priorityPattern?.confidence).toBeGreaterThanOrEqual(0.7);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(priorityPattern?.conditionExpression).toContain("${story.priority}");
-      expect(priorityPattern?.conditionExpression).toContain("<=");
+      const priCond = priorityPattern?.condition;
+      expect(priCond && "field" in priCond && priCond.field).toBe("priority");
+      expect(priCond && "field" in priCond && priCond.operator).toBe("lte");
     });
 
     test("detects low-priority correlation for a task", () => {
@@ -303,7 +302,8 @@ describe("ConditionPatternDetector", () => {
 
       expect(priorityPattern).toBeDefined();
       expect(priorityPattern?.confidence).toBeGreaterThanOrEqual(0.7);
-      expect(priorityPattern?.conditionExpression).toContain(">");
+      const lowPriCond = priorityPattern?.condition;
+      expect(lowPriCond && "field" in lowPriCond && lowPriCond.operator).toBe("gt");
     });
 
     test("does not detect priority correlation when stories have no priority", () => {
@@ -350,9 +350,9 @@ describe("ConditionPatternDetector", () => {
 
       expect(estimationPattern).toBeDefined();
       expect(estimationPattern?.confidence).toBeGreaterThanOrEqual(0.7);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(estimationPattern?.conditionExpression).toContain("${story.estimation}");
-      expect(estimationPattern?.conditionExpression).toContain(">=");
+      const estCond = estimationPattern?.condition;
+      expect(estCond && "field" in estCond && estCond.field).toBe("estimation");
+      expect(estCond && "field" in estCond && estCond.operator).toBe("gte");
     });
 
     test("detects task correlated with small story estimation", () => {
@@ -378,7 +378,8 @@ describe("ConditionPatternDetector", () => {
 
       expect(estimationPattern).toBeDefined();
       expect(estimationPattern?.confidence).toBeGreaterThanOrEqual(0.7);
-      expect(estimationPattern?.conditionExpression).toContain("<");
+      const smallEstCond = estimationPattern?.condition;
+      expect(smallEstCond && "field" in smallEstCond && smallEstCond.operator).toBe("lt");
     });
 
     test("returns no estimation patterns when stories lack estimation", () => {
@@ -430,10 +431,7 @@ describe("ConditionPatternDetector", () => {
 
       expect(areaPattern).toBeDefined();
       expect(areaPattern?.confidence).toBeGreaterThanOrEqual(0.7);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(areaPattern?.conditionExpression).toContain("${story.areaPath}");
-      expect(areaPattern?.conditionExpression).toContain("CONTAINS");
-      expect(areaPattern?.conditionExpression).toContain("Project\\Mobile");
+      expect(areaPattern?.condition).toEqual({ field: "areaPath", operator: "contains", value: "Project\\Mobile" });
     });
 
     test("does not detect area path pattern when only one area path exists", () => {
@@ -471,67 +469,44 @@ describe("ConditionPatternDetector", () => {
   });
 
   // ========================================================================
-  // 6. generateConditionExpression
+  // 6. buildCondition
   // ========================================================================
-  describe("generateConditionExpression", () => {
-    test("generates positive tag expression", () => {
-      const expr = detector.generateConditionExpression("tag", "security", true);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(expr).toBe('${story.tags} CONTAINS "security"');
+  describe("buildCondition", () => {
+    test("builds positive tag condition", () => {
+      const cond = detector.buildCondition("tag", "security", true);
+      expect(cond).toEqual<Condition>({ field: "tags", operator: "contains", value: "security" });
     });
 
-    test("generates negative tag expression", () => {
-      const expr = detector.generateConditionExpression("tag", "legacy", false);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(expr).toBe('${story.tags} NOT CONTAINS "legacy"');
+    test("builds negative tag condition", () => {
+      const cond = detector.buildCondition("tag", "legacy", false);
+      expect(cond).toEqual<Condition>({ field: "tags", operator: "not-contains", value: "legacy" });
     });
 
-    test("generates high-priority expression (isPositive = true)", () => {
-      const expr = detector.generateConditionExpression("priority", 2, true);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(expr).toBe("${story.priority} <= 2");
+    test("builds high-priority condition (isPositive = true)", () => {
+      const cond = detector.buildCondition("priority", 2, true);
+      expect(cond).toEqual<Condition>({ field: "priority", operator: "lte", value: 2 });
     });
 
-    test("generates low-priority expression (isPositive = false)", () => {
-      const expr = detector.generateConditionExpression("priority", 2, false);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(expr).toBe("${story.priority} > 2");
+    test("builds low-priority condition (isPositive = false)", () => {
+      const cond = detector.buildCondition("priority", 2, false);
+      expect(cond).toEqual<Condition>({ field: "priority", operator: "gt", value: 2 });
     });
 
-    test("generates large-estimation expression (isPositive = true)", () => {
-      const expr = detector.generateConditionExpression("estimation", 13, true);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(expr).toBe("${story.estimation} >= 13");
+    test("builds large-estimation condition (isPositive = true)", () => {
+      const cond = detector.buildCondition("estimation", 13, true);
+      expect(cond).toEqual<Condition>({ field: "estimation", operator: "gte", value: 13 });
     });
 
-    test("generates small-estimation expression (isPositive = false)", () => {
-      const expr = detector.generateConditionExpression("estimation", 13, false);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(expr).toBe("${story.estimation} < 13");
+    test("builds small-estimation condition (isPositive = false)", () => {
+      const cond = detector.buildCondition("estimation", 13, false);
+      expect(cond).toEqual<Condition>({ field: "estimation", operator: "lt", value: 13 });
     });
 
-    test("generates areaPath expression (ignores isPositive)", () => {
-      const expr = detector.generateConditionExpression(
-        "areaPath",
-        "Project\\Web",
-        true,
-      );
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(expr).toBe('${story.areaPath} CONTAINS "Project\\Web"');
-    });
-
-    test("generates areaPath expression with false isPositive same as true", () => {
-      const exprTrue = detector.generateConditionExpression(
-        "areaPath",
-        "Project\\Web",
-        true,
-      );
-      const exprFalse = detector.generateConditionExpression(
-        "areaPath",
-        "Project\\Web",
-        false,
-      );
-      expect(exprTrue).toBe(exprFalse);
+    test("builds areaPath condition (ignores isPositive)", () => {
+      const condTrue = detector.buildCondition("areaPath", "Project\\Web", true);
+      const condFalse = detector.buildCondition("areaPath", "Project\\Web", false);
+      expect(condTrue).toEqual<Condition>({ field: "areaPath", operator: "contains", value: "Project\\Web" });
+      expect(condTrue).toEqual(condFalse);
     });
   });
 
@@ -548,8 +523,7 @@ describe("ConditionPatternDetector", () => {
       const patterns = [
         {
           taskCanonicalTitle: "Security Review",
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-          conditionExpression: '${story.tags} CONTAINS "security"',
+          condition: { field: "tags" as const, operator: "contains" as const, value: "security" },
           correlationType: "tag" as const,
           correlatedValue: "security",
           confidence: 0.85,
@@ -565,8 +539,7 @@ describe("ConditionPatternDetector", () => {
         (mt) => mt.task.title === "Security Review",
       );
       expect(augmented).toBeDefined();
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-      expect(augmented?.learnedCondition).toBe('${story.tags} CONTAINS "security"');
+      expect(augmented?.learnedCondition).toEqual({ field: "tags", operator: "contains", value: "security" });
 
       const unchanged = result.find((mt) => mt.task.title === "Code");
       expect(unchanged).toBeDefined();
@@ -579,8 +552,7 @@ describe("ConditionPatternDetector", () => {
       const patterns = [
         {
           taskCanonicalTitle: "Security Review",
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-          conditionExpression: '${story.tags} CONTAINS "security"',
+          condition: { field: "tags" as const, operator: "contains" as const, value: "security" },
           correlationType: "tag" as const,
           correlatedValue: "security",
           confidence: 0.75,
@@ -609,8 +581,7 @@ describe("ConditionPatternDetector", () => {
       const patterns = [
         {
           taskCanonicalTitle: "Security Review",
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-          conditionExpression: '${story.tags} CONTAINS "security"',
+          condition: { field: "tags" as const, operator: "contains" as const, value: "security" },
           correlationType: "tag" as const,
           correlatedValue: "security",
           confidence: 0.9,
@@ -637,8 +608,7 @@ describe("ConditionPatternDetector", () => {
       const patterns = [
         {
           taskCanonicalTitle: "Completely Different Task",
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-          conditionExpression: '${story.tags} CONTAINS "nope"',
+          condition: { field: "tags" as const, operator: "contains" as const, value: "nope" },
           correlationType: "tag" as const,
           correlatedValue: "nope",
           confidence: 0.9,
@@ -856,7 +826,7 @@ describe("ConditionPatternDetector", () => {
 
       // Compound should be found with 100% confidence (3/3 stories with both conditions)
       if (compoundPattern) {
-        expect(compoundPattern.conditionExpression).toContain(" AND ");
+        expect("all" in compoundPattern.condition).toBe(true);
         expect(compoundPattern.confidence).toBeGreaterThanOrEqual(0.7);
       }
     });
@@ -872,8 +842,7 @@ describe("ConditionPatternDetector", () => {
       const patterns = [
         {
           taskCanonicalTitle: "Security Review",
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-          conditionExpression: '${story.tags} CONTAINS "security"',
+          condition: { field: "tags" as const, operator: "contains" as const, value: "security" },
           correlationType: "tag" as const,
           correlatedValue: "security",
           confidence: 0.9,
@@ -883,8 +852,7 @@ describe("ConditionPatternDetector", () => {
         },
         {
           taskCanonicalTitle: "Security Review",
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-          conditionExpression: "${story.priority} <= 1",
+          condition: { field: "priority" as const, operator: "lte" as const, value: 1 },
           correlationType: "priority" as const,
           correlatedValue: 1,
           confidence: 0.85,
@@ -897,9 +865,8 @@ describe("ConditionPatternDetector", () => {
       const result = detector.augmentMergedTasks(mergedTasks, patterns);
       const augmented = result.find((mt) => mt.task.title === "Security Review");
 
-      expect(augmented?.learnedCondition).toContain(" OR ");
-      expect(augmented?.learnedCondition).toContain("CONTAINS");
-      expect(augmented?.learnedCondition).toContain("priority");
+      const learned = augmented?.learnedCondition;
+      expect(learned && "any" in learned).toBe(true);
     });
 
     test("uses compound AND condition directly when available (no OR wrapping)", () => {
@@ -908,8 +875,10 @@ describe("ConditionPatternDetector", () => {
       const patterns = [
         {
           taskCanonicalTitle: "Security Review",
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing condition expression syntax
-          conditionExpression: '(${story.tags} CONTAINS "security") AND (${story.priority} <= 1)',
+          condition: { all: [
+            { field: "tags" as const, operator: "contains" as const, value: "security" },
+            { field: "priority" as const, operator: "lte" as const, value: 1 },
+          ] } satisfies Condition,
           correlationType: "compound" as const,
           correlatedValue: "security+1",
           confidence: 1.0,
@@ -922,9 +891,8 @@ describe("ConditionPatternDetector", () => {
       const result = detector.augmentMergedTasks(mergedTasks, patterns);
       const augmented = result.find((mt) => mt.task.title === "Security Review");
 
-      expect(augmented?.learnedCondition).toContain(" AND ");
-      // Should NOT wrap a single compound in extra parens
-      expect(augmented?.learnedCondition).not.toMatch(/^\(.*\) OR \(.*\)$/);
+      // A single compound pattern should be returned directly (not wrapped in any)
+      expect(augmented?.learnedCondition && "all" in augmented.learnedCondition).toBe(true);
     });
   });
 

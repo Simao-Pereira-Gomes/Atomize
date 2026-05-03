@@ -1,13 +1,19 @@
 import { readFileSync } from "node:fs";
-import { cancel, confirm, intro, log, outro } from "@clack/prompts";
+import { confirm } from "@clack/prompts";
 import { keychainAvailable } from "@config/keychain.service";
 import { Command } from "commander";
+import {
+  createCommandOutput,
+  resolveCommandOutputPolicy,
+} from "@/cli/utilities/command-output";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
+import { writeManagedOutput } from "@/cli/utilities/terminal-output";
+import { getErrorMessage } from "@/utils/errors";
 import {
   applyDefault,
   checkProfileNameAvailable,
@@ -27,6 +33,10 @@ interface AddOptions {
   default?: boolean;
   insecureStorage?: boolean;
   patStdin?: boolean;
+}
+
+function writeCliError(message: string): void {
+  writeManagedOutput("stderr", `Error: ${message}`);
 }
 
 function readPatFromStdin(): string | undefined {
@@ -71,12 +81,13 @@ export const authAddCommand = new Command("add")
     false,
   )
   .action(async (nameArg: string | undefined, options: AddOptions) => {
+    const output = createCommandOutput(resolveCommandOutputPolicy({}));
     const resolvedPat = resolvePat(options);
     const ci = isNonInteractive(options, resolvedPat);
 
     if (ci && !resolvedPat) {
-      console.error(
-        "Error: PAT is required. Use --pat-stdin to pipe from stdin (recommended in CI), or set the ATOMIZE_PAT environment variable.",
+      writeCliError(
+        "PAT is required. Use --pat-stdin to pipe from stdin (recommended in CI), or set the ATOMIZE_PAT environment variable.",
       );
       process.exit(ExitCode.Failure);
     }
@@ -84,26 +95,26 @@ export const authAddCommand = new Command("add")
     // Validate and check availability before showing any UI when name is already known
     if (ci || nameArg) {
       if (!nameArg) {
-        console.error(
-          "Error: Profile name is required.\nUsage: echo <token> | atomize auth add <name> --pat-stdin --org-url <url> --project <name> --team <name>",
+        writeCliError(
+          "Profile name is required.\nUsage: echo <token> | atomize auth add <name> --pat-stdin --org-url <url> --project <name> --team <name>",
         );
         process.exit(ExitCode.Failure);
       }
       const nameError = validateProfileName(nameArg);
       if (nameError) {
-        if (ci) console.error(`Error: ${nameError}`);
-        else cancel(nameError);
+        if (ci) writeCliError(nameError);
+        else output.cancel(nameError);
         process.exit(ExitCode.Failure);
       }
       const dupError = await checkProfileNameAvailable(nameArg);
       if (dupError) {
-        if (ci) console.error(`Error: ${dupError}`);
-        else cancel(dupError);
+        if (ci) writeCliError(dupError);
+        else output.cancel(dupError);
         process.exit(ExitCode.Failure);
       }
     }
 
-    if (!ci) intro(" Atomize — Add Connection Profile");
+    if (!ci) output.intro(" Atomize — Add Connection Profile");
 
     let resolvedName: string;
     if (ci || nameArg) {
@@ -112,7 +123,7 @@ export const authAddCommand = new Command("add")
       resolvedName = await promptProfileName();
       const dupError = await checkProfileNameAvailable(resolvedName);
       if (dupError) {
-        cancel(dupError);
+        output.cancel(dupError);
         process.exit(ExitCode.Failure);
       }
     }
@@ -132,10 +143,10 @@ export const authAddCommand = new Command("add")
           team: options.team,
         });
 
-    if (ci) {
+    if (ci && inputs.platform === "azure-devops") {
       const organizationUrlError = validateOrganizationUrl(inputs.organizationUrl);
       if (organizationUrlError) {
-        console.error(`Error: ${organizationUrlError}`);
+        writeCliError(organizationUrlError);
         process.exit(ExitCode.Failure);
       }
     }
@@ -148,12 +159,12 @@ export const authAddCommand = new Command("add")
         "System keychain is unavailable. The token would be stored in an insecure local file fallback — " +
         "anyone who can read ~/.atomize/ can recover it.";
       if (ci) {
-        console.error(
-          `Error: ${insecureMsg}\nRe-run with --insecure-storage to accept the insecure local file fallback.`,
+        writeCliError(
+          `${insecureMsg}\nRe-run with --insecure-storage to accept the insecure local file fallback.`,
         );
         process.exit(ExitCode.Failure);
       } else {
-        log.warn(insecureMsg);
+        output.warn(insecureMsg);
         allowKeyfileStorage = assertNotCancelled(
           await confirm({
             message: "Continue with the insecure local file fallback?",
@@ -161,7 +172,7 @@ export const authAddCommand = new Command("add")
           }),
         );
         if (!allowKeyfileStorage) {
-          cancel("Aborted — token not saved.");
+          output.cancel("Aborted — token not saved.");
           process.exit(ExitCode.Failure);
         }
       }
@@ -178,31 +189,29 @@ export const authAddCommand = new Command("add")
 
       const defaultBehaviour = await resolveDefaultBehaviour(
         options.default ?? false,
+        inputs.platform,
       );
 
       if (defaultBehaviour === "set-default") {
         await applyDefault(inputs.name);
         if (ci)
-          console.log(`Profile "${inputs.name}" saved and set as default.`);
-        else outro(`Profile "${inputs.name}" saved and set as default.`);
+          output.print(`Profile "${inputs.name}" saved and set as default.`);
+        else output.outro(`Profile "${inputs.name}" saved and set as default.`);
       } else if (!ci) {
         const makeDefault = await promptSetAsDefault(inputs.name);
         if (makeDefault) {
           await applyDefault(inputs.name);
-          outro(`Profile "${inputs.name}" saved and set as default.`);
+          output.outro(`Profile "${inputs.name}" saved and set as default.`);
         } else {
-          outro(`Profile "${inputs.name}" saved.`);
+          output.outro(`Profile "${inputs.name}" saved.`);
         }
       } else {
-        console.log(`Profile "${inputs.name}" saved.`);
+        output.print(`Profile "${inputs.name}" saved.`);
       }
     } catch (error) {
       savingSpinner?.stop("Failed to save profile");
-      if (ci)
-        console.error(
-          `Error: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      else cancel(error instanceof Error ? error.message : String(error));
+      if (ci) writeCliError(getErrorMessage(error));
+      else output.cancel(getErrorMessage(error));
       process.exit(ExitCode.Failure);
     }
   });

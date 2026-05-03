@@ -63,6 +63,15 @@ export interface FilterCriteria {
 
 	/** Limit number of results */
 	limit?: number;
+
+	/** Delegate query composition to an existing Azure DevOps saved query (by ID or path) */
+	savedQuery?: {
+		id?: string;
+		path?: string;
+	};
+
+	/** Fetch these specific work item IDs directly, bypassing all other filter criteria except excludeIfHasTasks */
+	workItemIds?: string[];
 }
 
 /**

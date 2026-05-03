@@ -14,8 +14,9 @@ import {
   saveProfile,
   setDefaultProfile,
 } from "@config/connections.config";
-import type { ConnectionProfile } from "@config/connections.interface";
+import type { AzureDevOpsProfile, ConnectionProfile } from "@config/connections.interface";
 import { encryptWithKeyfile } from "@config/keyfile.service";
+import type { AIProvider } from "@/ai/providers/provider.interface";
 import {
   applyDefault,
   persistProfile,
@@ -25,7 +26,7 @@ import {
 } from "@/cli/commands/auth/helpers/auth-add.helper";
 import { deleteProfile } from "@/cli/commands/auth/helpers/auth-remove.helper";
 import { rotateToken } from "@/cli/commands/auth/helpers/auth-rotate.helper";
-import { testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
+import { testAIProviderConnection, testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
 import type { IPlatformAdapter } from "@/platforms";
 
 beforeAll(async () => {
@@ -127,22 +128,22 @@ describe("validateOrganizationUrl", () => {
 
 describe("resolveDefaultBehaviour", () => {
   test("returns 'set-default' when forceDefault is true regardless of file state", async () => {
-    const result = await resolveDefaultBehaviour(true);
+    const result = await resolveDefaultBehaviour(true, "azure-devops");
     expect(result).toBe("set-default");
   });
 
   test("returns 'set-default' when no file exists (no current default)", async () => {
     // CONNECTIONS_PATH was removed in beforeEach — no default profile
-    const result = await resolveDefaultBehaviour(false);
+    const result = await resolveDefaultBehaviour(false, "azure-devops");
     expect(result).toBe("set-default");
   });
 
-  test("returns 'prompt' when a default profile is already set", async () => {
+  test("returns 'prompt' when a default profile is already set for the platform", async () => {
     const profile = await makeKeyfileProfile();
     await saveProfile(profile);
     await setDefaultProfile(profile.name);
 
-    const result = await resolveDefaultBehaviour(false);
+    const result = await resolveDefaultBehaviour(false, "azure-devops");
     expect(result).toBe("prompt");
   });
 });
@@ -165,7 +166,7 @@ describe("persistProfile", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    const saved = file.profiles.find((p) => p.name === "persist-test");
+    const saved = file.profiles.find((p) => p.name === "persist-test") as AzureDevOpsProfile | undefined;
     expect(saved).toBeDefined();
     expect(saved?.organizationUrl).toBe("https://dev.azure.com/org");
     expect(saved?.project).toBe("Proj");
@@ -201,7 +202,7 @@ describe("applyDefault", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    expect(file.defaultProfile).toBe("apply-default-test");
+    expect(file.defaultProfiles["azure-devops"]).toBe("apply-default-test");
   });
 });
 
@@ -240,7 +241,7 @@ describe("deleteProfile", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    expect(file.defaultProfile).toBeNull();
+    expect(file.defaultProfiles["azure-devops"]).toBeUndefined();
   });
 });
 
@@ -272,11 +273,11 @@ describe("rotateToken", () => {
 
     const { readConnectionsFile } = await import("@config/connections.config");
     const file = await readConnectionsFile();
-    const updated = file.profiles.find((p) => p.name === "rotate-metadata");
+    const updated = file.profiles.find((p) => p.name === "rotate-metadata") as AzureDevOpsProfile | undefined;
 
-    expect(updated?.organizationUrl).toBe(profile.organizationUrl);
-    expect(updated?.project).toBe(profile.project);
-    expect(updated?.team).toBe(profile.team);
+    expect(updated?.organizationUrl).toBe((profile as AzureDevOpsProfile).organizationUrl);
+    expect(updated?.project).toBe((profile as AzureDevOpsProfile).project);
+    expect(updated?.team).toBe((profile as AzureDevOpsProfile).team);
   });
 
   test("updates updatedAt after rotation", async () => {
@@ -348,5 +349,61 @@ describe("testPlatformConnection", () => {
 
     await testPlatformConnection(platform);
     expect(authMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── testAIProviderConnection ─────────────────────────────────────────────────
+
+function makeAIProvider(overrides: Partial<AIProvider> = {}): AIProvider {
+  return {
+    id: "github-models",
+    generate: mock(() => Promise.resolve("")),
+    stream: mock(async function* () {}),
+    ...overrides,
+  };
+}
+
+describe("testAIProviderConnection", () => {
+  test("returns ok:true with model label when testConnection resolves true", async () => {
+    const provider = makeAIProvider({
+      testConnection: mock(() => Promise.resolve(true)),
+    });
+
+    const result = await testAIProviderConnection(provider, "gpt-4o-mini");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.label).toContain("gpt-4o-mini");
+    }
+  });
+
+  test("returns ok:true with 'default' when no model is provided", async () => {
+    const provider = makeAIProvider({
+      testConnection: mock(() => Promise.resolve(true)),
+    });
+
+    const result = await testAIProviderConnection(provider);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.label).toContain("default");
+    }
+  });
+
+  test("returns ok:false when testConnection resolves false", async () => {
+    const provider = makeAIProvider({
+      testConnection: mock(() => Promise.resolve(false)),
+    });
+
+    const result = await testAIProviderConnection(provider, "gpt-4o");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBeTruthy();
+    }
+  });
+
+  test("returns ok:true with fallback label when testConnection is not defined", async () => {
+    const provider = makeAIProvider();
+
+    const result = await testAIProviderConnection(provider);
+    expect(result.ok).toBe(true);
   });
 });

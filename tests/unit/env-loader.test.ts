@@ -99,11 +99,12 @@ describe("loadEnvFile", () => {
 	test("accepts all schema keys together", () => {
 		writeFileSync(
 			ENV_FILE,
-			"ATOMIZE_PAT=token\nATOMIZE_PROFILE=dev\nATOMIZE_DEV=true\nLOG_LEVEL=debug\n",
+			"ATOMIZE_PAT=token\nATOMIZE_PROFILE=dev\nATOMIZE_DEV=true\nATOMIZE_UPDATE_NOTIFIER=disabled\nLOG_LEVEL=debug\n",
 		);
 		delete process.env.ATOMIZE_PAT;
 		delete process.env.ATOMIZE_PROFILE;
 		delete process.env.ATOMIZE_DEV;
+		delete process.env.ATOMIZE_UPDATE_NOTIFIER;
 		delete process.env.LOG_LEVEL;
 
 		loadEnvFile(ENV_FILE);
@@ -111,11 +112,13 @@ describe("loadEnvFile", () => {
 		expect(process.env.ATOMIZE_PAT as unknown as string).toBe("token");
 		expect(process.env.ATOMIZE_PROFILE as unknown as string).toBe("dev");
 		expect(process.env.ATOMIZE_DEV as unknown as string).toBe("true");
+		expect(process.env.ATOMIZE_UPDATE_NOTIFIER as unknown as string).toBe("disabled");
 		expect(process.env.LOG_LEVEL as unknown as string).toBe("debug");
 
 		delete process.env.ATOMIZE_PAT;
 		delete process.env.ATOMIZE_PROFILE;
 		delete process.env.ATOMIZE_DEV;
+		delete process.env.ATOMIZE_UPDATE_NOTIFIER;
 		delete process.env.LOG_LEVEL;
 	});
 
@@ -130,6 +133,12 @@ describe("loadEnvFile", () => {
 		writeFileSync(ENV_FILE, "ATOMIZE_DEV=yes\n");
 
 		expect(() => loadEnvFile(ENV_FILE)).toThrow("ATOMIZE_DEV");
+	});
+
+	test("rejects invalid ATOMIZE_UPDATE_NOTIFIER values", () => {
+		writeFileSync(ENV_FILE, "ATOMIZE_UPDATE_NOTIFIER=false\n");
+
+		expect(() => loadEnvFile(ENV_FILE)).toThrow("ATOMIZE_UPDATE_NOTIFIER");
 	});
 
 	test("rejects an invalid LOG_LEVEL value", () => {

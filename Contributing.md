@@ -63,7 +63,7 @@ Template should validate successfully
 **Environment**
 - OS: macOS 14.0
 - Node: v20.10.0
-- Atomize: v0.0.1
+- Atomize: v2.0.0-alpha.0
 - Platform: Azure DevOps
 ```
 
@@ -89,26 +89,26 @@ Documentation improvements are highly valued!
 - Add examples and use cases
 - Improve getting started guides
 - Add troubleshooting tips
-- 
+
 **Process:**
 1. Fork the repository
 2. Edit markdown files in `docs/` or root directory
 3. Preview changes locally
 4. Submit a pull request
 
-### 🎨 Adding Preset Templates
+### 🎨 Adding Bundled Templates
 
-Preset templates are templates that ship with Atomize.
+Bundled templates are templates that ship with Atomize.
 
-**Good preset templates:**
+**Good bundled templates:**
 - Solve a common, real-world use case
 - Have clear, descriptive names
 - Include comprehensive documentation
 - Are well-tested with real stories
 
 **Process:**
-1. Create template in `templates/presets/`
-2. Add to `src/services/template/embedded-presets.ts`
+1. Create the template in `templates/templates/`
+2. Add reusable task groups in `templates/mixins/` when appropriate
 3. Add tests
 4. Update documentation
 
@@ -132,7 +132,7 @@ Want to add support for Jira, GitHub, or another platform?
 - Include comprehensive tests
 - Document setup process
 
-**See [Platform Guide](docs/PLATFORM-GUIDE.md#adding-new-platforms) for detailed instructions.**
+**See [Platform Guide](docs/Platform-Guide.md#adding-new-platforms) for detailed instructions.**
 
 ---
 
@@ -143,7 +143,7 @@ Want to add support for Jira, GitHub, or another platform?
 - **Bun** v1.0+ (recommended) or Node.js 18+
 - **Git**
 - **Azure DevOps account** (optional, for testing)
-- **Google Gemini API key** (optional, for AI features)
+- **GitHub Models access** (optional, for AI-assisted template generation)
 
 ### Initial Setup
 
@@ -179,7 +179,7 @@ bun run build
 bun run dev
 
 # Run specific command
-bun run src/cli/index.ts generate templates/backend-api.yaml --platform mock --dry-run
+bun run src/cli/index.ts generate template:backend-api --platform mock
 
 # Watch tests
 bun test --watch
@@ -213,12 +213,13 @@ atomize/
 │   │   ├── schema.ts     # Zod schemas
 │   │   ├── loader.ts     # Template loading
 │   │   └── validator.ts  # Template validation
-│   ├── services/         # Services (AI, presets, etc.)
+│   ├── services/         # Services (AI, template catalog, etc.)
 │   │   └── template/     # Template services
 │   ├── config/           # Configuration
 │   └── utils/            # Utilities
-├── templates/            # Bundled templates
-│   └── presets/          # Preset templates
+├── templates/            # Bundled template catalog
+│   ├── templates/        # Bundled templates
+│   └── mixins/           # Bundled mixins
 ├── tests/                # Test files
 │   ├── unit/             # Unit tests
 │   ├── integration/      # Integration tests

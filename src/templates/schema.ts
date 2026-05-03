@@ -9,8 +9,6 @@ import {
  * Accepts an ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDThh:mm:ss[.sss][Z|±hh:mm])
  * or an approved WIQL date macro (@Today, @StartOfDay, @StartOfMonth,
  * @StartOfWeek, @StartOfYear) with an optional integer offset (+N / -N).
- * Anything else — including strings that contain single-quotes — is rejected,
- * preventing WIQL injection through date filter fields.
  */
 const DATE_OR_MACRO_RE =
   /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(\s*[+-]\s*\d+)?$|^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/i;
@@ -24,9 +22,77 @@ const DateOrMacroSchema = z
       "with an optional numeric offset (e.g. @Today-7).",
   });
 
+/** Matches ADO reference names like "Custom.ClientTier" or "System.Tags". */
+const REFERENCE_NAME_RE = /^[A-Za-z][A-Za-z0-9_.]*\.[A-Za-z][A-Za-z0-9_]*$/;
+
+/**
+ * Structured condition operators for task and estimation conditions.
+ */
+export const ConditionOperatorSchema = z.enum([
+  "equals",
+  "not-equals",
+  "contains",
+  "not-contains",
+  "gt",
+  "lt",
+  "gte",
+  "lte",
+]);
+
+export type ConditionOperator = z.infer<typeof ConditionOperatorSchema>;
+
+const ConditionValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+
+/**
+ * Structured task condition — evaluated against the parent story at generate time.
+ *
+ * Simple clause:   { field: "tags", operator: "contains", value: "backend" }
+ * Custom field:    { customField: "Custom.ClientTier", operator: "equals", value: "Enterprise" }
+ * AND compound:    { all: [ ...clauses ] }
+ * OR  compound:    { any: [ ...clauses ] }
+ */
+export type Condition =
+  | { field: string; operator: ConditionOperator; value: string | number | boolean }
+  | { customField: string; operator: ConditionOperator; value: string | number | boolean }
+  | { all: Condition[] }
+  | { any: Condition[] };
+
+export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
+  z.union([
+    z.object({
+      field: z.string().min(1),
+      operator: ConditionOperatorSchema,
+      value: ConditionValueSchema,
+    }),
+    z.object({
+      customField: z
+        .string()
+        .regex(
+          REFERENCE_NAME_RE,
+          'Custom field reference must be in "Namespace.FieldName" format (e.g. "Custom.ClientTier").',
+        ),
+      operator: ConditionOperatorSchema,
+      value: ConditionValueSchema,
+    }),
+    z.object({ all: z.array(ConditionSchema).min(1, "all requires at least one clause") }),
+    z.object({ any: z.array(ConditionSchema).min(1, "any requires at least one clause") }),
+  ]),
+);
+
+
+export const SavedQuerySchema = z
+  .object({
+    id: z.uuid().optional(),
+    path: z.string().min(1).optional(),
+  })
+  .refine((d) => !!(d.id ?? d.path), {
+    message: "savedQuery requires either id or path",
+  })
+  .refine((d) => !(d.id && d.path), {
+    message: "savedQuery accepts id or path, not both",
+  });
 
 export const FilterCriteriaSchema = z.object({
-  /** Override the team from config for this template's queries (affects @CurrentIteration and @TeamAreas resolution) */
   team: z.string().optional(),
   workItemTypes: z.array(z.string()).optional(),
   states: z.array(z.string()).optional(),
@@ -56,10 +122,11 @@ export const FilterCriteriaSchema = z.object({
     })
     .optional(),
   excludeIfHasTasks: z.boolean().optional(),
+  savedQuery: SavedQuerySchema.optional(),
 });
 
 export const EstimationPercentConditionSchema = z.object({
-  condition: z.string().min(1, "Condition is required"),
+  condition: ConditionSchema,
   percent: z.number().min(0).max(100),
 });
 
@@ -70,7 +137,7 @@ export const TaskDefinitionSchema = z.object({
   estimationPercent: z
     .number()
     .min(0, "Estimation percentage cannot be negative")
-    .max(100, "Estimation percentage cannot exceed 100")
+    .max(100, "Estimation percentage for a single task cannot exceed 100%")
     .optional(),
   estimationPercentCondition: z
     .array(EstimationPercentConditionSchema)
@@ -81,14 +148,29 @@ export const TaskDefinitionSchema = z.object({
     .optional(),
   estimationFormula: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  condition: z.string().optional(),
+  condition: ConditionSchema.optional(),
   dependsOn: z.array(z.string()).optional(),
   assignTo: z.string().optional(),
   priority: z.number().optional(),
   activity: z.string().optional(),
-  remainingWork: z.number().optional(),
   acceptanceCriteria: z.array(z.string()).optional(),
   acceptanceCriteriaAsChecklist: z.boolean().optional(),
+  customFields: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+    .optional()
+    .superRefine((fields, ctx) => {
+      if (!fields) return undefined;
+      for (const key of Object.keys(fields)) {
+        if (!REFERENCE_NAME_RE.test(key)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Invalid field reference name "${key}". Expected format: "Namespace.FieldName" (e.g. "Custom.ClientTier").`,
+            params: { code: "INVALID_CUSTOM_FIELD_REFERENCE" },
+          });
+        }
+      }
+      return undefined;
+    }),
 });
 
 export const EstimationConfigSchema = z.object({
@@ -123,7 +205,6 @@ export const ValidationConfigSchema = z.object({
     .array(
       z.object({
         title: z.string(),
-        // Optional: match by id instead of title
         id: z.string().optional(),
       }),
     )
@@ -166,8 +247,8 @@ export const TaskTemplateSchema = z
     validation: ValidationConfigSchema.optional(),
     metadata: MetadataSchema.optional(),
 
-    variables: z.record(z.string(), z.any()).optional(),
     extends: z.string().optional(),
+    mixins: z.array(z.string()).optional(),
   })
   .superRefine((data, ctx) => {
     const { tasks, validation: v } = data;
@@ -178,6 +259,7 @@ export const TaskTemplateSchema = z
     );
     const taskIds = new Set(tasks.map((t) => t.id).filter(Boolean));
 
+    validateUniqueTaskIds(tasks, ctx);
     validateEstimationConstraints(v, totalPercent, ctx);
 
     validateTaskConstraints(v, tasks, ctx);
@@ -205,8 +287,6 @@ export const TaskTemplateSchema = z
         }
       });
     });
-
-    // Detect circular dependencies
     reportCircularDependencies(tasks, taskIndexById, ctx);
   });
 
@@ -233,6 +313,30 @@ function validateTaskConstraints(
       params: { code: "TOO_MANY_TASKS" },
     });
   }
+}
+
+function validateUniqueTaskIds(
+  tasks: z.infer<typeof TaskDefinitionSchema>[],
+  ctx: z.RefinementCtx,
+) {
+  const firstIndexById = new Map<string, number>();
+
+  tasks.forEach((task, index) => {
+    if (!task.id) return;
+
+    const firstIndex = firstIndexById.get(task.id);
+    if (firstIndex === undefined) {
+      firstIndexById.set(task.id, index);
+      return;
+    }
+
+    ctx.addIssue({
+      code: "custom",
+      path: ["tasks", index, "id"],
+      message: `Duplicate task id "${task.id}". Task IDs must be unique; first defined at tasks[${firstIndex}].`,
+      params: { code: "DUPLICATE_TASK_ID", duplicateId: task.id, firstIndex },
+    });
+  });
 }
 
 function validateEstimationConstraints(
@@ -323,6 +427,18 @@ function reportCircularDependencies(
   }
 }
 
+/**
+ * Schema for mixin files — partial templates that contribute only tasks.
+ * Mixins don't require a filter since they're composed into a full template.
+ */
+export const MixinTemplateSchema = z.object({
+  name: z.string().min(1, "Mixin name is required"),
+  description: z.string().optional(),
+  tasks: z.array(TaskDefinitionSchema).min(1, "At least one task is required"),
+}).superRefine((data, ctx) => {
+  validateUniqueTaskIds(data.tasks, ctx);
+});
+
 export const CURRENT_ITERATION = "@CurrentIteration" as const;
 export const TEAM_AREAS = "@TeamAreas" as const;
 export const TODAY = "@Today" as const;
@@ -332,7 +448,9 @@ export const START_OF_MONTH = "@StartOfMonth" as const;
 export const START_OF_YEAR = "@StartOfYear" as const;
 export const ME = "@Me" as const;
 
+export type MixinTemplate = z.infer<typeof MixinTemplateSchema>;
 export type FilterCriteria = z.infer<typeof FilterCriteriaSchema>;
+export type SavedQuery = z.infer<typeof SavedQuerySchema>;
 export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;
 export type EstimationPercentCondition = z.infer<
   typeof EstimationPercentConditionSchema
@@ -342,3 +460,13 @@ export type ValidationMode = z.infer<typeof ValidationModeSchema>;
 export type ValidationConfig = z.infer<typeof ValidationConfigSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
 export type TaskTemplate = z.infer<typeof TaskTemplateSchema>;
+
+/**
+ * A template that uses `extends` and/or `mixins` and has not yet been resolved.
+ * `filter` and `tasks` are inherited from the parent and therefore optional here.
+ * Always resolve through `TemplateLoader` or `TemplateResolver` before validating.
+ */
+export type PartialTaskTemplate = Omit<TaskTemplate, "filter" | "tasks"> & {
+  filter?: FilterCriteria;
+  tasks?: TaskDefinition[];
+};

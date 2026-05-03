@@ -1,0 +1,16 @@
+name: "Documentation Mixin"
+description: "Standard documentation tasks. Mix into any template to ensure docs are part of the definition of done."
+tasks:
+  - id: "update-docs"
+    title: "Update Documentation: ${story.title}"
+    description: "Update or create user-facing documentation, API docs, and README files to reflect the changes."
+    estimationPercent: 10
+    activity: "Documentation"
+    assignTo: "@Unassigned"
+
+  - id: "changelog-entry"
+    title: "Add Changelog Entry: ${story.title}"
+    description: "Add a clear, user-focused entry to the project changelog describing what changed and why."
+    estimationPercent: 5
+    activity: "Documentation"
+    assignTo: "@ParentAssignee"

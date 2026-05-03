@@ -4,7 +4,6 @@ export * from "./dependency-detector";
 export * from "./filter-learner";
 export * from "./outlier-detector";
 export * from "./pattern-detector";
-export * from "./preset-manager";
 export * from "./similarity-calculator";
 export * from "./story-learner";
 export * from "./story-learner.types";

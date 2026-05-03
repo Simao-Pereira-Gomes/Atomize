@@ -1,0 +1,6 @@
+name: "Project Security"
+description: "Project-level security mixin override"
+tasks:
+  - id: "project-security"
+    title: "Project Security"
+    estimationPercent: 10

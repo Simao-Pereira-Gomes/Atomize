@@ -9,9 +9,136 @@ The Template Creation Wizard is an interactive command-line tool that helps you 
 ✅ **Interactive Step-by-Step Wizard** - Six clear steps guide you through template creation
 ✅ **Input Validation** - All inputs are validated in real-time with helpful error messages
 ✅ **Preview Before Saving** - Review and edit your template before committing
-✅ **Estimation Normalization** - Automatic percentage normalization to ensure 100% total
-✅ **Cross-Platform Compatible** - Works on Windows, macOS, and Linux
 ✅ **Error Recovery** - Cancel at any step or retry on errors
+
+## Creation Modes
+
+`template create` supports four modes. If you run it without flags, you are prompted to pick one:
+
+| Mode | Flag | Best for |
+|------|------|----------|
+| From existing template | `--from <name>` | Customizing a built-in or team template |
+| AI-assisted | `--ai` | Generating a first draft from a plain-language description |
+| Story Learner | `--from-stories <ids>` | Capturing proven patterns from real work items |
+| From scratch | `--scratch` | Full control via the interactive wizard |
+
+---
+
+## From an Existing Template
+
+Start from a built-in or previously installed catalog template and customise it. This is the quickest way to create a team-specific variant of a standard template.
+
+```bash
+# See what's available
+atomize template list
+
+# Copy backend-api as a starting point
+atomize template create --from backend-api
+```
+
+The wizard opens pre-populated with the source template's tasks, filter, and estimation settings. Edit what you need and save under a new name.
+
+```bash
+# Skip the mode prompt and go straight to the wizard with a pre-filled template
+atomize template create --from backend-api --save-as my-backend-api
+```
+
+> **Migrating from v1?** The `--preset` flag was replaced by `--from` in v2. `--from backend-api` is the direct equivalent of the old `--preset backend-api`.
+
+---
+
+## AI-Assisted Generation
+
+Describe the template you need in plain language and let the AI generate a first draft. You review, validate, and refine the result — the AI handles the structural boilerplate.
+
+### Prerequisites
+
+You need a **GitHub Models** connection profile:
+
+```bash
+atomize auth add my-ai
+# When prompted for profile type, select: GitHub Models
+# Enter your GitHub personal access token (models:read scope required)
+atomize auth test my-ai
+```
+
+### Basic AI generation
+
+```bash
+atomize template create --ai
+```
+
+You will be prompted to describe the template you want. Example prompt:
+
+```
+Describe the template:
+› A template for backend API stories. Tasks should cover API design,
+  database schema, core implementation, unit tests, integration tests,
+  and a code review. Estimation split should reflect that implementation
+  takes roughly twice the time of testing.
+```
+
+Atomize sends your description to GitHub Models and returns a ready-to-review YAML template. You can accept it, edit it in the wizard, or regenerate with a refined prompt.
+
+### Grounded generation
+
+Pass `--ground` to give the AI additional context from your actual Azure DevOps workspace — field names, common tags, work item types, and past story patterns. This produces output that fits your team's conventions without manual editing.
+
+```bash
+atomize template create --ai --ground --profile work-ado
+```
+
+Use `--ground` when:
+- Your ADO project uses custom fields or non-standard work item types
+- You want task titles and activity types to match your team's existing naming
+- You are generating a template that will run against real stories (not mock)
+
+Skip `--ground` when:
+- You are prototyping a generic template for testing
+- You do not have an ADO profile configured yet
+
+### Specifying an AI profile
+
+If you have more than one GitHub Models profile, pass `--ai-profile` to select one:
+
+```bash
+atomize template create --ai --ai-profile my-ai
+```
+
+You can also set `ATOMIZE_AI_PROFILE` to avoid passing the flag every time.
+
+### Post-generation workflow
+
+AI-generated templates are a starting point, not a finished product. Always:
+
+1. **Review the generated YAML** — the wizard shows a full preview before saving.
+2. **Validate:**
+   ```bash
+   atomize validate template:<name> --strict
+   ```
+3. **Test with mock data:**
+   ```bash
+   atomize generate template:<name> --platform mock
+   ```
+4. **Refine** — common things to adjust: estimation splits, task titles, filter criteria, `condition` fields.
+
+### Troubleshooting
+
+**"No GitHub Models profile found"**
+
+You have not yet added a GitHub Models profile. Run `atomize auth add` and select GitHub Models as the profile type.
+
+**"AI generation failed"**
+
+- Run `atomize auth test <profile>` to verify the token is valid.
+- GitHub Models may be rate-limiting your token — wait a moment and retry.
+- If the error persists, try without `--ground` to rule out an ADO connectivity issue.
+
+**"Generated template does not validate"**
+
+The AI occasionally produces YAML that fails strict validation (e.g. estimation not summing to 100%). Open the template for editing from the preview screen and fix the flagged fields.
+
+---
 
 ## Getting Started
 
@@ -53,7 +180,19 @@ Configure the fundamental properties of your template:
 
 ### Step 2: Filter Configuration
 
-Define which work items this template applies to:
+Define which work items this template applies to.
+
+The wizard first asks **how you want to select work items**:
+
+```
+How do you want to select work items?
+› Build a filter  — choose types, states, tags, etc.
+  Use a saved query  — reference an existing Azure DevOps query by ID or path
+```
+
+---
+
+#### Option A: Build a filter (structured)
 
 **Basic Filters:**
 - **Work Item Types** - Select from common types or add custom ones
@@ -73,9 +212,56 @@ Define which work items this template applies to:
 - Custom fields
 - Custom WIQL query
 
+---
+
+#### Option B: Use a saved query
+
+Reference an existing flat query saved in your Azure DevOps project. Atomize fetches the query's WIQL at run time and applies any supported post-filters on top of it.
+
+**Prompts:**
+
+1. **Reference by path or ID?**
+   ```
+   How do you want to reference the saved query?
+   › By path  — e.g. Shared Queries/My Team/Open Stories
+     By ID    — paste the query's UUID
+   ```
+
+2. **Query path** (if path selected)
+   ```
+   Saved query path:
+   › Shared Queries/My Team/Open Stories
+   ```
+   Run `atomize queries list` beforehand to discover available paths.
+
+3. **Query ID** (if ID selected)
+   ```
+   Saved query ID (UUID):
+   › xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+   ```
+   Must be a valid UUID v4 (format: `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`).
+   Run `atomize queries list` to copy the exact ID from the table.
+
+4. **Exclude if has tasks** - Prevent applying to items that already have tasks
+   (Available even when using a saved query.)
+
+> **Tip:** Run `atomize queries list` to see all saved queries with their paths and IDs before creating a template.
+> ```bash
+> atomize queries list
+> atomize queries list --folder "Shared Queries/My Team"
+> ```
+
+**Rules:**
+- The referenced query must be a **flat list** query (not a tree or direct-links query).
+- The query must already exist in Azure DevOps — it is not created by Atomize.
+- You cannot specify both a path and an ID; the wizard enforces this automatically.
+
+---
+
 **Validation:**
 - Warning shown if no filters are configured
 - Can continue with empty filter (will match all work items)
+- Mixed use of a saved query and structured filter fields produces a warning at generate time
 
 ### Step 3: Task Configuration
 
@@ -103,15 +289,21 @@ Create the tasks that will be added to matching work items:
 - Acceptance criteria (with optional checklist format)
 - Tags
 - Dependencies (task IDs this task depends on)
-- Condition (template expression)
+- Condition (structured task condition)
+- Custom fields (browse ADO task fields and store them by reference name)
 - Priority (1-4)
-- Remaining work (hours)
 
 **Validation:**
 - At least one task is required
 - All tasks must have titles
 - Estimation percentages validated (0-100)
 - Dependencies must reference valid task IDs
+
+**Custom field authoring:**
+- The wizard can fetch available task fields from ADO and present them by display name
+- Picklist fields use a constrained select prompt instead of free-form entry
+- When the same field exists on the parent story, the wizard can insert `{{ story.customFields['Reference.Name'] }}` as the task value
+- The saved template always stores the field reference name internally
 
 **Normalization:**
 If total estimation ≠ 100%, you'll be prompted to normalize:
@@ -361,7 +553,40 @@ Add metadata? No
 # Preview → Save → Confirm
 ```
 
-### Example 2: Complex Template with Dependencies
+### Example 2: Saved Query Filter
+
+```bash
+atomize queries list --folder "Shared Queries"
+
+atomize template create --scratch
+
+# Step 2: Filter Configuration
+How do you want to select work items?
+› Use a saved query
+
+Reference by path or ID?
+› By path
+
+Saved query path:
+› Shared Queries/My Team/Open Stories
+
+Exclude if has tasks: Yes
+
+# Continue with Steps 3–6 as normal
+```
+
+The generated YAML will include:
+
+```yaml
+filter:
+  savedQuery:
+    path: "Shared Queries/My Team/Open Stories"
+  excludeIfHasTasks: true
+```
+
+---
+
+### Example 3: Complex Template with Dependencies
 
 ```bash
 atomize template create --scratch
@@ -420,6 +645,8 @@ Task 4:
 - Be specific to avoid accidental matches
 - Use "excludeIfHasTasks" to prevent duplicate applications
 - Test filters with your actual work items
+- Prefer **saved queries** when your team already maintains a query in Azure DevOps — it keeps filter logic in one place
+- Run `atomize queries list` to explore available queries before creating a template
 
 ### Estimation
 - Use percentage-based for flexibility
@@ -454,49 +681,53 @@ Task 4:
 
 ## Command-Line Options
 
-```bash
-# Create from scratch (skip mode selection)
-atomize template create --scratch
-
-# Specify output path
-atomize template create --scratch -o path/to/template.yaml
-
-# Non-interactive mode (use flags only)
-atomize template create --no-interactive --scratch
-```
+| Flag | Description |
+|------|-------------|
+| `--from <name>` | Start from an existing catalog template |
+| `--from-stories <ids>` | Learn from existing stories (comma-separated IDs) |
+| `--ai` | AI-assisted generation |
+| `--ground` | Ground AI generation with ADO workspace context (requires `--ai`) |
+| `--ai-profile <name>` | GitHub Models profile to use for AI (uses default if omitted) |
+| `--scratch` | Go directly to the interactive wizard |
+| `--type <type>` | Create a `template` or `mixin` |
+| `--save-as <name>` | Catalog name for the saved result |
+| `--profile <name>` | ADO profile for `--from-stories` and field suggestions |
 
 ## Related Commands
 
 ```bash
-# Validate a template
-atomize validate path/to/template.yaml
-
-# Validate in strict mode
-atomize validate path/to/template.yaml --strict
-
-# List available presets
+# List available catalog templates and mixins
 atomize template list
 
-# Generate tasks using your template (dry-run by default)
-atomize generate path/to/template.yaml
-atomize generate path/to/template.yaml --execute
+# Validate a template before using it
+atomize validate template:<name> --strict
+
+# Test with mock data (no ADO connection needed)
+atomize generate template:<name> --platform mock
+
+# Generate for real
+atomize generate template:<name> --execute
+
+# Discover saved queries (useful before configuring a savedQuery filter)
+atomize queries list
+atomize queries list --folder "Shared Queries/My Team"
 ```
 
 After creating your template:
 
 1. **Validate it:**
    ```bash
-   atomize validate path/to/template.yaml
+   atomize validate template:<name> --strict
    ```
 
 2. **Test with mock data:**
    ```bash
-   atomize generate path/to/template.yaml --platform mock
+   atomize generate template:<name> --platform mock
    ```
 
 3. **Review generated tasks** before applying to production:
    ```bash
-   atomize generate path/to/template.yaml --verbose
+   atomize generate template:<name> --verbose
    ```
 
 ## Support
@@ -505,4 +736,3 @@ For issues or questions:
 - GitHub: https://github.com/Simao-Pereira-Gomes/Atomize/issues
 - Check validation output for detailed error messages
 - Review the template YAML for syntax issues
-

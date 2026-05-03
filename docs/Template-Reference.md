@@ -6,11 +6,13 @@ Complete reference for Atomize YAML template files.
 
 - [Overview](#overview)
 - [Top-Level Fields](#top-level-fields)
+- [Composition](#composition)
 - [filter](#filter)
 - [tasks](#tasks)
   - [Task Fields](#task-fields)
   - [Variable Interpolation](#variable-interpolation)
   - [Assignment Patterns](#assignment-patterns)
+  - [Task Custom Fields](#task-custom-fields)
   - [Conditional Tasks](#conditional-tasks)
   - [Conditional Estimation](#conditional-estimation)
   - [Task Dependencies](#task-dependencies)
@@ -41,6 +43,10 @@ name: "Template Name"   # Required. Human-readable name (max 200 chars)
 description: "..."      # Optional. What this template is for (max 500 chars)
 author: "Your Name"     # Optional. Author name or team
 tags: ["tag1", "tag2"]  # Optional. Categorization tags
+extends: "backend-api"  # Optional. Inherit from a catalog template
+mixins:                 # Optional. Mix in reusable task groups
+  - "security-review-tasks"
+  - "release-checklist"
 ```
 
 | Field | Required | Type | Description |
@@ -50,6 +56,72 @@ tags: ["tag1", "tag2"]  # Optional. Categorization tags
 | `description` | No | string | Detailed description |
 | `author` | No | string | Author name or team |
 | `tags` | No | string[] | Tags for categorization |
+| `extends` | No | string | Catalog template name or file path to inherit from |
+| `mixins` | No | string[] | Catalog mixin names or file paths to merge into this template |
+
+---
+
+## Composition
+
+Templates can inherit from other templates and mix in reusable task groups. This lets you build a library of building blocks and assemble them without duplication.
+
+### Inheritance (`extends`)
+
+A template that declares `extends` inherits the `filter`, `tasks`, `estimation`, `validation`, and `metadata` of its base. Fields defined in the child override the corresponding fields in the base.
+
+```yaml
+version: "1.0"
+name: "Secure Backend API"
+extends: "backend-api"        # inherits all tasks and filter from backend-api
+
+tasks:
+  - id: "pen-test"
+    title: "Penetration Testing"
+    estimationPercent: 10
+    activity: "Testing"
+```
+
+The resolved template merges the child's `tasks` list on top of the base's, then re-validates the combined result. Use `atomize template resolve` to see the merged output before using it.
+
+### Mixins (`mixins`)
+
+A mixin is a partial template — typically a group of related tasks — that can be mixed into any template. The tasks from all listed mixins are appended to the template's own task list before validation.
+
+```yaml
+version: "1.0"
+name: "Feature With Release Checks"
+extends: "feature"
+mixins:
+  - "security-review-tasks"
+  - "release-checklist"
+```
+
+Mixins are installed and managed with the `template` commands:
+
+```bash
+# Install a mixin from a URL
+atomize template install https://example.com/mixins/security-tasks.yaml
+
+# List available mixins
+atomize template list --type mixin
+
+# Create a new mixin
+atomize template create --type mixin --save-as security-review-tasks
+```
+
+### Resolution order
+
+When Atomize processes a composed template:
+1. Base template (`extends`) is loaded and fully resolved first
+2. Mixin task lists are appended in declaration order
+3. Child template fields override the merged base
+4. The final result is validated as a single flat template
+
+Use `atomize template resolve <template>` to inspect the final merged YAML at any point.
+
+### Compatibility
+
+Templates using `extends` or `mixins` require Atomize v2.0.0 or later. Older versions will reject them with a schema error. If you share composed templates with users on older versions, they must upgrade first or you can share the resolved output from `atomize template resolve --quiet > resolved.yaml`.
 
 ---
 
@@ -59,7 +131,7 @@ Defines which work items this template applies to. All criteria are combined wit
 
 ```yaml
 filter:
-  team: "Backend Team"           # Override team (replaces AZURE_DEVOPS_TEAM env var)
+  team: "Backend Team"           # Override team from the selected profile
   workItemTypes: ["User Story", "Bug"]
   states: ["New", "Active"]
   statesExclude: ["Done", "Removed"]      # Exclude items in these states
@@ -78,17 +150,13 @@ filter:
     min: 1
     max: 3
   excludeIfHasTasks: true
-  customFields:
-    - field: "Custom.Team"
-      operator: "equals"
-      value: "Platform Engineering"
 ```
 
 ### Filter Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `team` | string | Override the team for this template (replaces `AZURE_DEVOPS_TEAM` env var) |
+| `team` | string | Override the team from the selected Azure DevOps profile for this template |
 | `workItemTypes` | string[] | Work item types to match (e.g., `"User Story"`, `"Bug"`) |
 | `states` | string[] | Work item states to include (e.g., `"New"`, `"Active"`) |
 | `statesExclude` | string[] | Work item states to exclude (e.g., `"Done"`, `"Removed"`) |
@@ -105,7 +173,6 @@ filter:
 | `priority.min` | number | Minimum priority (1 = highest) |
 | `priority.max` | number | Maximum priority |
 | `excludeIfHasTasks` | boolean | Skip work items that already have child tasks |
-| `customFields` | array | Additional field filters (see below) |
 
 ### Special Values
 
@@ -161,21 +228,60 @@ filter:
   iterationsUnder: ["MyProject\\Release 2"]
 ```
 
-### Custom Field Filters
+### savedQuery
+
+Delegate query composition entirely to an existing Azure DevOps saved query. Atomize resolves the query via the ADO Queries API, executes its WIQL, and pipes the results into the standard task-creation pipeline.
+
+Reference by ID (most stable — unaffected by renames or moves):
 
 ```yaml
 filter:
-  customFields:
-    - field: "Custom.Team"
-      operator: "equals"
-      value: "Platform Engineering"
-
-    - field: "Microsoft.VSTS.Common.Priority"
-      operator: "lessThan"
-      value: 3
+  savedQuery:
+    id: "a1b2c3d4-0000-0000-0000-000000000000"
 ```
 
-**Supported operators:** `equals`, `notEquals`, `contains`, `greaterThan`, `lessThan`
+Reference by path (human-readable, matches the query browser hierarchy):
+
+```yaml
+filter:
+  savedQuery:
+    path: "Shared Queries/Teams/Backend Team/Sprint Active Stories"
+```
+
+**Rules:**
+
+- `id` and `path` are mutually exclusive — provide exactly one.
+- `id` must be a valid UUID (visible in the ADO query URL).
+- Only **flat (Work Items)** queries are supported. Tree and one-hop queries are rejected at runtime with a clear error.
+- `savedQuery` takes precedence over all structured filter fields (`workItemTypes`, `states`, `tags`, etc.). A validator warning is emitted if both are present.
+
+**Post-processing still applies:** `excludeIfHasTasks` still applies to the query results after resolution, and you can still cap execution with the CLI `--limit` option.
+
+```yaml
+filter:
+  savedQuery:
+    path: "Shared Queries/All Active Stories"
+  excludeIfHasTasks: true
+```
+
+```bash
+atomize generate my-template.yaml --limit 20
+```
+
+**Permission requirements:**
+
+The PAT used by Atomize must have **Work Items (Read)** scope on the project containing the query. Only shared queries are accessible — private queries owned by another user will return a "Query not found" error even if the ID is correct.
+
+**Permission error reference:**
+
+| Scenario | Error |
+|----------|-------|
+| Query ID or path does not exist | `Query not found: "...". Verify the ID or path and that the query has been shared with your account.` |
+| PAT lacks read permission | `Access denied to query "...". Ensure your PAT includes the Work Items (Read) scope.` |
+| Resolved path is a folder | `"..." is a query folder, not a runnable query.` |
+| Tree or one-hop query type | `Only flat (Work Items) queries are supported. "..." is a tree or one-hop query.` |
+
+**Tip:** Use `atomize queries list` to browse available query paths and IDs without leaving the terminal.
 
 ---
 
@@ -193,7 +299,10 @@ tasks:
     tags: ["design"]
     assignTo: "@ParentAssignee"
     priority: 2
-    condition: '${story.tags} CONTAINS "backend"'
+    condition:
+      field: "tags"
+      operator: "contains"
+      value: "backend"
     dependsOn: []
     acceptanceCriteria:
       - "Criteria 1"
@@ -214,10 +323,10 @@ tasks:
 | `tags` | No | string[] | Tags to apply to the task |
 | `assignTo` | No | string | Who to assign the task to (see assignment patterns) |
 | `priority` | No | number | Task priority (1-4) |
-| `remainingWork` | No | number | Override remaining work in hours |
-| `condition` | No | string | Expression to conditionally create this task |
+| `condition` | No | object | Structured condition to conditionally create this task |
 | `dependsOn` | No | string[] | IDs of tasks this task depends on |
 | `acceptanceCriteria` | No | string[] | List of acceptance criteria |
+| `customFields` | No | object | Task-level Azure DevOps field values keyed by reference name |
 
 ### Variable Interpolation
 
@@ -241,6 +350,15 @@ tasks:
 
       Story ID: ${story.id}
       Estimation: ${story.estimation} points
+```
+
+Task custom field values also support story custom-field interpolation using moustache syntax:
+
+```yaml
+tasks:
+  - title: "Backend Implementation"
+    customFields:
+      Custom.ReleaseVersion: "{{ story.customFields['Custom.ReleaseVersion'] }}"
 ```
 
 ### Assignment Patterns
@@ -267,35 +385,89 @@ tasks:
     assignTo: "@Me"               # Whoever runs the command
 ```
 
+### Task Custom Fields
+
+Use `customFields` to set Azure DevOps fields when Atomize creates tasks. Keys are always ADO reference names such as `Custom.ClientTier` or `Microsoft.VSTS.Common.Priority`.
+
+```yaml
+tasks:
+  - id: "backend"
+    title: "Backend Implementation"
+    customFields:
+      Custom.ClientTier: "Enterprise"
+      Custom.ReleaseVersion: "{{ story.customFields['Custom.ReleaseVersion'] }}"
+      Custom.IsBillable: true
+      Custom.TierRank: 3
+      Custom.ReleaseDate: "@Today"
+```
+
+**Supported value types:**
+
+| ADO field type | Template value type | Notes |
+|----------------|---------------------|-------|
+| Text (single line) | string | Free-form string |
+| Text (multi-line) | string | Multi-line values are allowed |
+| Boolean | boolean | `true` or `false` |
+| Date/Time | string | ISO 8601 date/time or supported macros such as `@Today` |
+| Decimal | number | Floating-point values |
+| Identity | string | Email address or values such as `@Me` when supported by ADO |
+| Integer | number | Whole-number values |
+| Picklist (String) | string | Must match one of the allowed values |
+| Picklist (Integer) | number | Must match one of the allowed values |
+
+**Validation behavior:**
+- `atomize validate` without `--profile` checks structure only and warns that custom fields were not verified against ADO
+- `atomize validate --profile <name>` connects to ADO and validates field names, read-only status, types, and picklist values
+- `atomize generate` always validates custom fields against live ADO field metadata before creating work items
+
+Use `atomize fields list` to browse available field names and types for a project before authoring templates.
+
 ### Conditional Tasks
 
-Tasks with a `condition` are only created when the condition evaluates to `true`. When a conditional task is skipped, its estimation is redistributed to other tasks proportionally.
+Tasks with a `condition` are only created when the condition evaluates to `true`. Conditions are structured objects evaluated against the parent story at generate time. When a conditional task is skipped, its estimation is redistributed to other tasks proportionally.
 
 ```yaml
 tasks:
   - title: "Security Review"
     estimationPercent: 10
-    condition: '${story.tags} CONTAINS "security"'
+    condition:
+      field: "tags"
+      operator: "contains"
+      value: "security"
 
   - title: "Database Migration"
     estimationPercent: 15
-    condition: '${story.tags} CONTAINS "database" AND ${story.estimation} > 5'
+    condition:
+      all:
+        - field: "tags"
+          operator: "contains"
+          value: "database"
+        - field: "estimation"
+          operator: "gt"
+          value: 5
 ```
 
-**Condition operators:**
+**Simple clause fields:**
 
-| Operator | Usage | Example |
-|----------|-------|---------|
-| `CONTAINS` | Tag/string contains value | `${story.tags} CONTAINS "backend"` |
-| `NOT CONTAINS` | Tag/string doesn't contain value | `${story.tags} NOT CONTAINS "frontend"` |
-| `==` | Equality | `${story.estimation} == 8` |
-| `!=` | Inequality | `${story.estimation} != 0` |
-| `>` | Greater than | `${story.estimation} > 5` |
-| `<` | Less than | `${story.estimation} < 13` |
-| `>=` | Greater than or equal | `${story.estimation} >= 8` |
-| `<=` | Less than or equal | `${story.estimation} <= 3` |
-| `AND` | Both conditions must be true | `... AND ...` |
-| `OR` | Either condition must be true | `... OR ...` |
+| Property | Description |
+|----------|-------------|
+| `field` | Built-in story field such as `title`, `tags`, or `estimation` |
+| `customField` | Parent story custom field reference name such as `Custom.ClientTier` |
+| `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte` |
+| `value` | String, number, or boolean to compare against |
+
+**Compound clauses:**
+- `{ all: [...] }` means every nested clause must match
+- `{ any: [...] }` means at least one nested clause must match
+
+```yaml
+tasks:
+  - title: "Enterprise Review"
+    condition:
+      customField: "Custom.ClientTier"
+      operator: "equals"
+      value: "Enterprise"
+```
 
 ### Conditional Estimation
 
@@ -306,11 +478,20 @@ tasks:
   - title: "Implementation"
     estimationPercent: 50       # Default/fallback
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "critical"'
+      - condition:
+          field: "tags"
+          operator: "contains"
+          value: "critical"
         percent: 60             # Higher weight for critical stories
-      - condition: "${story.estimation} >= 13"
+      - condition:
+          field: "estimation"
+          operator: "gte"
+          value: 13
         percent: 55             # More work for large stories
-      - condition: '${story.tags} CONTAINS "fullstack"'
+      - condition:
+          field: "tags"
+          operator: "contains"
+          value: "fullstack"
         percent: 40             # Less backend work for fullstack stories
 ```
 
@@ -479,7 +660,10 @@ tasks:
     description: "Create or update database schema and migrations"
     estimationPercent: 15
     estimationPercentCondition:
-      - condition: '${story.tags} CONTAINS "complex-db"'
+      - condition:
+          field: "tags"
+          operator: "contains"
+          value: "complex-db"
         percent: 25
     activity: "Development"
     dependsOn: ["design"]
@@ -508,7 +692,14 @@ tasks:
     title: "Security Review"
     estimationPercent: 10
     activity: "Testing"
-    condition: '${story.tags} CONTAINS "security" OR ${story.tags} CONTAINS "auth"'
+    condition:
+      any:
+        - field: "tags"
+          operator: "contains"
+          value: "security"
+        - field: "tags"
+          operator: "contains"
+          value: "auth"
     dependsOn: ["implement"]
 
   - id: "review"
@@ -544,7 +735,7 @@ metadata:
 
 ## See Also
 
-- [CLI Reference](./Cli-Reference.md) - Commands for validating and using templates
+- [CLI Reference](./Cli-Reference.md) - Commands for validating, installing, and using templates
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix validation failures
 - [Story Learner](./Story-Learner.md) - Generate templates from existing work items

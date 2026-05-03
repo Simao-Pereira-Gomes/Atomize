@@ -10,6 +10,7 @@ import type {
 import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
 import { match } from "ts-pattern";
 import { ConditionEvaluator } from "./condition-evaluator.js";
+import { interpolateValue } from "./template-interpolator.js";
 
 /**
  * Estimation result for a single task
@@ -66,7 +67,7 @@ export class EstimationCalculator {
 
     for (const templateTask of templateTasks) {
       logger.debug(
-        `Processing template task: ${templateTask.title} (Condition: ${templateTask.condition})`
+        `Processing template task: ${templateTask.title} (Condition: ${templateTask.condition ? JSON.stringify(templateTask.condition) : "none"})`
       );
 
       // Evaluate condition if present
@@ -84,7 +85,7 @@ export class EstimationCalculator {
         }
 
         logger.debug(
-          `Task "${templateTask.title}" - condition met: ${templateTask.condition}`
+          `Task "${templateTask.title}" - condition met: ${JSON.stringify(templateTask.condition)}`
         );
       }
 
@@ -100,9 +101,9 @@ export class EstimationCalculator {
       );
 
       const calculatedTask: CalculatedTask = {
-        title: this.interpolateTitle(templateTask.title, story),
+        title: interpolateValue(templateTask.title, story),
         description: templateTask.description
-          ? this.interpolateDescription(templateTask.description, story)
+          ? interpolateValue(templateTask.description, story)
           : undefined,
         estimation,
         tags: templateTask.tags,
@@ -113,10 +114,10 @@ export class EstimationCalculator {
         ),
         priority: templateTask.priority,
         activity: templateTask.activity,
-        remainingWork: templateTask.remainingWork,
         completedWork: 0, // Default to 0 for new tasks
         iteration: story.iteration, // Inherit from parent
         areaPath: story.areaPath, // Inherit from parent
+        customFields: this.interpolateCustomFields(templateTask.customFields, story),
         templateId: templateTask.id,
         estimationPercent: resolvedPercent ?? templateTask.estimationPercent,
       };
@@ -142,7 +143,8 @@ export class EstimationCalculator {
     story: WorkItem,
     connectUserEmail: string,
     templateTasks: TemplateTaskDefinition[],
-    estimationConfig?: EstimationConfig
+    estimationConfig?: EstimationConfig,
+    forceNormalize = false,
   ): TaskCalculationResult {
     logger.debug(
       `EstimationCalculator: Calculating tasks for story ${story.id}`
@@ -164,7 +166,7 @@ export class EstimationCalculator {
 
     for (const templateTask of templateTasks) {
       logger.debug(
-        `Processing template task: ${templateTask.title} (Condition: ${templateTask.condition})`
+        `Processing template task: ${templateTask.title} (Condition: ${templateTask.condition ? JSON.stringify(templateTask.condition) : "none"})`
       );
 
       // Evaluate condition if present
@@ -175,21 +177,21 @@ export class EstimationCalculator {
         );
 
         if (!conditionMet) {
-          const reason = `Condition not met: ${templateTask.condition}`;
+          const reason = `Condition not met: ${JSON.stringify(templateTask.condition)}`;
           logger.debug(`Skipping task "${templateTask.title}" - ${reason}`);
           skippedTasks.push({ templateTask, reason });
           continue;
         }
 
         logger.debug(
-          `Task "${templateTask.title}" - condition met: ${templateTask.condition}`
+          `Task "${templateTask.title}" - condition met: ${JSON.stringify(templateTask.condition)}`
         );
       }
 
       const calculatedTask: CalculatedTask = {
-        title: this.interpolateTitle(templateTask.title, story),
+        title: interpolateValue(templateTask.title, story),
         description: templateTask.description
-          ? this.interpolateDescription(templateTask.description, story)
+          ? interpolateValue(templateTask.description, story)
           : undefined,
         estimation: 0,
         tags: templateTask.tags,
@@ -200,10 +202,10 @@ export class EstimationCalculator {
         ),
         priority: templateTask.priority,
         activity: templateTask.activity,
-        remainingWork: templateTask.remainingWork,
-        completedWork: 0, // Default to 0 for new tasks
-        iteration: story.iteration, // Inherit from parent
-        areaPath: story.areaPath, // Inherit from parent
+        completedWork: 0, 
+        iteration: story.iteration, 
+        areaPath: story.areaPath,
+        customFields: this.interpolateCustomFields(templateTask.customFields, story),
         templateId: templateTask.id,
         estimationPercent:
           this.resolveEffectivePercent(templateTask, story) ??
@@ -213,10 +215,14 @@ export class EstimationCalculator {
       calculatedTasks.push(calculatedTask);
     }
 
-    // Normalize estimation percentages if tasks were filtered out -> after that recalculate estimations
-    if (skippedTasks.length > 0) {
+    // Normalize estimation percentages:
+    // - Always normalize when total < 100% (fills unallocated points)
+    // - Only normalize when total > 100% if explicitly requested (> 100% is valid for multi-role templates)
+    const total = calculatedTasks.reduce((s, t) => s + (t.estimationPercent ?? 0), 0);
+    const shouldNormalize = total < 100 || (total > 100 && forceNormalize);
+    if (shouldNormalize) {
       normalizeEstimationPercentages(calculatedTasks, {
-        skipIfAlreadyNormalized: true,
+        skipIfAlreadyNormalized: false,
         enableLogging: true,
       });
     }
@@ -310,23 +316,25 @@ export class EstimationCalculator {
       .otherwise(() => Math.floor(value * 100) / 100); // No rounding, keep two decimals
   }
 
-  /**
-   * Interpolate task title with story data
-   */
-  private interpolateTitle(title: string, story: WorkItem): string {
-    return title
-      .replace(/\${story\.title}/g, story.title)
-      .replace(/\${story\.id}/g, story.id);
-  }
+  private interpolateCustomFields(
+    fields: Record<string, string | number | boolean> | undefined,
+    story: WorkItem,
+  ): Record<string, string | number | boolean> | undefined {
+    if (!fields || Object.keys(fields).length === 0) return undefined;
 
-  /**
-   * Interpolate task description with story data
-   */
-  private interpolateDescription(description: string, story: WorkItem): string {
-    return description
-      .replace(/\${story\.title}/g, story.title)
-      .replace(/\${story\.id}/g, story.id)
-      .replace(/\${story\.description}/g, story.description || "");
+    const resolved: Record<string, string | number | boolean> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (typeof value === "string") {
+        resolved[key] = interpolateValue(value, story, (referenceName) => {
+          logger.warn(
+            `Story ${story.id}: custom field "${referenceName}" referenced in task template was not found on the parent story — value will be empty.`,
+          );
+        });
+      } else {
+        resolved[key] = value;
+      }
+    }
+    return resolved;
   }
 
   /**

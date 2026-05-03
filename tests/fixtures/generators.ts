@@ -43,7 +43,7 @@ export function generateLargeTemplate(
     }
 
     if (options.withConditions && i % 3 === 0) {
-      task.condition = `\${story.tags} CONTAINS 'feature-${i}'`;
+      task.condition = { field: "tags", operator: "contains", value: `feature-${i}` };
     }
 
     if (i % 2 === 0) {

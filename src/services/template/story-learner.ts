@@ -8,7 +8,6 @@ import { ConfidenceScorer } from "./confidence-scorer";
 import { OutlierDetector } from "./outlier-detector";
 import { PatternDetector } from "./pattern-detector";
 import type {
-  LearnOptions,
   MergedTask,
   MultiStoryLearningResult,
   Outlier,
@@ -35,7 +34,6 @@ export class StoryLearner {
    */
   async learnFromStory(
     storyId: string,
-    normalizePercentages: boolean,
   ): Promise<TaskTemplate> {
     logger.info(`Learning template from story: ${storyId}`);
     const story = await this.platform.getWorkItem?.(storyId);
@@ -52,11 +50,7 @@ export class StoryLearner {
 
     logger.info(`Found ${tasks.length} tasks to analyze`);
 
-    const template = this.generateTemplateFromTasks(
-      story,
-      tasks,
-      normalizePercentages,
-    );
+    const template = this.generateTemplateFromTasks(story, tasks);
 
     logger.info("Template learned successfully");
     return template;
@@ -68,7 +62,6 @@ export class StoryLearner {
    */
   async learnFromStories(
     storyIds: string[],
-    options: LearnOptions,
   ): Promise<MultiStoryLearningResult> {
     logger.info(
       `Learning template from ${storyIds.length} stories: ${storyIds.join(", ")}`,
@@ -78,7 +71,7 @@ export class StoryLearner {
       throw new TemplateGenerationError("No story IDs provided");
     }
     const results = await Promise.allSettled(
-      storyIds.map((id) => this.analyzeStory(id, options)),
+      storyIds.map((id) => this.analyzeStory(id)),
     );
 
     const analyses: StoryAnalysis[] = [];
@@ -114,11 +107,7 @@ export class StoryLearner {
     const patterns = patternDetector.detect(analyses);
     const taskMerger = new TaskMerger();
     const mergedTasks = taskMerger.merge(analyses, patterns);
-    const mergedTemplate = this.buildMergedTemplate(
-      analyses,
-      mergedTasks,
-      options,
-    );
+    const mergedTemplate = this.buildMergedTemplate(analyses, mergedTasks);
     const confidenceScorer = new ConfidenceScorer();
     const confidence = confidenceScorer.score(analyses, patterns, mergedTasks);
     const outlierDetector = new OutlierDetector();
@@ -129,12 +118,7 @@ export class StoryLearner {
       confidence,
       outliers,
     );
-    const variations = this.generateVariations(
-      analyses,
-      patterns,
-      mergedTasks,
-      options,
-    );
+    const variations = this.generateVariations(analyses, patterns, mergedTasks);
 
     logger.info(
       `Multi-story learning complete: ${analyses.length} analyzed, ${skipped.length} skipped, confidence: ${confidence.level} (${confidence.overall}%)`,
@@ -158,7 +142,6 @@ export class StoryLearner {
    */
   private async analyzeStory(
     storyId: string,
-    options: LearnOptions,
   ): Promise<StoryAnalysis> {
     const story = await this.platform.getWorkItem?.(storyId);
     if (!story) {
@@ -185,11 +168,7 @@ export class StoryLearner {
     }
 
 
-    const template = this.generateTemplateFromTasks(
-      story,
-      tasks,
-      options.normalizePercentages,
-    );
+    const template = this.generateTemplateFromTasks(story, tasks);
 
     return { story, tasks, template, warnings };
   }
@@ -200,7 +179,6 @@ export class StoryLearner {
   private buildMergedTemplate(
     analyses: StoryAnalysis[],
     mergedTasks: MergedTask[],
-    options: LearnOptions,
   ): TaskTemplate {
     const taskDefinitions = mergedTasks.map((mt) => {
       const task = { ...mt.task };
@@ -223,11 +201,7 @@ export class StoryLearner {
       return task;
     });
 
-    if (options.normalizePercentages) {
-      normalizeEstimationPercentages(taskDefinitions, {
-        enableLogging: false,
-      });
-    }
+    normalizeEstimationPercentages(taskDefinitions, { enableLogging: false });
 
     const workItemTypes = [...new Set(analyses.map((a) => a.story.type))];
     const allTags = [...new Set(analyses.flatMap((a) => a.story.tags ?? []))];
@@ -422,7 +396,6 @@ export class StoryLearner {
     analyses: StoryAnalysis[],
     patterns: PatternDetectionResult,
     mergedTasks: MergedTask[],
-    options: LearnOptions,
   ): TemplateVariation[] {
     const confidenceScorer = new ConfidenceScorer();
     const variations: TemplateVariation[] = [];
@@ -434,11 +407,7 @@ export class StoryLearner {
     });
 
     if (coreTasks.length > 0 && coreTasks.length !== mergedTasks.length) {
-      const coreTemplate = this.buildMergedTemplate(
-        analyses,
-        coreTasks,
-        options,
-      );
+      const coreTemplate = this.buildMergedTemplate(analyses, coreTasks);
       coreTemplate.name = "Core Tasks Template";
       coreTemplate.description = "Tasks appearing in 60%+ of analyzed stories";
 
@@ -458,11 +427,7 @@ export class StoryLearner {
 
     // Variation 2: Comprehensive (all tasks)
     if (mergedTasks.length > 0) {
-      const fullTemplate = this.buildMergedTemplate(
-        analyses,
-        mergedTasks,
-        options,
-      );
+      const fullTemplate = this.buildMergedTemplate(analyses, mergedTasks);
       fullTemplate.name = "Comprehensive Template";
       fullTemplate.description = "All tasks found across analyzed stories";
 
@@ -489,7 +454,6 @@ export class StoryLearner {
   private generateTemplateFromTasks(
     story: WorkItem,
     tasks: WorkItem[],
-    shouldNormalize: boolean,
   ): TaskTemplate {
     const storyEstimation = story.estimation || 0;
 
@@ -515,11 +479,7 @@ export class StoryLearner {
       };
     });
 
-    if (shouldNormalize) {
-      this.normalizePercentages(taskDefinitions);
-    } else {
-      logger.info("Skipping percentage normalization as per configuration");
-    }
+    normalizeEstimationPercentages(taskDefinitions, { enableLogging: false });
 
     const filter = {
       workItemTypes: [story.type],
@@ -618,35 +578,4 @@ export class StoryLearner {
   }
 
 
-  /**
-   * Normalize percentages to sum to 100
-   */
-  private normalizePercentages(tasks: TaskDefinition[]): void {
-    const total = tasks.reduce(
-      (sum, task) => sum + (task.estimationPercent || 0),
-      0,
-    );
-
-    if (total === 0) {
-      const percent = Math.floor(100 / tasks.length);
-      const remainder = 100 - percent * tasks.length;
-
-      tasks.forEach((task, index) => {
-        task.estimationPercent = index === 0 ? percent + remainder : percent;
-      });
-    } else if (total !== 100) {
-      const scale = 100 / total;
-      let sum = 0;
-
-      tasks.forEach((task, index) => {
-        if (index === tasks.length - 1) {
-          task.estimationPercent = 100 - sum;
-        } else {
-          const scaled = Math.round((task.estimationPercent || 0) * scale);
-          task.estimationPercent = scaled;
-          sum += scaled;
-        }
-      });
-    }
-  }
 }

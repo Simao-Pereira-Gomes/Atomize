@@ -7,28 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [2.0.0-alpha.0] - 2026-05-03
+
 ### Added
-- **`auth` command** — manage named Azure DevOps connection profiles
-  - `auth add [name]` — add a profile interactively or via flags (`--org-url`, `--project`, `--team`, `--pat`, `--default`)
+- **`auth` command** — manage named connection profiles
+  - Azure DevOps profiles for task generation, validation, fields, and saved queries
+  - GitHub Models profiles for AI-assisted template generation
+  - `auth add [name]` — add a profile interactively or via flags (`--org-url`, `--project`, `--team`, `--pat-stdin`, `--default`)
   - `auth list` (`ls`) — list all saved profiles with token storage method and timestamps
-  - `auth use [name]` — set a profile as the default (interactive selection if name omitted)
+  - `auth use [name]` — set the default profile for that profile's platform
   - `auth remove [name]` (`rm`) — remove a profile; prompts to reassign default if needed
   - `auth test [name]` — test live connectivity for a profile
   - `auth rotate [name]` — replace the stored PAT for a profile
-  - Tokens stored in OS keychain when available, encrypted file otherwise
+  - Tokens stored in OS keychain when available, with explicit opt-in for local file fallback
   - `--profile <name>` flag on `generate` and `template create` to select a profile per-run
   - `ATOMIZE_PROFILE` environment variable as alternative to `--profile`
+- **AI-assisted template creation** via `template create --ai`
+  - GitHub Models provider support through saved `github-models` profiles
+  - `--ground` can use Azure DevOps story patterns as context
+  - `--ai-profile <name>` and `ATOMIZE_AI_PROFILE` select the AI profile
+- **Template catalog and composition**
+  - `template list` (`ls`) lists built-in, user, and project templates and mixins
+  - `template install` installs templates and mixins from local files or HTTPS URLs
+  - `template remove` (`rm`) removes user-installed templates and mixins
+  - `template resolve` prints resolved composed templates
+  - `extends` and `mixins` fields compose templates without copying task lists
+- **Targeted generation** with `generate --story <ids...>` to process explicit work items while preserving `excludeIfHasTasks`.
+- **Live execution acknowledgement** with `generate --auto-approve` for non-interactive `--execute` runs.
+- **Sanitized JSON reports** by default, with `--include-sensitive-report-data` for opt-in full report payloads.
 
 ### Removed
-- **AI template generation** — removed Google Gemini and Ollama integrations; the `--ai`, `--ai-provider`, `--api-key`, and `--model` flags on `template create` no longer exist. AI-powered generation will return in a future release with a redesigned approach.
+- Legacy AI provider flags `--ai-provider`, `--api-key`, and `--model` on `template create`.
+- `template create --preset`; use `template create --from <name>` instead.
+- Arbitrary output-path saving from `template create`; generated templates are now saved to the catalog with `--save-as <name>`.
 
 ### Fixed
-- `atomize --version` now correctly reports `1.1.0` (was hardcoded to `0.1.0`)
+- `atomize --version` now reports the version from `package.json`
 - `atomize auth use <name>` now validates that the profile exists before attempting to set it as default
 
 ### Changed
-- `template list` command renamed to `template presets` (alias `ls` unchanged)
+- `template list` now lists the full template catalog instead of only built-in presets
 - Version string is now sourced directly from `package.json` instead of being hardcoded
+- The npm prerelease is published under the `alpha` dist-tag
 
 ### Planned
 - GitHub Issues integration
@@ -61,7 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Strict / Lenient Validation Modes
 - **`--strict`** flag on `validate` — promotes all warnings to errors; template fails if any warning exists
-- **`--lenient`** flag on `validate` — explicit lenient mode (already the default, now available as an explicit flag)
 - **`validation.mode`** field in template YAML — set the default mode per template (`"strict"` or `"lenient"`)
 - CLI flags override the template's `validation.mode` setting
 
@@ -69,7 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`--story-concurrency <n>`** on `generate` — control max stories processed in parallel (default: 3, max: 10)
 - **`--task-concurrency <n>`** on `generate` — control max tasks created per story in parallel (default: 5, max: 20)
 - **`--dependency-concurrency <n>`** on `generate` — control max dependency links created in parallel (default: 5, max: 10)
-- **`--no-interactive`** on `generate` and `template create` — skip all prompts for automation and CI/CD use
 - **`-o, --output <file>`** on `generate` — write a JSON execution report to a file
 - **`-q, --quiet`** on `generate`, `validate`, and `template create` — suppress non-essential output
 
@@ -88,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Interactive prompts** migrated from `inquirer` to `@clack/prompts` — improved UI consistency and cross-platform behaviour
 - **Validate command** output now distinguishes strict vs lenient context in the result header
 - **Generate command** details section shown when `--verbose` is set or there are 5 or fewer stories (previously always shown)
-- **`--from-story`** single-story learning unchanged; `--from-stories` is the new multi-story variant
+- `template create --from-stories` supports both single-story and multi-story learning
 
 ### Fixed
 
@@ -235,6 +255,7 @@ N/A - Initial release
 
 ## Version History
 
+- **[2.0.0-alpha.0]** - 2026-05-03 - Template catalog, composition, auth profiles, and GitHub Models AI template generation
 - **[1.1.0]** - 2026-03-09 - Conditional estimation, multi-story learning, strict/lenient validation modes
 - **[0.0.1]** - 2024-12-29 - Initial release
 
@@ -253,6 +274,7 @@ See [Contributing.md](Contributing.md) for information on how to contribute to t
 
 ---
 
-[Unreleased]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v2.0.0-alpha.0...HEAD
+[2.0.0-alpha.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v1.1.0...v2.0.0-alpha.0
 [1.1.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v0.0.1...v1.1.0
 [0.0.1]: https://github.com/Simao-Pereira-Gomes/atomize/releases/tag/v0.0.1

@@ -10,7 +10,7 @@ tags: ["demo", "filtering", "advanced"]
 # Each option below is independent — in a real template you would only use
 # the subset that makes sense for your workflow.
 filter:
-  # Override the team configured in AZURE_DEVOPS_TEAM env var
+  # Override the team from the selected Azure DevOps profile
   team: "Backend Team"
 
   workItemTypes:

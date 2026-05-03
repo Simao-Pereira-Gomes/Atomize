@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { expectToReject } from "../utils/matchers";
 
 const ATOMIZE_DIR = join(
   tmpdir(),
@@ -126,23 +127,19 @@ describe("profile-resolver", () => {
     test("throws when profile name is given but profile does not exist", async () => {
       delete process.env.ATOMIZE_PROFILE;
 
-      await expect(resolveAzureConfig("non-existent-profile")).rejects.toThrow(
-        'Profile "non-existent-profile" not found',
-      );
+      await expectToReject(resolveAzureConfig("non-existent-profile"), 'Profile "non-existent-profile" not found');
     });
 
     test("throws when no profile name and no default profile configured", async () => {
       delete process.env.ATOMIZE_PROFILE;
-      // Ensure no default is set by resetting the file defaultProfile
-      // We can verify this works by checking readConnectionsFile first;
-      // the beforeAll doesn't set a default, so this should already be null.
+      // Ensure no ADO default is set by resetting the file defaultProfiles.
+      // The beforeAll doesn't set a default, so this should already be empty.
       const { readConnectionsFile } =
         await import("@config/connections.config");
       const file = await readConnectionsFile();
 
-      if (file.defaultProfile !== null) {
-        // Remove the default by rewriting the file without a default
-        // Use removeProfile + re-add to reset defaultProfile to null
+      if (file.defaultProfiles["azure-devops"]) {
+        // Remove the default by re-adding profiles without setting a default
         const names = file.profiles.map((p) => p.name);
         for (const name of names) {
           await removeProfile(name);
@@ -161,9 +158,7 @@ describe("profile-resolver", () => {
         });
       }
 
-      await expect(resolveAzureConfig()).rejects.toThrow(
-        "No connection profile configured",
-      );
+      await expectToReject(resolveAzureConfig(), "No connection profile configured");
     });
 
     test("uses default profile when no profile name and no env var, but default is set", async () => {

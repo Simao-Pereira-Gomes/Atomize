@@ -1,3 +1,6 @@
+import type { WorkItem } from "@platforms/interfaces/work-item.interface";
+import type { Condition } from "@templates/schema";
+import { match } from "ts-pattern";
 import { SimilarityCalculator } from "./similarity-calculator";
 import type {
   CommonTaskPattern,
@@ -100,11 +103,7 @@ export class ConditionPatternDetector {
         ) {
           patterns.push({
             taskCanonicalTitle: commonTask.canonicalTitle,
-            conditionExpression: this.generateConditionExpression(
-              "tag",
-              tag,
-              correlation.isPositive,
-            ),
+            condition: this.buildCondition("tag", tag, correlation.isPositive),
             correlationType: "tag",
             correlatedValue: tag,
             confidence: correlation.confidence,
@@ -211,11 +210,7 @@ export class ConditionPatternDetector {
         ) {
           patterns.push({
             taskCanonicalTitle: commonTask.canonicalTitle,
-            conditionExpression: this.generateConditionExpression(
-              "priority",
-              priorityThreshold,
-              correlation.isHighPriority,
-            ),
+            condition: this.buildCondition("priority", priorityThreshold, correlation.isHighPriority),
             correlationType: "priority",
             correlatedValue: priorityThreshold,
             confidence: correlation.confidence,
@@ -334,11 +329,7 @@ export class ConditionPatternDetector {
         ) {
           patterns.push({
             taskCanonicalTitle: commonTask.canonicalTitle,
-            conditionExpression: this.generateConditionExpression(
-              "estimation",
-              estThreshold,
-              correlation.isLargeStory,
-            ),
+            condition: this.buildCondition("estimation", estThreshold, correlation.isLargeStory),
             correlationType: "estimation",
             correlatedValue: estThreshold,
             confidence: correlation.confidence,
@@ -454,7 +445,7 @@ export class ConditionPatternDetector {
         ) {
           patterns.push({
             taskCanonicalTitle: commonTask.canonicalTitle,
-            conditionExpression: `\${story.areaPath} CONTAINS "${areaPath}"`,
+            condition: { field: "areaPath", operator: "contains", value: areaPath } satisfies Condition,
             correlationType: "areaPath",
             correlatedValue: areaPath,
             confidence: correlation.confidence,
@@ -533,38 +524,49 @@ export class ConditionPatternDetector {
     analysis: StoryAnalysis,
     pattern: ConditionalTaskPattern,
   ): boolean {
-    const expr = pattern.conditionExpression;
-    switch (pattern.correlationType) {
-      case "tag": {
-        const hasTag =
-          analysis.story.tags?.includes(pattern.correlatedValue as string) ??
-          false;
-        return expr.includes("NOT CONTAINS") ? !hasTag : hasTag;
-      }
-      case "priority": {
-        const priority = analysis.story.priority;
-        if (priority === undefined) return false;
-        const pThreshold = pattern.correlatedValue as number;
-        return expr.includes("<=") ? priority <= pThreshold : priority > pThreshold;
-      }
-      case "estimation": {
-        const estimation = analysis.story.estimation;
-        if (estimation === undefined) return false;
-        const eThreshold = pattern.correlatedValue as number;
-        return expr.includes(">=")
-          ? estimation >= eThreshold
-          : estimation < eThreshold;
-      }
-      case "areaPath": {
-        return (
-          analysis.story.areaPath?.startsWith(
-            pattern.correlatedValue as string,
-          ) ?? false
-        );
-      }
-      default:
-        return false;
+    return this.evaluateCondition(analysis.story, pattern.condition);
+  }
+
+  /**
+   * Evaluate a structured Condition against a story.
+   */
+  private evaluateCondition(story: WorkItem, condition: Condition): boolean {
+    if ("all" in condition) {
+      return condition.all.every((c) => this.evaluateCondition(story, c));
     }
+    if ("any" in condition) {
+      return condition.any.some((c) => this.evaluateCondition(story, c));
+    }
+    if ("field" in condition) {
+      switch (condition.field) {
+        case "tags": {
+          const hasTag = story.tags?.includes(condition.value as string) ?? false;
+          return condition.operator === "contains" ? hasTag : !hasTag;
+        }
+        case "priority": {
+          const p = story.priority;
+          if (p === undefined) return false;
+          const v = condition.value as number;
+          if (condition.operator === "lte") return p <= v;
+          if (condition.operator === "gt") return p > v;
+          return false;
+        }
+        case "estimation": {
+          const e = story.estimation;
+          if (e === undefined) return false;
+          const v = condition.value as number;
+          if (condition.operator === "gte") return e >= v;
+          if (condition.operator === "lt") return e < v;
+          return false;
+        }
+        case "areaPath": {
+          return story.areaPath?.startsWith(condition.value as string) ?? false;
+        }
+        default:
+          return false;
+      }
+    }
+    return false;
   }
 
   /**
@@ -646,13 +648,13 @@ export class ConditionPatternDetector {
           ) {
             compoundPatterns.push({
               taskCanonicalTitle: taskTitle,
-              conditionExpression: `(${pA.conditionExpression}) AND (${pB.conditionExpression})`,
+              condition: { all: [pA.condition, pB.condition] } satisfies Condition,
               correlationType: "compound",
               correlatedValue: `${String(pA.correlatedValue)}+${String(pB.correlatedValue)}`,
               confidence: compound.confidence,
               matchCount: compound.matchCount,
               totalStories: analyses.length,
-              explanation: `Task "${taskTitle}" appears in ${Math.round(compound.confidence * 100)}% of stories where: ${pA.conditionExpression} AND ${pB.conditionExpression}`,
+              explanation: `Task "${taskTitle}" appears in ${Math.round(compound.confidence * 100)}% of stories matching: ${pA.explanation} AND ${pB.explanation}`,
             });
           }
         }
@@ -663,31 +665,38 @@ export class ConditionPatternDetector {
   }
 
   /**
-   * Generate condition expression for ConditionEvaluator.
+   * Build a structured Condition for a single detected correlation.
    */
-  generateConditionExpression(
+  buildCondition(
     type: ConditionalTaskPattern["correlationType"],
     value: string | number,
     isPositive: boolean,
-  ): string {
-    switch (type) {
-      case "tag":
-        return isPositive
-          ? `\${story.tags} CONTAINS "${value}"`
-          : `\${story.tags} NOT CONTAINS "${value}"`;
-      case "priority":
-        return isPositive
-          ? `\${story.priority} <= ${value}`
-          : `\${story.priority} > ${value}`;
-      case "estimation":
-        return isPositive
-          ? `\${story.estimation} >= ${value}`
-          : `\${story.estimation} < ${value}`;
-      case "areaPath":
-        return `\${story.areaPath} CONTAINS "${value}"`;
-      default:
-        return "";
-    }
+  ): Condition {
+    return match(type)
+      .with("tag", () =>
+        isPositive
+          ? { field: "tags", operator: "contains" as const, value: value as string }
+          : { field: "tags", operator: "not-contains" as const, value: value as string },
+      )
+      .with("priority", () =>
+        isPositive
+          ? { field: "priority", operator: "lte" as const, value: value as number }
+          : { field: "priority", operator: "gt" as const, value: value as number },
+      )
+      .with("estimation", () =>
+        isPositive
+          ? { field: "estimation", operator: "gte" as const, value: value as number }
+          : { field: "estimation", operator: "lt" as const, value: value as number },
+      )
+      .with("areaPath", () => ({
+        field: "areaPath",
+        operator: "contains" as const,
+        value: value as string,
+      }))
+      .with("compound", () => {
+        throw new Error(`buildCondition called with correlationType "compound" — handle compound patterns before calling this method`);
+      })
+      .exhaustive();
   }
 
   /**
@@ -700,22 +709,22 @@ export class ConditionPatternDetector {
     patterns: ConditionalTaskPattern[],
     confidenceThreshold = 0.7,
   ): MergedTask[] {
-    // Group condition expressions by normalized task title
-    const conditionsByTask = new Map<string, string[]>();
+    // Group conditions by normalized task title
+    const conditionsByTask = new Map<string, Condition[]>();
     for (const pattern of patterns) {
       if (pattern.confidence < confidenceThreshold) continue;
       const normalizedTitle = this.patternDetector.normalizeTitle(
         pattern.taskCanonicalTitle,
       );
       const existing = conditionsByTask.get(normalizedTitle) ?? [];
-      existing.push(pattern.conditionExpression);
+      existing.push(pattern.condition);
       conditionsByTask.set(normalizedTitle, existing);
     }
 
     return mergedTasks.map((mt) => {
       const normalized = this.patternDetector.normalizeTitle(mt.task.title);
 
-      let conditions: string[] = [];
+      let conditions: Condition[] = [];
       for (const [titleKey, taskConditions] of conditionsByTask) {
         if (
           this.patternDetector.calculateSimilarity(normalized, titleKey) >= 0.6
@@ -726,24 +735,11 @@ export class ConditionPatternDetector {
 
       if (conditions.length === 0) return mt;
 
-      // Prefer compound AND patterns; fall back to combining individuals with OR
-      const compoundConditions = conditions.filter((c) => c.includes(" AND "));
-      const individualConditions = conditions.filter(
-        (c) => !c.includes(" AND "),
-      );
-
-      let learnedCondition: string;
-      if (compoundConditions.length > 0) {
-        learnedCondition =
-          compoundConditions.length === 1
-            ? (compoundConditions[0] ?? "")
-            : compoundConditions.map((c) => `(${c})`).join(" OR ");
-      } else {
-        learnedCondition =
-          individualConditions.length === 1
-            ? (individualConditions[0] ?? "")
-            : individualConditions.map((c) => `(${c})`).join(" OR ");
-      }
+      // Prefer compound (all) patterns; fall back to combining individuals with any
+      const compoundConditions = conditions.filter((c) => "all" in c);
+      const individualConditions = conditions.filter((c) => !("all" in c));
+      const pool = compoundConditions.length > 0 ? compoundConditions : individualConditions;
+      const learnedCondition = pool.length === 1 ? (pool[0] as Condition) : { any: pool };
 
       return { ...mt, learnedCondition };
     });

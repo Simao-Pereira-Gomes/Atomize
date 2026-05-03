@@ -28,7 +28,6 @@
 		"outDir": "./dist",
 
 		// Path Mapping
-		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"],
 			"@core/*": ["./src/core/*"],

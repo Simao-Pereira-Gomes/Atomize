@@ -1,6 +1,7 @@
 import { TemplateValidationError } from "@utils/errors";
 import type { ZodError } from "zod";
 import type { $ZodIssue } from "zod/v4/core";
+import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import { type TaskTemplate, TaskTemplateSchema, type ValidationMode } from "./schema";
 
 export interface ValidationOptions {
@@ -25,6 +26,8 @@ export interface ValidationWarning {
   path: string;
   message: string;
   suggestion?: string;
+  /** When true, strict mode will not promote this warning to an error. */
+  nonBlocking?: boolean;
 }
 
 export class TemplateValidator {
@@ -41,11 +44,11 @@ export class TemplateValidator {
       ? this.collectWarnings(parsed.data)
       : [];
 
-    // In strict mode, promote warnings to errors
     if (effectiveMode === "strict" && warnings.length > 0) {
-      const promotedErrors = warnings.map((w) => this.warningToError(w));
-      errors = [...errors, ...promotedErrors];
-      warnings = [];
+      const promotable = warnings.filter((w) => !w.nonBlocking);
+      const retained = warnings.filter((w) => w.nonBlocking);
+      errors = [...errors, ...promotable.map((w) => this.warningToError(w))];
+      warnings = retained;
     }
 
     return { valid: errors.length === 0, errors, warnings, mode: effectiveMode };
@@ -71,21 +74,16 @@ export class TemplateValidator {
       v?.totalEstimationMustBe !== undefined ||
       v?.totalEstimationRange !== undefined;
 
-    if (!hasStrictRule && total !== 100) {
-      const diff = 100 - total;
-      const suggestion =
-        diff > 0
-          ? `Add ${diff}% to existing tasks or create a new task with ${diff}% estimation.`
-          : `Reduce task estimations by ${Math.abs(diff)}% to reach 100%.`;
-
+    if (!hasStrictRule && total > 100) {
       warnings.push({
         path: "tasks",
-        message: `Total estimation is ${total}% (expected 100%).`,
-        suggestion,
+        message: `Total estimation is ${total}% (exceeds 100%). This is valid when tasks span multiple roles. You will be prompted to normalise at generate time.`,
+        nonBlocking: true,
       });
     }
     this.validateTaskConditions(template, warnings);
     this.validateTaskDependencies(template, warnings);
+    this.validateSavedQueryConflict(template, warnings);
 
     return warnings;
   }
@@ -96,13 +94,11 @@ export class TemplateValidator {
   ) {
     template.tasks.forEach((task, index) => {
       if (task.condition) {
-        const hasVariable = task.condition.includes("${");
-        const hasOperator = /AND|OR|==|!=|>|<|CONTAINS/.test(task.condition);
-        if (!hasVariable && !hasOperator) {
+        const customFieldRefs = extractCustomFieldRefs(task.condition);
+        if (customFieldRefs.length > 0) {
           warnings.push({
             path: `tasks[${index}].condition`,
-            message: `Condition "${task.condition}" might be invalid (no variables found)`,
-            suggestion: `Use variables like \${story.tags} or operators like CONTAINS, ==, !=. Example: "\${story.tags} CONTAINS 'backend'"`,
+            message: `Condition references custom field(s) [${customFieldRefs.join(", ")}] on the parent story. Run validation with --profile <name> (or choose Online when prompted) to verify these fields exist in ADO.`,
           });
         }
       }
@@ -140,6 +136,40 @@ export class TemplateValidator {
         }
       }
     });
+  }
+
+  private validateSavedQueryConflict(
+    template: TaskTemplate,
+    warnings: ValidationWarning[],
+  ) {
+    const f = template.filter;
+    if (!f.savedQuery) return;
+
+    const hasStructuredFields =
+      f.workItemTypes ||
+      f.states ||
+      f.statesExclude ||
+      f.statesWereEver ||
+      f.tags?.include ||
+      f.tags?.exclude ||
+      f.areaPaths ||
+      f.areaPathsUnder ||
+      f.iterations ||
+      f.iterationsUnder ||
+      f.assignedTo ||
+      f.changedAfter ||
+      f.createdAfter ||
+      f.priority;
+
+    if (hasStructuredFields) {
+      warnings.push({
+        path: "filter.savedQuery",
+        message:
+          "savedQuery and structured filter fields are both set. Structured filter fields will be ignored — the saved query controls which items are returned.",
+        suggestion:
+          "Remove workItemTypes, states, tags, etc. from the filter when using savedQuery.",
+      });
+    }
   }
 
   private generateIdFromTitle(title: string): string {
@@ -265,45 +295,29 @@ export class TemplateValidator {
     return formatter(...values);
   }
 
-  /**
-   * Handles standard Zod validation errors.
-   */
-  //TODO: fix any type
-  //biome-ignore-start lint/suspicious/noExplicitAny: Need to find a better type here
-  private handleZodError(err: any): string | undefined {
-    const { code, path, expected, validation } = err;
-
-    // Array/Task count errors
-    if (code === "too_small") {
-      if (path.includes("tasks"))
+  private handleZodError(err: $ZodIssue): string | undefined {
+    if (err.code === "too_small") {
+      if (err.path.includes("tasks"))
         return "Add at least one task to the template.";
       if (err.minimum === 1)
         return "This field cannot be empty. Please provide a value.";
-      if (path.includes("estimationPercent"))
-        return "Estimation percentage cannot be negative. Use a value between 0 and 100.";
+      if (err.path.includes("estimationPercent"))
+        return "Estimation percentage cannot be negative.";
     }
-
-    // Number range errors
-    if (code === "too_big" && path.includes("estimationPercent")) {
-      return "Estimation percentage must be between 0 and 100. Current value exceeds 100%.";
+    if (err.code === "too_big" && err.path.includes("estimationPercent")) {
+      return "A single task's estimation cannot exceed 100%. Split the work across multiple tasks if needed.";
     }
-
-    // Type errors
-    if (code === "invalid_type") {
-      if (expected === "string")
-        return `Expected a text value but received ${err.received}. Wrap the value in quotes.`;
-      if (expected === "number")
-        return `Expected a number but received ${err.received}. Remove quotes from numeric values.`;
+    if (err.code === "invalid_type") {
+      if (err.expected === "string")
+        return `Expected a text value but received ${String(err.input)}. Wrap the value in quotes.`;
+      if (err.expected === "number")
+        return `Expected a number but received ${String(err.input)}. Remove quotes from numeric values.`;
     }
-
-    // Format errors
-    if (code === "invalid_string" && validation === "email") {
+    if (err.code === "invalid_format" && err.format === "email") {
       return 'Use a valid email address format (e.g., user@example.com) or the special value "@Me".';
     }
-
     return undefined;
   }
-  //biome-ignore-end lint/suspicious/noExplicitAny: Need to find a better type here
 
   /**
    * Helper to extract numeric values from a regex match safely.

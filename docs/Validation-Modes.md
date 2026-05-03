@@ -36,11 +36,11 @@ Lenient is the **default** mode. Only hard errors block a template from being us
 
 **Example output (lenient):**
 ```
-Template is valid (with warnings)
+Template is valid! [Lenient]
 
 Warnings:
-  ⚠ tasks[2].condition: Condition "true" might be invalid (no variables found)
-     💡 Use variables like ${story.tags} or operators like CONTAINS, ==, !=
+  • tasks[*].customFields: 1 task(s) have custom fields that could not be verified.
+     Run with --profile <name> (or choose Online when prompted) to validate field names, types, and picklist values.
 
 Ready to use with: atomize generate my-template.yaml
 ```
@@ -59,11 +59,11 @@ In strict mode, **all warnings are promoted to errors**. The template is invalid
 
 **Example output (strict):**
 ```
-Template validation failed (strict mode)
+Template validation failed [Strict]
 
 Errors:
-  ✗ tasks[2].condition: Condition "true" might be invalid (no variables found)
-     Use variables like ${story.tags} or operators like CONTAINS, ==, !=
+  • tasks[*].customFields: 1 task(s) have custom fields that could not be verified.
+     Run with --profile <name> (or choose Online when prompted) to validate field names, types, and picklist values.
 
 Fix the errors above and try again.
 ```
@@ -91,6 +91,7 @@ These issues always block template use:
 | Invalid email format | `Invalid email: bad-email` |
 | Wrong field type | `Expected number but received string` |
 | Negative estimation | `Estimation percentage cannot be negative` |
+| Invalid custom field in connected validation | `Field "Custom.ClientTier" not found for work item type "Task"` |
 
 ### Warnings (Errors in Strict Mode)
 
@@ -98,7 +99,7 @@ These issues are warnings in lenient mode but become errors in strict mode:
 
 | Issue | Example Message |
 |-------|----------------|
-| Condition with no variables | `Condition "true" might be invalid (no variables found)` |
+| Offline custom field verification | `1 task(s) have custom fields that could not be verified` |
 | Total estimation not 100% (no `totalEstimationMustBe` or `totalEstimationRange` configured) | `Total estimation is 70% (expected 100%)` |
 | Estimation below `taskEstimationRange.min` | `Task estimation 0.2 is below minimum 0.5` |
 | Task missing recommended field | `Task "Implementation" has no activity set` |
@@ -116,8 +117,8 @@ Override the mode at the command line for the current run:
 # Use strict mode for this validation
 atomize validate my-template.yaml --strict
 
-# Verbose output shows all details
-atomize validate my-template.yaml --strict --verbose
+# Connect to ADO for live custom-field and saved-query validation
+atomize validate my-template.yaml --profile work-ado
 ```
 
 ### Via Template YAML
@@ -138,6 +139,11 @@ CLI flags override the template's `validation.mode` setting:
 ```
 CLI --strict  >  template validation.mode  >  lenient (default)
 ```
+
+When ADO-backed validation is needed:
+- `atomize validate` runs offline by default and only checks structure
+- `atomize validate --profile <name>` performs live validation against Azure DevOps
+- In interactive terminals, Atomize may prompt you to choose offline vs online validation
 
 ---
 
@@ -216,7 +222,8 @@ validation:
 tasks:
   - title: "Implementation"
     estimationPercent: 70
-    condition: "true"    # Warning: no story variables used
+    customFields:
+      Custom.ReleaseVersion: "{{ story.customFields['Custom.ReleaseVersion'] }}"
 
   - title: "Testing"
     estimationPercent: 30
@@ -224,14 +231,16 @@ tasks:
 
 **Lenient output:**
 ```
-Template is valid (with warnings)
-⚠ tasks[0].condition: Condition "true" might be invalid
+Template is valid! [Lenient]
+Warnings:
+  • tasks[*].customFields: 1 task(s) have custom fields that could not be verified.
 ```
 
 **Strict output:**
 ```
-Template validation failed (strict mode)
-✗ tasks[0].condition: Condition "true" might be invalid
+Template validation failed [Strict]
+Errors:
+  • tasks[*].customFields: 1 task(s) have custom fields that could not be verified.
 ```
 
 ---

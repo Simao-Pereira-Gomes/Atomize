@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { AzureDevOpsProfile } from "@config/connections.interface";
+import { expectToReject } from "../utils/matchers";
 
 const ATOMIZE_DIR = join(tmpdir(), `atomize-connections-config-test-${process.pid}`);
 
@@ -76,7 +78,7 @@ describe("connections.config", () => {
 
       expect(result).toEqual({
         version: "1",
-        defaultProfile: null,
+        defaultProfiles: {},
         profiles: [],
       });
     });
@@ -100,7 +102,7 @@ describe("connections.config", () => {
 
       await saveProfile(updated);
 
-      const retrieved = await getProfile("test-profile");
+      const retrieved = await getProfile("test-profile") as AzureDevOpsProfile | undefined;
       expect(retrieved?.project).toBe("UpdatedProject");
     });
 
@@ -112,7 +114,7 @@ describe("connections.config", () => {
 
       expect(first).toBeDefined();
       expect(second).toBeDefined();
-      expect(second?.organizationUrl).toBe("https://dev.azure.com/anotherorg");
+      expect((second as AzureDevOpsProfile | undefined)?.organizationUrl).toBe("https://dev.azure.com/anotherorg");
     });
   });
 
@@ -144,7 +146,7 @@ describe("connections.config", () => {
       expect(result.wasDefault).toBe(true);
 
       const file = await readConnectionsFile();
-      expect(file.defaultProfile).toBeNull();
+      expect(file.defaultProfiles["azure-devops"]).toBeUndefined();
     });
 
     test("removing a non-existent profile is a no-op", async () => {
@@ -159,41 +161,39 @@ describe("connections.config", () => {
   });
 
   describe("setDefaultProfile", () => {
-    test("sets the default profile", async () => {
+    test("sets the default profile for its platform", async () => {
       await saveProfile(testProfile);
       await saveProfile(testProfile2);
 
       await setDefaultProfile("test-profile");
 
       const file = await readConnectionsFile();
-      expect(file.defaultProfile).toBe("test-profile");
+      expect(file.defaultProfiles["azure-devops"]).toBe("test-profile");
     });
 
     test("throws when profile does not exist", async () => {
-      await expect(setDefaultProfile("non-existent-profile")).rejects.toThrow(
-        'Profile "non-existent-profile" not found',
-      );
+      await expectToReject(setDefaultProfile("non-existent-profile"), 'Profile "non-existent-profile" not found');
     });
 
-    test("can change the default profile", async () => {
+    test("can change the default profile for a platform", async () => {
       await saveProfile(testProfile);
       await saveProfile(testProfile2);
       await setDefaultProfile("test-profile");
       await setDefaultProfile("test-profile-2");
 
       const file = await readConnectionsFile();
-      expect(file.defaultProfile).toBe("test-profile-2");
+      expect(file.defaultProfiles["azure-devops"]).toBe("test-profile-2");
     });
   });
 
   describe("getDefaultProfile", () => {
-    test("returns undefined when no default is set", async () => {
+    test("returns undefined when no default is set for the platform", async () => {
       // Reset the file to a clean state
       if (existsSync(CONNECTIONS_PATH)) {
         await rm(CONNECTIONS_PATH, { force: true });
       }
 
-      const result = await getDefaultProfile();
+      const result = await getDefaultProfile("azure-devops");
       expect(result).toBeUndefined();
     });
 
@@ -201,7 +201,7 @@ describe("connections.config", () => {
       await saveProfile(testProfile);
       await setDefaultProfile("test-profile");
 
-      const result = await getDefaultProfile();
+      const result = await getDefaultProfile("azure-devops");
 
       expect(result).toBeDefined();
       expect(result?.name).toBe("test-profile");
@@ -221,7 +221,7 @@ describe("connections.config", () => {
       const result = await getProfile("test-profile-2");
 
       expect(result?.name).toBe("test-profile-2");
-      expect(result?.organizationUrl).toBe("https://dev.azure.com/anotherorg");
+      expect((result as AzureDevOpsProfile | undefined)?.organizationUrl).toBe("https://dev.azure.com/anotherorg");
     });
   });
 });
