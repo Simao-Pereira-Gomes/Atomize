@@ -953,14 +953,14 @@ export async function validateCustomFieldsPreFlight(
   const errors: string[] = [];
 
   if (tasksWithFields.length > 0) {
-    await collectTaskFieldErrors(template.tasks, platform.getFieldSchemas, errors);
+    await collectTaskFieldErrors(template.tasks, platform.getFieldSchemas.bind(platform), errors);
   }
 
   if (conditionRefs.length > 0 && template.filter.workItemTypes?.length) {
     await collectConditionFieldErrors(
       conditionRefs,
       template.filter.workItemTypes,
-      platform.getFieldSchemas,
+      platform.getFieldSchemas.bind(platform),
       errors,
     );
   }
