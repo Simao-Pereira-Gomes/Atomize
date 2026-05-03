@@ -1,6 +1,6 @@
 # Atomize CLI Reference
 
-Complete command-line interface documentation for Atomize v1.1.
+Complete command-line interface documentation for Atomize v2.0.0-alpha.0.
 
 ## Table of Contents
 
@@ -13,7 +13,10 @@ Complete command-line interface documentation for Atomize v1.1.
   - [fields](#fields)
   - [validate](#validate)
   - [template create](#template-create)
-  - [template presets](#template-presets)
+  - [template list](#template-list)
+  - [template install](#template-install)
+  - [template remove](#template-remove)
+  - [template resolve](#template-resolve)
   - [queries list](#queries-list)
 - [Configuration](#configuration)
 - [Interactive Prompts & Navigation](#interactive-prompts--navigation)
@@ -27,6 +30,9 @@ Complete command-line interface documentation for Atomize v1.1.
 ```bash
 # Global installation (recommended)
 npm install -g @sppg2001/atomize
+
+# Install the alpha
+npm install -g @sppg2001/atomize@alpha
 
 # Verify installation
 atomize --version
@@ -66,8 +72,11 @@ These options work with any command:
 | `fields list` | `fields ls` | List available fields for the current project or work item type |
 | `validate` | - | Validate a template file |
 | `template` | `tpl` | Template management commands |
-| `template create` | - | Create a new template interactively |
-| `template presets` | `ls` | List available template presets |
+| `template create` | - | Create a new template interactively or with AI |
+| `template list` | `template ls` | List available templates and mixins from the catalog |
+| `template install` | - | Install a template or mixin from a local file or HTTPS URL |
+| `template remove` | `template rm` | Remove a user-installed template or mixin |
+| `template resolve` | - | Resolve a composed template and print the merged result |
 | `queries` | - | Browse Azure DevOps saved queries |
 | `queries list` | `queries ls` | List saved queries with paths and IDs |
 
@@ -77,7 +86,11 @@ These options work with any command:
 
 ### auth
 
-Manage named connection profiles for Azure DevOps. Profiles store your organization URL, project, team, and PAT in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
+Manage named connection profiles. Profiles store your credentials in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
+
+Two profile types are supported:
+- **Azure DevOps** — for `generate`, `validate`, `fields list`, and `queries list`
+- **GitHub Models (AI)** — for AI-assisted template generation (`template create --ai`)
 
 #### auth add
 
@@ -89,49 +102,41 @@ atomize auth add [name] [options]
 
 | Option | Description |
 |--------|-------------|
-| `--org-url <url>` | Organization URL (e.g. `https://dev.azure.com/myorg`) |
-| `--project <name>` | Project name |
-| `--team <name>` | Team name |
-| `--default` | Set this profile as the default |
-| `--pat-stdin` | Read the PAT from stdin instead of `ATOMIZE_PAT` (preferred in CI — avoids token exposure in environment variables, process listings, and CI logs) |
-| `--insecure-storage` | Allow storing the token in an insecure local file fallback when the OS keychain is unavailable. The token data is encrypted, but the key is stored in the same directory, so anyone who can read `~/.atomize/` can recover it. Treat this as compatibility fallback storage, not secure secret storage. |
+| `--org-url <url>` | Organization URL (e.g. `https://dev.azure.com/myorg`) — Azure DevOps only |
+| `--project <name>` | Project name — Azure DevOps only |
+| `--team <name>` | Team name — Azure DevOps only |
+| `--default` | Set this profile as the default for its platform |
+| `--pat-stdin` | Read the PAT from stdin instead of `ATOMIZE_PAT` (preferred in CI) |
+| `--insecure-storage` | Allow storing the token in an insecure local file fallback when the OS keychain is unavailable |
 
-In non-interactive mode the PAT must be supplied via `ATOMIZE_PAT` or `--pat-stdin`.
+When run interactively, `auth add` first asks which platform to configure:
 
-**Interactive (recommended for first-time setup):**
+```
+? Platform:
+  ● Azure DevOps
+  ○ GitHub Models (AI template generation)
+```
+
+**Adding an Azure DevOps profile:**
 ```bash
 atomize auth add work-ado
 # Prompts for org URL, project, team, and PAT
 ```
 
-**Non-interactive with `--pat-stdin` (recommended for CI/CD):**
+**Adding a GitHub Models (AI) profile:**
 ```bash
-# Pipe the token — never appears in env or shell history
+atomize auth add my-ai
+# Prompts for a GitHub personal access token with Models access
+```
+
+**Non-interactive (Azure DevOps, CI/CD):**
+```bash
 echo "$AZURE_DEVOPS_PAT" | atomize auth add work-ado \
   --org-url https://dev.azure.com/myorg \
   --project MyProject \
   --team MyTeam \
   --default \
   --pat-stdin
-```
-
-**Non-interactive with `ATOMIZE_PAT` (simpler, but token visible in env):**
-```bash
-# macOS / Linux
-ATOMIZE_PAT=YOUR_PAT atomize auth add work-ado \
-  --org-url https://dev.azure.com/myorg \
-  --project MyProject \
-  --team MyTeam \
-  --default
-```
-```powershell
-# Windows (PowerShell)
-$env:ATOMIZE_PAT = "YOUR_PAT"
-atomize auth add work-ado `
-  --org-url https://dev.azure.com/myorg `
-  --project MyProject `
-  --team MyTeam `
-  --default
 ```
 
 Profile names may contain letters, numbers, hyphens, and underscores.
@@ -149,29 +154,32 @@ atomize auth ls   # alias
 
 **Output:**
 ```
-  work-ado (default)
-    Platform: azure-devops
+  work-ado (Azure DevOps · default)
     URL:      https://dev.azure.com/myorg
     Project:  MyProject
     Team:     MyTeam
     Token:    [keychain]
     Created:  1/3/2026, 10:00:00 AM
+
+  my-ai (GitHub Models (AI) · default)
+    Token:    [keychain]
+    Created:  1/3/2026, 10:05:00 AM
 ```
 
 ---
 
 #### auth use
 
-Set a profile as the default. The default profile is used automatically by `generate` when `--profile` is not specified.
+Set a profile as the default for its platform. Each platform (`azure-devops`, `github-models`) can have its own independent default.
 
 ```bash
 atomize auth use [name]
 ```
 
 ```bash
-atomize auth use work-ado
-# or omit the name to pick interactively
-atomize auth use
+atomize auth use work-ado   # sets default Azure DevOps profile
+atomize auth use my-ai      # sets default GitHub Models (AI) profile
+atomize auth use            # pick interactively
 ```
 
 ---
@@ -185,26 +193,23 @@ atomize auth remove [name]
 atomize auth rm [name]   # alias
 ```
 
-```bash
-atomize auth remove old-profile
-# or omit the name to pick interactively
-atomize auth remove
-```
-
 ---
 
 #### auth test
 
-Test connectivity for a profile by making a live request to the platform.
+Test connectivity for a profile. Automatically detects whether the profile is an Azure DevOps or GitHub Models (AI) profile and runs the appropriate check.
+
+- **Azure DevOps** — executes a WIQL query against your project to verify credentials and project access
+- **GitHub Models (AI)** — calls the models listing endpoint to verify the token
 
 ```bash
 atomize auth test [name]
 ```
 
 ```bash
-atomize auth test work-ado
-# or omit the name to test the default profile
-atomize auth test
+atomize auth test work-ado   # test a specific profile
+atomize auth test my-ai      # test an AI provider profile
+atomize auth test            # pick interactively (shows profile type next to each name)
 ```
 
 ---
@@ -215,12 +220,6 @@ Replace the stored PAT for a profile (e.g. after a token expires).
 
 ```bash
 atomize auth rotate [name]
-```
-
-```bash
-atomize auth rotate work-ado
-# or omit the name to pick interactively
-atomize auth rotate
 ```
 
 ---
@@ -240,7 +239,7 @@ atomize gen [template] [options]  # alias
 
 | Argument | Description |
 |----------|-------------|
-| `[template]` | Path to a YAML template file. If omitted, you will be prompted. |
+| `[template]` | Path to a YAML template file or catalog ref (e.g. `template:backend-api`). If omitted, you will be prompted. |
 
 #### Options
 
@@ -251,109 +250,55 @@ atomize gen [template] [options]  # alias
 | `--execute` | flag | - | Actually create tasks (default is dry-run preview) |
 | `--auto-approve` | flag | - | Required with `--execute` in non-interactive mode to acknowledge live task creation |
 | `--continue-on-error` | flag | - | Keep processing other stories if one fails |
+| `--story <ids...>` | string[] | - | Target specific work items by ID, bypassing the template filter. `excludeIfHasTasks` still applies. |
 | `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
 | `--dependency-concurrency <n>` | number | `5` | Max dependency links created in parallel (max: 10) |
 | `--limit <n>` | number | - | Cap the number of work items processed (useful for testing before a full `--execute` run) |
 | `-v, --verbose` | flag | - | Show detailed output including per-task breakdown |
 | `-o, --output <file>` | string | - | Write a JSON report to this file path (for CI/CD) |
+| `--include-sensitive-report-data` | flag | - | Include descriptions, custom fields, and platform-specific work item data in the JSON report (`--output` only) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 
 #### Examples
 
-**Interactive mode (no template specified):**
-```bash
-atomize generate
-# Prompts for: template file, platform (dry-run by default)
-```
-
 **Dry run (default — no --execute):**
 ```bash
-atomize generate templates/backend-api.yaml
+atomize generate template:backend-api
 ```
 
 **Execute for real:**
 ```bash
-atomize generate templates/backend-api.yaml --execute
+atomize generate template:backend-api --execute
+```
+
+**Target specific stories by ID (bypasses filter):**
+```bash
+atomize generate template:backend-api --story STORY-123 STORY-456
 ```
 
 **Execute for real in CI/non-interactive mode:**
 ```bash
-atomize generate templates/backend-api.yaml --execute --auto-approve
+atomize generate template:backend-api --execute --auto-approve
 ```
 
 **Mock platform (no credentials needed):**
 ```bash
-atomize generate templates/backend-api.yaml --platform mock
-```
-
-**Verbose output:**
-```bash
-atomize generate templates/backend-api.yaml --execute --verbose
-```
-
-**Continue on error:**
-```bash
-atomize generate templates/backend-api.yaml --execute --continue-on-error
+atomize generate template:backend-api --platform mock
 ```
 
 **Test against a subset of items before a full run:**
 ```bash
-# Dry run on the first 5 matching work items
-atomize generate templates/backend-api.yaml --limit 5
-
-# Execute on the first 5 only
-atomize generate templates/backend-api.yaml --limit 5 --execute
-```
-
-**Increase concurrency for large backlogs:**
-```bash
-atomize generate templates/backend-api.yaml \
-  --execute \
-  --story-concurrency 8 \
-  --task-concurrency 10
+atomize generate template:backend-api --limit 5
 ```
 
 **CI/CD with JSON report:**
 ```bash
-atomize generate templates/backend-api.yaml \
+atomize generate template:backend-api \
   --execute \
   --output report.json \
   --quiet
 ```
-
-#### Output
-
-```
-========================================================================
-  ATOMIZATION RESULTS
-========================================================================
-
- Summary:
-  Template:          Backend API Development
-  Stories processed: 3
-  Stories success:   3
-  Stories failed:    0
-  Tasks calculated:  18
-  Tasks created:     18
-  Execution time:    2547ms
-
- Details:
-
-✓ STORY-001: Implement user authentication API
-  Estimation: 8 points
-  Tasks: 6
-  Distribution: 8 points (100%)
-
-✓ STORY-003: Implement payment processing
-  Estimation: 13 points
-  Tasks: 6
-  Distribution: 13 points (100%)
-
-SUCCESS - Created 18 tasks for 3 stories
-```
-
-> Details are shown when `--verbose` is set or there are 5 or fewer stories processed.
 
 #### Exit Codes
 
@@ -378,7 +323,7 @@ atomize validate <template> [options]
 
 | Argument | Description |
 |----------|-------------|
-| `<template>` | Path to a YAML template file. **Required.** |
+| `<template>` | Path to a YAML template file or HTTPS URL. **Required.** |
 
 #### Options
 
@@ -399,64 +344,11 @@ atomize validate <template> [options]
 
 #### Examples
 
-**Basic validation (lenient mode):**
 ```bash
-atomize validate templates/backend-api.yaml
-```
-
-**Verbose output:**
-```bash
-atomize validate templates/backend-api.yaml --verbose
-```
-
-**Strict mode (warnings become errors):**
-```bash
-atomize validate templates/backend-api.yaml --strict
-```
-
-**Validate custom fields against ADO before generate:**
-```bash
-atomize validate templates/backend-api.yaml --profile work-ado
-```
-
-**Validate multiple templates in CI:**
-```bash
-for template in templates/*.yaml; do
-  atomize validate "$template" --strict --quiet
-done
-```
-
-#### Output
-
-**Valid template:**
-```
-Template is valid!
-
-Summary:
-  Name: Backend API Development
-  Tasks: 6
-  Total Estimation: 100%
-  Custom Fields: 3 (verified against ADO)
-
-Ready to use with: atomize generate templates/backend-api.yaml
-```
-
-**Invalid template:**
-```
-Template validation failed
-
-Errors:
-  ✗ tasks: Total estimation is 70%, but must be 100%
-     💡 Add 30% to existing tasks or create a new task with 30% estimation.
-
-  ✗ tasks[2].dependsOn: Task depends on non-existent task ID: "nonexistent-task"
-     💡 Either add a task with id: "nonexistent-task" or update the dependsOn field.
-
-Warnings:
-  ⚠ tasks[1].customFields: 1 task(s) have custom fields that could not be verified.
-     💡 Run with --profile <name> to validate field names, types, and picklist values.
-
-Fix the errors above and try again.
+atomize validate template:backend-api
+atomize validate template:backend-api --strict
+atomize validate template:backend-api --profile work-ado
+atomize validate https://example.com/templates/shared.yaml
 ```
 
 #### Exit Codes
@@ -474,8 +366,6 @@ Browse Azure DevOps work item fields available to the current profile.
 
 #### fields list
 
-List fields for the current project, optionally scoped to a work item type.
-
 ```bash
 atomize fields list [options]
 atomize fields ls   # alias
@@ -491,36 +381,17 @@ atomize fields ls   # alias
 **Examples:**
 
 ```bash
-# List all fields visible in the current project
 atomize fields list
-
-# List only task fields
 atomize fields list --type Task
-
-# Show only custom task fields
 atomize fields list --type Task --custom-only
-
-# Export as JSON
 atomize fields list --type Task --json > task-fields.json
 ```
-
-**Output (table format):**
-
-```
-  REFERENCE NAME            DISPLAY NAME          TYPE         PICKLIST VALUES
-  --------------            ------------          ----         ---------------
-  Custom.ClientTier         Client Tier           picklist-str Standard, Premium, Enterprise
-  Custom.ReleaseVersion     Release Version       string       —
-  Custom.IsBillable         Is Billable           boolean      —
-```
-
-Read-only fields are dimmed in the table output, and multi-line fields are tagged so they are easy to identify while authoring templates.
 
 ---
 
 ### template create
 
-Create a new template using one of several methods.
+Create a new template or mixin using one of several methods.
 
 #### Usage
 
@@ -533,160 +404,261 @@ atomize tpl create [options]  # alias
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--preset <name>` | string | Start from a preset: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack` |
+| `--type <type>` | string | Create a `template` or a `mixin` (prompted if omitted) |
+| `--from <name>` | string | Start from an existing catalog template |
 | `--from-stories <ids>` | string | Learn template from multiple stories (comma-separated IDs) |
-| `--profile <name>` | string | Named connection profile for `--from-stories` (see `auth add`) |
-| `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
-| `--no-normalize` | flag | Keep original estimation percentages (default normalizes to 100%) |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
-| `-o, --output <path>` | string | Output file path (default: `createdTemplates/template-YYYYMMDD-XXXX.yaml`) |
+| `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
+| `--ground` | flag | Ground AI generation with patterns from your Azure DevOps workspace |
+| `--ai-profile <name>` | string | AI provider profile to use (uses default GitHub Models profile if omitted) |
+| `--save-as <name>` | string | Name to save the template under in the catalog |
+| `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
+| `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
 | `-q, --quiet` | flag | Suppress non-essential output |
 
 #### Creation Modes
 
-**1. From Preset**
+**1. From Catalog Template**
 
-Start with a battle-tested built-in template.
+Start from a built-in or previously installed template.
 
 ```bash
-# Interactive preset selection
-atomize template create --preset
-
-# Direct preset selection
-atomize template create --preset backend-api
+atomize template create --from backend-api
+atomize template create --from my-custom-template
 ```
 
-Available presets:
-
-| Preset | Description | Tasks |
-|--------|-------------|-------|
-| `backend-api` | Backend API with database integration | 6 tasks |
-| `frontend-feature` | React/Vue UI component development | 5 tasks |
-| `bug-fix` | Bug investigation and resolution | 4 tasks |
-| `fullstack` | Complete full-stack feature | 8 tasks |
+Use `atomize template list` to see available names.
 
 ---
 
-**2. Learn from Multiple Stories**
+**2. AI-Assisted Generation**
 
-Analyze multiple stories to detect patterns and build a higher-confidence template.
+Describe the template you need in plain language and let AI generate it.
+
+```bash
+# Basic AI generation
+atomize template create --ai
+
+# Ground with real patterns from your ADO workspace
+atomize template create --ai --ground --profile work-ado
+
+# Specify which AI profile to use
+atomize template create --ai --ai-profile my-ai
+```
+
+Requires a GitHub Models profile (`atomize auth add` → select GitHub Models).
+
+---
+
+**3. Learn from Multiple Stories**
+
+Analyze existing stories to detect patterns and build a higher-confidence template.
 
 ```bash
 atomize template create --from-stories STORY-1,STORY-2,STORY-3
 
 atomize template create \
   --from-stories STORY-123,STORY-456,STORY-789 \
-  --platform azure-devops \
-  --output learned-templates/api-pattern.yaml
+  --save-as api-pattern
 ```
 
-Pattern detection includes confidence scoring, outlier detection, and conditional task suggestions. See [Story Learner](./Story-Learner.md) for details.
+See [Story Learner](./Story-Learner.md) for details.
 
 ---
 
-**3. Interactive Wizard (From Scratch)**
+**4. Interactive Wizard (From Scratch)**
 
-Step-by-step guided builder for full control over every aspect.
+Step-by-step guided builder for full control.
 
 ```bash
 atomize template create --scratch
-atomize template create --scratch --output my-templates/custom.yaml
 ```
 
-The wizard walks through 6 steps:
-1. **Basic Information** — name, description, author, tags
-2. **Filter Configuration** — choose how work items are selected (see below)
-3. **Task Configuration** — add tasks with estimations, conditions, dependencies, and custom fields
-4. **Estimation Settings** — rounding, minimum points
-5. **Validation Rules** — optional constraints
-6. **Metadata** — optional categorization info
-
-After all steps, a preview is shown before saving. See [Template Wizard Guide](./template-wizard-guide.md) for the full walkthrough.
-
-**Filter Configuration (Step 2)**
-
-The filter step opens with a mode selector:
-
-```
-? How do you want to select work items?
-  ● Build a filter  — choose types, states, tags, etc.
-  ○ Use a saved query  — reference an existing Azure DevOps query by ID or path
-```
-
-**Build a filter** walks through types, states, tags, area paths, iterations, assignment, and date filters interactively.
-
-**Use a saved query** prompts for either a path or a UUID:
-
-```
-? Reference the saved query by:
-  ● Path  (e.g. Shared Queries/Teams/Backend/Sprint Stories)
-  ○ ID    (UUID from the query URL)
-```
-
-Use `atomize queries list` first to find the path or ID of an existing query:
-
-```bash
-atomize queries list --folder "Shared Queries"
-# then pick a path and paste it into the wizard prompt
-```
-
-The saved query option also asks whether to skip work items that already have tasks (`excludeIfHasTasks`), which applies as a post-filter on the query results.
-
-In task configuration, the wizard can also browse Azure DevOps task fields and add `customFields` entries using human-readable field names. Picklist fields are enforced with a select prompt, and when the same custom field exists on the parent story, the wizard can insert `{{ story.customFields['...'] }}` for you.
-
-#### Output
-
-Templates are saved to:
-- **Default path:** `./createdTemplates/template-YYYYMMDD-XXXX.yaml`
-- **Custom path:** Specified with `-o` / `--output`
-
-```
-Template created successfully!
-
-Template saved to: createdTemplates/template-20260101-a3f2.yaml
-
-Validate it:   atomize validate createdTemplates/template-20260101-a3f2.yaml
-Test it:       atomize generate createdTemplates/template-20260101-a3f2.yaml --platform mock
-Use it:        atomize generate createdTemplates/template-20260101-a3f2.yaml --execute
-```
+The wizard walks through basic information, filter configuration, task configuration (including composition — inheritance and mixins), estimation settings, validation rules, and metadata.
 
 ---
 
-### template presets
+#### Creating Mixins
 
-List all available built-in template presets.
+A mixin is a reusable group of tasks that can be mixed into multiple templates via the `mixins:` field. Use `--type mixin` to create one.
+
+```bash
+atomize template create --type mixin
+atomize template create --type mixin --save-as security-review-tasks
+```
+
+See [Template Reference — Composition](./Template-Reference.md#composition) for how to use mixins.
+
+---
+
+### template list
+
+List available templates and mixins from the catalog (built-in and user-installed).
 
 #### Usage
 
 ```bash
-atomize template presets
-atomize template ls       # alias
-atomize tpl presets       # alias
-atomize tpl ls            # alias
+atomize template list [options]
+atomize template ls   # alias
+atomize tpl ls        # alias
 ```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Filter by type: `template` or `mixin` |
 
 #### Output
 
 ```
-Available Template Presets
+Built-in Templates
 
-backend-api
-  Backend API Development
-  Standard backend API development with database integration
+  backend-api
+    Backend API Development
+    Standard backend API development with database integration
 
-frontend-feature
-  Frontend Feature Development
-  UI/UX feature development with React/Vue components
+  feature
+    Feature Template
+    Foundation for feature templates
 
-bug-fix
-  Bug Fix
-  Standard bug investigation and resolution workflow
+  bug
+    Bug Template
+    Foundation for bug-fix templates
 
-fullstack
-  Fullstack Feature Development
-  Complete full-stack feature with backend and frontend work
+  custom
+    Custom Example
+    Example template with custom fields
 
-Use with: atomize template create --preset <name>
+User Templates
+
+  my-api-template
+    My API Template
+    (no description)
+
+Use with: atomize generate template:<name>
+         atomize template create --from <name>
+```
+
+---
+
+### template install
+
+Install a template or mixin from a local file or HTTPS URL into the catalog.
+
+#### Usage
+
+```bash
+atomize template install <source> [options]
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<source>` | Path to a local YAML file or an HTTPS URL |
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Force type: `template` or `mixin` (auto-detected from file content if omitted) |
+| `--overwrite` | Overwrite if a template with the same name already exists |
+| `--scope <scope>` | Installation scope: `user` (default, `~/.atomize`) or `project` (`.atomize` in current directory) |
+
+#### Examples
+
+```bash
+# Install from a local file
+atomize template install ./templates/my-api.yaml
+
+# Install from a URL (shared team template)
+atomize template install https://example.com/templates/security-review.yaml
+
+# Install as project-scoped (stored in .atomize/ next to your code)
+atomize template install ./templates/sprint-tasks.yaml --scope project
+
+# Overwrite an existing template
+atomize template install ./templates/backend-api.yaml --overwrite
+```
+
+**Scopes:**
+- `user` (default) — installed to `~/.atomize/templates/`, available across all projects
+- `project` — installed to `.atomize/templates/` in the current directory, scoped to this repo
+
+---
+
+### template remove
+
+Remove a user-installed template or mixin from the catalog. Built-in templates cannot be removed.
+
+#### Usage
+
+```bash
+atomize template remove <name> [options]
+atomize template rm <name> [options]   # alias
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<name>` | Template ref (`template:<name>` or `mixin:<name>`) or bare name |
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Restrict to a specific type: `template` or `mixin` |
+| `-f, --force` | Skip confirmation prompt |
+
+#### Examples
+
+```bash
+atomize template remove my-api-template
+atomize template remove mixin:security-tasks
+atomize template remove my-api-template --force
+```
+
+---
+
+### template resolve
+
+Resolve a composed template (one that uses `extends` or `mixins`) and print the fully merged YAML. Useful for debugging composition and verifying the final template before use.
+
+#### Usage
+
+```bash
+atomize template resolve <template> [options]
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<template>` | Template ref (`template:<name>`) or path to a YAML file |
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--validate` | Also run schema validation on the resolved template |
+| `-q, --quiet` | Print only the resolved YAML, no decorative output |
+
+#### Examples
+
+```bash
+# Resolve and preview a composed template
+atomize template resolve template:my-api
+
+# Resolve from a file
+atomize template resolve ./templates/composed.yaml
+
+# Resolve, validate, and pipe to a file
+atomize template resolve template:my-api --quiet > resolved.yaml
+
+# Resolve and validate in one step
+atomize template resolve template:my-api --validate
 ```
 
 ---
@@ -696,8 +668,6 @@ Use with: atomize template create --preset <name>
 Browse Azure DevOps saved queries — discover query paths and IDs without leaving the terminal.
 
 #### queries list
-
-List all saved queries accessible with the current profile.
 
 ```bash
 atomize queries list [options]
@@ -713,41 +683,9 @@ atomize queries ls   # alias
 **Examples:**
 
 ```bash
-# List all accessible queries (table)
 atomize queries list
-
-# Scope to a specific folder
 atomize queries list --folder "Shared Queries/Teams/Backend"
-
-# Use a specific profile
-atomize queries list --profile work-ado
-
-# JSON to stdout — progress visible in terminal, JSON piped cleanly
 atomize queries list --json | jq '.[] | select(.isPublic) | .path'
-
-# Redirect JSON to a file — progress still visible in terminal
-atomize queries list --json > queries.json
-
-# Silent JSON to file — suppress progress messages too
-atomize queries list --json 2>/dev/null > queries.json
-```
-
-**Output (table format):**
-
-```
-  PATH                                                  ID                                    VISIBILITY
-  ----                                                  --                                    ----------
-  Shared Queries/Teams/Backend/Sprint Active Stories    a1b2c3d4-e5f6-47b8-8901-234567890123  shared
-  Shared Queries/Teams/Frontend/Open Bugs              b2c3d4e5-0000-4000-8000-000000000000  shared
-  My Queries/Unassigned Stories                        c3d4e5f6-0000-4000-8000-000000000000  private
-```
-
-Copy an ID or path directly into your template:
-
-```yaml
-filter:
-  savedQuery:
-    id: "a1b2c3d4-e5f6-47b8-8901-234567890123"
 ```
 
 ---
@@ -756,21 +694,20 @@ filter:
 
 ### Connection Profiles
 
-Azure DevOps credentials are managed as named profiles using the `auth` commands. Profiles are stored at `~/.atomize/connections.json` and tokens are kept in the OS keychain. When the keychain is unavailable, `--insecure-storage` enables an insecure local file fallback. The token data is encrypted, but the key lives in the same directory, so treat it as unprotected against a local attacker.
+Credentials are managed as named profiles. Each platform has its own independent default profile.
 
 ```bash
-# Add a profile
+# Add an Azure DevOps profile
 atomize auth add work-ado
+atomize auth use work-ado   # set as default ADO profile
 
-# Verify it works
+# Add a GitHub Models (AI) profile
+atomize auth add my-ai
+atomize auth use my-ai      # set as default AI profile
+
+# Test both
 atomize auth test work-ado
-
-# Use it in generate
-atomize generate templates/backend-api.yaml --profile work-ado
-
-# Or set it as default so --profile is not needed
-atomize auth use work-ado
-atomize generate templates/backend-api.yaml
+atomize auth test my-ai
 ```
 
 ### Environment Variables
@@ -778,33 +715,25 @@ atomize generate templates/backend-api.yaml
 **Authentication:**
 
 ```bash
-# macOS / Linux
-export ATOMIZE_PAT="your-personal-access-token"
-```
-```powershell
-# Windows (PowerShell)
-$env:ATOMIZE_PAT = "your-personal-access-token"
-```
-```cmd
-# Windows (Command Prompt)
-set ATOMIZE_PAT=your-personal-access-token
+export ATOMIZE_PAT="your-personal-access-token"          # Azure DevOps PAT
 ```
 
 **Profile selection:**
 
 ```bash
-# macOS / Linux
-export ATOMIZE_PROFILE="work-ado"
-```
-```powershell
-# Windows (PowerShell)
-$env:ATOMIZE_PROFILE = "work-ado"
+export ATOMIZE_PROFILE="work-ado"       # Azure DevOps profile
+export ATOMIZE_AI_PROFILE="my-ai"       # GitHub Models (AI) profile
 ```
 
-Profile resolution order for commands that connect to ADO (`generate`, `fields list`, `queries list`, and `validate --profile`):
+Profile resolution order for ADO commands (`generate`, `fields list`, `queries list`, `validate --profile`):
 1. `--profile <name>` flag
 2. `ATOMIZE_PROFILE` environment variable
-3. Default profile (set via `atomize auth use`)
+3. Default ADO profile (set via `atomize auth use`)
+
+Profile resolution order for AI commands (`template create --ai`):
+1. `--ai-profile <name>` flag
+2. `ATOMIZE_AI_PROFILE` environment variable
+3. Default GitHub Models profile (set via `atomize auth use`)
 
 **Logging:**
 
@@ -816,13 +745,12 @@ export LOG_LEVEL="info"   # debug, info, warn, error
 
 ```bash
 ATOMIZE_PROFILE=work-ado
+ATOMIZE_AI_PROFILE=my-ai
 ```
 
 ---
 
 ## Interactive Prompts & Navigation
-
-Atomize uses interactive terminal prompts throughout. Here are the keyboard shortcuts:
 
 | Key | Action |
 |-----|--------|
@@ -831,8 +759,6 @@ Atomize uses interactive terminal prompts throughout. Here are the keyboard shor
 | `Space` | Toggle selection (in multi-select prompts) |
 | `Ctrl+C` | Cancel the current operation and exit |
 
-When you cancel with `Ctrl+C`, no files are created or modified.
-
 ---
 
 ## Examples
@@ -840,25 +766,41 @@ When you cancel with `Ctrl+C`, no files are created or modified.
 ### Complete Workflow: Azure DevOps
 
 ```bash
-# 1. Save your credentials as a named profile
+# 1. Save your Azure DevOps credentials
 atomize auth add work-ado
-# Prompts for org URL, project, team, and PAT
-# Set it as default when prompted
+atomize auth use work-ado
 
 # 2. Verify the connection
 atomize auth test work-ado
 
-# 3. Create a template
-atomize template create --preset backend-api -o my-backend.yaml
+# 3. Browse available templates
+atomize template list
 
-# 4. Validate it
+# 4. Start from a catalog template
+atomize template create --from backend-api --save-as my-backend
+
+# 5. Validate it
 atomize validate my-backend.yaml
 
-# 5. Preview (dry run — default, no --execute)
+# 6. Preview (dry run)
 atomize generate my-backend.yaml
 
-# 6. Execute
+# 7. Execute
 atomize generate my-backend.yaml --execute
+```
+
+### AI-Assisted Template Creation
+
+```bash
+# 1. Add a GitHub Models profile
+atomize auth add my-ai
+atomize auth use my-ai
+
+# 2. Describe your template to the AI
+atomize template create --ai
+
+# 3. Optionally ground it with real ADO patterns
+atomize template create --ai --ground --profile work-ado
 ```
 
 ### Multi-Story Learning
@@ -866,25 +808,33 @@ atomize generate my-backend.yaml --execute
 ```bash
 atomize template create \
   --from-stories STORY-1,STORY-2,STORY-3,STORY-4,STORY-5 \
-  --platform azure-devops \
-  --output team-templates/backend-standard.yaml
+  --platform azure-devops
+```
 
-atomize validate team-templates/backend-standard.yaml --strict --verbose
-atomize generate team-templates/backend-standard.yaml --execute
+### Using Composed Templates
+
+```bash
+# Install a shared mixin from a URL
+atomize template install https://example.com/mixins/security-review.yaml
+
+# Resolve and inspect a composed template
+atomize template resolve template:my-api
+
+# Validate a composed template
+atomize template resolve template:my-api --validate
+```
+
+### Target Specific Stories
+
+```bash
+# Run only against specific story IDs (bypasses filter)
+atomize generate template:backend-api --story STORY-101 STORY-102 STORY-103
 ```
 
 ### CI/CD Integration
 
-Create a profile once (locally or in a setup step) and reference it by name in CI. The profile name can be passed via `--profile` or the `ATOMIZE_PROFILE` env var.
-
 ```yaml
 # .github/workflows/generate-tasks.yml
-name: Generate Tasks
-
-on:
-  push:
-    paths: ['templates/*.yaml']
-
 jobs:
   generate:
     runs-on: ubuntu-latest
@@ -892,7 +842,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Atomize
-        run: npm install -g @sppg2001/atomize
+        run: npm install -g @sppg2001/atomize@alpha
 
       - name: Save connection profile
         run: |
@@ -911,26 +861,10 @@ jobs:
 
       - name: Generate Tasks
         run: |
-          atomize generate templates/backend-api.yaml \
+          atomize generate template:backend-api \
             --execute \
             --output task-report.json \
             --continue-on-error
-
-      - name: Upload Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: task-report
-          path: task-report.json
-```
-
-### Batch Processing
-
-```bash
-#!/bin/bash
-for template in templates/*.yaml; do
-  echo "Processing: $template"
-  atomize generate "$template" --execute --continue-on-error --quiet
-done
 ```
 
 ---
@@ -940,32 +874,16 @@ done
 ### "Not authenticated" error
 
 ```bash
-# Check what profiles are saved
 atomize auth list
-
-# Add a profile if none exist
 atomize auth add work-ado
-
-# Test the profile
 atomize auth test work-ado
-
-# Use it explicitly
-atomize generate templates/backend-api.yaml --profile work-ado
-
-# Or set it as default
 atomize auth use work-ado
 ```
 
 ### "Template validation failed"
 
 ```bash
-# Get detailed output
 atomize validate templates/my-template.yaml --verbose
-
-# Common causes:
-# - Estimation percentages don't sum to 100%
-# - Task dependency references a non-existent ID
-# - Missing required fields (title, version, name)
 ```
 
 ### "No matching stories found"
@@ -973,35 +891,33 @@ atomize validate templates/my-template.yaml --verbose
 ```bash
 # Test with mock platform first
 atomize generate templates/my-template.yaml --platform mock
-
-# Make filter less restrictive:
-# - Add more states: ["New", "Active", "Approved"]
-# - Remove or broaden tag filters
-# - Set excludeIfHasTasks: false
 ```
 
-### Permission denied (Windows)
+### AI template generation fails
 
-```powershell
-# Run PowerShell as Administrator
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```bash
+# Verify the AI profile is working
+atomize auth test my-ai
 
-# Or use npx
-npx @sppg2001/atomize generate templates/backend-api.yaml
+# Make sure a GitHub Models profile exists
+atomize auth list
+
+# Specify it explicitly
+atomize template create --ai --ai-profile my-ai
 ```
 
 ### Enable debug logging
 
 ```bash
 export LOG_LEVEL="debug"
-atomize generate templates/backend-api.yaml --verbose
+atomize generate template:backend-api --verbose
 ```
 
 ---
 
 ## See Also
 
-- [Template Reference](./Template-Reference.md) - Complete template schema
+- [Template Reference](./Template-Reference.md) - Complete template schema including composition
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors
 - [Platform Guide](./Platform-Guide.md) - Platform setup and configuration

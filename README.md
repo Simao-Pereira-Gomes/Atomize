@@ -7,6 +7,9 @@
 [![Node Version](https://img.shields.io/node/v/@sppg2001/atomize)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 
+> **Pre-release:** This is 2.0.0-alpha.0 — give it a try! If you hit a blocker, you can fall back to the latest stable release with `npm install -g @sppg2001/atomize`.
+> Feedback and bug reports welcome via [GitHub Issues](https://github.com/Simao-Pereira-Gomes/atomize/issues).
+
 **Break down stories, build up velocity.**
 
 Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with preset templates, story learning, and smart estimation distribution.
@@ -33,13 +36,13 @@ Atomize is a CLI tool that automatically generates granular tasks from user stor
 ### Global Installation (Recommended)
 
 ```bash
-npm install -g @sppg2001/atomize
+npm install -g @sppg2001/atomize@alpha
 ```
 
 ### Using npx (No Installation)
 
 ```bash
-npx @sppg2001/atomize --help
+npx @sppg2001/atomize@alpha --help
 ```
 
 ### Local Development
@@ -71,10 +74,10 @@ You'll be prompted for your Organization URL, project, team, and a [Personal Acc
 
 ```bash
 # Use a preset template (dry-run by default — safe to try)
-atomize generate templates/backend-api.yaml
+atomize generate template:backend-api
 
 # When ready to create tasks for real
-atomize generate templates/backend-api.yaml --execute
+atomize generate template:backend-api --execute
 
 # Interactive mode (prompts for everything)
 atomize generate
@@ -83,8 +86,8 @@ atomize generate
 ### 3. Create Your First Template
 
 ```bash
-# From a preset
-atomize template create --preset backend-api
+# From an existing template
+atomize template create --from backend-api
 
 # Learn from multiple stories (better pattern detection)
 atomize template create --from-stories STORY-1,STORY-2,STORY-3
@@ -113,21 +116,21 @@ The `generate` command creates tasks in your work item management system based o
 
 ```bash
 # Basic usage
-atomize generate templates/backend-api.yaml
+atomize generate template:backend-api
 
 # With options
-atomize generate templates/backend-api.yaml \
+atomize generate template:backend-api \
   --platform azure-devops \
   --execute \
   --verbose
 
 # Dry run (default — no --execute needed)
-atomize generate templates/backend-api.yaml
+atomize generate template:backend-api
 
 # CI/CD mode with JSON report
-atomize generate templates/backend-api.yaml \
+atomize generate template:backend-api \
   --execute \
-  --yes \
+  --auto-approve \
   --output report.json
 ```
 
@@ -135,15 +138,16 @@ atomize generate templates/backend-api.yaml \
 - `--platform <type>` - Platform: `azure-devops` or `mock`
 - `--profile <name>` - Named connection profile to use (see `atomize auth add`)
 - `--execute` - Actually create tasks (default is dry-run preview)
-- `-y, --yes` - Required with `--execute` in non-interactive mode to acknowledge live task creation
+- `--auto-approve` - Required with `--execute` in non-interactive mode to acknowledge live task creation
 - `--continue-on-error` - Keep processing if errors occur
 - `--story-concurrency <n>` - Parallel story processing (default: 3, max: 10)
 - `--task-concurrency <n>` - Parallel task creation per story (default: 5, max: 20)
 - `--dependency-concurrency <n>` - Parallel dependency link creation (default: 5, max: 10)
 - `--verbose` - Show detailed output
 - `-o, --output <file>` - Write JSON report to file
+- `--include-sensitive-report-data` - Include descriptions, custom fields, and platform-specific work item data in the JSON report
 
-In non-interactive mode, `--execute` now requires `--yes`. This prevents unattended task creation from wrapper scripts or CI jobs that did not explicitly acknowledge the mutation.
+In non-interactive mode, `--execute` now requires `--auto-approve`. This prevents unattended task creation from wrapper scripts or CI jobs that did not explicitly acknowledge the mutation.
 
 **Example Output:**
 ```
@@ -163,29 +167,30 @@ Summary:
 #### Create a Template
 
 ```bash
-# From preset (fastest)
-atomize template create --preset frontend-feature
+# From an existing template (fastest)
+atomize template create --from feature
 
 # Learn from multiple stories (best pattern detection)
 atomize template create \
   --from-stories STORY-1,STORY-2,STORY-3 \
-  --output my-templates/learned.yaml
+  --save-as learned-api-template
 
 # Interactive wizard (most control)
 atomize template create --scratch
 ```
 
-#### List Available Presets
+#### List Available Templates
 
 ```bash
-atomize template presets
+atomize template list
 ```
 
-**Available Presets:**
+**Built-in Templates:**
 - `backend-api` - Backend API with database integration
-- `frontend-feature` - React/Vue UI component development
-- `bug-fix` - Bug investigation and resolution workflow
-- `fullstack` - Complete full-stack feature
+- `feature` - General feature task workflow
+- `bug` - Bug investigation and resolution workflow
+- `custom` - Example template with custom fields
+- `custom-saved-query` - Example template using an Azure DevOps saved query
 
 #### Validate a Template
 
@@ -331,11 +336,11 @@ tasks:
 4. **Generate tasks**
    ```bash
    # Use the profile explicitly
-   atomize generate templates/backend-api.yaml --profile work-ado
+   atomize generate template:backend-api --profile work-ado
 
    # Or set it as default once
    atomize auth use work-ado
-   atomize generate templates/backend-api.yaml
+   atomize generate template:backend-api
    ```
 
 See `atomize auth --help` for all profile management commands (`list`, `remove`, `rotate`).
@@ -343,7 +348,7 @@ See `atomize auth --help` for all profile management commands (`list`, `remove`,
 ### Mock Platform (Testing)
 
 ```bash
-atomize generate templates/backend-api.yaml --platform mock
+atomize generate template:backend-api --platform mock
 ```
 
 No configuration required. Includes 7 built-in sample stories.
@@ -398,13 +403,13 @@ validation:
 atomize template create \
   --from-stories STORY-100,STORY-115,STORY-132,STORY-148 \
   --platform azure-devops \
-  --output team-templates/backend-standard.yaml
+  --save-as backend-standard
 
 # Validate the learned template
-atomize validate team-templates/backend-standard.yaml --strict
+atomize validate template:backend-standard --strict
 
 # Apply it
-atomize generate team-templates/backend-standard.yaml --execute
+atomize generate template:backend-standard --execute
 ```
 
 ---
@@ -505,10 +510,10 @@ If you prefer file-based configuration (e.g. in CI/CD), pass `--env-file` explic
 
 ```bash
 # macOS / Linux
-atomize --env-file ~/.config/atomize.env generate templates/backend-api.yaml
+atomize --env-file ~/.config/atomize.env generate template:backend-api
 
 # Windows (PowerShell)
-atomize --env-file $env:USERPROFILE\.config\atomize.env generate templates/backend-api.yaml
+atomize --env-file $env:USERPROFILE\.config\atomize.env generate template:backend-api
 ```
 
 Shell environment variables always take precedence over values in the file, so it is safe to use `--env-file` as a fallback without risk of overriding real environment config.
@@ -561,7 +566,7 @@ atomize auth add work-ado
 atomize auth test work-ado
 
 # Use it explicitly
-atomize generate templates/backend-api.yaml --profile work-ado
+atomize generate template:backend-api --profile work-ado
 ```
 
 ### "Template validation failed"

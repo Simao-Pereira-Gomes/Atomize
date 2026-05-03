@@ -556,11 +556,8 @@ Task 4:
 # Create from scratch (skip mode selection)
 atomize template create --scratch
 
-# Specify output path
-atomize template create --scratch -o path/to/template.yaml
-
-# Non-interactive mode (use flags only)
-atomize template create --no-interactive --scratch
+# Specify the catalog save name
+atomize template create --scratch --save-as my-template
 ```
 
 ## Related Commands
@@ -572,7 +569,7 @@ atomize validate path/to/template.yaml
 # Validate in strict mode
 atomize validate path/to/template.yaml --strict
 
-# List available presets
+# List available templates
 atomize template list
 
 # Generate tasks using your template (dry-run by default)

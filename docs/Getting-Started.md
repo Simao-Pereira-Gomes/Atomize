@@ -52,7 +52,7 @@ User Story (8 points)
 ### Install Globally
 
 ```bash
-npm install -g @sppg2001/atomize
+npm install -g @sppg2001/atomize@alpha
 ```
 
 ### Verify Installation
@@ -65,7 +65,7 @@ atomize --help
 ### Alternative: Use without Installing
 
 ```bash
-npx @sppg2001/atomize generate templates/backend-api.yaml
+npx @sppg2001/atomize@alpha generate template:backend-api
 ```
 
 ---
@@ -77,11 +77,8 @@ Let's generate tasks for some user stories in **5 minutes**!
 ### Step 1: Test with Mock Data
 
 ```bash
-# Download a preset template
-curl -o backend-api.yaml https://raw.githubusercontent.com/Simao-Pereira-Gomes/atomize/main/templates/presets/backend-api.yaml
-
-# Preview without connecting to any platform
-atomize generate backend-api.yaml --platform mock
+# Preview without connecting to any platform (templates are bundled)
+atomize generate template:backend-api --platform mock
 ```
 
 You'll see:
@@ -143,14 +140,14 @@ Let's create a custom template for your team's workflow.
 ### Option 1: Start from Preset
 
 ```bash
-# List available presets
-atomize template presets
+# List available templates
+atomize template list
 
-# Create from a preset
-atomize template create --preset backend-api
+# Create from an existing template
+atomize template create --from backend-api
 ```
 
-Available presets: `backend-api`, `frontend-feature`, `bug-fix`, `fullstack`
+Built-in templates include `backend-api`, `feature`, `bug`, `custom`, and `custom-saved-query`.
 
 ### Option 2: Interactive Wizard
 
@@ -397,7 +394,7 @@ Use `atomize fields list --type Task` to browse the available field names before
 
 ```bash
 # Generate tasks for new stories
-atomize generate templates/backend-api.yaml --execute
+atomize generate template:backend-api --execute
 
 # Create a custom template for a special case
 atomize template create --scratch
@@ -415,14 +412,14 @@ atomize generate my-new-template.yaml --execute
 ```
 templates/
 ├── backend-api.yaml       # API development
-├── frontend-feature.yaml  # UI features
-├── bug-fix.yaml           # Bug fixes
+├── feature.yaml           # Feature work
+├── bug.yaml               # Bug fixes
 └── database-change.yaml   # Schema changes
 ```
 
 ```bash
-atomize generate templates/backend-api.yaml --execute
-atomize generate templates/bug-fix.yaml --execute
+atomize generate template:backend-api --execute
+atomize generate template:bug --execute
 ```
 
 ### CI/CD Integration
@@ -442,7 +439,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Atomize
-        run: npm install -g @sppg2001/atomize
+        run: npm install -g @sppg2001/atomize@alpha
 
       - name: Validate Templates
         run: |
@@ -462,7 +459,7 @@ jobs:
 
       - name: Generate Tasks
         run: |
-          atomize generate templates/backend-api.yaml \
+          atomize generate template:backend-api \
             --execute \
             --auto-approve \
             --continue-on-error

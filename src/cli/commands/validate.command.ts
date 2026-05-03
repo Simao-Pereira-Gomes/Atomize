@@ -47,7 +47,7 @@ export function resolveValidateLogLevel(options: {
 
 export const validateCommand = new Command("validate")
   .description("Validate a template file")
-  .argument("<source>", "Path to a YAML template file or an HTTPS URL")
+  .argument("<source>", "Path to a YAML template file, catalog ref, or HTTPS URL")
   .option("-s, --strict", "Use strict validation mode (warnings become errors)", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--profile <name>", "Connect to ADO using a named profile for field verification (uses default profile if omitted)")

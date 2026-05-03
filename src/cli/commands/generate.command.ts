@@ -266,7 +266,7 @@ async function promptMissingArgs(
       templatePath = assertNotCancelled(
         await text({
           message: "Template file path:",
-          placeholder: "templates/backend-api.yaml",
+          placeholder: "template:backend-api",
         }),
       ) as string;
     }
@@ -580,7 +580,7 @@ export function printReport(
 export const generateCommand = new Command("generate")
   .alias("gen")
   .description("Generate tasks from user stories using a template")
-  .argument("[template]", "Path to template file (YAML)")
+  .argument("[template]", "Path to a YAML template file or catalog ref (e.g. template:backend-api)")
   .option("-p, --platform <platform>", "Platform to use")
   .option("--execute", "Execute task creation (default is dry-run preview)", false)
   .option("--continue-on-error", "Continue processing remaining stories if one fails", false)

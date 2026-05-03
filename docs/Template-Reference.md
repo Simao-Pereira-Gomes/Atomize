@@ -6,6 +6,7 @@ Complete reference for Atomize YAML template files.
 
 - [Overview](#overview)
 - [Top-Level Fields](#top-level-fields)
+- [Composition](#composition)
 - [filter](#filter)
 - [tasks](#tasks)
   - [Task Fields](#task-fields)
@@ -42,6 +43,10 @@ name: "Template Name"   # Required. Human-readable name (max 200 chars)
 description: "..."      # Optional. What this template is for (max 500 chars)
 author: "Your Name"     # Optional. Author name or team
 tags: ["tag1", "tag2"]  # Optional. Categorization tags
+extends: "backend-api"  # Optional. Inherit from a catalog template
+mixins:                 # Optional. Mix in reusable task groups
+  - "security-review-tasks"
+  - "release-checklist"
 ```
 
 | Field | Required | Type | Description |
@@ -51,6 +56,72 @@ tags: ["tag1", "tag2"]  # Optional. Categorization tags
 | `description` | No | string | Detailed description |
 | `author` | No | string | Author name or team |
 | `tags` | No | string[] | Tags for categorization |
+| `extends` | No | string | Catalog template name or file path to inherit from |
+| `mixins` | No | string[] | Catalog mixin names or file paths to merge into this template |
+
+---
+
+## Composition
+
+Templates can inherit from other templates and mix in reusable task groups. This lets you build a library of building blocks and assemble them without duplication.
+
+### Inheritance (`extends`)
+
+A template that declares `extends` inherits the `filter`, `tasks`, `estimation`, `validation`, and `metadata` of its base. Fields defined in the child override the corresponding fields in the base.
+
+```yaml
+version: "1.0"
+name: "Secure Backend API"
+extends: "backend-api"        # inherits all tasks and filter from backend-api
+
+tasks:
+  - id: "pen-test"
+    title: "Penetration Testing"
+    estimationPercent: 10
+    activity: "Testing"
+```
+
+The resolved template merges the child's `tasks` list on top of the base's, then re-validates the combined result. Use `atomize template resolve` to see the merged output before using it.
+
+### Mixins (`mixins`)
+
+A mixin is a partial template — typically a group of related tasks — that can be mixed into any template. The tasks from all listed mixins are appended to the template's own task list before validation.
+
+```yaml
+version: "1.0"
+name: "Feature With Release Checks"
+extends: "feature"
+mixins:
+  - "security-review-tasks"
+  - "release-checklist"
+```
+
+Mixins are installed and managed with the `template` commands:
+
+```bash
+# Install a mixin from a URL
+atomize template install https://example.com/mixins/security-tasks.yaml
+
+# List available mixins
+atomize template list --type mixin
+
+# Create a new mixin
+atomize template create --type mixin --save-as security-review-tasks
+```
+
+### Resolution order
+
+When Atomize processes a composed template:
+1. Base template (`extends`) is loaded and fully resolved first
+2. Mixin task lists are appended in declaration order
+3. Child template fields override the merged base
+4. The final result is validated as a single flat template
+
+Use `atomize template resolve <template>` to inspect the final merged YAML at any point.
+
+### Compatibility
+
+Templates using `extends` or `mixins` require Atomize v2.0.0 or later. Older versions will reject them with a schema error. If you share composed templates with users on older versions, they must upgrade first or you can share the resolved output from `atomize template resolve --quiet > resolved.yaml`.
 
 ---
 
@@ -664,7 +735,7 @@ metadata:
 
 ## See Also
 
-- [CLI Reference](./Cli-Reference.md) - Commands for validating and using templates
+- [CLI Reference](./Cli-Reference.md) - Commands for validating, installing, and using templates
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix validation failures
 - [Story Learner](./Story-Learner.md) - Generate templates from existing work items

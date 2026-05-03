@@ -120,14 +120,20 @@ async function resolveSource(
     if (urlExt !== ".yaml" && urlExt !== ".yml") {
       throw new Error(`URL must point to a YAML file (.yaml or .yml). Got: "${urlFilename}"`);
     }
-    print(chalk.gray(`  Fetching ${sanitizeTty(source)}\n`));
-    const content = await fetchTemplateContent(source);
+    const rawUrl = toGitHubRawUrl(source);
+    const fetchUrl = rawUrl ?? source;
+    if (rawUrl !== undefined) {
+      print(chalk.gray(`  Using raw URL: ${sanitizeTty(rawUrl)}\n`));
+    } else {
+      print(chalk.gray(`  Fetching ${sanitizeTty(source)}\n`));
+    }
+    const content = await fetchTemplateContent(fetchUrl);
     const kind = options.type ? parseTemplateType(options.type) : detectKindFromContent(content);
     return {
       kind,
       name: basename(urlFilename, urlExt),
       install: () => catalog.installFromContent(content, urlFilename, kind, scope),
-      fromLabel: source,
+      fromLabel: fetchUrl,
     };
   }
 
@@ -157,13 +163,28 @@ async function detectKindFromFile(filePath: string): Promise<TemplateCatalogKind
 }
 
 function inferKind(raw: unknown): TemplateCatalogKind {
-  if (TaskTemplateSchema.safeParse(raw).success) return "template";
-  if (MixinTemplateSchema.safeParse(raw).success) return "mixin";
+  const templateResult = TaskTemplateSchema.safeParse(raw);
+  if (templateResult.success) return "template";
 
-  const issues = TaskTemplateSchema.safeParse(raw).error?.issues
-    .map((i) => `${i.path.join(".")}: ${i.message}`)
-    .join("; ");
-  throw new Error(`Could not detect template type. Pass --type explicitly.\n  ${issues}`);
+  const mixinResult = MixinTemplateSchema.safeParse(raw);
+  if (mixinResult.success) return "mixin";
+
+  if (typeof raw === "object" && raw !== null) {
+    if ("filter" in raw) {
+      const issues = templateResult.error.issues
+        .map((i) => `  ${i.path.join(".")}: ${i.message}`)
+        .join("\n");
+      throw new Error(`Template validation failed:\n${issues}`);
+    }
+    if ("tasks" in raw) {
+      const issues = mixinResult.error.issues
+        .map((i) => `  ${i.path.join(".")}: ${i.message}`)
+        .join("\n");
+      throw new Error(`Mixin validation failed:\n${issues}`);
+    }
+  }
+
+  throw new Error("Could not detect template type. Pass --type explicitly.");
 }
 
 function parseInstallScope(value: string): InstallScope {
@@ -178,4 +199,18 @@ function parseTemplateType(value: string): TemplateCatalogKind {
     return value as TemplateCatalogKind;
   }
   throw new Error(`Invalid type "${value}". Expected: ${TEMPLATE_TYPES.join(", ")}.`);
+}
+
+function toGitHubRawUrl(url: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.hostname !== "github.com") return undefined;
+  const match = parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
+  if (!match) return undefined;
+  const [, owner, repo, rest] = match;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${rest}`;
 }

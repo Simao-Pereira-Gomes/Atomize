@@ -88,7 +88,7 @@ atomize auth add <name>
 
 **Use a specific profile for generate:**
 ```bash
-atomize generate templates/backend-api.yaml --profile work-ado
+atomize generate template:backend-api --profile work-ado
 ```
 
 **Set a profile as default (used when `--profile` is not specified):**
@@ -99,7 +99,7 @@ atomize auth use work-ado
 **Select a profile via environment variable:**
 ```bash
 export ATOMIZE_PROFILE=work-ado
-atomize generate templates/backend-api.yaml
+atomize generate template:backend-api
 ```
 
 **Multiple profiles example:**
@@ -308,7 +308,7 @@ Maps to Azure DevOps fields:
 3. Check area/iteration paths are correct (case-sensitive)
 4. Test with mock platform first:
    ```bash
-   atomize generate templates/backend-api.yaml --platform mock
+   atomize generate template:backend-api --platform mock
    ```
 
 #### Permission Errors
@@ -339,7 +339,7 @@ The mock platform provides sample data for testing and development.
 ### Usage
 
 ```bash
-atomize generate templates/backend-api.yaml --platform mock
+atomize generate template:backend-api --platform mock
 ```
 
 ### Features
@@ -388,7 +388,7 @@ STORY-007: Implement data export feature
 **1. Template Development:**
 ```bash
 # Create template
-atomize template create --scratch -o test-template.yaml
+atomize template create --scratch --save-as test-template
 
 # Test with mock data
 atomize generate test-template.yaml --platform mock
