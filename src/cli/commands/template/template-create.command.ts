@@ -23,7 +23,6 @@ import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
-  createManagedSpinner,
   isInteractiveTerminal,
   selectOrAutocomplete,
 } from "@/cli/utilities/prompt-utilities";
@@ -354,7 +353,6 @@ async function validateStoryIds(
   if (!platform.getWorkItem) return storyIds;
 
   const validateSpinner = createManagedSpinner();
-  const validateSpinner = createManagedSpinner();
   validateSpinner.start(`Validating ${storyIds.length} story ID(s)...`);
 
   const results = await Promise.all(
@@ -453,7 +451,6 @@ async function createFromStories(
   storyIds = await validateStoryIds(platform, storyIds);
 
   const learner = new StoryLearner(platform);
-  const learnSpinner = createManagedSpinner();
   const learnSpinner = createManagedSpinner();
   learnSpinner.start(`Learning from ${storyIds.length} stories...`);
   const result = await learner.learnFromStories(storyIds);
