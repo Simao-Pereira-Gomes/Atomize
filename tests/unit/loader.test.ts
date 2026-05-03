@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { TemplateLoader } from "@templates/loader";
+import { MAX_TEMPLATE_FILE_BYTES } from "@templates/template-file";
 import { TemplateLoadError } from "@utils/errors";
+import { expectToReject } from "../utils/matchers";
 
 describe("TemplateLoader", () => {
   const loader = new TemplateLoader();
@@ -45,9 +49,7 @@ describe("TemplateLoader", () => {
     test("should throw TemplateLoadError for non-existent file", async () => {
       const templatePath = resolve(fixturesPath, "does-not-exist.yaml");
 
-      await expect(loader.load(templatePath)).rejects.toThrow(
-        TemplateLoadError
-      );
+      await expectToReject(loader.load(templatePath), TemplateLoadError);
     });
 
     test("should throw TemplateLoadError with file path", async () => {
@@ -76,6 +78,19 @@ describe("TemplateLoader", () => {
       const template = await loader.load(absolutePath);
       expect(template.name).toBe("Test Template");
     });
+
+    test("should reject local templates above the size limit before parsing", async () => {
+      const tempDir = await mkdtemp(resolve(tmpdir(), "atomize-large-template-"));
+      const largeTemplatePath = resolve(tempDir, "large.yaml");
+
+      try {
+        await writeFile(largeTemplatePath, "x".repeat(MAX_TEMPLATE_FILE_BYTES + 1), "utf-8");
+
+        await expectToReject(loader.load(largeTemplatePath), "Template file too large");
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe("loadMultiple", () => {
@@ -103,9 +118,7 @@ describe("TemplateLoader", () => {
         resolve(fixturesPath, "does-not-exist.yaml"),
       ];
 
-      await expect(loader.loadMultiple(paths)).rejects.toThrow(
-        TemplateLoadError
-      );
+      await expectToReject(loader.loadMultiple(paths), TemplateLoadError);
     });
   });
 
