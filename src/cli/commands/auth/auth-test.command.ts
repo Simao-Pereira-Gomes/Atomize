@@ -9,8 +9,9 @@ import { ExitCode } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
 import { getErrorMessage } from "@/utils/errors";
 import {
-  buildPlatform,
   promptProfileToTest,
+  resolveTestTarget,
+  testAIProviderConnection,
   testPlatformConnection,
 } from "./helpers/auth-test.helper";
 
@@ -38,18 +39,30 @@ export const authTestCommand = new Command("test")
     s.start("Resolving configuration...");
 
     try {
-      const platform = await buildPlatform(profileName);
-      s.message("Connecting...");
+      const target = await resolveTestTarget(profileName);
 
-      const result = await testPlatformConnection(platform);
-
-      if (result.ok) {
-        s.stop(chalk.green(result.label));
-        output.outro("Profile is working correctly.");
+      if (target.kind === "ado") {
+        s.message("Testing Azure DevOps connectivity...");
+        const result = await testPlatformConnection(target.platform);
+        if (result.ok) {
+          s.stop(chalk.green(result.label));
+          output.outro("Azure DevOps profile is working correctly.");
+        } else {
+          s.stop(chalk.red("Connection failed"));
+          output.cancel(result.reason);
+          process.exit(ExitCode.Failure);
+        }
       } else {
-        s.stop(chalk.red("Connection failed"));
-        output.cancel(result.reason);
-        process.exit(ExitCode.Failure);
+        s.message("Testing GitHub Models AI provider...");
+        const result = await testAIProviderConnection(target.provider, target.model);
+        if (result.ok) {
+          s.stop(chalk.green(result.label));
+          output.outro("AI provider profile is working correctly.");
+        } else {
+          s.stop(chalk.red("Connection failed"));
+          output.cancel(result.reason);
+          process.exit(ExitCode.Failure);
+        }
       }
     } catch (error) {
       s.stop("Test failed");

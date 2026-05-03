@@ -14,6 +14,15 @@ export class GitHubModelsProvider implements AIProvider {
     this.model = model;
   }
 
+  async testConnection(): Promise<boolean> {
+    try {
+      await this.client.models.list();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async generate(systemPrompt: string, userPrompt: string): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: this.model,
