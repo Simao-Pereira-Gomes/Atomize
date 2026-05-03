@@ -12,8 +12,6 @@ import { loadEnvFile } from "./env-loader";
 import { runUpdateNotifier } from "./update-notifier";
 import { writeManagedOutput } from "./utilities/terminal-output";
 
-await runUpdateNotifier({ name, version });
-
 const program = new Command();
 
 program
@@ -25,7 +23,7 @@ program
 		"load environment variables from file (shell env takes precedence)",
 	);
 
-program.hook("preAction", () => {
+program.hook("preAction", async () => {
 	const { envFile } = program.opts();
 	if (envFile) {
 		try {
@@ -35,6 +33,8 @@ program.hook("preAction", () => {
 			process.exit(1);
 		}
 	}
+
+	await runUpdateNotifier({ name, version });
 });
 
 const banner = `

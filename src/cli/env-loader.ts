@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { LOG_LEVEL_VALUES } from "@config/logger";
 import { z } from "zod";
+import { updateNotifierModeSchema } from "@/cli/update-notifier";
 
 /**
  * Schema for all environment variables that Atomize reads from --env-file.
@@ -13,6 +14,7 @@ const EnvFileSchema = z
     ATOMIZE_PAT: z.string().min(1).optional(),
     ATOMIZE_PROFILE: z.string().min(1).optional(),
     ATOMIZE_DEV: z.enum(["true", "false"]).optional(),
+    ATOMIZE_UPDATE_NOTIFIER: updateNotifierModeSchema.optional(),
     LOG_LEVEL: z.enum(LOG_LEVEL_VALUES).optional(),
   })
   .strict();
