@@ -497,9 +497,9 @@ Warnings:
 atomize validate my-template.yaml
 ```
 
-**Verbose validation:**
+**Strict validation (promotes warnings to errors):**
 ```bash
-atomize validate my-template.yaml --verbose
+atomize validate my-template.yaml --strict
 ```
 
 **Validation in CI/CD:**
@@ -538,7 +538,7 @@ fi
 If you encounter an error not covered here:
 
 1. **Check the error message suggestion** - It often contains the exact fix needed
-2. **Run with --verbose** - Get detailed validation output
+2. **Run with --strict** - Promotes warnings to errors for a complete picture
 3. **Use the template wizard** - Interactive mode catches errors as you type
 4. **Validate incrementally** - Test after each change
 

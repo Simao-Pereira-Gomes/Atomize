@@ -222,7 +222,7 @@ atomize template create \
   --save-as backend-standard
 
 # Validate the result
-atomize validate template:backend-standard --strict --verbose
+atomize validate template:backend-standard --strict
 
 # Apply to new stories
 atomize generate template:backend-standard
@@ -245,7 +245,7 @@ After generating, always:
 
 1. **Validate the template:**
    ```bash
-	   atomize validate template:my-learned-template --verbose
+	   atomize validate template:my-learned-template --strict
    ```
 
 2. **Review the YAML** — the learner may suggest conditions or patterns you want to refine

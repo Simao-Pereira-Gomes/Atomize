@@ -738,7 +738,7 @@ atomize auth test my-ai
 **Authentication:**
 
 ```bash
-export ATOMIZE_PAT="your-personal-access-token"          # Azure DevOps PAT
+export ATOMIZE_PAT="your-personal-access-token"          # Used by auth add
 ```
 
 **Profile selection:**
@@ -770,7 +770,7 @@ No `.env` file is loaded automatically. Use the global `--env-file` flag to load
 
 ```bash
 atomize --env-file .env.work generate template:backend-api
-atomize --env-file /etc/atomize/ci.env generate template:backend-api --execute
+atomize --env-file /etc/atomize/ci.env generate template:backend-api --execute --auto-approve
 ```
 
 Shell environment variables always take precedence over values in the file.
@@ -779,7 +779,6 @@ Example `.env` file:
 
 ```bash
 ATOMIZE_PROFILE=work-ado
-ATOMIZE_AI_PROFILE=my-ai
 ```
 
 ---
@@ -885,7 +884,8 @@ jobs:
             --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
             --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
             --default \
-            --pat-stdin
+            --pat-stdin \
+            --insecure-storage
 
       - name: Validate Templates
         run: |
@@ -897,6 +897,7 @@ jobs:
         run: |
           atomize generate template:backend-api \
             --execute \
+            --auto-approve \
             --output task-report.json \
             --continue-on-error
 ```

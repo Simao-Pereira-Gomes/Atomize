@@ -117,9 +117,6 @@ Override the mode at the command line for the current run:
 # Use strict mode for this validation
 atomize validate my-template.yaml --strict
 
-# Verbose output shows all details
-atomize validate my-template.yaml --strict --verbose
-
 # Connect to ADO for live custom-field and saved-query validation
 atomize validate my-template.yaml --profile work-ado
 ```

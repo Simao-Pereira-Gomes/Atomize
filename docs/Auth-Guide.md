@@ -55,7 +55,7 @@ echo "$AZURE_DEVOPS_PAT" | atomize auth add ci \
   --insecure-storage
 ```
 
-In most CI environments the token is injected via a secret environment variable and never needs to be persisted at all — see [CI/CD Setup](#cicd-setup).
+In CI, prefer injecting the token from your secrets store and creating the profile inside the job workspace — see [CI/CD Setup](#cicd-setup).
 
 ---
 
@@ -164,7 +164,7 @@ If the removed profile was the default for its platform, Atomize prompts you to 
 
 ## CI/CD Setup
 
-For automated environments, inject the PAT via stdin and never store it — it only lives for the duration of the run.
+For automated environments, inject the PAT via stdin and create a short-lived profile in the job workspace.
 
 ```yaml
 - name: Generate Tasks
@@ -176,7 +176,8 @@ For automated environments, inject the PAT via stdin and never store it — it o
       --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
       --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
       --default \
-      --pat-stdin
+      --pat-stdin \
+      --insecure-storage
 
     atomize generate template:backend-api \
       --execute \
@@ -186,16 +187,23 @@ For automated environments, inject the PAT via stdin and never store it — it o
 
 **Why `--pat-stdin`?** Passing the token as a flag (`--pat abc123`) risks it appearing in process listings (`ps aux`) or shell history. Reading from stdin keeps it out of both.
 
-Alternatively, set `ATOMIZE_PAT` in the environment and skip `auth add` entirely — the token is used directly without being persisted:
+If your runner has a working OS keychain, you can omit `--insecure-storage`. On headless runners, the flag explicitly opts into Atomize's local encrypted file fallback for that job.
+
+You can also provide the PAT through `ATOMIZE_PAT` while still creating a profile:
 
 ```yaml
 - name: Generate Tasks
   env:
     ATOMIZE_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
-    ATOMIZE_ORG_URL: ${{ secrets.AZURE_DEVOPS_ORG_URL }}
-    ATOMIZE_PROJECT: ${{ secrets.AZURE_DEVOPS_PROJECT }}
-    ATOMIZE_TEAM: ${{ secrets.AZURE_DEVOPS_TEAM }}
-  run: atomize generate template:backend-api --execute --auto-approve
+  run: |
+    atomize auth add ci \
+      --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
+      --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
+      --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
+      --default \
+      --insecure-storage
+
+    atomize generate template:backend-api --execute --auto-approve
 ```
 
 ---

@@ -114,7 +114,7 @@ AI-generated templates are a starting point, not a finished product. Always:
 1. **Review the generated YAML** — the wizard shows a full preview before saving.
 2. **Validate:**
    ```bash
-   atomize validate template:<name> --strict --verbose
+   atomize validate template:<name> --strict
    ```
 3. **Test with mock data:**
    ```bash
@@ -717,7 +717,7 @@ After creating your template:
 
 1. **Validate it:**
    ```bash
-   atomize validate template:<name> --strict --verbose
+   atomize validate template:<name> --strict
    ```
 
 2. **Test with mock data:**

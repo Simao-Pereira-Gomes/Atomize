@@ -242,9 +242,6 @@ Always validate templates before using them:
 # Basic validation
 atomize validate my-template.yaml
 
-# Verbose output
-atomize validate my-template.yaml --verbose
-
 # Strict mode — warnings become errors (good for team templates)
 atomize validate my-template.yaml --strict
 
@@ -455,7 +452,8 @@ jobs:
             --org-url "${{ secrets.AZURE_DEVOPS_ORG_URL }}" \
             --project "${{ secrets.AZURE_DEVOPS_PROJECT }}" \
             --team "${{ secrets.AZURE_DEVOPS_TEAM }}" \
-            --default
+            --default \
+            --insecure-storage
 
       - name: Generate Tasks
         run: |
@@ -508,9 +506,9 @@ jobs:
 ### "Validation failed"
 
 **Solutions:**
-1. Run validation with verbose flag:
+1. Run validation in strict mode for detailed error output:
    ```bash
-   atomize validate my-template.yaml --verbose
+   atomize validate my-template.yaml --strict
    ```
 
 2. Common issues:

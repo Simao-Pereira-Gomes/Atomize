@@ -1,6 +1,6 @@
 # Examples
 
-Real-world Atomize template examples. Each file is a working template you can validate and run immediately.
+Real-world Atomize template examples. Each file is a working template you can validate immediately and dry-run against either matching work items or explicit mock stories.
 
 ## Files
 
@@ -32,7 +32,7 @@ A production-ready backend API template. Covers the full development cycle from 
 **Try it:**
 ```bash
 atomize validate examples/backend.yaml
-atomize generate examples/backend.yaml --platform mock --dry-run
+atomize generate examples/backend.yaml --platform mock
 ```
 
 ---
@@ -54,7 +54,7 @@ A React component development template covering the full UI lifecycle including 
 **Try it:**
 ```bash
 atomize validate examples/frontend.yaml
-atomize generate examples/frontend.yaml --platform mock --dry-run
+atomize generate examples/frontend.yaml --platform mock
 ```
 
 ---
@@ -79,7 +79,7 @@ A combined backend + frontend template for end-to-end features. Uses a branching
 **Try it:**
 ```bash
 atomize validate examples/fullstack.yaml
-atomize generate examples/fullstack.yaml --platform mock --dry-run
+atomize generate examples/fullstack.yaml --platform mock --story STORY-004
 ```
 
 ---
@@ -114,7 +114,7 @@ Demonstrates **conditional tasks** — tasks that are only created when a story 
 **Try it:**
 ```bash
 atomize validate examples/conditional-dependencies-template.yaml
-atomize generate examples/conditional-dependencies-template.yaml --platform mock --dry-run
+atomize generate examples/conditional-dependencies-template.yaml --platform mock --story STORY-004
 ```
 
 ---
@@ -155,7 +155,7 @@ All totals are normalized to exactly 100% at generation time.
 **Try it:**
 ```bash
 atomize validate examples/conditional-percentage-template.yaml
-atomize generate examples/conditional-percentage-template.yaml --platform mock --dry-run
+atomize generate examples/conditional-percentage-template.yaml --platform mock
 ```
 
 ---
@@ -168,7 +168,7 @@ A reference template that demonstrates every available filter option. Use it as 
 
 | Filter | What it does |
 |--------|-------------|
-| `team` | Overrides the `AZURE_DEVOPS_TEAM` env var for this template |
+| `team` | Overrides the team from the selected Azure DevOps profile for this template |
 | `statesExclude` | Excludes items in `Done`, `Removed`, or `Won't Fix` |
 | `statesWereEver` | Matches items that passed through `In Review` historically |
 | `areaPathsUnder` | Matches `MyProject\Backend` **and all sub-areas** (hierarchy traversal) |
@@ -185,7 +185,7 @@ A reference template that demonstrates every available filter option. Use it as 
 **Try it:**
 ```bash
 atomize validate examples/advanced-filtering.yaml
-atomize generate examples/advanced-filtering.yaml --platform mock --dry-run
+atomize generate examples/advanced-filtering.yaml --platform mock --story STORY-001
 ```
 
 ---
@@ -199,11 +199,16 @@ for f in examples/*.yaml; do
   atomize validate "$f"
 done
 
-# Test all examples against mock data
-for f in examples/*.yaml; do
+# Dry-run examples that match the bundled mock filters
+for f in examples/backend.yaml examples/frontend.yaml examples/conditional-percentage-template.yaml; do
   echo "Testing $f..."
-  atomize generate "$f" --platform mock --dry-run
+  atomize generate "$f" --platform mock
 done
+
+# Dry-run examples whose filters are intentionally more specific than the mock dataset
+atomize generate examples/fullstack.yaml --platform mock --story STORY-004
+atomize generate examples/conditional-dependencies-template.yaml --platform mock --story STORY-004
+atomize generate examples/advanced-filtering.yaml --platform mock --story STORY-001
 ```
 
 ---

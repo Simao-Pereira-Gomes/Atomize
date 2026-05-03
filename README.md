@@ -198,7 +198,7 @@ atomize template list
 atomize validate templates/my-template.yaml
 
 # Strict mode — warnings become errors (recommended for team/production templates)
-atomize validate templates/my-template.yaml --strict --verbose
+atomize validate templates/my-template.yaml --strict
 ```
 
 ---
@@ -281,7 +281,10 @@ assignTo: "user@email.com"   # Specific user
 ```yaml
 - title: "Security Review"
   estimationPercent: 10
-  condition: '${story.tags} CONTAINS "security"'
+  condition:
+    field: "tags"
+    operator: "contains"
+    value: "security"
 ```
 
 #### Conditional Estimation (v1.1)
@@ -292,9 +295,15 @@ Adapt task percentage based on story properties. First matching rule wins; `esti
 - title: "Implementation"
   estimationPercent: 50                 # Default
   estimationPercentCondition:
-    - condition: '${story.tags} CONTAINS "critical"'
+    - condition:
+        field: "tags"
+        operator: "contains"
+        value: "critical"
       percent: 60                       # More weight for critical stories
-    - condition: "${story.estimation} >= 13"
+    - condition:
+        field: "estimation"
+        operator: "gte"
+        value: 13
       percent: 55                       # More work for large stories
 ```
 
@@ -420,7 +429,7 @@ atomize generate template:backend-standard --execute
 
 ```yaml
 filter:
-  team: "Backend Team"                    # Override team (replaces AZURE_DEVOPS_TEAM env var)
+  team: "Backend Team"                    # Override team from the selected profile
   workItemTypes: ["User Story", "Bug"]
   states: ["New", "Approved"]
   statesExclude: ["Done", "Removed"]      # Exclude items in these states
@@ -573,7 +582,7 @@ atomize generate template:backend-api --profile work-ado
 
 ```bash
 # Get detailed output
-atomize validate templates/my-template.yaml --verbose
+atomize validate templates/my-template.yaml --strict
 
 # Common issues:
 # - Total estimation must equal 100%
@@ -588,6 +597,7 @@ atomize validate templates/my-template.yaml --verbose
 - [Getting Started](./docs/Getting-Started.md) - First steps and core concepts
 - [CLI Reference](./docs/Cli-Reference.md) - Complete command and flag reference
 - [Template Reference](./docs/Template-Reference.md) - Full template schema
+- [Auth Guide](./docs/Auth-Guide.md) - Credential storage, profiles, and CI/CD setup
 - [Validation Modes](./docs/Validation-Modes.md) - Strict vs lenient explained
 - [Story Learner](./docs/Story-Learner.md) - Generate templates from existing stories
 - [Common Validation Errors](./docs/Common-Validation-Errors.md) - Fix validation failures

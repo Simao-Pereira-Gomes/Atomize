@@ -131,7 +131,7 @@ Defines which work items this template applies to. All criteria are combined wit
 
 ```yaml
 filter:
-  team: "Backend Team"           # Override team (replaces AZURE_DEVOPS_TEAM env var)
+  team: "Backend Team"           # Override team from the selected profile
   workItemTypes: ["User Story", "Bug"]
   states: ["New", "Active"]
   statesExclude: ["Done", "Removed"]      # Exclude items in these states
@@ -156,7 +156,7 @@ filter:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `team` | string | Override the team for this template (replaces `AZURE_DEVOPS_TEAM` env var) |
+| `team` | string | Override the team from the selected Azure DevOps profile for this template |
 | `workItemTypes` | string[] | Work item types to match (e.g., `"User Story"`, `"Bug"`) |
 | `states` | string[] | Work item states to include (e.g., `"New"`, `"Active"`) |
 | `statesExclude` | string[] | Work item states to exclude (e.g., `"Done"`, `"Removed"`) |
