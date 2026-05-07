@@ -52,7 +52,7 @@ User Story (8 points)
 ### Install Globally
 
 ```bash
-npm install -g @sppg2001/atomize@alpha
+npm install -g @sppg2001/atomize
 ```
 
 ### Verify Installation
@@ -65,7 +65,7 @@ atomize --help
 ### Alternative: Use without Installing
 
 ```bash
-npx @sppg2001/atomize@alpha generate template:backend-api
+npx @sppg2001/atomize generate template:backend-api
 ```
 
 ---
@@ -436,7 +436,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Atomize
-        run: npm install -g @sppg2001/atomize@alpha
+        run: npm install -g @sppg2001/atomize
 
       - name: Validate Templates
         run: |

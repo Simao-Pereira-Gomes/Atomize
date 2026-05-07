@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { logger } from "@config/logger";
 import {
   MixinTemplateSchema,
@@ -320,7 +321,7 @@ export class TemplateCatalog {
   }
 
   private findPackageRoot(): string {
-    let currentDir = __dirname;
+    let currentDir = dirname(fileURLToPath(import.meta.url));
 
     while (currentDir !== dirname(currentDir)) {
       const pkgPath = resolve(currentDir, "package.json");

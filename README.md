@@ -7,9 +7,6 @@
 [![Node Version](https://img.shields.io/node/v/@sppg2001/atomize)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 
-> **Pre-release:** This is 2.0.0-alpha.0 — give it a try! If you hit a blocker, you can fall back to the latest stable release with `npm install -g @sppg2001/atomize`.
-> Feedback and bug reports welcome via [GitHub Issues](https://github.com/Simao-Pereira-Gomes/atomize/issues).
-
 **Break down stories, build up velocity.**
 
 Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with preset templates, story learning, and smart estimation distribution.
@@ -36,13 +33,13 @@ Atomize is a CLI tool that automatically generates granular tasks from user stor
 ### Global Installation (Recommended)
 
 ```bash
-npm install -g @sppg2001/atomize@alpha
+npm install -g @sppg2001/atomize
 ```
 
 ### Using npx (No Installation)
 
 ```bash
-npx @sppg2001/atomize@alpha --help
+npx @sppg2001/atomize --help
 ```
 
 ### Local Development

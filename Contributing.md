@@ -63,7 +63,7 @@ Template should validate successfully
 **Environment**
 - OS: macOS 14.0
 - Node: v20.10.0
-- Atomize: v2.0.0-alpha.0
+- Atomize: v2.0.0
 - Platform: Azure DevOps
 ```
 
