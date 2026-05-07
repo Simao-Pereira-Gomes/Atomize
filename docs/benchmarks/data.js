@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777808821120,
+  "lastUpdate": 1778175863889,
   "repoUrl": "https://github.com/Simao-Pereira-Gomes/Atomize",
   "entries": {
     "Atomize Benchmarks": [
@@ -351,6 +351,65 @@ window.BENCHMARK_DATA = {
           {
             "name": "Build Map 500 tasks",
             "value": 52776.753626731865,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "81998432+Simao-Pereira-Gomes@users.noreply.github.com",
+            "name": "Simao-Pereira-Gomes",
+            "username": "Simao-Pereira-Gomes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1107e975ca78d82267885dcea26cef099d09d7cf",
+          "message": "chore: promote to full release (#56)\n\n* chore: promote to full release\n\n* fix: resolve problem with template path discovery",
+          "timestamp": "2026-05-07T18:43:49+01:00",
+          "tree_id": "c614e49be77b4dfdc9e411859404dab1dab04a7c",
+          "url": "https://github.com/Simao-Pereira-Gomes/Atomize/commit/1107e975ca78d82267885dcea26cef099d09d7cf"
+        },
+        "date": 1778175863569,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Validate 50 tasks",
+            "value": 72808.68382071255,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 100 tasks",
+            "value": 117100.24209358239,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 200 tasks",
+            "value": 208986.02585649645,
+            "unit": "ns"
+          },
+          {
+            "name": "Validate 500 tasks",
+            "value": 560663.842364532,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 100 tasks (Chain)",
+            "value": 205648.46333853353,
+            "unit": "ns"
+          },
+          {
+            "name": "Resolve 500 tasks (Chain)",
+            "value": 3626966.652631579,
+            "unit": "ns"
+          },
+          {
+            "name": "Build Map 500 tasks",
+            "value": 46972.848535286284,
             "unit": "ns"
           }
         ]
