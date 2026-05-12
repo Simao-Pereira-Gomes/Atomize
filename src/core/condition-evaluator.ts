@@ -1,7 +1,6 @@
 import { logger } from "../config/logger.js";
 import type { WorkItem } from "../platforms/interfaces/work-item.interface.js";
 import type { Condition, ConditionOperator } from "../templates/schema.js";
-import { getErrorMessage } from "../utils/errors.js";
 
 /**
  * Extracts all ADO custom field reference names (e.g. "Custom.ClientTier") from a
@@ -37,15 +36,7 @@ export class ConditionEvaluator {
     story: WorkItem,
   ): boolean {
     if (!condition) return true;
-
-    try {
-      return this.evaluate(condition, story);
-    } catch (error) {
-      logger.error(
-        `Error evaluating condition: ${getErrorMessage(error)}`,
-      );
-      return false;
-    }
+    return this.evaluate(condition, story);
   }
 
   private evaluate(condition: Condition, story: WorkItem): boolean {

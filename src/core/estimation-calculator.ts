@@ -7,9 +7,10 @@ import type {
   EstimationConfig,
   TaskDefinition as TemplateTaskDefinition,
 } from "@templates/schema";
-import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
+import { getErrorMessage } from "@utils/errors";
 import { match } from "ts-pattern";
 import { ConditionEvaluator } from "./condition-evaluator.js";
+import { distributeActiveTaskPercentages } from "./estimation-distribution";
 import { interpolateValue } from "./template-interpolator.js";
 
 /**
@@ -18,6 +19,7 @@ import { interpolateValue } from "./template-interpolator.js";
 export interface CalculatedTask extends PlatformTaskDefinition {
   templateId?: string;
   estimationPercent?: number;
+  estimationFixed?: number;
 }
 
 /**
@@ -38,102 +40,8 @@ export interface TaskCalculationResult {
 export class EstimationCalculator {
   private conditionEvaluator: ConditionEvaluator;
 
-  constructor() {
-    this.conditionEvaluator = new ConditionEvaluator();
-  }
-
-  /**
-   * Calculate tasks with estimations for a story
-   */
-  calculateTasks(
-    story: WorkItem,
-    connectUserEmail: string,
-    templateTasks: TemplateTaskDefinition[],
-    estimationConfig?: EstimationConfig
-  ): CalculatedTask[] {
-    logger.debug(
-      `EstimationCalculator: Calculating tasks for story ${story.id}`
-    );
-
-    const parentEstimation = story.estimation || 0;
-
-    if (parentEstimation === 0) {
-      logger.warn(
-        `Story ${story.id} has no estimation. Tasks will have 0 estimation.`
-      );
-    }
-
-    const calculatedTasks: CalculatedTask[] = [];
-
-    for (const templateTask of templateTasks) {
-      logger.debug(
-        `Processing template task: ${templateTask.title} (Condition: ${templateTask.condition ? JSON.stringify(templateTask.condition) : "none"})`
-      );
-
-      // Evaluate condition if present
-      if (templateTask.condition) {
-        const conditionMet = this.conditionEvaluator.evaluateCondition(
-          templateTask.condition,
-          story
-        );
-
-        if (!conditionMet) {
-          logger.debug(
-            `Skipping task "${templateTask.title}" - condition not met: ${templateTask.condition}`
-          );
-          continue;
-        }
-
-        logger.debug(
-          `Task "${templateTask.title}" - condition met: ${JSON.stringify(templateTask.condition)}`
-        );
-      }
-
-      const resolvedPercent = this.resolveEffectivePercent(templateTask, story);
-      const taskForEstimation =
-        resolvedPercent !== undefined
-          ? { ...templateTask, estimationPercent: resolvedPercent }
-          : templateTask;
-      const estimation = this.calculateEstimation(
-        parentEstimation,
-        taskForEstimation,
-        estimationConfig
-      );
-
-      const calculatedTask: CalculatedTask = {
-        title: interpolateValue(templateTask.title, story),
-        description: templateTask.description
-          ? interpolateValue(templateTask.description, story)
-          : undefined,
-        estimation,
-        tags: templateTask.tags,
-        assignTo: this.resolveAssignment(
-          templateTask.assignTo,
-          story,
-          connectUserEmail
-        ),
-        priority: templateTask.priority,
-        activity: templateTask.activity,
-        completedWork: 0, // Default to 0 for new tasks
-        iteration: story.iteration, // Inherit from parent
-        areaPath: story.areaPath, // Inherit from parent
-        customFields: this.interpolateCustomFields(templateTask.customFields, story),
-        templateId: templateTask.id,
-        estimationPercent: resolvedPercent ?? templateTask.estimationPercent,
-      };
-
-      calculatedTasks.push(calculatedTask);
-
-      logger.debug(
-        `Calculated task: ${calculatedTask.title} = ${estimation} points (${calculatedTask.estimationPercent}%)`
-      );
-    }
-
-    logger.info(
-      `EstimationCalculator: Calculated ${calculatedTasks.length} tasks for story ${story.id}`
-    );
-
-    return calculatedTasks;
+  constructor(conditionEvaluator: ConditionEvaluator = new ConditionEvaluator()) {
+    this.conditionEvaluator = conditionEvaluator;
   }
 
   /**
@@ -171,10 +79,18 @@ export class EstimationCalculator {
 
       // Evaluate condition if present
       if (templateTask.condition) {
-        const conditionMet = this.conditionEvaluator.evaluateCondition(
-          templateTask.condition,
-          story
-        );
+        let conditionMet: boolean;
+        try {
+          conditionMet = this.conditionEvaluator.evaluateCondition(
+            templateTask.condition,
+            story
+          );
+        } catch (error) {
+          const reason = `Condition evaluation error: ${getErrorMessage(error)}`;
+          logger.error(`Skipping task "${templateTask.title}" - ${reason}`);
+          skippedTasks.push({ templateTask, reason });
+          continue;
+        }
 
         if (!conditionMet) {
           const reason = `Condition not met: ${JSON.stringify(templateTask.condition)}`;
@@ -188,44 +104,22 @@ export class EstimationCalculator {
         );
       }
 
-      const calculatedTask: CalculatedTask = {
-        title: interpolateValue(templateTask.title, story),
-        description: templateTask.description
-          ? interpolateValue(templateTask.description, story)
-          : undefined,
-        estimation: 0,
-        tags: templateTask.tags,
-        assignTo: this.resolveAssignment(
-          templateTask.assignTo,
-          story,
-          connectUserEmail
-        ),
-        priority: templateTask.priority,
-        activity: templateTask.activity,
-        completedWork: 0, 
-        iteration: story.iteration, 
-        areaPath: story.areaPath,
-        customFields: this.interpolateCustomFields(templateTask.customFields, story),
-        templateId: templateTask.id,
-        estimationPercent:
-          this.resolveEffectivePercent(templateTask, story) ??
-          templateTask.estimationPercent,
-      };
+      const resolvedPercent = this.resolveEffectivePercent(templateTask, story);
+      const calculatedTask = this.buildCalculatedTask(
+        templateTask,
+        story,
+        connectUserEmail,
+        0,
+        resolvedPercent,
+      );
 
       calculatedTasks.push(calculatedTask);
     }
 
-    // Normalize estimation percentages:
-    // - Always normalize when total < 100% (fills unallocated points)
-    // - Only normalize when total > 100% if explicitly requested (> 100% is valid for multi-role templates)
-    const total = calculatedTasks.reduce((s, t) => s + (t.estimationPercent ?? 0), 0);
-    const shouldNormalize = total < 100 || (total > 100 && forceNormalize);
-    if (shouldNormalize) {
-      normalizeEstimationPercentages(calculatedTasks, {
-        skipIfAlreadyNormalized: false,
-        enableLogging: true,
-      });
-    }
+    distributeActiveTaskPercentages(calculatedTasks, {
+      forceNormalize,
+      enableLogging: true,
+    });
 
     for (const calculatedTask of calculatedTasks) {
       calculatedTask.estimation = this.calculateEstimation(
@@ -265,6 +159,37 @@ export class EstimationCalculator {
       }
     }
     return task.estimationPercent;
+  }
+
+  private buildCalculatedTask(
+    templateTask: TemplateTaskDefinition,
+    story: WorkItem,
+    connectUserEmail: string,
+    estimation: number,
+    resolvedPercent: number | undefined,
+  ): CalculatedTask {
+    return {
+      title: interpolateValue(templateTask.title, story),
+      description: templateTask.description
+        ? interpolateValue(templateTask.description, story)
+        : undefined,
+      estimation,
+      tags: templateTask.tags,
+      assignTo: this.resolveAssignment(
+        templateTask.assignTo,
+        story,
+        connectUserEmail,
+      ),
+      priority: templateTask.priority,
+      activity: templateTask.activity,
+      completedWork: 0,
+      iteration: story.iteration,
+      areaPath: story.areaPath,
+      customFields: this.interpolateCustomFields(templateTask.customFields, story),
+      templateId: templateTask.id,
+      estimationPercent: resolvedPercent ?? templateTask.estimationPercent,
+      estimationFixed: templateTask.estimationFixed,
+    };
   }
 
   /**

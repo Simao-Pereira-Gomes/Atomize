@@ -1,6 +1,6 @@
 import { logger } from "@config/logger";
 import type { FilterCriteria } from "@platforms/interfaces/filter.interface";
-import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
+import type { GenerationPlatform } from "@platforms/interfaces/platform-capabilities";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import type {
   TaskTemplate,
@@ -8,11 +8,9 @@ import type {
 } from "@templates/schema";
 import { getErrorMessage } from "@utils/errors";
 import { DependencyResolver } from "./dependency-resolver.js";
-import {
-  type CalculatedTask,
-  EstimationCalculator,
-} from "./estimation-calculator";
+import type { CalculatedTask } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
+import { StoryProcessor } from "./story-processor";
 
 /**
  * Progress event types
@@ -153,13 +151,18 @@ export interface AtomizationReport {
  */
 export class Atomizer {
   private filterEngine: FilterEngine;
-  private estimationCalculator: EstimationCalculator;
   private dependencyResolver: DependencyResolver;
+  private storyProcessor: StoryProcessor;
 
-  constructor(private platform: IPlatformAdapter) {
-    this.filterEngine = new FilterEngine();
-    this.estimationCalculator = new EstimationCalculator();
-    this.dependencyResolver = new DependencyResolver();
+  constructor(
+    private platform: GenerationPlatform,
+    filterEngine = new FilterEngine(),
+    dependencyResolver = new DependencyResolver(),
+    storyProcessor = new StoryProcessor(platform),
+  ) {
+    this.filterEngine = filterEngine;
+    this.dependencyResolver = dependencyResolver;
+    this.storyProcessor = storyProcessor;
   }
 
   /**
@@ -409,9 +412,6 @@ export class Atomizer {
     );
   }
 
-  /**
-   * Process a single story
-   */
   private async processStory(
     story: WorkItem,
     orderedTasks: TemplateTaskDefinition[],
@@ -420,174 +420,7 @@ export class Atomizer {
     options: AtomizationOptions,
     warnings: string[],
   ): Promise<StoryAtomizationResult> {
-    logger.info(`Processing: ${story.id} - ${story.title}`);
-
-    const { calculatedTasks, skippedTasks } =
-      this.estimationCalculator.calculateTasksWithSkipped(
-        story,
-        connectUserEmail,
-        orderedTasks,
-        template.estimation,
-        options.forceNormalize,
-      );
-
-    logger.info(
-      `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`,
-    );
-
-    if (skippedTasks.length > 0) {
-      skippedTasks.forEach((skipped) => {
-        logger.debug(
-          `  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`,
-        );
-      });
-    }
-
-    const validation = this.estimationCalculator.validateEstimation(
-      story,
-      calculatedTasks,
-    );
-
-    if (!validation.valid) {
-      validation.warnings.forEach((warning) => {
-        logger.warn(`${warning}`);
-        warnings.push(`${story.id}: ${warning}`);
-      });
-    }
-
-    const estimationSummary = this.estimationCalculator.getEstimationSummary(
-      story,
-      calculatedTasks,
-    );
-
-    logger.debug("Estimation summary:", estimationSummary);
-
-    let tasksCreated: WorkItem[] = [];
-
-    if (options.dryRun) {
-      logger.info(`DRY RUN: Would create ${calculatedTasks.length} tasks`);
-    } else {
-      logger.info(`Creating ${calculatedTasks.length} tasks...`);
-
-      tasksCreated = await this.createTasksWithDependencies(
-        story.id,
-        calculatedTasks,
-        orderedTasks,
-        options.dependencyConcurrency ?? 5,
-      );
-
-      logger.info(`Created ${tasksCreated.length} tasks`);
-    }
-
-    return {
-      story,
-      tasksCalculated: calculatedTasks,
-      tasksCreated,
-      tasksSkipped: skippedTasks,
-      success: true,
-      estimationSummary,
-    };
-  }
-
-  /**
-   * Create tasks with dependency links (parallel execution)
-   */
-  private async createTasksWithDependencies(
-    parentId: string,
-    calculatedTasks: CalculatedTask[],
-    templateTasks: TemplateTaskDefinition[],
-    dependencyConcurrency: number,
-  ): Promise<WorkItem[]> {
-    const createdTasks = await this.platform.createTasksBulk(
-      parentId,
-      calculatedTasks,
-    );
-
-    const templateIdToTask = new Map<string, WorkItem>();
-    for (let i = 0; i < calculatedTasks.length; i++) {
-      const calculatedTask = calculatedTasks[i];
-      const createdTask = createdTasks[i];
-      if (calculatedTask?.templateId && createdTask) {
-        templateIdToTask.set(calculatedTask.templateId, createdTask);
-      }
-    }
-
-    // Collect all dependency links to create
-    const dependencyLinks: Array<{
-      dependentTask: WorkItem;
-      predecessorTask: WorkItem;
-    }> = [];
-
-    for (const templateTask of templateTasks) {
-      if (templateTask.dependsOn && templateTask.dependsOn.length > 0) {
-        const dependentTask = templateTask.id
-          ? templateIdToTask.get(templateTask.id)
-          : undefined;
-
-        if (!dependentTask) {
-          logger.warn(
-            `Cannot create dependency links for task "${templateTask.title}" - task not created or has no ID`,
-          );
-          continue;
-        }
-
-        for (const depId of templateTask.dependsOn) {
-          const predecessorTask = templateIdToTask.get(depId);
-
-          if (!predecessorTask) {
-            logger.warn(
-              `Cannot create dependency link: predecessor task with ID "${depId}" not found`,
-            );
-            continue;
-          }
-
-          dependencyLinks.push({ dependentTask, predecessorTask });
-        }
-      }
-    }
-
-    // Create dependency links in parallel batches
-    const createDependencyLink = this.platform.createDependencyLink?.bind(
-      this.platform,
-    );
-    if (dependencyLinks.length > 0 && createDependencyLink) {
-      logger.debug(
-        `Creating ${dependencyLinks.length} dependency links (concurrency: ${dependencyConcurrency})`,
-      );
-
-      for (let i = 0; i < dependencyLinks.length; i += dependencyConcurrency) {
-        const batch = dependencyLinks.slice(i, i + dependencyConcurrency);
-        const batchPromises = batch.map(
-          async ({ dependentTask, predecessorTask }) => {
-            try {
-              await createDependencyLink(
-                dependentTask.id,
-                predecessorTask.id,
-              );
-              logger.debug(
-                `Created dependency link: "${dependentTask.title}" depends on "${predecessorTask.title}"`,
-              );
-              return true;
-            } catch (error) {
-              logger.warn(
-                `Failed to create dependency link for "${dependentTask.title}" -> "${predecessorTask.title}": ${
-                  getErrorMessage(error)
-                }`,
-              );
-              return false;
-            }
-          },
-        );
-
-        await Promise.all(batchPromises);
-      }
-    } else if (dependencyLinks.length > 0) {
-      logger.warn(
-        "Platform does not support dependency links - dependencies will not be created",
-      );
-    }
-
-    return createdTasks;
+    return this.storyProcessor.process(story, orderedTasks, template, connectUserEmail, options, warnings);
   }
 
   /**
