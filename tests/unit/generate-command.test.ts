@@ -3,13 +3,13 @@ import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AtomizationReport } from "@core/atomizer";
+import { writeReportFile } from "@core/report-formatter";
 import {
   getNonInteractiveLiveExecutionError,
   parseConcurrency,
   printReport,
   resolveCommandLogLevel,
   resolveGenerateOutputPolicy,
-  writeReportFile,
 } from "@/cli/commands/generate.command";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 

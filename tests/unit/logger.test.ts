@@ -1,35 +1,18 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
-import { logger, resetLoggerForTests } from "@/config/logger";
+import { configureLogger, logger, resetLoggerForTests } from "@/config/logger";
 
 describe("logger", () => {
-  const originalAtomizeDebug = process.env.ATOMIZE_DEBUG;
-  const originalLogLevel = process.env.LOG_LEVEL;
   let stdoutWriteSpy: ReturnType<typeof spyOn<typeof process.stdout, "write">>;
   let stderrWriteSpy: ReturnType<typeof spyOn<typeof process.stderr, "write">>;
 
   beforeEach(() => {
     resetLoggerForTests();
-    delete process.env.ATOMIZE_DEBUG;
-    delete process.env.LOG_LEVEL;
     stdoutWriteSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
     stderrWriteSpy = spyOn(process.stderr, "write").mockImplementation(() => true);
   });
 
   afterEach(() => {
     resetLoggerForTests();
-
-    if (originalAtomizeDebug === undefined) {
-      delete process.env.ATOMIZE_DEBUG;
-    } else {
-      process.env.ATOMIZE_DEBUG = originalAtomizeDebug;
-    }
-
-    if (originalLogLevel === undefined) {
-      delete process.env.LOG_LEVEL;
-    } else {
-      process.env.LOG_LEVEL = originalLogLevel;
-    }
-
     stdoutWriteSpy.mockRestore();
     stderrWriteSpy.mockRestore();
   });
@@ -38,18 +21,13 @@ describe("logger", () => {
     expect(logger.level).toBe("warn");
   });
 
-  test("uses LOG_LEVEL when provided", () => {
-    process.env.LOG_LEVEL = "info";
+  test("configureLogger sets level from config", () => {
+    configureLogger({ logLevel: "info" });
     expect(logger.level).toBe("info");
   });
 
-  test("uses debug level when ATOMIZE_DEBUG is enabled", () => {
-    process.env.ATOMIZE_DEBUG = "1";
-    expect(logger.level).toBe("debug");
-  });
-
-  test("explicit logger overrides win over environment settings", () => {
-    process.env.ATOMIZE_DEBUG = "1";
+  test("explicit logger.level assignment overrides configureLogger", () => {
+    configureLogger({ logLevel: "debug" });
     logger.level = "error";
     expect(logger.level).toBe("error");
   });

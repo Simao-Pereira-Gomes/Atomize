@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import { ConditionPatternDetector } from "@services/template/condition-pattern-detector";
+import { ConditionPatternDetector } from "@services/template/pattern-detection";
 import type {
   CommonTaskPattern,
   MergedTask,

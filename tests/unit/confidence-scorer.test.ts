@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import { ConfidenceScorer } from "@services/template/confidence-scorer";
+import { ConfidenceScorer } from "@services/template/confidence-analysis";
 import type {
   CommonTaskPattern,
   MergedTask,

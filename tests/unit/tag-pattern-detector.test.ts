@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
+import { TagPatternDetector } from "@services/template/pattern-detection";
 import type {
   CommonTaskPattern,
   EnhancedTagInfo,
   StoryAnalysis,
 } from "@services/template/story-learner.types";
-import { TagPatternDetector } from "@services/template/tag-pattern-detector";
 import type { TaskTemplate } from "@templates/schema";
 
 // ---------------------------------------------------------------------------

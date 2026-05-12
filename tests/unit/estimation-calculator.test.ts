@@ -15,7 +15,7 @@ describe("EstimationCalculator", () => {
     assignedTo: "john@example.com",
   };
 
-  describe("calculateTasks", () => {
+  describe("calculateTasksWithSkipped", () => {
     test("should calculate percentage-based estimations", () => {
       const tasks: TaskDefinition[] = [
         { title: "Task 1", estimationPercent: 30 },
@@ -23,7 +23,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 3", estimationPercent: 20 },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -41,7 +41,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 2", estimationFixed: 5 },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -55,6 +55,7 @@ describe("EstimationCalculator", () => {
       const story = { ...mockStory, estimation: 10 };
       const tasks: TaskDefinition[] = [
         { title: "Task", estimationPercent: 33 }, // 3.3
+        { title: "Filler", estimationPercent: 67 },
       ];
 
       // Nearest (rounds to nearest 0.5)
@@ -62,7 +63,7 @@ describe("EstimationCalculator", () => {
         strategy: "percentage",
         rounding: "nearest",
       };
-      const nearest = calculator.calculateTasks(
+      const { calculatedTasks: nearest } = calculator.calculateTasksWithSkipped(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -75,7 +76,7 @@ describe("EstimationCalculator", () => {
         strategy: "percentage",
         rounding: "up",
       };
-      const up = calculator.calculateTasks(
+      const { calculatedTasks: up } = calculator.calculateTasksWithSkipped(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -88,7 +89,7 @@ describe("EstimationCalculator", () => {
         strategy: "percentage",
         rounding: "down",
       };
-      const down = calculator.calculateTasks(
+      const { calculatedTasks: down } = calculator.calculateTasksWithSkipped(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -103,13 +104,14 @@ describe("EstimationCalculator", () => {
       const story = { ...mockStory, estimation: 2 };
       const tasks: TaskDefinition[] = [
         { title: "Wiki Task", estimationPercent: 5 }, // 2 * 0.05 = 0.1
+        { title: "Filler", estimationPercent: 95 },
       ];
 
       const config: EstimationConfig = {
         strategy: "percentage",
         rounding: "nearest",
       };
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -125,7 +127,7 @@ describe("EstimationCalculator", () => {
         rounding: "nearest",
         minimumTaskPoints: 0.5,
       };
-      const calculatedWithMin = calculator.calculateTasks(
+      const { calculatedTasks: calculatedWithMin } = calculator.calculateTasksWithSkipped(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -138,6 +140,7 @@ describe("EstimationCalculator", () => {
       const story = { ...mockStory, estimation: 10 };
       const tasks: TaskDefinition[] = [
         { title: "Small Task", estimationPercent: 3 }, // 0.3 points
+        { title: "Filler", estimationPercent: 97 },
       ];
 
       const config: EstimationConfig = {
@@ -148,7 +151,7 @@ describe("EstimationCalculator", () => {
         rounding: "nearest",
       };
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -169,7 +172,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 2", estimationPercent: 20 },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -197,7 +200,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         story,
         story.assignedTo ?? "",
         tasks
@@ -221,7 +224,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -247,7 +250,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         storyWithIteration,
         storyWithIteration.assignedTo ?? "",
         tasks
@@ -262,7 +265,7 @@ describe("EstimationCalculator", () => {
         { title: "Task", estimationPercent: 100, assignTo: "@ParentAssignee" },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -277,7 +280,7 @@ describe("EstimationCalculator", () => {
         { title: "Task", estimationPercent: 50 },
       ];
 
-      const calculated = calculator.calculateTasks(
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
         storyNoEstimation,
         storyNoEstimation.assignedTo ?? "",
         tasks
@@ -656,9 +659,10 @@ describe("EstimationCalculator", () => {
             { condition: { field: "estimation", operator: "gte", value: 8 }, percent: 60 },
           ],
         },
+        { title: "Filler", estimationPercent: 40 },
       ];
 
-      const calculated = calculator.calculateTasks(story, "", tasks);
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(story, "", tasks);
 
       expect(calculated[0]?.estimationPercent).toBe(60);
       expect(calculated[0]?.estimation).toBe(6); // 60% of 10
@@ -674,9 +678,10 @@ describe("EstimationCalculator", () => {
             { condition: { field: "estimation", operator: "gte", value: 50 }, percent: 80 },
           ],
         },
+        { title: "Filler", estimationPercent: 60 },
       ];
 
-      const calculated = calculator.calculateTasks(story, "", tasks);
+      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(story, "", tasks);
 
       expect(calculated[0]?.estimationPercent).toBe(40);
       expect(calculated[0]?.estimation).toBe(4); // 40% of 10
@@ -692,19 +697,20 @@ describe("EstimationCalculator", () => {
             { condition: { field: "estimation", operator: "gte", value: 5 }, percent: 15 },
           ],
         },
+        { title: "Filler", estimationPercent: 90 },
       ];
 
-      const small = calculator.calculateTasks(
+      const { calculatedTasks: small } = calculator.calculateTasksWithSkipped(
         { ...mockStory, estimation: 3 },
         "",
         tasks,
       );
-      const medium = calculator.calculateTasks(
+      const { calculatedTasks: medium } = calculator.calculateTasksWithSkipped(
         { ...mockStory, estimation: 8 },
         "",
         tasks,
       );
-      const large = calculator.calculateTasks(
+      const { calculatedTasks: large } = calculator.calculateTasksWithSkipped(
         { ...mockStory, estimation: 13 },
         "",
         tasks,
@@ -727,14 +733,15 @@ describe("EstimationCalculator", () => {
             },
           ],
         },
+        { title: "Filler", estimationPercent: 60 },
       ];
 
-      const backendOnly = calculator.calculateTasks(
+      const { calculatedTasks: backendOnly } = calculator.calculateTasksWithSkipped(
         { ...mockStory, estimation: 10, tags: ["backend"] },
         "",
         tasks,
       );
-      const fullstack = calculator.calculateTasks(
+      const { calculatedTasks: fullstack } = calculator.calculateTasksWithSkipped(
         { ...mockStory, estimation: 10, tags: ["fullstack"] },
         "",
         tasks,

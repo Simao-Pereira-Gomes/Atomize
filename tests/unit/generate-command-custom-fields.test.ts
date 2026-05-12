@@ -1,21 +1,12 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import { validateCustomFieldsPreFlight } from "@/cli/commands/generate.command";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import type { ADoFieldSchema } from "@/platforms/interfaces/field-schema.interface";
 import type { IPlatformAdapter } from "@/platforms/interfaces/platform.interface";
 import type { TaskTemplate } from "@/templates/schema";
 
 describe("validateCustomFieldsPreFlight", () => {
-  let exitSpy: ReturnType<typeof spyOn<typeof process, "exit">>;
-
-  beforeEach(() => {
-    exitSpy = spyOn(process, "exit").mockImplementation((() => undefined) as never);
-  });
-
-  afterEach(() => {
-    exitSpy.mockRestore();
-  });
-
   test("fails fast for invalid boolean custom field values", async () => {
     const platform = {
       getFieldSchemas: async (_workItemType?: string): Promise<ADoFieldSchema[]> => [
@@ -43,9 +34,7 @@ describe("validateCustomFieldsPreFlight", () => {
       ],
     } as unknown as TaskTemplate;
 
-    await validateCustomFieldsPreFlight(template, platform);
-
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    await expect(validateCustomFieldsPreFlight(template, platform)).rejects.toBeInstanceOf(ExitError);
   });
 
   test("fails fast for invalid datetime custom field values", async () => {
@@ -75,8 +64,6 @@ describe("validateCustomFieldsPreFlight", () => {
       ],
     } as unknown as TaskTemplate;
 
-    await validateCustomFieldsPreFlight(template, platform);
-
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    await expect(validateCustomFieldsPreFlight(template, platform)).rejects.toBeInstanceOf(ExitError);
   });
 });

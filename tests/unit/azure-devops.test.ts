@@ -3,6 +3,7 @@ import {
   AzureDevOpsAdapter,
   type AzureDevOpsConfig,
 } from "@platforms/adapters/azure-devops/azure-devops.adapter";
+import { hasChildRelations } from "@platforms/adapters/azure-devops/work-item-mapper";
 import { PlatformError } from "@utils/errors";
 
 const validConfig: AzureDevOpsConfig = {
@@ -898,8 +899,6 @@ describe("AzureDevOps team override", () => {
 
 describe("AzureDevOps excludeIfHasTasks functionality", () => {
   test("should correctly identify work items with child relations", () => {
-    const adapter = new AzureDevOpsAdapter(validConfig);
-
     const workItemWithChildren = {
       id: 1,
       relations: [
@@ -919,20 +918,12 @@ describe("AzureDevOps excludeIfHasTasks functionality", () => {
     const workItemNoRelations = {
       id: 3,
     };
-    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
-    // @ts-ignore - accessing private method for testing
-    expect(adapter.hasChildRelations(workItemWithChildren)).toBe(true);
-    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
-    // @ts-ignore - accessing private method for testing
-    expect(adapter.hasChildRelations(workItemWithoutChildren)).toBe(false);
-    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
-    // @ts-ignore - accessing private method for testing
-    expect(adapter.hasChildRelations(workItemNoRelations)).toBe(false);
+    expect(hasChildRelations(workItemWithChildren)).toBe(true);
+    expect(hasChildRelations(workItemWithoutChildren)).toBe(false);
+    expect(hasChildRelations(workItemNoRelations)).toBe(false);
   });
 
   test("should handle work items with other relation types correctly", () => {
-    const adapter = new AzureDevOpsAdapter(validConfig);
-
     const workItemWithParentOnly = {
       id: 1,
       relations: [
@@ -943,8 +934,6 @@ describe("AzureDevOps excludeIfHasTasks functionality", () => {
       ],
     };
 
-    //biome-ignore lint/suspicious/noTsIgnore: accessing private method for testing
-    // @ts-ignore
-    expect(adapter.hasChildRelations(workItemWithParentOnly)).toBe(false);
+    expect(hasChildRelations(workItemWithParentOnly)).toBe(false);
   });
 });

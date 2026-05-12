@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import { DependencyDetector } from "@services/template/dependency-detector";
+import { DependencyDetector } from "@services/template/pattern-detection";
 import type {
   CommonTaskPattern,
   DependencyPattern,

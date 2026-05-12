@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
+import type { StoryLearningPlatform } from "@platforms/interfaces/platform-capabilities";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import { StoryLearner } from "@services/template/story-learner";
 import { TemplateGenerationError } from "@/utils/errors";
@@ -10,19 +10,8 @@ import { TemplateGenerationError } from "@/utils/errors";
 function createMockPlatform(
   items: Record<string, WorkItem>,
   children: Record<string, WorkItem[]>,
-): IPlatformAdapter {
+): StoryLearningPlatform {
   return {
-    authenticate: async () => {},
-    getConnectUserEmail: async () => "test@example.com",
-    queryWorkItems: async () => [],
-    createTask: async () => ({
-      id: "new",
-      title: "",
-      type: "Task",
-      state: "New",
-    }),
-    createTasksBulk: async () => [],
-    getPlatformMetadata: () => ({ name: "mock", version: "1.0" }),
     getWorkItem: async (id: string) => items[id] ?? null,
     getChildren: async (parentId: string) => children[parentId] ?? [],
   };
@@ -177,7 +166,7 @@ describe("StoryLearner", () => {
 
       expect(result.analyses).toHaveLength(2);
       expect(result.skipped).toHaveLength(0);
-      expect(result.mergedTemplate.tasks.length).toBeGreaterThan(0);
+      expect(result.template.tasks.length).toBeGreaterThan(0);
     });
 
     test("should skip stories with no tasks", async () => {
@@ -295,8 +284,8 @@ describe("StoryLearner", () => {
 
       // Both stories have "Design API", "Implement logic", "Write tests"
       // so they should merge into 3 tasks, not 6
-      expect(result.mergedTemplate.tasks.length).toBeLessThanOrEqual(4);
-      expect(result.mergedTemplate.tasks.length).toBeGreaterThanOrEqual(2);
+      expect(result.template.tasks.length).toBeLessThanOrEqual(4);
+      expect(result.template.tasks.length).toBeGreaterThanOrEqual(2);
     });
   });
 

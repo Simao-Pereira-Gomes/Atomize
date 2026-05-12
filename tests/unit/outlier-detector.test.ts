@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import { OutlierDetector } from "@services/template/outlier-detector";
+import { OutlierDetector } from "@services/template/confidence-analysis";
 import type {
   PatternDetectionResult,
   StoryAnalysis,

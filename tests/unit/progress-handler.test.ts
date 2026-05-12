@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ProgressEvent } from "@core/atomizer";
-import { createProgressHandler } from "@/cli/commands/generate.command";
+import { createProgressHandler } from "@/cli/orchestrator/atomize-orchestrator";
 import type { WorkItem } from "@/platforms/interfaces/work-item.interface";
 
 function makeStory(id: string, title = `Story ${id}`): WorkItem {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import { FilterLearner } from "@services/template/filter-learner";
+import { FilterLearner } from "@services/template/pattern-detection";
 import type {
   LearnedFilterCriteria,
   StoryAnalysis,

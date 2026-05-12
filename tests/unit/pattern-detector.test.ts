@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import { PatternDetector } from "@services/template/pattern-detector";
+import { PatternDetector } from "@services/template/pattern-detection";
 import type { StoryAnalysis } from "@services/template/story-learner.types";
 import type { TaskTemplate } from "@templates/schema";
 

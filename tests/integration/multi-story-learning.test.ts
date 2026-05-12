@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
+import type { StoryLearningPlatform } from "@platforms/interfaces/platform-capabilities";
 import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import { StoryLearner } from "@services/template/story-learner";
 import { TemplateValidator } from "@templates/validator";
@@ -8,7 +8,7 @@ import { TemplateGenerationError } from "@/utils/errors";
 /**
  * Mock platform with realistic multi-story data.
  */
-function createMultiStoryMockPlatform(): IPlatformAdapter {
+function createMultiStoryMockPlatform(): StoryLearningPlatform {
   const stories: Record<string, WorkItem> = {
     "STORY-100": {
       id: "STORY-100",
@@ -79,12 +79,6 @@ function createMultiStoryMockPlatform(): IPlatformAdapter {
   };
 
   return {
-    authenticate: async () => {},
-    getConnectUserEmail: async () => "test@example.com",
-    queryWorkItems: async () => [],
-    createTask: async () => ({ id: "new", title: "", type: "Task", state: "New" }),
-    createTasksBulk: async () => [],
-    getPlatformMetadata: () => ({ name: "mock", version: "1.0" }),
     getWorkItem: async (id: string) => stories[id] ?? null,
     getChildren: async (parentId: string) => children[parentId] ?? [],
   };
@@ -105,9 +99,9 @@ describe("Multi-Story Learning Integration", () => {
     expect(result.analyses).toHaveLength(3);
     expect(result.skipped).toHaveLength(0);
 
-    // Merged template should have tasks
-    expect(result.mergedTemplate.tasks.length).toBeGreaterThan(0);
-    expect(result.mergedTemplate.name).toContain("3 stories");
+    // Learned template should have tasks
+    expect(result.template.tasks.length).toBeGreaterThan(0);
+    expect(result.template.name).toContain("3 stories");
 
     // Confidence should be defined
     expect(result.confidence.overall).toBeGreaterThan(0);
@@ -139,7 +133,7 @@ describe("Multi-Story Learning Integration", () => {
     expect(skippedItem?.storyId).toBe("STORY-EMPTY");
 
     // Should still produce a valid merged template
-    expect(result.mergedTemplate.tasks.length).toBeGreaterThan(0);
+    expect(result.template.tasks.length).toBeGreaterThan(0);
   });
 
   test("should produce a valid TaskTemplate that passes TemplateValidator", async () => {
@@ -149,7 +143,7 @@ describe("Multi-Story Learning Integration", () => {
       ["STORY-100", "STORY-101", "STORY-102"],
     );
 
-    const validation = validator.validate(result.mergedTemplate);
+    const validation = validator.validate(result.template);
 
     // The merged template should pass validation
     expect(validation.valid).toBe(true);
@@ -183,7 +177,7 @@ describe("Multi-Story Learning Integration", () => {
     );
 
     expect(result.analyses).toHaveLength(1);
-    expect(result.mergedTemplate.tasks.length).toBeGreaterThan(0);
+    expect(result.template.tasks.length).toBeGreaterThan(0);
     // Single story => low confidence due to sample-size multiplier (0.5)
     expect(result.confidence.overall).toBeLessThan(50);
   });
