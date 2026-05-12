@@ -1,14 +1,18 @@
 import type { TaskDefinition } from "@templates/schema";
-import { ConditionPatternDetector } from "./condition-pattern-detector";
-import { DependencyDetector } from "./dependency-detector";
-import { SimilarityCalculator } from "./similarity-calculator";
+import {
+  ConditionPatternDetector,
+  DEFAULT_PATTERN_SCORING_CONFIG,
+  DependencyDetector,
+  type PatternScoringConfig,
+  SimilarityCalculator,
+  TagPatternDetector,
+} from "./pattern-detection";
 import type {
   EnhancedTagInfo,
   MergedTask,
   PatternDetectionResult,
   StoryAnalysis,
 } from "./story-learner.types";
-import { TagPatternDetector } from "./tag-pattern-detector";
 
 /**
  * Merges similar tasks from multiple stories into a canonical task list.
@@ -16,13 +20,29 @@ import { TagPatternDetector } from "./tag-pattern-detector";
  * averaged estimations with full source tracking.
  */
 export class TaskMerger {
-  private detector = new SimilarityCalculator();
-  private dependencyDetector = new DependencyDetector();
-  private tagPatternDetector = new TagPatternDetector();
-  private conditionPatternDetector = new ConditionPatternDetector();
-  private similarityThreshold = 0.45;
-  private confidenceTresholdForDependsOn = 0.7;
-  private confidenceThresholdForConditions = 0.75;
+  private detector: SimilarityCalculator;
+  private dependencyDetector: DependencyDetector;
+  private tagPatternDetector: TagPatternDetector;
+  private conditionPatternDetector: ConditionPatternDetector;
+  private readonly similarityThreshold: number;
+  private readonly confidenceTresholdForDependsOn: number;
+  private readonly confidenceThresholdForConditions: number;
+
+  constructor(
+    detector = new SimilarityCalculator(),
+    dependencyDetector = new DependencyDetector(),
+    tagPatternDetector = new TagPatternDetector(),
+    conditionPatternDetector = new ConditionPatternDetector(),
+    config: PatternScoringConfig = DEFAULT_PATTERN_SCORING_CONFIG,
+  ) {
+    this.detector = detector;
+    this.dependencyDetector = dependencyDetector;
+    this.tagPatternDetector = tagPatternDetector;
+    this.conditionPatternDetector = conditionPatternDetector;
+    this.similarityThreshold = config.mergingThreshold;
+    this.confidenceTresholdForDependsOn = config.dependsOnMinConfidence;
+    this.confidenceThresholdForConditions = config.conditionMinConfidence;
+  }
   merge(
     analyses: StoryAnalysis[],
     patterns: PatternDetectionResult,

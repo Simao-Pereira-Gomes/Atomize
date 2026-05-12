@@ -1,19 +1,16 @@
+import { PatternDetector } from "./pattern-detection";
 import type {
   ConfidenceFactor,
   ConfidenceScore,
   DependencyPattern,
   MergedTask,
+  Outlier,
   PatternDetectionResult,
   StoryAnalysis,
 } from "./story-learner.types";
 
-/**
- * Scores confidence in a learned template using information-theoretic approaches:
- * - Sample size with dynamic weight adjustment
- * - Common-task-ratio for task consistency
- * - Cosine similarity of estimation distributions
- * - Composite merge ratio + similarity for merge quality
- */
+// ─── ConfidenceScorer ─────────────────────────────────────────────────────────
+
 export class ConfidenceScorer {
   score(
     analyses: StoryAnalysis[],
@@ -57,10 +54,6 @@ export class ConfidenceScorer {
     };
   }
 
-  /**
-   * Score task consistency using common-task-ratio instead of coefficient of variation.
-   * Measures how many tasks appear in >50% of stories relative to average tasks per story.
-   */
   private scoreTaskConsistency(
     analyses: StoryAnalysis[],
     patterns: PatternDetectionResult,
@@ -91,10 +84,6 @@ export class ConfidenceScorer {
     };
   }
 
-  /**
-   * Score estimation consistency using cosine similarity of estimation distributions.
-   * Bins estimations by 10% increments and compares vectors across stories.
-   */
   private scoreEstimationConsistency(
     analyses: StoryAnalysis[],
   ): ConfidenceFactor {
@@ -107,9 +96,8 @@ export class ConfidenceScorer {
       };
     }
 
-    // Build estimation vectors (binned by 10%)
     const vectors = analyses.map((a) => {
-      const bins = new Array(10).fill(0); // 0-10%, 10-20%, ..., 90-100%
+      const bins = new Array(10).fill(0);
       for (const task of a.template.tasks) {
         const estimation = task.estimationPercent ?? 0;
         const binIdx = Math.min(9, Math.floor(estimation / 10));
@@ -118,7 +106,6 @@ export class ConfidenceScorer {
       return bins;
     });
 
-    // Pairwise cosine similarities
     let totalSim = 0;
     let pairCount = 0;
 
@@ -144,9 +131,6 @@ export class ConfidenceScorer {
     };
   }
 
-  /**
-   * Cosine similarity between two numeric vectors.
-   */
   cosineSimilarity(a: number[], b: number[]): number {
     let dot = 0,
       magA = 0,
@@ -162,10 +146,6 @@ export class ConfidenceScorer {
     return denom === 0 ? 0 : dot / denom;
   }
 
-  /**
-   * Score merge quality using composite of merge ratio and average similarity.
-   * High merging + high similarity = high quality.
-   */
   private scoreMergeQuality(
     mergedTasks: MergedTask[],
     analyses: StoryAnalysis[],
@@ -184,16 +164,13 @@ export class ConfidenceScorer {
       0,
     );
 
-    // Merge ratio: how much consolidation happened (0 = no merging, 1 = full merging)
     const mergeRatio =
       totalOriginalTasks > 0 ? 1 - mergedTasks.length / totalOriginalTasks : 0;
 
-    // Average similarity within merged groups
     const avgSimilarity =
       mergedTasks.reduce((sum, m) => sum + m.similarity, 0) /
       mergedTasks.length;
 
-    // Composite: high merging + high similarity = high quality
     const compositeScore = mergeRatio * 0.6 + avgSimilarity * 0.4;
     const score = Math.round(compositeScore * 100);
 
@@ -229,10 +206,6 @@ export class ConfidenceScorer {
     };
   }
 
-  /**
-   * Score dependency consistency: how consistent are detected dependency patterns?
-   * High confidence dependencies across many stories = high score.
-   */
   private scoreDependencyConsistency(
     dependencyPatterns: DependencyPattern[],
   ): ConfidenceFactor {
@@ -265,10 +238,6 @@ export class ConfidenceScorer {
     };
   }
 
-  /**
-   * Score condition quality: how well-supported are detected conditional patterns?
-   * High confidence conditions with good sample sizes = high score.
-   */
   private scoreConditionQuality(
     patterns: PatternDetectionResult,
   ): ConfidenceFactor {
@@ -305,23 +274,17 @@ export class ConfidenceScorer {
     };
   }
 
-  /**
-   * Calculate overall confidence with dynamic weight adjustment for small samples.
-   * Instead of a hardcoded multiplier, we add extra weight to the sample size factor
-   * when the sample count is low, effectively penalizing overconfidence in other metrics.
-   */
   private calculateOverall(
     factors: ConfidenceFactor[],
     sampleCount: number,
   ): ConfidenceScore {
     const baseScore = factors.reduce((sum, f) => sum + f.score * f.weight, 0);
 
-    // Dynamic extra weight on sample size factor for small samples
     const extraWeightMap: Record<number, number> = {
-      1: 0.5, // +50% weight
-      2: 0.25, // +25% weight
-      3: 0.1, // +10% weight
-      4: 0.05, // +5% weight
+      1: 0.5,
+      2: 0.25,
+      3: 0.1,
+      4: 0.05,
     };
 
     const extraWeight = extraWeightMap[Math.min(sampleCount, 4)] ?? 0;
@@ -345,5 +308,224 @@ export class ConfidenceScorer {
     }
 
     return { overall, factors, level };
+  }
+}
+
+// ─── OutlierDetector ──────────────────────────────────────────────────────────
+
+export class OutlierDetector {
+  private detector: PatternDetector;
+  private readonly zThreshold = 3.5;
+  private readonly commonTaskThreshold = 0.8;
+  private readonly rareTaskThreshold = 0.2;
+  private readonly madToStdDev = 0.6745;
+
+  constructor(detector = new PatternDetector()) {
+    this.detector = detector;
+  }
+
+  detect(
+    analyses: StoryAnalysis[],
+    patterns: PatternDetectionResult,
+  ): Outlier[] {
+    if (analyses.length < 2) return [];
+
+    const outliers: Outlier[] = [
+      ...this.detectEstimationOutliers(analyses),
+      ...this.detectTaskCountOutliers(analyses, patterns),
+      ...this.detectMissingCommonTasks(analyses, patterns),
+      ...this.detectExtraTasks(analyses, patterns),
+    ];
+
+    return outliers;
+  }
+
+  calculateMAD(values: number[]): { median: number; mad: number } {
+    if (values.length === 0) return { median: 0, mad: 0 };
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const n = sorted.length;
+    const midIndex = Math.floor(n / 2);
+    const median =
+      n % 2 === 1
+        ? (sorted[midIndex] ?? 0)
+        : ((sorted[midIndex - 1] ?? 0) + (sorted[midIndex] ?? 0)) / 2;
+
+    const deviations = values.map((v) => Math.abs(v - median));
+    const sortedDev = [...deviations].sort((a, b) => a - b);
+    const mad =
+      n % 2 === 1
+        ? (sortedDev[midIndex] ?? 0)
+        : ((sortedDev[midIndex - 1] ?? 0) + (sortedDev[midIndex] ?? 0)) / 2;
+
+    return { median, mad };
+  }
+
+  modifiedZScore(value: number, median: number, mad: number): number {
+    if (mad === 0) return 0;
+    return (this.madToStdDev * (value - median)) / mad;
+  }
+
+  private detectEstimationOutliers(analyses: StoryAnalysis[]): Outlier[] {
+    const estimations = analyses
+      .map((a) => ({
+        storyId: a.story.id,
+        estimation: a.story.estimation ?? 0,
+      }))
+      .filter((e) => e.estimation > 0);
+
+    if (estimations.length < 2) return [];
+
+    const values = estimations.map((e) => e.estimation);
+    const { median, mad } = this.calculateMAD(values);
+
+    if (mad === 0) return [];
+
+    const outliers: Outlier[] = [];
+
+    for (const e of estimations) {
+      const zScore = this.modifiedZScore(e.estimation, median, mad);
+      const absZ = Math.abs(zScore);
+
+      if (absZ > this.zThreshold) {
+        const expectedLower =
+          median - (this.zThreshold * mad) / this.madToStdDev;
+        const expectedUpper =
+          median + (this.zThreshold * mad) / this.madToStdDev;
+
+        outliers.push({
+          type: "estimation" as const,
+          storyId: e.storyId,
+          message: `Story ${e.storyId} has estimation ${e.estimation} which is outside the expected range [${Math.round(Math.max(0, expectedLower) * 100) / 100}, ${Math.round(expectedUpper * 100) / 100}]`,
+          value: e.estimation,
+          expectedRange: [
+            Math.round(Math.max(0, expectedLower) * 100) / 100,
+            Math.round(expectedUpper * 100) / 100,
+          ] as [number, number],
+          severity: Math.round((absZ / this.zThreshold) * 100) / 100,
+        });
+      }
+    }
+
+    return outliers;
+  }
+
+  private detectTaskCountOutliers(
+    analyses: StoryAnalysis[],
+    _patterns: PatternDetectionResult,
+  ): Outlier[] {
+    const counts = analyses.map((a) => ({
+      storyId: a.story.id,
+      count: a.tasks.length,
+    }));
+
+    if (counts.length < 2) return [];
+
+    const values = counts.map((c) => c.count);
+    const { median, mad } = this.calculateMAD(values);
+
+    if (mad === 0) return [];
+
+    const outliers: Outlier[] = [];
+
+    for (const c of counts) {
+      const zScore = this.modifiedZScore(c.count, median, mad);
+      const absZ = Math.abs(zScore);
+
+      if (absZ > this.zThreshold) {
+        const expectedLower =
+          median - (this.zThreshold * mad) / this.madToStdDev;
+        const expectedUpper =
+          median + (this.zThreshold * mad) / this.madToStdDev;
+
+        outliers.push({
+          type: "task-count" as const,
+          storyId: c.storyId,
+          message: `Story ${c.storyId} has ${c.count} tasks which is outside the expected range [${Math.round(Math.max(0, expectedLower))}, ${Math.round(expectedUpper)}]`,
+          value: c.count,
+          expectedRange: [
+            Math.round(Math.max(0, expectedLower)),
+            Math.round(expectedUpper),
+          ] as [number, number],
+          severity: Math.round((absZ / this.zThreshold) * 100) / 100,
+        });
+      }
+    }
+
+    return outliers;
+  }
+
+  private detectMissingCommonTasks(
+    analyses: StoryAnalysis[],
+    patterns: PatternDetectionResult,
+  ): Outlier[] {
+    const commonTasks = patterns.commonTasks.filter(
+      (t) => t.frequencyRatio >= this.commonTaskThreshold,
+    );
+    if (commonTasks.length === 0) return [];
+
+    const outliers: Outlier[] = [];
+
+    for (const analysis of analyses) {
+      const taskTitles = analysis.template.tasks.map((t) =>
+        this.detector.normalizeTitle(t.title),
+      );
+
+      for (const commonTask of commonTasks) {
+        const normalizedCanonical = this.detector.normalizeTitle(
+          commonTask.canonicalTitle,
+        );
+        const hasMatch = taskTitles.some(
+          (title) =>
+            this.detector.calculateSimilarity(title, normalizedCanonical) >= 0.5,
+        );
+
+        if (!hasMatch) {
+          const severity = Math.round(commonTask.frequencyRatio * 100) / 100;
+
+          outliers.push({
+            type: "missing-task",
+            storyId: analysis.story.id,
+            message: `Story ${analysis.story.id} is missing common task "${commonTask.canonicalTitle}" (found in ${Math.round(commonTask.frequencyRatio * 100)}% of stories)`,
+            value: 0,
+            expectedRange: [1, 1],
+            severity,
+          });
+        }
+      }
+    }
+
+    return outliers;
+  }
+
+  private detectExtraTasks(
+    analyses: StoryAnalysis[],
+    patterns: PatternDetectionResult,
+  ): Outlier[] {
+    const rareTasks = patterns.commonTasks.filter(
+      (t) => t.frequencyRatio < this.rareTaskThreshold && t.frequency === 1,
+    );
+
+    return rareTasks.map((task) => {
+      const storyId =
+        analyses.find((a) =>
+          a.template.tasks.some(
+            (t) =>
+              t.title === task.canonicalTitle ||
+              task.titleVariants.includes(t.title),
+          ),
+        )?.story.id ?? "unknown";
+
+      const severity = Math.round((1 - task.frequencyRatio) * 100) / 100;
+
+      return {
+        type: "extra-task" as const,
+        storyId,
+        message: `Task "${task.canonicalTitle}" only appears in story ${storyId} and may be story-specific`,
+        value: task.frequency,
+        expectedRange: [2, analyses.length] as [number, number],
+        severity,
+      };
+    });
   }
 }

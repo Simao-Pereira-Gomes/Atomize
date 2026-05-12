@@ -144,8 +144,8 @@ export interface MultiStoryLearningResult {
   /** Stories excluded from analysis */
   skipped: SkippedStory[];
 
-  /** Final merged template */
-  mergedTemplate: TaskTemplate;
+  /** Final learned template */
+  template: TaskTemplate;
 
   /** Detected patterns across stories */
   patterns: PatternDetectionResult;

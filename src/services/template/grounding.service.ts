@@ -1,3 +1,4 @@
+import { hasStoryLearningPlatform } from "@platforms/capabilities";
 import type { IPlatformAdapter } from "@platforms/interfaces/platform.interface";
 import { summarizePatterns } from "./pattern-summarizer";
 import { StoryLearner } from "./story-learner";
@@ -13,6 +14,8 @@ export class GroundingService {
   constructor(private platform: IPlatformAdapter) {}
 
   async fetchAndSummarize(options: GroundingOptions): Promise<string | null> {
+    if (!hasStoryLearningPlatform(this.platform)) return null;
+
     const storyIds =
       options.mode === "explicit"
         ? await this.resolveExplicitIds(options.storyIds)
