@@ -1,9 +1,9 @@
 import { logger } from "@config/logger";
 import { getErrorMessage, TemplateCompositionError } from "@utils/errors";
+import { applyMixin, mergeTemplates } from "./composition-policy";
 import {
   type MixinTemplate,
   MixinTemplateSchema,
-  type TaskDefinition,
   type TaskTemplate,
 } from "./schema";
 import { loadYamlFile } from "./template-file";
@@ -14,85 +14,6 @@ import {
 } from "./template-reference";
 
 export const MAX_INHERITANCE_DEPTH = 10;
-
-/**
- * Merges two task arrays using id-based override.
- *
- * Tasks with matching ids are replaced by the incoming task.
- * Tasks without ids or with new ids are appended.
- * The relative order of base tasks is preserved; overrides are applied in-place.
- */
-function mergeTasks(
-  baseTasks: TaskDefinition[],
-  incomingTasks: TaskDefinition[],
-): TaskDefinition[] {
-  const result = [...baseTasks];
-  const indexById = new Map<string, number>();
-  baseTasks.forEach((task, i) => {
-    if (task.id) indexById.set(task.id, i);
-  });
-
-  for (const incoming of incomingTasks) {
-    const existingIndex = incoming.id ? indexById.get(incoming.id) : undefined;
-    if (existingIndex !== undefined) {
-      result[existingIndex] = incoming;
-    } else {
-      result.push(incoming);
-      if (incoming.id) {
-        indexById.set(incoming.id, result.length - 1);
-      }
-    }
-  }
-
-  return result;
-}
-
-/**
- * Merges two template objects. Child fields always win over base fields.
- *
- * Conflict resolution rules:
- * - Scalar fields (name, description, author, …): child wins if defined, otherwise base
- * - filter, estimation, validation, metadata: child replaces base entirely when defined
- * - tasks: merged by id — child tasks override matching base tasks in-place, new tasks appended
- * - tags: combined and deduplicated
- * - extends / mixins: stripped from result (composition metadata, not execution data)
- */
-function mergeTemplates(
-  base: TaskTemplate,
-  child: Partial<TaskTemplate>,
-): TaskTemplate {
-  const mergedTags = Array.from(
-    new Set([...(base.tags ?? []), ...(child.tags ?? [])]),
-  );
-
-  return {
-    version: child.version ?? base.version,
-    name: child.name ?? base.name,
-    description: child.description ?? base.description,
-    author: child.author ?? base.author,
-    tags: mergedTags.length > 0 ? mergedTags : undefined,
-    created: child.created ?? base.created,
-    lastModified: child.lastModified ?? base.lastModified,
-
-    filter: child.filter ?? base.filter,
-    tasks: mergeTasks(base.tasks, child.tasks ?? []),
-
-    estimation: child.estimation ?? base.estimation,
-    validation: child.validation ?? base.validation,
-    metadata: child.metadata ?? base.metadata,
-  };
-}
-
-/**
- * Applies a mixin's tasks onto a template.
- * Only tasks from mixins are merged; other mixin fields are ignored.
- */
-function applyMixin(base: TaskTemplate, mixin: MixinTemplate): TaskTemplate {
-  return {
-    ...base,
-    tasks: mergeTasks(base.tasks, mixin.tasks),
-  };
-}
 
 /**
  * Resolves template inheritance and mixin composition.

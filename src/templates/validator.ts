@@ -2,6 +2,7 @@ import { TemplateValidationError } from "@utils/errors";
 import type { ZodError } from "zod";
 import type { $ZodIssue } from "zod/v4/core";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
+import { findDuplicateTaskIds } from "./composition-policy";
 import { type TaskTemplate, TaskTemplateSchema, type ValidationMode } from "./schema";
 
 export interface ValidationOptions {
@@ -81,6 +82,16 @@ export class TemplateValidator {
         nonBlocking: true,
       });
     }
+
+    const duplicateIds = findDuplicateTaskIds(template.tasks);
+    if (duplicateIds.length > 0) {
+      warnings.push({
+        path: "tasks",
+        message: `Duplicate task ids: ${duplicateIds.map((id) => `"${id}"`).join(", ")}. Tasks merge by id during inheritance; duplicates in the same template will silently overwrite each other.`,
+        suggestion: "Give each task a unique id, or remove the id from one of the duplicates.",
+      });
+    }
+
     this.validateTaskConditions(template, warnings);
     this.validateTaskDependencies(template, warnings);
     this.validateSavedQueryConflict(template, warnings);
