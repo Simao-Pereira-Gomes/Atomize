@@ -1,16 +1,23 @@
 #!/usr/bin/env node
+import { parseConfig } from "@config/config";
+import { configureLogger } from "@config/logger";
 import chalk from "chalk";
 import { Command } from "commander";
 import { name, version } from "../../package.json";
-import { authCommand } from "./commands/auth/auth.command";
+import { makeAuthCommand } from "./commands/auth/auth.command";
 import { fieldsCommand } from "./commands/fields/fields.command";
-import { generateCommand } from "./commands/generate.command";
+import { makeGenerateCommand } from "./commands/generate.command";
 import { queriesCommand } from "./commands/queries/queries.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
 import { runUpdateNotifier } from "./update-notifier";
+import { createOutputSink } from "./utilities/output-sink";
+import { createPromptDriver } from "./utilities/prompt-driver";
 import { writeManagedOutput } from "./utilities/terminal-output";
+
+const config = parseConfig(process.env);
+configureLogger(config);
 
 const program = new Command();
 
@@ -34,7 +41,9 @@ program.hook("preAction", async () => {
 		}
 	}
 
-	await runUpdateNotifier({ name, version });
+	await runUpdateNotifier({ name, version }, {
+		env: { ATOMIZE_UPDATE_NOTIFIER: config.updateNotifier },
+	});
 });
 
 const banner = `
@@ -48,11 +57,11 @@ ${chalk.gray("Break down stories, build up velocity.")}
 `;
 
 program.addHelpText("beforeAll", banner);
-program.addCommand(authCommand);
+program.addCommand(makeAuthCommand(config));
 program.addCommand(fieldsCommand);
 program.addCommand(queriesCommand);
 program.addCommand(validateCommand);
-program.addCommand(generateCommand);
+program.addCommand(makeGenerateCommand(createOutputSink, createPromptDriver(), config));
 program.addCommand(templateCommand);
 if (process.argv.length === 2) {
 	program.help();

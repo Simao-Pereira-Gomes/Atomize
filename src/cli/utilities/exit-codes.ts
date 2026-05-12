@@ -3,3 +3,7 @@ export const ExitCode = {
   Failure: 1,
   NoMatch: 2,
 } as const;
+
+export class ExitError {
+  constructor(readonly code: number) {}
+}

@@ -6,7 +6,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 import { getErrorMessage } from "@/utils/errors";
@@ -73,14 +73,13 @@ export const fieldsListCommand = new Command("list")
       printFieldsTable(output, fields);
       output.outro(`${countLabel} listed`);
     } catch (error) {
-      const msg = sanitizeTty(getErrorMessage(error));
-      if (jsonMode) {
-        writeManagedOutput("stderr", `Error: ${msg}`);
-      } else {
-        s.stop("Failed");
-        output.cancel(msg);
+      if (!jsonMode) s.stop("Failed");
+      if (!(error instanceof ExitError)) {
+        const msg = sanitizeTty(getErrorMessage(error));
+        if (jsonMode) writeManagedOutput("stderr", `Error: ${msg}`);
+        else output.cancel(msg);
       }
-      process.exit(ExitCode.Failure);
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
 

@@ -1,13 +1,22 @@
 import { select } from "@clack/prompts";
 import { type LogLevel, logger } from "@config/logger";
-import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
-import { type CompositionMeta, TemplateLoader } from "@templates/loader";
 import {
-  TemplateValidator,
-  type ValidationError,
-  type ValidationOptions,
-  type ValidationResult,
-  type ValidationWarning,
+  appendOfflineVerificationWarning,
+  type CustomFieldVerificationSummary,
+  checkValueType,
+  getCustomFieldVerificationSummary,
+  verifyTemplateCustomFields as validateCustomFieldsAgainstSchemas,
+} from "@templates/custom-field-verifier";
+import type { CompositionMeta } from "@templates/loader";
+import {
+  analyzeTemplateProjectVerification,
+  verifyTemplateProject,
+} from "@templates/project-verifier";
+import type {
+  ValidationError,
+  ValidationOptions,
+  ValidationResult,
+  ValidationWarning,
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
@@ -16,22 +25,28 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
-import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
-import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
+import { totalUnconditionalEstimationPercent } from "@/core/estimation-distribution";
+import {
+  requireProjectMetadataReader,
+  requireSavedQueryReader,
+} from "@/platforms/capabilities";
 import type {
-  TaskDefinition,
   TaskTemplate,
   ValidationMode,
 } from "@/templates/schema";
+import { TemplateLibrary } from "@/templates/template-library";
 import { getErrorMessage } from "@/utils/errors";
 
-export interface CustomFieldVerificationSummary {
-  count: number;
-  verificationStatus: "none" | "offline-unverified" | "online-verified";
-}
+export {
+  appendOfflineVerificationWarning,
+  type CustomFieldVerificationSummary,
+  checkValueType,
+  getCustomFieldVerificationSummary,
+  validateCustomFieldsAgainstSchemas,
+};
 
 type ValidateOptions = {
   strict?: boolean;
@@ -68,23 +83,19 @@ export const validateCommand = new Command("validate")
         throw new Error("Only HTTPS URLs are supported.");
       }
 
-      const isUrl = source.startsWith("https://");
-      const { template, meta } = isUrl
-        ? await loadTemplateFromUrl(source, output.print)
-        : await loadTemplate(source);
+      const { template, meta, source: resolvedSource } = await loadTemplateSource(
+        source,
+        output.print,
+      );
 
       printCompositionMeta(meta, output);
 
-      const tasksWithCustomFields = template.tasks.filter(
-        (t) => t.customFields && Object.keys(t.customFields).length > 0,
-      );
-      const hasConditionCustomFieldRefs = template.tasks.some(
-        (t) => t.condition && extractCustomFieldRefs(t.condition).length > 0,
-      );
-      const hasSavedQuery = !!(template.filter.savedQuery?.id || template.filter.savedQuery?.path);
-      const needsOnlineValidation = tasksWithCustomFields.length > 0 || hasConditionCustomFieldRefs || hasSavedQuery;
+      const projectRequirements = analyzeTemplateProjectVerification(template);
 
-      const connectionMode = await resolveConnectionMode(options, needsOnlineValidation);
+      const connectionMode = await resolveConnectionMode(
+        options,
+        projectRequirements.needsOnlineVerification,
+      );
 
       const validationOptions = resolveValidationOptions(options);
       const result = validateTemplate(template, validationOptions);
@@ -93,53 +104,29 @@ export const validateCommand = new Command("validate")
         connectionMode,
       );
 
-      if (connectionMode === "offline") {
-        appendOfflineVerificationWarning(
-          result,
-          tasksWithCustomFields.length,
-          options.strict === true,
-        );
-        if (hasSavedQuery) {
-          result.warnings.push({
-            path: "filter.savedQuery",
-            message:
-              "Template uses a saved query that could not be verified. " +
-              "Run with --profile <name> (or choose Online when prompted) to validate the query exists.",
-          });
-        }
-      } else {
-        // Online: fetch live schema and validate
-        const profile = options.profile; 
-        if (tasksWithCustomFields.length > 0 || hasConditionCustomFieldRefs) {
-          const schemaErrors = await validateCustomFieldsOnline(template, profile);
-          result.errors.push(...schemaErrors.errors);
-          result.warnings.push(...schemaErrors.warnings);
-          if (schemaErrors.errors.length > 0) {
-            result.valid = false;
-          }
-        }
-        if (hasSavedQuery) {
-          const queryErrors = await validateSavedQueryOnline(template, profile);
-          result.errors.push(...queryErrors.errors);
-          result.warnings.push(...queryErrors.warnings);
-          if (queryErrors.errors.length > 0) {
-            result.valid = false;
-          }
-        }
+      const projectVerification = await verifyProjectForValidateCommand(
+        template,
+        connectionMode,
+        options,
+      );
+      result.errors.push(...projectVerification.errors);
+      result.warnings.push(...projectVerification.warnings);
+      if (projectVerification.errors.length > 0) {
+        result.valid = false;
       }
 
       printValidationResult(template, result, customFieldSummary, output);
       if (result.valid && !options.quiet) {
-        const hint = isUrl
+        const hint = resolvedSource.kind === "url"
           ? chalk.cyan("  Install it with: ") + chalk.gray(`atomize template install ${source}`)
           : chalk.cyan("  Try it with: ") + chalk.gray(`atomize generate ${source}`);
         output.print(hint);
       }
       output.outro(result.valid ? "Validation complete ✓" : "Validation failed ✗");
-      if (!result.valid) process.exit(ExitCode.Failure);
+      if (!result.valid) throw new ExitError(ExitCode.Failure);
     } catch (error) {
-      handleFatal(error, output);
-      process.exit(ExitCode.Failure);
+      if (!(error instanceof ExitError)) handleFatal(error, output);
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
 
@@ -176,19 +163,15 @@ export function resolveValidationOptions(options: ValidateOptions): ValidationOp
   return {};
 }
 
-async function loadTemplateFromUrl(url: string, print: (msg: string) => void) {
-  print(chalk.gray(`  Fetching ${url}\n`));
-  const content = await fetchTemplateContent(url);
-  return new TemplateLoader().loadFromContent(content);
-}
-
-async function loadTemplate(templatePath: string) {
-  const resolvedPath = await resolveTemplateRefToPath(templatePath);
-  logger.info(`Loading template: ${resolvedPath}`);
-  const loader = new TemplateLoader();
-  const { template, meta } = await loader.loadWithMeta(resolvedPath);
-  logger.info(`Template loaded: ${template.name}`);
-  return { template, meta };
+async function loadTemplateSource(source: string, print: (msg: string) => void) {
+  const loaded = await new TemplateLibrary().loadSource(source, {
+    fetchContent: fetchTemplateContent,
+    onFetch: (url) => print(chalk.gray(`  Fetching ${url}\n`)),
+    onNotice: (message) => print(chalk.yellow(message)),
+  });
+  logger.info(`Loading template: ${loaded.source.path ?? loaded.source.url ?? loaded.source.input}`);
+  logger.info(`Template loaded: ${loaded.template.name}`);
+  return loaded;
 }
 
 function printCompositionMeta(
@@ -210,8 +193,7 @@ function printCompositionMeta(
 
 function validateTemplate(template: unknown, options?: ValidationOptions) {
   logger.info("Validating template...");
-  const validator = new TemplateValidator();
-  return validator.validate(template, options);
+  return new TemplateLibrary().validateTemplate(template, options);
 }
 
 
@@ -292,40 +274,12 @@ function printWarnings(
 }
 
 export function getTemplateSummary(template: TaskTemplate) {
-  const totalPercent = template.tasks
-    .filter((t: TaskDefinition) => !t.condition)
-    .reduce(
-      (sum: number, task: TaskDefinition) =>
-        sum + (task.estimationPercent ?? 0),
-      0,
-    );
+  const totalPercent = totalUnconditionalEstimationPercent(template.tasks);
 
   return {
     name: template.name,
     tasks: template.tasks.length,
     totalEstimation: `${totalPercent}%`,
-  };
-}
-
-export function getCustomFieldVerificationSummary(
-  template: TaskTemplate,
-  connectionMode: ConnectionMode,
-): CustomFieldVerificationSummary {
-  const count = template.tasks.reduce((sum, task) => {
-    return sum + Object.keys(task.customFields ?? {}).length;
-  }, 0);
-
-  if (count === 0) {
-    return {
-      count: 0,
-      verificationStatus: "none",
-    };
-  }
-
-  return {
-    count,
-    verificationStatus:
-      connectionMode === "online" ? "online-verified" : "offline-unverified",
   };
 }
 
@@ -340,33 +294,6 @@ function formatVerificationStatus(
     default:
       return "none";
   }
-}
-
-export function appendOfflineVerificationWarning(
-  result: ValidationResult,
-  customFieldTaskCount: number,
-  strict: boolean,
-): void {
-  if (customFieldTaskCount === 0) return;
-
-  const warning: ValidationWarning = {
-    path: "tasks[*].customFields",
-    message:
-      `${customFieldTaskCount} task(s) have custom fields that could not be verified. ` +
-      "Run with --profile <name> (or choose Online when prompted) to validate field names, types, and picklist values.",
-  };
-
-  if (strict) {
-    result.errors.push({
-      path: warning.path,
-      message: warning.message,
-      code: "STRICT_MODE_WARNING",
-    });
-    result.valid = false;
-    return;
-  }
-
-  result.warnings.push(warning);
 }
 
 function handleFatal(
@@ -389,10 +316,11 @@ export async function validateCustomFieldsOnline(
 
   try {
     const adapter = await createAzureDevOpsAdapter(profile);
+    const metadataReader = requireProjectMetadataReader(adapter);
     s.message("Fetching field schemas...");
     const result = await validateCustomFieldsAgainstSchemas(
       template,
-      async (workItemType) => adapter.getFieldSchemas(workItemType),
+      async (workItemType) => metadataReader.getFieldSchemas(workItemType),
     );
 
     s.stop("Custom field validation complete");
@@ -409,209 +337,44 @@ export async function validateCustomFieldsOnline(
   }
 }
 
-export async function validateCustomFieldsAgainstSchemas(
+async function verifyProjectForValidateCommand(
   template: TaskTemplate,
-  getSchemas: (workItemType: string) => Promise<ADoFieldSchema[]>,
+  connectionMode: ConnectionMode,
+  options: ValidateOptions,
 ): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-  const errors: ValidationError[] = [];
-  const warnings: ValidationWarning[] = [];
-
-  const taskSchemas = await getSchemas("Task");
-  const schemaByRef = new Map(taskSchemas.map((f) => [f.referenceName, f]));
-
-  for (let i = 0; i < template.tasks.length; i++) {
-    const task = template.tasks[i];
-    if (!task?.customFields || Object.keys(task.customFields).length === 0) continue;
-
-    for (const [refName, value] of Object.entries(task.customFields)) {
-      const path = `tasks[${i}].customFields["${refName}"]`;
-      const schema = schemaByRef.get(refName);
-
-      if (!schema) {
-        errors.push({
-          path,
-          message: `Field "${refName}" not found for work item type "Task".`,
-          code: "CUSTOM_FIELD_NOT_FOUND",
-        });
-        continue;
-      }
-
-      if (schema.isReadOnly) {
-        errors.push({
-          path,
-          message: `Field "${refName}" is read-only and cannot be set.`,
-          code: "CUSTOM_FIELD_READ_ONLY",
-        });
-        continue;
-      }
-
-      if (typeof value === "string" && value.includes("{{")) continue;
-
-      if (schema.allowedValues && schema.allowedValues.length > 0) {
-        const strValue = String(value);
-        if (!schema.allowedValues.includes(strValue)) {
-          errors.push({
-            path,
-            message: `Value "${strValue}" is not in the allowed values for "${refName}": [${schema.allowedValues.join(", ")}].`,
-            code: "CUSTOM_FIELD_INVALID_PICKLIST_VALUE",
-          });
-        }
-        continue;
-      }
-
-      const typeError = checkValueType(refName, value, schema.type, path);
-      if (typeError) errors.push(typeError);
-
-      if (
-        !schema.isMultiline &&
-        schema.type === "string" &&
-        typeof value === "string" &&
-        value.includes("\n")
-      ) {
-        warnings.push({
-          path,
-          message: `Field "${refName}" is a single-line field but the value contains newlines. ADO may strip or reject them.`,
-        });
-      }
-    }
-  }
-
-  const conditionRefs = Array.from(
-    new Set(
-      template.tasks.flatMap((t) =>
-        t.condition ? extractCustomFieldRefs(t.condition) : [],
-      ),
-    ),
-  );
-
-  if (conditionRefs.length > 0) {
-    const workItemTypes = template.filter.workItemTypes;
-    if (!workItemTypes || workItemTypes.length === 0) {
-      warnings.push({
-        path: "tasks[*].condition",
-        message:
-          "Template has task conditions referencing custom fields but no workItemTypes filter is set — cannot verify condition field references.",
-      });
-    } else {
-      const storySchemasByWit = new Map<string, Map<string, ADoFieldSchema>>();
-      for (const wit of workItemTypes) {
-        const witSchemas = await getSchemas(wit);
-        storySchemasByWit.set(wit, new Map(witSchemas.map((f) => [f.referenceName, f])));
-      }
-
-      for (const ref of conditionRefs) {
-        for (const wit of workItemTypes) {
-          const witSchemaMap = storySchemasByWit.get(wit);
-          if (witSchemaMap && !witSchemaMap.has(ref)) {
-            errors.push({
-              path: "tasks[*].condition",
-              message: `Field "${ref}" referenced in a task condition was not found on work item type "${wit}".`,
-              code: "CONDITION_FIELD_NOT_FOUND",
-            });
-          }
-        }
-      }
-    }
-  }
-
-  return { errors, warnings };
-}
-
-async function validateSavedQueryOnline(
-  template: TaskTemplate,
-  profile: string | undefined,
-): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-  const errors: ValidationError[] = [];
-  const warnings: ValidationWarning[] = [];
-
-  const savedQuery = template.filter.savedQuery;
-  if (!savedQuery) return { errors, warnings };
-
-  const s = createManagedSpinner();
-  s.start("Connecting to ADO to validate saved query...");
-
-  try {
-    const adapter = await createAzureDevOpsAdapter(profile);
-
-    s.message("Fetching saved queries...");
-    const queries = await adapter.listSavedQueries();
-
-    if (savedQuery.id) {
-      const found = queries.some((q) => q.id === savedQuery.id);
-      if (!found) {
-        errors.push({
-          path: "filter.savedQuery.id",
-          message: `Saved query with ID "${savedQuery.id}" was not found in this project. Run: atomize queries list`,
-          code: "SAVED_QUERY_NOT_FOUND",
-        });
-      }
-    } else if (savedQuery.path) {
-      const found = queries.some((q) => q.path === savedQuery.path);
-      if (!found) {
-        errors.push({
-          path: "filter.savedQuery.path",
-          message: `Saved query at path "${savedQuery.path}" was not found in this project. Run: atomize queries list`,
-          code: "SAVED_QUERY_NOT_FOUND",
-        });
-      }
-    }
-
-    s.stop("Saved query validation complete");
-  } catch (err) {
-    s.stop("Saved query validation failed");
-    warnings.push({
-      path: "filter.savedQuery",
-      message: `Could not validate saved query against ADO: ${err instanceof Error ? err.message : String(err)}`,
+  if (connectionMode === "offline") {
+    return verifyTemplateProject(template, {
+      mode: "offline",
+      strict: options.strict === true,
     });
   }
 
-  return { errors, warnings };
-}
+  const s = createManagedSpinner();
+  s.start("Connecting to ADO to validate project references...");
 
-export function checkValueType(
-  refName: string,
-  value: string | number | boolean,
-  type: ADoFieldSchema["type"],
-  path: string,
-): ValidationError | undefined {
-  switch (type) {
-    case "integer": {
-      const n = Number(value);
-      if (typeof value !== "number" && !Number.isFinite(n)) {
-        return { path, message: `Field "${refName}" expects an integer, got "${value}".`, code: "CUSTOM_FIELD_TYPE_MISMATCH" };
-      }
-      if (Number.isFinite(n) && !Number.isInteger(n)) {
-        return { path, message: `Field "${refName}" expects a whole number, got "${value}".`, code: "CUSTOM_FIELD_TYPE_MISMATCH" };
-      }
-      return undefined;
-    }
-    case "decimal":
-      if (typeof value !== "number" && !Number.isFinite(Number(value))) {
-        return { path, message: `Field "${refName}" expects a decimal number, got "${value}".`, code: "CUSTOM_FIELD_TYPE_MISMATCH" };
-      }
-      return undefined;
-    case "boolean":
-      if (typeof value !== "boolean" && value !== "true" && value !== "false") {
-        return {
-          path,
-          message: `Field "${refName}" expects a boolean (true/false), got "${value}".`,
-          code: "CUSTOM_FIELD_TYPE_MISMATCH",
-        };
-      }
-      return undefined;
-    case "datetime": {
-      const DATE_OR_MACRO_RE =
-        /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(\s*[+-]\s*\d+)?$|^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/i;
-      if (typeof value === "string" && !DATE_OR_MACRO_RE.test(value)) {
-        return {
-          path,
-          message: `Field "${refName}" expects an ISO 8601 date or @Today macro, got "${value}".`,
-          code: "CUSTOM_FIELD_TYPE_MISMATCH",
-        };
-      }
-      return undefined;
-    }
-    default:
-      return undefined;
+  try {
+    const adapter = await createAzureDevOpsAdapter(options.profile);
+    const metadataReader = requireProjectMetadataReader(adapter);
+    const savedQueryReader = requireSavedQueryReader(adapter);
+    s.message("Fetching ADO project metadata...");
+    const result = await verifyTemplateProject(template, {
+      mode: "online",
+      strict: options.strict === true,
+      platform: {
+        getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
+        listSavedQueries: (folder) => savedQueryReader.listSavedQueries(folder),
+      },
+    });
+    s.stop("Project reference validation complete");
+    return result;
+  } catch (err) {
+    s.stop("Project reference validation failed");
+    return {
+      errors: [],
+      warnings: [{
+        path: "template",
+        message: `Could not validate project references against ADO: ${err instanceof Error ? err.message : String(err)}`,
+      }],
+    };
   }
 }

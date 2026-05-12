@@ -8,10 +8,7 @@ import {
 import { logger } from "@config/logger";
 import { PlatformFactory } from "@platforms/platform-factory";
 import { StoryLearner } from "@services/template/story-learner";
-import { TemplateCatalog } from "@services/template/template-catalog";
-import { TemplateResolver } from "@services/template/template-resolver";
 import type { MixinTemplate, PartialTaskTemplate } from "@templates/schema";
-import { TemplateValidator } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
@@ -19,7 +16,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
@@ -27,12 +24,18 @@ import {
   selectOrAutocomplete,
 } from "@/cli/utilities/prompt-utilities";
 import type { IPlatformAdapter, PlatformType } from "@/platforms";
+import {
+  requireProjectMetadataReader,
+  requireSavedQueryReader,
+  requireStoryLearningPlatform,
+} from "@/platforms/capabilities";
 import type { MultiStoryLearningResult } from "@/services/template/story-learner.types";
 import type {
   Metadata,
   TaskTemplate,
   ValidationConfig,
 } from "@/templates/schema";
+import { TemplateLibrary } from "@/templates/template-library";
 
 type AnyTaskTemplate = TaskTemplate | PartialTaskTemplate;
 
@@ -124,15 +127,14 @@ export const templateCreateCommand = new Command("create")
         output.outro("Cancelled.");
         process.exit(ExitCode.Success);
       }
-
-      output.cancel("Template creation failed");
-      logger.error(chalk.red("Template creation failed"));
-
-      if (error instanceof Error) {
-        output.print(chalk.red(error.message));
+      if (!(error instanceof ExitError)) {
+        output.cancel("Template creation failed");
+        logger.error(chalk.red("Template creation failed"));
+        if (error instanceof Error) {
+          output.print(chalk.red(error.message));
+        }
       }
-
-      process.exit(ExitCode.Failure);
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
 
@@ -230,8 +232,8 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
 async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTemplate> {
   defaultOutput.print(chalk.cyan("\n Create from Template\n"));
 
-  const catalog = new TemplateCatalog();
-  const templates = await catalog.listTemplates();
+  const library = new TemplateLibrary();
+  const { items: templates } = await library.getCatalog("template");
 
   let templateName = options.from;
 
@@ -262,8 +264,7 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
     });
   }
 
-  const resolver = new TemplateResolver(catalog);
-  const parentTemplate = await resolver.loadTemplateRef(`template:${templateName}`);
+  const { template: parentTemplate } = await library.getRunnableTemplate(`template:${templateName}`);
   defaultOutput.print(chalk.green(`\nLoaded template: ${parentTemplate.name}`));
   defaultOutput.print(chalk.gray(`  ${parentTemplate.description ?? ""}\n`));
 
@@ -302,7 +303,7 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
       }),
     ) as string;
 
-    const mixins = await configureTemplateMixins(catalog);
+    const mixins = await configureTemplateMixins(library);
 
     return {
       version: "1.0",
@@ -327,13 +328,13 @@ function formatCatalogChoice(label: string, scope: string): string {
   return `${label} (${scope})`;
 }
 
-async function configureTemplateMixins(catalog: TemplateCatalog): Promise<string[]> {
+async function configureTemplateMixins(library: TemplateLibrary): Promise<string[]> {
   const addMixins = assertNotCancelled(
     await confirm({ message: "Add mixins?", initialValue: false }),
   );
   if (!addMixins) return [];
 
-  const mixins = await catalog.listMixins();
+  const { items: mixins } = await library.getCatalog("mixin");
   return await promptMixinRefs(mixins);
 }
 
@@ -450,7 +451,8 @@ async function createFromStories(
 
   storyIds = await validateStoryIds(platform, storyIds);
 
-  const learner = new StoryLearner(platform);
+  const learningPlatform = requireStoryLearningPlatform(platform);
+  const learner = new StoryLearner(learningPlatform);
   const learnSpinner = createManagedSpinner();
   learnSpinner.start(`Learning from ${storyIds.length} stories...`);
   const result = await learner.learnFromStories(storyIds);
@@ -464,7 +466,7 @@ async function createFromStories(
         message: "Select template variation:",
         options: [
           {
-            label: `Merged template (confidence: ${result.confidence.level} - ${result.confidence.overall}%)`,
+            label: `Learned template (confidence: ${result.confidence.level} - ${result.confidence.overall}%)`,
             value: "merged",
           },
           ...result.variations.map((v, i) => ({
@@ -487,7 +489,7 @@ async function createFromStories(
     }
   }
 
-  return result.mergedTemplate;
+  return result.template;
 }
 
 /**
@@ -535,10 +537,10 @@ function displayMultiStoryResults(result: MultiStoryLearningResult): void {
     chalk.gray(`  Avg tasks/story: ${result.patterns.averageTaskCount}`),
   );
 
-  // Merged template summary
+  // Learned template summary
   defaultOutput.print(
     chalk.green(
-      `\nMerged template: ${result.mergedTemplate.tasks.length} tasks`,
+      `\nLearned template: ${result.template.tasks.length} tasks`,
     ),
   );
 
@@ -613,10 +615,10 @@ export async function createFromScratch(
   let currentStep = 1;
 
   try {
-    const catalog = new TemplateCatalog();
+    const library = new TemplateLibrary();
     const [templates, mixins] = await Promise.all([
-      catalog.listTemplates(),
-      catalog.listMixins(),
+      library.getCatalog("template").then((catalog) => catalog.items),
+      library.getCatalog("mixin").then((catalog) => catalog.items),
     ]);
     const { extendsRef, mixins: selectedMixins } = await configureTemplateComposition({
       templates,
@@ -626,13 +628,15 @@ export async function createFromScratch(
     let connectionSettled = false;
     const connectionPromise = (async () => {
       const adapter = await createAzureDevOpsAdapter(profile);
+      const metadataReader = requireProjectMetadataReader(adapter);
+      const savedQueryReader = requireSavedQueryReader(adapter);
       const [taskSchemas, liveWorkItemTypes, liveAreaPaths, liveIterationPaths, liveTeams, liveSavedQueries] = await Promise.all([
-        adapter.getFieldSchemas("Task"),
-        adapter.getWorkItemTypes(),
-        adapter.getAreaPaths(),
-        adapter.getIterationPaths(),
-        adapter.getTeams(),
-        adapter.listSavedQueries(),
+        metadataReader.getFieldSchemas("Task"),
+        metadataReader.getWorkItemTypes(),
+        metadataReader.getAreaPaths(),
+        metadataReader.getIterationPaths(),
+        metadataReader.getTeams(),
+        savedQueryReader.listSavedQueries(),
       ]);
 
       return {
@@ -640,7 +644,7 @@ export async function createFromScratch(
         fieldSchemas: taskSchemas,
         filterCtx: {
           workItemTypes: liveWorkItemTypes,
-          getStatesForType: (type: string) => adapter.getStatesForWorkItemType(type),
+          getStatesForType: (type: string) => metadataReader.getStatesForWorkItemType(type),
           areaPaths: liveAreaPaths,
           iterationPaths: liveIterationPaths,
           teams: liveTeams,
@@ -918,10 +922,11 @@ async function loadTaskWizardSchemas(
   storyFieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
 }> {
   const adapter = await createAzureDevOpsAdapter(profile);
+  const metadataReader = requireProjectMetadataReader(adapter);
 
   const [fieldSchemas, storyFieldSchemas] = await Promise.all([
-    adapter.getFieldSchemas("Task"),
-    adapter.getFieldSchemas("User Story"),
+    metadataReader.getFieldSchemas("Task"),
+    metadataReader.getFieldSchemas("User Story"),
   ]);
 
   return { fieldSchemas, storyFieldSchemas };
@@ -932,11 +937,11 @@ async function saveCreatedTemplate(
   target: CreationTarget,
   requestedName: string | undefined,
 ): Promise<{ path: string; ref: string }> {
-  const catalog = new TemplateCatalog();
+  const library = new TemplateLibrary();
   const referenceName = requestedName
     ? parseReferenceName(requestedName)
     : await promptReferenceName(created.name);
-  const targetPath = catalog.getUserTemplatePath(target, referenceName);
+  const targetPath = library.getUserTemplatePath(target, referenceName);
   const overwrite = existsSync(targetPath)
     ? assertNotCancelled(
         await confirm({
@@ -951,7 +956,7 @@ async function saveCreatedTemplate(
   }
 
   if (target === "mixin") {
-    const item = await catalog.saveUserTemplate({
+    const item = await library.saveTemplate({
       kind: "mixin",
       name: referenceName,
       template: created,
@@ -969,7 +974,7 @@ async function saveCreatedTemplate(
     throw new Error(message);
   }
 
-  const item = await catalog.saveUserTemplate({
+  const item = await library.saveTemplate({
     kind: target,
     name: referenceName,
     template: created,
@@ -1021,14 +1026,9 @@ function slugifyTemplateName(name: string): string {
 async function validateForSave(
   template: AnyTaskTemplate,
   outputPath: string,
-): Promise<ReturnType<TemplateValidator["validate"]>> {
-  const validator = new TemplateValidator();
-  if (!template.extends && (!template.mixins || template.mixins.length === 0)) {
-    return validator.validate(template);
-  }
-
-  const catalog = new TemplateCatalog();
-  const resolver = new TemplateResolver(catalog);
-  const resolvedTemplate = await resolver.resolveRaw(template, path.resolve(outputPath));
-  return validator.validate(resolvedTemplate);
+): Promise<Awaited<ReturnType<TemplateLibrary["validateTemplateForPath"]>>> {
+  return await new TemplateLibrary().validateTemplateForPath(
+    template,
+    path.resolve(outputPath),
+  );
 }

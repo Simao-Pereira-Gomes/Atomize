@@ -1,46 +1,29 @@
-import { existsSync } from "node:fs";
-import { basename, extname, resolve } from "node:path";
 import { confirm } from "@clack/prompts";
-import {
-  TemplateCatalog,
-  type TemplateCatalogItem,
-  type TemplateCatalogKind,
-} from "@services/template/template-catalog";
-import { MixinTemplateSchema, TaskTemplateSchema } from "@templates/schema";
-import { loadYamlFile } from "@templates/template-file";
+import type { TemplateCatalogKind } from "@services/template/template-catalog";
+import type {
+  TemplateInstallScope,
+} from "@services/template/template-install-source";
 import chalk from "chalk";
 import { Command } from "commander";
-import { parse as parseYaml } from "yaml";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   isInteractiveTerminal,
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
+import { TemplateLibrary } from "@/templates/template-library";
 import { CancellationError, getErrorMessage } from "@/utils/errors";
-
-type InstallScope = "user" | "project";
 
 type InstallOptions = {
   type?: TemplateCatalogKind;
   overwrite?: boolean;
-  scope?: InstallScope;
+  scope?: TemplateInstallScope;
 };
-
-type ResolvedSource = {
-  kind: TemplateCatalogKind;
-  name: string;
-  install: () => Promise<TemplateCatalogItem>;
-  fromLabel?: string;
-};
-
-const INSTALL_SCOPES: InstallScope[] = ["user", "project"];
-const TEMPLATE_TYPES: TemplateCatalogKind[] = ["template", "mixin"];
 
 export const templateInstallCommand = new Command("install")
   .description("Install a template or mixin from a local file or HTTPS URL")
@@ -52,24 +35,27 @@ export const templateInstallCommand = new Command("install")
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
     try {
-      const scope = parseInstallScope(options.scope ?? "user");
-      const catalog = new TemplateCatalog();
-      const resolvedSource = await resolveSource(source, options, catalog, scope, output.print);
+      const library = new TemplateLibrary();
+      const scope = library.parseInstallScope(options.scope ?? "user");
+      const preview = await library.previewInstall({
+        source,
+        kind: options.type ? library.parseCatalogKind(options.type) : undefined,
+        scope,
+        fetchContent: fetchTemplateContent,
+        onFetch: (url) => output.print(chalk.gray(`  Fetching ${sanitizeTty(url)}\n`)),
+        onRawUrl: (url) => output.print(chalk.gray(`  Using raw URL: ${sanitizeTty(url)}\n`)),
+      });
+      const resolvedSource = preview.source;
 
       output.intro(` Atomize — Install ${resolvedSource.kind}`);
       if (!options.type) {
         output.print(chalk.gray(`  Detected type: ${resolvedSource.kind}\n`));
       }
 
-      const targetPath =
-        scope === "project"
-          ? catalog.getProjectTemplatePath(resolvedSource.kind, resolvedSource.name)
-          : catalog.getUserTemplatePath(resolvedSource.kind, resolvedSource.name);
-
-      if (existsSync(targetPath) && !options.overwrite) {
+      if (preview.exists && !options.overwrite) {
         if (!isInteractiveTerminal()) {
           output.cancel(`${resolvedSource.kind} "${resolvedSource.name}" already exists. Re-run with --overwrite to replace it.`);
-          process.exit(ExitCode.Failure);
+          throw new ExitError(ExitCode.Failure);
         }
         const confirmed = assertNotCancelled(
           await confirm({
@@ -95,122 +81,7 @@ export const templateInstallCommand = new Command("install")
         output.outro("Cancelled.");
         process.exit(ExitCode.Success);
       }
-      output.cancel(getErrorMessage(error));
-      process.exit(ExitCode.Failure);
+      if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
-
-async function resolveSource(
-  source: string,
-  options: InstallOptions,
-  catalog: TemplateCatalog,
-  scope: InstallScope,
-  print: (msg: string) => void,
-): Promise<ResolvedSource> {
-  if (source.startsWith("http://")) {
-    throw new Error("Only HTTPS URLs are supported.");
-  }
-
-  if (source.startsWith("https://")) {
-    const urlFilename = basename(new URL(source).pathname);
-    if (!urlFilename) {
-      throw new Error("Could not determine template name from URL. The URL must end with a filename (e.g., /feature.yaml).");
-    }
-    const urlExt = extname(urlFilename);
-    if (urlExt !== ".yaml" && urlExt !== ".yml") {
-      throw new Error(`URL must point to a YAML file (.yaml or .yml). Got: "${urlFilename}"`);
-    }
-    const rawUrl = toGitHubRawUrl(source);
-    const fetchUrl = rawUrl ?? source;
-    if (rawUrl !== undefined) {
-      print(chalk.gray(`  Using raw URL: ${sanitizeTty(rawUrl)}\n`));
-    } else {
-      print(chalk.gray(`  Fetching ${sanitizeTty(source)}\n`));
-    }
-    const content = await fetchTemplateContent(fetchUrl);
-    const kind = options.type ? parseTemplateType(options.type) : detectKindFromContent(content);
-    return {
-      kind,
-      name: basename(urlFilename, urlExt),
-      install: () => catalog.installFromContent(content, urlFilename, kind, scope),
-      fromLabel: fetchUrl,
-    };
-  }
-
-  const kind = options.type ? parseTemplateType(options.type) : await detectKindFromFile(source);
-  const ext = extname(resolve(source));
-  return {
-    kind,
-    name: basename(resolve(source), ext),
-    install: () => catalog.installFromFile(source, kind, scope),
-  };
-}
-
-
-function detectKindFromContent(content: string): TemplateCatalogKind {
-  let raw: unknown;
-  try {
-    raw = parseYaml(content);
-  } catch {
-    throw new Error("Could not parse YAML content. Pass --type explicitly.");
-  }
-  return inferKind(raw);
-}
-
-async function detectKindFromFile(filePath: string): Promise<TemplateCatalogKind> {
-  const raw = await loadYamlFile(filePath);
-  return inferKind(raw);
-}
-
-function inferKind(raw: unknown): TemplateCatalogKind {
-  const templateResult = TaskTemplateSchema.safeParse(raw);
-  if (templateResult.success) return "template";
-
-  const mixinResult = MixinTemplateSchema.safeParse(raw);
-  if (mixinResult.success) return "mixin";
-
-  if (typeof raw === "object" && raw !== null) {
-    if ("filter" in raw) {
-      const issues = templateResult.error.issues
-        .map((i) => `  ${i.path.join(".")}: ${i.message}`)
-        .join("\n");
-      throw new Error(`Template validation failed:\n${issues}`);
-    }
-    if ("tasks" in raw) {
-      const issues = mixinResult.error.issues
-        .map((i) => `  ${i.path.join(".")}: ${i.message}`)
-        .join("\n");
-      throw new Error(`Mixin validation failed:\n${issues}`);
-    }
-  }
-
-  throw new Error("Could not detect template type. Pass --type explicitly.");
-}
-
-function parseInstallScope(value: string): InstallScope {
-  if (INSTALL_SCOPES.includes(value as InstallScope)) {
-    return value as InstallScope;
-  }
-  throw new Error(`Invalid scope "${value}". Expected: ${INSTALL_SCOPES.join(", ")}.`);
-}
-
-function parseTemplateType(value: string): TemplateCatalogKind {
-  if (TEMPLATE_TYPES.includes(value as TemplateCatalogKind)) {
-    return value as TemplateCatalogKind;
-  }
-  throw new Error(`Invalid type "${value}". Expected: ${TEMPLATE_TYPES.join(", ")}.`);
-}
-
-function toGitHubRawUrl(url: string): string | undefined {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return undefined;
-  }
-  if (parsed.hostname !== "github.com") return undefined;
-  const match = parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
-  if (!match) return undefined;
-  const [, owner, repo, rest] = match;
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${rest}`;
-}

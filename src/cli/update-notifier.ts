@@ -76,9 +76,9 @@ interface UpdateNotifierDependencies {
 }
 
 export function resolveUpdateNotifierMode(
-	env: UpdateNotifierEnv,
+	env: UpdateNotifierEnv | undefined,
 ): UpdateNotifierMode {
-	return env.ATOMIZE_UPDATE_NOTIFIER ?? "enabled";
+	return env?.ATOMIZE_UPDATE_NOTIFIER ?? "enabled";
 }
 
 export function parseUpdateNotifierEnv(env: NodeJS.ProcessEnv): UpdateNotifierEnv {
@@ -178,9 +178,7 @@ export async function runUpdateNotifier(
   pkg: UpdateNotifierPackage,
   dependencies: UpdateNotifierDependencies = {},
 ): Promise<void> {
-	const mode = resolveUpdateNotifierMode(
-		dependencies.env ?? parseUpdateNotifierEnv(process.env),
-	);
+	const mode = resolveUpdateNotifierMode(dependencies.env );
 
   if (mode === "disabled") return;
   const interactive = dependencies.isInteractive ?? isInteractiveTerminal;

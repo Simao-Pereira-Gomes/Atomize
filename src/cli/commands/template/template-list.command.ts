@@ -1,8 +1,7 @@
-import {
-  type CatalogOverride,
-  TemplateCatalog,
-  type TemplateCatalogItem,
-  type TemplateCatalogKind,
+import type {
+  CatalogOverride,
+  TemplateCatalogItem,
+  TemplateCatalogKind,
 } from "@services/template/template-catalog";
 import chalk from "chalk";
 import { Command } from "commander";
@@ -10,15 +9,14 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { TemplateLibrary } from "@/templates/template-library";
 import { getErrorMessage } from "@/utils/errors";
 
 type ListOptions = {
   type?: TemplateCatalogKind;
 };
-
-const TEMPLATE_TYPES: TemplateCatalogKind[] = ["template", "mixin"];
 
 export const templateListCommand = new Command("list")
   .aliases(["ls"])
@@ -28,13 +26,13 @@ export const templateListCommand = new Command("list")
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
     try {
-      const catalog = new TemplateCatalog();
+      const library = new TemplateLibrary();
 
       if (options.type !== undefined) {
-        const type = parseTemplateType(options.type);
+        const type = library.parseCatalogKind(options.type);
         output.intro(` Atomize — ${capitalize(type)}s`);
 
-        const { items, overrides } = await catalog.listWithOverrides(type);
+        const { items, overrides } = await library.getCatalog(type);
         if (items.length === 0) {
           output.outro(`No ${type}s found.`);
           return;
@@ -58,8 +56,8 @@ export const templateListCommand = new Command("list")
 
       const [{ items: templates, overrides: templateShadows }, { items: mixins, overrides: mixinShadows }] =
         await Promise.all([
-          catalog.listWithOverrides("template"),
-          catalog.listWithOverrides("mixin"),
+          library.getCatalog("template"),
+          library.getCatalog("mixin"),
         ]);
 
       if (templates.length === 0 && mixins.length === 0) {
@@ -91,17 +89,10 @@ export const templateListCommand = new Command("list")
         ),
       );
     } catch (error) {
-      output.cancel(getErrorMessage(error));
-      process.exit(ExitCode.Failure);
+      if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
-
-function parseTemplateType(value: string): TemplateCatalogKind {
-  if (TEMPLATE_TYPES.includes(value as TemplateCatalogKind)) {
-    return value as TemplateCatalogKind;
-  }
-  throw new Error(`Invalid type "${value}". Expected: ${TEMPLATE_TYPES.join(", ")}.`);
-}
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);

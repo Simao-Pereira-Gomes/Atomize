@@ -1,5 +1,4 @@
-import { TemplateLoader } from "@templates/loader";
-import { TemplateValidator } from "@templates/validator";
+import { log } from "@clack/prompts";
 import chalk from "chalk";
 import { Command } from "commander";
 import { stringify as stringifyYaml } from "yaml";
@@ -7,9 +6,9 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
-import { resolveTemplateRefToPath } from "@/cli/utilities/template-ref";
+import { TemplateLibrary } from "@/templates/template-library";
 import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@/utils/errors";
 
 type ResolveOptions = {
@@ -35,14 +34,21 @@ export const templateResolveCommand = new Command("resolve")
     }
 
     try {
-      const templatePath = await resolveTemplateRefToPath(templateArg);
-      const loader = new TemplateLoader();
-      const { template, meta } = await loader.loadWithMeta(templatePath);
+      const library = new TemplateLibrary();
+      const { template, meta, source } = await library.loadSource(
+        templateArg,
+        {
+          onNotice: (message) => {
+            if (!options.quiet) log.warn(message);
+          },
+        },
+      );
+      const sourceLabel = source.path ?? source.url ?? source.input;
 
       if (!options.quiet) {
         if (meta.isComposed) {
           output.print(chalk.bold("Inheritance chain:"));
-          output.print(chalk.gray(`  source  : ${templatePath}`));
+          output.print(chalk.gray(`  source  : ${sourceLabel}`));
           if (meta.extendsRef) {
             const display = meta.resolvedExtendsPath ?? meta.extendsRef;
             output.print(chalk.gray(`  extends : ${display}`));
@@ -74,8 +80,7 @@ export const templateResolveCommand = new Command("resolve")
 
       if (options.validate) {
         output.blankLine();
-        const validator = new TemplateValidator();
-        const result = validator.validate(template);
+        const result = library.validateTemplate(template);
 
         if (result.valid) {
           output.print(chalk.green("  Validation passed ✓"));
@@ -95,21 +100,22 @@ export const templateResolveCommand = new Command("resolve")
           }
         }
 
-        if (!result.valid) process.exit(ExitCode.Failure);
+        if (!result.valid) throw new ExitError(ExitCode.Failure);
       }
 
       if (!options.quiet) {
         output.outro("Resolved successfully");
       }
     } catch (error) {
-      if (error instanceof TemplateCompositionError) {
-        output.cancel(`Composition failed: ${error.message}`);
-      } else if (error instanceof TemplateLoadError) {
-        output.cancel(`Load failed: ${error.message}`);
-      } else {
-        output.cancel(getErrorMessage(error));
+      if (!(error instanceof ExitError)) {
+        if (error instanceof TemplateCompositionError) {
+          output.cancel(`Composition failed: ${error.message}`);
+        } else if (error instanceof TemplateLoadError) {
+          output.cancel(`Load failed: ${error.message}`);
+        } else {
+          output.cancel(getErrorMessage(error));
+        }
       }
-      process.exit(ExitCode.Failure);
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
-

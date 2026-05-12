@@ -1,21 +1,19 @@
 import { rm } from "node:fs/promises";
 import { confirm } from "@clack/prompts";
-import {
-  TemplateCatalog,
-  type TemplateCatalogKind,
-} from "@services/template/template-catalog";
+import type { TemplateCatalogKind } from "@services/template/template-catalog";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   isInteractiveTerminal,
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
+import { TemplateLibrary } from "@/templates/template-library";
 import { CancellationError, getErrorMessage } from "@/utils/errors";
 
 type RemoveOptions = {
@@ -23,7 +21,7 @@ type RemoveOptions = {
   force?: boolean;
 };
 
-const TEMPLATE_TYPES: TemplateCatalogKind[] = ["template", "mixin"];
+const library = new TemplateLibrary();
 
 export const templateRemoveCommand = new Command("remove")
   .aliases(["rm"])
@@ -38,25 +36,24 @@ export const templateRemoveCommand = new Command("remove")
       output.intro(" Atomize — Remove Template");
 
       const { kind, name } = await resolveNameArg(nameArg, options.type);
-      const catalog = new TemplateCatalog();
-      const item = await catalog.findItem(kind, name);
+      const item = await library.findCatalogItem(kind, name);
 
       if (!item) {
         output.cancel(`${kind} "${name}" not found. Run: atomize template list`);
-        process.exit(ExitCode.Failure);
+        throw new ExitError(ExitCode.Failure);
       }
 
       if (item.scope !== "user") {
         output.cancel(
           `Cannot remove "${name}" — it is a ${item.scope} ${kind} and is not user-installed.`,
         );
-        process.exit(ExitCode.Failure);
+        throw new ExitError(ExitCode.Failure);
       }
 
       if (!options.force) {
         if (!isInteractiveTerminal()) {
           output.cancel(`Pass -f / --force to confirm removal of ${kind} "${name}" in non-interactive mode.`);
-          process.exit(ExitCode.Failure);
+          throw new ExitError(ExitCode.Failure);
         }
         output.print(chalk.gray(`  ref:  ${sanitizeTty(item.ref)}`));
         output.print(chalk.gray(`  path: ${sanitizeTty(item.path)}\n`));
@@ -80,8 +77,8 @@ export const templateRemoveCommand = new Command("remove")
         output.outro("Cancelled.");
         process.exit(ExitCode.Success);
       }
-      output.cancel(getErrorMessage(error));
-      process.exit(ExitCode.Failure);
+      if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
 
@@ -97,16 +94,12 @@ async function resolveNameArg(
   }
 
   if (typeOverride) {
-    if (!TEMPLATE_TYPES.includes(typeOverride as TemplateCatalogKind)) {
-      throw new Error(`Invalid type "${typeOverride}". Expected: ${TEMPLATE_TYPES.join(", ")}.`);
-    }
-    return { kind: typeOverride as TemplateCatalogKind, name: arg };
+    return { kind: library.parseCatalogKind(typeOverride), name: arg };
   }
 
-  const catalog = new TemplateCatalog();
   const [asTemplate, asMixin] = await Promise.all([
-    catalog.findItem("template", arg).catch(() => undefined),
-    catalog.findItem("mixin", arg).catch(() => undefined),
+    library.findCatalogItem("template", arg).catch(() => undefined),
+    library.findCatalogItem("mixin", arg).catch(() => undefined),
   ]);
 
   if (asTemplate && asMixin) {

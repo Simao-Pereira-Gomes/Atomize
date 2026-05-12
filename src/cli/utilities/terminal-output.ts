@@ -103,13 +103,12 @@ export function createManagedSpinner(
       baseSpinner.message(message);
     },
     stop(message: string): void {
+      if (!active) return;
       try {
         baseSpinner.stop(message);
       } finally {
-        if (active) {
-          active = false;
-          endPromptOutput();
-        }
+        active = false;
+        endPromptOutput();
       }
     },
   };
