@@ -11,12 +11,9 @@ import type {
 import type {
   TaskDefinition,
   WorkItem,
-  WorkItemType,
 } from "@platforms/interfaces/work-item.interface";
-import { CURRENT_ITERATION, TEAM_AREAS } from "@templates/schema";
 import { ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
-import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import {
   type WorkItem as AzureWorkItem,
   QueryExpand,
@@ -28,6 +25,12 @@ import {
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
 import { FieldSchemaService } from "./azure-devops-field-schema.service.js";
+import { buildCreateTaskPatch, buildDependencyLinkPatch } from "./task-patch-builder";
+import { convertWorkItem, hasChildRelations } from "./work-item-mapper";
+import {
+  buildWorkItemWiqlQuery,
+  workItemQueryRequiresTeam,
+} from "./work-item-query";
 
 /**
  * Azure DevOps specific configuration
@@ -52,30 +55,6 @@ export interface AzureDevOpsConfig extends PlatformConfig {
   maxConcurrency?: number;
 }
 
-const CURRENT_ITERATION_OFFSET_RE = /^@CurrentIteration\s*([+-])\s*(\d+)$/i;
-const DATE_MACRO_RE =
-  /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(?:\s*([+-])\s*(\d+))?$/i;
-const DATE_MACRO_CANONICAL: Record<string, string> = {
-  "@today": "@Today",
-  "@startofday": "@StartOfDay",
-  "@startofmonth": "@StartOfMonth",
-  "@startofweek": "@StartOfWeek",
-  "@startofyear": "@StartOfYear",
-};
-
-/** Escapes a string value for safe interpolation inside a WIQL single-quoted literal. */
-function wiqlEscape(value: string): string {
-  return value.replace(/'/g, "''");
-}
-
-/** Returns the WIQL macro string for an iteration value, or null if it is a real path. */
-function parseIterationMacro(value: string): string | null {
-  if (value === CURRENT_ITERATION) return "@CurrentIteration";
-  const match = value.match(CURRENT_ITERATION_OFFSET_RE);
-  if (match) return `@CurrentIteration ${match[1]} ${match[2]}`;
-  return null;
-}
-
 /** Extracts an HTTP status code from an ADO SDK error, if present. */
 function getHttpStatusCode(error: unknown): number | undefined {
   if (error && typeof error === "object") {
@@ -84,23 +63,6 @@ function getHttpStatusCode(error: unknown): number | undefined {
     if (typeof e.status === "number") return e.status;
   }
   return undefined;
-}
-
-/** Returns true if the filter uses any team-scoped macros (@CurrentIteration, @TeamAreas). */
-function requiresTeam(filter: FilterCriteria): boolean {
-  if (filter.areaPaths?.includes(TEAM_AREAS)) return true;
-  if (filter.iterations?.some((i) => parseIterationMacro(i) !== null))
-    return true;
-  return false;
-}
-
-/** Returns the WIQL representation of a date value — macro or quoted literal. */
-function formatDateMacro(value: string): string {
-  const match = value.match(DATE_MACRO_RE);
-  if (!match?.[1]) return `'${wiqlEscape(value)}'`;
-  const canonical = DATE_MACRO_CANONICAL[match[1].toLowerCase()] ?? match[1];
-  if (!match[2] || !match[3]) return canonical;
-  return `${canonical} ${match[2]} ${match[3]}`;
 }
 
 /**
@@ -196,7 +158,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       }
 
       const effectiveTeam = filter.team ?? this.config.team;
-      if (requiresTeam(filter) && !effectiveTeam) {
+      if (workItemQueryRequiresTeam(filter) && !effectiveTeam) {
         throw new ConfigurationError(
           "A team is required when using @CurrentIteration or @TeamAreas macros. " +
             "Set AZURE_DEVOPS_TEAM in your environment or add 'team' to the template filter.",
@@ -240,7 +202,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
         for (const item of filtered) {
           if (!item.id) continue;
-          const hasChildren = this.hasChildRelations(item);
+          const hasChildren = hasChildRelations(item);
           logger.debug(`Work item ${item.id} has children: ${hasChildren}`);
           if (!hasChildren) {
             itemsWithoutTasks.push(item);
@@ -258,7 +220,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         filtered = filtered.slice(0, filter.limit);
       }
 
-      const converted = filtered.map((wi) => this.convertWorkItem(wi));
+      const converted = filtered.map((wi) => convertWorkItem(wi));
 
       logger.info(`AzureDevOps: Returning ${converted.length} work item(s)`);
       return converted;
@@ -300,7 +262,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         return null;
       }
 
-      return this.convertWorkItem(workItem);
+      return convertWorkItem(workItem);
     } catch (error) {
       const message = getErrorMessage(error);
       logger.error(`AzureDevOps: Failed to get work item ${id}`, {
@@ -342,13 +304,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
 
       if (filter.excludeIfHasTasks) {
-        filtered = filtered.filter((item) => !this.hasChildRelations(item));
+        filtered = filtered.filter((item) => !hasChildRelations(item));
         logger.info(
           `AzureDevOps: ${filtered.length} work item(s) without tasks (after excludeIfHasTasks)`,
         );
       }
 
-      return filtered.map((wi) => this.convertWorkItem(wi));
+      return filtered.map((wi) => convertWorkItem(wi));
     } catch (error) {
       const message = getErrorMessage(error);
       logger.error("AzureDevOps: Failed to fetch work items by ID", { error: message });
@@ -373,125 +335,11 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new Error(`Invalid parent ID: ${parentId}`);
       }
 
-      const patchDocument: JsonPatchDocument = [
-        // Title
-        {
-          op: "add",
-          path: "/fields/System.Title",
-          value: task.title,
-        },
-        ...(task.description
-          ? [
-              {
-                op: "add",
-                path: "/fields/System.Description",
-                value: task.description,
-              },
-            ]
-          : []),
-        // Estimation (Story Points or Remaining Work)
-        ...(task.estimation !== undefined
-          ? [
-              {
-                op: "add",
-                path: "/fields/Microsoft.VSTS.Scheduling.RemainingWork",
-                value: task.estimation,
-              },
-              {
-                op: "add",
-                path: "/fields/Microsoft.VSTS.Scheduling.OriginalEstimate",
-                value: task.estimation,
-              },
-            ]
-          : []),
-        ...(task.completedWork !== undefined
-          ? [
-              {
-                op: "add",
-                path: "/fields/Microsoft.VSTS.Scheduling.CompletedWork",
-                value: task.completedWork,
-              },
-            ]
-          : []),
-        // Iteration Path
-        ...(task.iteration
-          ? [
-              {
-                op: "add",
-                path: "/fields/System.IterationPath",
-                value: task.iteration,
-              },
-            ]
-          : []),
-        // Area Path
-        ...(task.areaPath
-          ? [
-              {
-                op: "add",
-                path: "/fields/System.AreaPath",
-                value: task.areaPath,
-              },
-            ]
-          : []),
-        // Tags
-        ...(task.tags && task.tags.length > 0
-          ? [
-              {
-                op: "add",
-                path: "/fields/System.Tags",
-                value: task.tags.join("; "),
-              },
-            ]
-          : []),
-        // Assignment
-        ...(task.assignTo
-          ? [
-              {
-                op: "add",
-                path: "/fields/System.AssignedTo",
-                value: task.assignTo,
-              },
-            ]
-          : []),
-        // Priority
-        ...(task.priority !== undefined
-          ? [
-              {
-                op: "add",
-                path: "/fields/Microsoft.VSTS.Common.Priority",
-                value: task.priority,
-              },
-            ]
-          : []),
-        // Activity
-        ...(task.activity
-          ? [
-              {
-                op: "add",
-                path: "/fields/Microsoft.VSTS.Common.Activity",
-                value: task.activity,
-              },
-            ]
-          : []),
-        // Custom fields
-        ...Object.entries(task.customFields ?? {}).map(([referenceName, value]) => ({
-          op: "add",
-          path: `/fields/${referenceName}`,
-          value,
-        })),
-        // Parent link
-        {
-          op: "add",
-          path: "/relations/-",
-          value: {
-            rel: "System.LinkTypes.Hierarchy-Reverse",
-            url: `${this.config.organizationUrl}/_apis/wit/workItems/${numericParentId}`,
-            attributes: {
-              comment: "Parent link",
-            },
-          },
-        },
-      ];
+      const patchDocument = buildCreateTaskPatch(
+        this.config.organizationUrl,
+        numericParentId,
+        task,
+      );
 
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
@@ -506,7 +354,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       logger.info(`AzureDevOps: Created task ${createdItem.id}: ${task.title}`);
 
-      return this.convertWorkItem(createdItem);
+      return convertWorkItem(createdItem);
     } catch (error) {
       const message = getErrorMessage(error);
       logger.error(`AzureDevOps: Failed to create task`, { error: message });
@@ -661,7 +509,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       return children
         .filter((c) => c !== null)
-        .map((c) => this.convertWorkItem(c));
+        .map((c) => convertWorkItem(c));
     } catch (error) {
       logger.error(`AzureDevOps: Failed to get children for ${parentId}`, {
         error,
@@ -696,19 +544,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new Error(`Invalid predecessor work item ID: ${predecessorId}`);
       }
 
-      const patchDocument: JsonPatchDocument = [
-        {
-          op: "add",
-          path: "/relations/-",
-          value: {
-            rel: "System.LinkTypes.Dependency-Reverse",
-            url: `${this.config.organizationUrl}/_apis/wit/workItems/${numericPredecessorId}`,
-            attributes: {
-              comment: "Predecessor dependency",
-            },
-          },
-        },
-      ];
+      const patchDocument = buildDependencyLinkPatch(
+        this.config.organizationUrl,
+        numericPredecessorId,
+      );
 
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
@@ -850,7 +689,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     let filtered = workItems.filter((wi) => wi !== null) as AzureWorkItem[];
 
     if (filter.excludeIfHasTasks) {
-      filtered = filtered.filter((item) => !this.hasChildRelations(item));
+      filtered = filtered.filter((item) => !hasChildRelations(item));
       logger.info(
         `AzureDevOps: ${filtered.length} work item(s) without tasks (after excludeIfHasTasks)`,
       );
@@ -860,7 +699,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       filtered = filtered.slice(0, filter.limit);
     }
 
-    return filtered.map((wi) => this.convertWorkItem(wi));
+    return filtered.map((wi) => convertWorkItem(wi));
   }
 
   /**
@@ -1015,242 +854,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
 
   /**
-   * Build WIQL query from filter criteria
+   * Build WIQL query from filter criteria.
+   *
+   * Kept as a thin wrapper for existing tests and internal callers; the query
+   * planning implementation lives in work-item-query.ts.
    */
   private buildWiqlQuery(filter: FilterCriteria): string {
-    const conditions: string[] = [];
-
-    conditions.push(
-      `[System.TeamProject] = '${wiqlEscape(this.config.project)}'`,
-    );
-
-    // Work item types
-    if (filter.workItemTypes && filter.workItemTypes.length > 0) {
-      const types = filter.workItemTypes
-        .map((t) => `'${wiqlEscape(t)}'`)
-        .join(", ");
-      conditions.push(`[System.WorkItemType] IN (${types})`);
-    }
-
-    // States (include)
-    if (filter.states && filter.states.length > 0) {
-      const states = filter.states.map((s) => `'${wiqlEscape(s)}'`).join(", ");
-      conditions.push(`[System.State] IN (${states})`);
-    }
-
-    // States (exclude)
-    if (filter.statesExclude && filter.statesExclude.length > 0) {
-      const states = filter.statesExclude
-        .map((s) => `'${wiqlEscape(s)}'`)
-        .join(", ");
-      conditions.push(`[System.State] NOT IN (${states})`);
-    }
-
-    // States (WAS EVER)
-    if (filter.statesWereEver && filter.statesWereEver.length > 0) {
-      const clauses = filter.statesWereEver.map(
-        (s) => `[System.State] WAS EVER '${wiqlEscape(s)}'`,
-      );
-      conditions.push(
-        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
-      );
-    }
-
-    // Tags (include)
-    if (filter.tags?.include && filter.tags.include.length > 0) {
-      const tagConditions = filter.tags.include.map(
-        (tag) => `[System.Tags] CONTAINS '${wiqlEscape(tag)}'`,
-      );
-      conditions.push(`(${tagConditions.join(" OR ")})`);
-    }
-
-    // Tags (exclude)
-    if (filter.tags?.exclude && filter.tags.exclude.length > 0) {
-      for (const tag of filter.tags.exclude) {
-        conditions.push(`[System.Tags] NOT CONTAINS '${wiqlEscape(tag)}'`);
-      }
-    }
-
-    // Area paths
-    if (filter.areaPaths && filter.areaPaths.length > 0) {
-      const hasTeamAreas = filter.areaPaths.includes(TEAM_AREAS);
-      const realPaths = filter.areaPaths.filter((p) => p !== TEAM_AREAS);
-
-      if (hasTeamAreas && realPaths.length === 0) {
-        conditions.push(`[System.AreaPath] IN (@TeamAreas)`);
-      } else if (!hasTeamAreas && realPaths.length > 0) {
-        const quoted = realPaths.map((p) => `'${wiqlEscape(p)}'`).join(", ");
-        conditions.push(`[System.AreaPath] IN (${quoted})`);
-      } else if (hasTeamAreas && realPaths.length > 0) {
-        const quoted = realPaths.map((p) => `'${wiqlEscape(p)}'`).join(", ");
-        conditions.push(
-          `([System.AreaPath] IN (${quoted}) OR [System.AreaPath] IN (@TeamAreas))`,
-        );
-      }
-    }
-
-    // Area paths (UNDER)
-    if (filter.areaPathsUnder && filter.areaPathsUnder.length > 0) {
-      const clauses = filter.areaPathsUnder.map(
-        (p) => `[System.AreaPath] UNDER '${wiqlEscape(p)}'`,
-      );
-      conditions.push(
-        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
-      );
-    }
-
-    // Iterations
-    if (filter.iterations && filter.iterations.length > 0) {
-      const iterConditions: string[] = [];
-      const realPaths: string[] = [];
-
-      for (const iter of filter.iterations) {
-        const macro = parseIterationMacro(iter);
-        if (macro) {
-          iterConditions.push(`[System.IterationPath] = ${macro}`);
-        } else {
-          realPaths.push(iter);
-        }
-      }
-
-      if (realPaths.length > 0) {
-        const quoted = realPaths.map((i) => `'${wiqlEscape(i)}'`).join(", ");
-        iterConditions.push(`[System.IterationPath] IN (${quoted})`);
-      }
-
-      if (iterConditions.length > 0) {
-        conditions.push(
-          iterConditions.length === 1
-            ? iterConditions.join("")
-            : `(${iterConditions.join(" OR ")})`,
-        );
-      }
-    }
-
-    if (filter.assignedTo && filter.assignedTo.length > 0) {
-      const users = filter.assignedTo
-        .map((u) => `'${wiqlEscape(u)}'`)
-        .join(", ");
-      conditions.push(`[System.AssignedTo] IN (${users})`);
-    }
-
-    // Priority
-    if (filter.priority) {
-      if (filter.priority.min !== undefined) {
-        conditions.push(
-          `[Microsoft.VSTS.Common.Priority] >= ${filter.priority.min}`,
-        );
-      }
-      if (filter.priority.max !== undefined) {
-        conditions.push(
-          `[Microsoft.VSTS.Common.Priority] <= ${filter.priority.max}`,
-        );
-      }
-    }
-
-    // Iterations (UNDER)
-    if (filter.iterationsUnder && filter.iterationsUnder.length > 0) {
-      const clauses = filter.iterationsUnder.map(
-        (p) => `[System.IterationPath] UNDER '${wiqlEscape(p)}'`,
-      );
-      conditions.push(
-        clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`,
-      );
-    }
-
-    // Date filters
-    if (filter.changedAfter) {
-      conditions.push(
-        `[System.ChangedDate] >= ${formatDateMacro(filter.changedAfter)}`,
-      );
-    }
-
-    if (filter.createdAfter) {
-      conditions.push(
-        `[System.CreatedDate] >= ${formatDateMacro(filter.createdAfter)}`,
-      );
-    }
-
-    const whereClause = conditions.join(" AND ");
-    return `SELECT [System.Id] FROM WorkItems WHERE ${whereClause}`;
-  }
-
-  /**
-   * Convert Azure DevOps work item to common format
-   */
-  private convertWorkItem(azureItem: AzureWorkItem): WorkItem {
-    const fields = azureItem.fields || {};
-
-    // Extract predecessor and successor IDs from relations
-    const predecessorIds: string[] = [];
-    const successorIds: string[] = [];
-
-    if (azureItem.relations) {
-      for (const relation of azureItem.relations) {
-        const url = relation.url || "";
-        const match = url.match(/\/(\d+)$/);
-        const relatedId = match?.[1];
-
-        if (relatedId) {
-          // Dependency-Reverse: this work item depends on the linked item (predecessor)
-          if (relation.rel === "System.LinkTypes.Dependency-Reverse") {
-            predecessorIds.push(relatedId);
-          }
-          // Dependency-Forward: the linked item depends on this work item (successor)
-          if (relation.rel === "System.LinkTypes.Dependency-Forward") {
-            successorIds.push(relatedId);
-          }
-        }
-      }
-    }
-
-    return {
-      id: azureItem.id?.toString() || "",
-      title: fields["System.Title"] || "",
-      type: fields["System.WorkItemType"] as WorkItemType,
-      state: fields["System.State"] || "",
-      assignedTo:
-        fields["System.AssignedTo"]?.uniqueName ||
-        fields["System.AssignedTo"]?.displayName,
-      estimation:
-        fields["Microsoft.VSTS.Scheduling.StoryPoints"] ||
-        fields["Microsoft.VSTS.Scheduling.OriginalEstimate"],
-      tags: fields["System.Tags"] ? fields["System.Tags"].split("; ") : [],
-      description: fields["System.Description"],
-      areaPath: fields["System.AreaPath"],
-      iteration: fields["System.IterationPath"],
-      priority: fields["Microsoft.VSTS.Common.Priority"],
-      predecessorIds: predecessorIds.length > 0 ? predecessorIds : undefined,
-      successorIds: successorIds.length > 0 ? successorIds : undefined,
-      customFields: fields,
-      createdDate: fields["System.CreatedDate"]
-        ? new Date(fields["System.CreatedDate"])
-        : undefined,
-      updatedDate: fields["System.ChangedDate"]
-        ? new Date(fields["System.ChangedDate"])
-        : undefined,
-      platformSpecific: {
-        url: azureItem.url,
-        rev: azureItem.rev,
-        relations: azureItem.relations,
-      },
-    };
-  }
-
-  /**
-   * Check if work item has child items by examining relations
-   * This method checks the relations directly from the work item object
-   * without making additional API calls
-   */
-  private hasChildRelations(workItem: AzureWorkItem): boolean {
-    if (!workItem.relations || workItem.relations.length === 0) {
-      return false;
-    }
-
-    // Check for child relations (Hierarchy-Forward means this item has children)
-    return workItem.relations.some(
-      (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward",
-    );
+    return buildWorkItemWiqlQuery(filter, this.config.project);
   }
 
   /**
