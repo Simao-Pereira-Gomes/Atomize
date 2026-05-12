@@ -10,16 +10,8 @@ const SENSITIVE_KEY_PATTERN = /token|pat|api[-_]?key|authorization|secret|passwo
 
 let overrideLevel: LogLevel | undefined;
 
-function isLogLevel(value: unknown): value is LogLevel {
-  return typeof value === "string" && value in LEVELS;
-}
-
 function resolveLevel(): LogLevel {
-  if (overrideLevel) return overrideLevel;
-  if (process.env.ATOMIZE_DEBUG === "1") return "debug";
-  const env = process.env.LOG_LEVEL;
-  if (isLogLevel(env)) return env;
-  return "warn";
+  return overrideLevel ?? "warn";
 }
 
 function pad(n: number): string {
@@ -100,6 +92,10 @@ export const logger = {
   info: (message: string, meta?: unknown) => write("info", message, meta),
   debug: (message: string, meta?: unknown) => write("debug", message, meta),
 };
+
+export function configureLogger(opts: { logLevel?: LogLevel }): void {
+  if (opts.logLevel) overrideLevel = opts.logLevel;
+}
 
 export function resetLoggerForTests(): void {
   overrideLevel = undefined;
