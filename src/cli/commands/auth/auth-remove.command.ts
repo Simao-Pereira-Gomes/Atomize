@@ -6,7 +6,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
@@ -20,62 +20,69 @@ import {
   promptProfileToRemove,
 } from "./helpers/auth-remove.helper";
 
-export const authRemoveCommand = new Command("remove")
+export function makeAuthRemoveCommand(): Command {
+  return new Command("remove")
   .alias("rm")
   .description("Remove a connection profile")
   .argument("[name]", "Profile name to remove")
   .action(async (nameArg: string | undefined) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
-    output.intro(" Atomize — Remove Connection Profile");
-
-    if (!(await hasProfiles())) {
-      output.outro("No profiles to remove.");
-      return;
-    }
-
-    const name = await promptProfileToRemove(nameArg);
-
-    const profile = await loadProfileOrFail(name);
-    if (!profile) {
-      output.cancel(`Profile "${name}" not found.`);
-      process.exit(ExitCode.Failure);
-    }
-
-    if (!(await confirmRemoval(name))) {
-      output.outro("Cancelled.");
-      return;
-    }
-
-    const operationSpinner = createManagedSpinner();
-    operationSpinner.start(`Deleting profile and token for "${name}"...`);
-
     try {
-      const { wasDefault } = await deleteProfile(name, profile);
-      operationSpinner.stop(`Profile "${name}" removed`);
+      output.intro(" Atomize — Remove Connection Profile");
 
-      if (wasDefault) {
-        const remaining = await readConnectionsFile();
-        const samePlatform = remaining.profiles.filter((p) => p.platform === profile.platform);
-        if (samePlatform.length === 1 && samePlatform[0]) {
-          await setDefaultProfile(samePlatform[0].name);
-          output.print(chalk.green(`  "${samePlatform[0].name}" is now the default profile.`));
-        } else if (samePlatform.length > 1) {
-          output.blankLine();
-          output.print(chalk.yellow(`  "${name}" was the default profile. Please select a new default:`));
-          const newDefault = assertNotCancelled(
-            await select({
-              message: "Choose a new default profile:",
-              options: samePlatform.map((p) => ({ label: p.name, value: p.name })),
-            }),
-          ) as string;
-          await setDefaultProfile(newDefault);
-          output.print(chalk.green(`  "${newDefault}" is now the default profile.`));
-        }
+      if (!(await hasProfiles())) {
+        output.outro("No profiles to remove.");
+        return;
       }
 
-      output.outro("Done.");
+      const name = await promptProfileToRemove(nameArg);
+
+      const profile = await loadProfileOrFail(name);
+      if (!profile) {
+        output.cancel(`Profile "${name}" not found.`);
+        throw new ExitError(ExitCode.Failure);
+      }
+
+      if (!(await confirmRemoval(name))) {
+        output.outro("Cancelled.");
+        return;
+      }
+
+      const operationSpinner = createManagedSpinner();
+      operationSpinner.start(`Deleting profile and token for "${name}"...`);
+
+      try {
+        const { wasDefault } = await deleteProfile(name, profile);
+        operationSpinner.stop(`Profile "${name}" removed`);
+
+        if (wasDefault) {
+          const remaining = await readConnectionsFile();
+          const samePlatform = remaining.profiles.filter((p) => p.platform === profile.platform);
+          if (samePlatform.length === 1 && samePlatform[0]) {
+            await setDefaultProfile(samePlatform[0].name);
+            output.print(chalk.green(`  "${samePlatform[0].name}" is now the default profile.`));
+          } else if (samePlatform.length > 1) {
+            output.blankLine();
+            output.print(chalk.yellow(`  "${name}" was the default profile. Please select a new default:`));
+            const newDefault = assertNotCancelled(
+              await select({
+                message: "Choose a new default profile:",
+                options: samePlatform.map((p) => ({ label: p.name, value: p.name })),
+              }),
+            ) as string;
+            await setDefaultProfile(newDefault);
+            output.print(chalk.green(`  "${newDefault}" is now the default profile.`));
+          }
+        }
+
+        output.outro("Done.");
+      } catch (error) {
+        operationSpinner.stop(`Failed to remove profile: ${getErrorMessage(error)}`);
+        throw new ExitError(ExitCode.Failure);
+      }
     } catch (error) {
-      operationSpinner.stop(`Failed to remove profile: ${getErrorMessage(error)}`);
-      process.exit(ExitCode.Failure);
+      if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
+      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
+}

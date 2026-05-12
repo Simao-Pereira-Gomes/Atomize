@@ -1,16 +1,19 @@
+import type { Config } from "@config/config";
 import { Command } from "commander";
-import { authAddCommand } from "./auth-add.command";
-import { authListCommand } from "./auth-list.command";
-import { authRemoveCommand } from "./auth-remove.command";
-import { authRotateCommand } from "./auth-rotate.command";
-import { authTestCommand } from "./auth-test.command";
-import { authUseCommand } from "./auth-use.command";
+import { makeAuthAddCommand } from "./auth-add.command";
+import { makeAuthListCommand } from "./auth-list.command";
+import { makeAuthRemoveCommand } from "./auth-remove.command";
+import { makeAuthRotateCommand } from "./auth-rotate.command";
+import { makeAuthTestCommand } from "./auth-test.command";
+import { makeAuthUseCommand } from "./auth-use.command";
 
-export const authCommand = new Command("auth")
-  .description("Manage named connection profiles")
-  .addCommand(authAddCommand)
-  .addCommand(authListCommand)
-  .addCommand(authRemoveCommand)
-  .addCommand(authRotateCommand)
-  .addCommand(authTestCommand)
-  .addCommand(authUseCommand);
+export function makeAuthCommand(config: Config): Command {
+  return new Command("auth")
+    .description("Manage named connection profiles")
+    .addCommand(makeAuthAddCommand(config))
+    .addCommand(makeAuthListCommand())
+    .addCommand(makeAuthRemoveCommand())
+    .addCommand(makeAuthRotateCommand())
+    .addCommand(makeAuthTestCommand())
+    .addCommand(makeAuthUseCommand());
+}

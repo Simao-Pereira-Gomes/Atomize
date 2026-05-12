@@ -7,7 +7,8 @@ import {
 } from "@/cli/utilities/command-output";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 
-export const authListCommand = new Command("list")
+export function makeAuthListCommand(): Command {
+  return new Command("list")
   .alias("ls")
   .description("List all saved connection profiles")
   .action(async () => {
@@ -48,3 +49,4 @@ export const authListCommand = new Command("list")
     const count = file.profiles.length;
     output.outro(`${count} ${count === 1 ? "profile" : "profiles"} listed`);
   });
+}
