@@ -8,25 +8,25 @@ import {
   verifyTemplateCustomFields as validateCustomFieldsAgainstSchemas,
 } from "@templates/custom-field-verifier";
 import type { CompositionMeta } from "@templates/loader";
-import {
-  analyzeTemplateProjectVerification,
-  verifyTemplateProject,
-} from "@templates/project-verifier";
 import type {
   ValidationError,
-  ValidationOptions,
   ValidationResult,
   ValidationWarning,
 } from "@templates/validator";
 import chalk from "chalk";
 import { Command } from "commander";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
+import type { CommandOutput } from "@/cli/utilities/command-output";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
-import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
+import {
+  assertNotCancelled,
+  createManagedSpinner,
+  isInteractiveTerminal,
+} from "@/cli/utilities/prompt-utilities";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
 import { totalUnconditionalEstimationPercent } from "@/core/estimation-distribution";
 import {
@@ -39,6 +39,11 @@ import type {
 } from "@/templates/schema";
 import { TemplateLibrary } from "@/templates/template-library";
 import { getErrorMessage } from "@/utils/errors";
+import {
+  type ConnectionMode,
+  type ValidateCommandApplicationDeps,
+  runValidateCommandApplication,
+} from "./validate-application";
 
 export {
   appendOfflineVerificationWarning,
@@ -47,6 +52,8 @@ export {
   getCustomFieldVerificationSummary,
   validateCustomFieldsAgainstSchemas,
 };
+
+export { resolveValidationOptions } from "./validate-application";
 
 type ValidateOptions = {
   strict?: boolean;
@@ -73,110 +80,110 @@ export const validateCommand = new Command("validate")
     });
     const output = createCommandOutput(outputPolicy);
     output.intro(" Atomize — Template Validator");
+
+    const commandLogLevel = resolveValidateLogLevel(options);
+    if (commandLogLevel) logger.level = commandLogLevel;
+
     try {
-      const commandLogLevel = resolveValidateLogLevel(options);
-      if (commandLogLevel) {
-        logger.level = commandLogLevel;
-      }
-
-      if (source.startsWith("http://")) {
-        throw new Error("Only HTTPS URLs are supported.");
-      }
-
-      const { template, meta, source: resolvedSource } = await loadTemplateSource(
+      await runValidateCommandApplication({
         source,
-        output.print,
-      );
-
-      printCompositionMeta(meta, output);
-
-      const projectRequirements = analyzeTemplateProjectVerification(template);
-
-      const connectionMode = await resolveConnectionMode(
         options,
-        projectRequirements.needsOnlineVerification,
-      );
-
-      const validationOptions = resolveValidationOptions(options);
-      const result = validateTemplate(template, validationOptions);
-      const customFieldSummary = getCustomFieldVerificationSummary(
-        template,
-        connectionMode,
-      );
-
-      const projectVerification = await verifyProjectForValidateCommand(
-        template,
-        connectionMode,
-        options,
-      );
-      result.errors.push(...projectVerification.errors);
-      result.warnings.push(...projectVerification.warnings);
-      if (projectVerification.errors.length > 0) {
-        result.valid = false;
-      }
-
-      printValidationResult(template, result, customFieldSummary, output);
-      if (result.valid && !options.quiet) {
-        const hint = resolvedSource.kind === "url"
-          ? chalk.cyan("  Install it with: ") + chalk.gray(`atomize template install ${source}`)
-          : chalk.cyan("  Try it with: ") + chalk.gray(`atomize generate ${source}`);
-        output.print(hint);
-      }
-      output.outro(result.valid ? "Validation complete ✓" : "Validation failed ✗");
-      if (!result.valid) throw new ExitError(ExitCode.Failure);
+        output,
+        deps: createValidateCommandDeps(),
+      });
     } catch (error) {
       if (!(error instanceof ExitError)) handleFatal(error, output);
       process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
 
-type ConnectionMode = "offline" | "online";
+function createValidateCommandDeps(): ValidateCommandApplicationDeps {
+  return {
+    async loadTemplateSource(source, print) {
+      return await new TemplateLibrary().loadSource(source, {
+        fetchContent: fetchTemplateContent,
+        onFetch: (url) => print(chalk.gray(`  Fetching ${url}\n`)),
+        onNotice: (message) => print(chalk.yellow(message)),
+      });
+    },
 
-async function resolveConnectionMode(
-  options: ValidateOptions,
-  hasCustomFields: boolean,
-): Promise<ConnectionMode> {
-  if (options.profile) return "online";
+    async resolveConnectionMode(options, hasCustomFields) {
+      if (options.profile) return "online";
+      if (isInteractiveTerminal() && hasCustomFields) {
+        const choice = assertNotCancelled(
+          await select({
+            message: "Validate custom fields against ADO?",
+            options: [
+              { label: "Offline — structure and format only", value: "offline" },
+              { label: "Online — connect to ADO for full field verification", value: "online" },
+            ],
+            initialValue: options.strict ? "online" : "offline",
+          }),
+        );
+        return choice as ConnectionMode;
+      }
+      return "offline";
+    },
 
-  if (isInteractiveTerminal() && hasCustomFields) {
-    const choice = assertNotCancelled(
-      await select({
-        message: "Validate custom fields against ADO?",
-        options: [
-          { label: "Offline — structure and format only", value: "offline" },
-          { label: "Online — connect to ADO for full field verification", value: "online" },
-        ],
-        // strict implies wanting the full picture; default to online
-        initialValue: options.strict ? "online" : "offline",
-      }),
-    );
-    return choice as ConnectionMode;
-  }
+    async resolveProjectVerification(connectionMode, options) {
+      if (connectionMode === "offline") {
+        return {
+          options: {
+            mode: "offline",
+            strict: options.strict === true,
+          },
+          connectionWarnings: [],
+        };
+      }
 
-  return "offline";
-}
+      const s = createManagedSpinner();
+      s.start("Connecting to ADO to validate project references...");
 
-export function resolveValidationOptions(options: ValidateOptions): ValidationOptions {
-  if (options.strict) {
-    return { mode: "strict" };
-  }
-  return {};
-}
+      try {
+        const adapter = await createAzureDevOpsAdapter(options.profile);
+        const metadataReader = requireProjectMetadataReader(adapter);
+        const savedQueryReader = requireSavedQueryReader(adapter);
+        s.message("Fetching ADO project metadata...");
+        s.stop("ADO connection ready");
+        return {
+          options: {
+            mode: "online",
+            strict: options.strict === true,
+            platform: {
+              getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
+              listSavedQueries: (folder) => savedQueryReader.listSavedQueries(folder),
+            },
+          },
+          connectionWarnings: [],
+        };
+      } catch (err) {
+        s.stop("Project reference validation failed");
+        return {
+          options: {
+            mode: "online",
+            strict: options.strict === true,
+          },
+          connectionWarnings: [{
+            path: "template",
+            message: `Could not validate project references against ADO: ${err instanceof Error ? err.message : String(err)}`,
+          }],
+        };
+      }
+    },
 
-async function loadTemplateSource(source: string, print: (msg: string) => void) {
-  const loaded = await new TemplateLibrary().loadSource(source, {
-    fetchContent: fetchTemplateContent,
-    onFetch: (url) => print(chalk.gray(`  Fetching ${url}\n`)),
-    onNotice: (message) => print(chalk.yellow(message)),
-  });
-  logger.info(`Loading template: ${loaded.source.path ?? loaded.source.url ?? loaded.source.input}`);
-  logger.info(`Template loaded: ${loaded.template.name}`);
-  return loaded;
+    printCompositionMeta(meta, output) {
+      printCompositionMeta(meta, output);
+    },
+
+    printValidationResult(template, result, customFieldSummary, isQuiet, output) {
+      printValidationResult(template, result, customFieldSummary, isQuiet, output);
+    },
+  };
 }
 
 function printCompositionMeta(
   meta: CompositionMeta,
-  output: ReturnType<typeof createCommandOutput>,
+  output: Pick<CommandOutput, "print" | "blankLine">,
 ): void {
   if (!meta.isComposed) return;
 
@@ -191,22 +198,17 @@ function printCompositionMeta(
   output.blankLine();
 }
 
-function validateTemplate(template: unknown, options?: ValidationOptions) {
-  logger.info("Validating template...");
-  return new TemplateLibrary().validateTemplate(template, options);
-}
-
-
 function printValidationResult(
   template: TaskTemplate,
   result: ValidationResult,
   customFieldSummary: CustomFieldVerificationSummary,
-  output: ReturnType<typeof createCommandOutput>,
+  isQuiet: boolean,
+  output: Pick<CommandOutput, "print" | "printAlways" | "blankLine">,
 ): void {
   output.blankLine();
 
   if (result.valid) {
-    printValidSummary(template, result.warnings, result.mode, customFieldSummary, output);
+    printValidSummary(template, result.warnings, result.mode, customFieldSummary, output, isQuiet);
     return;
   }
 
@@ -218,13 +220,14 @@ export function printValidSummary(
   warnings: ValidationWarning[],
   mode: ValidationMode,
   customFieldSummary: CustomFieldVerificationSummary,
-  output: Pick<ReturnType<typeof createCommandOutput>, "policy" | "print" | "printAlways" | "blankLine">,
+  output: Pick<CommandOutput, "print" | "printAlways" | "blankLine">,
+  isQuiet: boolean,
 ): void {
   const modeLabel =
     mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
   output.printAlways(`${chalk.green("Template is valid!")} ${modeLabel}\n`);
 
-  if (!output.policy.quiet) {
+  if (!isQuiet) {
     const summary = getTemplateSummary(template);
     output.print(chalk.bold("Summary:"));
     output.print(`  Name: ${chalk.cyan(summary.name)}`);
@@ -241,7 +244,7 @@ function printInvalidSummary(
   errors: ValidationError[],
   warnings: ValidationWarning[],
   mode: ValidationMode,
-  output: Pick<ReturnType<typeof createCommandOutput>, "print" | "printAlways" | "blankLine">,
+  output: Pick<CommandOutput, "print" | "printAlways" | "blankLine">,
 ): void {
   const modeLabel =
     mode === "strict" ? chalk.yellow("[Strict]") : chalk.gray("[Lenient]");
@@ -258,7 +261,7 @@ function printInvalidSummary(
 
 function printWarnings(
   warnings: ValidationWarning[],
-  output: Pick<ReturnType<typeof createCommandOutput>, "print" | "blankLine">,
+  output: Pick<CommandOutput, "print" | "blankLine">,
   boldTitle = false,
 ): void {
   if (!warnings?.length) return;
@@ -298,7 +301,7 @@ function formatVerificationStatus(
 
 function handleFatal(
   error: unknown,
-  output: Pick<ReturnType<typeof createCommandOutput>, "cancel" | "print">,
+  output: Pick<CommandOutput, "cancel" | "print">,
 ): void {
   output.cancel("Validation failed");
   logger.error(chalk.red("Validation failed"));
@@ -332,48 +335,6 @@ export async function validateCustomFieldsOnline(
       warnings: [{
         path: "tasks[*].customFields",
         message: `Could not validate custom fields against ADO: ${err instanceof Error ? err.message : String(err)}`,
-      }],
-    };
-  }
-}
-
-async function verifyProjectForValidateCommand(
-  template: TaskTemplate,
-  connectionMode: ConnectionMode,
-  options: ValidateOptions,
-): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-  if (connectionMode === "offline") {
-    return verifyTemplateProject(template, {
-      mode: "offline",
-      strict: options.strict === true,
-    });
-  }
-
-  const s = createManagedSpinner();
-  s.start("Connecting to ADO to validate project references...");
-
-  try {
-    const adapter = await createAzureDevOpsAdapter(options.profile);
-    const metadataReader = requireProjectMetadataReader(adapter);
-    const savedQueryReader = requireSavedQueryReader(adapter);
-    s.message("Fetching ADO project metadata...");
-    const result = await verifyTemplateProject(template, {
-      mode: "online",
-      strict: options.strict === true,
-      platform: {
-        getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
-        listSavedQueries: (folder) => savedQueryReader.listSavedQueries(folder),
-      },
-    });
-    s.stop("Project reference validation complete");
-    return result;
-  } catch (err) {
-    s.stop("Project reference validation failed");
-    return {
-      errors: [],
-      warnings: [{
-        path: "template",
-        message: `Could not validate project references against ADO: ${err instanceof Error ? err.message : String(err)}`,
       }],
     };
   }
