@@ -19,6 +19,7 @@ import {
   TemplateSourceResolver,
   type TemplateSourceResolverOptions,
 } from "./source-resolver";
+import { verifyTemplate } from "./template-verification";
 import {
   TemplateValidator,
   type ValidationOptions,
@@ -80,7 +81,7 @@ export class TemplateLibrary {
     options: TemplateSourceResolverOptions & { validate?: boolean } = {},
   ): Promise<RunnableTemplate> {
     const resolved = await this.resolver.load(source, options);
-    const validation = this.validator.validate(resolved.template);
+    const validation = await verifyTemplate(resolved.template);
     if (options.validate !== false && !validation.valid) {
       const issues = validation.errors
         .map((error) => `${error.path}: ${error.message}`)
@@ -98,6 +99,11 @@ export class TemplateLibrary {
     return await this.resolver.load(source, options);
   }
 
+  /**
+   * Validates a template's structure and constraints. Use when the template is already
+   * fully composed (no `extends` or `mixins`), or when only structural validation is needed
+   * without resolving composition references.
+   */
   validateTemplate(
     template: unknown,
     options?: ValidationOptions,
@@ -105,6 +111,15 @@ export class TemplateLibrary {
     return this.validator.validate(template, options);
   }
 
+  /**
+   * Validates a template that may declare `extends` or `mixins` references. If the template
+   * uses composition, resolves those references relative to `outputPath` first so the composed
+   * result is what gets validated. Use this when saving a template to disk — pass the intended
+   * save path as `outputPath`.
+   *
+   * For templates with no composition, falls back to the same structural validation as
+   * `validateTemplate`.
+   */
   async validateTemplateForPath(
     template: unknown,
     outputPath: string,
@@ -123,7 +138,7 @@ export class TemplateLibrary {
       template,
       outputPath,
     );
-    return this.validator.validate(resolvedTemplate, options);
+    return await verifyTemplate(resolvedTemplate, { validation: options });
   }
 
   async getCatalog(kind: TemplateCatalogKind): Promise<TemplateLibraryCatalog> {
