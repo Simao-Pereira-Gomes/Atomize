@@ -41,10 +41,12 @@ import { TemplateLibrary } from "@/templates/template-library";
 import { getErrorMessage } from "@/utils/errors";
 import {
   type ConnectionMode,
-  type ValidateCommandApplicationDeps,
   runValidateCommandApplication,
+  type ValidateCommandApplicationDeps,
 } from "./validate-application";
 
+
+export { resolveValidationOptions } from "./validate-application";
 export {
   appendOfflineVerificationWarning,
   type CustomFieldVerificationSummary,
@@ -52,8 +54,6 @@ export {
   getCustomFieldVerificationSummary,
   validateCustomFieldsAgainstSchemas,
 };
-
-export { resolveValidationOptions } from "./validate-application";
 
 type ValidateOptions = {
   strict?: boolean;
