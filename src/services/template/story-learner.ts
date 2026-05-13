@@ -17,9 +17,11 @@ import type {
  * confidence scoring, and outlier detection.
  */
 export class StoryLearner {
-  private readonly productBuilder = new LearnedTemplateProductBuilder();
-
-  constructor(private platform: StoryLearningPlatform) {}
+  constructor(
+    private platform: StoryLearningPlatform,
+    private readonly learningSession = new LearningSession(),
+    private readonly productBuilder = new LearnedTemplateProductBuilder(),
+  ) {}
 
   /**
    * Learn template from an existing story (backward-compatible).
@@ -96,13 +98,12 @@ export class StoryLearner {
         "None of the provided stories had analyzable tasks",
       );
     }
-    const learningSession = new LearningSession();
     const {
       patterns,
       mergedTasks,
       confidence,
       outliers,
-    } = learningSession.run(analyses);
+    } = this.learningSession.run(analyses);
     const template = this.productBuilder.buildMergedTemplate(
       analyses,
       mergedTasks,
