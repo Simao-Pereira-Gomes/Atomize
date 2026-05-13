@@ -6,10 +6,10 @@ import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
 } from "@templates/schema";
-import { getErrorMessage } from "@utils/errors";
 import { DependencyResolver } from "./dependency-resolver.js";
 import type { CalculatedTask } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
+import { StoryBatchProcessor } from "./story-batch-processor";
 import { StoryProcessor } from "./story-processor";
 
 /**
@@ -153,16 +153,19 @@ export class Atomizer {
   private filterEngine: FilterEngine;
   private dependencyResolver: DependencyResolver;
   private storyProcessor: StoryProcessor;
+  private storyBatchProcessor: StoryBatchProcessor;
 
   constructor(
     private platform: GenerationPlatform,
     filterEngine = new FilterEngine(),
     dependencyResolver = new DependencyResolver(),
     storyProcessor = new StoryProcessor(platform),
+    storyBatchProcessor = new StoryBatchProcessor(),
   ) {
     this.filterEngine = filterEngine;
     this.dependencyResolver = dependencyResolver;
     this.storyProcessor = storyProcessor;
+    this.storyBatchProcessor = storyBatchProcessor;
   }
 
   /**
@@ -213,7 +216,6 @@ export class Atomizer {
       logger.warn("No stories found matching filter criteria");
     }
 
-    const errors: Array<{ storyId: string; error: string }> = [];
     const warnings: string[] = [];
 
     // Resolve task dependencies once (same for all stories)
@@ -228,16 +230,16 @@ export class Atomizer {
       `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,
     );
 
-    const results = await this.processStoriesInParallel(
+    const { results, errors } = await this.storyBatchProcessor.process({
       stories,
       orderedTasks,
       template,
       connectUserEmail,
       options,
-      storyConcurrency,
-      errors,
       warnings,
-    );
+      concurrency: storyConcurrency,
+      storyProcessor: this.storyProcessor,
+    });
 
     const storiesSuccess = results.filter((r) => r.success).length;
     const storiesFailed = results.filter((r) => !r.success).length;
@@ -300,127 +302,6 @@ export class Atomizer {
     }
 
     return report;
-  }
-
-  /**
-   * Process stories in parallel batches
-   */
-  private async processStoriesInParallel(
-    stories: WorkItem[],
-    orderedTasks: TemplateTaskDefinition[],
-    template: TaskTemplate,
-    connectUserEmail: string,
-    options: AtomizationOptions,
-    concurrency: number,
-    errors: Array<{ storyId: string; error: string }>,
-    warnings: string[],
-  ): Promise<StoryAtomizationResult[]> {
-    const results: StoryAtomizationResult[] = new Array(stories.length);
-    let stopProcessing = false;
-    let completedStories = 0;
-    let totalTasksCreated = 0;
-    const onProgress = options.onProgress;
-
-    for (let i = 0; i < stories.length; i += concurrency) {
-      if (stopProcessing) break;
-
-      const batch = stories.slice(i, i + concurrency);
-      const batchPromises = batch.map(async (story, batchIndex) => {
-        const storyIndex = i + batchIndex;
-
-        // Skip if we've been told to stop (due to error with continueOnError=false)
-        if (stopProcessing) {
-          return null;
-        }
-
-        onProgress?.({
-          type: "story_start",
-          storyIndex,
-          totalStories: stories.length,
-          story,
-        });
-
-        try {
-          const result = await this.processStory(
-            story,
-            orderedTasks,
-            template,
-            connectUserEmail,
-            options,
-            warnings,
-          );
-          results[storyIndex] = result;
-
-          completedStories++;
-          totalTasksCreated += result.tasksCreated.length;
-
-          onProgress?.({
-            type: "story_complete",
-            storyIndex,
-            totalStories: stories.length,
-            completedStories,
-            story,
-            tasksCreated: totalTasksCreated,
-          });
-
-          return result;
-        } catch (error) {
-          const errorMessage =
-            getErrorMessage(error);
-
-          logger.error(`Error processing story ${story.id}: ${errorMessage}`);
-
-          errors.push({
-            storyId: story.id,
-            error: errorMessage,
-          });
-
-          const failedResult: StoryAtomizationResult = {
-            story,
-            tasksCalculated: [],
-            tasksCreated: [],
-            success: false,
-            error: errorMessage,
-          };
-          results[storyIndex] = failedResult;
-
-          completedStories++;
-          onProgress?.({
-            type: "story_error",
-            storyIndex,
-            totalStories: stories.length,
-            completedStories,
-            story,
-            error: errorMessage,
-          });
-
-          if (!options.continueOnError) {
-            logger.error("Stopping on first error (continueOnError=false)");
-            stopProcessing = true;
-          }
-
-          return failedResult;
-        }
-      });
-
-      await Promise.all(batchPromises);
-    }
-
-    // Filter out any undefined results (from stopped processing)
-    return results.filter(
-      (r): r is StoryAtomizationResult => r !== undefined && r !== null,
-    );
-  }
-
-  private async processStory(
-    story: WorkItem,
-    orderedTasks: TemplateTaskDefinition[],
-    template: TaskTemplate,
-    connectUserEmail: string,
-    options: AtomizationOptions,
-    warnings: string[],
-  ): Promise<StoryAtomizationResult> {
-    return this.storyProcessor.process(story, orderedTasks, template, connectUserEmail, options, warnings);
   }
 
   /**
