@@ -13,6 +13,53 @@ export interface TaskMaterializationOptions {
  * Owns the write side of generation: create Tasks, correlate them back to
  * Template task IDs, and link dependencies between the created Work Items.
  */
+export function planDependencyLinks(
+  calculatedTasks: CalculatedTask[],
+  createdTasks: WorkItem[],
+  templateTasks: TemplateTaskDefinition[],
+): Array<{ dependentTask: WorkItem; predecessorTask: WorkItem }> {
+  const templateIdToTask = new Map<string, WorkItem>();
+  for (let i = 0; i < calculatedTasks.length; i++) {
+    const calculatedTask = calculatedTasks[i];
+    const createdTask = createdTasks[i];
+    if (calculatedTask?.templateId && createdTask) {
+      templateIdToTask.set(calculatedTask.templateId, createdTask);
+    }
+  }
+
+  const dependencyLinks: Array<{ dependentTask: WorkItem; predecessorTask: WorkItem }> = [];
+
+  for (const templateTask of templateTasks) {
+    if (!templateTask.dependsOn || templateTask.dependsOn.length === 0) continue;
+
+    const dependentTask = templateTask.id
+      ? templateIdToTask.get(templateTask.id)
+      : undefined;
+
+    if (!dependentTask) {
+      logger.warn(
+        `Cannot create dependency links for task "${templateTask.title}" - task not created or has no ID`,
+      );
+      continue;
+    }
+
+    for (const depId of templateTask.dependsOn) {
+      const predecessorTask = templateIdToTask.get(depId);
+
+      if (!predecessorTask) {
+        logger.warn(
+          `Cannot create dependency link: predecessor task with ID "${depId}" not found`,
+        );
+        continue;
+      }
+
+      dependencyLinks.push({ dependentTask, predecessorTask });
+    }
+  }
+
+  return dependencyLinks;
+}
+
 export class TaskMaterializer {
   constructor(private readonly platform: GenerationPlatform) {}
 
@@ -23,56 +70,9 @@ export class TaskMaterializer {
     options: TaskMaterializationOptions = {},
   ): Promise<WorkItem[]> {
     const createdTasks = await this.platform.createTasksBulk(parentId, calculatedTasks);
-    const dependencyLinks = this.planDependencyLinks(calculatedTasks, createdTasks, templateTasks);
+    const dependencyLinks = planDependencyLinks(calculatedTasks, createdTasks, templateTasks);
     await this.createDependencyLinks(dependencyLinks, options.dependencyConcurrency ?? 5);
     return createdTasks;
-  }
-
-  private planDependencyLinks(
-    calculatedTasks: CalculatedTask[],
-    createdTasks: WorkItem[],
-    templateTasks: TemplateTaskDefinition[],
-  ): Array<{ dependentTask: WorkItem; predecessorTask: WorkItem }> {
-    const templateIdToTask = new Map<string, WorkItem>();
-    for (let i = 0; i < calculatedTasks.length; i++) {
-      const calculatedTask = calculatedTasks[i];
-      const createdTask = createdTasks[i];
-      if (calculatedTask?.templateId && createdTask) {
-        templateIdToTask.set(calculatedTask.templateId, createdTask);
-      }
-    }
-
-    const dependencyLinks: Array<{ dependentTask: WorkItem; predecessorTask: WorkItem }> = [];
-
-    for (const templateTask of templateTasks) {
-      if (!templateTask.dependsOn || templateTask.dependsOn.length === 0) continue;
-
-      const dependentTask = templateTask.id
-        ? templateIdToTask.get(templateTask.id)
-        : undefined;
-
-      if (!dependentTask) {
-        logger.warn(
-          `Cannot create dependency links for task "${templateTask.title}" - task not created or has no ID`,
-        );
-        continue;
-      }
-
-      for (const depId of templateTask.dependsOn) {
-        const predecessorTask = templateIdToTask.get(depId);
-
-        if (!predecessorTask) {
-          logger.warn(
-            `Cannot create dependency link: predecessor task with ID "${depId}" not found`,
-          );
-          continue;
-        }
-
-        dependencyLinks.push({ dependentTask, predecessorTask });
-      }
-    }
-
-    return dependencyLinks;
   }
 
   private async createDependencyLinks(
