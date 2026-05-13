@@ -640,7 +640,7 @@ export async function createFromScratch(
       ]);
 
       return {
-        adapter,
+        metadataReader,
         fieldSchemas: taskSchemas,
         filterCtx: {
           workItemTypes: liveWorkItemTypes,
@@ -670,7 +670,7 @@ export async function createFromScratch(
 
     let filterCtx: import("./template-wizard-helper.command").FilterWizardContext;
     let fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
-    let adapterForWizard: import("@platforms/adapters/azure-devops/azure-devops.adapter").AzureDevOpsAdapter;
+    let adapterForWizard: ReturnType<typeof requireProjectMetadataReader>;
 
     const wasAlreadyConnected = connectionSettled;
     const connectSpinner = createManagedSpinner();
@@ -680,7 +680,7 @@ export async function createFromScratch(
       if (!wasAlreadyConnected) connectSpinner.stop("Connected ✓");
       filterCtx = conn.filterCtx;
       fieldSchemas = conn.fieldSchemas;
-      adapterForWizard = conn.adapter;
+      adapterForWizard = conn.metadataReader;
     } catch (err) {
       if (!wasAlreadyConnected) connectSpinner.stop("Connection failed");
       const message = err instanceof Error ? err.message : String(err);

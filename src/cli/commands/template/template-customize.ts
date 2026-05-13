@@ -1,5 +1,4 @@
 import { confirm, multiselect } from "@clack/prompts";
-import type { AzureDevOpsAdapter } from "@platforms/adapters/azure-devops/azure-devops.adapter";
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import type { TaskTemplate } from "@templates/schema";
 import chalk from "chalk";
@@ -9,6 +8,10 @@ import {
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
+import {
+  requireProjectMetadataReader,
+  requireSavedQueryReader,
+} from "@/platforms/capabilities";
 import { CancellationError, ConfigurationError } from "@/utils/errors";
 import {
   configureBasicInfo,
@@ -34,6 +37,8 @@ export async function customizeTemplate(
   let connectionSettled = false;
   const connectionPromise = (async () => {
     const adapter = await createAzureDevOpsAdapter(profile);
+    const metadataReader = requireProjectMetadataReader(adapter);
+    const savedQueryReader = requireSavedQueryReader(adapter);
     const [
       taskSchemas,
       liveWorkItemTypes,
@@ -42,20 +47,20 @@ export async function customizeTemplate(
       liveTeams,
       liveSavedQueries,
     ] = await Promise.all([
-      adapter.getFieldSchemas("Task"),
-      adapter.getWorkItemTypes(),
-      adapter.getAreaPaths(),
-      adapter.getIterationPaths(),
-      adapter.getTeams(),
-      adapter.listSavedQueries(),
+      metadataReader.getFieldSchemas("Task"),
+      metadataReader.getWorkItemTypes(),
+      metadataReader.getAreaPaths(),
+      metadataReader.getIterationPaths(),
+      metadataReader.getTeams(),
+      savedQueryReader.listSavedQueries(),
     ]);
     return {
-      adapter,
+      metadataReader,
       fieldSchemas: taskSchemas,
       filterCtx: {
         workItemTypes: liveWorkItemTypes,
         getStatesForType: (type: string) =>
-          adapter.getStatesForWorkItemType(type),
+          metadataReader.getStatesForWorkItemType(type),
         areaPaths: liveAreaPaths,
         iterationPaths: liveIterationPaths,
         teams: liveTeams,
@@ -101,14 +106,14 @@ export async function customizeTemplate(
 
   let filterCtx: FilterWizardContext;
   let fieldSchemas: ADoFieldSchema[];
-  let adapterForWizard: AzureDevOpsAdapter;
+  let adapterForWizard: ReturnType<typeof requireProjectMetadataReader>;
 
   try {
     const conn = await connectionPromise;
     if (!wasAlreadyConnected) connectSpinner.stop("Connected ✓");
     filterCtx = conn.filterCtx;
     fieldSchemas = conn.fieldSchemas;
-    adapterForWizard = conn.adapter;
+    adapterForWizard = conn.metadataReader;
   } catch (err) {
     if (!wasAlreadyConnected) connectSpinner.stop("Connection failed");
     const message = err instanceof Error ? err.message : String(err);
