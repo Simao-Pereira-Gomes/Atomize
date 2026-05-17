@@ -1,0 +1,34 @@
+# atomize-yaml
+version: "1.0"
+name: "Custom Location Template"
+description: "Example template stored outside a standard templates/ or atomize/ directory. The '# atomize-yaml' modeline on line 1 assigns the Atomize YAML language ID regardless of where this file lives — enabling schema autocomplete and validation without relying on the file's path."
+author: "Atomize"
+tags: ["template", "example"]
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active"]
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    description: "Implement the feature according to the agreed design."
+    estimationPercent: 70
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+
+  - id: "test"
+    title: "Test: ${story.title}"
+    description: "Write and execute tests to validate the feature against acceptance criteria."
+    estimationPercent: 30
+    activity: "Testing"
+    dependsOn: ["implement"]
+
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  ifParentHasNoEstimation: "warn"
+
+validation:
+  totalEstimationMustBe: 100

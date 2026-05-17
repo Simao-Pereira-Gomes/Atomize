@@ -79,3 +79,15 @@ Offline task generation evaluated against a Mock Story. Produces a resolved task
 - `src/extension.ts` — activation entry point; checks for Atomize CLI on startup
 - `schemas/atomize-template.schema.json` — generated JSON Schema (draft-7) derived from `TaskTemplateSchema` and `MixinTemplateSchema`; committed and bundled with the extension for YAML autocomplete
 - Build: esbuild to CJS targeting the extension host; schema generation runs as a prebuild step via `scripts/generate-schema.ts` at the root
+
+**Atomize YAML File**:
+Any YAML file authored for Atomize — either a Template or a Mixin. Both kinds benefit from schema autocomplete, validation, and the extension's language features. The VS Code custom language ID covers both kinds under a single ID.
+The VS Code language ID is `atomize-yaml`, following the convention of framework-specific YAML dialects (e.g. `azure-pipelines`, `github-actions`).
+_Avoid_: using "atomize-template" as the language ID name, since it implies Templates only and silently excludes Mixins.
+
+The modeline convention (`# atomize-yaml` as line 1) is documented via `examples/custom-location.atomize.yaml`. Existing repo templates under `templates/` do not carry the modeline — they are already covered by Layer 1 path patterns and the modeline would be redundant there.
+
+Layer 3 content detection signatures:
+- **Template**: `version:` AND `tasks:` present as root-level keys
+- **Mixin**: `tasks:` present as a root-level key, at least one task item contains `id:` as a property, AND `version:` is absent
+Both checks scan the first 50 lines using string/regex matching — no full YAML parser.

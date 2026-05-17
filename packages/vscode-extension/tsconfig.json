@@ -1,7 +1,7 @@
 {
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
-		"types": ["node", "vscode"],
+		"types": ["node", "vscode", "bun-types"],
 		"rootDir": "./src",
 		"outDir": "./dist",
 		"paths": {}

@@ -11,6 +11,23 @@
 	"categories": ["Other"],
 	"activationEvents": ["onStartupFinished"],
 	"main": "./dist/extension.js",
+	"contributes": {
+		"languages": [
+			{
+				"id": "atomize-yaml",
+				"aliases": ["Atomize YAML"],
+				"filenamePatterns": [
+					"**/templates/**/*.yml",
+					"**/templates/**/*.yaml",
+					"**/atomize/**/*.yml",
+					"**/atomize/**/*.yaml",
+					"**/*.atomize.yml",
+					"**/*.atomize.yaml"
+				],
+				"firstLine": "^#\\s*atomize-yaml"
+			}
+		]
+	},
 	"scripts": {
 		"prebuild": "bun run --cwd ../.. generate-schema",
 		"build": "bun esbuild.mjs",
