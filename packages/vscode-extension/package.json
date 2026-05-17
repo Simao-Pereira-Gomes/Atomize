@@ -27,6 +27,12 @@
 				],
 				"firstLine": "^#\\s*atomize-yaml"
 			}
+		],
+		"snippets": [
+			{
+				"language": "atomize-yaml",
+				"path": "./snippets/atomize-yaml.code-snippets"
+			}
 		]
 	},
 	"scripts": {

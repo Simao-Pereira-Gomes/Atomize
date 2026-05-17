@@ -81,6 +81,8 @@ Offline task generation evaluated against a Mock Story. Produces a resolved task
 - Schema wiring: uses `redhat.vscode-yaml`'s `registerContributor` API scoped to `languageId === 'atomize-yaml'`; dual-signal in `requestSchema` (language ID check first, Layer 1 filename patterns as fallback for first-open timing); silently skipped if `redhat.vscode-yaml` is absent
 - Field hover descriptions sourced from `.describe()` calls on Zod field definitions in `src/templates/schema.ts`; never patched onto the generated JSON Schema file directly
 - Build: esbuild to CJS targeting the extension host; schema generation runs as a prebuild step via `scripts/generate-schema.ts` at the root
+- Snippets: 10 snippets registered under `contributes.snippets` in `package.json`, all scoped to `atomize-yaml`. Prefix convention is `atm-`. Snippets are defined in `snippets/atomize-yaml.code-snippets`. The `atm-filter-ado` snippet covers Azure DevOps–specific filter fields (`areaPaths`, `areaPathsUnder`, `iterations`, `team`, `statesExclude`, `statesWereEver`) kept separate from the base `atm-filter` to signal platform specificity and avoid cluttering the minimal filter scaffold.
+_Avoid_: scoping snippets to a language ID other than `atomize-yaml` — any alternative ID (e.g. `atomize-template`) is unregistered and will silently never fire.
 
 **Atomize YAML File**:
 Any YAML file authored for Atomize — either a Template or a Mixin. Both kinds benefit from schema autocomplete, validation, and the extension's language features. The VS Code custom language ID covers both kinds under a single ID.
