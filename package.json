@@ -8,6 +8,7 @@
 		"atomize": "dist/cli/index.js",
 		"atom": "dist/cli/index.js"
 	},
+	"workspaces": ["packages/*"],
 	"publishConfig": {
 		"access": "public",
 		"tag": "latest"
