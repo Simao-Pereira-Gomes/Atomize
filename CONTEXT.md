@@ -74,3 +74,8 @@ Offline task generation evaluated against a Mock Story. Produces a resolved task
 
 **Report Formatting** (`src/core/report-formatter.ts`):
 - `sanitizeReport`, `writeReportFile` — extracted from CLI generate command; testable without prompts
+
+**VS Code Extension** (`packages/vscode-extension/`):
+- `src/extension.ts` — activation entry point; checks for Atomize CLI on startup
+- `schemas/atomize-template.schema.json` — generated JSON Schema (draft-7) derived from `TaskTemplateSchema` and `MixinTemplateSchema`; committed and bundled with the extension for YAML autocomplete
+- Build: esbuild to CJS targeting the extension host; schema generation runs as a prebuild step via `scripts/generate-schema.ts` at the root

@@ -42,6 +42,6 @@
 		"types": ["bun-types"],
 		"skipLibCheck": true
 	},
-	"include": ["src/**/*", "tests/**/*", "benchmarks"],
+	"include": ["src/**/*", "tests/**/*", "benchmarks", "scripts/**/*"],
 	"exclude": ["node_modules", "dist"]
 }

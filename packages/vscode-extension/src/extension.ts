@@ -1,5 +1,5 @@
-import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
+import * as vscode from 'vscode';
 
 const INSTALL_URL = 'https://www.npmjs.com/package/@sppg2001/atomize';
 

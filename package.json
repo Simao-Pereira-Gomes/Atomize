@@ -42,7 +42,9 @@
 		"check": "bun typecheck && bun test",
 		"lint": "bunx biome check --max-diagnostics 100",
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100",
-		"benchmark": "bun run benchmarks/index.ts"
+		"benchmark": "bun run benchmarks/index.ts",
+		"generate-schema": "bun scripts/generate-schema.ts",
+		"check-schema": "bun run generate-schema && git diff --exit-code packages/vscode-extension/schemas/"
 	},
 	"keywords": [
 		"devops",

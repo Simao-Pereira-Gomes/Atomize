@@ -1,0 +1,721 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Auto-generated from src/templates/schema.ts — do not edit manually. Cross-field constraints (cycle detection, unique task IDs, estimation totals) are enforced at runtime only.",
+  "x-generated-from": "src/templates/schema.ts",
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "minLength": 1
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "equals",
+                "not-equals",
+                "contains",
+                "not-contains",
+                "gt",
+                "lt",
+                "gte",
+                "lte"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "customField": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.]*\\.[A-Za-z][A-Za-z0-9_]*$"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "equals",
+                "not-equals",
+                "contains",
+                "not-contains",
+                "gt",
+                "lt",
+                "gte",
+                "lte"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "required": [
+            "customField",
+            "operator",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "all": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              }
+            }
+          },
+          "required": [
+            "all"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "any": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              }
+            }
+          },
+          "required": [
+            "any"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "default": "1.0",
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "created": {
+          "type": "string"
+        },
+        "lastModified": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "object",
+          "properties": {
+            "team": {
+              "type": "string"
+            },
+            "workItemTypes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "states": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "statesExclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "statesWereEver": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "properties": {
+                "include": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "areaPaths": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string",
+                    "const": "@TeamAreas"
+                  }
+                ]
+              }
+            },
+            "areaPathsUnder": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "iterations": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string",
+                    "const": "@CurrentIteration"
+                  }
+                ]
+              }
+            },
+            "iterationsUnder": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "assignedTo": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  {
+                    "type": "string",
+                    "const": "@Me"
+                  }
+                ]
+              }
+            },
+            "changedAfter": {
+              "type": "string"
+            },
+            "createdAfter": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
+            "excludeIfHasTasks": {
+              "type": "boolean"
+            },
+            "savedQuery": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "tasks": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string"
+              },
+              "estimationPercent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "estimationPercentCondition": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "condition": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    }
+                  },
+                  "required": [
+                    "condition",
+                    "percent"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "estimationFixed": {
+                "type": "number",
+                "minimum": 0
+              },
+              "estimationFormula": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "condition": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "dependsOn": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "assignTo": {
+                "type": "string"
+              },
+              "priority": {
+                "type": "number"
+              },
+              "activity": {
+                "type": "string"
+              },
+              "acceptanceCriteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "acceptanceCriteriaAsChecklist": {
+                "type": "boolean"
+              },
+              "customFields": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "estimation": {
+          "type": "object",
+          "properties": {
+            "strategy": {
+              "default": "percentage",
+              "type": "string",
+              "enum": [
+                "percentage"
+              ]
+            },
+            "source": {
+              "type": "string"
+            },
+            "rounding": {
+              "default": "none",
+              "type": "string",
+              "enum": [
+                "nearest",
+                "up",
+                "down",
+                "none"
+              ]
+            },
+            "minimumTaskPoints": {
+              "type": "number"
+            },
+            "ifParentHasNoEstimation": {
+              "type": "string",
+              "enum": [
+                "skip",
+                "warn",
+                "use-default"
+              ]
+            },
+            "defaultParentEstimation": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "strategy",
+            "rounding"
+          ],
+          "additionalProperties": false
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "strict",
+                "lenient"
+              ]
+            },
+            "totalEstimationMustBe": {
+              "type": "number"
+            },
+            "totalEstimationRange": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "min",
+                "max"
+              ],
+              "additionalProperties": false
+            },
+            "minTasks": {
+              "type": "number"
+            },
+            "maxTasks": {
+              "type": "number"
+            },
+            "taskEstimationRange": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "min",
+                "max"
+              ],
+              "additionalProperties": false
+            },
+            "requiredTasks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string"
+            },
+            "difficulty": {
+              "type": "string",
+              "enum": [
+                "beginner",
+                "intermediate",
+                "advanced"
+              ]
+            },
+            "recommendedFor": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "estimationGuidelines": {
+              "type": "string"
+            },
+            "examples": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "changelog": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "changes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "version",
+                  "date",
+                  "changes"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "extends": {
+          "type": "string"
+        },
+        "mixins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "name",
+        "filter",
+        "tasks"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "tasks": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string"
+              },
+              "estimationPercent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "estimationPercentCondition": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "condition": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    }
+                  },
+                  "required": [
+                    "condition",
+                    "percent"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "estimationFixed": {
+                "type": "number",
+                "minimum": 0
+              },
+              "estimationFormula": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "condition": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "dependsOn": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "assignTo": {
+                "type": "string"
+              },
+              "priority": {
+                "type": "number"
+              },
+              "activity": {
+                "type": "string"
+              },
+              "acceptanceCriteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "acceptanceCriteriaAsChecklist": {
+                "type": "boolean"
+              },
+              "customFields": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "name",
+        "tasks"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

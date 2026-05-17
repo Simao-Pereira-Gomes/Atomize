@@ -12,6 +12,7 @@
 	"activationEvents": ["onStartupFinished"],
 	"main": "./dist/extension.js",
 	"scripts": {
+		"prebuild": "bun run --cwd ../.. generate-schema",
 		"build": "bun esbuild.mjs",
 		"package": "vsce package --no-dependencies",
 		"typecheck": "tsc --noEmit"
