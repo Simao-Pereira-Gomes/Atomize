@@ -32,6 +32,12 @@ A concrete adapter that lets Atomize read, create, and link work items on a work
 **Story Learner**:
 The module that derives a reusable template from existing stories and their child tasks.
 
+**Mock Story**:
+A user-supplied JSON object of story field values (using `WorkItem` property names) used to simulate task generation without a platform connection. Required fields (`id`, `title`, `type`, `state`) are silently defaulted if omitted.
+
+**Mock Preview**:
+Offline task generation evaluated against a Mock Story. Produces a resolved task list — including skipped conditional tasks and estimation breakdowns — without querying or creating work items on any platform.
+
 ## Relationships
 
 - A **Template** selects one or more **Stories** and defines one or more generated **Tasks**.
@@ -39,6 +45,7 @@ The module that derives a reusable template from existing stories and their chil
 - The **Template Library** resolves **Templates** and **Mixins** from the **Catalog** or direct sources.
 - A **Platform Adapter** reads **Stories** and creates or links **Tasks**.
 - The **Story Learner** reads **Stories** and **Tasks** through a **Platform Adapter** and produces a **Template**.
+- A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
 
 ## Example Dialogue
 

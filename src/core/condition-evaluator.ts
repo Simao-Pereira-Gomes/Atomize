@@ -3,6 +3,27 @@ import type { WorkItem } from "../platforms/interfaces/work-item.interface.js";
 import type { Condition, ConditionOperator } from "../templates/schema.js";
 
 /**
+ * Extracts all standard WorkItem field paths (e.g. "tags", "estimation") from a
+ * structured Condition by recursively traversing compound clauses.
+ */
+export function extractStandardFieldRefs(condition: Condition): string[] {
+  const refs: string[] = [];
+
+  function traverse(cond: Condition): void {
+    if ("field" in cond) {
+      if (!refs.includes(cond.field)) refs.push(cond.field);
+    } else if ("all" in cond) {
+      cond.all.forEach(traverse);
+    } else if ("any" in cond) {
+      cond.any.forEach(traverse);
+    }
+  }
+
+  traverse(condition);
+  return refs;
+}
+
+/**
  * Extracts all ADO custom field reference names (e.g. "Custom.ClientTier") from a
  * structured Condition by recursively traversing compound clauses.
  */

@@ -7,6 +7,7 @@ import { name, version } from "../../package.json";
 import { makeAuthCommand } from "./commands/auth/auth.command";
 import { fieldsCommand } from "./commands/fields/fields.command";
 import { makeGenerateCommand } from "./commands/generate.command";
+import { previewCommand } from "./commands/preview.command";
 import { queriesCommand } from "./commands/queries/queries.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
@@ -61,6 +62,7 @@ program.addCommand(makeAuthCommand(config));
 program.addCommand(fieldsCommand);
 program.addCommand(queriesCommand);
 program.addCommand(validateCommand);
+program.addCommand(previewCommand);
 program.addCommand(makeGenerateCommand(createOutputSink, createPromptDriver(), config));
 program.addCommand(templateCommand);
 if (process.argv.length === 2) {

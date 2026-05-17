@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { serializeProfileForJson } from "@/cli/commands/auth/auth-list.command";
 import type { ConnectionProfile } from "@config/connections.interface";
+import { serializeProfileForJson } from "@/cli/commands/auth/auth-list.command";
 
 const azureProfile: ConnectionProfile = {
   name: "work",
