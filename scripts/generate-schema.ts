@@ -9,7 +9,8 @@ const outFile = join(outDir, "atomize-template.schema.json");
 const combined = z.union([TaskTemplateSchema, MixinTemplateSchema]);
 const { anyOf, $schema, ...rest } = z.toJSONSchema(combined);
 
-// z.union() produces anyOf; rename to oneOf — a YAML file is exactly one template type
+// Keep anyOf (not oneOf) so partially-authored files stay valid during editing.
+// Runtime validation enforces mutual exclusion between Template and Mixin.
 const output = {
   $schema: $schema ?? "https://json-schema.org/draft/2020-12/schema",
   $comment:
@@ -17,7 +18,7 @@ const output = {
     "Cross-field constraints (cycle detection, unique task IDs, estimation totals) are enforced at runtime only.",
   "x-generated-from": "src/templates/schema.ts",
   ...rest,
-  ...(anyOf ? { oneOf: anyOf } : {}),
+  ...(anyOf ? { anyOf } : {}),
 };
 
 mkdirSync(outDir, { recursive: true });

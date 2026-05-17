@@ -28,20 +28,26 @@ const REFERENCE_NAME_RE = /^[A-Za-z][A-Za-z0-9_.]*\.[A-Za-z][A-Za-z0-9_]*$/;
 /**
  * Structured condition operators for task and estimation conditions.
  */
-export const ConditionOperatorSchema = z.enum([
-  "equals",
-  "not-equals",
-  "contains",
-  "not-contains",
-  "gt",
-  "lt",
-  "gte",
-  "lte",
-]);
+export const ConditionOperatorSchema = z
+  .enum([
+    "equals",
+    "not-equals",
+    "contains",
+    "not-contains",
+    "gt",
+    "lt",
+    "gte",
+    "lte",
+  ])
+  .describe(
+    "Comparison operator. equals/not-equals: exact match. contains/not-contains: substring or array membership. gt/lt/gte/lte: numeric comparison.",
+  );
 
 export type ConditionOperator = z.infer<typeof ConditionOperatorSchema>;
 
-const ConditionValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+const ConditionValueSchema = z
+  .union([z.string(), z.number(), z.boolean()])
+  .describe("Value to compare against. Can be a string, number, or boolean.");
 
 /**
  * Structured task condition — evaluated against the parent story at generate time.
@@ -60,7 +66,12 @@ export type Condition =
 export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
   z.union([
     z.object({
-      field: z.string().min(1),
+      field: z
+        .string()
+        .min(1)
+        .describe(
+          "Standard work item field name to evaluate (e.g. 'tags', 'priority', 'state', 'title').",
+        ),
       operator: ConditionOperatorSchema,
       value: ConditionValueSchema,
     }),
@@ -70,20 +81,42 @@ export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
         .regex(
           REFERENCE_NAME_RE,
           'Custom field reference must be in "Namespace.FieldName" format (e.g. "Custom.ClientTier").',
+        )
+        .describe(
+          "Azure DevOps custom field reference in 'Namespace.FieldName' format (e.g. 'Custom.ClientTier').",
         ),
       operator: ConditionOperatorSchema,
       value: ConditionValueSchema,
     }),
-    z.object({ all: z.array(ConditionSchema).min(1, "all requires at least one clause") }),
-    z.object({ any: z.array(ConditionSchema).min(1, "any requires at least one clause") }),
+    z.object({
+      all: z
+        .array(ConditionSchema)
+        .min(1, "all requires at least one clause")
+        .describe("Sub-conditions that must all match (logical AND)."),
+    }),
+    z.object({
+      any: z
+        .array(ConditionSchema)
+        .min(1, "any requires at least one clause")
+        .describe("Sub-conditions where at least one must match (logical OR)."),
+    }),
   ]),
 );
 
 
 export const SavedQuerySchema = z
   .object({
-    id: z.uuid().optional(),
-    path: z.string().min(1).optional(),
+    id: z
+      .uuid()
+      .describe("Azure DevOps saved query GUID.")
+      .optional(),
+    path: z
+      .string()
+      .min(1)
+      .describe(
+        "Path to the saved query in Azure DevOps (e.g. 'My Queries/Sprint Stories').",
+      )
+      .optional(),
   })
   .refine((d) => !!(d.id ?? d.path), {
     message: "savedQuery requires either id or path",
@@ -93,70 +126,184 @@ export const SavedQuerySchema = z
   });
 
 export const FilterCriteriaSchema = z.object({
-  team: z.string().optional(),
-  workItemTypes: z.array(z.string()).optional(),
-  states: z.array(z.string()).optional(),
-  statesExclude: z.array(z.string()).optional(),
-  statesWereEver: z.array(z.string()).optional(),
+  team: z
+    .string()
+    .describe(
+      "Azure DevOps team name. Limits story selection to stories owned by this team.",
+    )
+    .optional(),
+  workItemTypes: z
+    .array(z.string())
+    .describe("Work item types to include (e.g. ['User Story', 'Bug']).")
+    .optional(),
+  states: z
+    .array(z.string())
+    .describe("Story states to target (e.g. ['Active', 'New']).")
+    .optional(),
+  statesExclude: z
+    .array(z.string())
+    .describe("Story states to exclude from selection.")
+    .optional(),
+  statesWereEver: z
+    .array(z.string())
+    .describe("Include stories that were ever in any of these states.")
+    .optional(),
   tags: z
     .object({
-      include: z.array(z.string()).optional(),
-      exclude: z.array(z.string()).optional(),
+      include: z
+        .array(z.string())
+        .describe("Include stories that have at least one of these tags.")
+        .optional(),
+      exclude: z
+        .array(z.string())
+        .describe("Exclude stories that have any of these tags.")
+        .optional(),
     })
+    .describe("Tag-based filter — include or exclude stories by tag.")
     .optional(),
   areaPaths: z
     .array(z.union([z.string(), z.literal("@TeamAreas")]))
+    .describe(
+      "Area paths to filter by. Use '@TeamAreas' to match all areas owned by the configured team.",
+    )
     .optional(),
-  areaPathsUnder: z.array(z.string()).optional(),
+  areaPathsUnder: z
+    .array(z.string())
+    .describe("Include stories in these area paths and all sub-paths.")
+    .optional(),
   iterations: z
     .array(z.union([z.string(), z.literal("@CurrentIteration")]))
+    .describe(
+      "Iterations to filter by. Use '@CurrentIteration' for the active sprint.",
+    )
     .optional(),
-  iterationsUnder: z.array(z.string()).optional(),
-  assignedTo: z.array(z.union([z.email(), z.literal("@Me")])).optional(),
-  changedAfter: DateOrMacroSchema.optional(),
-  createdAfter: DateOrMacroSchema.optional(),
+  iterationsUnder: z
+    .array(z.string())
+    .describe("Include stories in these iterations and all sub-iterations.")
+    .optional(),
+  assignedTo: z
+    .array(z.union([z.email(), z.literal("@Me")]))
+    .describe(
+      "Assignee filter. Accepts email addresses or '@Me' for the authenticated user.",
+    )
+    .optional(),
+  changedAfter: DateOrMacroSchema.describe(
+    "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7').",
+  ).optional(),
+  createdAfter: DateOrMacroSchema.describe(
+    "Include stories created after this date. ISO 8601 date or date macro.",
+  ).optional(),
   priority: z
     .object({
-      min: z.number().optional(),
-      max: z.number().optional(),
+      min: z.number().describe("Minimum priority value (inclusive).").optional(),
+      max: z.number().describe("Maximum priority value (inclusive).").optional(),
     })
+    .describe("Priority range filter for story selection.")
     .optional(),
-  excludeIfHasTasks: z.boolean().optional(),
-  savedQuery: SavedQuerySchema.optional(),
+  excludeIfHasTasks: z
+    .boolean()
+    .describe("If true, skips stories that already have child tasks.")
+    .optional(),
+  savedQuery: SavedQuerySchema.describe(
+    "Reference an existing Azure DevOps saved query to select stories.",
+  ).optional(),
 });
 
 export const EstimationPercentConditionSchema = z.object({
-  condition: ConditionSchema,
-  percent: z.number().min(0).max(100),
+  condition: ConditionSchema.describe(
+    "Condition evaluated against the parent story. Applied when this condition matches.",
+  ),
+  percent: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe("Estimation percentage used when this condition matches (0–100)."),
 });
 
 export const TaskDefinitionSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().min(1, "Task title is required"),
-  description: z.string().optional(),
+  id: z
+    .string()
+    .describe(
+      "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
+    )
+    .optional(),
+  title: z
+    .string()
+    .min(1, "Task title is required")
+    .describe("Task title — shown as the work item title in Azure DevOps."),
+  description: z
+    .string()
+    .describe("Additional details or notes for this task.")
+    .optional(),
   estimationPercent: z
     .number()
     .min(0, "Estimation percentage cannot be negative")
     .max(100, "Estimation percentage for a single task cannot exceed 100%")
+    .describe(
+      "Percentage of the parent story's estimate assigned to this task (0–100). Requires estimation.strategy = 'percentage'.",
+    )
     .optional(),
   estimationPercentCondition: z
     .array(EstimationPercentConditionSchema)
+    .describe(
+      "Conditional estimation rules evaluated in order. The first matching condition's percent is used.",
+    )
     .optional(),
   estimationFixed: z
     .number()
     .min(0, "Fixed estimation cannot be negative")
+    .describe(
+      "Fixed point value for this task, independent of the parent story's estimate.",
+    )
     .optional(),
-  estimationFormula: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  condition: ConditionSchema.optional(),
-  dependsOn: z.array(z.string()).optional(),
-  assignTo: z.string().optional(),
-  priority: z.number().optional(),
-  activity: z.string().optional(),
-  acceptanceCriteria: z.array(z.string()).optional(),
-  acceptanceCriteriaAsChecklist: z.boolean().optional(),
+  estimationFormula: z
+    .string()
+    .describe(
+      "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time.",
+    )
+    .optional(),
+  tags: z
+    .array(z.string())
+    .describe("Tags applied to the generated task.")
+    .optional(),
+  condition: ConditionSchema.describe(
+    "Condition evaluated against the parent story. If it does not match, this task is skipped.",
+  ).optional(),
+  dependsOn: z
+    .array(z.string())
+    .describe(
+      "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks.",
+    )
+    .optional(),
+  assignTo: z
+    .string()
+    .describe("Email address or alias to assign this task to.")
+    .optional(),
+  priority: z
+    .number()
+    .describe("Priority value for the generated task.")
+    .optional(),
+  activity: z
+    .string()
+    .describe(
+      "Azure DevOps activity type for this task (e.g. 'Development', 'Testing', 'Design').",
+    )
+    .optional(),
+  acceptanceCriteria: z
+    .array(z.string())
+    .describe("Acceptance criteria lines for this task.")
+    .optional(),
+  acceptanceCriteriaAsChecklist: z
+    .boolean()
+    .describe(
+      "If true, acceptance criteria are rendered as a markdown checklist in the task description.",
+    )
+    .optional(),
   customFields: z
     .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+    .describe(
+      "Azure DevOps custom fields to set on the task. Keys must be in 'Namespace.FieldName' format (e.g. 'Custom.ClientTier').",
+    )
     .optional()
     .superRefine((fields, ctx) => {
       if (!fields) return undefined;
@@ -174,81 +321,218 @@ export const TaskDefinitionSchema = z.object({
 });
 
 export const EstimationConfigSchema = z.object({
-  strategy: z.enum(["percentage"]).default("percentage"),
-  source: z.string().optional(),
-  rounding: z.enum(["nearest", "up", "down", "none"]).default("none"),
-  minimumTaskPoints: z.number().optional(),
-  ifParentHasNoEstimation: z.enum(["skip", "warn", "use-default"]).optional(),
-  defaultParentEstimation: z.number().optional(),
+  strategy: z
+    .enum(["percentage"])
+    .default("percentage")
+    .describe(
+      "Estimation strategy. 'percentage' distributes the parent story's estimate across tasks proportionally.",
+    ),
+  source: z
+    .string()
+    .describe(
+      "Field on the parent story to read the estimation value from (e.g. 'story-points').",
+    )
+    .optional(),
+  rounding: z
+    .enum(["nearest", "up", "down", "none"])
+    .default("none")
+    .describe(
+      "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
+    ),
+  minimumTaskPoints: z
+    .number()
+    .describe("Minimum point value any single task can receive after rounding.")
+    .optional(),
+  ifParentHasNoEstimation: z
+    .enum(["skip", "warn", "use-default"])
+    .describe(
+      "Behaviour when the parent story has no estimate. 'skip' omits tasks, 'warn' logs a warning, 'use-default' falls back to defaultParentEstimation.",
+    )
+    .optional(),
+  defaultParentEstimation: z
+    .number()
+    .describe(
+      "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'.",
+    )
+    .optional(),
 });
 
-export const ValidationModeSchema = z.enum(["strict", "lenient"]);
+export const ValidationModeSchema = z
+  .enum(["strict", "lenient"])
+  .describe("'strict' fails on any validation warning; 'lenient' allows warnings to pass.");
 
 export const ValidationConfigSchema = z.object({
-  mode: ValidationModeSchema.optional(),
-  totalEstimationMustBe: z.number().optional(),
+  mode: ValidationModeSchema.describe(
+    "'strict' fails on any validation warning; 'lenient' allows warnings to pass.",
+  ).optional(),
+  totalEstimationMustBe: z
+    .number()
+    .describe(
+      "Sum of all non-conditional task percentages must equal this value exactly.",
+    )
+    .optional(),
   totalEstimationRange: z
     .object({
-      min: z.number(),
-      max: z.number(),
+      min: z
+        .number()
+        .describe("Minimum allowed total estimation percentage (inclusive)."),
+      max: z
+        .number()
+        .describe("Maximum allowed total estimation percentage (inclusive)."),
     })
+    .describe(
+      "Sum of all non-conditional task percentages must fall within this range.",
+    )
     .optional(),
-  minTasks: z.number().optional(),
-  maxTasks: z.number().optional(),
+  minTasks: z
+    .number()
+    .describe("Minimum number of tasks the template must define.")
+    .optional(),
+  maxTasks: z
+    .number()
+    .describe("Maximum number of tasks the template may define.")
+    .optional(),
   taskEstimationRange: z
     .object({
-      min: z.number(),
-      max: z.number(),
+      min: z
+        .number()
+        .describe("Minimum allowed estimation percentage for a single task."),
+      max: z
+        .number()
+        .describe("Maximum allowed estimation percentage for a single task."),
     })
+    .describe("Each task's estimation percentage must fall within this range.")
     .optional(),
   requiredTasks: z
     .array(
       z.object({
-        title: z.string(),
-        id: z.string().optional(),
+        title: z
+          .string()
+          .describe(
+            "Required task title. Matched case-insensitively against task titles.",
+          ),
+        id: z
+          .string()
+          .describe(
+            "Required task ID. Checked first; falls back to title match if absent.",
+          )
+          .optional(),
       }),
+    )
+    .describe(
+      "Tasks that must be present in the template, matched by title or id.",
     )
     .optional(),
 });
 
 export const MetadataSchema = z.object({
-  category: z.string().optional(),
-  difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-  recommendedFor: z.array(z.string()).optional(),
-  estimationGuidelines: z.string().optional(),
-  examples: z.array(z.string()).optional(),
+  category: z
+    .string()
+    .describe(
+      "Template category for discovery and grouping (e.g. 'Frontend', 'Backend', 'Infrastructure').",
+    )
+    .optional(),
+  difficulty: z
+    .enum(["beginner", "intermediate", "advanced"])
+    .describe("Complexity level of the work this template targets.")
+    .optional(),
+  recommendedFor: z
+    .array(z.string())
+    .describe(
+      "Work item types or story patterns this template is optimised for (e.g. ['User Story', 'Bug']).",
+    )
+    .optional(),
+  estimationGuidelines: z
+    .string()
+    .describe(
+      "Human-readable guidance on how to estimate stories before using this template.",
+    )
+    .optional(),
+  examples: z
+    .array(z.string())
+    .describe(
+      "Example story titles or scenarios where this template applies.",
+    )
+    .optional(),
   changelog: z
     .array(
       z.object({
-        version: z.string(),
-        date: z.string(),
-        changes: z.string(),
+        version: z
+          .string()
+          .describe("Template version this changelog entry describes."),
+        date: z
+          .string()
+          .describe("Date of the change in YYYY-MM-DD format."),
+        changes: z
+          .string()
+          .describe("Summary of what changed in this version."),
       }),
     )
+    .describe("Version history for this template.")
     .optional(),
 });
 
 export const TaskTemplateSchema = z
   .object({
-    version: z.string().default("1.0"),
-    name: z.string().min(1, "Template name is required"),
-    description: z.string().optional(),
-    author: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    created: z.string().optional(),
-    lastModified: z.string().optional(),
+    version: z
+      .string()
+      .default("1.0")
+      .describe("Schema version. Always '1.0' for the current format."),
+    name: z
+      .string()
+      .min(1, "Template name is required")
+      .describe("Unique display name for this template."),
+    description: z
+      .string()
+      .describe("What this template is for and when to use it.")
+      .optional(),
+    author: z
+      .string()
+      .describe("Author or team that owns this template.")
+      .optional(),
+    tags: z
+      .array(z.string())
+      .describe("Tags for template discovery in the catalog.")
+      .optional(),
+    created: z
+      .string()
+      .describe("ISO 8601 date when this template was first created.")
+      .optional(),
+    lastModified: z
+      .string()
+      .describe("ISO 8601 date of the last modification.")
+      .optional(),
 
-    filter: FilterCriteriaSchema,
+    filter: FilterCriteriaSchema.describe(
+      "Criteria used to select which stories this template applies to.",
+    ),
     tasks: z
       .array(TaskDefinitionSchema)
-      .min(1, "At least one task is required"),
+      .min(1, "At least one task is required")
+      .describe("Task definitions that will be generated from this template."),
 
-    estimation: EstimationConfigSchema.optional(),
-    validation: ValidationConfigSchema.optional(),
-    metadata: MetadataSchema.optional(),
+    estimation: EstimationConfigSchema.describe(
+      "Global estimation configuration for all tasks in this template.",
+    ).optional(),
+    validation: ValidationConfigSchema.describe(
+      "Validation rules applied when this template is used.",
+    ).optional(),
+    metadata: MetadataSchema.describe(
+      "Additional metadata for template discovery and documentation.",
+    ).optional(),
 
-    extends: z.string().optional(),
-    mixins: z.array(z.string()).optional(),
+    extends: z
+      .string()
+      .describe(
+        "Name or path of a parent template this one inherits from. Resolved by the Template Library.",
+      )
+      .optional(),
+    mixins: z
+      .array(z.string())
+      .describe(
+        "Names or paths of mixins to compose into this template. Resolved by the Template Library.",
+      )
+      .optional(),
   })
   .superRefine((data, ctx) => {
     const { tasks, validation: v } = data;
@@ -431,13 +715,24 @@ function reportCircularDependencies(
  * Schema for mixin files — partial templates that contribute only tasks.
  * Mixins don't require a filter since they're composed into a full template.
  */
-export const MixinTemplateSchema = z.object({
-  name: z.string().min(1, "Mixin name is required"),
-  description: z.string().optional(),
-  tasks: z.array(TaskDefinitionSchema).min(1, "At least one task is required"),
-}).superRefine((data, ctx) => {
-  validateUniqueTaskIds(data.tasks, ctx);
-});
+export const MixinTemplateSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, "Mixin name is required")
+      .describe("Unique display name for this mixin."),
+    description: z
+      .string()
+      .describe("What tasks this mixin contributes and when to include it.")
+      .optional(),
+    tasks: z
+      .array(TaskDefinitionSchema)
+      .min(1, "At least one task is required")
+      .describe("Task definitions contributed by this mixin."),
+  })
+  .superRefine((data, ctx) => {
+    validateUniqueTaskIds(data.tasks, ctx);
+  });
 
 export const CURRENT_ITERATION = "@CurrentIteration" as const;
 export const TEAM_AREAS = "@TeamAreas" as const;

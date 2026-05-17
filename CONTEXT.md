@@ -76,8 +76,10 @@ Offline task generation evaluated against a Mock Story. Produces a resolved task
 - `sanitizeReport`, `writeReportFile` — extracted from CLI generate command; testable without prompts
 
 **VS Code Extension** (`packages/vscode-extension/`):
-- `src/extension.ts` — activation entry point; checks for Atomize CLI on startup
-- `schemas/atomize-template.schema.json` — generated JSON Schema (draft-7) derived from `TaskTemplateSchema` and `MixinTemplateSchema`; committed and bundled with the extension for YAML autocomplete
+- `src/extension.ts` — activation entry point; checks for Atomize CLI on startup; registers schema contributor with `redhat.vscode-yaml` if present
+- `schemas/atomize-template.schema.json` — generated JSON Schema (draft 2020-12) derived from `TaskTemplateSchema` and `MixinTemplateSchema`; committed and bundled with the extension for YAML autocomplete; root combinator is `anyOf` (not `oneOf`) so partial documents stay valid during authoring
+- Schema wiring: uses `redhat.vscode-yaml`'s `registerContributor` API scoped to `languageId === 'atomize-yaml'`; dual-signal in `requestSchema` (language ID check first, Layer 1 filename patterns as fallback for first-open timing); silently skipped if `redhat.vscode-yaml` is absent
+- Field hover descriptions sourced from `.describe()` calls on Zod field definitions in `src/templates/schema.ts`; never patched onto the generated JSON Schema file directly
 - Build: esbuild to CJS targeting the extension host; schema generation runs as a prebuild step via `scripts/generate-schema.ts` at the root
 
 **Atomize YAML File**:
