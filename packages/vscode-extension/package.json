@@ -17,15 +17,37 @@
 			{
 				"id": "atomize-yaml",
 				"aliases": ["Atomize YAML"],
-				"filenamePatterns": [
-					"**/templates/**/*.yml",
-					"**/templates/**/*.yaml",
-					"**/atomize/**/*.yml",
-					"**/atomize/**/*.yaml",
-					"**/*.atomize.yml",
-					"**/*.atomize.yaml"
-				],
-				"firstLine": "^#\\s*atomize-yaml"
+				"extensions": [".atomize.yaml", ".atomize.yml"],
+				"firstLine": "^#\\s*atomize-yaml",
+				"icon": {
+					"light": "./icons/yaml-light.svg",
+					"dark": "./icons/yaml-dark.svg"
+				}
+			}
+		],
+		"yamlValidation": [
+			{
+				"fileMatch": ["**/*.atomize.yaml", "**/*.atomize.yml"],
+				"url": "./schemas/atomize-template.schema.json"
+			}
+		],
+		"commands": [
+			{
+				"command": "atomize.validate",
+				"title": "Atomize: Validate",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.preview",
+				"title": "Atomize: Preview (Mock)",
+				"category": "Atomize"
+			}
+		],
+		"grammars": [
+			{
+				"language": "atomize-yaml",
+				"scopeName": "source.atomize-yaml",
+				"path": "./syntaxes/atomize-yaml.tmLanguage.json"
 			}
 		],
 		"snippets": [
