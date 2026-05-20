@@ -1,9 +1,11 @@
-# Custom language ID for Atomize YAML files
+# YAML language service for Atomize YAML files
 
-Atomize YAML files (Templates and Mixins) share a structure that doesn't exist in generic YAML — `version:`, `tasks:`, `filter:`, `estimation:`. Piggybacking on the built-in `yaml` language ID would mean associating the JSON Schema via workspace settings (requiring users to opt in manually) and would give the extension no reliable activation signal scoped to Atomize files.
+Atomize YAML files (Templates and Mixins) share a structure that doesn't exist in generic YAML — `version:`, `tasks:`, `filter:`, `estimation:`. Atomize needs a reliable opt-in signal for schema association, CodeLens, diagnostics, and future code actions without leaking behavior into generic YAML files.
 
-We register a custom language ID `atomize-yaml` in the extension manifest. This gives VS Code a named hook for schema association, status bar display, and future language features (completions, diagnostics) without requiring any user configuration. The language ID covers both Templates and Mixins — not just Templates — because both benefit from the same schema and extension features.
+Atomize files remain on VS Code's built-in `yaml` language ID so Red Hat YAML provides schema hover descriptions and completions. The extension scopes Atomize behavior with its own document predicates: durable opt-in markers (`.atomize.yaml`, `.atomize.yml`, or first-line `# atomize-yaml`) enable full Atomize editor tooling, while content detection enables schema-backed authoring support and durable opt-in prompting only.
 
-**Considered options:** Using `yaml` as the language ID and relying on `redhat.vscode-yaml`'s `yamlValidation` contribution was simpler upfront, but would make schema autocomplete contingent on a third-party extension being installed and would limit our ability to scope activation events, syntax highlighting, and future code actions to Atomize files only.
+The legacy `atomize-yaml` language ID may still appear if a user selected it manually or an older extension session assigned it. When possible, the extension normalizes those documents back to `yaml` so schema hover descriptions and completions keep working.
 
-**Consequences:** `atomize-yaml` is a public contract. Renaming it later would break any user workspace settings or `.vscode/settings.json` files that reference it by name. The three-layer detection strategy (filename patterns → firstLine modeline → content heuristics) exists to assign this ID reliably across the range of locations where Atomize files are stored in practice.
+**Considered options:** A custom `atomize-yaml` language ID gives VS Code a named hook for snippets, icons, status bar display, and language-scoped features, but Red Hat YAML does not reliably provide schema hovers and completions to that custom language. Static `yamlValidation` wiring was also rejected because it is path-only and can diverge from Atomize's durable/session opt-in rules.
+
+**Consequences:** Atomize-specific snippets cannot rely on automatic `atomize-yaml` assignment as their primary activation mechanism. The extension must keep YAML schema association, CodeLens, and validation scoping in code rather than delegating that boundary to VS Code's language ID alone.

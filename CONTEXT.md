@@ -37,13 +37,13 @@ _Avoid_: using "override" for lineage; lineage is derivation, not replacement.
 Any YAML file authored for Atomize, either a Template or a Mixin.
 
 **Atomize YAML Language ID**:
-The VS Code language ID `atomize-yaml`, used for Atomize YAML files.
+The legacy VS Code language ID `atomize-yaml`; Atomize YAML files normally remain on VS Code's `yaml` language ID so the YAML language server provides schema hovers and completions.
 
 **Durable Atomize YAML Opt-In**:
 A persistent file-level signal that a YAML file is authored for Atomize, currently a `.atomize.yaml`/`.atomize.yml` filename or a first-line `# atomize-yaml` modeline.
 
 **Session Atomize YAML Opt-In**:
-An editor-session classification where the VS Code extension promotes a content-detected YAML document to the `atomize-yaml` language ID.
+An editor-session classification where the VS Code extension gives a content-detected YAML document schema-backed authoring support without changing its language ID.
 
 **Platform Adapter**:
 A concrete adapter that lets Atomize read, create, and link work items on a work tracking platform.
@@ -63,6 +63,9 @@ Line-level editor feedback for an Atomize YAML File, surfaced through VS Code di
 **Validation Report**:
 A file-level summary of an Atomize YAML File validation run, including grouped errors, warnings, and suggestions.
 
+**Field Hover Description**:
+Schema-backed explanatory text shown by the editor for an Atomize YAML field while authoring.
+
 ## Relationships
 
 - A **Template** selects one or more **Stories** and defines one or more generated **Tasks**.
@@ -72,7 +75,9 @@ A file-level summary of an Atomize YAML File validation run, including grouped e
 - The **Story Learner** reads **Stories** and **Tasks** through a **Platform Adapter** and produces a **Template**.
 - A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
 - **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
-- **Durable Atomize YAML Opt-In** and **Session Atomize YAML Opt-In** both identify an **Atomize YAML File** for editor tooling; durable opt-in survives editor sessions.
+- **Validation Diagnostics** may refresh passively while authoring; a **Validation Report** is only shown after an explicit user request.
+- **Durable Atomize YAML Opt-In** identifies an **Atomize YAML File** for full editor tooling while preserving the `yaml` language identity; **Session Atomize YAML Opt-In** identifies one for schema-backed authoring support and durable opt-in prompting only.
+- A **Field Hover Description** is available for every schema-enabled **Atomize YAML File**, whether identified by **Durable Atomize YAML Opt-In** or **Session Atomize YAML Opt-In**.
 - A **Catalog Override** is detected automatically by name collision; **Template Lineage** is declared explicitly via the `origin` field and is informational only.
 
 ## Flagged Ambiguities

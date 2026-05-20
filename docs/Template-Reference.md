@@ -38,7 +38,7 @@ sprint-review.atomize.yaml
 security-mixin.atomize.yaml
 ```
 
-VS Code recognises this extension natively and activates all Atomize IDE features immediately on open — no content read required. Templates created by the CLI wizard are stored with this extension automatically.
+The Atomize VS Code extension recognises this extension as a durable opt-in and maps it to VS Code's YAML language service so schema hovers and autocomplete work. Templates created by the CLI wizard are stored with this extension automatically.
 
 ### Option 2 — Modeline
 
@@ -51,7 +51,7 @@ name: "My Template"
 ...
 ```
 
-The modeline works for any `.yaml` or `.yml` file regardless of name. When snippets are available in an `atomize-yaml` editor, `atm-template` and `atm-mixin` insert it automatically when you scaffold a new template in VS Code.
+The modeline works for any `.yaml` or `.yml` file regardless of name. The `atm-template` and `atm-mixin` snippets insert it automatically when you scaffold a new template in VS Code.
 
 ### Content detection fallback
 
