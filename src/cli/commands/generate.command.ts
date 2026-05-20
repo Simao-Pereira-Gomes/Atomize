@@ -33,6 +33,7 @@ import type { OutputSinkFactory } from "@/cli/utilities/output-sink";
 import type { PromptDriver } from "@/cli/utilities/prompt-driver";
 import {
   assertNotCancelled,
+  formatScope,
   isInteractiveTerminal,
   sanitizeTty,
   selectOrAutocomplete,
@@ -104,20 +105,16 @@ async function promptMissingArgs(
     ) as string;
 
     if (source === "catalog") {
-      const { items: templates, overrides } = await new TemplateLibrary().getCatalog("template");
+      const { items: templates } = await new TemplateLibrary().getCatalog("template");
       if (templates.length === 0) {
         throw new Error("No templates found. Create one with: atomize template create");
       }
-      const overriddenByScope = new Map(overrides.map((o) => [o.overridden.path, o.active.scope]));
-      const allTemplates = [...templates, ...overrides.map((o) => o.overridden)];
       templatePath = await selectOrAutocomplete({
         message: "Select template:",
-        options: allTemplates.map((t) => ({
-          label: overriddenByScope.has(t.path)
-            ? `${t.displayName} (${t.scope}) — overridden by ${overriddenByScope.get(t.path)}`
-            : `${t.displayName} (${t.scope})`,
+        options: templates.map((t) => ({
+          label: t.displayName,
           value: t.path,
-          hint: t.description,
+          hint: [formatScope(t.scope), t.description && t.description !== "No description" ? t.description : ""].filter(Boolean).join(" · "),
         })),
         placeholder: "Type to filter templates...",
       });
@@ -187,6 +184,7 @@ async function loadAndValidateTemplate(
 
   output.print(chalk.cyan(`Template: ${sanitizeTty(template.name)}${formatInheritanceNote(meta)}`));
   output.print(chalk.gray(`Description: ${sanitizeTty(template.description) || "N/A"}`));
+  if (source.path) output.print(chalk.gray(`Path: ${sanitizeTty(source.path)}`));
   output.print(chalk.gray(`Tasks: ${template.tasks.length}\n`));
 
   if (validation.warnings.length > 0) {

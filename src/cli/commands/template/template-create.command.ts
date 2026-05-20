@@ -264,9 +264,17 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
     });
   }
 
-  const { template: parentTemplate } = await library.getRunnableTemplate(`template:${templateName}`);
+  const [{ template: parentTemplate }, catalogItem] = await Promise.all([
+    library.getRunnableTemplate(`template:${templateName}`),
+    library.findCatalogItemByRef(`template:${templateName}`),
+  ]);
   defaultOutput.print(chalk.green(`\nLoaded template: ${parentTemplate.name}`));
-  defaultOutput.print(chalk.gray(`  ${parentTemplate.description ?? ""}\n`));
+  defaultOutput.print(chalk.gray(`  ${parentTemplate.description ?? ""}`));
+  if (catalogItem) {
+    const pathSuffix = catalogItem.scope === "builtin" ? " (read-only)" : "";
+    defaultOutput.print(chalk.gray(`  path: ${catalogItem.path}${pathSuffix}`));
+  }
+  defaultOutput.blankLine();
 
   const mode = assertNotCancelled(
     await select({

@@ -1,5 +1,4 @@
 import type {
-  CatalogOverride,
   TemplateCatalogItem,
   TemplateCatalogKind,
 } from "@services/template/template-catalog";
@@ -10,7 +9,7 @@ import {
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
-import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { formatScope, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { TemplateLibrary } from "@/templates/template-library";
 import { getErrorMessage } from "@/utils/errors";
 
@@ -38,12 +37,12 @@ export const templateListCommand = new Command("list")
           return;
         }
 
+        const overrideMap = new Map(overrides.map(({ active, overridden }) => [active.name, overridden]));
+
         output.blankLine();
         for (const item of items) {
-          printCatalogItem(item, output);
+          printCatalogItem(item, output, overrideMap.get(item.name));
         }
-
-        printOverrideWarnings(overrides, output);
 
         const usage =
           type === "mixin"
@@ -65,11 +64,14 @@ export const templateListCommand = new Command("list")
         return;
       }
 
+      const templateOverrideMap = new Map(templateShadows.map(({ active, overridden }) => [active.name, overridden]));
+      const mixinOverrideMap = new Map(mixinShadows.map(({ active, overridden }) => [active.name, overridden]));
+
       if (templates.length > 0) {
         output.print(chalk.bold("\n  Templates"));
         output.blankLine();
         for (const item of templates) {
-          printCatalogItem(item, output);
+          printCatalogItem(item, output, templateOverrideMap.get(item.name));
         }
       }
 
@@ -77,11 +79,9 @@ export const templateListCommand = new Command("list")
         output.print(chalk.bold("\n  Mixins"));
         output.blankLine();
         for (const item of mixins) {
-          printCatalogItem(item, output);
+          printCatalogItem(item, output, mixinOverrideMap.get(item.name));
         }
       }
-
-      printOverrideWarnings([...templateShadows, ...mixinShadows], output);
 
       output.outro(
         chalk.gray(
@@ -101,26 +101,17 @@ function capitalize(s: string): string {
 function printCatalogItem(
   item: TemplateCatalogItem,
   output: ReturnType<typeof createCommandOutput>,
+  overriddenItem?: TemplateCatalogItem,
 ): void {
   output.print(chalk.cyan(`  ${sanitizeTty(item.name)}`));
   output.print(chalk.gray(`    ${sanitizeTty(item.displayName)}`));
   output.print(chalk.gray(`    ${sanitizeTty(item.description)}`));
-  output.print(chalk.gray(`    ref: ${sanitizeTty(item.ref)}  scope: ${item.scope}`));
-  output.blankLine();
-}
-
-function printOverrideWarnings(
-  overrides: CatalogOverride[],
-  output: ReturnType<typeof createCommandOutput>,
-): void {
-  if (overrides.length === 0) return;
-  output.print(chalk.yellow("  ⚠ Overridden (not active):"));
-  for (const { overridden, active } of overrides) {
-    output.print(
-      chalk.gray(
-        `    ${sanitizeTty(overridden.ref)} (${overridden.scope}) — overridden by ${active.scope}-scoped "${sanitizeTty(active.name)}"`,
-      ),
-    );
+  output.print(chalk.gray(`    ref: ${sanitizeTty(item.ref)}  scope: ${formatScope(item.scope)}`));
+  const pathSuffix = item.scope === "builtin" ? " (read-only)" : "";
+  output.print(chalk.gray(`    path: ${sanitizeTty(item.path)}${pathSuffix}`));
+  if (overriddenItem) {
+    const overriddenSuffix = overriddenItem.scope === "builtin" ? " (read-only)" : "";
+    output.print(chalk.yellow(`    ⚠ overrides: ${formatScope(overriddenItem.scope)} at ${sanitizeTty(overriddenItem.path)}${overriddenSuffix}`));
   }
   output.blankLine();
 }

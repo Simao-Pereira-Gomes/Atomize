@@ -9,9 +9,20 @@ import {
   text,
 } from "@clack/prompts";
 import z from "zod";
+import type { TemplateCatalogScope } from "@services/template/template-catalog";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
 export { createManagedSpinner } from "@/cli/utilities/terminal-output";
+
+const SCOPE_LABELS: Record<TemplateCatalogScope, string> = {
+  builtin: "built-in",
+  user: "personal",
+  project: "your project",
+};
+
+export function formatScope(scope: TemplateCatalogScope): string {
+  return SCOPE_LABELS[scope];
+}
 
 /** Returns true when running in a real interactive terminal (not piped/CI). */
 export function isInteractiveTerminal(): boolean {
