@@ -2,7 +2,7 @@
 
 Atomize turns work items into task breakdowns using reusable templates and platform adapters.
 
-## Language
+## Glossary
 
 **Work Item**:
 A platform-tracked planning item that Atomize can read, create, or link.
@@ -26,6 +26,18 @@ _Avoid_: template catalog when referring to the whole library; catalog is only t
 **Catalog**:
 The named inventory of templates and mixins available from built-in, user, and project scopes.
 
+**Atomize YAML File**:
+Any YAML file authored for Atomize, either a Template or a Mixin.
+
+**Atomize YAML Language ID**:
+The VS Code language ID `atomize-yaml`, used for Atomize YAML files.
+
+**Durable Atomize YAML Opt-In**:
+A persistent file-level signal that a YAML file is authored for Atomize, currently a `.atomize.yaml`/`.atomize.yml` filename or a first-line `# atomize-yaml` modeline.
+
+**Session Atomize YAML Opt-In**:
+An editor-session classification where the VS Code extension promotes a content-detected YAML document to the `atomize-yaml` language ID.
+
 **Platform Adapter**:
 A concrete adapter that lets Atomize read, create, and link work items on a work tracking platform.
 
@@ -38,60 +50,23 @@ A user-supplied JSON object of story field values (using `WorkItem` property nam
 **Mock Preview**:
 Offline task generation evaluated against a Mock Story. Produces a resolved task list — including skipped conditional tasks and estimation breakdowns — without querying or creating work items on any platform.
 
+**Validation Diagnostics**:
+Line-level editor feedback for an Atomize YAML File, surfaced through VS Code diagnostics such as squiggles and the Problems panel.
+
+**Validation Report**:
+A file-level summary of an Atomize YAML File validation run, including grouped errors, warnings, and suggestions.
+
 ## Relationships
 
 - A **Template** selects one or more **Stories** and defines one or more generated **Tasks**.
 - A **Mixin** contributes tasks to a composed **Template**.
-- The **Template Library** resolves **Templates** and **Mixins** from the **Catalog** or direct sources.
+- The **Template Library** resolves **Templates** and **Mixins** from the **Catalog** or direct template sources.
 - A **Platform Adapter** reads **Stories** and creates or links **Tasks**.
 - The **Story Learner** reads **Stories** and **Tasks** through a **Platform Adapter** and produces a **Template**.
 - A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
-
-## Example Dialogue
-
-> **Dev:** "Should the generate command know whether the template came from the catalog or a file?"
-> **Domain expert:** "No. It should ask the **Template Library** for a runnable **Template** and let the library handle source details."
+- **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
+- **Durable Atomize YAML Opt-In** and **Session Atomize YAML Opt-In** both identify an **Atomize YAML File** for editor tooling; durable opt-in survives editor sessions.
 
 ## Flagged Ambiguities
 
 - "template catalog" was used for both named inventory and all template loading behavior; resolved: **Catalog** is the inventory, **Template Library** is the whole module.
-
-## Module Structure (key seams)
-
-**Story Learner** internal decomposition (all under `src/services/template/`):
-- `pattern-detection.ts` — all detection infrastructure: PatternScoringConfig, SimilarityCalculator, DependencyDetector, TagPatternDetector, ConditionPatternDetector, FilterLearner, PatternDetector
-- `confidence-analysis.ts` — ConfidenceScorer and OutlierDetector
-- `learned-template-product.ts` — template construction from analysis results
-- `learning-session.ts` — orchestrates the above into a single learning run
-- `story-learner.ts` — the only public-facing entry point; index.ts exports only StoryLearner and story-learner.types
-
-**Platform Adapter** (Azure DevOps, `src/platforms/adapters/azure-devops/`):
-- `work-item-mapper.ts` — pure functions: `convertWorkItem`, `hasChildRelations`
-- `task-patch-builder.ts` — pure functions: `buildCreateTaskPatch`, `buildDependencyLinkPatch`
-- `work-item-query.ts` — pure function: `buildWorkItemWiqlQuery`
-- `azure-devops-field-schema.service.ts` — schema caching
-- `azure-devops.adapter.ts` — orchestrates the above; implements IPlatformAdapter
-
-**Report Formatting** (`src/core/report-formatter.ts`):
-- `sanitizeReport`, `writeReportFile` — extracted from CLI generate command; testable without prompts
-
-**VS Code Extension** (`packages/vscode-extension/`):
-- `src/extension.ts` — activation entry point; checks for Atomize CLI on startup; registers schema contributor with `redhat.vscode-yaml` if present
-- `schemas/atomize-template.schema.json` — generated JSON Schema (draft 2020-12) derived from `TaskTemplateSchema` and `MixinTemplateSchema`; committed and bundled with the extension for YAML autocomplete; root combinator is `anyOf` (not `oneOf`) so partial documents stay valid during authoring
-- Schema wiring: uses `redhat.vscode-yaml`'s `registerContributor` API scoped to `languageId === 'atomize-yaml'`; dual-signal in `requestSchema` (language ID check first, Layer 1 filename patterns as fallback for first-open timing); silently skipped if `redhat.vscode-yaml` is absent
-- Field hover descriptions sourced from `.describe()` calls on Zod field definitions in `src/templates/schema.ts`; never patched onto the generated JSON Schema file directly
-- Build: esbuild to CJS targeting the extension host; schema generation runs as a prebuild step via `scripts/generate-schema.ts` at the root
-- Snippets: 10 snippets registered under `contributes.snippets` in `package.json`, all scoped to `atomize-yaml`. Prefix convention is `atm-`. Snippets are defined in `snippets/atomize-yaml.code-snippets`. The `atm-filter-ado` snippet covers Azure DevOps–specific filter fields (`areaPaths`, `areaPathsUnder`, `iterations`, `team`, `statesExclude`, `statesWereEver`) kept separate from the base `atm-filter` to signal platform specificity and avoid cluttering the minimal filter scaffold.
-_Avoid_: scoping snippets to a language ID other than `atomize-yaml` — any alternative ID (e.g. `atomize-template`) is unregistered and will silently never fire.
-
-**Atomize YAML File**:
-Any YAML file authored for Atomize — either a Template or a Mixin. Both kinds benefit from schema autocomplete, validation, and the extension's language features. The VS Code custom language ID covers both kinds under a single ID.
-The VS Code language ID is `atomize-yaml`, following the convention of framework-specific YAML dialects (e.g. `azure-pipelines`, `github-actions`).
-_Avoid_: using "atomize-template" as the language ID name, since it implies Templates only and silently excludes Mixins.
-
-The modeline convention (`# atomize-yaml` as line 1) is documented via `examples/custom-location.atomize.yaml`. Existing repo templates under `templates/` do not carry the modeline — they are already covered by Layer 1 path patterns and the modeline would be redundant there.
-
-Layer 3 content detection signatures:
-- **Template**: `version:` AND `tasks:` present as root-level keys
-- **Mixin**: `tasks:` present as a root-level key, at least one task item contains `id:` as a property, AND `version:` is absent
-Both checks scan the first 50 lines using string/regex matching — no full YAML parser.

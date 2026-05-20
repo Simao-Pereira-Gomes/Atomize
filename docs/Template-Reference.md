@@ -4,6 +4,7 @@ Complete reference for Atomize YAML template files.
 
 ## Table of Contents
 
+- [File Naming](#file-naming)
 - [Overview](#overview)
 - [Top-Level Fields](#top-level-fields)
 - [Composition](#composition)
@@ -20,6 +21,41 @@ Complete reference for Atomize YAML template files.
 - [validation](#validation)
 - [metadata](#metadata)
 - [Complete Example](#complete-example)
+
+---
+
+## File Naming
+
+The VS Code extension identifies Atomize files to enable schema autocomplete, CodeLens, snippets, and diagnostics. There are two ways to opt a file in:
+
+### Option 1 — `.atomize.yaml` extension (recommended)
+
+Name your file with the `.atomize.yaml` (or `.atomize.yml`) extension:
+
+```
+my-team-feature.atomize.yaml
+sprint-review.atomize.yaml
+security-mixin.atomize.yaml
+```
+
+VS Code recognises this extension natively and activates all Atomize IDE features immediately on open — no content read required. Templates created by the CLI wizard are stored with this extension automatically.
+
+### Option 2 — Modeline
+
+If you cannot rename the file (e.g. the name is constrained by another tool or convention), add `# atomize-yaml` as the very first line:
+
+```yaml
+# atomize-yaml
+version: "1.0"
+name: "My Template"
+...
+```
+
+The modeline works for any `.yaml` or `.yml` file regardless of name. When snippets are available in an `atomize-yaml` editor, `atm-template` and `atm-mixin` insert it automatically when you scaffold a new template in VS Code.
+
+### Content detection fallback
+
+If a file has neither the `.atomize.yaml` extension nor the modeline, the extension will attempt to identify it by structure (Template: `version:` + `filter:` + `tasks:` at root; Mixin: `tasks:` + nested `id:`, no `version:`). When a file is matched this way, VS Code will show a warning offering to add the modeline or rename the file. Adopting one of the explicit conventions is always preferred — content detection is a fallback and cannot be as precise.
 
 ---
 
