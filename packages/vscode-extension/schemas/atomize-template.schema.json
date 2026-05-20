@@ -504,10 +504,6 @@
               "description": "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'."
             }
           },
-          "required": [
-            "strategy",
-            "rounding"
-          ],
           "additionalProperties": false,
           "description": "Global estimation configuration for all tasks in this template."
         },
@@ -672,10 +668,13 @@
             "type": "string"
           },
           "description": "Names or paths of mixins to compose into this template. Resolved by the Template Library."
+        },
+        "origin": {
+          "type": "string",
+          "description": "Catalog ref (template:<name> or mixin:<name>) this template was derived from. Informational only — does not affect ref resolution."
         }
       },
       "required": [
-        "version",
         "name",
         "filter",
         "tasks"
@@ -1055,10 +1054,6 @@
               "description": "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'."
             }
           },
-          "required": [
-            "strategy",
-            "rounding"
-          ],
           "additionalProperties": false,
           "description": "Global estimation configuration for all tasks in this template."
         },
@@ -1224,6 +1219,10 @@
             "type": "string"
           },
           "description": "Names or paths of mixins to compose into this template. Resolved by the Template Library."
+        },
+        "origin": {
+          "type": "string",
+          "description": "Catalog ref (template:<name> or mixin:<name>) this template was derived from. Informational only — does not affect ref resolution."
         }
       },
       "required": [
@@ -1369,6 +1368,10 @@
             "additionalProperties": false
           },
           "description": "Task definitions contributed by this mixin."
+        },
+        "origin": {
+          "type": "string",
+          "description": "Catalog ref (template:<name> or mixin:<name>) this mixin was derived from. Informational only — does not affect ref resolution."
         }
       },
       "required": [
