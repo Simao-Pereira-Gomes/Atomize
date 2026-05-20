@@ -4,12 +4,13 @@ import * as vscode from 'vscode';
 import {
 	handleDocument,
 	isAtomizeDocument,
+	isAtomizeSchemaDocument,
 	isContentOnlyDetected,
 	isAtomizeToolingDocument,
 	LAYER1_PATTERNS,
 } from './language-detection.js';
 import { AtomizeCodeLensProvider } from './codelens-provider.js';
-import { clearRunState, runValidation } from './diagnostics.js';
+import { clearRunState, runDiagnosticValidation, runReportValidation } from './diagnostics.js';
 import { AtomizePanel } from './panel.js';
 import { renderValidationHtml } from './validation-html.js';
 
@@ -27,9 +28,9 @@ interface YamlSchemaContributorAPI {
 let cliAvailable = false;
 let cliWarningShown = false;
 
-// URIs of documents detected as Atomize templates at runtime (Layer 2/3 structural detection).
-// Populated on document open/change so requestSchema can return the schema URI synchronously.
-const detectedAtomizeUris = new Set<string>();
+// URIs of documents that should receive the Atomize YAML schema.
+// Populated on document open/save so requestSchema can return the schema URI synchronously.
+const schemaEnabledUris = new Set<string>();
 
 function extendedEnv(): NodeJS.ProcessEnv {
 	const home = process.env.HOME ?? '';
@@ -77,13 +78,13 @@ async function registerYamlSchemaContributor(ctx: vscode.ExtensionContext): Prom
 	api.registerContributor(
 		schemaFileUri,
 		(resource: string) => {
-			// Fast path: already confirmed as a tooling-enabled Atomize document.
-			if (detectedAtomizeUris.has(resource)) return schemaFileUri;
+			// Fast path: already confirmed as a schema-enabled Atomize document.
+			if (schemaEnabledUris.has(resource)) return schemaFileUri;
 
 			// Check open documents first (covers most cases after the first open).
 			const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === resource);
-			if (doc && isAtomizeToolingDocument(doc)) {
-				detectedAtomizeUris.add(resource);
+			if (doc && isAtomizeSchemaDocument(doc)) {
+				schemaEnabledUris.add(resource);
 				return schemaFileUri;
 			}
 
@@ -98,8 +99,8 @@ async function registerYamlSchemaContributor(ctx: vscode.ExtensionContext): Prom
 					const fsPath = vscode.Uri.parse(resource).fsPath;
 					const rawContent = readFileSync(fsPath, 'utf8');
 					const fakeDoc = { languageId: 'yaml', fileName: fsPath, getText: () => rawContent };
-					if (isAtomizeToolingDocument(fakeDoc)) {
-						detectedAtomizeUris.add(resource);
+					if (isAtomizeSchemaDocument(fakeDoc)) {
+						schemaEnabledUris.add(resource);
 						return schemaFileUri;
 					}
 				} catch {
@@ -138,11 +139,13 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		if (!isAtomizeToolingDocument(doc)) {
 			diagnostics.delete(doc.uri);
 			clearRunState(doc.uri);
-			detectedAtomizeUris.delete(doc.uri.toString());
+			if (!isAtomizeSchemaDocument(doc)) {
+				schemaEnabledUris.delete(doc.uri.toString());
+			}
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			return;
 		}
-		runValidation(
+		runDiagnosticValidation(
 			doc,
 			diagnostics,
 			cliAvailable,
@@ -153,7 +156,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 	function validateWithReport(doc: vscode.TextDocument): void {
 		if (!isAtomizeDocument(doc)) return;
-		runValidation(doc, diagnostics, cliAvailable, result => {
+		runReportValidation(doc, diagnostics, cliAvailable, result => {
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			const fileName = vscode.workspace.asRelativePath(doc.uri);
 			AtomizePanel.show(`Atomize: ${fileName}`, renderValidationHtml(result, fileName));
@@ -182,16 +185,17 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		);
 	}
 
-	// Seed the detected-URI set for already-open tooling-enabled Atomize documents.
+	// Seed the schema URI set for already-open Atomize YAML documents.
 	const warnedUris = new Set<string>();
 
 	function trackDocument(doc: vscode.TextDocument): void {
-		if (isAtomizeToolingDocument(doc)) detectedAtomizeUris.add(doc.uri.toString());
+		if (isAtomizeSchemaDocument(doc)) schemaEnabledUris.add(doc.uri.toString());
+		else schemaEnabledUris.delete(doc.uri.toString());
 	}
 
-	function promoteDocumentLanguage(doc: vscode.TextDocument): void {
+	function normalizeDocumentLanguage(doc: vscode.TextDocument): void {
 		handleDocument(doc, (document, languageId) => {
-			detectedAtomizeUris.add(doc.uri.toString());
+			schemaEnabledUris.add(doc.uri.toString());
 			void vscode.languages.setTextDocumentLanguage(document as vscode.TextDocument, languageId);
 		});
 	}
@@ -203,33 +207,33 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		const shortName = vscode.workspace.asRelativePath(doc.uri);
 		void vscode.window.showWarningMessage(
 			`"${shortName}" looks like an Atomize template but does not have a persistent Atomize marker. Rename it to .atomize.yaml or add a # atomize-yaml modeline to enable full IDE support.`,
-			'Add modeline',
 			'Rename to .atomize.yaml',
+			'Add modeline',
 		).then(async selection => {
 			if (selection === 'Add modeline') {
 				const edit = new vscode.WorkspaceEdit();
 				edit.insert(doc.uri, new vscode.Position(0, 0), '# atomize-yaml\n');
 				const applied = await vscode.workspace.applyEdit(edit);
 				if (applied) {
-					detectedAtomizeUris.add(doc.uri.toString());
-					await vscode.languages.setTextDocumentLanguage(doc, 'atomize-yaml');
+					schemaEnabledUris.add(doc.uri.toString());
+					await vscode.languages.setTextDocumentLanguage(doc, 'yaml');
 				}
 			} else if (selection === 'Rename to .atomize.yaml') {
 				const newPath = doc.uri.path.replace(/\.ya?ml$/i, '.atomize.yaml');
 				const newUri = doc.uri.with({ path: newPath });
 				await vscode.workspace.fs.rename(doc.uri, newUri);
-				detectedAtomizeUris.delete(doc.uri.toString());
-				detectedAtomizeUris.add(newUri.toString());
+				schemaEnabledUris.delete(doc.uri.toString());
+				schemaEnabledUris.add(newUri.toString());
 				const renamedDoc = await vscode.workspace.openTextDocument(newUri);
 				await vscode.window.showTextDocument(renamedDoc, vscode.window.activeTextEditor?.viewColumn);
-				await vscode.languages.setTextDocumentLanguage(renamedDoc, 'atomize-yaml');
+				await vscode.languages.setTextDocumentLanguage(renamedDoc, 'yaml');
 			}
 		});
 	}
 
 	for (const doc of vscode.workspace.textDocuments) {
 		warnContentOnlyDetected(doc);
-		promoteDocumentLanguage(doc);
+		normalizeDocumentLanguage(doc);
 		trackDocument(doc);
 	}
 
@@ -238,11 +242,11 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 		vscode.workspace.onDidOpenTextDocument(doc => {
 			warnContentOnlyDetected(doc);
-			promoteDocumentLanguage(doc);
+			normalizeDocumentLanguage(doc);
 			trackDocument(doc);
 		}),
 		vscode.workspace.onDidSaveTextDocument(doc => {
-			promoteDocumentLanguage(doc);
+			normalizeDocumentLanguage(doc);
 			trackDocument(doc);
 			validatePassive(doc);
 		}),
@@ -250,7 +254,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			diagnostics.delete(doc.uri);
 			clearRunState(doc.uri);
 			validationFailureWarnedUris.delete(doc.uri.toString());
-			detectedAtomizeUris.delete(doc.uri.toString());
+			schemaEnabledUris.delete(doc.uri.toString());
 		}),
 
 		vscode.languages.registerCodeLensProvider(

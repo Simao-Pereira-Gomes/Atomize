@@ -29,13 +29,24 @@ interface RunState {
 
 const runStates = new Map<string, RunState>();
 
-interface ValidationRequest {
+interface BaseValidationRequest {
 	doc: vscode.TextDocument;
 	diagnostics: vscode.DiagnosticCollection;
 	cliAvailable: boolean;
-	onResult?: (result: ValidationResult) => void;
 	onError?: (error: Error) => void;
 }
+
+interface DiagnosticValidationRequest extends BaseValidationRequest {
+	kind: 'diagnostics';
+	onSuccess?: () => void;
+}
+
+interface ReportValidationRequest extends BaseValidationRequest {
+	kind: 'report';
+	onResult: (result: ValidationResult) => void;
+}
+
+type ValidationRequest = DiagnosticValidationRequest | ReportValidationRequest;
 
 function getRunState(key: string): RunState {
 	let state = runStates.get(key);
@@ -50,20 +61,49 @@ export function clearRunState(uri: vscode.Uri): void {
 	runStates.delete(uri.toString());
 }
 
-export function runValidation(
+export function runDiagnosticValidation(
 	doc: vscode.TextDocument,
 	diagnostics: vscode.DiagnosticCollection,
 	cliAvailable: boolean,
-	onResult?: (result: ValidationResult) => void,
+	onSuccess?: () => void,
 	onError?: (error: Error) => void,
 ): void {
+	runValidation({
+		doc,
+		diagnostics,
+		cliAvailable,
+		kind: 'diagnostics',
+		onSuccess,
+		onError,
+	});
+}
+
+export function runReportValidation(
+	doc: vscode.TextDocument,
+	diagnostics: vscode.DiagnosticCollection,
+	cliAvailable: boolean,
+	onResult: (result: ValidationResult) => void,
+	onError?: (error: Error) => void,
+): void {
+	runValidation({
+		doc,
+		diagnostics,
+		cliAvailable,
+		kind: 'report',
+		onResult,
+		onError,
+	});
+}
+
+function runValidation(request: ValidationRequest): void {
+	const { doc, diagnostics, cliAvailable, kind, onError } = request;
 	if (!cliAvailable) return;
 
 	const key = doc.uri.toString();
 	const state = getRunState(key);
 
 	if (state.running) {
-		state.pending = { doc, diagnostics, cliAvailable, onResult, onError };
+		state.pending = request;
 		return;
 	}
 
@@ -83,7 +123,11 @@ export function runValidation(
 		];
 		diagnostics.set(doc.uri, items);
 
-		onResult?.(result);
+		if (kind === 'report') {
+			request.onResult(result);
+		} else {
+			request.onSuccess?.();
+		}
 
 		runPendingValidation(state);
 	}).catch((error: Error) => {
@@ -97,13 +141,7 @@ function runPendingValidation(state: RunState): void {
 	const pending = state.pending;
 	if (!pending) return;
 	state.pending = undefined;
-	runValidation(
-		pending.doc,
-		pending.diagnostics,
-		pending.cliAvailable,
-		pending.onResult,
-		pending.onError,
-	);
+	runValidation(pending);
 }
 
 function extendedEnv(): NodeJS.ProcessEnv {

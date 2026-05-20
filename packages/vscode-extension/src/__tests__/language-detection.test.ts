@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import {
 	detectAtomizeLanguage,
 	handleDocument,
 	isAtomizeDocument,
+	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
 } from '../language-detection.js';
@@ -179,6 +180,54 @@ describe('isAtomizeToolingDocument', () => {
 	});
 });
 
+// --- isAtomizeSchemaDocument ---
+
+describe('isAtomizeSchemaDocument', () => {
+	const templateContent = 'version: "1.0"\nfilter:\n  team: Dev\ntasks:\n  - id: "x"\n    title: "X"';
+	const mixinContent = 'name: "Mixin"\ntasks:\n  - id: "update"\n    title: "Update"';
+
+	it('returns true for .atomize.yaml files', () => {
+		const doc = { fileName: '/path/template.atomize.yaml', languageId: 'yaml', getText: () => 'name: anything' };
+		expect(isAtomizeSchemaDocument(doc)).toBe(true);
+	});
+
+	it('returns true for files with the atomize-yaml modeline', () => {
+		const doc = { fileName: '/path/template.yaml', languageId: 'yaml', getText: () => '# atomize-yaml\nname: anything' };
+		expect(isAtomizeSchemaDocument(doc)).toBe(true);
+	});
+
+	it('returns true for documents already assigned the atomize-yaml language ID', () => {
+		const doc = { fileName: '/path/template.yaml', languageId: 'atomize-yaml', getText: () => 'name: anything' };
+		expect(isAtomizeSchemaDocument(doc)).toBe(true);
+	});
+
+	it('returns true for content-only detected Templates', () => {
+		const doc = { fileName: '/path/template.yaml', languageId: 'yaml', getText: () => templateContent };
+		expect(isAtomizeSchemaDocument(doc)).toBe(true);
+		expect(isAtomizeToolingDocument(doc)).toBe(false);
+	});
+
+	it('returns true for content-only detected Mixins', () => {
+		const doc = { fileName: '/path/mixin.yaml', languageId: 'yaml', getText: () => mixinContent };
+		expect(isAtomizeSchemaDocument(doc)).toBe(true);
+		expect(isAtomizeToolingDocument(doc)).toBe(false);
+	});
+
+	it('returns false for generic YAML', () => {
+		const doc = { fileName: '/path/config.yaml', languageId: 'yaml', getText: () => 'name: foo\ndescription: bar' };
+		expect(isAtomizeSchemaDocument(doc)).toBe(false);
+	});
+
+	it('returns false for GitHub Actions workflows even when content looks mixin-like', () => {
+		const doc = {
+			fileName: '/Users/simaogomes/Dev/atomize/Atomize/.github/workflows/ci.yml',
+			languageId: 'yaml',
+			getText: () => mixinContent,
+		};
+		expect(isAtomizeSchemaDocument(doc)).toBe(false);
+	});
+});
+
 // --- isContentOnlyDetected ---
 
 describe('isContentOnlyDetected', () => {
@@ -241,38 +290,46 @@ describe('handleDocument', () => {
 		expect(calls).toHaveLength(0);
 	});
 
-	it('does nothing when document is already atomize-yaml', () => {
-		const calls: unknown[] = [];
+	it('switches atomize-yaml documents back to yaml so the YAML language service provides hovers', () => {
+		const calls: Array<[unknown, string]> = [];
+		const doc = { fileName: '/path/to/file.yaml', languageId: 'atomize-yaml', getText: () => templateContent };
 		handleDocument(
-			{ fileName: '/path/to/file.yaml', languageId: 'atomize-yaml', getText: () => templateContent },
+			doc,
 			(doc, lang) => calls.push([doc, lang]),
 		);
-		expect(calls).toHaveLength(0);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.[0]).toBe(doc);
+		expect(calls[0]?.[1]).toBe('yaml');
 	});
 
-	it('calls setLanguage for a .atomize.yaml file', () => {
+	it('does nothing for a .atomize.yaml file already using yaml', () => {
 		const calls: Array<[unknown, string]> = [];
 		const doc = { fileName: '/path/to/file.atomize.yaml', languageId: 'yaml', getText: () => templateContent };
 		handleDocument(doc, (d, lang) => calls.push([d, lang]));
-		expect(calls).toHaveLength(1);
-		expect(calls[0]?.[0]).toBe(doc);
-		expect(calls[0]?.[1]).toBe('atomize-yaml');
+		expect(calls).toHaveLength(0);
 	});
 
-	it('calls setLanguage for a .atomize.yml file', () => {
+	it('switches a .atomize.yaml file from plaintext to yaml', () => {
+		const calls: Array<[unknown, string]> = [];
+		const doc = { fileName: '/path/to/file.atomize.yaml', languageId: 'plaintext', getText: () => templateContent };
+		handleDocument(doc, (d, lang) => calls.push([d, lang]));
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.[0]).toBe(doc);
+		expect(calls[0]?.[1]).toBe('yaml');
+	});
+
+	it('does nothing for a .atomize.yml file already using yaml', () => {
 		const calls: Array<[unknown, string]> = [];
 		const doc = { fileName: '/path/to/mixin.atomize.yml', languageId: 'yaml', getText: () => mixinContent };
 		handleDocument(doc, (d, lang) => calls.push([d, lang]));
-		expect(calls).toHaveLength(1);
-		expect(calls[0]?.[1]).toBe('atomize-yaml');
+		expect(calls).toHaveLength(0);
 	});
 
-	it('calls setLanguage for a file with a modeline', () => {
+	it('does nothing for a file with a modeline already using yaml', () => {
 		const calls: Array<[unknown, string]> = [];
 		const doc = { fileName: '/path/to/file.yaml', languageId: 'yaml', getText: () => `# atomize-yaml\n${templateContent}` };
 		handleDocument(doc, (d, lang) => calls.push([d, lang]));
-		expect(calls).toHaveLength(1);
-		expect(calls[0]?.[1]).toBe('atomize-yaml');
+		expect(calls).toHaveLength(0);
 	});
 
 	it('does nothing for a content-only Template document without extension or modeline', () => {
@@ -302,13 +359,13 @@ describe('handleDocument', () => {
 		expect(calls).toHaveLength(0);
 	});
 
-	it('accepts uppercase .atomize.YAML extension', () => {
+	it('does nothing for uppercase .atomize.YAML extension already using yaml', () => {
 		const calls: unknown[] = [];
 		handleDocument(
 			{ fileName: '/path/to/template.atomize.YAML', languageId: 'yaml', getText: () => templateContent },
 			(doc, lang) => calls.push([doc, lang]),
 		);
-		expect(calls).toHaveLength(1);
+		expect(calls).toHaveLength(0);
 	});
 
 	it('does nothing for GitHub Actions workflows under an atomize checkout path', () => {

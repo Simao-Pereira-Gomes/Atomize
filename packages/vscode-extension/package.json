@@ -13,22 +13,20 @@
 	"activationEvents": ["onStartupFinished"],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"configurationDefaults": {
+			"files.associations": {
+				"*.atomize.yaml": "yaml",
+				"*.atomize.yml": "yaml"
+			}
+		},
 		"languages": [
 			{
 				"id": "atomize-yaml",
 				"aliases": ["Atomize YAML"],
-				"extensions": [".atomize.yaml", ".atomize.yml"],
-				"firstLine": "^#\\s*atomize-yaml",
 				"icon": {
 					"light": "./icons/yaml-light.svg",
 					"dark": "./icons/yaml-dark.svg"
 				}
-			}
-		],
-		"yamlValidation": [
-			{
-				"fileMatch": ["**/*.atomize.yaml", "**/*.atomize.yml"],
-				"url": "./schemas/atomize-template.schema.json"
 			}
 		],
 		"commands": [
@@ -52,7 +50,7 @@
 		],
 		"snippets": [
 			{
-				"language": "atomize-yaml",
+				"language": "yaml",
 				"path": "./snippets/atomize-yaml.code-snippets"
 			}
 		]

@@ -32,6 +32,14 @@ export function isAtomizeDocument(doc: { languageId: string; fileName: string; g
 	return detectAtomizeLanguage(lines) !== null;
 }
 
+/**
+ * Schema support is broader than full tooling: content-only matches get hovers
+ * and autocomplete, but not CodeLens actions or save-time CLI validation.
+ */
+export function isAtomizeSchemaDocument(doc: { languageId: string; fileName: string; getText(): string }): boolean {
+	return isAtomizeDocument(doc);
+}
+
 export type AtomizeLanguageId = typeof LANGUAGE_ID;
 
 /**
@@ -82,19 +90,18 @@ export function isContentOnlyDetected(doc: { languageId: string; fileName: strin
 }
 
 /**
- * Runs language detection on a text document and calls setLanguage when
- * the document is identified as atomize-yaml. Uses structural typing so
- * this function is importable without a vscode dependency.
+ * Keeps Atomize files on the YAML language service. Older extension builds
+ * assigned durable Atomize files to atomize-yaml, but Red Hat YAML hovers and
+ * completions are provided to yaml documents.
  */
 export function handleDocument(
 	doc: { fileName: string; languageId: string; getText(): string },
 	setLanguage: (doc: unknown, lang: string) => void,
 ): void {
 	if (!/\.ya?ml$/i.test(doc.fileName)) return;
-	if (doc.languageId === LANGUAGE_ID) return;
-	if (LAYER1_PATTERNS.some(re => re.test(doc.fileName))) {
-		setLanguage(doc, LANGUAGE_ID);
+	if (LAYER1_PATTERNS.some(re => re.test(doc.fileName)) && doc.languageId !== 'yaml') {
+		setLanguage(doc, 'yaml');
 		return;
 	}
-	if (hasModeline(doc.getText())) setLanguage(doc, LANGUAGE_ID);
+	if (doc.languageId === LANGUAGE_ID) setLanguage(doc, 'yaml');
 }
