@@ -1,5 +1,5 @@
 name: "Custom Location Template"
-description: "Example template stored outside a standard templates/ or atomize/ directory. The '# atomize-yaml' modeline on line 1 assigns the Atomize YAML language ID regardless of where this file lives — enabling schema autocomplete and validation without relying on the file's path."
+description: "Example template stored outside a standard templates/ or atomize/ directory. The .atomize.yaml extension is detected by the VS Code extension as a durable opt-in regardless of where this file lives — enabling schema autocomplete and validation without relying on the file's path."
 author: "Atomize"
 tags: ["template", "example"]
 
