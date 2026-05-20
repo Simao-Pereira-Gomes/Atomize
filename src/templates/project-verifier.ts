@@ -40,7 +40,7 @@ export function analyzeTemplateProjectVerification(
     ),
   );
   const hasSavedQuery = !!(
-    template.filter.savedQuery?.id || template.filter.savedQuery?.path
+    template.filter?.savedQuery?.id || template.filter?.savedQuery?.path
   );
 
   return {

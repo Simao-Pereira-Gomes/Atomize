@@ -3,7 +3,13 @@ import type { ZodError } from "zod";
 import type { $ZodIssue } from "zod/v4/core";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import { findDuplicateTaskIds } from "./composition-policy";
-import { type TaskTemplate, TaskTemplateSchema, type ValidationMode } from "./schema";
+import {
+  type MixinTemplate,
+  MixinTemplateSchema,
+  type TaskTemplate,
+  TaskTemplateSchema,
+  type ValidationMode,
+} from "./schema";
 
 export interface ValidationOptions {
   mode?: ValidationMode;
@@ -34,12 +40,36 @@ export interface ValidationWarning {
 export class TemplateValidator {
   validate(template: unknown, options?: ValidationOptions): ValidationResult {
     const parsed = TaskTemplateSchema.safeParse(template);
+    const parsedMixin = parsed.success
+      ? undefined
+      : MixinTemplateSchema.safeParse(template);
+
+    if (!parsed.success && parsedMixin?.success) {
+      const effectiveMode: ValidationMode = options?.mode ?? "lenient";
+      let warnings = this.collectMixinWarnings(parsedMixin.data);
+      let errors: ValidationError[] = [];
+
+      if (effectiveMode === "strict" && warnings.length > 0) {
+        const promotable = warnings.filter((w) => !w.nonBlocking);
+        const retained = warnings.filter((w) => w.nonBlocking);
+        errors = promotable.map((w) => this.warningToError(w));
+        warnings = retained;
+      }
+
+      return { valid: errors.length === 0, errors, warnings, mode: effectiveMode };
+    }
 
     const templateMode = parsed.success ? parsed.data.validation?.mode : undefined;
     const effectiveMode: ValidationMode = options?.mode ?? templateMode ?? "lenient";
 
-    let errors: ValidationError[] = !parsed.success
-      ? this.convertZodErrors(parsed.error)
+    const schemaError =
+      !parsed.success && parsedMixin !== undefined && !parsedMixin.success && this.looksLikeMixin(template)
+        ? parsedMixin.error
+        : !parsed.success
+          ? parsed.error
+          : undefined;
+    let errors: ValidationError[] = schemaError
+      ? this.convertZodErrors(schemaError)
       : [];
     let warnings: ValidationWarning[] = parsed.success
       ? this.collectWarnings(parsed.data)
@@ -99,6 +129,23 @@ export class TemplateValidator {
     return warnings;
   }
 
+  private collectMixinWarnings(mixin: MixinTemplate): ValidationWarning[] {
+    const warnings: ValidationWarning[] = [];
+    this.validateTaskDependencies(mixin, warnings);
+    return warnings;
+  }
+
+  private looksLikeMixin(template: unknown): boolean {
+    return (
+      typeof template === "object" &&
+      template !== null &&
+      !Array.isArray(template) &&
+      "tasks" in template &&
+      !("filter" in template) &&
+      !("version" in template)
+    );
+  }
+
   private validateTaskConditions(
     template: TaskTemplate,
     warnings: ValidationWarning[],
@@ -117,7 +164,7 @@ export class TemplateValidator {
   }
 
   private validateTaskDependencies(
-    template: TaskTemplate,
+    template: Pick<TaskTemplate, "tasks">,
     warnings: ValidationWarning[],
   ) {
     template.tasks.forEach((task, index) => {

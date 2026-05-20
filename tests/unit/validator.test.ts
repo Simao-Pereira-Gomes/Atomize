@@ -66,6 +66,43 @@ describe("TemplateValidator", () => {
 			expect(depError?.message).toContain("nonexistent-task");
 		});
 
+		test("should validate a standalone mixin without requiring template version or filter", () => {
+			const mixin = {
+				name: "Testing Mixin",
+				tasks: [
+					{
+						id: "unit-tests",
+						title: "Unit Tests",
+						estimationPercent: 25,
+					},
+				],
+			};
+
+			const result = validator.validate(mixin);
+
+			expect(result.valid).toBe(true);
+			expect(result.errors).toHaveLength(0);
+		});
+
+		test("should reject unknown fields in standalone mixins", () => {
+			const mixin = {
+				name: "Testing Mixin",
+				tasks: [
+					{
+						id: "unit-tests",
+						title: "Unit Tests",
+						estimationPercent: 25,
+						unknownTaskProperty: true,
+					},
+				],
+			};
+
+			const result = validator.validate(mixin);
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.length).toBeGreaterThan(0);
+		});
+
 		test("should validate required fields", () => {
 			const invalidTemplate = {
 				version: "1.0",
