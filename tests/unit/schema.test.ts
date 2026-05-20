@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   EstimationConfigSchema,
+  ExtendingTaskTemplateSchema,
   FilterCriteriaSchema,
   TaskDefinitionSchema,
   TaskTemplateSchema,
@@ -616,6 +617,32 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
+    test("should accept unresolved child template with inherited version and filter", () => {
+      const template = {
+        extends: "./base-template.yaml",
+        name: "Child Template",
+        description: "Extends base template with overrides",
+        tags: ["child"],
+        tasks: [
+          {
+            id: "design",
+            title: "Custom Design: ${story.title}",
+            description: "Overridden design task",
+            estimationPercent: 15,
+          },
+          {
+            id: "deploy",
+            title: "Deploy: ${story.title}",
+            description: "Deployment phase",
+            estimationPercent: 5,
+          },
+        ],
+      };
+
+      const result = ExtendingTaskTemplateSchema.safeParse(template);
+      expect(result.success).toBe(true);
+    });
+
     test("should reject duplicate task ids", () => {
       const template = {
         version: "1.0",
@@ -633,6 +660,39 @@ describe("Schema Validation", () => {
       if (!result.success) {
         expect(result.error.issues[0]?.message).toContain("Duplicate task id");
       }
+    });
+
+    test("should reject unknown top-level template fields", () => {
+      const template = {
+        version: "1.0",
+        name: "Unknown Top Level",
+        filter: {},
+        tasks: [{ title: "Task", estimationPercent: 100 }],
+        unexpected: true,
+      };
+
+      const result = TaskTemplateSchema.safeParse(template);
+
+      expect(result.success).toBe(false);
+    });
+
+    test("should reject unknown task fields", () => {
+      const template = {
+        version: "1.0",
+        name: "Unknown Task Field",
+        filter: {},
+        tasks: [
+          {
+            title: "Task",
+            estimationPercent: 100,
+            estimatePercent: 100,
+          },
+        ],
+      };
+
+      const result = TaskTemplateSchema.safeParse(template);
+
+      expect(result.success).toBe(false);
     });
   });
 });

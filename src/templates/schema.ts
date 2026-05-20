@@ -74,7 +74,7 @@ export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
         ),
       operator: ConditionOperatorSchema,
       value: ConditionValueSchema,
-    }),
+    }).strict(),
     z.object({
       customField: z
         .string()
@@ -87,19 +87,19 @@ export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
         ),
       operator: ConditionOperatorSchema,
       value: ConditionValueSchema,
-    }),
+    }).strict(),
     z.object({
       all: z
         .array(ConditionSchema)
         .min(1, "all requires at least one clause")
         .describe("Sub-conditions that must all match (logical AND)."),
-    }),
+    }).strict(),
     z.object({
       any: z
         .array(ConditionSchema)
         .min(1, "any requires at least one clause")
         .describe("Sub-conditions where at least one must match (logical OR)."),
-    }),
+    }).strict(),
   ]),
 );
 
@@ -118,6 +118,7 @@ export const SavedQuerySchema = z
       )
       .optional(),
   })
+  .strict()
   .refine((d) => !!(d.id ?? d.path), {
     message: "savedQuery requires either id or path",
   })
@@ -159,6 +160,7 @@ export const FilterCriteriaSchema = z.object({
         .describe("Exclude stories that have any of these tags.")
         .optional(),
     })
+    .strict()
     .describe("Tag-based filter — include or exclude stories by tag.")
     .optional(),
   areaPaths: z
@@ -198,6 +200,7 @@ export const FilterCriteriaSchema = z.object({
       min: z.number().describe("Minimum priority value (inclusive).").optional(),
       max: z.number().describe("Maximum priority value (inclusive).").optional(),
     })
+    .strict()
     .describe("Priority range filter for story selection.")
     .optional(),
   excludeIfHasTasks: z
@@ -207,7 +210,7 @@ export const FilterCriteriaSchema = z.object({
   savedQuery: SavedQuerySchema.describe(
     "Reference an existing Azure DevOps saved query to select stories.",
   ).optional(),
-});
+}).strict();
 
 export const EstimationPercentConditionSchema = z.object({
   condition: ConditionSchema.describe(
@@ -218,7 +221,7 @@ export const EstimationPercentConditionSchema = z.object({
     .min(0)
     .max(100)
     .describe("Estimation percentage used when this condition matches (0–100)."),
-});
+}).strict();
 
 export const TaskDefinitionSchema = z.object({
   id: z
@@ -318,7 +321,7 @@ export const TaskDefinitionSchema = z.object({
       }
       return undefined;
     }),
-});
+}).strict();
 
 export const EstimationConfigSchema = z.object({
   strategy: z
@@ -355,7 +358,7 @@ export const EstimationConfigSchema = z.object({
       "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'.",
     )
     .optional(),
-});
+}).strict();
 
 export const ValidationModeSchema = z
   .enum(["strict", "lenient"])
@@ -380,6 +383,7 @@ export const ValidationConfigSchema = z.object({
         .number()
         .describe("Maximum allowed total estimation percentage (inclusive)."),
     })
+    .strict()
     .describe(
       "Sum of all non-conditional task percentages must fall within this range.",
     )
@@ -401,6 +405,7 @@ export const ValidationConfigSchema = z.object({
         .number()
         .describe("Maximum allowed estimation percentage for a single task."),
     })
+    .strict()
     .describe("Each task's estimation percentage must fall within this range.")
     .optional(),
   requiredTasks: z
@@ -417,13 +422,13 @@ export const ValidationConfigSchema = z.object({
             "Required task ID. Checked first; falls back to title match if absent.",
           )
           .optional(),
-      }),
+      }).strict(),
     )
     .describe(
       "Tasks that must be present in the template, matched by title or id.",
     )
     .optional(),
-});
+}).strict();
 
 export const MetadataSchema = z.object({
   category: z
@@ -466,14 +471,13 @@ export const MetadataSchema = z.object({
         changes: z
           .string()
           .describe("Summary of what changed in this version."),
-      }),
+      }).strict(),
     )
     .describe("Version history for this template.")
     .optional(),
-});
+}).strict();
 
-export const TaskTemplateSchema = z
-  .object({
+const TaskTemplateBaseSchema = z.object({
     version: z
       .string()
       .default("1.0")
@@ -533,7 +537,25 @@ export const TaskTemplateSchema = z
         "Names or paths of mixins to compose into this template. Resolved by the Template Library.",
       )
       .optional(),
+  }).strict();
+
+export const ExtendingTaskTemplateSchema = TaskTemplateBaseSchema
+  .partial({
+    version: true,
+    name: true,
+    filter: true,
+    tasks: true,
   })
+  .extend({
+    extends: z
+      .string()
+      .min(1)
+      .describe(
+        "Name or path of a parent template this one inherits from. Inherited fields such as version, name, filter, and tasks may be omitted.",
+      ),
+  });
+
+export const TaskTemplateSchema = TaskTemplateBaseSchema
   .superRefine((data, ctx) => {
     const { tasks, validation: v } = data;
     const nonConditionalTasks = tasks.filter((t) => !t.condition);
@@ -730,6 +752,7 @@ export const MixinTemplateSchema = z
       .min(1, "At least one task is required")
       .describe("Task definitions contributed by this mixin."),
   })
+  .strict()
   .superRefine((data, ctx) => {
     validateUniqueTaskIds(data.tasks, ctx);
   });
