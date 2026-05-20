@@ -1,0 +1,38 @@
+# atomize-yaml
+version: "1.0"
+name: "My Template"
+description: "What this template does."
+author: ""
+tags: []
+
+filter:
+  workItemTypes:
+    - "User Story"
+  states:
+    - "Active"
+  tags:
+    include:
+      - "tag"
+    exclude:
+      - "tag"
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "task-id"
+    title: "Task Title"
+    description: "What this task involves."
+    estimationPercent: 100
+    tags: []
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+    dependsOn: []
+
+estimation:
+  strategy: percentage
+  source: "story-points"
+  rounding: none
+  minimumTaskPoints: 0
+  ifParentHasNoEstimation: warn
+
+validation:
+  totalEstimationMustBe: 100

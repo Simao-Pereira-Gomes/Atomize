@@ -48,7 +48,7 @@ describe("TemplateCatalog.installFromContent", () => {
       expect(item.kind).toBe("template");
       expect(item.scope).toBe("user");
       expect(item.ref).toBe("template:test-template");
-      expect(item.path).toContain(join("user", "templates", "test-template.yaml"));
+      expect(item.path).toContain(join("user", "templates", "test-template.atomize.yaml"));
       expect(existsSync(item.path)).toBe(true);
     });
 

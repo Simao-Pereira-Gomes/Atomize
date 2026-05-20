@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { logger } from "@config/logger";
 import {
@@ -79,17 +79,17 @@ export class TemplateCatalog {
     const raw = await loadYamlFile(absoluteSourcePath);
     this.validateInstallPayload(raw, kind);
 
-    const extension = extname(absoluteSourcePath);
-    if (extension !== ".yaml" && extension !== ".yml") {
+    const filename = basename(absoluteSourcePath);
+    if (!filename.endsWith(".yaml") && !filename.endsWith(".yml")) {
       throw new Error("Template files must use .yaml or .yml extension.");
     }
 
-    const name = basename(absoluteSourcePath, extension);
+    const name = filename.replace(/(?:\.atomize)?\.ya?ml$/i, "");
     this.assertValidName(name);
 
     const root = scope === "project" ? this.projectRoot : this.userRoot;
     const targetDir = join(root, this.folderForKind(kind));
-    const targetPath = join(targetDir, `${name}${extension}`);
+    const targetPath = join(targetDir, `${name}.atomize.yaml`);
     await mkdir(targetDir, { recursive: true });
     await copyFile(absoluteSourcePath, targetPath);
 
@@ -111,12 +111,11 @@ export class TemplateCatalog {
     kind: TemplateCatalogKind,
     scope: Extract<TemplateCatalogScope, "user" | "project"> = "user",
   ): Promise<TemplateCatalogItem> {
-    const extension = extname(filename);
-    if (extension !== ".yaml" && extension !== ".yml") {
+    if (!filename.endsWith(".yaml") && !filename.endsWith(".yml")) {
       throw new Error("Template files must use .yaml or .yml extension.");
     }
 
-    const name = basename(filename, extension);
+    const name = filename.replace(/(?:\.atomize)?\.ya?ml$/i, "");
     this.assertValidName(name);
 
     const raw = parseYaml(content);
@@ -124,7 +123,7 @@ export class TemplateCatalog {
 
     const root = scope === "project" ? this.projectRoot : this.userRoot;
     const targetDir = join(root, this.folderForKind(kind));
-    const targetPath = join(targetDir, `${name}${extension}`);
+    const targetPath = join(targetDir, `${name}.atomize.yaml`);
     await mkdir(targetDir, { recursive: true });
     await writeFile(targetPath, content, "utf-8");
 
@@ -174,12 +173,12 @@ export class TemplateCatalog {
 
   getUserTemplatePath(kind: TemplateCatalogKind, name: string): string {
     this.assertValidName(name);
-    return join(this.userRoot, this.folderForKind(kind), `${name}.yaml`);
+    return join(this.userRoot, this.folderForKind(kind), `${name}.atomize.yaml`);
   }
 
   getProjectTemplatePath(kind: TemplateCatalogKind, name: string): string {
     this.assertValidName(name);
-    return join(this.projectRoot, this.folderForKind(kind), `${name}.yaml`);
+    return join(this.projectRoot, this.folderForKind(kind), `${name}.atomize.yaml`);
   }
 
   private async addDiscoveredItems(
@@ -217,15 +216,22 @@ export class TemplateCatalog {
     try {
       const files = await readdir(dir);
       const yamlFiles = files.filter((file) => file.endsWith(".yaml") || file.endsWith(".yml"));
-      const items: TemplateCatalogItem[] = [];
 
+      // For each logical name, prefer .atomize.yaml over plain .yaml (same stem).
+      const byName = new Map<string, string>();
       for (const file of yamlFiles) {
-        const name = file.replace(/\.ya?ml$/, "");
+        const name = file.replace(/(?:\.atomize)?\.ya?ml$/i, "");
         if (!TEMPLATE_NAME_RE.test(name)) {
           logger.warn(`Skipping ${kind} with invalid file name: ${file}`);
           continue;
         }
+        if (!byName.has(name) || /\.atomize\.ya?ml$/i.test(file)) {
+          byName.set(name, file);
+        }
+      }
 
+      const items: TemplateCatalogItem[] = [];
+      for (const [name, file] of byName) {
         const path = join(dir, file);
         try {
           const raw = await loadYamlFile(path);

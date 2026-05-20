@@ -2,7 +2,6 @@ extends: "./base-template.yaml"
 name: "Child Template"
 description: "Extends base template with overrides"
 tags: ["child"]
-
 tasks:
   - id: "design"
     title: "Custom Design: ${story.title}"
