@@ -269,31 +269,38 @@ async function confirmLiveExecution(
   template: TaskTemplate,
   options: { platform: string },
   output: Pick<ReturnType<typeof createCommandOutput>, "outro">,
+  storyIds?: string[],
 ): Promise<void> {
-  const filterParts: string[] = [];
-  if (template.filter.savedQuery?.id)
-    filterParts.push(`Saved query ID: ${sanitizeTty(template.filter.savedQuery.id)}`);
-  else if (template.filter.savedQuery?.path)
-    filterParts.push(`Saved query: ${sanitizeTty(template.filter.savedQuery.path)}`);
-  else {
-    if (template.filter.workItemTypes)
-      filterParts.push(
-        `Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
-      );
-    if (template.filter.states)
-      filterParts.push(
-        `States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
-      );
-    if (template.filter.tags?.include)
-      filterParts.push(
-        `Tags: ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
-      );
+  let scopeLine: string;
+  if (storyIds && storyIds.length > 0) {
+    scopeLine = `Stories:   ${storyIds.map((id) => sanitizeTty(id)).join(", ")} (template filter bypassed)`;
+  } else {
+    const filterParts: string[] = [];
+    if (template.filter.savedQuery?.id)
+      filterParts.push(`Saved query ID: ${sanitizeTty(template.filter.savedQuery.id)}`);
+    else if (template.filter.savedQuery?.path)
+      filterParts.push(`Saved query: ${sanitizeTty(template.filter.savedQuery.path)}`);
+    else {
+      if (template.filter.workItemTypes)
+        filterParts.push(
+          `Types: ${template.filter.workItemTypes.map((value) => sanitizeTty(value)).join(", ")}`,
+        );
+      if (template.filter.states)
+        filterParts.push(
+          `States: ${template.filter.states.map((value) => sanitizeTty(value)).join(", ")}`,
+        );
+      if (template.filter.tags?.include)
+        filterParts.push(
+          `Tags: ${template.filter.tags.include.map((value) => sanitizeTty(value)).join(", ")}`,
+        );
+    }
+    scopeLine = `Filter:    ${filterParts.join(" · ") || "All items"}`;
   }
 
   note(
     [
       `Template:  ${sanitizeTty(template.name)}`,
-      `Filter:    ${filterParts.join(" · ") || "All items"}`,
+      scopeLine,
       `Platform:  ${sanitizeTty(options.platform)}`,
       "",
       "This will CREATE tasks in your work tracking system.",
@@ -315,6 +322,7 @@ export function printReport(
   report: Awaited<ReturnType<Atomizer["atomize"]>>,
   options: { verbose: boolean; quiet?: boolean },
   dryRun: boolean,
+  storyIds?: string[],
 ): number {
   const output = createCommandOutput(
     resolveCommandOutputPolicy({
@@ -324,9 +332,13 @@ export function printReport(
   );
 
   if (report.storiesProcessed === 0) {
-    output.printAlways(chalk.yellow("No stories matched the filter criteria."));
-    if (!options.quiet) {
-      output.print(chalk.gray("  Check your template's filter configuration (types, states, tags).\n"));
+    if (storyIds && storyIds.length > 0) {
+      output.printAlways(chalk.yellow("None of the specified stories were found."));
+    } else {
+      output.printAlways(chalk.yellow("No stories matched the filter criteria."));
+      if (!options.quiet) {
+        output.print(chalk.gray("  Check your template's filter configuration (types, states, tags).\n"));
+      }
     }
     return ExitCode.NoMatch;
   }
@@ -532,7 +544,7 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
   .option("--limit <number>", "Cap the number of work items processed (useful for testing)")
   .option(
     "--story <ids...>",
-    "Fetch specific work items by ID, bypassing the template filter. excludeIfHasTasks still applies.",
+    "Apply this template's task definitions and estimation rules to specific stories by ID, bypassing the template's story filter. excludeIfHasTasks still applies.",
   )
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .action(async (templateArg: string | undefined, options) => {

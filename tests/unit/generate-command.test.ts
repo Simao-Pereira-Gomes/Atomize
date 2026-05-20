@@ -129,6 +129,13 @@ describe("printReport", () => {
     expect(code).toBe(ExitCode.NoMatch);
   });
 
+  test("prints story-ID-specific message when no stories found via --story", () => {
+    printReport(makeReport({ storiesProcessed: 0 }), { verbose: false }, false, ["123", "456"]);
+    const calls = consoleSpy.mock.calls.flat().join(" ");
+    expect(calls).toContain("None of the specified stories were found.");
+    expect(calls).not.toContain("filter configuration");
+  });
+
   test("returns Success when all stories succeed (dry run)", () => {
     const code = printReport(
       makeReport({ storiesProcessed: 2, storiesSuccess: 2, storiesFailed: 0 }),

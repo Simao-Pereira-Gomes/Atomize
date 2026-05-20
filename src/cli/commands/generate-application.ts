@@ -78,6 +78,7 @@ export interface GenerateCommandApplicationDeps {
     template: TaskTemplate,
     options: { platform: string },
     output: Pick<OutputSink, "outro">,
+    storyIds?: string[],
   ): Promise<void>;
   runWorkflow(
     template: TaskTemplate,
@@ -99,6 +100,7 @@ export interface GenerateCommandApplicationDeps {
     report: AtomizationReport,
     options: { verbose: boolean; quiet?: boolean },
     dryRun: boolean,
+    storyIds?: string[],
   ): number;
 }
 
@@ -176,7 +178,7 @@ export async function runGenerateCommandApplication(input: {
   });
 
   if (!dryRun && isTTYSession) {
-    await deps.confirmLiveExecution(template, { platform }, output);
+    await deps.confirmLiveExecution(template, { platform }, output, storyIds);
   } else if (!dryRun && outputPolicy.showClackStatus) {
     output.warn("Live mode — acknowledged for non-interactive execution");
   }
@@ -206,6 +208,7 @@ export async function runGenerateCommandApplication(input: {
     report,
     { verbose: options.verbose === true, quiet: isQuiet },
     dryRun,
+    storyIds,
   );
 
   if (options.output) {
