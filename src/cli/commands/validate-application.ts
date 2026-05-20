@@ -10,7 +10,6 @@ import { verifyTemplate } from "@templates/template-verification";
 import type { ValidationOptions, ValidationResult, ValidationWarning } from "@templates/validator";
 import chalk from "chalk";
 import type { CommandOutput } from "@/cli/utilities/command-output";
-import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 
 export type ConnectionMode = "offline" | "online";
 
@@ -60,7 +59,7 @@ export interface ValidateCommandApplicationInput {
 
 export async function runValidateCommandApplication(
   input: ValidateCommandApplicationInput,
-): Promise<void> {
+): Promise<ValidationResult> {
   const { source, options, output, deps } = input;
   const isQuiet = options.quiet === true;
 
@@ -105,5 +104,5 @@ export async function runValidateCommandApplication(
   }
 
   output.outro(result.valid ? "Validation complete ✓" : "Validation failed ✗");
-  if (!result.valid) throw new ExitError(ExitCode.Failure);
+  return result;
 }

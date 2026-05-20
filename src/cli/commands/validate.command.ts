@@ -21,7 +21,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
+import { ExitCode } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
@@ -59,6 +59,7 @@ type ValidateOptions = {
   strict?: boolean;
   quiet?: boolean;
   profile?: string;
+  output?: string;
 };
 
 export function resolveValidateLogLevel(options: {
@@ -73,27 +74,50 @@ export const validateCommand = new Command("validate")
   .option("-s, --strict", "Use strict validation mode (warnings become errors)", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--profile <name>", "Connect to ADO using a named profile for field verification (uses default profile if omitted)")
+  .option("--output <format>", "Machine-readable output format; 'json' emits a ValidationResult object to stdout and suppresses all human-readable output")
   .action(async (source: string, options: ValidateOptions) => {
+    const isJsonOutput = options.output === 'json';
+
     const outputPolicy = resolveCommandOutputPolicy({
-      quiet: options.quiet,
+      quiet: options.quiet || isJsonOutput,
       verbose: false,
     });
     const output = createCommandOutput(outputPolicy);
-    output.intro(" Atomize — Template Validator");
+
+    if (!isJsonOutput) output.intro(" Atomize — Template Validator");
 
     const commandLogLevel = resolveValidateLogLevel(options);
     if (commandLogLevel) logger.level = commandLogLevel;
 
     try {
-      await runValidateCommandApplication({
+      const baseDeps = createValidateCommandDeps();
+      const result = await runValidateCommandApplication({
         source,
         options,
         output,
-        deps: createValidateCommandDeps(),
+        deps: isJsonOutput
+          ? { ...baseDeps, printValidationResult: () => {} }
+          : baseDeps,
       });
+
+      if (isJsonOutput) {
+        process.stdout.write(JSON.stringify(result) + '\n');
+      }
+
+      if (!result.valid) process.exit(ExitCode.Failure);
     } catch (error) {
-      if (!(error instanceof ExitError)) handleFatal(error, output);
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      if (isJsonOutput) {
+        const errorResult: ValidationResult = {
+          valid: false,
+          errors: [{ path: '', message: getErrorMessage(error), code: 'FATAL' }],
+          warnings: [],
+          mode: 'lenient',
+        };
+        process.stdout.write(JSON.stringify(errorResult) + '\n');
+        process.exit(ExitCode.Failure);
+      }
+      handleFatal(error, output);
+      process.exit(ExitCode.Failure);
     }
   });
 
