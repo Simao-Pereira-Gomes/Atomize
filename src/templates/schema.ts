@@ -326,6 +326,7 @@ export const TaskDefinitionSchema = z.object({
 export const EstimationConfigSchema = z.object({
   strategy: z
     .enum(["percentage"])
+    .optional()
     .default("percentage")
     .describe(
       "Estimation strategy. 'percentage' distributes the parent story's estimate across tasks proportionally.",
@@ -338,6 +339,7 @@ export const EstimationConfigSchema = z.object({
     .optional(),
   rounding: z
     .enum(["nearest", "up", "down", "none"])
+    .optional()
     .default("none")
     .describe(
       "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
@@ -480,6 +482,7 @@ export const MetadataSchema = z.object({
 const TaskTemplateBaseSchema = z.object({
     version: z
       .string()
+      .optional()
       .default("1.0")
       .describe("Schema version. Always '1.0' for the current format."),
     name: z
