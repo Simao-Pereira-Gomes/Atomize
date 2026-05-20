@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const cliPath = join(__dirname, "..", "dist", "cli", "index.js");
+const cliPath = join(__dirname, "dist", "cli", "index.js");
 
 if (process.platform !== "win32") {
 	if (existsSync(cliPath)) {

@@ -49,10 +49,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run tests
-        run: bun test
+        run: bun run test
+        working-directory: packages/cli
 
       - name: Determine version
         id: version
+        working-directory: packages/cli
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
             # Use explicit version if provided
@@ -71,6 +73,7 @@ jobs:
 
       - name: Build
         run: bun run build
+        working-directory: packages/cli
 
       - name: Generate changelog
         id: changelog

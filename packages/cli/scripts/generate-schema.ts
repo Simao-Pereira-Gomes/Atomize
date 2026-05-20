@@ -7,7 +7,7 @@ import {
   TaskTemplateSchema,
 } from "../src/templates/schema.js";
 
-const outDir = join(import.meta.dir, "../packages/vscode-extension/schemas");
+const outDir = join(import.meta.dir, "../../vscode-extension/schemas");
 const outFile = join(outDir, "atomize-template.schema.json");
 
 const combined = z.union([

@@ -29,9 +29,11 @@ jobs:
 
       - name: Build
         run: bun run build
+        working-directory: packages/cli
 
       - name: Run benchmarks
         run: bun run benchmark > benchmark-output.json
+        working-directory: packages/cli
 
       - name: Process benchmark results
         id: process
