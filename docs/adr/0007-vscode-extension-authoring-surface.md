@@ -36,6 +36,7 @@ The extension treats every `atomize-yaml` file as an Atomize YAML file, whether 
 - CLI-backed validation validates saved file content, not unsaved editor buffers.
 - When explicit validation is requested for a dirty document, the extension asks whether to save and validate, validate the saved version, or cancel.
 - The command palette title remains concise as `Atomize: Validate`; the CodeLens label says `Atomize: Validate and Show Report` because it opens the validation panel.
+- The extension exposes a command palette-only **Configuration Entry Point** as `Atomize: Open Settings`; it opens the full Atomize extension settings filter rather than a single setting.
 - Passing validation on save is silent apart from clearing diagnostics; no success notification or status item is shown.
 - Validation findings do not produce notifications during normal authoring. Notifications are reserved for operational failures such as a missing CLI or validation runner failure.
 - Validation runner failures leave existing diagnostics unchanged and show an operational warning.
@@ -80,6 +81,7 @@ The extension treats every `atomize-yaml` file as an Atomize YAML file, whether 
 - Validating saved file content keeps extension validation aligned with the CLI's file-path contract and avoids temporary-file semantics.
 - Prompting on dirty explicit validation avoids silently reporting stale saved content while leaving control over saving with the user.
 - Keeping the CodeLens label explicit sets correct expectations at the in-editor click target without renaming the stable command.
+- Keeping the configuration entry point command palette-only makes extension settings discoverable without adding file-level CodeLens noise to Atomize YAML authoring.
 - Silent success keeps the save-time loop quiet and avoids introducing another validation state surface before it is needed.
 - Keeping validation findings out of notifications avoids treating expected authoring mistakes as interruptive events.
 - Keeping diagnostics unchanged on runner failure avoids falsely implying the file is valid when validation did not complete.

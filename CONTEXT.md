@@ -63,6 +63,19 @@ Line-level editor feedback for an Atomize YAML File, surfaced through VS Code di
 **Validation Report**:
 A file-level summary of an Atomize YAML File validation run, including grouped errors, warnings, and suggestions.
 
+**CLI Validation Provider**:
+The command-line executable the VS Code extension invokes to produce Validation Diagnostics and Validation Reports.
+
+**CLI Installation Command**:
+The user-approved command the VS Code extension runs in a visible terminal to install or update the default CLI Validation Provider.
+
+**CLI Update Check**:
+An extension-owned registry lookup that detects whether the default CLI Validation Provider has a newer stable release available.
+
+**Configuration Entry Point**:
+A VS Code surface that opens Atomize extension settings.
+_Avoid_: onboarding, walkthrough, docs link when referring to settings discovery.
+
 **Field Hover Description**:
 Schema-backed explanatory text shown by the editor for an Atomize YAML field while authoring.
 
@@ -76,6 +89,8 @@ Schema-backed explanatory text shown by the editor for an Atomize YAML field whi
 - A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
 - **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
 - **Validation Diagnostics** may refresh passively while authoring; a **Validation Report** is only shown after an explicit user request.
+- A **CLI Validation Provider** produces the validation result consumed by **Validation Diagnostics** and **Validation Reports** in the VS Code extension.
+- A **Configuration Entry Point** helps users configure the **CLI Validation Provider** and related extension-owned CLI behavior.
 - **Durable Atomize YAML Opt-In** identifies an **Atomize YAML File** for full editor tooling while preserving the `yaml` language identity; **Session Atomize YAML Opt-In** identifies one for schema-backed authoring support and durable opt-in prompting only.
 - A **Field Hover Description** is available for every schema-enabled **Atomize YAML File**, whether identified by **Durable Atomize YAML Opt-In** or **Session Atomize YAML Opt-In**.
 - A **Catalog Override** is detected automatically by name collision; **Template Lineage** is declared explicitly via the `origin` field and is informational only.

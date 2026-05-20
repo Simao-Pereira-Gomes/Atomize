@@ -13,8 +13,16 @@ import { AtomizeCodeLensProvider } from './codelens-provider.js';
 import { clearRunState, runDiagnosticValidation, runReportValidation } from './diagnostics.js';
 import { AtomizePanel } from './panel.js';
 import { renderValidationHtml } from './validation-html.js';
-
-const INSTALL_URL = 'https://www.npmjs.com/package/@sppg2001/atomize';
+import {
+	buildVersionArgs,
+	checkForCliUpdate,
+	DEFAULT_CLI_PATH,
+	fetchNpmLatestVersion,
+	normalizeCliPath,
+	normalizeInstallCommand,
+	UPDATE_CHECK_CACHE_KEY,
+	type CliUpdateCache,
+} from './cli-provider.js';
 
 interface YamlSchemaContributorAPI {
 	registerContributor(
@@ -25,7 +33,6 @@ interface YamlSchemaContributorAPI {
 	): boolean;
 }
 
-let cliAvailable = false;
 let cliWarningShown = false;
 
 // URIs of documents that should receive the Atomize YAML schema.
@@ -43,11 +50,31 @@ function extendedEnv(): NodeJS.ProcessEnv {
 	return { ...process.env, PATH: `${extra}:${process.env.PATH ?? ''}` };
 }
 
-function checkCliAvailable(): Promise<boolean> {
+function getConfiguredCliPath(): string {
+	return normalizeCliPath(vscode.workspace.getConfiguration('atomize').get('cliPath'));
+}
+
+function getConfiguredInstallCommand(): string {
+	return normalizeInstallCommand(vscode.workspace.getConfiguration('atomize').get('cli.installCommand'));
+}
+
+function getAutoCheckUpdates(): boolean {
+	return vscode.workspace.getConfiguration('atomize').get('cli.autoCheckUpdates', true);
+}
+
+interface CliProbeResult {
+	available: boolean;
+	version?: string;
+}
+
+function probeCli(cliPath: string): Promise<CliProbeResult> {
 	return new Promise(resolve => {
-		const proc = spawn('atomize', ['--version'], { shell: true, env: extendedEnv() });
-		proc.on('close', code => resolve(code === 0));
-		proc.on('error', () => resolve(false));
+		const proc = spawn(cliPath, buildVersionArgs(), { shell: false, env: extendedEnv() });
+		let output = '';
+		proc.stdout.on('data', chunk => { output += chunk.toString(); });
+		proc.stderr.on('data', chunk => { output += chunk.toString(); });
+		proc.on('close', code => resolve({ available: code === 0, version: output.trim() }));
+		proc.on('error', () => resolve({ available: false }));
 	});
 }
 
@@ -119,21 +146,69 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 	// window between extension activation and the YAML LS calling requestSchema.
 	await registerYamlSchemaContributor(ctx);
 
-	cliAvailable = await checkCliAvailable();
+	const initialCliPath = getConfiguredCliPath();
+	const initialProbe = await probeCli(initialCliPath);
 
-	if (!cliAvailable && !cliWarningShown) {
+	if (!initialProbe.available && !cliWarningShown) {
 		cliWarningShown = true;
-		const selection = await vscode.window.showWarningMessage(
-			'Atomize CLI not found. Install it to enable validation, preview, and testing.',
-			'Install',
-		);
-		if (selection === 'Install') {
-			await vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL));
-		}
+		await showCliUnavailableMessage(initialCliPath, 'Atomize CLI not found. Install it to enable validation, preview, and testing.');
 	}
 
 	const diagnostics = vscode.languages.createDiagnosticCollection('atomize');
 	const validationFailureWarnedUris = new Set<string>();
+	let updateCheckStarted = false;
+
+	async function openAtomizeSettings(): Promise<void> {
+		await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:sppg2001.atomize');
+	}
+
+	function runInstallCommand(): void {
+		const terminal = vscode.window.createTerminal({ name: 'Atomize CLI' });
+		terminal.show();
+		terminal.sendText(getConfiguredInstallCommand(), true);
+	}
+
+	async function promptRecheckAfterInstall(): Promise<void> {
+		const selection = await vscode.window.showInformationMessage(
+			'Atomize CLI install command started in the terminal.',
+			'Re-check',
+			'Dismiss',
+		);
+		if (selection === 'Re-check') {
+			const probe = await probeCli(getConfiguredCliPath());
+			if (probe.available) {
+				void vscode.window.showInformationMessage('Atomize CLI is available.');
+			} else {
+				await showCliUnavailableMessage(getConfiguredCliPath(), 'Atomize CLI is still not available.');
+			}
+		}
+	}
+
+	async function maybeCheckForCliUpdate(cliPath: string, version: string | undefined): Promise<void> {
+		if (updateCheckStarted) return;
+		updateCheckStarted = true;
+		const result = await checkForCliUpdate({
+			cliPath,
+			autoCheckUpdates: getAutoCheckUpdates(),
+			installedVersion: version,
+			now: Date.now(),
+			cache: ctx.globalState.get<CliUpdateCache>(UPDATE_CHECK_CACHE_KEY),
+			fetchLatestVersion: fetchNpmLatestVersion,
+		});
+		if (!result) return;
+
+		await ctx.globalState.update(UPDATE_CHECK_CACHE_KEY, result.cache);
+		if (!result.updateAvailable || !result.latestVersion) return;
+
+		const selection = await vscode.window.showInformationMessage(
+			`A newer Atomize CLI is available (${result.latestVersion}).`,
+			'Update',
+			'Dismiss',
+		);
+		if (selection === 'Update') {
+			runInstallCommand();
+		}
+	}
 
 	function validatePassive(doc: vscode.TextDocument): void {
 		if (!isAtomizeToolingDocument(doc)) {
@@ -145,33 +220,54 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			return;
 		}
+		void probeCli(getConfiguredCliPath()).then(probe => {
+			if (probe.available) void maybeCheckForCliUpdate(getConfiguredCliPath(), probe.version);
+		});
 		runDiagnosticValidation(
 			doc,
 			diagnostics,
-			cliAvailable,
+			getConfiguredCliPath(),
 			() => { validationFailureWarnedUris.delete(doc.uri.toString()); },
 			() => { showValidationRunnerFailure(doc, true); },
 		);
 	}
 
-	function validateWithReport(doc: vscode.TextDocument): void {
+	async function validateWithReport(doc: vscode.TextDocument): Promise<void> {
 		if (!isAtomizeDocument(doc)) return;
-		runReportValidation(doc, diagnostics, cliAvailable, result => {
+		const cliPath = getConfiguredCliPath();
+		const probe = await probeCli(cliPath);
+		if (!probe.available) {
+			await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to enable validation and preview.');
+			return;
+		}
+		void maybeCheckForCliUpdate(cliPath, probe.version);
+		runReportValidation(doc, diagnostics, cliPath, result => {
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			const fileName = vscode.workspace.asRelativePath(doc.uri);
 			AtomizePanel.show(`Atomize: ${fileName}`, renderValidationHtml(result, fileName));
 		}, () => { showValidationRunnerFailure(doc, false); });
 	}
 
-	function showInstallBanner(): void {
-		void vscode.window.showWarningMessage(
-			'Atomize CLI not found. Install it to enable validation and preview.',
-			'Install',
-		).then(selection => {
+	async function showCliUnavailableMessage(cliPath: string, defaultMessage: string): Promise<void> {
+		if (cliPath === DEFAULT_CLI_PATH) {
+			const selection = await vscode.window.showWarningMessage(defaultMessage, 'Install', 'Open Settings', 'Dismiss');
 			if (selection === 'Install') {
-				void vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL));
+				runInstallCommand();
+				await promptRecheckAfterInstall();
+			} else if (selection === 'Open Settings') {
+				await openAtomizeSettings();
 			}
-		});
+			return;
+		}
+
+		const selection = await vscode.window.showWarningMessage(
+			`Configured Atomize CLI path could not be executed: ${cliPath}`,
+			'Open Settings',
+			'Dismiss',
+		);
+		if (selection === 'Open Settings') {
+			await vscode.commands.executeCommand('workbench.action.openSettings', 'atomize.cliPath');
+		}
 	}
 
 	function showValidationRunnerFailure(doc: vscode.TextDocument, throttle: boolean): void {
@@ -263,7 +359,6 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		),
 
 		vscode.commands.registerCommand('atomize.validate', async (uri?: vscode.Uri) => {
-			if (!cliAvailable) { showInstallBanner(); return; }
 			const doc = uri
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
@@ -283,11 +378,17 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				}
 			}
 
-			validateWithReport(doc);
+			await validateWithReport(doc);
 		}),
 
-		vscode.commands.registerCommand('atomize.preview', (uri?: vscode.Uri) => {
-			if (!cliAvailable) { showInstallBanner(); return; }
+		vscode.commands.registerCommand('atomize.preview', async (uri?: vscode.Uri) => {
+			const cliPath = getConfiguredCliPath();
+			const probe = await probeCli(cliPath);
+			if (!probe.available) {
+				await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to enable validation and preview.');
+				return;
+			}
+			void maybeCheckForCliUpdate(cliPath, probe.version);
 			const doc = uri
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
@@ -296,6 +397,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				`Atomize: Preview (Mock) is coming soon for ${vscode.workspace.asRelativePath(doc.uri)}.`,
 			);
 		}),
+
+		vscode.commands.registerCommand('atomize.openSettings', openAtomizeSettings),
 	);
 }
 

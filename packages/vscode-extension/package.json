@@ -24,6 +24,26 @@
 				"*.atomize.yml": "yaml"
 			}
 		},
+		"configuration": {
+			"title": "Atomize",
+			"properties": {
+				"atomize.cliPath": {
+					"type": "string",
+					"default": "atomize",
+					"description": "Path to the Atomize CLI executable used for validation and preview."
+				},
+				"atomize.cli.installCommand": {
+					"type": "string",
+					"default": "npm install -g @sppg2001/atomize",
+					"description": "Command run in a visible terminal to install or update the default Atomize CLI."
+				},
+				"atomize.cli.autoCheckUpdates": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically check npm for stable Atomize CLI updates when using the default CLI executable."
+				}
+			}
+		},
 		"languages": [
 			{
 				"id": "atomize-yaml",
@@ -43,6 +63,11 @@
 			{
 				"command": "atomize.preview",
 				"title": "Atomize: Preview (Mock)",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.openSettings",
+				"title": "Open Settings",
 				"category": "Atomize"
 			}
 		],
@@ -66,8 +91,12 @@
 		"package": "vsce package --no-dependencies",
 		"typecheck": "tsc --noEmit"
 	},
+	"dependencies": {
+		"semver": "^7.7.4"
+	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
+		"@types/semver": "^7.7.1",
 		"@types/vscode": "^1.85.0",
 		"@vscode/vsce": "^2.24.0",
 		"esbuild": "^0.20.0",

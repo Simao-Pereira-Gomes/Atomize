@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
+import { buildValidateArgs } from './cli-provider.js';
 
 export interface ValidationError {
 	path: string;
@@ -32,7 +33,7 @@ const runStates = new Map<string, RunState>();
 interface BaseValidationRequest {
 	doc: vscode.TextDocument;
 	diagnostics: vscode.DiagnosticCollection;
-	cliAvailable: boolean;
+	cliPath: string;
 	onError?: (error: Error) => void;
 }
 
@@ -64,14 +65,14 @@ export function clearRunState(uri: vscode.Uri): void {
 export function runDiagnosticValidation(
 	doc: vscode.TextDocument,
 	diagnostics: vscode.DiagnosticCollection,
-	cliAvailable: boolean,
+	cliPath: string,
 	onSuccess?: () => void,
 	onError?: (error: Error) => void,
 ): void {
 	runValidation({
 		doc,
 		diagnostics,
-		cliAvailable,
+		cliPath,
 		kind: 'diagnostics',
 		onSuccess,
 		onError,
@@ -81,14 +82,14 @@ export function runDiagnosticValidation(
 export function runReportValidation(
 	doc: vscode.TextDocument,
 	diagnostics: vscode.DiagnosticCollection,
-	cliAvailable: boolean,
+	cliPath: string,
 	onResult: (result: ValidationResult) => void,
 	onError?: (error: Error) => void,
 ): void {
 	runValidation({
 		doc,
 		diagnostics,
-		cliAvailable,
+		cliPath,
 		kind: 'report',
 		onResult,
 		onError,
@@ -96,8 +97,7 @@ export function runReportValidation(
 }
 
 function runValidation(request: ValidationRequest): void {
-	const { doc, diagnostics, cliAvailable, kind, onError } = request;
-	if (!cliAvailable) return;
+	const { doc, diagnostics, cliPath, kind, onError } = request;
 
 	const key = doc.uri.toString();
 	const state = getRunState(key);
@@ -110,7 +110,7 @@ function runValidation(request: ValidationRequest): void {
 	state.running = true;
 	state.pending = undefined;
 
-	spawnValidation(doc.uri.fsPath).then(result => {
+	spawnValidation(cliPath, doc.uri.fsPath).then(result => {
 		state.running = false;
 
 		const items = [
@@ -155,9 +155,9 @@ function extendedEnv(): NodeJS.ProcessEnv {
 	return { ...process.env, PATH: `${extra}:${process.env.PATH ?? ''}` };
 }
 
-function spawnValidation(filePath: string): Promise<ValidationResult> {
+function spawnValidation(cliPath: string, filePath: string): Promise<ValidationResult> {
 	return new Promise((resolve, reject) => {
-		const proc = spawn('atomize', ['validate', '--output', 'json', filePath], { shell: true, env: extendedEnv() });
+		const proc = spawn(cliPath, buildValidateArgs(filePath), { shell: false, env: extendedEnv() });
 		let stdout = '';
 		let stderr = '';
 
