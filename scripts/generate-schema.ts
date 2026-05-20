@@ -1,12 +1,20 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { MixinTemplateSchema, TaskTemplateSchema } from "../src/templates/schema.js";
+import {
+  ExtendingTaskTemplateSchema,
+  MixinTemplateSchema,
+  TaskTemplateSchema,
+} from "../src/templates/schema.js";
 
 const outDir = join(import.meta.dir, "../packages/vscode-extension/schemas");
 const outFile = join(outDir, "atomize-template.schema.json");
 
-const combined = z.union([TaskTemplateSchema, MixinTemplateSchema]);
+const combined = z.union([
+  TaskTemplateSchema,
+  ExtendingTaskTemplateSchema,
+  MixinTemplateSchema,
+]);
 const { anyOf, $schema, ...rest } = z.toJSONSchema(combined);
 
 // Keep anyOf (not oneOf) so partially-authored files stay valid during editing.

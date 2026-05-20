@@ -685,6 +685,555 @@
     {
       "type": "object",
       "properties": {
+        "version": {
+          "default": "1.0",
+          "description": "Schema version. Always '1.0' for the current format.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique display name for this template."
+        },
+        "description": {
+          "type": "string",
+          "description": "What this template is for and when to use it."
+        },
+        "author": {
+          "type": "string",
+          "description": "Author or team that owns this template."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags for template discovery in the catalog."
+        },
+        "created": {
+          "type": "string",
+          "description": "ISO 8601 date when this template was first created."
+        },
+        "lastModified": {
+          "type": "string",
+          "description": "ISO 8601 date of the last modification."
+        },
+        "filter": {
+          "type": "object",
+          "properties": {
+            "team": {
+              "type": "string",
+              "description": "Azure DevOps team name. Limits story selection to stories owned by this team."
+            },
+            "workItemTypes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Work item types to include (e.g. ['User Story', 'Bug'])."
+            },
+            "states": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Story states to target (e.g. ['Active', 'New'])."
+            },
+            "statesExclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Story states to exclude from selection."
+            },
+            "statesWereEver": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Include stories that were ever in any of these states."
+            },
+            "tags": {
+              "type": "object",
+              "properties": {
+                "include": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include stories that have at least one of these tags."
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Exclude stories that have any of these tags."
+                }
+              },
+              "additionalProperties": false,
+              "description": "Tag-based filter — include or exclude stories by tag."
+            },
+            "areaPaths": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string",
+                    "const": "@TeamAreas"
+                  }
+                ]
+              },
+              "description": "Area paths to filter by. Use '@TeamAreas' to match all areas owned by the configured team."
+            },
+            "areaPathsUnder": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Include stories in these area paths and all sub-paths."
+            },
+            "iterations": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string",
+                    "const": "@CurrentIteration"
+                  }
+                ]
+              },
+              "description": "Iterations to filter by. Use '@CurrentIteration' for the active sprint."
+            },
+            "iterationsUnder": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Include stories in these iterations and all sub-iterations."
+            },
+            "assignedTo": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  {
+                    "type": "string",
+                    "const": "@Me"
+                  }
+                ]
+              },
+              "description": "Assignee filter. Accepts email addresses or '@Me' for the authenticated user."
+            },
+            "changedAfter": {
+              "type": "string",
+              "description": "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7')."
+            },
+            "createdAfter": {
+              "type": "string",
+              "description": "Include stories created after this date. ISO 8601 date or date macro."
+            },
+            "priority": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number",
+                  "description": "Minimum priority value (inclusive)."
+                },
+                "max": {
+                  "type": "number",
+                  "description": "Maximum priority value (inclusive)."
+                }
+              },
+              "additionalProperties": false,
+              "description": "Priority range filter for story selection."
+            },
+            "excludeIfHasTasks": {
+              "type": "boolean",
+              "description": "If true, skips stories that already have child tasks."
+            },
+            "savedQuery": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Azure DevOps saved query GUID."
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Path to the saved query in Azure DevOps (e.g. 'My Queries/Sprint Stories')."
+                }
+              },
+              "additionalProperties": false,
+              "description": "Reference an existing Azure DevOps saved query to select stories."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Criteria used to select which stories this template applies to."
+        },
+        "tasks": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Task title — shown as the work item title in Azure DevOps."
+              },
+              "description": {
+                "type": "string",
+                "description": "Additional details or notes for this task."
+              },
+              "estimationPercent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Percentage of the parent story's estimate assigned to this task (0–100). Requires estimation.strategy = 'percentage'."
+              },
+              "estimationPercentCondition": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "condition": {
+                      "description": "Condition evaluated against the parent story. Applied when this condition matches.",
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100,
+                      "description": "Estimation percentage used when this condition matches (0–100)."
+                    }
+                  },
+                  "required": [
+                    "condition",
+                    "percent"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Conditional estimation rules evaluated in order. The first matching condition's percent is used."
+              },
+              "estimationFixed": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Fixed point value for this task, independent of the parent story's estimate."
+              },
+              "estimationFormula": {
+                "type": "string",
+                "description": "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time."
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Tags applied to the generated task."
+              },
+              "condition": {
+                "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
+                "$ref": "#/$defs/__schema0"
+              },
+              "dependsOn": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks."
+              },
+              "assignTo": {
+                "type": "string",
+                "description": "Email address or alias to assign this task to."
+              },
+              "priority": {
+                "type": "number",
+                "description": "Priority value for the generated task."
+              },
+              "activity": {
+                "type": "string",
+                "description": "Azure DevOps activity type for this task (e.g. 'Development', 'Testing', 'Design')."
+              },
+              "acceptanceCriteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Acceptance criteria lines for this task."
+              },
+              "acceptanceCriteriaAsChecklist": {
+                "type": "boolean",
+                "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
+              },
+              "customFields": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "description": "Azure DevOps custom fields to set on the task. Keys must be in 'Namespace.FieldName' format (e.g. 'Custom.ClientTier')."
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Task definitions that will be generated from this template."
+        },
+        "estimation": {
+          "type": "object",
+          "properties": {
+            "strategy": {
+              "default": "percentage",
+              "description": "Estimation strategy. 'percentage' distributes the parent story's estimate across tasks proportionally.",
+              "type": "string",
+              "enum": [
+                "percentage"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "description": "Field on the parent story to read the estimation value from (e.g. 'story-points')."
+            },
+            "rounding": {
+              "default": "none",
+              "description": "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
+              "type": "string",
+              "enum": [
+                "nearest",
+                "up",
+                "down",
+                "none"
+              ]
+            },
+            "minimumTaskPoints": {
+              "type": "number",
+              "description": "Minimum point value any single task can receive after rounding."
+            },
+            "ifParentHasNoEstimation": {
+              "type": "string",
+              "enum": [
+                "skip",
+                "warn",
+                "use-default"
+              ],
+              "description": "Behaviour when the parent story has no estimate. 'skip' omits tasks, 'warn' logs a warning, 'use-default' falls back to defaultParentEstimation."
+            },
+            "defaultParentEstimation": {
+              "type": "number",
+              "description": "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'."
+            }
+          },
+          "required": [
+            "strategy",
+            "rounding"
+          ],
+          "additionalProperties": false,
+          "description": "Global estimation configuration for all tasks in this template."
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "strict",
+                "lenient"
+              ],
+              "description": "'strict' fails on any validation warning; 'lenient' allows warnings to pass."
+            },
+            "totalEstimationMustBe": {
+              "type": "number",
+              "description": "Sum of all non-conditional task percentages must equal this value exactly."
+            },
+            "totalEstimationRange": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number",
+                  "description": "Minimum allowed total estimation percentage (inclusive)."
+                },
+                "max": {
+                  "type": "number",
+                  "description": "Maximum allowed total estimation percentage (inclusive)."
+                }
+              },
+              "required": [
+                "min",
+                "max"
+              ],
+              "additionalProperties": false,
+              "description": "Sum of all non-conditional task percentages must fall within this range."
+            },
+            "minTasks": {
+              "type": "number",
+              "description": "Minimum number of tasks the template must define."
+            },
+            "maxTasks": {
+              "type": "number",
+              "description": "Maximum number of tasks the template may define."
+            },
+            "taskEstimationRange": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number",
+                  "description": "Minimum allowed estimation percentage for a single task."
+                },
+                "max": {
+                  "type": "number",
+                  "description": "Maximum allowed estimation percentage for a single task."
+                }
+              },
+              "required": [
+                "min",
+                "max"
+              ],
+              "additionalProperties": false,
+              "description": "Each task's estimation percentage must fall within this range."
+            },
+            "requiredTasks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Required task title. Matched case-insensitively against task titles."
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "Required task ID. Checked first; falls back to title match if absent."
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              "description": "Tasks that must be present in the template, matched by title or id."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Validation rules applied when this template is used."
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "description": "Template category for discovery and grouping (e.g. 'Frontend', 'Backend', 'Infrastructure')."
+            },
+            "difficulty": {
+              "type": "string",
+              "enum": [
+                "beginner",
+                "intermediate",
+                "advanced"
+              ],
+              "description": "Complexity level of the work this template targets."
+            },
+            "recommendedFor": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Work item types or story patterns this template is optimised for (e.g. ['User Story', 'Bug'])."
+            },
+            "estimationGuidelines": {
+              "type": "string",
+              "description": "Human-readable guidance on how to estimate stories before using this template."
+            },
+            "examples": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Example story titles or scenarios where this template applies."
+            },
+            "changelog": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "string",
+                    "description": "Template version this changelog entry describes."
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "Date of the change in YYYY-MM-DD format."
+                  },
+                  "changes": {
+                    "type": "string",
+                    "description": "Summary of what changed in this version."
+                  }
+                },
+                "required": [
+                  "version",
+                  "date",
+                  "changes"
+                ],
+                "additionalProperties": false
+              },
+              "description": "Version history for this template."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Additional metadata for template discovery and documentation."
+        },
+        "extends": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name or path of a parent template this one inherits from. Inherited fields such as version, name, filter, and tasks may be omitted."
+        },
+        "mixins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Names or paths of mixins to compose into this template. Resolved by the Template Library."
+        }
+      },
+      "required": [
+        "extends"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
         "name": {
           "type": "string",
           "minLength": 1,
