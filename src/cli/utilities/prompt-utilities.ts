@@ -8,8 +8,8 @@ import {
   select,
   text,
 } from "@clack/prompts";
-import z from "zod";
 import type { TemplateCatalogScope } from "@services/template/template-catalog";
+import z from "zod";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
 export { createManagedSpinner } from "@/cli/utilities/terminal-output";

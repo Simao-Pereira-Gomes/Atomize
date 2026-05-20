@@ -1,8 +1,8 @@
+import { note } from "@clack/prompts";
 import type {
   TemplateCatalogItem,
   TemplateCatalogKind,
 } from "@services/template/template-catalog";
-import { note } from "@clack/prompts";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
