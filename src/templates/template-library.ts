@@ -42,6 +42,7 @@ export interface RunnableTemplate {
 export interface TemplateLibraryCatalog {
   items: TemplateCatalogItem[];
   overrides: Awaited<ReturnType<TemplateCatalog["listWithOverrides"]>>["overrides"];
+  lineage: Awaited<ReturnType<TemplateCatalog["listWithOverrides"]>>["lineage"];
 }
 
 export interface SaveTemplateInput {

@@ -537,6 +537,12 @@ const TaskTemplateBaseSchema = z.object({
         "Names or paths of mixins to compose into this template. Resolved by the Template Library.",
       )
       .optional(),
+    origin: z
+      .string()
+      .describe(
+        "Catalog ref (template:<name> or mixin:<name>) this template was derived from. Informational only — does not affect ref resolution.",
+      )
+      .optional(),
   }).strict();
 
 export const ExtendingTaskTemplateSchema = TaskTemplateBaseSchema
@@ -751,6 +757,12 @@ export const MixinTemplateSchema = z
       .array(TaskDefinitionSchema)
       .min(1, "At least one task is required")
       .describe("Task definitions contributed by this mixin."),
+    origin: z
+      .string()
+      .describe(
+        "Catalog ref (template:<name> or mixin:<name>) this mixin was derived from. Informational only — does not affect ref resolution.",
+      )
+      .optional(),
   })
   .strict()
   .superRefine((data, ctx) => {

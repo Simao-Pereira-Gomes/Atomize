@@ -20,6 +20,7 @@ import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
+  formatScope,
   isInteractiveTerminal,
   selectOrAutocomplete,
 } from "@/cli/utilities/prompt-utilities";
@@ -326,14 +327,15 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
     await confirm({ message: "Customize the template?", initialValue: false }),
   );
   if (customize) {
-    return await customizeTemplate(parentTemplate, options.profile);
+    const customized = await customizeTemplate(parentTemplate, options.profile);
+    return { ...customized, origin: `template:${templateName}` };
   }
   await previewTemplate(parentTemplate);
-  return parentTemplate;
+  return { ...parentTemplate, origin: `template:${templateName}` };
 }
 
-function formatCatalogChoice(label: string, scope: string): string {
-  return `${label} (${scope})`;
+function formatCatalogChoice(label: string, scope: import("@services/template/template-catalog").TemplateCatalogScope): string {
+  return `${label} (${formatScope(scope)})`;
 }
 
 async function configureTemplateMixins(library: TemplateLibrary): Promise<string[]> {

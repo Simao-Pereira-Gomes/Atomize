@@ -22,11 +22,17 @@ export interface TemplateCatalogItem {
   description: string;
   ref: string;
   path: string;
+  origin?: string;
 }
 
 export interface CatalogOverride {
   active: TemplateCatalogItem;
   overridden: TemplateCatalogItem;
+}
+
+export interface CatalogLineage {
+  item: TemplateCatalogItem;
+  originItem: TemplateCatalogItem;
 }
 
 export interface TemplateRefParts {
@@ -59,10 +65,12 @@ export class TemplateCatalog {
     return (await this.listWithOverrides(kind)).items;
   }
 
-  async listWithOverrides(kind: TemplateCatalogKind): Promise<{ items: TemplateCatalogItem[]; overrides: CatalogOverride[] }> {
+  async listWithOverrides(kind: TemplateCatalogKind): Promise<{ items: TemplateCatalogItem[]; overrides: CatalogOverride[]; lineage: CatalogLineage[] }> {
     const items = new Map<string, TemplateCatalogItem>();
     const overrides = await this.addDiscoveredItems(items, kind);
-    return { items: [...items.values()], overrides };
+    const allItems = [...items.values()];
+    const lineage = this.buildLineage(allItems, items);
+    return { items: allItems, overrides, lineage };
   }
 
   async findByRef(ref: string, defaultKind: TemplateCatalogKind = "template"): Promise<TemplateCatalogItem | undefined> {
@@ -244,6 +252,7 @@ export class TemplateCatalog {
             description: metadata.description ?? "No description",
             ref: `${kind}:${name}`,
             path,
+            ...(metadata.origin ? { origin: metadata.origin } : {}),
           });
         } catch (error) {
           logger.warn(`Failed to load ${kind} file ${file}`, { error });
@@ -300,7 +309,25 @@ export class TemplateCatalog {
     return "mixins";
   }
 
-  private extractMetadata(raw: unknown): { name?: string; description?: string } {
+  private buildLineage(
+    allItems: TemplateCatalogItem[],
+    itemsByName: Map<string, TemplateCatalogItem>,
+  ): CatalogLineage[] {
+    const lineage: CatalogLineage[] = [];
+    for (const item of allItems) {
+      if (!item.origin) continue;
+      const separatorIndex = item.origin.indexOf(":");
+      if (separatorIndex === -1) continue;
+      const originName = item.origin.slice(separatorIndex + 1);
+      const originItem = itemsByName.get(originName);
+      if (originItem) {
+        lineage.push({ item, originItem });
+      }
+    }
+    return lineage;
+  }
+
+  private extractMetadata(raw: unknown): { name?: string; description?: string; origin?: string } {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
       return {};
     }
@@ -309,6 +336,7 @@ export class TemplateCatalog {
     return {
       name: typeof record.name === "string" ? record.name : undefined,
       description: typeof record.description === "string" ? record.description : undefined,
+      origin: typeof record.origin === "string" ? record.origin : undefined,
     };
   }
 

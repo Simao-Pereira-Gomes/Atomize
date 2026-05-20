@@ -12,6 +12,7 @@ import {
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
+  formatScope,
   isInteractiveTerminal,
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
@@ -30,7 +31,7 @@ export const templateInstallCommand = new Command("install")
   .argument("<source>", "Path to a YAML template file or an HTTPS URL")
   .option("--type <type>", "Template type: template or mixin (auto-detected if omitted)")
   .option("--overwrite", "Overwrite if a template with the same name already exists", false)
-  .option("--scope <scope>", "Installation scope: user (~/.atomize) or project (.atomize in cwd)", "user")
+  .option("--scope <scope>", 'Installation scope: user (displayed as "personal") or project (displayed as "your project") [default: user]')
   .action(async (source: string, options: InstallOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
@@ -72,7 +73,7 @@ export const templateInstallCommand = new Command("install")
       const item = await resolvedSource.install();
       output.print(chalk.green(`Installed ${resolvedSource.kind}: ${sanitizeTty(item.name)}`));
       output.print(chalk.gray(`  ref:   ${sanitizeTty(item.ref)}`));
-      output.print(chalk.gray(`  scope: ${item.scope}`));
+      output.print(chalk.gray(`  scope: ${formatScope(item.scope)}`));
       output.print(chalk.gray(`  path:  ${sanitizeTty(item.path)}`));
       if (resolvedSource.fromLabel) output.print(chalk.gray(`  from:  ${sanitizeTty(resolvedSource.fromLabel)}`));
       output.outro("Installed successfully");

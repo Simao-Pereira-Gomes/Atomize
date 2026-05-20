@@ -26,6 +26,13 @@ _Avoid_: template catalog when referring to the whole library; catalog is only t
 **Catalog**:
 The named inventory of templates and mixins available from built-in, user, and project scopes.
 
+**Catalog Override**:
+A name-collision between two catalog items of the same kind and stem name in different scopes. The higher-priority scope (project > user > built-in) wins; the losing item is the overridden entry. Shown as `⚠ overrides:` in `atomize template list`.
+
+**Template Lineage**:
+A declared provenance relationship between a template or mixin and the catalog item it was derived from, recorded in the `origin` field (`template:<name>` or `mixin:<name>`). Lineage is informational only — it does not affect how refs are resolved and does not shadow the origin item. Shown as `↖ based on:` in `atomize template list`.
+_Avoid_: using "override" for lineage; lineage is derivation, not replacement.
+
 **Atomize YAML File**:
 Any YAML file authored for Atomize, either a Template or a Mixin.
 
@@ -66,6 +73,7 @@ A file-level summary of an Atomize YAML File validation run, including grouped e
 - A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
 - **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
 - **Durable Atomize YAML Opt-In** and **Session Atomize YAML Opt-In** both identify an **Atomize YAML File** for editor tooling; durable opt-in survives editor sessions.
+- A **Catalog Override** is detected automatically by name collision; **Template Lineage** is declared explicitly via the `origin` field and is informational only.
 
 ## Flagged Ambiguities
 
