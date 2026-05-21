@@ -15,8 +15,8 @@ describe('renderValidationHtml', () => {
 		}, 'examples/advanced-filtering.atomize.yaml');
 
 		expect(html).toContain('Validation Failed');
-		expect(html).toContain('Unrecognized key: &quot;test&quot;');
+		expect(html).toContain('Unrecognized key: <code>test</code>');
 		expect(html).toContain('filter');
-		expect(html).not.toContain('✓ Valid');
+		expect(html).toContain('class="status-icon fail"');
 	});
 });
