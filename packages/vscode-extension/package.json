@@ -95,11 +95,13 @@
 		"semver": "^7.7.4"
 	},
 	"devDependencies": {
+		"@tailwindcss/cli": "^4.3.0",
 		"@types/node": "^20.0.0",
 		"@types/semver": "^7.7.1",
 		"@types/vscode": "^1.85.0",
 		"@vscode/vsce": "^2.24.0",
 		"esbuild": "^0.20.0",
+		"tailwindcss": "^4.3.0",
 		"typescript": "^6.0.3"
 	}
 }

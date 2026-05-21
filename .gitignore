@@ -143,3 +143,6 @@ createdTemplates
 
 .claude
 nul
+
+# generated
+packages/vscode-extension/src/webview/styles.generated.css

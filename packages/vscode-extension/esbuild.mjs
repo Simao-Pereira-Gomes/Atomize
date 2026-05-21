@@ -1,4 +1,15 @@
 import { build } from 'esbuild';
+import { execFileSync } from 'node:child_process';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const dir = dirname(fileURLToPath(import.meta.url));
+
+execFileSync(
+	join(dir, 'node_modules/.bin/tailwindcss'),
+	['-i', 'src/webview/styles.css', '-o', 'src/webview/styles.generated.css', '--minify'],
+	{ stdio: 'inherit', cwd: dir },
+);
 
 await build({
 	entryPoints: ['src/extension.ts'],
@@ -9,4 +20,5 @@ await build({
 	target: 'node18',
 	external: ['vscode', 'node:*'],
 	sourcemap: true,
+	loader: { '.css': 'text' },
 });
