@@ -661,29 +661,20 @@ function validateEstimationConstraints(
 ) {
   if (v?.totalEstimationMustBe !== undefined) {
     if (totalPercent !== v.totalEstimationMustBe) {
-      const diff = v.totalEstimationMustBe - totalPercent;
-      const hint =
-        diff > 0
-          ? ` Add ${diff}% to existing tasks.`
-          : ` Reduce tasks by ${Math.abs(diff)}%.`;
       ctx.addIssue({
         code: "custom",
         path: ["tasks"],
-        message: `Total estimation is ${totalPercent}%, but must be ${v.totalEstimationMustBe}%.${hint}`,
+        message: `Total estimation is ${totalPercent}%, but must be ${v.totalEstimationMustBe}%.`,
         params: { code: "INVALID_TOTAL_ESTIMATION" },
       });
     }
   } else if (v?.totalEstimationRange) {
     const { min, max } = v.totalEstimationRange;
     if (totalPercent < min || totalPercent > max) {
-      const hint =
-        totalPercent < min
-          ? ` Increase by ${min - totalPercent}%.`
-          : ` Reduce by ${totalPercent - max}%.`;
       ctx.addIssue({
         code: "custom",
         path: ["tasks"],
-        message: `Total estimation is ${totalPercent}%, but must be between ${min}% and ${max}%.${hint}`,
+        message: `Total estimation is ${totalPercent}%, but must be between ${min}% and ${max}%.`,
         params: { code: "INVALID_ESTIMATION_RANGE" },
       });
     }
