@@ -57,11 +57,31 @@ A user-supplied JSON object of story field values (using `WorkItem` property nam
 **Mock Preview**:
 Offline task generation evaluated against a Mock Story. Produces a resolved task list — including skipped conditional tasks and estimation breakdowns — without querying or creating work items on any platform.
 
+**Connection Profile**:
+A named set of credentials for a specific platform (Azure DevOps or GitHub Models). Each platform type has its own independent default profile.
+_Avoid_: "auth profile" or "credentials" when referring to a saved named connection.
+
+**Profile Management Surface**:
+The VS Code extension command (`Atomize: Manage Profiles`) for creating, removing, testing, rotating, and setting the default Connection Profile.
+_Avoid_: conflating this with the **Configuration Entry Point**, which opens extension settings rather than managing credentials.
+
+**Offline Validation**:
+Template validation that checks structure only, without connecting to any platform. Runs without credentials and produces results immediately.
+_Avoid_: "local validation" or "structural validation" when referring to this mode.
+
+**Online Validation**:
+Template validation that connects to Azure DevOps via a named Connection Profile to verify custom field existence, condition field references, and saved query existence — checks that Offline Validation cannot perform.
+_Avoid_: "connected validation" or "ADO validation" when referring to this mode.
+
+**Validation Profile Selection**:
+The explicit choice of an Azure DevOps Connection Profile, or Offline Validation, made when a VS Code validation run can use Online Validation.
+_Avoid_: "Default Validation Profile" for VS Code validation; online validation should not be selected silently by workspace configuration.
+
 **Validation Diagnostics**:
 Line-level editor feedback for an Atomize YAML File, surfaced through VS Code diagnostics such as squiggles and the Problems panel.
 
 **Validation Report**:
-A file-level summary of an Atomize YAML File validation run, including grouped errors, warnings, and suggestions.
+A file-level summary of an Atomize YAML File validation run, including grouped errors, warnings, and suggestions. The panel title indicates whether the run was Online or Offline.
 
 **CLI Validation Provider**:
 The command-line executable the VS Code extension invokes to produce Validation Diagnostics and Validation Reports.
@@ -79,6 +99,9 @@ _Avoid_: onboarding, walkthrough, docs link when referring to settings discovery
 **Field Hover Description**:
 Schema-backed explanatory text shown by the editor for an Atomize YAML field while authoring.
 
+**Mock Preview Panel**:
+VS Code webview panel that drives Mock Preview — shows a dynamic form derived from `--inspect`, collects a Mock Story, and renders the resolved task list on submit.
+
 ## Relationships
 
 - A **Template** selects one or more **Stories** and defines one or more generated **Tasks**.
@@ -87,10 +110,13 @@ Schema-backed explanatory text shown by the editor for an Atomize YAML field whi
 - A **Platform Adapter** reads **Stories** and creates or links **Tasks**.
 - The **Story Learner** reads **Stories** and **Tasks** through a **Platform Adapter** and produces a **Template**.
 - A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
+- The **Mock Preview Panel** drives **Mock Preview** in VS Code — inspects the **Atomize YAML File**, collects a **Mock Story**, and renders the resolved task list.
 - **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
 - **Validation Diagnostics** may refresh passively while authoring; a **Validation Report** is only shown after an explicit user request.
+- A VS Code validation run uses **Validation Profile Selection** when Azure DevOps profiles are available; otherwise it runs **Offline Validation**.
 - A **CLI Validation Provider** produces the validation result consumed by **Validation Diagnostics** and **Validation Reports** in the VS Code extension.
 - A **Configuration Entry Point** helps users configure the **CLI Validation Provider** and related extension-owned CLI behavior.
+- The **Profile Management Surface** manages **Connection Profiles** via the **CLI Validation Provider**.
 - **Durable Atomize YAML Opt-In** identifies an **Atomize YAML File** for full editor tooling while preserving the `yaml` language identity; **Session Atomize YAML Opt-In** identifies one for schema-backed authoring support and durable opt-in prompting only.
 - A **Field Hover Description** is available for every schema-enabled **Atomize YAML File**, whether identified by **Durable Atomize YAML Opt-In** or **Session Atomize YAML Opt-In**.
 - A **Catalog Override** is detected automatically by name collision; **Template Lineage** is declared explicitly via the `origin` field and is informational only.
@@ -98,3 +124,4 @@ Schema-backed explanatory text shown by the editor for an Atomize YAML field whi
 ## Flagged Ambiguities
 
 - "template catalog" was used for both named inventory and all template loading behavior; resolved: **Catalog** is the inventory, **Template Library** is the whole module.
+- "default profile" was used for both CLI connection resolution and VS Code validation behavior; resolved: VS Code uses **Validation Profile Selection**, while CLI defaults remain part of connection profile resolution.

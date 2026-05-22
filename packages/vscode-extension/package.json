@@ -41,6 +41,12 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Automatically check npm for stable Atomize CLI updates when using the default CLI executable."
+				},
+				"atomize.previewLayout": {
+					"type": "string",
+					"enum": ["default", "compact"],
+					"default": "default",
+					"description": "Layout for the Mock Preview Panel. 'default' shows KPI tiles and per-task estimation bars; 'compact' shows a summary table."
 				}
 			}
 		},

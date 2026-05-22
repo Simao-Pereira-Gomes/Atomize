@@ -1,0 +1,175 @@
+import { spawn } from 'node:child_process';
+import * as vscode from 'vscode';
+import { extendedEnv } from './env-utils.js';
+import { buildInspectArgs, buildPreviewArgs } from './cli-provider.js';
+import {
+	type InspectField,
+	type InspectResult,
+	type PreviewResult,
+	type StoredValues,
+	renderPreviewForm,
+	renderPreviewResults,
+} from './preview-html.js';
+
+function spawnInspect(cliPath: string, filePath: string): Promise<InspectField[]> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn(cliPath, buildInspectArgs(filePath), { shell: false, env: extendedEnv() });
+		let stdout = '';
+		let stderr = '';
+		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+		proc.on('close', () => {
+			try {
+				resolve((JSON.parse(stdout.trim()) as InspectResult).fields);
+			} catch {
+				reject(new Error(stderr.trim() || 'Failed to parse inspect output'));
+			}
+		});
+		proc.on('error', reject);
+	});
+}
+
+function spawnPreview(cliPath: string, filePath: string, mockStory: string): Promise<PreviewResult> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn(cliPath, buildPreviewArgs(filePath, mockStory), { shell: false, env: extendedEnv() });
+		let stdout = '';
+		let stderr = '';
+		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+		proc.on('close', () => {
+			try {
+				resolve(JSON.parse(stdout.trim()) as PreviewResult);
+			} catch {
+				reject(new Error(stderr.trim() || 'Failed to parse preview output'));
+			}
+		});
+		proc.on('error', reject);
+	});
+}
+
+function buildMockStory(fields: InspectField[], values: Record<string, unknown>): string {
+	const story: Record<string, unknown> = {};
+	const customFields: Record<string, unknown> = {};
+	for (const field of fields) {
+		const value = values[field.name];
+		if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) continue;
+		if (field.type === 'unknown') {
+			customFields[field.name] = value;
+		} else {
+			story[field.name] = value;
+		}
+	}
+	if (Object.keys(customFields).length > 0) story['customFields'] = customFields;
+	return JSON.stringify(story);
+}
+
+interface SubmitMessage { type: 'submit'; values: Record<string, unknown>; }
+interface BackMessage { type: 'back'; }
+interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
+type WebviewMessage = SubmitMessage | BackMessage | SwitchModeMessage;
+
+export class PreviewPanel {
+	private static _instance: PreviewPanel | undefined;
+	private static readonly _storedValues = new Map<string, StoredValues>();
+
+	private _panel: vscode.WebviewPanel;
+	private _fileUri: vscode.Uri;
+	private _fields: InspectField[];
+	private _mode: 'default' | 'compact';
+	private _lastResult: PreviewResult | undefined;
+	private _cliPath: string;
+
+	private constructor(
+		panel: vscode.WebviewPanel,
+		fileUri: vscode.Uri,
+		fields: InspectField[],
+		mode: 'default' | 'compact',
+		cliPath: string,
+	) {
+		this._panel = panel;
+		this._fileUri = fileUri;
+		this._fields = fields;
+		this._mode = mode;
+		this._cliPath = cliPath;
+
+		panel.onDidDispose(() => { PreviewPanel._instance = undefined; });
+		panel.webview.onDidReceiveMessage((msg: unknown) => { void this._handleMessage(msg); });
+
+		this._showForm();
+	}
+
+	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
+		const cfg = vscode.workspace.getConfiguration('atomize').get<string>('previewLayout', 'default');
+		const mode: 'default' | 'compact' = cfg === 'compact' ? 'compact' : 'default';
+
+		let fields: InspectField[];
+		try {
+			fields = await spawnInspect(cliPath, fileUri.fsPath);
+		} catch (err) {
+			await vscode.window.showWarningMessage(
+				`Atomize: Failed to inspect template — ${err instanceof Error ? err.message : String(err)}`,
+			);
+			return;
+		}
+
+		const fileName = vscode.workspace.asRelativePath(fileUri);
+
+		if (PreviewPanel._instance) {
+			const inst = PreviewPanel._instance;
+			inst._fileUri = fileUri;
+			inst._fields = fields;
+			inst._mode = mode;
+			inst._lastResult = undefined;
+			inst._cliPath = cliPath;
+			inst._panel.title = `Atomize: ${fileName} (Preview)`;
+			inst._showForm();
+			inst._panel.reveal(vscode.ViewColumn.Beside, true);
+		} else {
+			const panel = vscode.window.createWebviewPanel(
+				'atomize.preview',
+				`Atomize: ${fileName} (Preview)`,
+				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+				{ enableScripts: true, retainContextWhenHidden: true },
+			);
+			PreviewPanel._instance = new PreviewPanel(panel, fileUri, fields, mode, cliPath);
+		}
+	}
+
+	private _showForm(error?: string): void {
+		const stored = PreviewPanel._storedValues.get(this._fileUri.toString()) ?? {};
+		const fileName = vscode.workspace.asRelativePath(this._fileUri);
+		this._panel.webview.html = renderPreviewForm(this._fields, stored, fileName, error);
+	}
+
+	private _showResults(result: PreviewResult): void {
+		const fileName = vscode.workspace.asRelativePath(this._fileUri);
+		this._lastResult = result;
+		this._panel.webview.html = renderPreviewResults(result, this._mode, fileName);
+	}
+
+	private async _handleMessage(msg: unknown): Promise<void> {
+		if (typeof msg !== 'object' || msg === null) return;
+		const message = msg as WebviewMessage;
+
+		if (message.type === 'submit') {
+			PreviewPanel._storedValues.set(this._fileUri.toString(), message.values as StoredValues);
+			const mockStory = buildMockStory(this._fields, message.values);
+			try {
+				const result = await spawnPreview(this._cliPath, this._fileUri.fsPath, mockStory);
+				this._showResults(result);
+			} catch (err) {
+				this._showForm(err instanceof Error ? err.message : String(err));
+			}
+		} else if (message.type === 'back') {
+			this._lastResult = undefined;
+			this._showForm();
+		} else if (message.type === 'switchMode') {
+			this._mode = message.mode;
+			if (this._lastResult) this._showResults(this._lastResult);
+		}
+	}
+
+	static dispose(): void {
+		PreviewPanel._instance?._panel.dispose();
+	}
+}

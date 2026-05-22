@@ -12,7 +12,9 @@ import {
 import { AtomizeCodeLensProvider } from './codelens-provider.js';
 import { clearRunState, runDiagnosticValidation, runReportValidation } from './diagnostics.js';
 import { AtomizePanel } from './panel.js';
+import { PreviewPanel } from './preview-panel.js';
 import { renderValidationHtml } from './validation-html.js';
+import { extendedEnv } from './env-utils.js';
 import {
 	buildVersionArgs,
 	checkForCliUpdate,
@@ -33,22 +35,20 @@ interface YamlSchemaContributorAPI {
 	): boolean;
 }
 
+interface AdoProfileJson {
+	name: string;
+	platform: 'azure-devops';
+	isDefault: boolean;
+	organizationUrl: string;
+	project: string;
+	team: string;
+}
+
 let cliWarningShown = false;
 
 // URIs of documents that should receive the Atomize YAML schema.
 // Populated on document open/save so requestSchema can return the schema URI synchronously.
 const schemaEnabledUris = new Set<string>();
-
-function extendedEnv(): NodeJS.ProcessEnv {
-	const home = process.env.HOME ?? '';
-	const extra = [
-		`${home}/.bun/bin`,
-		`${home}/.npm-global/bin`,
-		'/usr/local/bin',
-		'/opt/homebrew/bin',
-	].join(':');
-	return { ...process.env, PATH: `${extra}:${process.env.PATH ?? ''}` };
-}
 
 function getConfiguredCliPath(): string {
 	return normalizeCliPath(vscode.workspace.getConfiguration('atomize').get('cliPath'));
@@ -65,6 +65,25 @@ function getAutoCheckUpdates(): boolean {
 interface CliProbeResult {
 	available: boolean;
 	version?: string;
+}
+
+function fetchAdoProfiles(cliPath: string): Promise<AdoProfileJson[] | null> {
+	return new Promise(resolve => {
+		const proc = spawn(cliPath, ['auth', 'list', '--json'], { shell: false, env: extendedEnv() });
+		let stdout = '';
+		proc.stdout.on('data', chunk => { stdout += chunk.toString(); });
+		proc.on('close', () => {
+			try {
+				const all = JSON.parse(stdout) as unknown[];
+				resolve(all.filter((p): p is AdoProfileJson =>
+					typeof p === 'object' && p !== null && (p as Record<string, unknown>)['platform'] === 'azure-devops',
+				));
+			} catch {
+				resolve(null);
+			}
+		});
+		proc.on('error', () => resolve(null));
+	});
 }
 
 function probeCli(cliPath: string): Promise<CliProbeResult> {
@@ -232,20 +251,20 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		);
 	}
 
-	async function validateWithReport(doc: vscode.TextDocument): Promise<void> {
-		if (!isAtomizeDocument(doc)) return;
-		const cliPath = getConfiguredCliPath();
-		const probe = await probeCli(cliPath);
-		if (!probe.available) {
-			await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to enable validation and preview.');
-			return;
+	async function checkDirtyDocument(doc: vscode.TextDocument): Promise<boolean> {
+		if (!doc.isDirty) return true;
+		const selection = await vscode.window.showWarningMessage(
+			'Atomize validation uses saved file content. Save this file before validating?',
+			'Save and Validate',
+			'Validate Saved Version',
+			'Cancel',
+		);
+		if (selection === 'Cancel' || selection === undefined) return false;
+		if (selection === 'Save and Validate') {
+			const saved = await doc.save();
+			if (!saved) return false;
 		}
-		void maybeCheckForCliUpdate(cliPath, probe.version);
-		runReportValidation(doc, diagnostics, cliPath, result => {
-			validationFailureWarnedUris.delete(doc.uri.toString());
-			const fileName = vscode.workspace.asRelativePath(doc.uri);
-			AtomizePanel.show(`Atomize: ${fileName}`, renderValidationHtml(result, fileName));
-		}, () => { showValidationRunnerFailure(doc, false); });
+		return true;
 	}
 
 	async function showCliUnavailableMessage(cliPath: string, defaultMessage: string): Promise<void> {
@@ -363,25 +382,57 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc || !isAtomizeDocument(doc)) return;
+			if (!await checkDirtyDocument(doc)) return;
 
-			if (doc.isDirty) {
-				const selection = await vscode.window.showWarningMessage(
-					'Atomize validation uses saved file content. Save this file before validating?',
-					'Save and Validate',
-					'Validate Saved Version',
-					'Cancel',
-				);
-				if (selection === 'Cancel' || selection === undefined) return;
-				if (selection === 'Save and Validate') {
-					const saved = await doc.save();
-					if (!saved) return;
-				}
+			const cliPath = getConfiguredCliPath();
+			const probe = await probeCli(cliPath);
+			if (!probe.available) {
+				await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to enable validation and preview.');
+				return;
 			}
 
-			await validateWithReport(doc);
+			let profile: string | undefined;
+			const adoProfiles = await fetchAdoProfiles(cliPath);
+
+			if (adoProfiles && adoProfiles.length > 0) {
+				type ProfileItem = vscode.QuickPickItem & { profileName: string | undefined };
+				const profileItems: ProfileItem[] = [...adoProfiles]
+					.sort((a, b) => Number(Boolean(b.isDefault)) - Number(Boolean(a.isDefault)))
+					.map(p => ({
+						label: p.name,
+						description: p.isDefault ? 'default' : '',
+						detail: `${p.organizationUrl} · ${p.project}`,
+						profileName: p.name,
+					}));
+				const offlineItem: ProfileItem = {
+					label: 'Offline only',
+					description: 'Skip Azure DevOps connection',
+					profileName: undefined,
+				};
+				const picked = await vscode.window.showQuickPick<ProfileItem>(
+					[...profileItems, { kind: vscode.QuickPickItemKind.Separator, label: '', profileName: undefined }, offlineItem],
+					{ title: 'Atomize: Validate', placeHolder: 'Select a profile or run offline' },
+				);
+				if (!picked) return;
+				profile = picked.profileName;
+			}
+
+			void maybeCheckForCliUpdate(cliPath, probe.version);
+			const mode = profile ? 'Online' : 'Offline';
+			runReportValidation(doc, diagnostics, cliPath, result => {
+				validationFailureWarnedUris.delete(doc.uri.toString());
+				const fileName = vscode.workspace.asRelativePath(doc.uri);
+				AtomizePanel.show(`Atomize: ${fileName} (${mode})`, renderValidationHtml(result, fileName));
+			}, () => { showValidationRunnerFailure(doc, false); }, profile);
 		}),
 
 		vscode.commands.registerCommand('atomize.preview', async (uri?: vscode.Uri) => {
+			const doc = uri
+				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
+				: vscode.window.activeTextEditor?.document;
+			if (!doc) return;
+			if (!await checkDirtyDocument(doc)) return;
+
 			const cliPath = getConfiguredCliPath();
 			const probe = await probeCli(cliPath);
 			if (!probe.available) {
@@ -389,13 +440,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				return;
 			}
 			void maybeCheckForCliUpdate(cliPath, probe.version);
-			const doc = uri
-				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
-				: vscode.window.activeTextEditor?.document;
-			if (!doc) return;
-			void vscode.window.showInformationMessage(
-				`Atomize: Preview (Mock) is coming soon for ${vscode.workspace.asRelativePath(doc.uri)}.`,
-			);
+			await PreviewPanel.open(doc.uri, cliPath);
 		}),
 
 		vscode.commands.registerCommand('atomize.openSettings', openAtomizeSettings),
@@ -404,4 +449,5 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 export function deactivate(): void {
 	AtomizePanel.dispose();
+	PreviewPanel.dispose();
 }

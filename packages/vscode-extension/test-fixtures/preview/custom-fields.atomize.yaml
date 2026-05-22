@@ -1,0 +1,103 @@
+# Preview Panel test — Custom Fields section
+#
+# Open this file in VS Code and click "Atomize: Preview (Mock)" to test:
+#   • Form: Story Fields section (Estimation) + Custom Fields section (ClientTier, Region)
+#   • Custom Fields header has the ⓘ "Serialised into customFields" tooltip
+#   • SSO task skipped when ClientTier ≠ "Enterprise"
+#   • Regional tasks skipped when Region ≠ "APAC"
+#   • Multiple skipped tasks shown in Skipped section
+#
+# Suggested values — all tasks generated:
+#   estimation=8   Custom.ClientTier=Enterprise   Custom.Region=APAC
+#
+# Suggested values — 3 tasks skipped:
+#   estimation=5   (leave Custom.ClientTier and Custom.Region blank)
+
+version: "1.0"
+name: "Enterprise Onboarding"
+description: "Enterprise-tier onboarding with region-specific and tier-specific compliance tasks"
+author: "Atomize"
+tags: ["preview-test", "custom-fields", "enterprise"]
+
+filter:
+  workItemTypes:
+    - "User Story"
+  excludeIfHasTasks: true
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  minimumTaskPoints: 0.5
+
+tasks:
+  - id: "onboarding-setup"
+    title: "Enterprise Onboarding Setup"
+    estimationPercent: 20
+    activity: "Development"
+    tags: ["enterprise"]
+    estimationPercentCondition:
+      - condition:
+          field: estimation
+          operator: gte
+          value: 13
+        percent: 25
+
+  - id: "provision-tenant"
+    title: "Provision Tenant Environment"
+    estimationPercent: 15
+    dependsOn: ["onboarding-setup"]
+    activity: "Development"
+    tags: ["infra"]
+
+  - id: "sso-integration"
+    title: "Configure SSO Integration"
+    condition:
+      customField: "Custom.ClientTier"
+      operator: contains
+      value: Enterprise
+    estimationPercent: 20
+    dependsOn: ["provision-tenant"]
+    activity: "Development"
+    tags: ["enterprise", "auth"]
+
+  - id: "regional-compliance"
+    title: "Regional Compliance Check"
+    condition:
+      customField: "Custom.Region"
+      operator: contains
+      value: APAC
+    estimationPercent: 15
+    dependsOn: ["provision-tenant"]
+    activity: "Requirements"
+    tags: ["compliance"]
+
+  - id: "data-residency"
+    title: "Data Residency Validation"
+    condition:
+      customField: "Custom.Region"
+      operator: contains
+      value: APAC
+    estimationPercent: 10
+    dependsOn: ["regional-compliance"]
+    activity: "Requirements"
+    tags: ["compliance"]
+
+  - id: "handoff"
+    title: "Handoff & Customer Sign-off"
+    estimationPercent: 20
+    dependsOn: ["onboarding-setup"]
+    activity: "Documentation"
+    tags: ["enterprise"]
+
+  - id: "internal-review"
+    title: "Internal Review"
+    estimationPercent: 15
+    dependsOn: ["handoff"]
+    activity: "Design"
+
+metadata:
+  category: "Preview Panel Test"
+  difficulty: "intermediate"
+  estimationGuidelines: |
+    All 7 tasks (APAC + Enterprise): 20+15+20+15+10+20+15 = 115% → normalised
+    Without custom fields (3 skipped): 20+15+20+15 = 70% → normalised to 100

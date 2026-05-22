@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
 import { buildValidateArgs } from './cli-provider.js';
+import { extendedEnv } from './env-utils.js';
 
 export interface ValidationError {
 	path: string;
@@ -34,6 +35,7 @@ interface BaseValidationRequest {
 	doc: vscode.TextDocument;
 	diagnostics: vscode.DiagnosticCollection;
 	cliPath: string;
+	profile?: string;
 	onError?: (error: Error) => void;
 }
 
@@ -85,11 +87,13 @@ export function runReportValidation(
 	cliPath: string,
 	onResult: (result: ValidationResult) => void,
 	onError?: (error: Error) => void,
+	profile?: string,
 ): void {
 	runValidation({
 		doc,
 		diagnostics,
 		cliPath,
+		profile,
 		kind: 'report',
 		onResult,
 		onError,
@@ -110,7 +114,7 @@ function runValidation(request: ValidationRequest): void {
 	state.running = true;
 	state.pending = undefined;
 
-	spawnValidation(cliPath, doc.uri.fsPath).then(result => {
+	spawnValidation(cliPath, doc.uri.fsPath, request.profile).then(result => {
 		state.running = false;
 
 		const items = [
@@ -144,20 +148,9 @@ function runPendingValidation(state: RunState): void {
 	runValidation(pending);
 }
 
-function extendedEnv(): NodeJS.ProcessEnv {
-	const home = process.env.HOME ?? '';
-	const extra = [
-		`${home}/.bun/bin`,
-		`${home}/.npm-global/bin`,
-		'/usr/local/bin',
-		'/opt/homebrew/bin',
-	].join(':');
-	return { ...process.env, PATH: `${extra}:${process.env.PATH ?? ''}` };
-}
-
-function spawnValidation(cliPath: string, filePath: string): Promise<ValidationResult> {
+function spawnValidation(cliPath: string, filePath: string, profile?: string): Promise<ValidationResult> {
 	return new Promise((resolve, reject) => {
-		const proc = spawn(cliPath, buildValidateArgs(filePath), { shell: false, env: extendedEnv() });
+		const proc = spawn(cliPath, buildValidateArgs(filePath, profile), { shell: false, env: extendedEnv() });
 		let stdout = '';
 		let stderr = '';
 

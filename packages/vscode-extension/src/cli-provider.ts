@@ -44,12 +44,23 @@ export function isDefaultCliPath(cliPath: string): boolean {
 	return normalizeCliPath(cliPath) === DEFAULT_CLI_PATH;
 }
 
-export function buildValidateArgs(filePath: string): string[] {
-	return ['validate', '--output', 'json', filePath];
+export function buildValidateArgs(filePath: string, profile?: string): string[] {
+	const args = ['validate', '--output', 'json'];
+	if (profile) args.push('--profile', profile);
+	args.push(filePath);
+	return args;
 }
 
 export function buildVersionArgs(): string[] {
 	return ['--version'];
+}
+
+export function buildInspectArgs(filePath: string): string[] {
+	return ['preview', filePath, '--inspect'];
+}
+
+export function buildPreviewArgs(filePath: string, mockStory: string): string[] {
+	return ['preview', filePath, '--mock-story', mockStory];
 }
 
 export function extractStableSemver(value: string | undefined): string | undefined {
