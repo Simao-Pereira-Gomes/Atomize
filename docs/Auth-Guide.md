@@ -218,6 +218,12 @@ atomize auth rotate work-ado
 # → replaces the stored token; all other profile settings are preserved
 ```
 
+For non-interactive callers, pipe the new PAT through stdin:
+
+```bash
+echo "$NEW_PAT" | atomize auth rotate work-ado --pat-stdin
+```
+
 After rotating, verify the connection:
 
 ```bash

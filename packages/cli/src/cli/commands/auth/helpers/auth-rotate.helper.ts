@@ -22,14 +22,16 @@ export async function promptProfileToRotate(nameArg?: string): Promise<string> {
   ) as string;
 }
 
+export function validateNewPat(input: string | undefined): string | undefined {
+  if (!input || input.trim() === "") return "PAT is required";
+  return undefined;
+}
+
 export async function promptNewPat(): Promise<string> {
   return assertNotCancelled(
     await password({
       message: "New Personal Access Token (PAT):",
-      validate: (input: string | undefined): string | undefined => {
-        if (!input || input.trim() === "") return "PAT is required";
-        return undefined;
-      },
+      validate: validateNewPat,
     }),
   );
 }

@@ -8,11 +8,16 @@ describe("Integration Tests", () => {
   const loader = new TemplateLoader();
   const validator = new TemplateValidator();
   const fixturesPath = resolve(__dirname, "../fixtures/templates");
-  const examplesFolder = resolve(__dirname, "../../examples");
+  const examplesFolder = resolve(__dirname, "../../../../examples");
+  const exampleTemplates = {
+    backend: "backend.atomize.yaml",
+    frontend: "frontend.yaml",
+    fullstack: "fullstack.atomize.yaml",
+  } as const;
 
   describe("Load and Validate Flow", () => {
     test("should load and validate backend template", async () => {
-      const templatePath = resolve(examplesFolder, "backend.yaml");
+      const templatePath = resolve(examplesFolder, exampleTemplates.backend);
       const template = await loader.load(templatePath);
       expect(template).toBeDefined();
       expect(template.name).toBe("Backend API Feature");
@@ -22,7 +27,7 @@ describe("Integration Tests", () => {
     });
 
     test("should load and validate frontend template", async () => {
-      const templatePath = resolve(examplesFolder, "frontend.yaml");
+      const templatePath = resolve(examplesFolder, exampleTemplates.frontend);
       const template = await loader.load(templatePath);
       expect(template.name).toBe("Frontend React Feature");
       const result = validator.validate(template);
@@ -30,7 +35,7 @@ describe("Integration Tests", () => {
     });
 
     test("should load and validate fullstack template", async () => {
-      const templatePath = resolve(examplesFolder, "fullstack.yaml");
+      const templatePath = resolve(examplesFolder, exampleTemplates.fullstack);
       const template = await loader.load(templatePath);
       expect(template.name).toBe("Fullstack Feature");
       const result = validator.validate(template);
@@ -58,7 +63,7 @@ describe("Integration Tests", () => {
   describe("Real-world Template Validation", () => {
     test("backend template should have correct task count", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       expect(template.tasks).toHaveLength(6);
@@ -68,7 +73,7 @@ describe("Integration Tests", () => {
 
     test("backend template should have 100% estimation", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       const total = template.tasks.reduce((sum, task) => {
@@ -80,7 +85,7 @@ describe("Integration Tests", () => {
 
     test("backend template should have valid dependencies", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       const result = validator.validate(template);
@@ -93,7 +98,7 @@ describe("Integration Tests", () => {
 
     test("fullstack template should support conditionals", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "fullstack.yaml")
+        resolve(examplesFolder, exampleTemplates.fullstack)
       );
 
       const conditionalTasks = template.tasks.filter((t) => t.condition);
@@ -102,9 +107,9 @@ describe("Integration Tests", () => {
 
     test("all production templates should be valid", async () => {
       const templates = [
-        "backend.yaml",
-        "frontend.yaml",
-        "fullstack.yaml",
+        exampleTemplates.backend,
+        exampleTemplates.frontend,
+        exampleTemplates.fullstack,
       ];
 
       for (const templatePath of templates) {
@@ -179,7 +184,7 @@ describe("Integration Tests", () => {
   describe("Template Features", () => {
     test("should support all filter types", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       expect(template.filter.workItemTypes).toBeDefined();
@@ -190,7 +195,7 @@ describe("Integration Tests", () => {
 
     test("should support task metadata", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       const task = template.tasks[0];
@@ -203,7 +208,7 @@ describe("Integration Tests", () => {
 
     test("should support estimation configuration", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       expect(template.estimation).toBeDefined();
@@ -213,7 +218,7 @@ describe("Integration Tests", () => {
 
     test("should support validation configuration", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       expect(template.validation).toBeDefined();
@@ -223,7 +228,7 @@ describe("Integration Tests", () => {
 
     test("should support metadata", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, "backend.yaml")
+        resolve(examplesFolder, exampleTemplates.backend)
       );
 
       expect(template.metadata).toBeDefined();

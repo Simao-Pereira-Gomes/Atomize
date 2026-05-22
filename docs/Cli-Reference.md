@@ -217,7 +217,16 @@ atomize auth test            # pick interactively (shows profile type next to ea
 Replace the stored PAT for a profile (e.g. after a token expires).
 
 ```bash
-atomize auth rotate [name]
+atomize auth rotate <name> [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--pat-stdin` | Read the new PAT from stdin instead of prompting interactively |
+| `--insecure-storage` | Allow insecure local file fallback when the OS keychain is unavailable |
+
+```bash
+echo "$NEW_PAT" | atomize auth rotate work-ado --pat-stdin
 ```
 
 ---

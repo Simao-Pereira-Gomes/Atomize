@@ -25,7 +25,7 @@ import {
   validateProfileName,
 } from "@/cli/commands/auth/helpers/auth-add.helper";
 import { deleteProfile } from "@/cli/commands/auth/helpers/auth-remove.helper";
-import { rotateToken } from "@/cli/commands/auth/helpers/auth-rotate.helper";
+import { rotateToken, validateNewPat } from "@/cli/commands/auth/helpers/auth-rotate.helper";
 import { testAIProviderConnection, testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
 import type { IPlatformAdapter } from "@/platforms";
 
@@ -246,6 +246,18 @@ describe("deleteProfile", () => {
 });
 
 // ─── rotateToken ──────────────────────────────────────────────────────────────
+
+describe("validateNewPat", () => {
+  test("accepts a non-empty PAT", () => {
+    expect(validateNewPat("new-pat-token")).toBeUndefined();
+  });
+
+  test("rejects missing or whitespace-only PATs", () => {
+    expect(validateNewPat(undefined)).toBe("PAT is required");
+    expect(validateNewPat("")).toBe("PAT is required");
+    expect(validateNewPat("   ")).toBe("PAT is required");
+  });
+});
 
 describe("rotateToken", () => {
   test("updates the stored token for the profile", async () => {
