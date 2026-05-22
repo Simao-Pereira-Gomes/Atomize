@@ -8,12 +8,13 @@ import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import type { FilterCriteria, TaskTemplate } from "@templates/schema";
 
 export type InspectFieldType = "string" | "number" | "boolean" | "string[]" | "unknown";
-export type InspectFieldSource = "filter" | "condition";
+export type InspectFieldSource = "filter" | "condition" | "estimation";
 
 export interface InspectField {
   name: string;
   type: InspectFieldType;
   sources: InspectFieldSource[];
+  required?: boolean;
 }
 
 export interface InspectResult {
@@ -92,15 +93,29 @@ export function inspectTemplate(template: TaskTemplate): InspectResult {
   }
 
   const filterFields = filterToWorkItemFields(template.filter);
-  const fieldMap = new Map<string, { type: InspectFieldType; sources: Set<InspectFieldSource> }>();
+  const fieldMap = new Map<string, { type: InspectFieldType; sources: Set<InspectFieldSource>; required: boolean }>();
 
-  function upsert(name: string, type: InspectFieldType, source: InspectFieldSource): void {
+  function upsert(
+    name: string,
+    type: InspectFieldType,
+    source: InspectFieldSource,
+    options: { required?: boolean } = {},
+  ): void {
     const entry = fieldMap.get(name);
     if (entry) {
       entry.sources.add(source);
+      entry.required = entry.required || options.required === true;
     } else {
-      fieldMap.set(name, { type, sources: new Set([source]) });
+      fieldMap.set(name, {
+        type,
+        sources: new Set([source]),
+        required: options.required === true,
+      });
     }
+  }
+
+  if (template.tasks.some((task) => task.estimationPercent !== undefined || task.estimationPercentCondition?.length)) {
+    upsert("estimation", "number", "estimation", { required: true });
   }
 
   for (const name of filterFields) {
@@ -115,10 +130,11 @@ export function inspectTemplate(template: TaskTemplate): InspectResult {
   }
 
   return {
-    fields: Array.from(fieldMap.entries()).map(([name, { type, sources }]) => ({
+    fields: Array.from(fieldMap.entries()).map(([name, { type, sources, required }]) => ({
       name,
       type,
       sources: Array.from(sources),
+      ...(required ? { required: true } : {}),
     })),
   };
 }

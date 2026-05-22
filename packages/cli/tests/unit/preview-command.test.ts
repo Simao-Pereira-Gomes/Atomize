@@ -19,14 +19,28 @@ function makeTemplate(overrides: Partial<TaskTemplate> = {}): TaskTemplate {
   };
 }
 
-// ---------------------------------------------------------------------------
-// inspectTemplate
-// ---------------------------------------------------------------------------
 
 describe("inspectTemplate", () => {
   test("returns empty fields when no conditions and no relevant filter", () => {
-    const result = inspectTemplate(makeTemplate());
+    const result = inspectTemplate(
+      makeTemplate({
+        tasks: [
+          { title: "Task A", estimationFixed: 1 },
+          { title: "Task B", estimationFixed: 2 },
+        ],
+      }),
+    );
     expect(result.fields).toHaveLength(0);
+  });
+
+  test("requires estimation for percentage-based tasks", () => {
+    const result = inspectTemplate(makeTemplate());
+
+    const field = result.fields.find((f) => f.name === "estimation");
+    expect(field).toBeDefined();
+    expect(field?.type).toBe("number");
+    expect(field?.sources).toContain("estimation");
+    expect(field?.required).toBe(true);
   });
 
   test("extracts standard field refs from task conditions", () => {
