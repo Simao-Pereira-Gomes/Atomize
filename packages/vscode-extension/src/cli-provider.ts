@@ -63,6 +63,54 @@ export function buildPreviewArgs(filePath: string, mockStory: string): string[] 
 	return ['preview', filePath, '--mock-story', mockStory];
 }
 
+export function buildAuthListArgs(): string[] {
+	return ['auth', 'list', '--json'];
+}
+
+export function buildAuthAddArgs(profile: {
+	name: string;
+	organizationUrl: string;
+	project: string;
+	team: string;
+}): string[] {
+	return [
+		'auth',
+		'add',
+		profile.name,
+		'--org-url',
+		profile.organizationUrl,
+		'--project',
+		profile.project,
+		'--team',
+		profile.team,
+		'--pat-stdin',
+	];
+}
+
+export function buildAuthUseArgs(profileName: string): string[] {
+	return ['auth', 'use', profileName];
+}
+
+export function buildAuthTestArgs(profileName: string): string[] {
+	return ['auth', 'test', profileName];
+}
+
+export function buildAuthRotateArgs(profileName: string): string[] {
+	return ['auth', 'rotate', profileName, '--pat-stdin'];
+}
+
+export function buildAuthRemoveArgs(profileName: string): string[] {
+	return ['auth', 'remove', profileName, '--confirm'];
+}
+
+export function buildAuthRemoveHelpArgs(): string[] {
+	return ['auth', 'remove', '--help'];
+}
+
+export function buildAuthRotateHelpArgs(): string[] {
+	return ['auth', 'rotate', '--help'];
+}
+
 export function extractStableSemver(value: string | undefined): string | undefined {
 	if (!value) return undefined;
 	const match = value.match(/\b(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?\b/);

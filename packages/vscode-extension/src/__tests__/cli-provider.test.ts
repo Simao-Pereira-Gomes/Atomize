@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'bun:test';
 import {
+	buildAuthAddArgs,
+	buildAuthListArgs,
+	buildAuthRemoveArgs,
+	buildAuthRemoveHelpArgs,
+	buildAuthRotateArgs,
+	buildAuthRotateHelpArgs,
+	buildAuthTestArgs,
+	buildAuthUseArgs,
 	buildValidateArgs,
 	buildVersionArgs,
-	checkForCliUpdate,
 	CLI_PACKAGE_NAME,
-	DEFAULT_INSTALL_COMMAND,
+	checkForCliUpdate,
 	DEFAULT_CLI_PATH,
+	DEFAULT_INSTALL_COMMAND,
 	extractStableSemver,
 	hasNewerStableVersion,
 	isUpdateCheckEligible,
@@ -35,6 +43,33 @@ describe('cli-provider', () => {
 
 	it('builds version probe arguments', () => {
 		expect(buildVersionArgs()).toEqual(['--version']);
+	});
+
+	it('builds profile-management arguments without shell syntax', () => {
+		expect(buildAuthListArgs()).toEqual(['auth', 'list', '--json']);
+		expect(buildAuthAddArgs({
+			name: 'work',
+			organizationUrl: 'https://dev.azure.com/acme',
+			project: 'Product',
+			team: 'Core',
+		})).toEqual([
+			'auth',
+			'add',
+			'work',
+			'--org-url',
+			'https://dev.azure.com/acme',
+			'--project',
+			'Product',
+			'--team',
+			'Core',
+			'--pat-stdin',
+		]);
+		expect(buildAuthUseArgs('work')).toEqual(['auth', 'use', 'work']);
+		expect(buildAuthTestArgs('work')).toEqual(['auth', 'test', 'work']);
+		expect(buildAuthRotateArgs('work')).toEqual(['auth', 'rotate', 'work', '--pat-stdin']);
+		expect(buildAuthRemoveArgs('work')).toEqual(['auth', 'remove', 'work', '--confirm']);
+		expect(buildAuthRemoveHelpArgs()).toEqual(['auth', 'remove', '--help']);
+		expect(buildAuthRotateHelpArgs()).toEqual(['auth', 'rotate', '--help']);
 	});
 
 	it('uses the npm install command when no install command is configured', () => {

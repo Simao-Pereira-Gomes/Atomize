@@ -1,30 +1,31 @@
-import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import * as vscode from 'vscode';
 import {
-	handleDocument,
-	isAtomizeDocument,
-	isAtomizeSchemaDocument,
-	isContentOnlyDetected,
-	isAtomizeToolingDocument,
-	LAYER1_PATTERNS,
-} from './language-detection.js';
-import { AtomizeCodeLensProvider } from './codelens-provider.js';
-import { clearRunState, runDiagnosticValidation, runReportValidation } from './diagnostics.js';
-import { AtomizePanel } from './panel.js';
-import { PreviewPanel } from './preview-panel.js';
-import { renderValidationHtml } from './validation-html.js';
-import { extendedEnv } from './env-utils.js';
-import {
 	buildVersionArgs,
+	type CliUpdateCache,
 	checkForCliUpdate,
 	DEFAULT_CLI_PATH,
 	fetchNpmLatestVersion,
 	normalizeCliPath,
 	normalizeInstallCommand,
 	UPDATE_CHECK_CACHE_KEY,
-	type CliUpdateCache,
 } from './cli-provider.js';
+import { AtomizeCodeLensProvider } from './codelens-provider.js';
+import { clearRunState, runDiagnosticValidation, runReportValidation } from './diagnostics.js';
+import { extendedEnv } from './env-utils.js';
+import {
+	handleDocument,
+	isAtomizeDocument,
+	isAtomizeSchemaDocument,
+	isAtomizeToolingDocument,
+	isContentOnlyDetected,
+	LAYER1_PATTERNS,
+} from './language-detection.js';
+import { AtomizePanel } from './panel.js';
+import { PreviewPanel } from './preview-panel.js';
+import { manageProfiles } from './profile-management.js';
+import { renderValidationHtml } from './validation-html.js';
 
 interface YamlSchemaContributorAPI {
 	registerContributor(
@@ -76,7 +77,7 @@ function fetchAdoProfiles(cliPath: string): Promise<AdoProfileJson[] | null> {
 			try {
 				const all = JSON.parse(stdout) as unknown[];
 				resolve(all.filter((p): p is AdoProfileJson =>
-					typeof p === 'object' && p !== null && (p as Record<string, unknown>)['platform'] === 'azure-devops',
+					typeof p === 'object' && p !== null && (p as Record<string, unknown>).platform === 'azure-devops',
 				));
 			} catch {
 				resolve(null);
@@ -441,6 +442,19 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			}
 			void maybeCheckForCliUpdate(cliPath, probe.version);
 			await PreviewPanel.open(doc.uri, cliPath);
+		}),
+
+		vscode.commands.registerCommand('atomize.manageProfiles', async () => {
+			const cliPath = getConfiguredCliPath();
+			await manageProfiles(cliPath, async () => {
+				const probe = await probeCli(cliPath);
+				if (!probe.available) {
+					await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to manage profiles.');
+					return false;
+				}
+				void maybeCheckForCliUpdate(cliPath, probe.version);
+				return true;
+			});
 		}),
 
 		vscode.commands.registerCommand('atomize.openSettings', openAtomizeSettings),
