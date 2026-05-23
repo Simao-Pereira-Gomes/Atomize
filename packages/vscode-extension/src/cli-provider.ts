@@ -3,6 +3,10 @@ import { gt, prerelease, valid } from 'semver';
 import * as vscode from 'vscode';
 import { extendedEnv } from './env-utils.js';
 
+export const CLI_EXIT_CODES = {
+	AuthFailure: 3,
+} as const;
+
 export const DEFAULT_CLI_PATH = 'atomize';
 export const DEFAULT_INSTALL_COMMAND = 'npm install -g @sppg2001/atomize';
 export const CLI_PACKAGE_NAME = '@sppg2001/atomize';
@@ -108,6 +112,10 @@ export function buildAuthRemoveArgs(profileName: string): string[] {
 
 export function buildAuthRemoveHelpArgs(): string[] {
 	return ['auth', 'remove', '--help'];
+}
+
+export function buildGenJsonArgs(filePath: string, storyId: string, profile: string): string[] {
+	return ['gen', filePath, '--story', storyId, '--profile', profile, '--json'];
 }
 
 export function buildAuthRotateHelpArgs(): string[] {

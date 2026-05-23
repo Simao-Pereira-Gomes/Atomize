@@ -72,6 +72,11 @@
 				"category": "Atomize"
 			},
 			{
+				"command": "atomize.livePreview",
+				"title": "Atomize: Preview (Live)",
+				"category": "Atomize"
+			},
+			{
 				"command": "atomize.manageProfiles",
 				"title": "Atomize: Manage Profiles",
 				"category": "Atomize"

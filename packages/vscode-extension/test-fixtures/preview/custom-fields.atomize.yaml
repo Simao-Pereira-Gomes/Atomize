@@ -39,7 +39,7 @@ tasks:
       - condition:
           field: estimation
           operator: gte
-          value: 13
+          value: 13 
         percent: 25
 
   - id: "provision-tenant"

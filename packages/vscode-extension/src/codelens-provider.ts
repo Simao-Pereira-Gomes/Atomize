@@ -12,9 +12,14 @@ export class AtomizeCodeLensProvider implements vscode.CodeLensProvider {
 				command: 'atomize.validate',
 				arguments: [document.uri],
 			}),
-new vscode.CodeLens(range, {
+			new vscode.CodeLens(range, {
 				title: 'Atomize: Preview (Mock)',
 				command: 'atomize.preview',
+				arguments: [document.uri],
+			}),
+			new vscode.CodeLens(range, {
+				title: 'Atomize: Preview (Live)',
+				command: 'atomize.livePreview',
 				arguments: [document.uri],
 			}),
 		];

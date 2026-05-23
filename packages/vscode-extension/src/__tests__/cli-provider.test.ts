@@ -3,6 +3,7 @@ import {
 	buildAuthAddArgs,
 	buildAuthListArgs,
 	buildAuthRemoveArgs,
+	buildGenJsonArgs,
 	buildAuthRemoveHelpArgs,
 	buildAuthRotateArgs,
 	buildAuthRotateHelpArgs,
@@ -159,5 +160,13 @@ describe('cli-provider', () => {
 			cache: { checkedAt: 2000, ok: false },
 			updateAvailable: false,
 		});
+	});
+});
+
+describe('buildGenJsonArgs', () => {
+	it('builds gen --json arguments for live preview', () => {
+		expect(buildGenJsonArgs('/templates/auth.atomize.yaml', '4821', 'work-ado')).toEqual([
+			'gen', '/templates/auth.atomize.yaml', '--story', '4821', '--profile', 'work-ado', '--json',
+		]);
 	});
 });
