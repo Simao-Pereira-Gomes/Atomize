@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { AtomizationReport } from "@core/atomizer";
 import { writeReportFile } from "@core/report-formatter";
 import {
+  buildJsonOutput,
   getNonInteractiveLiveExecutionError,
   parseConcurrency,
   printReport,
@@ -418,5 +419,21 @@ describe("writeReportFile", () => {
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("buildJsonOutput", () => {
+  test("serializes the full report as compact JSON", () => {
+    const report = makeReport();
+    const { stdout } = buildJsonOutput(report);
+    expect(stdout).toBe(JSON.stringify(report));
+  });
+
+  test("returns exit code 0 when no stories failed", () => {
+    expect(buildJsonOutput(makeReport({ storiesFailed: 0 })).exitCode).toBe(ExitCode.Success);
+  });
+
+  test("returns exit code 1 when stories failed", () => {
+    expect(buildJsonOutput(makeReport({ storiesFailed: 2 })).exitCode).toBe(ExitCode.Failure);
   });
 });

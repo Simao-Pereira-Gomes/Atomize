@@ -6,7 +6,7 @@ import {
 } from "@clack/prompts";
 import type { Config } from "@config/config";
 import { logger } from "@config/logger";
-import type { Atomizer } from "@core/atomizer";
+import type { AtomizationReport, Atomizer } from "@core/atomizer";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
@@ -16,6 +16,7 @@ import { PlatformFactory } from "@platforms/platform-factory";
 import type { CompositionMeta } from "@templates/loader";
 import type { TaskTemplate } from "@templates/schema";
 import { TemplateLibrary } from "@templates/template-library";
+import { AuthError } from "@utils/errors";
 import { clampConcurrency } from "@utils/math";
 import chalk from "chalk";
 import { Command, Option } from "commander";
@@ -54,6 +55,14 @@ export function getNonInteractiveLiveExecutionError(options: {
     "Refusing live execution without confirmation in non-interactive mode. " +
     "Re-run with --auto-approve to acknowledge task creation."
   );
+}
+
+/** @internal Exported for testing */
+export function buildJsonOutput(report: AtomizationReport): { stdout: string; exitCode: number } {
+  return {
+    stdout: JSON.stringify(report),
+    exitCode: report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success,
+  };
 }
 
 /**
@@ -547,10 +556,12 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
     "Apply this template's task definitions and estimation rules to specific stories by ID, bypassing the template's story filter. excludeIfHasTasks still applies.",
   )
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
+  .option("--json", "Emit AtomizationReport as JSON to stdout; implies dry-run and --quiet", false)
   .action(async (templateArg: string | undefined, options) => {
       try {
+      const isJson = options.json === true;
       const isTTYSession = isInteractiveTerminal();
-      const isQuiet = options.quiet === true;
+      const isQuiet = isJson || options.quiet === true;
       const outputPolicy = resolveGenerateOutputPolicy({
         quiet: isQuiet,
         verbose: options.verbose === true,
@@ -576,9 +587,15 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
         throw new ExitError(ExitCode.Failure);
       }
 
+      const jsonPrintReport = (report: AtomizationReport): number => {
+        const { stdout, exitCode: code } = buildJsonOutput(report);
+        process.stdout.write(stdout);
+        return code;
+      };
+
       const exitCode = await runGenerateCommandApplication({
         templateArg,
-        options,
+        options: { ...options, execute: isJson ? false : options.execute },
         config,
         prompts,
         isTTYSession,
@@ -595,22 +612,31 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
           renderFilterCriteria,
           confirmLiveExecution,
           runWorkflow: runGenerateWorkflow,
-          printReport,
+          printReport: isJson ? jsonPrintReport : printReport,
         },
       });
       process.exit(exitCode);
     } catch (error) {
       if (!(error instanceof ExitError)) {
-        const output = makeOutput({
-          quiet: options.quiet === true,
-          verbose: options.verbose === true,
-        });
-        output.cancel("Generation failed");
-        if (error instanceof Error) {
-          output.print(chalk.red(sanitizeTty(error.message)));
+        if (options.json === true) {
+          if (error instanceof Error) {
+            process.stderr.write(`${sanitizeTty(error.message)}\n`);
+          }
+        } else {
+          const output = makeOutput({
+            quiet: options.quiet === true,
+            verbose: options.verbose === true,
+          });
+          output.cancel("Generation failed");
+          if (error instanceof Error) {
+            output.print(chalk.red(sanitizeTty(error.message)));
+          }
         }
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      const exitCode = error instanceof ExitError ? error.code
+        : error instanceof AuthError ? ExitCode.AuthFailure
+        : ExitCode.Failure;
+      process.exit(exitCode);
     }
   });
 }

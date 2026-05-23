@@ -89,7 +89,7 @@ export class CancellationError extends AtomizeError {
 }
 
 export class AuthError extends AtomizeError {
-  constructor(message: string) {
+  constructor(message: string, public readonly platform?: string) {
     super(AtomizeErrorCode.AuthError, message);
   }
 }

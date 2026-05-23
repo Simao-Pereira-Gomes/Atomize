@@ -12,7 +12,7 @@ import type {
   TaskDefinition,
   WorkItem,
 } from "@platforms/interfaces/work-item.interface";
-import { getErrorMessage, PlatformError, UnknownError } from "@utils/errors";
+import { AuthError, getErrorMessage, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import {
   QueryExpand,
@@ -103,12 +103,9 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       this.authenticated = true;
       logger.info("AzureDevOps: Authentication successful");
     } catch (error) {
-      const message = getErrorMessage(error);
-      logger.error("AzureDevOps: Authentication failed", { error: message });
-      throw new PlatformError(
-        `Authentication failed: ${message}`,
-        "azure-devops",
-      );
+      const message = extractAzureErrorMessage(error);
+      logger.debug("AzureDevOps: Authentication failed", { error: message });
+      throw new AuthError(`Authentication failed: ${message}`, "azure-devops");
     }
   }
 
@@ -614,6 +611,22 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       );
     }
   }
+}
+
+function extractAzureErrorMessage(error: unknown): string {
+  const raw = getErrorMessage(error);
+  try {
+    const trimmed = raw.trimStart(); // Azure responses sometimes start with a BOM
+    if (trimmed.startsWith("{")) {
+      const parsed = JSON.parse(trimmed) as { message?: unknown };
+      if (typeof parsed.message === "string" && parsed.message.length > 0) {
+        return parsed.message;
+      }
+    }
+  } catch {
+    // not JSON — fall through
+  }
+  return raw;
 }
 
 /**
