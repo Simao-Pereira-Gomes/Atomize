@@ -57,6 +57,10 @@ A user-supplied JSON object of story field values (using `WorkItem` property nam
 **Mock Preview**:
 Offline task generation evaluated against a Mock Story. Produces a resolved task list — including skipped conditional tasks and estimation breakdowns — without querying or creating work items on any platform.
 
+**Live Preview**:
+Task generation dry-run evaluated against a real Story fetched from a Platform Adapter. Produces a resolved task list without creating work items on any platform.
+_Avoid_: "live run" — Live Preview never creates tasks.
+
 **Connection Profile**:
 A named set of credentials for a specific platform (Azure DevOps or GitHub Models). Each platform type has its own independent default profile.
 _Avoid_: "auth profile" or "credentials" when referring to a saved named connection.
@@ -102,6 +106,9 @@ Schema-backed explanatory text shown by the editor for an Atomize YAML field whi
 **Mock Preview Panel**:
 VS Code webview panel that drives Mock Preview — shows a dynamic form derived from `--inspect`, collects a Mock Story, and renders the resolved task list on submit.
 
+**Live Preview Panel**:
+VS Code webview panel that drives Live Preview — prompts for a Story ID and Connection Profile, then renders the resolved task list with story context.
+
 ## Relationships
 
 - A **Template** selects one or more **Stories** and defines one or more generated **Tasks**.
@@ -111,6 +118,8 @@ VS Code webview panel that drives Mock Preview — shows a dynamic form derived 
 - The **Story Learner** reads **Stories** and **Tasks** through a **Platform Adapter** and produces a **Template**.
 - A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
 - The **Mock Preview Panel** drives **Mock Preview** in VS Code — inspects the **Atomize YAML File**, collects a **Mock Story**, and renders the resolved task list.
+- A **Live Preview** evaluates a **Template** against a real **Story** fetched via a **Platform Adapter** using a named **Connection Profile**, without creating any **Tasks**.
+- The **Live Preview Panel** drives **Live Preview** in VS Code.
 - **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
 - **Validation Diagnostics** may refresh passively while authoring; a **Validation Report** is only shown after an explicit user request.
 - Every VS Code validation run begins with **Validation Profile Selection**; when no Azure DevOps profiles are configured, the selection offers **Offline Validation** or a path to the **Profile Management Surface**.
