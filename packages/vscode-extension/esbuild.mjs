@@ -1,7 +1,7 @@
-import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
-import { join, dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 

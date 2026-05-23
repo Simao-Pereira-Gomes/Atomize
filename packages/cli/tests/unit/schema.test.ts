@@ -626,13 +626,13 @@ describe("Schema Validation", () => {
         tasks: [
           {
             id: "design",
-            title: "Custom Design: ${story.title}",
+            title: `Custom Design: \${story.title}`,
             description: "Overridden design task",
             estimationPercent: 15,
           },
           {
             id: "deploy",
-            title: "Deploy: ${story.title}",
+            title: `Deploy: \${story.title}`,
             description: "Deployment phase",
             estimationPercent: 5,
           },

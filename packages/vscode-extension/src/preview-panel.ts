@@ -1,14 +1,14 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { extendedEnv } from './env-utils.js';
 import { buildInspectArgs, buildPreviewArgs } from './cli-provider.js';
+import { extendedEnv } from './env-utils.js';
 import {
 	type InspectField,
 	type InspectResult,
 	type PreviewResult,
-	type StoredValues,
 	renderPreviewForm,
 	renderPreviewResults,
+	type StoredValues,
 } from './preview-html.js';
 
 function spawnInspect(cliPath: string, filePath: string): Promise<InspectField[]> {
@@ -59,7 +59,7 @@ function buildMockStory(fields: InspectField[], values: Record<string, unknown>)
 			story[field.name] = value;
 		}
 	}
-	if (Object.keys(customFields).length > 0) story['customFields'] = customFields;
+	if (Object.keys(customFields).length > 0) story.customFields = customFields;
 	return JSON.stringify(story);
 }
 

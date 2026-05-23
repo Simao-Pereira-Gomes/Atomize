@@ -101,7 +101,7 @@ export const validateCommand = new Command("validate")
       });
 
       if (isJsonOutput) {
-        process.stdout.write(JSON.stringify(result) + '\n');
+        process.stdout.write(`${JSON.stringify(result)}\n`);
       }
 
       if (!result.valid) process.exit(ExitCode.Failure);
@@ -113,7 +113,7 @@ export const validateCommand = new Command("validate")
           warnings: [],
           mode: 'lenient',
         };
-        process.stdout.write(JSON.stringify(errorResult) + '\n');
+        process.stdout.write(`${JSON.stringify(errorResult)}\n`);
         process.exit(ExitCode.Failure);
       }
       handleFatal(error, output);

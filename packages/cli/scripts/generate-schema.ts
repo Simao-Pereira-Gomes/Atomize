@@ -28,15 +28,15 @@ function dropDefaultedFromRequired(node: unknown): void {
     return;
   }
   const obj = node as Record<string, unknown>;
-  if (obj["type"] === "object" && Array.isArray(obj["required"]) && typeof obj["properties"] === "object" && obj["properties"] !== null) {
-    const props = obj["properties"] as Record<string, unknown>;
-    obj["required"] = (obj["required"] as string[]).filter(
+  if (obj.type === "object" && Array.isArray(obj.required) && typeof obj.properties === "object" && obj.properties !== null) {
+    const props = obj.properties as Record<string, unknown>;
+    obj.required = (obj.required as string[]).filter(
       (key) => {
         const prop = props[key];
         return !(typeof prop === "object" && prop !== null && "default" in prop);
       }
     );
-    if ((obj["required"] as string[]).length === 0) delete obj["required"];
+    if ((obj.required as string[]).length === 0) delete obj.required;
   }
   for (const value of Object.values(obj)) dropDefaultedFromRequired(value);
 }
