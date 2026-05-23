@@ -39,6 +39,7 @@ describe("serializeProfileForJson — azure-devops", () => {
       organizationUrl: "https://dev.azure.com/myorg",
       project: "MyProject",
       team: "MyTeam",
+      tokenStorage: "keychain",
     });
   });
 
@@ -70,6 +71,7 @@ describe("serializeProfileForJson — github-models", () => {
       platform: "github-models",
       isDefault: false,
       model: "gpt-4o",
+      tokenStorage: "keychain",
     });
   });
 
@@ -95,6 +97,16 @@ describe("serializeProfileForJson — github-models", () => {
 });
 
 describe("serializeProfileForJson — keyfile token exclusion", () => {
+  test("reports keyfile storage as file without exposing crypto material", () => {
+    const profileWithKeyfile: ConnectionProfile = {
+      ...azureProfile,
+      token: { strategy: "keyfile", iv: "abc123", authTag: "def456", ciphertext: "ghi789" },
+    };
+    expect(serializeProfileForJson(profileWithKeyfile, {})).toMatchObject({
+      tokenStorage: "file",
+    });
+  });
+
   test("excludes all keyfile crypto material from output", () => {
     const profileWithKeyfile: ConnectionProfile = {
       ...azureProfile,

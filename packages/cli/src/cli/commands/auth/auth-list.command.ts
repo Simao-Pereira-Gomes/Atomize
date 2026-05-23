@@ -18,6 +18,7 @@ type AzureDevOpsProfileJson = {
   organizationUrl: string;
   project: string;
   team: string;
+  tokenStorage: "keychain" | "file";
 };
 
 type GitHubModelsProfileJson = {
@@ -25,6 +26,7 @@ type GitHubModelsProfileJson = {
   platform: "github-models";
   isDefault: boolean;
   model: string;
+  tokenStorage: "keychain" | "file";
 };
 
 export type ProfileJson = AzureDevOpsProfileJson | GitHubModelsProfileJson;
@@ -43,6 +45,7 @@ export function serializeProfileForJson(
       organizationUrl: profile.organizationUrl,
       project: profile.project,
       team: profile.team,
+      tokenStorage: profile.token.strategy === "keychain" ? "keychain" : "file",
     };
   }
 
@@ -51,6 +54,7 @@ export function serializeProfileForJson(
     platform: "github-models",
     isDefault,
     model: profile.model ?? "gpt-4o-mini",
+    tokenStorage: profile.token.strategy === "keychain" ? "keychain" : "file",
   };
 }
 
