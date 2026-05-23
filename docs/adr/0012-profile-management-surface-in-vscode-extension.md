@@ -10,7 +10,7 @@ Three triggers were identified: onboarding friction (empty profile picker), day-
 
 The extension adds command id `atomize.manageProfiles` with title `Atomize: Manage Profiles` as a command-palette-only command. The command is contributed unconditionally and registered during normal extension activation. This iteration does not add editor title, context menu, or Validation Profile Selection entry points.
 
-The existing Validation Profile Selection flow is not changed to include profile-management actions. If validation finds no Azure DevOps profiles, it continues to run Offline Validation as today unless a separate validation UX decision changes that behavior later.
+The existing Validation Profile Selection flow is not changed to include profile-management actions. If validation finds no Azure DevOps profiles, it continues to run Offline Validation as today unless a separate validation UX decision changes that behavior later. That decision was made in ADR-0011: when no profiles are configured, Validation Profile Selection now offers "Run offline" or "Add profile..." instead of silently running offline.
 
 ### Profile list flow
 

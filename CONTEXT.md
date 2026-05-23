@@ -74,8 +74,8 @@ Template validation that connects to Azure DevOps via a named Connection Profile
 _Avoid_: "connected validation" or "ADO validation" when referring to this mode.
 
 **Validation Profile Selection**:
-The explicit choice of an Azure DevOps Connection Profile, or Offline Validation, made when a VS Code validation run can use Online Validation.
-_Avoid_: "Default Validation Profile" for VS Code validation; online validation should not be selected silently by workspace configuration.
+The explicit user choice that precedes every VS Code validation run: a named Azure DevOps Connection Profile, Offline Validation, or — when no profiles are configured — a path to add one via the Profile Management Surface.
+_Avoid_: "Default Validation Profile" for VS Code validation; the validation mode is never chosen silently by the system.
 
 **Validation Diagnostics**:
 Line-level editor feedback for an Atomize YAML File, surfaced through VS Code diagnostics such as squiggles and the Problems panel.
@@ -113,7 +113,7 @@ VS Code webview panel that drives Mock Preview — shows a dynamic form derived 
 - The **Mock Preview Panel** drives **Mock Preview** in VS Code — inspects the **Atomize YAML File**, collects a **Mock Story**, and renders the resolved task list.
 - **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
 - **Validation Diagnostics** may refresh passively while authoring; a **Validation Report** is only shown after an explicit user request.
-- A VS Code validation run uses **Validation Profile Selection** when Azure DevOps profiles are available; otherwise it runs **Offline Validation**.
+- Every VS Code validation run begins with **Validation Profile Selection**; when no Azure DevOps profiles are configured, the selection offers **Offline Validation** or a path to the **Profile Management Surface**.
 - A **CLI Validation Provider** produces the validation result consumed by **Validation Diagnostics** and **Validation Reports** in the VS Code extension.
 - A **Configuration Entry Point** helps users configure the **CLI Validation Provider** and related extension-owned CLI behavior.
 - The **Profile Management Surface** manages **Connection Profiles** via the **CLI Validation Provider**.

@@ -1,4 +1,7 @@
+import { spawn } from 'node:child_process';
 import { gt, prerelease, valid } from 'semver';
+import * as vscode from 'vscode';
+import { extendedEnv } from './env-utils.js';
 
 export const DEFAULT_CLI_PATH = 'atomize';
 export const DEFAULT_INSTALL_COMMAND = 'npm install -g @sppg2001/atomize';
@@ -192,4 +195,32 @@ export async function checkForCliUpdate(options: UpdateCheckOptions): Promise<Up
 	} finally {
 		clearTimeout(timeout);
 	}
+}
+
+export interface CliProbeResult {
+	available: boolean;
+	version?: string;
+}
+
+export function probeCli(cliPath: string): Promise<CliProbeResult> {
+	return new Promise(resolve => {
+		const proc = spawn(cliPath, buildVersionArgs(), { shell: false, env: extendedEnv() });
+		let output = '';
+		proc.stdout.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+		proc.stderr.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+		proc.on('close', code => resolve({ available: code === 0, version: output.trim() }));
+		proc.on('error', () => resolve({ available: false }));
+	});
+}
+
+export function getConfiguredCliPath(): string {
+	return normalizeCliPath(vscode.workspace.getConfiguration('atomize').get('cliPath'));
+}
+
+export function getConfiguredInstallCommand(): string {
+	return normalizeInstallCommand(vscode.workspace.getConfiguration('atomize').get('cli.installCommand'));
+}
+
+export function getAutoCheckUpdates(): boolean {
+	return vscode.workspace.getConfiguration('atomize').get('cli.autoCheckUpdates', true);
 }
