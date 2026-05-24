@@ -27,8 +27,10 @@ jobs:
 
       - name: Build package
         run: bun run build
+        working-directory: packages/cli
 
       - name: Test packed CLI
+        working-directory: packages/cli
         run: |
           npm pack
           PACKAGE=$(ls *.tgz)
@@ -38,6 +40,7 @@ jobs:
 
       - name: Validate package contents
         run: bun run validate:package
+        working-directory: packages/cli
 
   dependency-review:
     name: Dependency Review

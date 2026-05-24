@@ -1,0 +1,3 @@
+# Consistent VS Code command titles
+
+Atomize file-level VS Code commands use the same concise title in CodeLens, the Command Palette, and the editor context menu: `Atomize: Validate`, `Atomize: Preview (Mock)`, `Atomize: Preview (Live)`, and `Atomize: Generate`. These file-command surfaces are shown only for **Durable Atomize YAML Opt-In** files, matching the CodeLens boundary rather than content-only session detection. This supersedes the earlier CodeLens-only `Atomize: Validate and Show Report` wording and command-palette validation allowance for content-detected files from ADR-0007 because every command surface now represents the same action set, and title/scope drift makes the surfaces look like different behaviors.

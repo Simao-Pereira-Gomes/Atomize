@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-pass: var(--vscode-testing-iconPassed);
+  --color-fail: var(--vscode-testing-iconFailed);
+  --color-desc: var(--vscode-descriptionForeground);
+}

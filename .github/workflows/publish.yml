@@ -17,7 +17,7 @@ jobs:
   publish:
     name: Publish to NPM
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,30 +35,35 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run tests
-        run: bun test
+        run: bun run test
+        working-directory: packages/cli
 
       - name: Build
         run: bun run build
+        working-directory: packages/cli
 
       - name: Update version (manual trigger only)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.version
+        working-directory: packages/cli
         run: npm version ${{ github.event.inputs.version }} --no-git-tag-version
 
       - name: Get package version
         id: package-version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "version=$(node -p "require('./packages/cli/package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Publish to NPM
+        working-directory: packages/cli
         run: npm publish --provenance --access public
+
       - name: Publish Summary
         run: |
           echo "###Published to NPM!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Package:** \`$(node -p "require('./package.json').name")\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** \`$(node -p "require('./packages/cli/package.json').name")\`" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** \`${{ steps.package-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**NPM:** https://www.npmjs.com/package/$(node -p "require('./package.json').name")/v/${{ steps.package-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**NPM:** https://www.npmjs.com/package/$(node -p "require('./packages/cli/package.json').name")/v/${{ steps.package-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ github.event_name }}" == "release" ]; then
             echo "**Triggered by:** GitHub Release" >> $GITHUB_STEP_SUMMARY
             echo "**Release:** ${{ github.event.release.html_url }}" >> $GITHUB_STEP_SUMMARY

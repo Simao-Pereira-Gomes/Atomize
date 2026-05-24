@@ -1,0 +1,20 @@
+version: "1.0"
+name: "Invalid Estimation Template"
+description: "Template with estimation that doesn't add to 100%"
+
+filter:
+  workItemTypes:
+    - "User Story"
+  states:
+    - "New"
+
+tasks:
+  - title: "Task 1"
+    estimationPercent: 30
+
+  - title: "Task 2"
+    estimationPercent: 40
+
+# Total is 70%, should be 100%
+validation:
+  totalEstimationMustBe: 100

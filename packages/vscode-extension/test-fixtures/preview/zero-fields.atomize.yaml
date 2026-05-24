@@ -1,0 +1,58 @@
+# Preview Panel test — Zero fields form path
+#
+# Open this file in VS Code and click "Atomize: Preview (Mock)" to test:
+#   • Form shows: "This template generates the same tasks for any story."
+#   • "Run Preview" button is present with no fields above it
+#   • Results: 6 fixed-hour tasks, sequential dependency chain, no budget bar
+#   • Total estimation = 6h regardless of story values
+#
+# Action: click "Run Preview" immediately — no values to enter.
+
+version: "1.0"
+name: "Changelog Release"
+description: "Fixed-step release changelog process — generates the same tasks for every story"
+author: "Atomize"
+tags: ["preview-test", "zero-fields", "changelog"]
+
+filter:
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "collect-prs"
+    title: "Collect merged PR titles"
+    estimationFixed: 1
+    activity: "Requirements"
+
+  - id: "draft-entries"
+    title: "Draft changelog entries"
+    estimationFixed: 1
+    dependsOn: ["collect-prs"]
+    activity: "Requirements"
+
+  - id: "group-categories"
+    title: "Group by category"
+    estimationFixed: 1
+    dependsOn: ["draft-entries"]
+    activity: "Requirements"
+
+  - id: "update-changelog"
+    title: "Update CHANGELOG.md"
+    estimationFixed: 1
+    dependsOn: ["group-categories"]
+    activity: "Development"
+
+  - id: "bump-version"
+    title: "Bump package version"
+    estimationFixed: 1
+    dependsOn: ["update-changelog"]
+    activity: "Development"
+
+  - id: "open-pr"
+    title: "Open PR for review"
+    estimationFixed: 1
+    dependsOn: ["bump-version"]
+    activity: "Development"
+
+metadata:
+  category: "Preview Panel Test"
+  difficulty: "beginner"

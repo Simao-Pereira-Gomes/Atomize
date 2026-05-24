@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `auth rotate --pat-stdin` for non-interactive PAT rotation.
+
 ---
 
 ## [2.0.0] - 2026-05-03

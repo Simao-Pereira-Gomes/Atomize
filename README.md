@@ -601,6 +601,16 @@ atomize validate templates/my-template.yaml --strict
 - [Platform Guide](./docs/Platform-Guide.md) - Azure DevOps setup
 - [Template Wizard Guide](./docs/template-wizard-guide.md) - Interactive wizard walkthrough
 
+### Repository layout
+
+| Path | Contents |
+|---|---|
+| [`packages/cli/`](./packages/cli/) | CLI source, tests, and build |
+| [`packages/cli/templates/`](./packages/cli/templates/) | Built-in YAML templates (shipped with the package) |
+| [`packages/vscode-extension/`](./packages/vscode-extension/) | VS Code extension |
+| [`examples/`](./examples/) | Example templates to get started |
+| [`docs/`](./docs/) | Guides and architecture decision records |
+
 ---
 
 ## License

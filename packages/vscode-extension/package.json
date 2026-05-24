@@ -1,0 +1,128 @@
+{
+	"name": "atomize",
+	"displayName": "Atomize",
+	"description": "VS Code extension for Atomize — generate tasks from YAML templates",
+	"version": "0.0.1",
+	"publisher": "sppg2001",
+	"private": true,
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Simao-Pereira-Gomes/atomize.git"
+	},
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": ["Other"],
+	"extensionPack": ["redhat.vscode-yaml"],
+	"activationEvents": ["onStartupFinished"],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"configurationDefaults": {
+			"files.associations": {
+				"*.atomize.yaml": "yaml",
+				"*.atomize.yml": "yaml"
+			}
+		},
+		"configuration": {
+			"title": "Atomize",
+			"properties": {
+				"atomize.cliPath": {
+					"type": "string",
+					"default": "atomize",
+					"description": "Path to the Atomize CLI executable used for validation and preview."
+				},
+				"atomize.cli.installCommand": {
+					"type": "string",
+					"default": "npm install -g @sppg2001/atomize",
+					"description": "Command run in a visible terminal to install or update the default Atomize CLI."
+				},
+				"atomize.cli.autoCheckUpdates": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically check npm for stable Atomize CLI updates when using the default CLI executable."
+				},
+				"atomize.previewLayout": {
+					"type": "string",
+					"enum": ["default", "compact"],
+					"default": "default",
+					"description": "Layout for the Mock Preview Panel. 'default' shows KPI tiles and per-task estimation bars; 'compact' shows a summary table."
+				}
+			}
+		},
+		"languages": [
+			{
+				"id": "atomize-yaml",
+				"aliases": ["Atomize YAML"],
+				"icon": {
+					"light": "./icons/yaml-light.svg",
+					"dark": "./icons/yaml-dark.svg"
+				}
+			}
+		],
+		"commands": [
+			{
+				"command": "atomize.validate",
+				"title": "Atomize: Validate",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.preview",
+				"title": "Atomize: Preview (Mock)",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.livePreview",
+				"title": "Atomize: Preview (Live)",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.generate",
+				"title": "Atomize: Generate",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.manageProfiles",
+				"title": "Atomize: Manage Profiles",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.openSettings",
+				"title": "Open Settings",
+				"category": "Atomize"
+			}
+		],
+		"grammars": [
+			{
+				"language": "atomize-yaml",
+				"scopeName": "source.atomize-yaml",
+				"path": "./syntaxes/atomize-yaml.tmLanguage.json"
+			}
+		],
+		"snippets": [
+			{
+				"language": "yaml",
+				"path": "./snippets/atomize-yaml.code-snippets"
+			}
+		]
+	},
+	"scripts": {
+		"prebuild": "bun run --cwd ../cli generate-schema",
+		"build": "bun esbuild.mjs",
+		"package": "vsce package --no-dependencies",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"semver": "^7.7.4"
+	},
+	"devDependencies": {
+		"@tailwindcss/cli": "^4.3.0",
+		"@types/node": "^20.0.0",
+		"@types/semver": "^7.7.1",
+		"@types/vscode": "^1.85.0",
+		"@vscode/vsce": "^2.24.0",
+		"esbuild": "^0.20.0",
+		"tailwindcss": "^4.3.0",
+		"typescript": "^6.0.3"
+	}
+}

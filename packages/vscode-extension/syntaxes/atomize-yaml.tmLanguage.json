@@ -1,0 +1,9 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Atomize YAML",
+	"scopeName": "source.atomize-yaml",
+	"patterns": [
+		{ "include": "source.yaml" }
+	],
+	"repository": {}
+}
