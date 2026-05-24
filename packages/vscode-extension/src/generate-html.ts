@@ -324,8 +324,6 @@ function collapsedDryRun(dryReport: GenerateReport): string {
 </details>`;
 }
 
-// ─── Executed story result (default layout) ───────────────────────────────────
-
 function execStoryResult(result: GenerateResult): string {
 	const { story } = result;
 	const storyLink = story.url
@@ -372,8 +370,6 @@ function execStoryResult(result: GenerateResult): string {
 </details>`;
 }
 
-// ─── Executed story result (compact layout) ───────────────────────────────────
-
 function execStoryResultCompact(result: GenerateResult): string {
 	const { story } = result;
 	const storyLink = story.url
@@ -413,8 +409,6 @@ function execStoryResultCompact(result: GenerateResult): string {
 <div style="padding:3px 0 6px 20px;font-size:.78em;color:var(--vscode-descriptionForeground)">${esc(result.error ?? 'Unknown error')}</div>`;
 }
 
-// ─── Error bubble ─────────────────────────────────────────────────────────────
-
 function iconBubble(icon: string, isError: boolean): string {
 	const bg = isError ? 'rgba(241,76,76,.1)' : 'rgba(204,167,0,.1)';
 	const border = isError ? 'rgba(241,76,76,.2)' : 'rgba(204,167,0,.2)';
@@ -433,8 +427,6 @@ function errorBubble(icon: string, title: string, body: string, isError: boolean
   </div>
 </div>`;
 }
-
-// ─── Page wrapper ─────────────────────────────────────────────────────────────
 
 function page(title: string, body: string, script: string): string {
 	return `<!DOCTYPE html>
@@ -456,7 +448,6 @@ ${script}
 </html>`;
 }
 
-// ─── Shared script fragments ──────────────────────────────────────────────────
 
 const SWITCH_MODE_SCRIPT = `function switchMode(m) { vscode.postMessage({ type: 'switchMode', mode: m }); }`;
 
@@ -485,8 +476,6 @@ if (btn) {
     vscode.postMessage({ type: 'createTasks', continueOnError: coe ? coe.checked : false });
   });
 }`;
-
-// ─── Public API ───────────────────────────────────────────────────────────────
 
 export function renderGenerateLoading(fileName: string, profile: string): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
