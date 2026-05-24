@@ -96,6 +96,10 @@ The user-approved command the VS Code extension runs in a visible terminal to in
 **CLI Update Check**:
 An extension-owned registry lookup that detects whether the default CLI Validation Provider has a newer stable release available.
 
+**CLI Feature Requirement**:
+A minimum CLI version the extension requires to enable a command. Commands whose requirement is unmet are blocked until the CLI is updated.
+_Avoid_: conflating with **CLI Update Check**, which detects that a newer version exists rather than enforcing a minimum.
+
 **Configuration Entry Point**:
 A VS Code surface that opens Atomize extension settings.
 _Avoid_: onboarding, walkthrough, docs link when referring to settings discovery.
