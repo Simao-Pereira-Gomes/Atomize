@@ -3,12 +3,14 @@ import {
 	buildAuthAddArgs,
 	buildAuthListArgs,
 	buildAuthRemoveArgs,
-	buildGenJsonArgs,
 	buildAuthRemoveHelpArgs,
 	buildAuthRotateArgs,
 	buildAuthRotateHelpArgs,
 	buildAuthTestArgs,
 	buildAuthUseArgs,
+	buildGenDryRunJsonArgs,
+	buildGenExecuteJsonArgs,
+	buildLivePreviewArgs,
 	buildValidateArgs,
 	buildVersionArgs,
 	CLI_PACKAGE_NAME,
@@ -163,10 +165,32 @@ describe('cli-provider', () => {
 	});
 });
 
-describe('buildGenJsonArgs', () => {
-	it('builds gen --json arguments for live preview', () => {
-		expect(buildGenJsonArgs('/templates/auth.atomize.yaml', '4821', 'work-ado')).toEqual([
+describe('buildLivePreviewArgs', () => {
+	it('builds gen --json --story arguments for live preview', () => {
+		expect(buildLivePreviewArgs('/templates/auth.atomize.yaml', '4821', 'work-ado')).toEqual([
 			'gen', '/templates/auth.atomize.yaml', '--story', '4821', '--profile', 'work-ado', '--json',
+		]);
+	});
+});
+
+describe('buildGenDryRunJsonArgs', () => {
+	it('builds gen --json arguments without --story or --execute', () => {
+		expect(buildGenDryRunJsonArgs('/templates/auth.atomize.yaml', 'work-ado')).toEqual([
+			'gen', '/templates/auth.atomize.yaml', '--profile', 'work-ado', '--json',
+		]);
+	});
+});
+
+describe('buildGenExecuteJsonArgs', () => {
+	it('builds gen --json --execute --auto-approve arguments', () => {
+		expect(buildGenExecuteJsonArgs('/templates/auth.atomize.yaml', 'work-ado', false)).toEqual([
+			'gen', '/templates/auth.atomize.yaml', '--profile', 'work-ado', '--json', '--execute', '--auto-approve',
+		]);
+	});
+
+	it('appends --continue-on-error when continueOnError is true', () => {
+		expect(buildGenExecuteJsonArgs('/templates/auth.atomize.yaml', 'work-ado', true)).toEqual([
+			'gen', '/templates/auth.atomize.yaml', '--profile', 'work-ado', '--json', '--execute', '--auto-approve', '--continue-on-error',
 		]);
 	});
 });

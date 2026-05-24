@@ -3,14 +3,15 @@ import { createCliLifecycle } from './cli-lifecycle.js';
 import { getConfiguredCliPath, probeCli } from './cli-provider.js';
 import { AtomizeCodeLensProvider } from './codelens-provider.js';
 import { clearRunState, runDiagnosticValidation } from './diagnostics.js';
+import { GeneratePanel } from './generate-panel.js';
 import {
 	handleDocument,
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
 } from './language-detection.js';
-import { AtomizePanel } from './panel.js';
 import { LivePreviewPanel } from './live-preview-panel.js';
+import { AtomizePanel } from './panel.js';
 import { PreviewPanel } from './preview-panel.js';
 import { manageProfiles } from './profile-management.js';
 import { registerValidateCommand } from './validate-command.js';
@@ -204,6 +205,23 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			await LivePreviewPanel.open(doc.uri, cliPath);
 		}),
 
+		vscode.commands.registerCommand('atomize.generate', async (uri?: vscode.Uri) => {
+			const doc = uri
+				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
+				: vscode.window.activeTextEditor?.document;
+			if (!doc) return;
+			if (!await checkDirtyDocument(doc)) return;
+
+			const cliPath = getConfiguredCliPath();
+			const probe = await probeCli(cliPath);
+			if (!probe.available) {
+				await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to generate tasks.');
+				return;
+			}
+			void checkForCliUpdate(cliPath, probe.version);
+			await GeneratePanel.open(doc.uri, cliPath);
+		}),
+
 		vscode.commands.registerCommand('atomize.manageProfiles', async () => {
 			const cliPath = getConfiguredCliPath();
 			await manageProfiles(cliPath, async () => {
@@ -227,4 +245,5 @@ export function deactivate(): void {
 	AtomizePanel.dispose();
 	PreviewPanel.dispose();
 	LivePreviewPanel.dispose();
+	GeneratePanel.dispose();
 }

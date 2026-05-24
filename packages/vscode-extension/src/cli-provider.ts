@@ -114,8 +114,18 @@ export function buildAuthRemoveHelpArgs(): string[] {
 	return ['auth', 'remove', '--help'];
 }
 
-export function buildGenJsonArgs(filePath: string, storyId: string, profile: string): string[] {
+export function buildLivePreviewArgs(filePath: string, storyId: string, profile: string): string[] {
 	return ['gen', filePath, '--story', storyId, '--profile', profile, '--json'];
+}
+
+export function buildGenDryRunJsonArgs(filePath: string, profile: string): string[] {
+	return ['gen', filePath, '--profile', profile, '--json'];
+}
+
+export function buildGenExecuteJsonArgs(filePath: string, profile: string, continueOnError: boolean): string[] {
+	const args = ['gen', filePath, '--profile', profile, '--json', '--execute', '--auto-approve'];
+	if (continueOnError) args.push('--continue-on-error');
+	return args;
 }
 
 export function buildAuthRotateHelpArgs(): string[] {

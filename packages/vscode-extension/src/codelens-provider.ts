@@ -8,7 +8,7 @@ export class AtomizeCodeLensProvider implements vscode.CodeLensProvider {
 		const range = new vscode.Range(0, 0, 0, 0);
 		return [
 			new vscode.CodeLens(range, {
-				title: 'Atomize: Validate and Show Report',
+				title: 'Atomize: Validate',
 				command: 'atomize.validate',
 				arguments: [document.uri],
 			}),
@@ -20,6 +20,11 @@ export class AtomizeCodeLensProvider implements vscode.CodeLensProvider {
 			new vscode.CodeLens(range, {
 				title: 'Atomize: Preview (Live)',
 				command: 'atomize.livePreview',
+				arguments: [document.uri],
+			}),
+			new vscode.CodeLens(range, {
+				title: 'Atomize: Generate',
+				command: 'atomize.generate',
 				arguments: [document.uri],
 			}),
 		];

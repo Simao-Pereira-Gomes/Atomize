@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildAuthListArgs, buildGenJsonArgs, CLI_EXIT_CODES } from './cli-provider.js';
+import { buildAuthListArgs, buildLivePreviewArgs, CLI_EXIT_CODES } from './cli-provider.js';
 import { extendedEnv } from './env-utils.js';
 import type { AtomizationReport } from './live-preview-html.js';
 import { renderLivePreviewError, renderLivePreviewResults } from './live-preview-html.js';
@@ -72,7 +72,7 @@ async function pickStoryId(): Promise<string | null> {
 
 function spawnGenJson(cliPath: string, filePath: string, storyId: string, profile: string): Promise<{ report: AtomizationReport } | { error: 'auth' | 'notfound'; stderr: string }> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildGenJsonArgs(filePath, storyId, profile), { shell: false, env: extendedEnv() });
+		const proc = spawn(cliPath, buildLivePreviewArgs(filePath, storyId, profile), { shell: false, env: extendedEnv() });
 		let stdout = '';
 		let stderr = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });

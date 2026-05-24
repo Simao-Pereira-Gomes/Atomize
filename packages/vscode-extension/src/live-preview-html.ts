@@ -221,7 +221,7 @@ ${s.storyEstimation > 0 ? `
   </div>`).join('')}
 </details>`;
 
-	return kpi + `
+	return `${kpi}
 <details open style="margin-bottom:14px">
   <summary style="display:flex;align-items:center;gap:5px;padding:6px 0;border-bottom:1px solid var(--vscode-panel-border,#3d3d3d);margin-bottom:8px">
     <span class="chev">›</span>
@@ -229,7 +229,7 @@ ${s.storyEstimation > 0 ? `
     <span style="font-size:.75em;color:var(--vscode-descriptionForeground);font-weight:400;text-transform:none;letter-spacing:normal">(${tasks.length})</span>
   </summary>
   ${taskItems}
-</details>` + skippedHtml;
+</details>${skippedHtml}`;
 }
 
 // ─── Results body (compact layout) ────────────────────────────────────────────

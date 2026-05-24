@@ -77,6 +77,11 @@
 				"category": "Atomize"
 			},
 			{
+				"command": "atomize.generate",
+				"title": "Atomize: Generate",
+				"category": "Atomize"
+			},
+			{
 				"command": "atomize.manageProfiles",
 				"title": "Atomize: Manage Profiles",
 				"category": "Atomize"

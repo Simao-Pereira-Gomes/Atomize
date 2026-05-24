@@ -595,7 +595,7 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
 
       const exitCode = await runGenerateCommandApplication({
         templateArg,
-        options: { ...options, execute: isJson ? false : options.execute },
+        options: { ...options, execute: options.execute },
         config,
         prompts,
         isTTYSession,
