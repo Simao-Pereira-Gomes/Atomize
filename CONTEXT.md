@@ -113,29 +113,16 @@ VS Code webview panel that drives Mock Preview — shows a dynamic form derived 
 **Live Preview Panel**:
 VS Code webview panel that drives Live Preview — prompts for a Story ID and Connection Profile, then renders the resolved task list with story context.
 
-## Relationships
+**Resolved Template**:
+The fully composed form of a Template after applying `extends` inheritance and Mixin injections.
+_Avoid_: "merged template" or "expanded template".
 
-- A **Template** selects one or more **Stories** and defines one or more generated **Tasks**.
-- A **Mixin** contributes tasks to a composed **Template**.
-- The **Template Library** resolves **Templates** and **Mixins** from the **Catalog** or direct template sources.
-- A **Platform Adapter** reads **Stories** and creates or links **Tasks**.
-- The **Story Learner** reads **Stories** and **Tasks** through a **Platform Adapter** and produces a **Template**.
-- A **Mock Preview** evaluates a **Template** against a **Mock Story** to produce a resolved task list without a **Platform Adapter**.
-- The **Mock Preview Panel** drives **Mock Preview** in VS Code — inspects the **Atomize YAML File**, collects a **Mock Story**, and renders the resolved task list.
-- A **Live Preview** evaluates a **Template** against a real **Story** fetched via a **Platform Adapter** using a named **Connection Profile**, without creating any **Tasks**.
-- The **Live Preview Panel** drives **Live Preview** in VS Code.
-- **Validation Diagnostics** point to specific locations in an **Atomize YAML File**; a **Validation Report** summarises the whole validation result.
-- **Validation Diagnostics** may refresh passively while authoring; a **Validation Report** is only shown after an explicit user request.
-- Every VS Code validation run begins with **Validation Profile Selection**; when no Azure DevOps profiles are configured, the selection offers **Offline Validation** or a path to the **Profile Management Surface**.
-- A **CLI Validation Provider** produces the validation result consumed by **Validation Diagnostics** and **Validation Reports** in the VS Code extension.
-- A **Configuration Entry Point** helps users configure the **CLI Validation Provider** and related extension-owned CLI behavior.
-- The **Profile Management Surface** manages **Connection Profiles** via the **CLI Validation Provider**.
-- **Durable Atomize YAML Opt-In** identifies an **Atomize YAML File** for full editor tooling while preserving the `yaml` language identity; **Session Atomize YAML Opt-In** identifies one for schema-backed authoring support and durable opt-in prompting only.
-- A **Field Hover Description** is available for every schema-enabled **Atomize YAML File**, whether identified by **Durable Atomize YAML Opt-In** or **Session Atomize YAML Opt-In**.
-- A **Catalog Override** is detected automatically by name collision; **Template Lineage** is declared explicitly via the `origin` field and is informational only.
+**Catalog Browser**:
+A VS Code surface for discovering Templates and Mixins from the Template Library without leaving the editor.
 
-## Flagged Ambiguities
+**Workspace Default Profile**:
+A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Live Preview and Generate pickers.
+_Avoid_: "default profile" without qualification — the CLI has a global platform default that is unrelated.
 
-- "template catalog" was used for both named inventory and all template loading behavior; resolved: **Catalog** is the inventory, **Template Library** is the whole module.
-- "default profile" was used for both CLI connection resolution and VS Code validation behavior; resolved: VS Code uses **Validation Profile Selection**, while CLI defaults remain part of connection profile resolution.
-- "atomize-template language ID" was used to mean the files that receive CodeLens; resolved: use **Durable Atomize YAML Opt-In**, not a separate language ID.
+**Validation Code Action**:
+An editor action that applies a deterministic fix for a fixable Validation Diagnostic. Requires the CLI to emit a structured validation code alongside the suggestion message.
