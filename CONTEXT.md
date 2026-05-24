@@ -134,3 +134,4 @@ VS Code webview panel that drives Live Preview — prompts for a Story ID and Co
 
 - "template catalog" was used for both named inventory and all template loading behavior; resolved: **Catalog** is the inventory, **Template Library** is the whole module.
 - "default profile" was used for both CLI connection resolution and VS Code validation behavior; resolved: VS Code uses **Validation Profile Selection**, while CLI defaults remain part of connection profile resolution.
+- "atomize-template language ID" was used to mean the files that receive CodeLens; resolved: use **Durable Atomize YAML Opt-In**, not a separate language ID.
