@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { createCliLifecycle } from './cli-lifecycle.js';
-import { getConfiguredCliPath, probeCli } from './cli-provider.js';
+import { createCliLifecycle, getConfiguredCliPath } from './cli-lifecycle.js';
+import { meetsCliFeatureRequirements, probeCli } from './cli-provider.js';
 import { AtomizeCodeLensProvider } from './codelens-provider.js';
 import { clearRunState, runDiagnosticValidation } from './diagnostics.js';
 import { GeneratePanel } from './generate-panel.js';
@@ -24,13 +24,15 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 	// window between extension activation and the YAML LS calling requestSchema.
 	await registerYamlSchemaContributor(ctx);
 
-	const { checkForCliUpdate, showCliUnavailableMessage } = createCliLifecycle(ctx);
+	const { checkForCliUpdate, showCliUnavailableMessage, showCliTooOldMessage } = createCliLifecycle(ctx);
 	const initialCliPath = getConfiguredCliPath();
 	const initialProbe = await probeCli(initialCliPath);
 
 	if (!initialProbe.available && !cliWarningShown) {
 		cliWarningShown = true;
 		await showCliUnavailableMessage(initialCliPath, 'Atomize CLI not found. Install it to enable validation, preview, and testing.');
+	} else if (initialProbe.available && !meetsCliFeatureRequirements(initialProbe.version)) {
+		await showCliTooOldMessage(initialProbe.version ?? 'unknown');
 	}
 
 	const diagnostics = vscode.languages.createDiagnosticCollection('atomize');

@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
-import { gt, prerelease, valid } from 'semver';
-import * as vscode from 'vscode';
+import { gt, gte, prerelease, valid } from 'semver';
 import { extendedEnv } from './env-utils.js';
 
 export const CLI_EXIT_CODES = {
@@ -12,6 +11,7 @@ export const DEFAULT_INSTALL_COMMAND = 'npm install -g @sppg2001/atomize';
 export const CLI_PACKAGE_NAME = '@sppg2001/atomize';
 export const UPDATE_CHECK_CACHE_KEY = 'atomize.cli.updateCheck';
 export const UPDATE_CHECK_TTL_MS = 24 * 60 * 60 * 1000;
+export const CLI_MINIMUM_VERSION = '2.0.1';
 
 export interface CliUpdateCache {
 	checkedAt: number;
@@ -132,6 +132,19 @@ export function buildAuthRotateHelpArgs(): string[] {
 	return ['auth', 'rotate', '--help'];
 }
 
+export function extractAnySemver(value: string | undefined): string | undefined {
+	if (!value) return undefined;
+	const match = value.match(/\b(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?\b/);
+	if (!match) return undefined;
+	return valid(match[0]) ?? undefined;
+}
+
+export function meetsCliFeatureRequirements(version: string | undefined): boolean {
+	const parsed = extractAnySemver(version);
+	if (!parsed) return true;
+	return gte(parsed, CLI_MINIMUM_VERSION);
+}
+
 export function extractStableSemver(value: string | undefined): string | undefined {
 	if (!value) return undefined;
 	const match = value.match(/\b(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?\b/);
@@ -231,14 +244,3 @@ export function probeCli(cliPath: string): Promise<CliProbeResult> {
 	});
 }
 
-export function getConfiguredCliPath(): string {
-	return normalizeCliPath(vscode.workspace.getConfiguration('atomize').get('cliPath'));
-}
-
-export function getConfiguredInstallCommand(): string {
-	return normalizeInstallCommand(vscode.workspace.getConfiguration('atomize').get('cli.installCommand'));
-}
-
-export function getAutoCheckUpdates(): boolean {
-	return vscode.workspace.getConfiguration('atomize').get('cli.autoCheckUpdates', true);
-}

@@ -13,13 +13,16 @@ import {
 	buildLivePreviewArgs,
 	buildValidateArgs,
 	buildVersionArgs,
+	CLI_MINIMUM_VERSION,
 	CLI_PACKAGE_NAME,
 	checkForCliUpdate,
 	DEFAULT_CLI_PATH,
 	DEFAULT_INSTALL_COMMAND,
+	extractAnySemver,
 	extractStableSemver,
 	hasNewerStableVersion,
 	isUpdateCheckEligible,
+	meetsCliFeatureRequirements,
 	normalizeCliPath,
 	normalizeInstallCommand,
 	UPDATE_CHECK_TTL_MS,
@@ -96,6 +99,29 @@ describe('cli-provider', () => {
 		expect(extractStableSemver('1.2.3')).toBe('1.2.3');
 		expect(extractStableSemver('atomize 1.2.3-beta.1')).toBeUndefined();
 		expect(extractStableSemver('not a version')).toBeUndefined();
+	});
+
+	it('extracts any valid semver including prereleases', () => {
+		expect(extractAnySemver('2.0.1')).toBe('2.0.1');
+		expect(extractAnySemver('2.0.1-beta.1')).toBe('2.0.1-beta.1');
+		expect(extractAnySemver('atomize 2.0.1-rc.3')).toBe('2.0.1-rc.3');
+		expect(extractAnySemver('not a version')).toBeUndefined();
+		expect(extractAnySemver(undefined)).toBeUndefined();
+	});
+
+	it('meets CLI feature requirements for parseable versions at or above minimum', () => {
+		expect(meetsCliFeatureRequirements(CLI_MINIMUM_VERSION)).toBe(true);
+		expect(meetsCliFeatureRequirements('3.0.0')).toBe(true);
+		expect(meetsCliFeatureRequirements('2.1.0-beta.1')).toBe(true);
+		expect(meetsCliFeatureRequirements('2.0.0')).toBe(false);
+		expect(meetsCliFeatureRequirements('1.9.9')).toBe(false);
+		expect(meetsCliFeatureRequirements('2.0.1-beta.1')).toBe(false);
+	});
+
+	it('lets unparseable versions through feature requirements check', () => {
+		expect(meetsCliFeatureRequirements(undefined)).toBe(true);
+		expect(meetsCliFeatureRequirements('dev')).toBe(true);
+		expect(meetsCliFeatureRequirements('')).toBe(true);
 	});
 
 	it('compares stable semver versions', () => {

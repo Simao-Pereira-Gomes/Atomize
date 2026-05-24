@@ -1,19 +1,32 @@
 import * as vscode from 'vscode';
 import {
 	type CliUpdateCache,
+	CLI_MINIMUM_VERSION,
 	DEFAULT_CLI_PATH,
 	fetchNpmLatestVersion,
-	getAutoCheckUpdates,
-	getConfiguredCliPath,
-	getConfiguredInstallCommand,
+	normalizeCliPath,
+	normalizeInstallCommand,
 	probeCli,
 	checkForCliUpdate as runCliUpdateCheck,
 	UPDATE_CHECK_CACHE_KEY,
 } from './cli-provider.js';
 
+export function getConfiguredCliPath(): string {
+	return normalizeCliPath(vscode.workspace.getConfiguration('atomize').get('cliPath'));
+}
+
+export function getConfiguredInstallCommand(): string {
+	return normalizeInstallCommand(vscode.workspace.getConfiguration('atomize').get('cli.installCommand'));
+}
+
+export function getAutoCheckUpdates(): boolean {
+	return vscode.workspace.getConfiguration('atomize').get('cli.autoCheckUpdates', true);
+}
+
 export interface CliLifecycle {
 	checkForCliUpdate: (cliPath: string, version: string | undefined) => Promise<void>;
 	showCliUnavailableMessage: (cliPath: string, message: string) => Promise<void>;
+	showCliTooOldMessage: (installedVersion: string) => Promise<void>;
 }
 
 export function createCliLifecycle(ctx: vscode.ExtensionContext): CliLifecycle {
@@ -93,5 +106,16 @@ export function createCliLifecycle(ctx: vscode.ExtensionContext): CliLifecycle {
 		}
 	}
 
-	return { checkForCliUpdate, showCliUnavailableMessage };
+	async function showCliTooOldMessage(installedVersion: string): Promise<void> {
+		const selection = await vscode.window.showWarningMessage(
+			`Atomize CLI ${CLI_MINIMUM_VERSION} or later is required. Your installed version is ${installedVersion}.`,
+			'Update',
+			'Dismiss',
+		);
+		if (selection === 'Update') {
+			runInstallCommand();
+		}
+	}
+
+	return { checkForCliUpdate, showCliUnavailableMessage, showCliTooOldMessage };
 }

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildAuthListArgs, getConfiguredCliPath, probeCli } from './cli-provider.js';
+import { getConfiguredCliPath } from './cli-lifecycle.js';
+import { buildAuthListArgs, probeCli } from './cli-provider.js';
 import { runReportValidation } from './diagnostics.js';
 import { extendedEnv } from './env-utils.js';
 import { isAtomizeDocument } from './language-detection.js';
