@@ -121,6 +121,14 @@ _Avoid_: "merged template" or "expanded template".
 A VS Code surface for discovering Templates and Mixins from the Template Library without leaving the editor.
 It lets users choose catalog refs such as `template:<name>` and `mixin:<name>` while authoring an Atomize YAML File.
 
+**Field Browser**:
+A VS Code surface for looking up Azure DevOps work item fields (reference names, types, allowed values) for a selected Connection Profile.
+_Avoid_: conflating with the Catalog Browser, which surfaces Template Library items rather than platform data.
+
+**Query Browser**:
+A VS Code surface for looking up saved Azure DevOps query paths for a selected Connection Profile.
+_Avoid_: conflating with the Catalog Browser, which surfaces Template Library items rather than platform data.
+
 **Workspace Default Profile**:
 A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Validate, Live Preview, and Generate pickers.
 _Avoid_: "default profile" without qualification — the CLI has a global platform default that is unrelated.
