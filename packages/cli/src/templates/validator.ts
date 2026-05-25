@@ -29,10 +29,21 @@ export interface ValidationError {
   suggestion?: string;
 }
 
+/** Stable codes for fixable warnings. Once published, rename = major version bump. */
+export const FixableWarningCode = {
+  /** Add an `id` field to the task with a slug derived from its title. */
+  MISSING_TASK_ID: "MISSING_TASK_ID",
+  /** Remove conflicting structured filter fields (workItemTypes, states, tags, etc.) — savedQuery controls which items are returned. */
+  SAVED_QUERY_WITH_STRUCTURED_FILTER: "SAVED_QUERY_WITH_STRUCTURED_FILTER",
+} as const;
+
+export type FixableWarningCode = (typeof FixableWarningCode)[keyof typeof FixableWarningCode];
+
 export interface ValidationWarning {
   path: string;
   message: string;
   suggestion?: string;
+  code?: FixableWarningCode;
   /** When true, strict mode will not promote this warning to an error. */
   nonBlocking?: boolean;
 }
@@ -173,6 +184,7 @@ export class TemplateValidator {
         warnings.push({
           path: `tasks[${index}]`,
           message: `Task "${task.title}" has dependencies but no id field. Add an id to enable dependency linking.`,
+          code: FixableWarningCode.MISSING_TASK_ID,
           suggestion: `Add an 'id' field to this task, e.g., 'id: "${this.generateIdFromTitle(task.title)}"'`,
         });
       }
@@ -189,6 +201,7 @@ export class TemplateValidator {
           warnings.push({
             path: `tasks[${index}]`,
             message: `Task "${task.title}" is referenced by other tasks but has no id field.`,
+            code: FixableWarningCode.MISSING_TASK_ID,
             suggestion: `Add 'id: "${this.generateIdFromTitle(task.title)}"' to this task. Referenced by: ${taskNames}`,
           });
         }
@@ -224,6 +237,7 @@ export class TemplateValidator {
         path: "filter.savedQuery",
         message:
           "savedQuery and structured filter fields are both set. Structured filter fields will be ignored — the saved query controls which items are returned.",
+        code: FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER,
         suggestion:
           "Remove workItemTypes, states, tags, etc. from the filter when using savedQuery.",
       });
