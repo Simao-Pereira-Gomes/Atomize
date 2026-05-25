@@ -1,7 +1,10 @@
 import { note } from "@clack/prompts";
 import type {
+  CatalogLineage,
+  CatalogOverride,
   TemplateCatalogItem,
   TemplateCatalogKind,
+  TemplateCatalogScope,
 } from "@services/template/template-catalog";
 import chalk from "chalk";
 import { Command } from "commander";
@@ -11,28 +14,54 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { formatScope, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 import { TemplateLibrary } from "@/templates/template-library";
 import { getErrorMessage } from "@/utils/errors";
 
 type ListOptions = {
   type?: TemplateCatalogKind;
+  json: boolean;
 };
+
+interface CatalogJsonItem {
+  name: string;
+  displayName: string;
+  description: string;
+  ref: string;
+  scope: TemplateCatalogScope;
+  kind: TemplateCatalogKind;
+  path: string;
+  overrides?: { name: string; ref: string; scope: TemplateCatalogScope; path: string };
+  origin?: { ref: string; scope: TemplateCatalogScope };
+}
 
 export const templateListCommand = new Command("list")
   .aliases(["ls"])
   .description("List available templates and mixins")
   .option("--type <type>", "Filter by type: template or mixin")
+  .option("--json", "Print results as JSON to stdout; progress is written to stderr", false)
   .action(async (options: ListOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
+    const jsonMode = options.json;
+    const logProgress = jsonMode
+      ? (msg: string) => writeManagedOutput("stderr", msg)
+      : undefined;
 
     try {
       const library = new TemplateLibrary();
 
       if (options.type !== undefined) {
         const type = library.parseCatalogKind(options.type);
-        output.intro(` Atomize — ${capitalize(type)}s`);
+        if (!jsonMode) output.intro(` Atomize — ${capitalize(type)}s`);
+        else logProgress?.(`Listing ${type}s...`);
 
         const { items, overrides, lineage } = await library.getCatalog(type);
+
+        if (jsonMode) {
+          output.printJson(buildJsonItems(items, overrides, lineage));
+          return;
+        }
+
         if (items.length === 0) {
           output.outro(`No ${type}s found.`);
           return;
@@ -54,7 +83,15 @@ export const templateListCommand = new Command("list")
         output.outro("");
         return;
       }
-      output.intro(" Atomize — Templates & Mixins");
+
+      if (!jsonMode) output.intro(" Atomize — Templates & Mixins");
+      else logProgress?.("Listing catalog...");
+
+      if (jsonMode) {
+        const { items, overrides, lineage } = await library.getCatalogAll();
+        output.printJson(buildJsonItems(items, overrides, lineage));
+        return;
+      }
 
       const [{ items: templates, overrides: templateShadows, lineage: templateLineage }, { items: mixins, overrides: mixinShadows, lineage: mixinLineage }] =
         await Promise.all([
@@ -94,13 +131,59 @@ export const templateListCommand = new Command("list")
       );
       output.outro("");
     } catch (error) {
-      if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
+      if (!(error instanceof ExitError)) {
+        const msg = sanitizeTty(getErrorMessage(error));
+        if (jsonMode) writeManagedOutput("stderr", `Error: ${msg}`);
+        else output.cancel(msg);
+      }
       process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function buildJsonItems(
+  items: TemplateCatalogItem[],
+  overrides: CatalogOverride[],
+  lineage: CatalogLineage[],
+): CatalogJsonItem[] {
+  const overrideMap = new Map(overrides.map(({ active, overridden }) => [active.ref, overridden]));
+  const lineageMap = new Map(lineage.map(({ item, originItem }) => [item.ref, originItem]));
+
+  const sorted = [...items].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === "template" ? -1 : 1;
+    return a.ref.localeCompare(b.ref);
+  });
+
+  return sorted.map((item): CatalogJsonItem => {
+    const overriddenItem = overrideMap.get(item.ref);
+    const originItem = lineageMap.get(item.ref);
+    return {
+      name: item.name,
+      displayName: item.displayName,
+      description: item.description,
+      ref: item.ref,
+      scope: item.scope,
+      kind: item.kind,
+      path: item.path,
+      ...(overriddenItem !== undefined ? {
+        overrides: {
+          name: overriddenItem.name,
+          ref: overriddenItem.ref,
+          scope: overriddenItem.scope,
+          path: overriddenItem.path,
+        },
+      } : {}),
+      ...(originItem !== undefined ? {
+        origin: {
+          ref: originItem.ref,
+          scope: originItem.scope,
+        },
+      } : {}),
+    };
+  });
 }
 
 function printCatalogItem(
