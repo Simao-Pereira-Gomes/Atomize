@@ -21,6 +21,7 @@ import { AtomizePanel } from './panel.js';
 import { PreviewPanel } from './preview-panel.js';
 import { manageProfiles } from './profile-management.js';
 import { registerValidateCommand } from './validate-command.js';
+import { ValidationCodeActionProvider } from './validation-code-action-provider.js';
 import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './yaml-schema-contributor.js';
 
 let cliWarningShown = false;
@@ -213,6 +214,12 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		vscode.languages.registerCodeLensProvider(
 			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
 			new AtomizeCodeLensProvider(),
+		),
+
+		vscode.languages.registerCodeActionsProvider(
+			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
+			new ValidationCodeActionProvider(),
+			{ providedCodeActionKinds: ValidationCodeActionProvider.providedCodeActionKinds },
 		),
 
 		registerValidateCommand({

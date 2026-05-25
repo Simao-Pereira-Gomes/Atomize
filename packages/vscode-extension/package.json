@@ -139,7 +139,8 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"semver": "^7.7.4"
+		"semver": "^7.7.4",
+		"yaml": "^2.8.3"
 	},
 	"devDependencies": {
 		"@tailwindcss/cli": "^4.3.0",

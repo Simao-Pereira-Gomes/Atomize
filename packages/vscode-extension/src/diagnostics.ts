@@ -14,6 +14,7 @@ export interface ValidationWarning {
 	path: string;
 	message: string;
 	suggestion?: string;
+	code?: string;
 	nonBlocking?: boolean;
 }
 
@@ -122,7 +123,7 @@ function runValidation(request: ValidationRequest): void {
 				makeDiagnostic(e.path, e.message, vscode.DiagnosticSeverity.Error, doc),
 			),
 			...result.warnings.map(w =>
-				makeDiagnostic(w.path, w.message, vscode.DiagnosticSeverity.Warning, doc),
+				makeDiagnostic(w.path, w.message, vscode.DiagnosticSeverity.Warning, doc, w.code),
 			),
 		];
 		diagnostics.set(doc.uri, items);
@@ -171,6 +172,12 @@ function spawnValidation(cliPath: string, filePath: string, profile?: string): P
 }
 
 function resolvePathToRange(path: string, doc: vscode.TextDocument): vscode.Range {
+	// tasks[N] — point to the Nth task list item so each warning has a unique range.
+	const taskMatch = path.match(/^tasks\[(\d+)\]$/);
+	if (taskMatch) {
+		return resolveTaskItemRange(Number(taskMatch[1]), doc);
+	}
+
 	const segments = path.split(/[.[\]]+/).filter(Boolean);
 
 	// Walk segments from deepest to shallowest, skipping numeric array indices.
@@ -193,6 +200,31 @@ function resolvePathToRange(path: string, doc: vscode.TextDocument): vscode.Rang
 	return new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
 }
 
+function resolveTaskItemRange(index: number, doc: vscode.TextDocument): vscode.Range {
+	const lines = doc.getText().split('\n');
+	let inTasks = false;
+	let taskCount = -1;
+
+	for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+		const line = lines[lineIdx] ?? '';
+		if (!inTasks) {
+			if (/^tasks\s*:/.test(line)) inTasks = true;
+			continue;
+		}
+		if (/^\s*-/.test(line)) {
+			taskCount++;
+			if (taskCount === index) {
+				const col = line.search(/\S/);
+				return new vscode.Range(lineIdx, col >= 0 ? col : 0, lineIdx, line.length);
+			}
+		}
+		// Non-indented non-empty line exits the tasks block
+		if (/^\S/.test(line) && line.trim() !== '') break;
+	}
+
+	return new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
+}
+
 function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -202,9 +234,13 @@ function makeDiagnostic(
 	message: string,
 	severity: vscode.DiagnosticSeverity,
 	doc: vscode.TextDocument,
+	code?: string,
 ): vscode.Diagnostic {
 	const range = resolvePathToRange(path, doc);
 	const d = new vscode.Diagnostic(range, message, severity);
 	d.source = 'atomize';
+	if (code !== undefined) {
+		d.code = code;
+	}
 	return d;
 }
