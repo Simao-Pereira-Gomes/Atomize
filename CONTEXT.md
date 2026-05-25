@@ -125,5 +125,9 @@ It lets users choose catalog refs such as `template:<name>` and `mixin:<name>` w
 A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Live Preview and Generate pickers.
 _Avoid_: "default profile" without qualification — the CLI has a global platform default that is unrelated.
 
+**Validation Code**:
+A stable string identifier on a fixable `ValidationWarning` that the Validation Code Action provider maps to a deterministic editor fix.
+_Avoid_: conflating with `ValidationError.code`, which identifies error types rather than available fixes.
+
 **Validation Code Action**:
 An editor action that applies a deterministic fix for a fixable Validation Diagnostic. Requires the CLI to emit a structured validation code alongside the suggestion message.
