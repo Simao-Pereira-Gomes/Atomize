@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getConfiguredCliPath } from './cli-lifecycle.js';
+import { getConfiguredCliPath, type UpdateCheckSummary } from './cli-lifecycle.js';
 import { probeCli } from './cli-provider.js';
 import { runReportValidation } from './diagnostics.js';
 import { isAtomizeDocument } from './language-detection.js';
@@ -13,7 +13,7 @@ export interface ValidateCommandDeps {
 	onRunnerFailure: (doc: vscode.TextDocument) => void;
 	showCliUnavailable: (cliPath: string, message: string) => Promise<void>;
 	checkDirtyDocument: (doc: vscode.TextDocument) => Promise<boolean>;
-	checkForCliUpdate: (cliPath: string, version: string | undefined) => Promise<void>;
+	checkForCliUpdate: (cliPath: string, version: string | undefined) => Promise<UpdateCheckSummary | undefined>;
 }
 
 export function registerValidateCommand(deps: ValidateCommandDeps): vscode.Disposable {

@@ -23,8 +23,13 @@ export function getAutoCheckUpdates(): boolean {
 	return vscode.workspace.getConfiguration('atomize').get('cli.autoCheckUpdates', true);
 }
 
+export interface UpdateCheckSummary {
+	latestVersion?: string;
+	updateAvailable: boolean;
+}
+
 export interface CliLifecycle {
-	checkForCliUpdate: (cliPath: string, version: string | undefined) => Promise<void>;
+	checkForCliUpdate: (cliPath: string, version: string | undefined) => Promise<UpdateCheckSummary | undefined>;
 	showCliUnavailableMessage: (cliPath: string, message: string) => Promise<void>;
 	showCliTooOldMessage: (installedVersion: string) => Promise<void>;
 }
@@ -58,8 +63,8 @@ export function createCliLifecycle(ctx: vscode.ExtensionContext): CliLifecycle {
 		}
 	}
 
-	async function checkForCliUpdate(cliPath: string, version: string | undefined): Promise<void> {
-		if (updateCheckStarted) return;
+	async function checkForCliUpdate(cliPath: string, version: string | undefined): Promise<UpdateCheckSummary | undefined> {
+		if (updateCheckStarted) return undefined;
 		updateCheckStarted = true;
 		const result = await runCliUpdateCheck({
 			cliPath,
@@ -69,19 +74,27 @@ export function createCliLifecycle(ctx: vscode.ExtensionContext): CliLifecycle {
 			cache: ctx.globalState.get<CliUpdateCache>(UPDATE_CHECK_CACHE_KEY),
 			fetchLatestVersion: fetchNpmLatestVersion,
 		});
-		if (!result) return;
+		if (!result) return undefined;
 
 		await ctx.globalState.update(UPDATE_CHECK_CACHE_KEY, result.cache);
-		if (!result.updateAvailable || !result.latestVersion) return;
 
-		const selection = await vscode.window.showInformationMessage(
-			`A newer Atomize CLI is available (${result.latestVersion}).`,
-			'Update',
-			'Dismiss',
-		);
-		if (selection === 'Update') {
-			runInstallCommand();
+		const summary: UpdateCheckSummary = {
+			latestVersion: result.latestVersion,
+			updateAvailable: result.updateAvailable && !!result.latestVersion,
+		};
+
+		if (summary.updateAvailable && result.latestVersion) {
+			const selection = await vscode.window.showInformationMessage(
+				`A newer Atomize CLI is available (${result.latestVersion}).`,
+				'Update',
+				'Dismiss',
+			);
+			if (selection === 'Update') {
+				runInstallCommand();
+			}
 		}
+
+		return summary;
 	}
 
 	async function showCliUnavailableMessage(cliPath: string, defaultMessage: string): Promise<void> {
