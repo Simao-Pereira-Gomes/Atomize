@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
-import { createCliLifecycle, getConfiguredCliPath } from './cli-lifecycle.js';
+import { createCliLifecycle, getConfiguredCliPath, type UpdateCheckSummary } from './cli-lifecycle.js';
+import { deriveStatusBarState } from './cli-status-bar.js';
 import { meetsCliFeatureRequirements, probeCli } from './cli-provider.js';
 import { AtomizeCodeLensProvider } from './codelens-provider.js';
 import { clearRunState, runDiagnosticValidation } from './diagnostics.js';
 import { GeneratePanel } from './generate-panel.js';
 import {
 	handleDocument,
+	isAtomizeDocument,
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
@@ -33,6 +35,36 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		await showCliUnavailableMessage(initialCliPath, 'Atomize CLI not found. Install it to enable validation, preview, and testing.');
 	} else if (initialProbe.available && !meetsCliFeatureRequirements(initialProbe.version)) {
 		await showCliTooOldMessage(initialProbe.version ?? 'unknown');
+	}
+
+	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	let statusBarUpdateResult: UpdateCheckSummary | undefined;
+
+	function refreshStatusBar(): void {
+		const state = deriveStatusBarState(initialProbe, statusBarUpdateResult);
+		statusBarItem.text = state.text;
+		statusBarItem.tooltip = state.tooltip;
+		statusBarItem.command = state.command;
+	}
+
+	function syncStatusBarVisibility(editor: vscode.TextEditor | undefined): void {
+		if (editor && isAtomizeDocument(editor.document)) {
+			statusBarItem.show();
+		} else {
+			statusBarItem.hide();
+		}
+	}
+
+	refreshStatusBar();
+	syncStatusBarVisibility(vscode.window.activeTextEditor);
+
+	if (initialProbe.available) {
+		void checkForCliUpdate(initialCliPath, initialProbe.version).then(result => {
+			if (result) {
+				statusBarUpdateResult = result;
+				refreshStatusBar();
+			}
+		});
 	}
 
 	const diagnostics = vscode.languages.createDiagnosticCollection('atomize');
@@ -141,6 +173,13 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 	ctx.subscriptions.push(
 		diagnostics,
+		statusBarItem,
+
+		vscode.window.onDidChangeActiveTextEditor(editor => syncStatusBarVisibility(editor)),
+
+		vscode.commands.registerCommand('atomize.showCliUnavailable', () =>
+			showCliUnavailableMessage(getConfiguredCliPath(), 'Atomize CLI not found. Install it to enable validation, preview, and testing.'),
+		),
 
 		vscode.workspace.onDidOpenTextDocument(doc => {
 			warnContentOnlyDetected(doc);
