@@ -441,6 +441,7 @@ atomize tpl create [options]  # alias
 | `--ground` | flag | Ground AI generation with patterns from your Azure DevOps workspace |
 | `--ai-profile <name>` | string | AI provider profile to use (uses default GitHub Models profile if omitted) |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
+| `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
 | `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
 | `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
 | `-q, --quiet` | flag | Suppress non-essential output |
@@ -579,6 +580,7 @@ Install a template or mixin from a local file or HTTPS URL into the catalog.
 
 ```bash
 atomize template install <source> [options]
+atomize tpl install <source> [options]  # alias
 ```
 
 #### Arguments
@@ -594,6 +596,8 @@ atomize template install <source> [options]
 | `--type <type>` | Force type: `template` or `mixin` (auto-detected from file content if omitted) |
 | `--overwrite` | Overwrite if a template with the same name already exists |
 | `--scope <scope>` | Installation scope: `user` (default, `~/.atomize`) or `project` (`.atomize` in current directory) |
+| `--open` | Open the installed Atomize YAML file in a supported editor after successful installation |
+| `-q, --quiet` | Suppress non-essential output |
 
 #### Examples
 
@@ -614,6 +618,10 @@ atomize template install ./templates/backend-api.yaml --overwrite
 **Scopes:**
 - `user` (default) — installed to `~/.atomize/templates/`, available across all projects
 - `project` — installed to `.atomize/templates/` in the current directory, scoped to this repo
+
+**Editor handoff:**
+
+Pass `--open` to `template create` or `template install` to open the saved Atomize YAML file after success. `ATOMIZE_EDITOR` accepts supported editor identifiers only: `code`, `cursor`, `zed`, or `sublime`. Atomize appends the saved file path to its owned editor command and ignores arbitrary `VISUAL` and `EDITOR` command strings for this handoff. If no supported editor CLI is available, use the printed manual hint.
 
 ---
 

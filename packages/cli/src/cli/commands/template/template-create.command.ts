@@ -16,6 +16,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
+import { handOffToEditor } from "@/cli/utilities/editor-handoff";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
@@ -81,6 +82,7 @@ interface CreateOptions {
   platform?: string;
   profile?: string;
   quiet?: boolean;
+  open?: boolean;
 }
 
 export const templateCreateCommand = new Command("create")
@@ -98,6 +100,7 @@ export const templateCreateCommand = new Command("create")
   .option("--ground", "Ground AI generation with patterns from your Azure DevOps workspace")
   .option("--ai-profile <name>", "AI provider profile to use (uses default AI profile if omitted)")
   .option("--save-as <name>", "Name to save the template under")
+  .option("--open", "Open the saved Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (options: CreateOptions) => {
     const output = createCommandOutput(
@@ -122,6 +125,12 @@ export const templateCreateCommand = new Command("create")
       output.print(chalk.green(`\n Template saved to ${saved.path}\n`));
       output.print(chalk.cyan("Use it with: ") + chalk.gray(saved.ref));
       output.blankLine();
+      await handOffToEditor({
+        path: saved.path,
+        requestedOpen: options.open === true,
+        interactive: isInteractiveTerminal(),
+        output,
+      });
       output.outro(`Template saved → ${saved.path}`);
     } catch (error) {
       if (error instanceof CancellationError) {

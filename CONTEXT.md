@@ -143,3 +143,6 @@ _Avoid_: conflating with `ValidationError.code`, which identifies error types ra
 
 **Validation Code Action**:
 An editor action that applies a deterministic fix for a fixable Validation Diagnostic. Requires the CLI to emit a structured validation code alongside the suggestion message.
+
+**Editor Handoff**:
+An opt-in CLI action that opens a saved Atomize YAML File in the user's editor after successful creation or installation, while the CLI remains responsible for template creation, installation, validation, persistence, and catalog lifecycle.
