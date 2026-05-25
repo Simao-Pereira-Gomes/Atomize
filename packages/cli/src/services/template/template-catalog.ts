@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,7 @@ import {
 } from "@templates/schema";
 import { loadYamlFile } from "@templates/template-file";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { discoverWorkspaceRoot } from "./workspace-root";
 
 export type TemplateCatalogKind = "template" | "mixin";
 export type TemplateCatalogScope = "builtin" | "user" | "project";
@@ -40,17 +41,38 @@ export interface TemplateRefParts {
   name: string;
 }
 
+export interface TemplateCatalogOptions {
+  packageRoot?: string;
+  userRoot?: string;
+  projectRoot?: string;
+  legacyUserRoot?: string;
+  legacyProjectRoot?: string;
+  invocationCwd?: string;
+}
+
+interface CatalogRoot {
+  scope: TemplateCatalogScope;
+  root: string;
+}
+
 const TEMPLATE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const LEGACY_EXTENSIONS = [".atomize.yaml", ".atomize.yml", ".yaml", ".yml"] as const;
 
 export class TemplateCatalog {
   private readonly packageRoot: string;
   private readonly userRoot: string;
   private readonly projectRoot: string;
+  private readonly legacyUserRoot: string;
+  private readonly legacyProjectRoot: string;
 
-  constructor(options?: { packageRoot?: string; userRoot?: string; projectRoot?: string }) {
+  constructor(options?: TemplateCatalogOptions) {
     this.packageRoot = options?.packageRoot ?? this.findPackageRoot();
-    this.userRoot = options?.userRoot ?? resolve(homedir(), ".atomize", "templates");
-    this.projectRoot = options?.projectRoot ?? resolve(process.cwd(), ".atomize", "templates");
+    const userStateRoot = resolve(homedir(), ".atomize");
+    const projectStateRoot = resolve(discoverWorkspaceRoot(options?.invocationCwd), ".atomize");
+    this.userRoot = options?.userRoot ?? resolve(userStateRoot, "catalog");
+    this.projectRoot = options?.projectRoot ?? resolve(projectStateRoot, "catalog");
+    this.legacyUserRoot = options?.legacyUserRoot ?? resolve(userStateRoot, "templates");
+    this.legacyProjectRoot = options?.legacyProjectRoot ?? resolve(projectStateRoot, "templates");
   }
 
   async listTemplates(): Promise<TemplateCatalogItem[]> {
@@ -98,6 +120,7 @@ export class TemplateCatalog {
     sourcePath: string,
     kind: TemplateCatalogKind,
     scope: Extract<TemplateCatalogScope, "user" | "project"> = "user",
+    options: { overwrite?: boolean } = {},
   ): Promise<TemplateCatalogItem> {
     const absoluteSourcePath = resolve(sourcePath);
     const raw = await loadYamlFile(absoluteSourcePath);
@@ -111,11 +134,11 @@ export class TemplateCatalog {
     const name = filename.replace(/(?:\.atomize)?\.ya?ml$/i, "");
     this.assertValidName(name);
 
-    const root = scope === "project" ? this.projectRoot : this.userRoot;
-    const targetDir = join(root, this.folderForKind(kind));
-    const targetPath = join(targetDir, `${name}.atomize.yaml`);
+    const targetPath = await this.prepareDestination(kind, scope, name, options.overwrite === true);
+    const targetDir = dirname(targetPath);
     await mkdir(targetDir, { recursive: true });
     await copyFile(absoluteSourcePath, targetPath);
+    await this.cleanupLegacyDestinationFiles(kind, scope, name);
 
     const metadata = this.extractMetadata(raw);
     return {
@@ -134,6 +157,7 @@ export class TemplateCatalog {
     filename: string,
     kind: TemplateCatalogKind,
     scope: Extract<TemplateCatalogScope, "user" | "project"> = "user",
+    options: { overwrite?: boolean } = {},
   ): Promise<TemplateCatalogItem> {
     if (!filename.endsWith(".yaml") && !filename.endsWith(".yml")) {
       throw new Error("Template files must use .yaml or .yml extension.");
@@ -145,11 +169,11 @@ export class TemplateCatalog {
     const raw = parseYaml(content);
     this.validateInstallPayload(raw, kind);
 
-    const root = scope === "project" ? this.projectRoot : this.userRoot;
-    const targetDir = join(root, this.folderForKind(kind));
-    const targetPath = join(targetDir, `${name}.atomize.yaml`);
+    const targetPath = await this.prepareDestination(kind, scope, name, options.overwrite === true);
+    const targetDir = dirname(targetPath);
     await mkdir(targetDir, { recursive: true });
     await writeFile(targetPath, content, "utf-8");
+    await this.cleanupLegacyDestinationFiles(kind, scope, name);
 
     const metadata = this.extractMetadata(raw);
     return {
@@ -176,12 +200,13 @@ export class TemplateCatalog {
     }
 
     const targetPath = this.getUserTemplatePath(input.kind, input.name);
-    if (existsSync(targetPath) && input.overwrite !== true) {
+    if (await this.destinationExists(input.kind, "user", input.name) && input.overwrite !== true) {
       throw new Error(`A ${input.kind} named "${input.name}" already exists.`);
     }
 
     await mkdir(dirname(targetPath), { recursive: true });
     await writeFile(targetPath, stringifyYaml(input.template), "utf-8");
+    await this.cleanupLegacyDestinationFiles(input.kind, "user", input.name);
 
     const metadata = this.extractMetadata(input.template);
     return {
@@ -205,14 +230,39 @@ export class TemplateCatalog {
     return join(this.projectRoot, this.folderForKind(kind), `${name}.atomize.yaml`);
   }
 
+  async destinationExists(
+    kind: TemplateCatalogKind,
+    scope: Extract<TemplateCatalogScope, "user" | "project">,
+    name: string,
+  ): Promise<boolean> {
+    return (await this.findDestinationItem(kind, scope, name)) !== undefined;
+  }
+
+  async findDestinationItem(
+    kind: TemplateCatalogKind,
+    scope: Extract<TemplateCatalogScope, "user" | "project">,
+    name: string,
+  ): Promise<TemplateCatalogItem | undefined> {
+    this.assertValidName(name);
+    const roots = this.rootsForDestination(scope);
+    for (const root of roots) {
+      const items = await this.listDirectoryItems(kind, scope, join(root, this.folderForKind(kind)));
+      const item = items.find((candidate) => candidate.name === name);
+      if (item) return item;
+    }
+    return undefined;
+  }
+
   private async addDiscoveredItems(
     items: Map<string, TemplateCatalogItem>,
     kind: TemplateCatalogKind,
   ): Promise<CatalogOverride[]> {
     const overrides: CatalogOverride[] = [];
-    const roots: Array<{ scope: TemplateCatalogScope; root: string }> = [
-      { scope: "builtin", root: join(this.packageRoot, "templates") },
+    const roots: CatalogRoot[] = [
+      { scope: "builtin", root: join(this.packageRoot, "catalog") },
+      { scope: "user", root: this.legacyUserRoot },
       { scope: "user", root: this.userRoot },
+      { scope: "project", root: this.legacyProjectRoot },
       { scope: "project", root: this.projectRoot },
     ];
 
@@ -323,6 +373,49 @@ export class TemplateCatalog {
   folderForKind(kind: TemplateCatalogKind): string {
     if (kind === "template") return "templates";
     return "mixins";
+  }
+
+  private async prepareDestination(
+    kind: TemplateCatalogKind,
+    scope: Extract<TemplateCatalogScope, "user" | "project">,
+    name: string,
+    overwrite: boolean,
+  ): Promise<string> {
+    const targetPath = scope === "project"
+      ? this.getProjectTemplatePath(kind, name)
+      : this.getUserTemplatePath(kind, name);
+    if (!overwrite && await this.destinationExists(kind, scope, name)) {
+      throw new Error(`A ${kind} named "${name}" already exists.`);
+    }
+    return targetPath;
+  }
+
+  private rootsForDestination(scope: Extract<TemplateCatalogScope, "user" | "project">): string[] {
+    return scope === "project"
+      ? [this.projectRoot, this.legacyProjectRoot]
+      : [this.userRoot, this.legacyUserRoot];
+  }
+
+  private legacyRootForDestination(scope: Extract<TemplateCatalogScope, "user" | "project">): string {
+    return scope === "project" ? this.legacyProjectRoot : this.legacyUserRoot;
+  }
+
+  private async cleanupLegacyDestinationFiles(
+    kind: TemplateCatalogKind,
+    scope: Extract<TemplateCatalogScope, "user" | "project">,
+    name: string,
+  ): Promise<void> {
+    const legacyDir = join(this.legacyRootForDestination(scope), this.folderForKind(kind));
+    await Promise.all(LEGACY_EXTENSIONS.map(async (extension) => {
+      const path = join(legacyDir, `${name}${extension}`);
+      try {
+        await unlink(path);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw error;
+        }
+      }
+    }));
   }
 
   private buildLineage(

@@ -606,7 +606,7 @@ atomize validate templates/my-template.yaml --strict
 | Path | Contents |
 |---|---|
 | [`packages/cli/`](./packages/cli/) | CLI source, tests, and build |
-| [`packages/cli/templates/`](./packages/cli/templates/) | Built-in YAML templates (shipped with the package) |
+| [`packages/cli/catalog/`](./packages/cli/catalog/) | Built-in YAML templates and mixins (shipped with the package) |
 | [`packages/vscode-extension/`](./packages/vscode-extension/) | VS Code extension |
 | [`examples/`](./examples/) | Example templates to get started |
 | [`docs/`](./docs/) | Guides and architecture decision records |

@@ -67,7 +67,8 @@ export function makeTemplateInstallCommand(
         output.print(chalk.gray(`  Detected type: ${resolvedSource.kind}\n`));
       }
 
-      if (preview.exists && !options.overwrite) {
+      let overwrite = options.overwrite === true;
+      if (preview.exists && !overwrite) {
         if (!isInteractiveTerminal()) {
           output.cancel(`${resolvedSource.kind} "${resolvedSource.name}" already exists. Re-run with --overwrite to replace it.`);
           throw new ExitError(ExitCode.Failure);
@@ -82,9 +83,10 @@ export function makeTemplateInstallCommand(
           output.outro("Cancelled.");
           process.exit(ExitCode.Success);
         }
+        overwrite = true;
       }
 
-      const item = await resolvedSource.install();
+      const item = await resolvedSource.install({ overwrite });
       output.print(chalk.green(`Installed ${resolvedSource.kind}: ${sanitizeTty(item.name)}`));
       output.print(chalk.gray(`  ref:   ${sanitizeTty(item.ref)}`));
       output.print(chalk.gray(`  scope: ${formatScope(item.scope)}`));

@@ -616,8 +616,8 @@ atomize template install ./templates/backend-api.yaml --overwrite
 ```
 
 **Scopes:**
-- `user` (default) — installed to `~/.atomize/templates/`, available across all projects
-- `project` — installed to `.atomize/templates/` in the current directory, scoped to this repo
+- `user` (default) — installed to `~/.atomize/catalog/`, available across all projects
+- `project` — installed to `<workspace>/.atomize/catalog/`, scoped to the discovered workspace root
 
 **Editor handoff:**
 

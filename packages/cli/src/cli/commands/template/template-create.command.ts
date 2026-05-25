@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import path from "node:path";
 import {
   confirm,
@@ -961,7 +960,8 @@ async function saveCreatedTemplate(
     ? parseReferenceName(requestedName)
     : await promptReferenceName(created.name);
   const targetPath = library.getUserTemplatePath(target, referenceName);
-  const overwrite = existsSync(targetPath)
+  const exists = await library.userTemplateExists(target, referenceName);
+  const overwrite = exists
     ? assertNotCancelled(
         await confirm({
           message: `${target} "${referenceName}" already exists. Overwrite?`,

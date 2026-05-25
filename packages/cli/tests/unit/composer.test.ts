@@ -247,7 +247,7 @@ describe("TemplateComposer", () => {
 describe("TemplateCatalog discovery", () => {
   const catalogRoot = resolve(__dirname, "../fixtures/catalog");
 
-  test("discovers templates from package templates folder", async () => {
+  test("discovers templates from package catalog folder", async () => {
     const catalog = new TemplateCatalog({
       packageRoot: resolve(catalogRoot, "package"),
       userRoot: resolve(catalogRoot, "user"),

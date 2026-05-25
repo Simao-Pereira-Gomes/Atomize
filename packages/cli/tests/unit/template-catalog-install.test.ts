@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TemplateCatalog } from "@services/template/template-catalog";
@@ -26,6 +26,8 @@ function makeCatalog(): TemplateCatalog {
   return new TemplateCatalog({
     userRoot: join(TEST_DIR, "user"),
     projectRoot: join(TEST_DIR, "project"),
+    legacyUserRoot: join(TEST_DIR, "legacy-user"),
+    legacyProjectRoot: join(TEST_DIR, "legacy-project"),
     packageRoot: join(TEST_DIR, "package"),
   });
 }
@@ -76,6 +78,41 @@ describe("TemplateCatalog.installFromContent", () => {
 
       expect(item.scope).toBe("project");
       expect(item.path).toContain(join(TEST_DIR, "project"));
+    });
+  });
+
+  describe("legacy conflicts", () => {
+    test("throws when destination scope has only a legacy item", async () => {
+      const catalog = makeCatalog();
+      const legacyDir = join(TEST_DIR, "legacy-user", "templates");
+      await mkdir(legacyDir, { recursive: true });
+      await writeFile(join(legacyDir, "test-template.atomize.yaml"), VALID_TEMPLATE, "utf-8");
+
+      await expect(
+        catalog.installFromContent(VALID_TEMPLATE, "test-template.yaml", "template"),
+      ).rejects.toThrow('A template named "test-template" already exists.');
+    });
+
+    test("overwrite writes new catalog item and removes same-stem legacy variants", async () => {
+      const catalog = makeCatalog();
+      const legacyDir = join(TEST_DIR, "legacy-user", "templates");
+      await mkdir(legacyDir, { recursive: true });
+      await writeFile(join(legacyDir, "test-template.atomize.yaml"), VALID_TEMPLATE, "utf-8");
+      await writeFile(join(legacyDir, "test-template.yml"), VALID_TEMPLATE, "utf-8");
+      await writeFile(join(legacyDir, "other-template.yaml"), VALID_TEMPLATE, "utf-8");
+
+      const item = await catalog.installFromContent(
+        VALID_TEMPLATE,
+        "test-template.yaml",
+        "template",
+        "user",
+        { overwrite: true },
+      );
+
+      expect(item.path).toContain(join("user", "templates", "test-template.atomize.yaml"));
+      expect(existsSync(join(legacyDir, "test-template.atomize.yaml"))).toBe(false);
+      expect(existsSync(join(legacyDir, "test-template.yml"))).toBe(false);
+      expect(existsSync(join(legacyDir, "other-template.yaml"))).toBe(true);
     });
   });
 

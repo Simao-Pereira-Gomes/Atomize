@@ -14,8 +14,8 @@
 	},
 	"files": [
 		"dist",
-		"templates/templates",
-		"templates/mixins",
+		"catalog/templates",
+		"catalog/mixins",
 		"README.md",
 		"LICENSE",
 		".env.example"

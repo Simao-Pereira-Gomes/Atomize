@@ -10,6 +10,8 @@ function makeCatalog(): TemplateCatalog {
   return new TemplateCatalog({
     userRoot: join(TEST_DIR, "user"),
     projectRoot: join(TEST_DIR, "project"),
+    legacyUserRoot: join(TEST_DIR, "legacy-user"),
+    legacyProjectRoot: join(TEST_DIR, "legacy-project"),
     packageRoot: join(TEST_DIR, "package"),
   });
 }
@@ -63,11 +65,32 @@ describe("TemplateCatalog.listAllWithOverrides", () => {
     expect(refs).toContain("mixin:shared");
   });
 
+  test("reads legacy roots but keeps new root active within the same scope", async () => {
+    const catalog = new TemplateCatalog({
+      userRoot: join(TEST_DIR, "user", "catalog"),
+      legacyUserRoot: join(TEST_DIR, "user", "templates"),
+      projectRoot: join(TEST_DIR, "project", "catalog"),
+      legacyProjectRoot: join(TEST_DIR, "project", "templates"),
+      packageRoot: join(TEST_DIR, "package"),
+    });
+    const legacyUserTemplates = join(TEST_DIR, "user", "templates", "templates");
+    const userTemplates = join(TEST_DIR, "user", "catalog", "templates");
+
+    await writeTemplate(legacyUserTemplates, "shared");
+    await writeTemplate(userTemplates, "shared");
+
+    const { items, overrides } = await catalog.listWithOverrides("template");
+    const item = items.find((candidate) => candidate.name === "shared");
+    expect(item?.scope).toBe("user");
+    expect(item?.path).toContain(join("user", "catalog", "templates", "shared.atomize.yaml"));
+    expect(overrides.at(0)?.overridden.path).toContain(join("user", "templates", "templates", "shared.atomize.yaml"));
+  });
+
   test("combines overrides from both kinds", async () => {
     const catalog = makeCatalog();
-    const builtinTemplates = join(TEST_DIR, "package", "templates", "templates");
+    const builtinTemplates = join(TEST_DIR, "package", "catalog", "templates");
     const userTemplates = join(TEST_DIR, "user", "templates");
-    const builtinMixins = join(TEST_DIR, "package", "templates", "mixins");
+    const builtinMixins = join(TEST_DIR, "package", "catalog", "mixins");
     const userMixins = join(TEST_DIR, "user", "mixins");
 
     await writeTemplate(builtinTemplates, "base");
@@ -83,7 +106,7 @@ describe("TemplateCatalog.listAllWithOverrides", () => {
 
   test("resolves within-kind lineage", async () => {
     const catalog = makeCatalog();
-    const builtinTemplates = join(TEST_DIR, "package", "templates", "templates");
+    const builtinTemplates = join(TEST_DIR, "package", "catalog", "templates");
     const userTemplates = join(TEST_DIR, "user", "templates");
 
     await writeTemplate(builtinTemplates, "origin-tmpl");
@@ -126,7 +149,7 @@ describe("TemplateCatalog.listAllWithOverrides", () => {
 describe("TemplateCatalog.listWithOverrides lineage (ref-key fix)", () => {
   test("resolves within-kind lineage by full ref, not bare name", async () => {
     const catalog = makeCatalog();
-    const builtinMixins = join(TEST_DIR, "package", "templates", "mixins");
+    const builtinMixins = join(TEST_DIR, "package", "catalog", "mixins");
     const userMixins = join(TEST_DIR, "user", "mixins");
 
     await writeMixin(builtinMixins, "base-mix");

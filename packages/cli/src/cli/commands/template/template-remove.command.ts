@@ -25,7 +25,7 @@ const library = new TemplateLibrary();
 
 export const templateRemoveCommand = new Command("remove")
   .aliases(["rm"])
-  .description("Remove a user-installed template or mixin from ~/.atomize/templates")
+  .description("Remove a user-installed template or mixin from the catalog")
   .argument("<name>", "Template ref (template:<name> or mixin:<name>) or bare name")
   .option("--type <type>", "Restrict to a specific type: template or mixin")
   .option("-f, --force", "Skip confirmation prompt", false)
