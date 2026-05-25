@@ -132,6 +132,10 @@ export function buildAuthRotateHelpArgs(): string[] {
 	return ['auth', 'rotate', '--help'];
 }
 
+export function buildResolveArgs(filePath: string): string[] {
+	return ['template', 'resolve', '--quiet', filePath];
+}
+
 export function buildFieldsListArgs(profile: string, type?: string): string[] {
 	const args = ['fields', 'list', '--json', '--profile', profile];
 	if (type) args.push('--type', type);

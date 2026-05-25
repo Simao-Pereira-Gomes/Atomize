@@ -15,6 +15,7 @@ import {
 import { LivePreviewPanel } from './live-preview-panel.js';
 import { registerBrowseFieldsCommand } from './browse-fields-command.js';
 import { registerBrowseQueriesCommand } from './browse-queries-command.js';
+import { ResolvedTemplateProvider, RESOLVED_TEMPLATE_SCHEME, registerShowResolvedTemplateCommand } from './show-resolved-template-command.js';
 import { AtomizePanel } from './panel.js';
 import { PreviewPanel } from './preview-panel.js';
 import { manageProfiles } from './profile-management.js';
@@ -94,16 +95,17 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		);
 	}
 
-	async function checkDirtyDocument(doc: vscode.TextDocument): Promise<boolean> {
+	async function checkDirtyDocument(doc: vscode.TextDocument, verb: string): Promise<boolean> {
 		if (!doc.isDirty) return true;
+		const Verb = verb.charAt(0).toUpperCase() + verb.slice(1);
 		const selection = await vscode.window.showWarningMessage(
-			'Atomize validation uses saved file content. Save this file before validating?',
-			'Save and Validate',
-			'Validate Saved Version',
+			`Atomize uses saved file content. Save this file before ${verb}ing?`,
+			`Save and ${Verb}`,
+			`${Verb} Saved Version`,
 			'Cancel',
 		);
 		if (selection === 'Cancel' || selection === undefined) return false;
-		if (selection === 'Save and Validate') {
+		if (selection === `Save and ${Verb}`) {
 			const saved = await doc.save();
 			if (!saved) return false;
 		}
@@ -173,9 +175,12 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		trackDocument(doc);
 	}
 
+	const resolvedTemplateProvider = new ResolvedTemplateProvider();
+
 	ctx.subscriptions.push(
 		diagnostics,
 		statusBarItem,
+		resolvedTemplateProvider,
 
 		vscode.window.onDidChangeActiveTextEditor(editor => syncStatusBarVisibility(editor)),
 
@@ -198,6 +203,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			clearRunState(doc.uri);
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			removeSchemaUri(doc.uri.toString());
+			if (doc.uri.scheme === RESOLVED_TEMPLATE_SCHEME) resolvedTemplateProvider.delete(doc.uri);
 		}),
 
 		vscode.languages.registerCodeLensProvider(
@@ -219,7 +225,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
-			if (!await checkDirtyDocument(doc)) return;
+			if (!await checkDirtyDocument(doc, 'preview')) return;
 
 			const cliPath = getConfiguredCliPath();
 			const probe = await probeCli(cliPath);
@@ -236,7 +242,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
-			if (!await checkDirtyDocument(doc)) return;
+			if (!await checkDirtyDocument(doc, 'preview')) return;
 
 			const cliPath = getConfiguredCliPath();
 			const probe = await probeCli(cliPath);
@@ -253,7 +259,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
-			if (!await checkDirtyDocument(doc)) return;
+			if (!await checkDirtyDocument(doc, 'generate')) return;
 
 			const cliPath = getConfiguredCliPath();
 			const probe = await probeCli(cliPath);
@@ -284,6 +290,12 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 		registerBrowseFieldsCommand({ showCliUnavailable: showCliUnavailableMessage }),
 		registerBrowseQueriesCommand({ showCliUnavailable: showCliUnavailableMessage }),
+		vscode.workspace.registerTextDocumentContentProvider(RESOLVED_TEMPLATE_SCHEME, resolvedTemplateProvider),
+		registerShowResolvedTemplateCommand({
+			provider: resolvedTemplateProvider,
+			showCliUnavailable: showCliUnavailableMessage,
+			checkDirtyDocument,
+		}),
 	);
 }
 

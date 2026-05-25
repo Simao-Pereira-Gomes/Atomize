@@ -12,7 +12,7 @@ export interface ValidateCommandDeps {
 	onValidationSuccess: (uri: vscode.Uri) => void;
 	onRunnerFailure: (doc: vscode.TextDocument) => void;
 	showCliUnavailable: (cliPath: string, message: string) => Promise<void>;
-	checkDirtyDocument: (doc: vscode.TextDocument) => Promise<boolean>;
+	checkDirtyDocument: (doc: vscode.TextDocument, verb: string) => Promise<boolean>;
 	checkForCliUpdate: (cliPath: string, version: string | undefined) => Promise<UpdateCheckSummary | undefined>;
 }
 
@@ -22,7 +22,7 @@ export function registerValidateCommand(deps: ValidateCommandDeps): vscode.Dispo
 			? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 			: vscode.window.activeTextEditor?.document;
 		if (!doc || !isAtomizeDocument(doc)) return;
-		if (!await deps.checkDirtyDocument(doc)) return;
+		if (!await deps.checkDirtyDocument(doc, 'validate')) return;
 
 		const cliPath = getConfiguredCliPath();
 		const probe = await probeCli(cliPath);
