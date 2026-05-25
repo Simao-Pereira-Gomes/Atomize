@@ -146,6 +146,10 @@ export function buildQueriesListArgs(profile: string): string[] {
 	return ['queries', 'list', '--json', '--profile', profile];
 }
 
+export function buildTemplateCatalogListArgs(): string[] {
+	return ['template', 'list', '--json'];
+}
+
 export function extractAnySemver(value: string | undefined): string | undefined {
 	if (!value) return undefined;
 	const match = value.match(/\b(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?\b/);

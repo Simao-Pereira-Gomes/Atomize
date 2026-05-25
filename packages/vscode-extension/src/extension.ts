@@ -13,6 +13,7 @@ import {
 	isContentOnlyDetected,
 } from './language-detection.js';
 import { LivePreviewPanel } from './live-preview-panel.js';
+import { CatalogItemProvider, CATALOG_ITEM_SCHEME, registerBrowseCatalogCommand } from './browse-catalog-command.js';
 import { registerBrowseFieldsCommand } from './browse-fields-command.js';
 import { registerBrowseQueriesCommand } from './browse-queries-command.js';
 import { ResolvedTemplateProvider, RESOLVED_TEMPLATE_SCHEME, registerShowResolvedTemplateCommand } from './show-resolved-template-command.js';
@@ -176,11 +177,13 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 	}
 
 	const resolvedTemplateProvider = new ResolvedTemplateProvider();
+	const catalogItemProvider = new CatalogItemProvider();
 
 	ctx.subscriptions.push(
 		diagnostics,
 		statusBarItem,
 		resolvedTemplateProvider,
+		catalogItemProvider,
 
 		vscode.window.onDidChangeActiveTextEditor(editor => syncStatusBarVisibility(editor)),
 
@@ -204,6 +207,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			removeSchemaUri(doc.uri.toString());
 			if (doc.uri.scheme === RESOLVED_TEMPLATE_SCHEME) resolvedTemplateProvider.delete(doc.uri);
+			if (doc.uri.scheme === CATALOG_ITEM_SCHEME) catalogItemProvider.delete(doc.uri);
 		}),
 
 		vscode.languages.registerCodeLensProvider(
@@ -290,6 +294,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 		registerBrowseFieldsCommand({ showCliUnavailable: showCliUnavailableMessage }),
 		registerBrowseQueriesCommand({ showCliUnavailable: showCliUnavailableMessage }),
+		registerBrowseCatalogCommand({ provider: catalogItemProvider, showCliUnavailable: showCliUnavailableMessage }),
+		vscode.workspace.registerTextDocumentContentProvider(CATALOG_ITEM_SCHEME, catalogItemProvider),
 		vscode.workspace.registerTextDocumentContentProvider(RESOLVED_TEMPLATE_SCHEME, resolvedTemplateProvider),
 		registerShowResolvedTemplateCommand({
 			provider: resolvedTemplateProvider,

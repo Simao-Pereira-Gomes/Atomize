@@ -111,6 +111,11 @@
 				"command": "atomize.showResolvedTemplate",
 				"title": "Atomize: Show Resolved Template",
 				"category": "Atomize"
+			},
+			{
+				"command": "atomize.browseCatalog",
+				"title": "Atomize: Browse Catalog",
+				"category": "Atomize"
 			}
 		],
 		"grammars": [
