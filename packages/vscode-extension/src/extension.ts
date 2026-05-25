@@ -13,6 +13,8 @@ import {
 	isContentOnlyDetected,
 } from './language-detection.js';
 import { LivePreviewPanel } from './live-preview-panel.js';
+import { registerBrowseFieldsCommand } from './browse-fields-command.js';
+import { registerBrowseQueriesCommand } from './browse-queries-command.js';
 import { AtomizePanel } from './panel.js';
 import { PreviewPanel } from './preview-panel.js';
 import { manageProfiles } from './profile-management.js';
@@ -279,6 +281,9 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		vscode.commands.registerCommand('atomize.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:sppg2001.atomize'),
 		),
+
+		registerBrowseFieldsCommand({ showCliUnavailable: showCliUnavailableMessage }),
+		registerBrowseQueriesCommand({ showCliUnavailable: showCliUnavailableMessage }),
 	);
 }
 

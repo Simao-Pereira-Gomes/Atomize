@@ -96,6 +96,16 @@
 				"command": "atomize.openSettings",
 				"title": "Open Settings",
 				"category": "Atomize"
+			},
+			{
+				"command": "atomize.browseFields",
+				"title": "Atomize: Browse Fields",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.browseQueries",
+				"title": "Atomize: Browse Queries",
+				"category": "Atomize"
 			}
 		],
 		"grammars": [

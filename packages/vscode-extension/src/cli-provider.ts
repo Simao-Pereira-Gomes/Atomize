@@ -132,6 +132,16 @@ export function buildAuthRotateHelpArgs(): string[] {
 	return ['auth', 'rotate', '--help'];
 }
 
+export function buildFieldsListArgs(profile: string, type?: string): string[] {
+	const args = ['fields', 'list', '--json', '--profile', profile];
+	if (type) args.push('--type', type);
+	return args;
+}
+
+export function buildQueriesListArgs(profile: string): string[] {
+	return ['queries', 'list', '--json', '--profile', profile];
+}
+
 export function extractAnySemver(value: string | undefined): string | undefined {
 	if (!value) return undefined;
 	const match = value.match(/\b(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?\b/);
