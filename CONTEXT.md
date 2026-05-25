@@ -78,8 +78,8 @@ Template validation that connects to Azure DevOps via a named Connection Profile
 _Avoid_: "connected validation" or "ADO validation" when referring to this mode.
 
 **Validation Profile Selection**:
-The explicit user choice that precedes every VS Code validation run: a named Azure DevOps Connection Profile, Offline Validation, or — when no profiles are configured — a path to add one via the Profile Management Surface.
-_Avoid_: "Default Validation Profile" for VS Code validation; the validation mode is never chosen silently by the system.
+The explicit user choice that precedes every VS Code validation run: a named Azure DevOps Connection Profile, Offline Validation, or — when no profiles are configured — a path to add one via the Profile Management Surface. The Workspace Default Profile may pre-focus a Connection Profile in the picker, but the user always confirms before the run begins.
+_Avoid_: "Default Validation Profile" for VS Code validation; the picker is always shown and requires explicit confirmation.
 
 **Validation Diagnostics**:
 Line-level editor feedback for an Atomize YAML File, surfaced through VS Code diagnostics such as squiggles and the Problems panel.
@@ -122,7 +122,7 @@ A VS Code surface for discovering Templates and Mixins from the Template Library
 It lets users choose catalog refs such as `template:<name>` and `mixin:<name>` while authoring an Atomize YAML File.
 
 **Workspace Default Profile**:
-A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Live Preview and Generate pickers.
+A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Validate, Live Preview, and Generate pickers.
 _Avoid_: "default profile" without qualification — the CLI has a global platform default that is unrelated.
 
 **Validation Code**:
