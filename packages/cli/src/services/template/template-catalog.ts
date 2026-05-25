@@ -69,8 +69,24 @@ export class TemplateCatalog {
     const items = new Map<string, TemplateCatalogItem>();
     const overrides = await this.addDiscoveredItems(items, kind);
     const allItems = [...items.values()];
-    const lineage = this.buildLineage(allItems, items);
+    const itemsByRef = new Map(allItems.map((item) => [item.ref, item]));
+    const lineage = this.buildLineage(allItems, itemsByRef);
     return { items: allItems, overrides, lineage };
+  }
+
+  async listAllWithOverrides(): Promise<{ items: TemplateCatalogItem[]; overrides: CatalogOverride[]; lineage: CatalogLineage[] }> {
+    const [templates, mixins] = await Promise.all([
+      this.listWithOverrides("template"),
+      this.listWithOverrides("mixin"),
+    ]);
+    const allItems = [...templates.items, ...mixins.items];
+    const itemsByRef = new Map(allItems.map((item) => [item.ref, item]));
+    const lineage = this.buildLineage(allItems, itemsByRef);
+    return {
+      items: allItems,
+      overrides: [...templates.overrides, ...mixins.overrides],
+      lineage,
+    };
   }
 
   async findByRef(ref: string, defaultKind: TemplateCatalogKind = "template"): Promise<TemplateCatalogItem | undefined> {
@@ -311,15 +327,12 @@ export class TemplateCatalog {
 
   private buildLineage(
     allItems: TemplateCatalogItem[],
-    itemsByName: Map<string, TemplateCatalogItem>,
+    itemsByRef: Map<string, TemplateCatalogItem>,
   ): CatalogLineage[] {
     const lineage: CatalogLineage[] = [];
     for (const item of allItems) {
       if (!item.origin) continue;
-      const separatorIndex = item.origin.indexOf(":");
-      if (separatorIndex === -1) continue;
-      const originName = item.origin.slice(separatorIndex + 1);
-      const originItem = itemsByName.get(originName);
+      const originItem = itemsByRef.get(item.origin);
       if (originItem) {
         lineage.push({ item, originItem });
       }

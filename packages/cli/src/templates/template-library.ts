@@ -146,6 +146,10 @@ export class TemplateLibrary {
     return await this.catalog.listWithOverrides(kind);
   }
 
+  async getCatalogAll(): Promise<TemplateLibraryCatalog> {
+    return await this.catalog.listAllWithOverrides();
+  }
+
   async findCatalogItem(
     kind: TemplateCatalogKind,
     name: string,
