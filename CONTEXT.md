@@ -119,6 +119,7 @@ _Avoid_: "merged template" or "expanded template".
 
 **Catalog Browser**:
 A VS Code surface for discovering Templates and Mixins from the Template Library without leaving the editor.
+It lets users choose catalog refs such as `template:<name>` and `mixin:<name>` while authoring an Atomize YAML File.
 
 **Workspace Default Profile**:
 A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Live Preview and Generate pickers.
