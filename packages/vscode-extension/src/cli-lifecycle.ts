@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import {
-	type CliUpdateCache,
 	CLI_MINIMUM_VERSION,
+	type CliUpdateCache,
 	DEFAULT_CLI_PATH,
 	fetchNpmLatestVersion,
 	normalizeCliPath,

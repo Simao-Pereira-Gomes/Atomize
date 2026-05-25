@@ -1,5 +1,5 @@
-import * as fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
+import * as fs from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { getConfiguredCliPath } from './cli-lifecycle.js';
 import { buildTemplateCatalogListArgs, probeCli } from './cli-provider.js';

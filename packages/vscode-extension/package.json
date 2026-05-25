@@ -136,7 +136,9 @@
 		"prebuild": "bun run --cwd ../cli generate-schema",
 		"build": "bun esbuild.mjs",
 		"package": "vsce package --no-dependencies",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"lint": "bunx biome check --max-diagnostics 100",
+		"lint:fix": "bunx biome check --fix --max-diagnostics 100"
 	},
 	"dependencies": {
 		"semver": "^7.7.4",

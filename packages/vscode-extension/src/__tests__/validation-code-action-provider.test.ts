@@ -28,13 +28,13 @@ describe('fixMissingTaskId', () => {
 		const edits = fixMissingTaskId(doc, range(5, 2), undefined);
 
 		expect(edits).toHaveLength(1);
-		const [edit] = edits!;
+		const edit = edits?.at(0);
 		// `title:` is at line 5, character 4 (after `  - `)
-		expect(edit!.startLine).toBe(5);
-		expect(edit!.startCharacter).toBe(4);
-		expect(edit!.endLine).toBe(5);
-		expect(edit!.endCharacter).toBe(4);
-		expect(edit!.newText).toBe('id: write-unit-tests\n    ');
+		expect(edit?.startLine).toBe(5);
+		expect(edit?.startCharacter).toBe(4);
+		expect(edit?.endLine).toBe(5);
+		expect(edit?.endCharacter).toBe(4);
+		expect(edit?.newText).toBe('id: write-unit-tests\n    ');
 	});
 
 	it('targets the correct task when the second task needs the fix', () => {
@@ -51,7 +51,7 @@ describe('fixMissingTaskId', () => {
 		const edits = fixMissingTaskId(doc, range(3, 2), undefined);
 
 		expect(edits).toHaveLength(1);
-		expect(edits![0]!.newText).toMatch(/^id: second-task-with-a-very-lo/);
+		expect(edits?.at(0)?.newText).toMatch(/^id: second-task-with-a-very-lo/);
 	});
 
 	it('truncates slug to 30 characters', () => {
@@ -64,8 +64,9 @@ describe('fixMissingTaskId', () => {
 
 		const edits = fixMissingTaskId(doc, range(1, 2), undefined);
 
-		expect(edits![0]!.newText.startsWith('id: ')).toBe(true);
-		const slug = edits![0]!.newText.split('\n')[0]!.replace('id: ', '');
+		const edit = edits?.at(0);
+		expect(edit?.newText.startsWith('id: ')).toBe(true);
+		const slug = (edit?.newText.split('\n').at(0) ?? '').replace('id: ', '');
 		expect(slug.length).toBeLessThanOrEqual(30);
 	});
 
@@ -127,9 +128,9 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 
 		expect(edits).toHaveLength(2);
 		// workItemTypes (line 4) + value (line 5) → deleted up to line 6
-		expect(edits![0]).toEqual({ startLine: 4, startCharacter: 0, endLine: 6, endCharacter: 0, newText: '' });
+		expect(edits?.at(0)).toEqual({ startLine: 4, startCharacter: 0, endLine: 6, endCharacter: 0, newText: '' });
 		// states (line 6) + value (line 7) → deleted up to line 8
-		expect(edits![1]).toEqual({ startLine: 6, startCharacter: 0, endLine: 8, endCharacter: 0, newText: '' });
+		expect(edits?.at(1)).toEqual({ startLine: 6, startCharacter: 0, endLine: 8, endCharacter: 0, newText: '' });
 	});
 
 	it('returns deletions for inline (flow) list values', () => {
@@ -147,9 +148,9 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 
 		expect(edits).toHaveLength(2);
 		// workItemTypes at line 3, block ends at line 4 (states starts there, same indent)
-		expect(edits![0]).toEqual({ startLine: 3, startCharacter: 0, endLine: 4, endCharacter: 0, newText: '' });
+		expect(edits?.at(0)).toEqual({ startLine: 3, startCharacter: 0, endLine: 4, endCharacter: 0, newText: '' });
 		// states at line 4, block ends at line 5 (tasks starts there, lower indent)
-		expect(edits![1]).toEqual({ startLine: 4, startCharacter: 0, endLine: 5, endCharacter: 0, newText: '' });
+		expect(edits?.at(1)).toEqual({ startLine: 4, startCharacter: 0, endLine: 5, endCharacter: 0, newText: '' });
 	});
 
 	it('returns null when no conflicting fields are present', () => {
@@ -196,6 +197,6 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 
 		// workItemTypes, states, statesExclude, tags, priority all removed
 		expect(edits).toHaveLength(5);
-		expect(edits!.every(e => e.newText === '')).toBe(true);
+		expect(edits?.every(e => e.newText === '')).toBe(true);
 	});
 });

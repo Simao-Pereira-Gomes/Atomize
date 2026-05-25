@@ -1,4 +1,4 @@
-import { LineCounter, parseDocument, isMap, isSeq, isPair, type ParsedNode } from 'yaml';
+import { isMap, isPair, isSeq, LineCounter, type ParsedNode, parseDocument } from 'yaml';
 
 export interface PlainRange {
 	start: { line: number; character: number };

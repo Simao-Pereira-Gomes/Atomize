@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
+import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './browse-catalog-command.js';
+import { registerBrowseFieldsCommand } from './browse-fields-command.js';
+import { registerBrowseQueriesCommand } from './browse-queries-command.js';
 import { createCliLifecycle, getConfiguredCliPath, type UpdateCheckSummary } from './cli-lifecycle.js';
-import { deriveStatusBarState } from './cli-status-bar.js';
 import { meetsCliFeatureRequirements, probeCli } from './cli-provider.js';
+import { deriveStatusBarState } from './cli-status-bar.js';
 import { AtomizeCodeLensProvider } from './codelens-provider.js';
 import { clearRunState, runDiagnosticValidation } from './diagnostics.js';
 import { GeneratePanel } from './generate-panel.js';
@@ -13,13 +16,10 @@ import {
 	isContentOnlyDetected,
 } from './language-detection.js';
 import { LivePreviewPanel } from './live-preview-panel.js';
-import { CatalogItemProvider, CATALOG_ITEM_SCHEME, registerBrowseCatalogCommand } from './browse-catalog-command.js';
-import { registerBrowseFieldsCommand } from './browse-fields-command.js';
-import { registerBrowseQueriesCommand } from './browse-queries-command.js';
-import { ResolvedTemplateProvider, RESOLVED_TEMPLATE_SCHEME, registerShowResolvedTemplateCommand } from './show-resolved-template-command.js';
 import { AtomizePanel } from './panel.js';
 import { PreviewPanel } from './preview-panel.js';
 import { manageProfiles } from './profile-management.js';
+import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './show-resolved-template-command.js';
 import { registerValidateCommand } from './validate-command.js';
 import { ValidationCodeActionProvider } from './validation-code-action-provider.js';
 import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './yaml-schema-contributor.js';
