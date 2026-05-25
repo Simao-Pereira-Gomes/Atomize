@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rmdir, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,6 +48,25 @@ export interface TemplateCatalogOptions {
   legacyUserRoot?: string;
   legacyProjectRoot?: string;
   invocationCwd?: string;
+}
+
+export interface MigrationResultItem {
+  kind: TemplateCatalogKind;
+  name: string;
+  sourcePath: string;
+  destPath: string;
+}
+
+export interface MigrationSkippedItem {
+  kind: TemplateCatalogKind;
+  name: string;
+  existingPath: string;
+}
+
+export interface MigrationResult {
+  migrated: MigrationResultItem[];
+  skipped: MigrationSkippedItem[];
+  dirsCleaned: string[];
 }
 
 interface CatalogRoot {
@@ -398,6 +417,98 @@ export class TemplateCatalog {
 
   private legacyRootForDestination(scope: Extract<TemplateCatalogScope, "user" | "project">): string {
     return scope === "project" ? this.legacyProjectRoot : this.legacyUserRoot;
+  }
+
+  async migrateLegacyItems(
+    scope: Extract<TemplateCatalogScope, "user" | "project">,
+    options: { dryRun?: boolean; cleanupDirs?: boolean } = {},
+  ): Promise<MigrationResult> {
+    const dryRun = options.dryRun === true;
+    const cleanupDirs = options.cleanupDirs === true;
+    const legacyRoot = scope === "project" ? this.legacyProjectRoot : this.legacyUserRoot;
+    const kinds: TemplateCatalogKind[] = ["template", "mixin"];
+
+    const migrated: MigrationResultItem[] = [];
+    const skipped: MigrationSkippedItem[] = [];
+    const dirsCleaned: string[] = [];
+
+    for (const kind of kinds) {
+      const legacyDir = join(legacyRoot, this.folderForKind(kind));
+      const legacyItems = await this.listDirectoryItems(kind, scope, legacyDir);
+
+      for (const item of legacyItems) {
+        const destPath = scope === "project"
+          ? this.getProjectTemplatePath(kind, item.name)
+          : this.getUserTemplatePath(kind, item.name);
+
+        const existingItem = await this.findInNewPath(kind, scope, item.name);
+        if (existingItem) {
+          skipped.push({ kind, name: item.name, existingPath: existingItem.path });
+        } else {
+          migrated.push({ kind, name: item.name, sourcePath: item.path, destPath });
+          if (!dryRun) {
+            await mkdir(dirname(destPath), { recursive: true });
+            await copyFile(item.path, destPath);
+            await this.cleanupLegacyDestinationFiles(kind, scope, item.name);
+          }
+        }
+      }
+
+      if (cleanupDirs && existsSync(legacyDir)) {
+        const migratedFromKind = migrated.filter((m) => m.kind === kind).map((m) => m.name);
+        const wouldBeEmpty = await this.wouldDirBecomeEmpty(legacyDir, migratedFromKind, dryRun);
+        if (wouldBeEmpty) {
+          dirsCleaned.push(legacyDir);
+          if (!dryRun) {
+            await rmdir(legacyDir);
+          }
+        }
+      }
+    }
+
+    if (cleanupDirs && existsSync(legacyRoot)) {
+      const rootEntries = await readdir(legacyRoot).catch(() => [] as string[]);
+      const remainingEntries = rootEntries.filter(
+        (entry) => !dirsCleaned.includes(join(legacyRoot, entry)),
+      );
+      if (remainingEntries.length === 0) {
+        dirsCleaned.push(legacyRoot);
+        if (!dryRun) {
+          await rmdir(legacyRoot);
+        }
+      }
+    }
+
+    return { migrated, skipped, dirsCleaned };
+  }
+
+  private async findInNewPath(
+    kind: TemplateCatalogKind,
+    scope: Extract<TemplateCatalogScope, "user" | "project">,
+    name: string,
+  ): Promise<TemplateCatalogItem | undefined> {
+    const newRoot = scope === "project" ? this.projectRoot : this.userRoot;
+    const items = await this.listDirectoryItems(kind, scope, join(newRoot, this.folderForKind(kind)));
+    return items.find((item) => item.name === name);
+  }
+
+  private async wouldDirBecomeEmpty(
+    dir: string,
+    migratedNames: string[],
+    dryRun: boolean,
+  ): Promise<boolean> {
+    const files = await readdir(dir).catch(() => [] as string[]);
+    if (!dryRun) {
+      return files.length === 0;
+    }
+    const filesSet = new Set(files);
+    let wouldBeRemoved = 0;
+    for (const name of migratedNames) {
+      for (const ext of LEGACY_EXTENSIONS) {
+        if (filesSet.has(`${name}${ext}`)) wouldBeRemoved++;
+      }
+    }
+    return files.length === wouldBeRemoved;
   }
 
   private async cleanupLegacyDestinationFiles(
