@@ -91,8 +91,9 @@ describe("TemplateCatalog.listAllWithOverrides", () => {
 
     const { lineage } = await catalog.listAllWithOverrides();
     expect(lineage).toHaveLength(1);
-    expect(lineage[0].item.ref).toBe("template:derived-tmpl");
-    expect(lineage[0].originItem.ref).toBe("template:origin-tmpl");
+    const entry0 = lineage[0]!;
+    expect(entry0.item.ref).toBe("template:derived-tmpl");
+    expect(entry0.originItem.ref).toBe("template:origin-tmpl");
   });
 
   test("resolves cross-kind lineage (template origin from mixin)", async () => {
@@ -105,9 +106,10 @@ describe("TemplateCatalog.listAllWithOverrides", () => {
 
     const { lineage } = await catalog.listAllWithOverrides();
     expect(lineage).toHaveLength(1);
-    expect(lineage[0].item.ref).toBe("template:derived-tmpl");
-    expect(lineage[0].originItem.ref).toBe("mixin:source-mixin");
-    expect(lineage[0].originItem.kind).toBe("mixin");
+    const entry0 = lineage[0]!;
+    expect(entry0.item.ref).toBe("template:derived-tmpl");
+    expect(entry0.originItem.ref).toBe("mixin:source-mixin");
+    expect(entry0.originItem.kind).toBe("mixin");
   });
 
   test("omits lineage when origin ref cannot be resolved", async () => {
@@ -132,8 +134,9 @@ describe("TemplateCatalog.listWithOverrides lineage (ref-key fix)", () => {
 
     const { lineage } = await catalog.listWithOverrides("mixin");
     expect(lineage).toHaveLength(1);
-    expect(lineage[0].item.ref).toBe("mixin:derived-mix");
-    expect(lineage[0].originItem.ref).toBe("mixin:base-mix");
+    const entry0 = lineage[0]!;
+    expect(entry0.item.ref).toBe("mixin:derived-mix");
+    expect(entry0.originItem.ref).toBe("mixin:base-mix");
   });
 
   test("does not resolve cross-kind lineage (per-kind path limitation)", async () => {
