@@ -26,8 +26,12 @@ _Avoid_: template catalog when referring to the whole library; catalog is only t
 **Catalog**:
 The named inventory of templates and mixins available from built-in, user, and project scopes.
 
+**Workspace Root**:
+The directory Atomize treats as the boundary for project-scoped state. A Workspace Root may be marked explicitly by an `.atomize` directory or inferred from the surrounding repository when no explicit Atomize marker exists.
+_Avoid_: current working directory when referring to project scope.
+
 **Catalog Override**:
-A name-collision between two catalog items of the same kind and stem name in different scopes. The higher-priority scope (project > user > built-in) wins; the losing item is the overridden entry. Shown as `⚠ overrides:` in `atomize template list`.
+A name-collision between two catalog items of the same kind and stem name. The higher-priority source wins; the losing item is the overridden entry. Shown as `⚠ overrides:` in `atomize template list`.
 
 **Template Lineage**:
 A declared provenance relationship between a template or mixin and the catalog item it was derived from, recorded in the `origin` field (`template:<name>` or `mixin:<name>`). Lineage is informational only — it does not affect how refs are resolved and does not shadow the origin item. Shown as `↖ based on:` in `atomize template list`.
