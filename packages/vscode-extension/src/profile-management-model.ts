@@ -50,3 +50,11 @@ export function sanitizeCliError(result: Pick<{ stderr: string; stdout: string }
 export function supportsNativeRotation(profile: AdoProfileJson): boolean {
 	return profile.tokenStorage === 'keychain';
 }
+
+export function resolveDefaultProfile(
+	profiles: AdoProfileJson[],
+	defaultProfile: string | undefined,
+): AdoProfileJson | undefined {
+	if (!defaultProfile) return undefined;
+	return profiles.find(p => p.name === defaultProfile);
+}

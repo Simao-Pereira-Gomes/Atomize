@@ -42,6 +42,12 @@
 					"default": true,
 					"description": "Automatically check npm for stable Atomize CLI updates when using the default CLI executable."
 				},
+				"atomize.defaultProfile": {
+					"type": "string",
+					"default": "",
+					"scope": "window",
+					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker opens with no pre-selection. Safe to commit in .vscode/settings.json — stores a name, not a credential."
+				},
 				"atomize.previewLayout": {
 					"type": "string",
 					"enum": ["default", "compact"],

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildAuthListArgs, buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES } from './cli-provider.js';
+import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES } from './cli-provider.js';
 import { extendedEnv } from './env-utils.js';
 import type { GenerateReport } from './generate-html.js';
 import {
@@ -12,61 +12,12 @@ import {
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
-import { manageProfiles } from './profile-management.js';
-import { type AdoProfileJson, parseAdoProfilesJson, sortAdoProfiles } from './profile-management-model.js';
+import { pickProfile } from './profile-picker.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
 type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage;
-
-function fetchAdoProfiles(cliPath: string): Promise<AdoProfileJson[] | null> {
-	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildAuthListArgs(), { shell: false, env: extendedEnv() });
-		let stdout = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.on('close', () => { resolve(parseAdoProfilesJson(stdout) ?? null); });
-		proc.on('error', () => resolve(null));
-	});
-}
-
-async function pickProfile(cliPath: string): Promise<string | null> {
-	let adoProfiles = await fetchAdoProfiles(cliPath);
-	if (adoProfiles === null) {
-		void vscode.window.showErrorMessage('Could not list Azure DevOps profiles.');
-		return null;
-	}
-
-	while (true) {
-		if (adoProfiles.length === 0) {
-			type ZeroItem = vscode.QuickPickItem & { action: 'add' | 'cancel' };
-			const picked = await vscode.window.showQuickPick<ZeroItem>(
-				[{ label: 'Add profile...', action: 'add' }],
-				{ title: 'Atomize: Generate', placeHolder: 'No Azure DevOps profiles configured — required for Generate' },
-			);
-			if (!picked) return null;
-			await manageProfiles(cliPath, async () => true);
-			adoProfiles = await fetchAdoProfiles(cliPath);
-			if (adoProfiles === null) {
-				void vscode.window.showErrorMessage('Could not list Azure DevOps profiles.');
-				return null;
-			}
-		} else {
-			type ProfileItem = vscode.QuickPickItem & { profileName: string };
-			const picked = await vscode.window.showQuickPick<ProfileItem>(
-				sortAdoProfiles(adoProfiles).map(p => ({
-					label: p.name,
-					description: p.isDefault ? 'default' : '',
-					detail: `${p.organizationUrl} · ${p.project}`,
-					profileName: p.name,
-				})),
-				{ title: 'Atomize: Generate', placeHolder: 'Select a connection profile' },
-			);
-			if (!picked) return null;
-			return picked.profileName;
-		}
-	}
-}
 
 type SpawnResult = { report: GenerateReport } | { error: 'auth' | 'cli'; stderr: string };
 
@@ -124,11 +75,12 @@ export class GeneratePanel {
 	}
 
 	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
-		const cfg = vscode.workspace.getConfiguration('atomize').get<string>('previewLayout', 'default');
-		const mode: 'default' | 'compact' = cfg === 'compact' ? 'compact' : 'default';
+		const atomizeCfg = vscode.workspace.getConfiguration('atomize');
+		const mode: 'default' | 'compact' = atomizeCfg.get<string>('previewLayout', 'default') === 'compact' ? 'compact' : 'default';
+		const defaultProfile = atomizeCfg.get<string>('defaultProfile') || undefined;
 
-		const profile = await pickProfile(cliPath);
-		if (profile === null) return;
+		const profile = await pickProfile(cliPath, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
+		if (profile == null) return;
 
 		const fileName = vscode.workspace.asRelativePath(fileUri);
 
