@@ -161,6 +161,19 @@ async function runWithProgress(cliPath: string, args: string[], title: string, s
 	);
 }
 
+async function runTaskWithProgress<T>(title: string, task: () => Promise<T>): Promise<T> {
+	return vscode.window.withProgress(
+		{ location: vscode.ProgressLocation.Notification, title, cancellable: false },
+		task,
+	);
+}
+
+async function fetchAdoProfilesOrNotify(cliPath: string): Promise<AdoProfileJson[] | undefined> {
+	const profiles = await fetchAdoProfiles(cliPath);
+	if (!profiles) void vscode.window.showErrorMessage('Could not list Atomize profiles.');
+	return profiles;
+}
+
 function showOperationFailure(operation: string, result: CliRunResult): void {
 	const detail = sanitizeCliError(result);
 	void vscode.window.showErrorMessage(`${operation} failed.${detail ? ` ${detail}` : ''}`);
@@ -175,7 +188,7 @@ async function addProfile(cliPath: string): Promise<void> {
 }
 
 async function setDefault(cliPath: string, profile: AdoProfileJson): Promise<void> {
-	const result = await runCli(cliPath, buildAuthUseArgs(profile.name));
+	const result = await runWithProgress(cliPath, buildAuthUseArgs(profile.name), `Setting "${profile.name}" as default...`);
 	if (result.code === 0) void vscode.window.showInformationMessage(`Profile "${profile.name}" is now the default.`);
 	else showOperationFailure('Set default profile', result);
 }
@@ -223,13 +236,17 @@ export async function manageProfiles(
 	cliPath: string,
 	ensureCliAvailable: () => Promise<boolean>,
 ): Promise<void> {
-	if (!await ensureCliAvailable()) return;
-	if (!await assertManageProfilesCapabilities(cliPath)) return;
+	const initialProfiles = await runTaskWithProgress('Loading Atomize profiles...', async () => {
+		if (!await ensureCliAvailable()) return undefined;
+		if (!await assertManageProfilesCapabilities(cliPath)) return undefined;
+		return fetchAdoProfilesOrNotify(cliPath);
+	});
+	if (!initialProfiles) return;
 
+	let profiles: AdoProfileJson[] | undefined = initialProfiles;
 	while (true) {
-		const profiles = await fetchAdoProfiles(cliPath);
+		profiles ??= await runTaskWithProgress('Refreshing Atomize profiles...', () => fetchAdoProfilesOrNotify(cliPath));
 		if (!profiles) {
-			void vscode.window.showErrorMessage('Could not list Atomize profiles.');
 			return;
 		}
 
@@ -259,5 +276,6 @@ export async function manageProfiles(
 		);
 		if (!action) return;
 		await runAction(cliPath, picked.profile, action.action);
+		profiles = undefined;
 	}
 }
