@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildValidateArgs } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
+import { buildValidateArgs } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
 import { parseValidationOutput } from './validation-output.js';
 
 export interface ValidationError {

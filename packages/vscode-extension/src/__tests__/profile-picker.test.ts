@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { type AdoProfileJson, resolveDefaultProfile } from '../profile-management-model.js';
+import { type AdoProfileJson, resolveDefaultProfile } from '../profiles/profile-management-model.js';
 
 const profiles: AdoProfileJson[] = [
 	{

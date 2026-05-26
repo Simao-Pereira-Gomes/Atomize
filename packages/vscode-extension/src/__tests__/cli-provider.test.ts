@@ -26,7 +26,7 @@ import {
 	normalizeCliPath,
 	normalizeInstallCommand,
 	UPDATE_CHECK_TTL_MS,
-} from '../cli-provider.js';
+} from '../cli/cli-provider.js';
 
 describe('cli-provider', () => {
 	it('uses atomize when no CLI path is configured', () => {

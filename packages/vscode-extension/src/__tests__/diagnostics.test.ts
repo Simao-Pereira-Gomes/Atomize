@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { parseValidationOutput } from '../validation-output.js';
+import { parseValidationOutput } from '../validation/validation-output.js';
 
 describe('parseValidationOutput', () => {
 	it('parses JSON validation output prefixed by spinner control bytes', () => {
@@ -35,7 +35,7 @@ describe('resolvePathToRange', () => {
 			},
 		}));
 
-		const { resolvePathToRange } = await import('../diagnostics.js');
+		const { resolvePathToRange } = await import('../validation/diagnostics.js');
 		const text = [
 			'# filter.savedQuery: this comment should not receive the diagnostic',
 			'description: "filter.savedQuery: this string should not receive the diagnostic"',
@@ -69,7 +69,7 @@ describe('resolvePathToRange', () => {
 			},
 		}));
 
-		const { resolvePathToRange } = await import('../diagnostics.js');
+		const { resolvePathToRange } = await import('../validation/diagnostics.js');
 		const text = [
 			'tasks:',
 			'  - title: My Task',

@@ -4,7 +4,7 @@ import {
 	fixSavedQueryWithStructuredFilter,
 	fixSingleLineFieldWithNewlines,
 	type PlainRange,
-} from '../validation-code-actions.js';
+} from '../authoring/validation-code-actions.js';
 
 function range(line: number, character = 0): PlainRange {
 	return { start: { line, character }, end: { line, character } };

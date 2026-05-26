@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as vscode from 'vscode';
-import { getConfiguredCliPath } from './cli-lifecycle.js';
-import { buildTemplateCatalogListArgs, probeCli } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
-import { isAtomizeDocument } from './language-detection.js';
+import { isAtomizeDocument } from '../authoring/language-detection.js';
+import { buildTemplateCatalogListArgs, probeCli } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
+import { getConfiguredCliPath } from '../config/atomize-configuration.js';
 
 export const CATALOG_ITEM_SCHEME = 'atomize-catalog';
 

@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
-import { getConfiguredCliPath, type UpdateCheckSummary } from './cli-lifecycle.js';
-import { probeCli } from './cli-provider.js';
+import { isAtomizeDocument } from '../authoring/language-detection.js';
+import type { UpdateCheckSummary } from '../cli/cli-lifecycle.js';
+import { probeCli } from '../cli/cli-provider.js';
+import { getConfiguredCliPath, getDefaultProfile } from '../config/atomize-configuration.js';
+import { AtomizePanel } from '../panel.js';
+import { pickProfile } from '../profiles/profile-picker.js';
 import { runReportValidation } from './diagnostics.js';
-import { isAtomizeDocument } from './language-detection.js';
-import { AtomizePanel } from './panel.js';
-import { pickProfile } from './profile-picker.js';
 import { renderValidationHtml } from './validation-html.js';
 
 export interface ValidateCommandDeps {
@@ -31,7 +32,7 @@ export function registerValidateCommand(deps: ValidateCommandDeps): vscode.Dispo
 			return;
 		}
 
-		const defaultProfile = vscode.workspace.getConfiguration('atomize').get<string>('defaultProfile') || undefined;
+		const defaultProfile = getDefaultProfile(doc.uri);
 		const picked = await pickProfile(cliPath, { title: 'Atomize: Validate', allowOffline: true, defaultProfile });
 		if (picked === null) return;
 		const profile = picked;

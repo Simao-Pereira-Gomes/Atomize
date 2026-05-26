@@ -7,7 +7,7 @@ import {
 	sanitizeCliError,
 	sortAdoProfiles,
 	supportsNativeRotation,
-} from '../profile-management-model.js';
+} from '../profiles/profile-management-model.js';
 
 const profiles: AdoProfileJson[] = [
 	{
@@ -141,7 +141,7 @@ describe('manageProfiles', () => {
 			}),
 		}));
 
-		const { manageProfiles } = await import('../profile-management.js');
+		const { manageProfiles } = await import('../profiles/profile-management.js');
 		await manageProfiles('atomize', async () => true);
 
 		expect(quickPickLabels).toEqual([

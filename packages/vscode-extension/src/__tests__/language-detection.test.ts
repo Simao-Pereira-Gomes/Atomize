@@ -6,7 +6,7 @@ import {
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
-} from '../language-detection.js';
+} from '../authoring/language-detection.js';
 
 // --- detectAtomizeLanguage ---
 

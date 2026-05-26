@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
+import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
+import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
+import { pickProfile } from '../profiles/profile-picker.js';
 import type { GenerateReport } from './generate-html.js';
 import {
 	renderGenerateBlocked,
@@ -12,7 +14,6 @@ import {
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
-import { pickProfile } from './profile-picker.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
@@ -75,9 +76,8 @@ export class GeneratePanel {
 	}
 
 	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
-		const atomizeCfg = vscode.workspace.getConfiguration('atomize');
-		const mode: 'default' | 'compact' = atomizeCfg.get<string>('previewLayout', 'default') === 'compact' ? 'compact' : 'default';
-		const defaultProfile = atomizeCfg.get<string>('defaultProfile') || undefined;
+		const mode = getPreviewLayout(fileUri);
+		const defaultProfile = getDefaultProfile(fileUri);
 
 		const profile = await pickProfile(cliPath, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
 		if (profile == null) return;

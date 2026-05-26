@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { getConfiguredCliPath } from './cli-lifecycle.js';
-import { buildResolveArgs, probeCli } from './cli-provider.js';
-import { resolveCommandDocument } from './command-document-resolution.js';
-import { extendedEnv } from './env-utils.js';
-import { isAtomizeDocument } from './language-detection.js';
+import { isAtomizeDocument } from '../authoring/language-detection.js';
+import { resolveCommandDocument } from '../authoring/command-document-resolution.js';
+import { buildResolveArgs, probeCli } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
+import { getConfiguredCliPath } from '../config/atomize-configuration.js';
 
 export const RESOLVED_TEMPLATE_SCHEME = 'atomize-resolved';
 

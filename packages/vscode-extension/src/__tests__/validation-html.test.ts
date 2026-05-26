@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { renderValidationHtml } from '../validation-html.js';
+import { renderValidationHtml } from '../validation/validation-html.js';
 
 describe('renderValidationHtml', () => {
 	it('renders invalid CLI validation results as a failed report', () => {

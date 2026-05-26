@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildAuthListArgs } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
+import { buildAuthListArgs } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
 import { manageProfiles } from './profile-management.js';
 import { type AdoProfileJson, parseAdoProfilesJson, resolveDefaultProfile, sortAdoProfiles } from './profile-management-model.js';
 

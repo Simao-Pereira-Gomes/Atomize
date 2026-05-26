@@ -1,28 +1,29 @@
 import * as vscode from 'vscode';
-import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './browse-catalog-command.js';
-import { registerBrowseFieldsCommand } from './browse-fields-command.js';
-import { registerBrowseQueriesCommand } from './browse-queries-command.js';
-import { createCliLifecycle, getConfiguredCliPath, type UpdateCheckSummary } from './cli-lifecycle.js';
-import { meetsCliFeatureRequirements, probeCli } from './cli-provider.js';
-import { deriveStatusBarState } from './cli-status-bar.js';
-import { AtomizeCodeLensProvider } from './codelens-provider.js';
-import { clearRunState, runDiagnosticValidation } from './diagnostics.js';
-import { GeneratePanel } from './generate-panel.js';
+import { AtomizeCodeLensProvider } from './authoring/codelens-provider.js';
 import {
 	handleDocument,
 	isAtomizeDocument,
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
-} from './language-detection.js';
-import { LivePreviewPanel } from './live-preview-panel.js';
+} from './authoring/language-detection.js';
+import { ValidationCodeActionProvider } from './authoring/validation-code-action-provider.js';
+import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './authoring/yaml-schema-contributor.js';
+import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './catalog/browse-catalog-command.js';
+import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './catalog/show-resolved-template-command.js';
+import { createCliLifecycle, type UpdateCheckSummary } from './cli/cli-lifecycle.js';
+import { meetsCliFeatureRequirements, probeCli } from './cli/cli-provider.js';
+import { deriveStatusBarState } from './cli/cli-status-bar.js';
+import { getConfiguredCliPath } from './config/atomize-configuration.js';
+import { GeneratePanel } from './generate/generate-panel.js';
 import { AtomizePanel } from './panel.js';
-import { PreviewPanel } from './preview-panel.js';
-import { manageProfiles } from './profile-management.js';
-import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './show-resolved-template-command.js';
-import { registerValidateCommand } from './validate-command.js';
-import { ValidationCodeActionProvider } from './validation-code-action-provider.js';
-import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './yaml-schema-contributor.js';
+import { registerBrowseFieldsCommand } from './platform-metadata/browse-fields-command.js';
+import { registerBrowseQueriesCommand } from './platform-metadata/browse-queries-command.js';
+import { LivePreviewPanel } from './preview/live-preview-panel.js';
+import { PreviewPanel } from './preview/mock-preview-panel.js';
+import { manageProfiles } from './profiles/profile-management.js';
+import { clearRunState, runDiagnosticValidation } from './validation/diagnostics.js';
+import { registerValidateCommand } from './validation/validate-command.js';
 
 let cliWarningShown = false;
 

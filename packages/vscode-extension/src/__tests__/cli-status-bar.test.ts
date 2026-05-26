@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { deriveStatusBarState } from '../cli-status-bar.js';
+import { deriveStatusBarState } from '../cli/cli-status-bar.js';
 
 describe('deriveStatusBarState', () => {
 	it('shows warning and routes to showCliUnavailable when CLI is not found', () => {

@@ -9,8 +9,8 @@ import {
 	buildAuthRotateHelpArgs,
 	buildAuthTestArgs,
 	buildAuthUseArgs,
-} from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
+} from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
 import {
 	type AdoProfileJson,
 	parseAdoProfilesJson,

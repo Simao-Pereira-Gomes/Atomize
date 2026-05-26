@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { getConfiguredCliPath } from './cli-lifecycle.js';
-import { buildQueriesListArgs, probeCli } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
-import { pickProfile } from './profile-picker.js';
+import { buildQueriesListArgs, probeCli } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
+import { getConfiguredCliPath, getDefaultProfile } from '../config/atomize-configuration.js';
+import { pickProfile } from '../profiles/profile-picker.js';
 
 interface QueryJson {
 	id: string;
@@ -54,7 +54,7 @@ export function registerBrowseQueriesCommand(deps: BrowseQueriesCommandDeps): vs
 			return;
 		}
 
-		const defaultProfile = vscode.workspace.getConfiguration('atomize').get<string>('defaultProfile') || undefined;
+		const defaultProfile = getDefaultProfile(vscode.window.activeTextEditor?.document.uri);
 		const profile = await pickProfile(cliPath, { title: 'Atomize: Browse Queries', allowOffline: false, defaultProfile });
 		if (!profile) return;
 

@@ -1,4 +1,4 @@
-import css from './webview/styles.generated.css';
+import css from '../webview/styles.generated.css';
 
 export interface InspectField {
 	name: string;

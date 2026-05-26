@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildLivePreviewArgs, CLI_EXIT_CODES } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
+import { buildLivePreviewArgs, CLI_EXIT_CODES } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
+import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
+import { pickProfile } from '../profiles/profile-picker.js';
 import type { AtomizationReport } from './live-preview-html.js';
 import { renderLivePreviewError, renderLivePreviewResults } from './live-preview-html.js';
-import { pickProfile } from './profile-picker.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface RerunMessage { type: 'rerun'; }
@@ -70,9 +71,8 @@ export class LivePreviewPanel {
 	}
 
 	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
-		const atomizeCfg = vscode.workspace.getConfiguration('atomize');
-		const mode: 'default' | 'compact' = atomizeCfg.get<string>('previewLayout', 'default') === 'compact' ? 'compact' : 'default';
-		const defaultProfile = atomizeCfg.get<string>('defaultProfile') || undefined;
+		const mode = getPreviewLayout(fileUri);
+		const defaultProfile = getDefaultProfile(fileUri);
 
 		const profile = await pickProfile(cliPath, { title: 'Atomize: Live Preview', allowOffline: false, defaultProfile });
 		if (profile == null) return;

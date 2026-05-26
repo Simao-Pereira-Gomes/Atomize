@@ -1,27 +1,14 @@
 import * as vscode from 'vscode';
+import { getAutoCheckUpdates, getConfiguredCliPath, getConfiguredInstallCommand } from '../config/atomize-configuration.js';
 import {
 	CLI_MINIMUM_VERSION,
 	type CliUpdateCache,
 	DEFAULT_CLI_PATH,
 	fetchNpmLatestVersion,
-	normalizeCliPath,
-	normalizeInstallCommand,
 	probeCli,
 	checkForCliUpdate as runCliUpdateCheck,
 	UPDATE_CHECK_CACHE_KEY,
 } from './cli-provider.js';
-
-export function getConfiguredCliPath(): string {
-	return normalizeCliPath(vscode.workspace.getConfiguration('atomize').get('cliPath'));
-}
-
-export function getConfiguredInstallCommand(): string {
-	return normalizeInstallCommand(vscode.workspace.getConfiguration('atomize').get('cli.installCommand'));
-}
-
-export function getAutoCheckUpdates(): boolean {
-	return vscode.workspace.getConfiguration('atomize').get('cli.autoCheckUpdates', true);
-}
 
 export interface UpdateCheckSummary {
 	latestVersion?: string;

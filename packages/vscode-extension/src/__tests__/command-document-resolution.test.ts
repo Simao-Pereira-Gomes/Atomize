@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { type CommandDocument, type CommandUri, resolveCommandDocument } from '../command-document-resolution.js';
+import { type CommandDocument, type CommandUri, resolveCommandDocument } from '../authoring/command-document-resolution.js';
 
 function uri(value: string): CommandUri {
 	return { toString: () => value };
