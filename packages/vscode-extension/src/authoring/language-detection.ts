@@ -56,6 +56,8 @@ export function detectAtomizeLanguage(lines: string[]): AtomizeLanguageId | null
 	let hasVersion = false;
 	let hasRootTasks = false;
 	let hasRootFilter = false;
+	let hasRootExtends = false;
+	let hasRootMixins = false;
 	let hasNestedId = false;
 
 	for (const raw of lines) {
@@ -63,11 +65,14 @@ export function detectAtomizeLanguage(lines: string[]): AtomizeLanguageId | null
 		if (/^version\s*:/.test(line)) hasVersion = true;
 		if (/^tasks\s*:/.test(line)) hasRootTasks = true;
 		if (/^filter\s*:/.test(line)) hasRootFilter = true;
+		if (/^extends\s*:/.test(line)) hasRootExtends = true;
+		if (/^mixins\s*:/.test(line)) hasRootMixins = true;
 		if (/^\s+(?:-\s+)?id\s*:/.test(line)) hasNestedId = true;
 
 		// Template: must have version + tasks + filter (filter is Atomize-specific).
 		// Requiring filter avoids false positives on Taskfile.yml and similar formats.
 		if (hasVersion && hasRootTasks && hasRootFilter) return LANGUAGE_ID;
+		if ((hasRootExtends || hasRootMixins) && (hasRootFilter || hasRootTasks || hasVersion)) return LANGUAGE_ID;
 	}
 
 	// Mixin: tasks at root + nested id, no version key.

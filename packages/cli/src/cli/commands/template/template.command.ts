@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { templateCreateCommand } from "./template-create.command";
 import { templateInstallCommand } from "./template-install.command";
 import { templateListCommand } from "./template-list.command";
+import { templateMigrateCommand } from "./template-migrate.command";
 import { templateRemoveCommand } from "./template-remove.command";
 import { templateResolveCommand } from "./template-resolve.command";
 
@@ -11,5 +12,6 @@ export const templateCommand = new Command("template")
 	.addCommand(templateCreateCommand)
 	.addCommand(templateInstallCommand)
 	.addCommand(templateListCommand)
+	.addCommand(templateMigrateCommand)
 	.addCommand(templateRemoveCommand)
 	.addCommand(templateResolveCommand);

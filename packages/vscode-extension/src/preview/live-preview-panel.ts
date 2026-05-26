@@ -1,65 +1,17 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildAuthListArgs, buildLivePreviewArgs, CLI_EXIT_CODES } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
+import { buildLivePreviewArgs, CLI_EXIT_CODES } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
+import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
+import { pickProfile } from '../profiles/profile-picker.js';
 import type { AtomizationReport } from './live-preview-html.js';
 import { renderLivePreviewError, renderLivePreviewResults } from './live-preview-html.js';
-import { manageProfiles } from './profile-management.js';
-import { type AdoProfileJson, parseAdoProfilesJson, sortAdoProfiles } from './profile-management-model.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface RerunMessage { type: 'rerun'; }
 interface OpenTemplateMessage { type: 'openTemplate'; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
 type WebviewMessage = SwitchModeMessage | RerunMessage | OpenTemplateMessage | ManageProfilesMessage;
-
-function fetchAdoProfiles(cliPath: string): Promise<AdoProfileJson[] | null> {
-	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildAuthListArgs(), { shell: false, env: extendedEnv() });
-		let stdout = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.on('close', () => { resolve(parseAdoProfilesJson(stdout) ?? null); });
-		proc.on('error', () => resolve(null));
-	});
-}
-
-async function pickProfile(cliPath: string): Promise<string | null> {
-	let adoProfiles = await fetchAdoProfiles(cliPath);
-	if (adoProfiles === null) {
-		void vscode.window.showErrorMessage('Could not list Azure DevOps profiles.');
-		return null;
-	}
-
-	while (true) {
-		if (adoProfiles.length === 0) {
-			type ZeroItem = vscode.QuickPickItem & { action: 'add' | 'cancel' };
-			const picked = await vscode.window.showQuickPick<ZeroItem>(
-				[{ label: 'Add profile...', action: 'add' }],
-				{ title: 'Atomize: Live Preview', placeHolder: 'No Azure DevOps profiles configured — required for Live Preview' },
-			);
-			if (!picked) return null;
-			await manageProfiles(cliPath, async () => true);
-			adoProfiles = await fetchAdoProfiles(cliPath);
-			if (adoProfiles === null) {
-				void vscode.window.showErrorMessage('Could not list Azure DevOps profiles.');
-				return null;
-			}
-		} else {
-			type ProfileItem = vscode.QuickPickItem & { profileName: string };
-			const picked = await vscode.window.showQuickPick<ProfileItem>(
-				sortAdoProfiles(adoProfiles).map(p => ({
-					label: p.name,
-					description: p.isDefault ? 'default' : '',
-					detail: `${p.organizationUrl} · ${p.project}`,
-					profileName: p.name,
-				})),
-				{ title: 'Atomize: Live Preview', placeHolder: 'Select a connection profile' },
-			);
-			if (!picked) return null;
-			return picked.profileName;
-		}
-	}
-}
 
 async function pickStoryId(): Promise<string | null> {
 	const value = await vscode.window.showInputBox({
@@ -119,11 +71,11 @@ export class LivePreviewPanel {
 	}
 
 	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
-		const cfg = vscode.workspace.getConfiguration('atomize').get<string>('previewLayout', 'default');
-		const mode: 'default' | 'compact' = cfg === 'compact' ? 'compact' : 'default';
+		const mode = getPreviewLayout(fileUri);
+		const defaultProfile = getDefaultProfile(fileUri);
 
-		const profile = await pickProfile(cliPath);
-		if (profile === null) return;
+		const profile = await pickProfile(cliPath, { title: 'Atomize: Live Preview', allowOffline: false, defaultProfile });
+		if (profile == null) return;
 
 		const storyId = await pickStoryId();
 		if (storyId === null) return;

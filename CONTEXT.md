@@ -26,8 +26,12 @@ _Avoid_: template catalog when referring to the whole library; catalog is only t
 **Catalog**:
 The named inventory of templates and mixins available from built-in, user, and project scopes.
 
+**Workspace Root**:
+The directory Atomize treats as the boundary for project-scoped state. A Workspace Root may be marked explicitly by an `.atomize` directory or inferred from the surrounding repository when no explicit Atomize marker exists.
+_Avoid_: current working directory when referring to project scope.
+
 **Catalog Override**:
-A name-collision between two catalog items of the same kind and stem name in different scopes. The higher-priority scope (project > user > built-in) wins; the losing item is the overridden entry. Shown as `⚠ overrides:` in `atomize template list`.
+A name-collision between two catalog items of the same kind and stem name. The higher-priority source wins; the losing item is the overridden entry. Shown as `⚠ overrides:` in `atomize template list`.
 
 **Template Lineage**:
 A declared provenance relationship between a template or mixin and the catalog item it was derived from, recorded in the `origin` field (`template:<name>` or `mixin:<name>`). Lineage is informational only — it does not affect how refs are resolved and does not shadow the origin item. Shown as `↖ based on:` in `atomize template list`.
@@ -78,8 +82,8 @@ Template validation that connects to Azure DevOps via a named Connection Profile
 _Avoid_: "connected validation" or "ADO validation" when referring to this mode.
 
 **Validation Profile Selection**:
-The explicit user choice that precedes every VS Code validation run: a named Azure DevOps Connection Profile, Offline Validation, or — when no profiles are configured — a path to add one via the Profile Management Surface.
-_Avoid_: "Default Validation Profile" for VS Code validation; the validation mode is never chosen silently by the system.
+The explicit user choice that precedes every VS Code validation run: a named Azure DevOps Connection Profile, Offline Validation, or — when no profiles are configured — a path to add one via the Profile Management Surface. The Workspace Default Profile may pre-focus a Connection Profile in the picker, but the user always confirms before the run begins.
+_Avoid_: "Default Validation Profile" for VS Code validation; the picker is always shown and requires explicit confirmation.
 
 **Validation Diagnostics**:
 Line-level editor feedback for an Atomize YAML File, surfaced through VS Code diagnostics such as squiggles and the Problems panel.
@@ -119,10 +123,26 @@ _Avoid_: "merged template" or "expanded template".
 
 **Catalog Browser**:
 A VS Code surface for discovering Templates and Mixins from the Template Library without leaving the editor.
+It lets users choose catalog refs such as `template:<name>` and `mixin:<name>` while authoring an Atomize YAML File.
+
+**Field Browser**:
+A VS Code surface for looking up Azure DevOps work item fields (reference names, types, allowed values) for a selected Connection Profile.
+_Avoid_: conflating with the Catalog Browser, which surfaces Template Library items rather than platform data.
+
+**Query Browser**:
+A VS Code surface for looking up saved Azure DevOps query paths for a selected Connection Profile.
+_Avoid_: conflating with the Catalog Browser, which surfaces Template Library items rather than platform data.
 
 **Workspace Default Profile**:
-A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Live Preview and Generate pickers.
+A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Validate, Live Preview, and Generate pickers.
 _Avoid_: "default profile" without qualification — the CLI has a global platform default that is unrelated.
+
+**Validation Code**:
+A stable string identifier on a fixable `ValidationWarning` that the Validation Code Action provider maps to a deterministic editor fix.
+_Avoid_: conflating with `ValidationError.code`, which identifies error types rather than available fixes.
 
 **Validation Code Action**:
 An editor action that applies a deterministic fix for a fixable Validation Diagnostic. Requires the CLI to emit a structured validation code alongside the suggestion message.
+
+**Editor Handoff**:
+An opt-in CLI action that opens a saved Atomize YAML File in the user's editor after successful creation or installation, while the CLI remains responsible for template creation, installation, validation, persistence, and catalog lifecycle.

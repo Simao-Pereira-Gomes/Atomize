@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import type { AtomizationReport } from '../live-preview-html.js';
-import { renderLivePreviewError, renderLivePreviewResults } from '../live-preview-html.js';
+import type { AtomizationReport } from '../preview/live-preview-html.js';
+import { renderLivePreviewError, renderLivePreviewResults } from '../preview/live-preview-html.js';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 

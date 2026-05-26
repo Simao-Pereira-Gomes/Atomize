@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildInspectArgs, buildPreviewArgs } from './cli-provider.js';
-import { extendedEnv } from './env-utils.js';
+import { buildInspectArgs, buildPreviewArgs } from '../cli/cli-provider.js';
+import { extendedEnv } from '../cli/env-utils.js';
+import { getPreviewLayout } from '../config/atomize-configuration.js';
 import {
 	type InspectField,
 	type InspectResult,
@@ -9,7 +10,7 @@ import {
 	renderPreviewForm,
 	renderPreviewResults,
 	type StoredValues,
-} from './preview-html.js';
+} from './mock-preview-html.js';
 
 function spawnInspect(cliPath: string, filePath: string): Promise<InspectField[]> {
 	return new Promise((resolve, reject) => {
@@ -99,8 +100,7 @@ export class PreviewPanel {
 	}
 
 	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
-		const cfg = vscode.workspace.getConfiguration('atomize').get<string>('previewLayout', 'default');
-		const mode: 'default' | 'compact' = cfg === 'compact' ? 'compact' : 'default';
+		const mode = getPreviewLayout(fileUri);
 
 		let fields: InspectField[];
 		try {

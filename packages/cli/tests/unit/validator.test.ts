@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { TemplateLoader } from "@templates/loader";
-import { TemplateValidator } from "@templates/validator";
+import { FixableWarningCode, TemplateValidator } from "@templates/validator";
 import { TemplateValidationError } from "@utils/errors";
 
 describe("TemplateValidator", () => {
@@ -868,6 +868,82 @@ describe("TemplateValidator", () => {
 
 			expect(error?.suggestion).toBeDefined();
 			expect(error?.suggestion).toContain("Code Review");
+		});
+	});
+
+	describe("fixable warning codes", () => {
+		test("MISSING_TASK_ID on task with dependsOn but no id", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ id: "t1", title: "Task 1", estimationPercent: 50 },
+					{ title: "Task 2", estimationPercent: 50, dependsOn: ["t1"] },
+				],
+			};
+
+			const result = validator.validate(template);
+
+			const warning = result.warnings.find((w) => w.path === "tasks[1]");
+			expect(warning).toBeDefined();
+			expect(warning?.code).toBe(FixableWarningCode.MISSING_TASK_ID);
+		});
+
+		test("MISSING_TASK_ID on mixin task referenced by others but no id", () => {
+			// Mixins have no INVALID_DEPENDENCY schema check, so a title-based
+			// dependsOn reference reaches validateTaskDependencies.
+			const mixin = {
+				name: "Test Mixin",
+				tasks: [
+					{ title: "Base Task", estimationPercent: 50 },
+					{ title: "Dependent Task", estimationPercent: 50, dependsOn: ["Base Task"] },
+				],
+			};
+
+			const result = validator.validate(mixin);
+
+			const warning = result.warnings.find((w) => w.path === "tasks[0]");
+			expect(warning).toBeDefined();
+			expect(warning?.code).toBe(FixableWarningCode.MISSING_TASK_ID);
+		});
+
+		test("SAVED_QUERY_WITH_STRUCTURED_FILTER on savedQuery with structured fields", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {
+					savedQuery: { path: "My Queries/Active Stories" },
+					workItemTypes: ["User Story"],
+				},
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			const warning = result.warnings.find((w) => w.path === "filter.savedQuery");
+			expect(warning).toBeDefined();
+			expect(warning?.code).toBe(FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER);
+		});
+
+		test("non-fixable warnings have no code", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ title: "Task 1", estimationPercent: 60 },
+					{ title: "Task 2", estimationPercent: 60 },
+				],
+			};
+
+			const result = validator.validate(template);
+
+			const estimationWarning = result.warnings.find((w) =>
+				w.message.includes("120%"),
+			);
+			expect(estimationWarning).toBeDefined();
+			expect(estimationWarning?.code).toBeUndefined();
 		});
 	});
 

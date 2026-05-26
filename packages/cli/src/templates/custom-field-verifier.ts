@@ -1,6 +1,7 @@
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import type { TaskTemplate } from "./schema";
+import { FixableWarningCode } from "./validator";
 import type { ValidationError, ValidationWarning } from "./validator";
 
 export interface CustomFieldVerificationSummary {
@@ -75,6 +76,8 @@ export async function verifyTemplateCustomFields(
         warnings.push({
           path,
           message: `Field "${refName}" is a single-line field but the value contains newlines. ADO may strip or reject them.`,
+          code: FixableWarningCode.SINGLE_LINE_FIELD_WITH_NEWLINES,
+          suggestion: `Remove newlines from the value of "${refName}".`,
         });
       }
     }

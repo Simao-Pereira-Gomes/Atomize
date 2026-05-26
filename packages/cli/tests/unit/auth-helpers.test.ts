@@ -26,6 +26,7 @@ import {
 } from "@/cli/commands/auth/helpers/auth-add.helper";
 import { deleteProfile } from "@/cli/commands/auth/helpers/auth-remove.helper";
 import { rotateToken, validateNewPat } from "@/cli/commands/auth/helpers/auth-rotate.helper";
+import { readPatFromStdin } from "@/cli/commands/auth/helpers/auth-stdin";
 import { testAIProviderConnection, testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
 import type { IPlatformAdapter } from "@/platforms";
 
@@ -121,6 +122,28 @@ describe("validateOrganizationUrl", () => {
     expect(validateOrganizationUrl("not-a-url")).toBe(
       "Organization URL must be a valid URL",
     );
+  });
+});
+
+describe("readPatFromStdin", () => {
+  test("reads piped PATs from stdin file descriptor", () => {
+    const calls: Array<[number, BufferEncoding]> = [];
+
+    const pat = readPatFromStdin((fd, encoding) => {
+      calls.push([fd, encoding]);
+      return "  new-pat-token\r\n";
+    });
+
+    expect(pat).toBe("new-pat-token");
+    expect(calls).toEqual([[0, "utf-8"]]);
+  });
+
+  test("returns undefined when stdin cannot be read", () => {
+    const pat = readPatFromStdin(() => {
+      throw new Error("stdin unavailable");
+    });
+
+    expect(pat).toBeUndefined();
   });
 });
 

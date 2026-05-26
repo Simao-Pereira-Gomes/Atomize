@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import type {
   TemplateCatalogItem,
   TemplateCatalogKind,
@@ -57,6 +56,7 @@ export interface InstallTemplateInput {
   source: string;
   scope?: Extract<TemplateCatalogScope, "user" | "project">;
   kind?: TemplateCatalogKind;
+  overwrite?: boolean;
   fetchContent?: (url: string) => Promise<string>;
   onFetch?: (url: string) => void;
   onRawUrl?: (url: string) => void;
@@ -146,6 +146,10 @@ export class TemplateLibrary {
     return await this.catalog.listWithOverrides(kind);
   }
 
+  async getCatalogAll(): Promise<TemplateLibraryCatalog> {
+    return await this.catalog.listAllWithOverrides();
+  }
+
   async findCatalogItem(
     kind: TemplateCatalogKind,
     name: string,
@@ -169,7 +173,7 @@ export class TemplateLibrary {
 
   async installTemplate(input: InstallTemplateInput): Promise<TemplateCatalogItem> {
     const preview = await this.previewInstall(input);
-    return await preview.source.install();
+    return await preview.source.install({ overwrite: input.overwrite === true });
   }
 
   async previewInstall(input: InstallTemplateInput): Promise<TemplateInstallPreview> {
@@ -194,7 +198,7 @@ export class TemplateLibrary {
     return {
       source: resolved,
       targetPath,
-      exists: existsSync(targetPath),
+      exists: await this.catalog.destinationExists(resolved.kind, input.scope ?? "user", resolved.name),
     };
   }
 
@@ -211,5 +215,9 @@ export class TemplateLibrary {
 
   getUserTemplatePath(kind: TemplateCatalogKind, name: string): string {
     return this.catalog.getUserTemplatePath(kind, name);
+  }
+
+  async userTemplateExists(kind: TemplateCatalogKind, name: string): Promise<boolean> {
+    return await this.catalog.destinationExists(kind, "user", name);
   }
 }

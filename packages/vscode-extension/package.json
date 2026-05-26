@@ -42,6 +42,12 @@
 					"default": true,
 					"description": "Automatically check npm for stable Atomize CLI updates when using the default CLI executable."
 				},
+				"atomize.defaultProfile": {
+					"type": "string",
+					"default": "",
+					"scope": "resource",
+					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker opens with no pre-selection. Safe to commit in .vscode/settings.json — stores a name, not a credential."
+				},
 				"atomize.previewLayout": {
 					"type": "string",
 					"enum": ["default", "compact"],
@@ -63,32 +69,52 @@
 		"commands": [
 			{
 				"command": "atomize.validate",
-				"title": "Atomize: Validate",
+				"title": "Validate",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.preview",
-				"title": "Atomize: Preview (Mock)",
+				"title": "Preview (Mock)",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.livePreview",
-				"title": "Atomize: Preview (Live)",
+				"title": "Preview (Live)",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.generate",
-				"title": "Atomize: Generate",
+				"title": "Generate",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.manageProfiles",
-				"title": "Atomize: Manage Profiles",
+				"title": "Manage Profiles",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.openSettings",
 				"title": "Open Settings",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.browseFields",
+				"title": "Browse Fields",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.browseQueries",
+				"title": "Browse Queries",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.showResolvedTemplate",
+				"title": "Show Effective Template",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.browseCatalog",
+				"title": "Browse Catalog",
 				"category": "Atomize"
 			}
 		],
@@ -110,10 +136,13 @@
 		"prebuild": "bun run --cwd ../cli generate-schema",
 		"build": "bun esbuild.mjs",
 		"package": "vsce package --no-dependencies",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"lint": "bunx biome check --max-diagnostics 100",
+		"lint:fix": "bunx biome check --fix --max-diagnostics 100"
 	},
 	"dependencies": {
-		"semver": "^7.7.4"
+		"semver": "^7.7.4",
+		"yaml": "^2.8.3"
 	},
 	"devDependencies": {
 		"@tailwindcss/cli": "^4.3.0",
@@ -121,7 +150,7 @@
 		"@types/semver": "^7.7.1",
 		"@types/vscode": "^1.85.0",
 		"@vscode/vsce": "^2.24.0",
-		"esbuild": "^0.20.0",
+		"esbuild": "^0.25.0",
 		"tailwindcss": "^4.3.0",
 		"typescript": "^6.0.3"
 	}

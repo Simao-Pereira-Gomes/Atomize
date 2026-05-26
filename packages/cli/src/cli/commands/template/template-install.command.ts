@@ -9,6 +9,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
+import { handOffToEditor } from "@/cli/utilities/editor-handoff";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
@@ -24,16 +25,29 @@ type InstallOptions = {
   type?: TemplateCatalogKind;
   overwrite?: boolean;
   scope?: TemplateInstallScope;
+  open?: boolean;
+  quiet?: boolean;
 };
 
-export const templateInstallCommand = new Command("install")
+type TemplateInstallCommandDependencies = {
+  handOffToEditor: typeof handOffToEditor;
+};
+
+export function makeTemplateInstallCommand(
+  dependencies: TemplateInstallCommandDependencies = { handOffToEditor },
+): Command {
+  return new Command("install")
   .description("Install a template or mixin from a local file or HTTPS URL")
   .argument("<source>", "Path to a YAML template file or an HTTPS URL")
   .option("--type <type>", "Template type: template or mixin (auto-detected if omitted)")
   .option("--overwrite", "Overwrite if a template with the same name already exists", false)
   .option("--scope <scope>", 'Installation scope: user (displayed as "personal") or project (displayed as "your project") [default: user]')
+  .option("--open", "Open the installed Atomize YAML file in a supported editor", false)
+  .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (source: string, options: InstallOptions) => {
-    const output = createCommandOutput(resolveCommandOutputPolicy({}));
+    const output = createCommandOutput(
+      resolveCommandOutputPolicy({ quiet: options.quiet, verbose: false }),
+    );
 
     try {
       const library = new TemplateLibrary();
@@ -53,7 +67,8 @@ export const templateInstallCommand = new Command("install")
         output.print(chalk.gray(`  Detected type: ${resolvedSource.kind}\n`));
       }
 
-      if (preview.exists && !options.overwrite) {
+      let overwrite = options.overwrite === true;
+      if (preview.exists && !overwrite) {
         if (!isInteractiveTerminal()) {
           output.cancel(`${resolvedSource.kind} "${resolvedSource.name}" already exists. Re-run with --overwrite to replace it.`);
           throw new ExitError(ExitCode.Failure);
@@ -68,14 +83,21 @@ export const templateInstallCommand = new Command("install")
           output.outro("Cancelled.");
           process.exit(ExitCode.Success);
         }
+        overwrite = true;
       }
 
-      const item = await resolvedSource.install();
+      const item = await resolvedSource.install({ overwrite });
       output.print(chalk.green(`Installed ${resolvedSource.kind}: ${sanitizeTty(item.name)}`));
       output.print(chalk.gray(`  ref:   ${sanitizeTty(item.ref)}`));
       output.print(chalk.gray(`  scope: ${formatScope(item.scope)}`));
       output.print(chalk.gray(`  path:  ${sanitizeTty(item.path)}`));
       if (resolvedSource.fromLabel) output.print(chalk.gray(`  from:  ${sanitizeTty(resolvedSource.fromLabel)}`));
+      await dependencies.handOffToEditor({
+        path: item.path,
+        requestedOpen: options.open === true,
+        interactive: isInteractiveTerminal(),
+        output,
+      });
       output.outro("Installed successfully");
     } catch (error) {
       if (error instanceof CancellationError) {
@@ -86,3 +108,6 @@ export const templateInstallCommand = new Command("install")
       process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
     }
   });
+}
+
+export const templateInstallCommand = makeTemplateInstallCommand();

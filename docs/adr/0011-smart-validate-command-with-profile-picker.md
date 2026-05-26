@@ -1,7 +1,7 @@
 # ADR-0011: Explicit VS Code validation profile picker
 
 ## Status
-Accepted
+Superseded by [ADR-0022](0022-workspace-default-profile.md)
 
 ## Context
 

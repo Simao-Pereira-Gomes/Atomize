@@ -113,19 +113,19 @@ jobs:
         working-directory: packages/cli
 
       - name: Validate backend-api template
-        run: bun run validate templates/templates/backend-api.yaml
+        run: bun run validate catalog/templates/backend-api.atomize.yaml
         working-directory: packages/cli
 
       - name: Validate bug template
-        run: bun run validate templates/templates/bug.yaml
+        run: bun run validate catalog/templates/bug.atomize.yaml
         working-directory: packages/cli
 
       - name: Validate custom template
-        run: bun run validate templates/templates/custom.yaml
+        run: bun run validate catalog/templates/custom.atomize.yaml
         working-directory: packages/cli
 
       - name: Validate feature template
-        run: bun run validate templates/templates/feature.yaml
+        run: bun run validate catalog/templates/feature.atomize.yaml
         working-directory: packages/cli
 
   check-schema:

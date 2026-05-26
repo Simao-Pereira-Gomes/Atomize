@@ -22,7 +22,7 @@ export interface TemplateInstallSourceOptions {
 export interface ResolvedTemplateInstallSource {
   kind: TemplateCatalogKind;
   name: string;
-  install: () => Promise<TemplateCatalogItem>;
+  install: (options?: { overwrite?: boolean }) => Promise<TemplateCatalogItem>;
   fromLabel?: string;
 }
 
@@ -46,7 +46,7 @@ export async function resolveTemplateInstallSource(
   return {
     kind,
     name: basename(resolve(source), ext),
-    install: () => catalog.installFromFile(source, kind, options.scope),
+    install: (installOptions = {}) => catalog.installFromFile(source, kind, options.scope, installOptions),
   };
 }
 
@@ -85,7 +85,7 @@ async function resolveRemoteInstallSource(
   return {
     kind,
     name: basename(urlFilename, urlExt),
-    install: () => catalog.installFromContent(content, urlFilename, kind, options.scope),
+    install: (installOptions = {}) => catalog.installFromContent(content, urlFilename, kind, options.scope, installOptions),
     fromLabel: fetchUrl,
   };
 }

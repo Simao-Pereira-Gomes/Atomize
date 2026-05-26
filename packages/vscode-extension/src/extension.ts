@@ -1,21 +1,29 @@
 import * as vscode from 'vscode';
-import { createCliLifecycle, getConfiguredCliPath } from './cli-lifecycle.js';
-import { meetsCliFeatureRequirements, probeCli } from './cli-provider.js';
-import { AtomizeCodeLensProvider } from './codelens-provider.js';
-import { clearRunState, runDiagnosticValidation } from './diagnostics.js';
-import { GeneratePanel } from './generate-panel.js';
+import { AtomizeCodeLensProvider } from './authoring/codelens-provider.js';
 import {
 	handleDocument,
+	isAtomizeDocument,
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
-} from './language-detection.js';
-import { LivePreviewPanel } from './live-preview-panel.js';
+} from './authoring/language-detection.js';
+import { ValidationCodeActionProvider } from './authoring/validation-code-action-provider.js';
+import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './authoring/yaml-schema-contributor.js';
+import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './catalog/browse-catalog-command.js';
+import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './catalog/show-resolved-template-command.js';
+import { createCliLifecycle, type UpdateCheckSummary } from './cli/cli-lifecycle.js';
+import { meetsCliFeatureRequirements, probeCli } from './cli/cli-provider.js';
+import { deriveStatusBarState } from './cli/cli-status-bar.js';
+import { getConfiguredCliPath } from './config/atomize-configuration.js';
+import { GeneratePanel } from './generate/generate-panel.js';
 import { AtomizePanel } from './panel.js';
-import { PreviewPanel } from './preview-panel.js';
-import { manageProfiles } from './profile-management.js';
-import { registerValidateCommand } from './validate-command.js';
-import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './yaml-schema-contributor.js';
+import { registerBrowseFieldsCommand } from './platform-metadata/browse-fields-command.js';
+import { registerBrowseQueriesCommand } from './platform-metadata/browse-queries-command.js';
+import { LivePreviewPanel } from './preview/live-preview-panel.js';
+import { PreviewPanel } from './preview/mock-preview-panel.js';
+import { manageProfiles } from './profiles/profile-management.js';
+import { clearRunState, runDiagnosticValidation } from './validation/diagnostics.js';
+import { registerValidateCommand } from './validation/validate-command.js';
 
 let cliWarningShown = false;
 
@@ -33,6 +41,36 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		await showCliUnavailableMessage(initialCliPath, 'Atomize CLI not found. Install it to enable validation, preview, and testing.');
 	} else if (initialProbe.available && !meetsCliFeatureRequirements(initialProbe.version)) {
 		await showCliTooOldMessage(initialProbe.version ?? 'unknown');
+	}
+
+	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	let statusBarUpdateResult: UpdateCheckSummary | undefined;
+
+	function refreshStatusBar(): void {
+		const state = deriveStatusBarState(initialProbe, statusBarUpdateResult);
+		statusBarItem.text = state.text;
+		statusBarItem.tooltip = state.tooltip;
+		statusBarItem.command = state.command;
+	}
+
+	function syncStatusBarVisibility(editor: vscode.TextEditor | undefined): void {
+		if (editor && isAtomizeDocument(editor.document)) {
+			statusBarItem.show();
+		} else {
+			statusBarItem.hide();
+		}
+	}
+
+	refreshStatusBar();
+	syncStatusBarVisibility(vscode.window.activeTextEditor);
+
+	if (initialProbe.available) {
+		void checkForCliUpdate(initialCliPath, initialProbe.version).then(result => {
+			if (result) {
+				statusBarUpdateResult = result;
+				refreshStatusBar();
+			}
+		});
 	}
 
 	const diagnostics = vscode.languages.createDiagnosticCollection('atomize');
@@ -60,16 +98,17 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		);
 	}
 
-	async function checkDirtyDocument(doc: vscode.TextDocument): Promise<boolean> {
+	async function checkDirtyDocument(doc: vscode.TextDocument, verb: string): Promise<boolean> {
 		if (!doc.isDirty) return true;
+		const Verb = verb.charAt(0).toUpperCase() + verb.slice(1);
 		const selection = await vscode.window.showWarningMessage(
-			'Atomize validation uses saved file content. Save this file before validating?',
-			'Save and Validate',
-			'Validate Saved Version',
+			`Atomize uses saved file content. Save this file before ${verb}ing?`,
+			`Save and ${Verb}`,
+			`${Verb} Saved Version`,
 			'Cancel',
 		);
 		if (selection === 'Cancel' || selection === undefined) return false;
-		if (selection === 'Save and Validate') {
+		if (selection === `Save and ${Verb}`) {
 			const saved = await doc.save();
 			if (!saved) return false;
 		}
@@ -139,8 +178,20 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		trackDocument(doc);
 	}
 
+	const resolvedTemplateProvider = new ResolvedTemplateProvider();
+	const catalogItemProvider = new CatalogItemProvider();
+
 	ctx.subscriptions.push(
 		diagnostics,
+		statusBarItem,
+		resolvedTemplateProvider,
+		catalogItemProvider,
+
+		vscode.window.onDidChangeActiveTextEditor(editor => syncStatusBarVisibility(editor)),
+
+		vscode.commands.registerCommand('atomize.showCliUnavailable', () =>
+			showCliUnavailableMessage(getConfiguredCliPath(), 'Atomize CLI not found. Install it to enable validation, preview, and testing.'),
+		),
 
 		vscode.workspace.onDidOpenTextDocument(doc => {
 			warnContentOnlyDetected(doc);
@@ -157,11 +208,19 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			clearRunState(doc.uri);
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			removeSchemaUri(doc.uri.toString());
+			if (doc.uri.scheme === RESOLVED_TEMPLATE_SCHEME) resolvedTemplateProvider.delete(doc.uri);
+			if (doc.uri.scheme === CATALOG_ITEM_SCHEME) catalogItemProvider.delete(doc.uri);
 		}),
 
 		vscode.languages.registerCodeLensProvider(
 			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
 			new AtomizeCodeLensProvider(),
+		),
+
+		vscode.languages.registerCodeActionsProvider(
+			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
+			new ValidationCodeActionProvider(),
+			{ providedCodeActionKinds: ValidationCodeActionProvider.providedCodeActionKinds },
 		),
 
 		registerValidateCommand({
@@ -178,7 +237,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
-			if (!await checkDirtyDocument(doc)) return;
+			if (!await checkDirtyDocument(doc, 'preview')) return;
 
 			const cliPath = getConfiguredCliPath();
 			const probe = await probeCli(cliPath);
@@ -195,7 +254,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
-			if (!await checkDirtyDocument(doc)) return;
+			if (!await checkDirtyDocument(doc, 'preview')) return;
 
 			const cliPath = getConfiguredCliPath();
 			const probe = await probeCli(cliPath);
@@ -212,7 +271,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
-			if (!await checkDirtyDocument(doc)) return;
+			if (!await checkDirtyDocument(doc, 'generate')) return;
 
 			const cliPath = getConfiguredCliPath();
 			const probe = await probeCli(cliPath);
@@ -240,6 +299,17 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		vscode.commands.registerCommand('atomize.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:sppg2001.atomize'),
 		),
+
+		registerBrowseFieldsCommand({ showCliUnavailable: showCliUnavailableMessage }),
+		registerBrowseQueriesCommand({ showCliUnavailable: showCliUnavailableMessage }),
+		registerBrowseCatalogCommand({ provider: catalogItemProvider, showCliUnavailable: showCliUnavailableMessage }),
+		vscode.workspace.registerTextDocumentContentProvider(CATALOG_ITEM_SCHEME, catalogItemProvider),
+		vscode.workspace.registerTextDocumentContentProvider(RESOLVED_TEMPLATE_SCHEME, resolvedTemplateProvider),
+		registerShowResolvedTemplateCommand({
+			provider: resolvedTemplateProvider,
+			showCliUnavailable: showCliUnavailableMessage,
+			checkDirtyDocument,
+		}),
 	);
 }
 

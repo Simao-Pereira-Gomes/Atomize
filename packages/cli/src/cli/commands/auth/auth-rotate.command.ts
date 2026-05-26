@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { confirm } from "@clack/prompts";
 import { keychainAvailable } from "@config/keychain.service";
 import { Command } from "commander";
@@ -21,18 +20,11 @@ import {
   rotateToken,
   validateNewPat,
 } from "./helpers/auth-rotate.helper";
+import { readPatFromStdin } from "./helpers/auth-stdin";
 
 interface RotateOptions {
   insecureStorage?: boolean;
   patStdin?: boolean;
-}
-
-function readPatFromStdin(): string | undefined {
-  try {
-    return readFileSync("/dev/stdin", "utf-8").trim() || undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 export function makeAuthRotateCommand(): Command {
