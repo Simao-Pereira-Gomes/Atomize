@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
 import { getConfiguredCliPath } from './cli-lifecycle.js';
 import { buildResolveArgs, probeCli } from './cli-provider.js';
+import { resolveCommandDocument } from './command-document-resolution.js';
 import { extendedEnv } from './env-utils.js';
 import { isAtomizeDocument } from './language-detection.js';
 
@@ -35,7 +36,7 @@ function virtualUri(sourceUri: vscode.Uri): vscode.Uri {
 	return vscode.Uri.from({
 		scheme: RESOLVED_TEMPLATE_SCHEME,
 		authority: 'resolve',
-		path: `/${relativePath} (Resolved)`,
+		path: `/${relativePath} (Effective)`,
 	});
 }
 
@@ -47,8 +48,12 @@ function runResolve(cliPath: string, filePath: string): Promise<{ yaml: string }
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 		proc.on('close', code => {
-			if (code === 0) resolve({ yaml: stdout });
-			else resolve({ error: stderr.trim() || 'Template resolution failed.' });
+			if (code === 0) {
+				resolve({ yaml: stdout });
+				return;
+			}
+
+			resolve({ error: stderr.trim() || stdout.trim() || 'Template resolution failed.' });
 		});
 		proc.on('error', () => resolve({ error: 'Could not start the Atomize CLI.' }));
 	});
@@ -62,38 +67,53 @@ export interface ShowResolvedTemplateCommandDeps {
 
 export function registerShowResolvedTemplateCommand(deps: ShowResolvedTemplateCommandDeps): vscode.Disposable {
 	return vscode.commands.registerCommand('atomize.showResolvedTemplate', async (uri?: vscode.Uri) => {
-		const doc = uri
-			? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
-			: vscode.window.activeTextEditor?.document;
-		if (!doc || !isAtomizeDocument(doc)) return;
-		if (!await deps.checkDirtyDocument(doc, 'resolve')) return;
+		try {
+			const doc = await resolveCommandDocument(
+				uri,
+				vscode.window.activeTextEditor?.document,
+				vscode.workspace.textDocuments,
+				target => vscode.workspace.openTextDocument(target as vscode.Uri),
+			);
+			if (!doc) {
+				await vscode.window.showErrorMessage('Atomize: Open an Atomize YAML file before resolving the effective template.');
+				return;
+			}
+			if (!isAtomizeDocument(doc)) {
+				await vscode.window.showErrorMessage('Atomize: The selected file is not recognized as an Atomize YAML file.');
+				return;
+			}
+			if (!await deps.checkDirtyDocument(doc, 'resolve')) return;
 
-		const cliPath = getConfiguredCliPath();
-		const probe = await probeCli(cliPath);
-		if (!probe.available) {
-			await deps.showCliUnavailable(cliPath, 'Atomize CLI not found. Install it to resolve templates.');
-			return;
+			const cliPath = getConfiguredCliPath();
+			const probe = await probeCli(cliPath);
+			if (!probe.available) {
+				await deps.showCliUnavailable(cliPath, 'Atomize CLI not found. Install it to resolve templates.');
+				return;
+			}
+
+			const result = await vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Window, title: 'Resolving effective template…' },
+				() => runResolve(cliPath, doc.uri.fsPath),
+			);
+
+			if ('error' in result) {
+				await vscode.window.showErrorMessage(`Atomize: ${result.error}`);
+				return;
+			}
+
+			const target = virtualUri(doc.uri);
+			deps.provider.set(target, result.yaml);
+
+			const resolved = await vscode.workspace.openTextDocument(target);
+			await vscode.languages.setTextDocumentLanguage(resolved, 'yaml');
+			await vscode.window.showTextDocument(resolved, {
+				viewColumn: vscode.ViewColumn.Beside,
+				preserveFocus: true,
+				preview: false,
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			await vscode.window.showErrorMessage(`Atomize: Could not resolve the effective template. ${message}`);
 		}
-
-		const result = await vscode.window.withProgress(
-			{ location: vscode.ProgressLocation.Window, title: 'Resolving template…' },
-			() => runResolve(cliPath, doc.uri.fsPath),
-		);
-
-		if ('error' in result) {
-			void vscode.window.showErrorMessage(`Atomize: ${result.error}`);
-			return;
-		}
-
-		const target = virtualUri(doc.uri);
-		deps.provider.set(target, result.yaml);
-
-		const resolved = await vscode.workspace.openTextDocument(target);
-		await vscode.languages.setTextDocumentLanguage(resolved, 'yaml');
-		await vscode.window.showTextDocument(resolved, {
-			viewColumn: vscode.ViewColumn.Beside,
-			preserveFocus: true,
-			preview: false,
-		});
 	});
 }

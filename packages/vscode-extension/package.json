@@ -109,7 +109,7 @@
 			},
 			{
 				"command": "atomize.showResolvedTemplate",
-				"title": "Show Resolved Template",
+				"title": "Show Effective Template",
 				"category": "Atomize"
 			},
 			{

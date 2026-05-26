@@ -50,6 +50,16 @@ describe('detectAtomizeLanguage', () => {
 			const lines = ['version: "1.0"', 'filter:', 'tasks:', ...Array(100).fill('  - id: "x"')];
 			expect(detectAtomizeLanguage(lines)).toBe('atomize-yaml');
 		});
+
+		it('returns atomize-yaml for composed templates with extends and filter', () => {
+			const lines = ['extends: "./base-template.yaml"', 'name: "Child"', 'filter:', '  workItemTypes: ["User Story"]'];
+			expect(detectAtomizeLanguage(lines)).toBe('atomize-yaml');
+		});
+
+		it('returns atomize-yaml for composed templates with mixins and tasks', () => {
+			const lines = ['mixins:', '  - "./security.yaml"', 'tasks:', '  - title: "Review"'];
+			expect(detectAtomizeLanguage(lines)).toBe('atomize-yaml');
+		});
 	});
 
 	describe('Mixin detection', () => {
@@ -81,6 +91,11 @@ describe('detectAtomizeLanguage', () => {
 
 		it('returns null for YAML with version but no tasks', () => {
 			const lines = ['version: "1.0"', 'config:', '  key: value'];
+			expect(detectAtomizeLanguage(lines)).toBeNull();
+		});
+
+		it('returns null for YAML with extends but no other Atomize structure', () => {
+			const lines = ['extends: base'];
 			expect(detectAtomizeLanguage(lines)).toBeNull();
 		});
 
