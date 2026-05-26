@@ -13,17 +13,19 @@ The key distinction missed in ADR-0011 is between **silent selection** (the syst
 
 ## Decision
 
-Introduce an `atomize.defaultProfile` workspace-scoped setting (`"scope": "window"`) that stores a Connection Profile name. When set, the matching item is pre-focused in the Validate, Generate, and Live Preview profile pickers. The user always sees the picker and always confirms.
+Introduce an `atomize.defaultProfile` setting with resource-level scoping (`"scope": "resource"`) that stores a Connection Profile name. This allows the setting to be configured globally, at the workspace level, or overridden for specific folders in multi-root workspaces.
+
+When set, the matching item is pre-focused in the Validate, Generate, and Live Preview profile pickers. The user always sees the picker and always confirms.
 
 A shared `profile-picker.ts` module owns all three pickers and `fetchAdoProfiles`. It exposes a single `pickProfile(cliPath, opts)` function parameterised by title, whether "Offline only" is available, and `defaultProfile`. Returns `string | undefined | null` (profile name, offline, or cancelled).
 
 If the configured name does not match any known profile, the picker opens with no pre-selection and no error.
 
-Validation remains explicitly user-driven: the picker is always shown, the user always confirms, and "Offline only" is always available. The only change from ADR-0011 is that the matching profile item may be pre-focused by the workspace setting.
+Validation remains explicitly user-driven: the picker is always shown, the user always confirms, and "Offline only" is always available. The only change from ADR-0011 is that the matching profile item may be pre-focused by the setting.
 
 ## Consequences
 
-- `atomize.defaultProfile` is workspace-scoped; committing it in `.vscode/settings.json` is safe (stores a name, not a credential).
+- `atomize.defaultProfile` is resource-scoped; it can be overridden at the folder level in multi-root workspaces. Committing it in `.vscode/settings.json` is safe (stores a name, not a credential).
 - Settings Sync does not carry profile names across machines (intentional — profile names are machine-local).
 - A stale or mismatched `atomize.defaultProfile` degrades gracefully to no pre-selection.
 - `fetchAdoProfiles` is no longer duplicated across three files.

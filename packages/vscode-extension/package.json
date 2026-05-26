@@ -45,7 +45,7 @@
 				"atomize.defaultProfile": {
 					"type": "string",
 					"default": "",
-					"scope": "window",
+					"scope": "resource",
 					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker opens with no pre-selection. Safe to commit in .vscode/settings.json — stores a name, not a credential."
 				},
 				"atomize.previewLayout": {
