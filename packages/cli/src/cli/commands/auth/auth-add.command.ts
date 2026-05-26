@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { confirm } from "@clack/prompts";
 import type { Config } from "@config/config";
 import { keychainAvailable } from "@config/keychain.service";
@@ -24,6 +23,7 @@ import {
   validateProfileName,
 } from "./helpers/auth-add.helper";
 import { saveAuthProfileWorkflow } from "./helpers/auth-profile-workflow";
+import { readPatFromStdin } from "./helpers/auth-stdin";
 
 interface AddOptions {
   orgUrl?: string;
@@ -36,14 +36,6 @@ interface AddOptions {
 
 function writeCliError(message: string): void {
   writeManagedOutput("stderr", `Error: ${message}`);
-}
-
-function readPatFromStdin(): string | undefined {
-  try {
-    return readFileSync("/dev/stdin", "utf-8").trim() || undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function resolvePat(options: AddOptions, envPat: string | undefined): string | undefined {
