@@ -108,12 +108,16 @@ export const templateResolveCommand = new Command("resolve")
       }
     } catch (error) {
       if (!(error instanceof ExitError)) {
-        if (error instanceof TemplateCompositionError) {
-          output.cancel(`Composition failed: ${error.message}`);
-        } else if (error instanceof TemplateLoadError) {
-          output.cancel(`Load failed: ${error.message}`);
+        const message = error instanceof TemplateCompositionError
+          ? `Composition failed: ${error.message}`
+          : error instanceof TemplateLoadError
+            ? `Load failed: ${error.message}`
+            : getErrorMessage(error);
+
+        if (options.quiet) {
+          output.printError(message);
         } else {
-          output.cancel(getErrorMessage(error));
+          output.cancel(message);
         }
       }
       process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
