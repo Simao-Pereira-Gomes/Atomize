@@ -69,27 +69,27 @@
 		"commands": [
 			{
 				"command": "atomize.validate",
-				"title": "Atomize: Validate",
+				"title": "Validate",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.preview",
-				"title": "Atomize: Preview (Mock)",
+				"title": "Preview (Mock)",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.livePreview",
-				"title": "Atomize: Preview (Live)",
+				"title": "Preview (Live)",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.generate",
-				"title": "Atomize: Generate",
+				"title": "Generate",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.manageProfiles",
-				"title": "Atomize: Manage Profiles",
+				"title": "Manage Profiles",
 				"category": "Atomize"
 			},
 			{
@@ -99,22 +99,22 @@
 			},
 			{
 				"command": "atomize.browseFields",
-				"title": "Atomize: Browse Fields",
+				"title": "Browse Fields",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.browseQueries",
-				"title": "Atomize: Browse Queries",
+				"title": "Browse Queries",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.showResolvedTemplate",
-				"title": "Atomize: Show Resolved Template",
+				"title": "Show Resolved Template",
 				"category": "Atomize"
 			},
 			{
 				"command": "atomize.browseCatalog",
-				"title": "Atomize: Browse Catalog",
+				"title": "Browse Catalog",
 				"category": "Atomize"
 			}
 		],
