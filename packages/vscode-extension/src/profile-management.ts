@@ -263,6 +263,7 @@ export async function manageProfiles(
 
 		if (picked.action === 'add') {
 			await addProfile(cliPath);
+			profiles = undefined;
 			continue;
 		}
 		if (!picked.profile) continue;
