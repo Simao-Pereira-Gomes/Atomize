@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
 import { buildValidateArgs } from './cli-provider.js';
 import { extendedEnv } from './env-utils.js';
+import { parseValidationOutput } from './validation-output.js';
 
 export interface ValidationError {
 	path: string;
@@ -159,9 +160,9 @@ function spawnValidation(cliPath: string, filePath: string, profile?: string): P
 		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
 		proc.on('close', () => {
-			const jsonLine = stdout.trim().split('\n').reverse().find(l => l.startsWith('{'));
-			if (jsonLine) {
-				resolve(JSON.parse(jsonLine) as ValidationResult);
+			const result = parseValidationOutput(stdout);
+			if (result) {
+				resolve(result);
 			} else {
 				reject(new Error(stderr || 'Failed to parse validation output'));
 			}

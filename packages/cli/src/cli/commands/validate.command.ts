@@ -90,7 +90,7 @@ export const validateCommand = new Command("validate")
     if (commandLogLevel) logger.level = commandLogLevel;
 
     try {
-      const baseDeps = createValidateCommandDeps();
+      const baseDeps = createValidateCommandDeps({ showStatus: !isJsonOutput });
       const result = await runValidateCommandApplication({
         source,
         options,
@@ -121,7 +121,7 @@ export const validateCommand = new Command("validate")
     }
   });
 
-function createValidateCommandDeps(): ValidateCommandApplicationDeps {
+function createValidateCommandDeps(depsOptions: { showStatus: boolean }): ValidateCommandApplicationDeps {
   return {
     async loadTemplateSource(source, print) {
       return await new TemplateLibrary().loadSource(source, {
@@ -160,15 +160,15 @@ function createValidateCommandDeps(): ValidateCommandApplicationDeps {
         };
       }
 
-      const s = createManagedSpinner();
-      s.start("Connecting to ADO to validate project references...");
+      const s = depsOptions.showStatus ? createManagedSpinner() : undefined;
+      s?.start("Connecting to ADO to validate project references...");
 
       try {
         const adapter = await createAzureDevOpsAdapter(options.profile);
         const metadataReader = requireProjectMetadataReader(adapter);
         const savedQueryReader = requireSavedQueryReader(adapter);
-        s.message("Fetching ADO project metadata...");
-        s.stop("ADO connection ready");
+        s?.message("Fetching ADO project metadata...");
+        s?.stop("ADO connection ready");
         return {
           options: {
             mode: "online",
@@ -181,7 +181,7 @@ function createValidateCommandDeps(): ValidateCommandApplicationDeps {
           connectionWarnings: [],
         };
       } catch (err) {
-        s.stop("Project reference validation failed");
+        s?.stop("Project reference validation failed");
         return {
           options: {
             mode: "online",
