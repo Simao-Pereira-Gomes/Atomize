@@ -172,25 +172,27 @@ function spawnValidation(cliPath: string, filePath: string, profile?: string): P
 	});
 }
 
-function resolvePathToRange(path: string, doc: vscode.TextDocument): vscode.Range {
+export function resolvePathToRange(path: string, doc: vscode.TextDocument): vscode.Range {
 	// tasks[N] — point to the Nth task list item so each warning has a unique range.
 	const taskMatch = path.match(/^tasks\[(\d+)\]$/);
 	if (taskMatch) {
 		return resolveTaskItemRange(Number(taskMatch[1]), doc);
 	}
 
-	const segments = path.split(/[.[\]]+/).filter(Boolean);
+	const segments = Array.from(path.matchAll(/\["([^"]+)"\]|\[(\d+)\]|([^.[\]]+)/g))
+		.map(m => m[1] ?? m[2] ?? m[3] ?? '')
+		.filter(Boolean);
 
-	// Walk segments from deepest to shallowest, skipping numeric array indices.
 	for (let i = segments.length - 1; i >= 0; i--) {
 		const seg = segments[i];
 		if (seg === undefined || /^\d+$/.test(seg)) continue;
 
 		const lines = doc.getText().split('\n');
+		const keyPattern = new RegExp(`^\\s*(?:-\\s*)?${escapeRegex(seg)}\\s*:`);
 		for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
 			const line = lines[lineIdx];
 			if (line === undefined) continue;
-			if (new RegExp(`\\b${escapeRegex(seg)}\\s*:`).test(line)) {
+			if (keyPattern.test(line)) {
 				const col = line.indexOf(seg);
 				return new vscode.Range(lineIdx, col >= 0 ? col : 0, lineIdx, line.length);
 			}

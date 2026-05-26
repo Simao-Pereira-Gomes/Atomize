@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
 	fixMissingTaskId,
 	fixSavedQueryWithStructuredFilter,
+	fixSingleLineFieldWithNewlines,
 	type PlainRange,
 } from '../validation-code-actions.js';
 
@@ -174,6 +175,7 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 		expect(fixSavedQueryWithStructuredFilter(doc, DUMMY, undefined)).toBeNull();
 	});
 
+
 	it('removes all recognized conflicting fields', () => {
 		const doc = [
 			'filter:',             // line 0
@@ -198,5 +200,69 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 		// workItemTypes, states, statesExclude, tags, priority all removed
 		expect(edits).toHaveLength(5);
 		expect(edits?.every(e => e.newText === '')).toBe(true);
+	});
+});
+
+// ─── fixSingleLineFieldWithNewlines ──────────────────────────────────────────
+
+describe('fixSingleLineFieldWithNewlines', () => {
+	it('replaces a block-scalar custom field value with a stripped single-line string', () => {
+		const doc = [
+			'tasks:',                          // line 0
+			'  - title: My Task',              // line 1
+			'    customFields:',               // line 2
+			'      Custom.Field: |',           // line 3  ← diagLine
+			'        Line one',                // line 4
+			'        Line two',                // line 5
+			'  - title: Other Task',           // line 6
+		].join('\n');
+
+		const edits = fixSingleLineFieldWithNewlines(doc, range(3, 6), undefined);
+
+		expect(edits).toHaveLength(1);
+		const edit = edits?.at(0);
+		expect(edit?.startLine).toBe(3);
+		expect(edit?.newText).toBe('"Line one Line two"\n');
+		expect(edit?.endLine).toBe(6);
+		expect(edit?.endCharacter).toBe(0);
+	});
+
+	it('collapses multiple consecutive newlines to a single space each', () => {
+		const doc = [
+			'tasks:',
+			'  - title: My Task',
+			'    customFields:',
+			'      Custom.Field: |',   // line 3
+			'        Line one',
+			'',
+			'        Line two',
+		].join('\n');
+
+		const edits = fixSingleLineFieldWithNewlines(doc, range(3, 6), undefined);
+
+		expect(edits?.at(0)?.newText).toBe('"Line one  Line two"\n');
+	});
+
+	it('returns null when no field matches the diagnostic line', () => {
+		const doc = [
+			'tasks:',
+			'  - title: My Task',
+			'    customFields:',
+			'      Custom.Field: |',
+			'        Line one',
+		].join('\n');
+
+		expect(fixSingleLineFieldWithNewlines(doc, range(99), undefined)).toBeNull();
+	});
+
+	it('returns null when the matched field value has no newlines', () => {
+		const doc = [
+			'tasks:',
+			'  - title: My Task',
+			'    customFields:',
+			'      Custom.Field: single line',  // line 3
+		].join('\n');
+
+		expect(fixSingleLineFieldWithNewlines(doc, range(3, 6), undefined)).toBeNull();
 	});
 });

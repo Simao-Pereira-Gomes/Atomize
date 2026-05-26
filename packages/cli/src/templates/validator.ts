@@ -35,6 +35,8 @@ export const FixableWarningCode = {
   MISSING_TASK_ID: "MISSING_TASK_ID",
   /** Remove conflicting structured filter fields (workItemTypes, states, tags, etc.) — savedQuery controls which items are returned. */
   SAVED_QUERY_WITH_STRUCTURED_FILTER: "SAVED_QUERY_WITH_STRUCTURED_FILTER",
+  /** Strip newlines from a custom field value that maps to a single-line ADO field. */
+  SINGLE_LINE_FIELD_WITH_NEWLINES: "SINGLE_LINE_FIELD_WITH_NEWLINES",
 } as const;
 
 export type FixableWarningCode = (typeof FixableWarningCode)[keyof typeof FixableWarningCode];

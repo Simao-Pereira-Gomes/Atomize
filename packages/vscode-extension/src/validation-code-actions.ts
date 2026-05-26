@@ -87,6 +87,60 @@ const STRUCTURED_FILTER_KEYS = new Set([
 	'assignedTo', 'changedAfter', 'createdAfter', 'priority',
 ]);
 
+export function fixSingleLineFieldWithNewlines(docText: string, range: PlainRange, _data: unknown): TextEdit[] | null {
+	const lc = new LineCounter();
+	const doc = parseDocument(docText, { lineCounter: lc });
+	const root = doc.contents;
+	if (!isMap(root)) return null;
+
+	const tasksNode = root.get('tasks', true);
+	if (!isSeq(tasksNode)) return null;
+
+	const diagLine = range.start.line;
+	const lines = docText.split('\n');
+
+	for (const item of tasksNode.items) {
+		if (!isMap(item)) continue;
+
+		const customFieldsNode = item.get('customFields', true);
+		if (!isMap(customFieldsNode)) continue;
+
+		for (const pair of customFieldsNode.items) {
+			if (!isPair(pair)) continue;
+			const key = pair.key as ParsedNode;
+			if (!key.range) continue;
+
+			const keyPos = lc.linePos(key.range[0]);
+			if (keyPos.line - 1 !== diagLine) continue;
+
+			const valueNode = pair.value as ParsedNode & { value?: unknown };
+			if (!valueNode?.range) return null;
+
+			const rawValue = valueNode.value;
+			if (typeof rawValue !== 'string' || !rawValue.includes('\n')) return null;
+
+			const stripped = JSON.stringify(rawValue.replace(/\n/g, ' ').trim());
+
+			const valueStart = lc.linePos(valueNode.range[0]);
+			const valueStartLine = valueStart.line - 1;
+			const valueStartChar = valueStart.col - 1;
+
+			const keyIndent = lineIndent(lines[diagLine] ?? '');
+			const blockEnd = blockEndLine(lines, valueStartLine, keyIndent);
+
+			return [{
+				startLine: valueStartLine,
+				startCharacter: valueStartChar,
+				endLine: blockEnd,
+				endCharacter: 0,
+				newText: `${stripped}\n`,
+			}];
+		}
+	}
+
+	return null;
+}
+
 export function fixSavedQueryWithStructuredFilter(docText: string, _range: PlainRange, _data: unknown): TextEdit[] | null {
 	const lc = new LineCounter();
 	const doc = parseDocument(docText, { lineCounter: lc });

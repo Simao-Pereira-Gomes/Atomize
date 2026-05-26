@@ -3,6 +3,7 @@ import { isAtomizeToolingDocument } from './language-detection.js';
 import {
 	fixMissingTaskId,
 	fixSavedQueryWithStructuredFilter,
+	fixSingleLineFieldWithNewlines,
 	type PlainRange,
 	type TextEdit,
 } from './validation-code-actions.js';
@@ -10,6 +11,7 @@ import {
 const FIXABLE_CODE = {
 	MISSING_TASK_ID: 'MISSING_TASK_ID',
 	SAVED_QUERY_WITH_STRUCTURED_FILTER: 'SAVED_QUERY_WITH_STRUCTURED_FILTER',
+	SINGLE_LINE_FIELD_WITH_NEWLINES: 'SINGLE_LINE_FIELD_WITH_NEWLINES',
 } as const;
 
 type EditFactory = (docText: string, range: PlainRange, data: unknown) => TextEdit[] | null;
@@ -17,6 +19,7 @@ type EditFactory = (docText: string, range: PlainRange, data: unknown) => TextEd
 const FACTORIES = new Map<string, EditFactory>([
 	[FIXABLE_CODE.MISSING_TASK_ID, fixMissingTaskId],
 	[FIXABLE_CODE.SAVED_QUERY_WITH_STRUCTURED_FILTER, fixSavedQueryWithStructuredFilter],
+	[FIXABLE_CODE.SINGLE_LINE_FIELD_WITH_NEWLINES, fixSingleLineFieldWithNewlines],
 ]);
 
 function actionLabel(code: string): string {
@@ -25,6 +28,8 @@ function actionLabel(code: string): string {
 			return 'Atomize: Add id field derived from task title';
 		case FIXABLE_CODE.SAVED_QUERY_WITH_STRUCTURED_FILTER:
 			return 'Atomize: Remove conflicting structured filter fields';
+		case FIXABLE_CODE.SINGLE_LINE_FIELD_WITH_NEWLINES:
+			return 'Atomize: Strip newlines from single-line field value';
 		default:
 			return `Atomize: Fix ${code}`;
 	}
