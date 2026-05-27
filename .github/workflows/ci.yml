@@ -101,7 +101,7 @@ jobs:
         working-directory: packages/cli
 
       - name: Validate backend template
-        run: bun run validate ../../examples/backend.yaml
+        run: bun run validate ../../examples/backend.atomize.yaml
         working-directory: packages/cli
 
       - name: Validate frontend template
@@ -109,7 +109,7 @@ jobs:
         working-directory: packages/cli
 
       - name: Validate fullstack template
-        run: bun run validate ../../examples/fullstack.yaml
+        run: bun run validate ../../examples/fullstack.atomize.yaml
         working-directory: packages/cli
 
       - name: Validate backend-api template

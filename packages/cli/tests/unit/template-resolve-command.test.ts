@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
+
+const packageRoot = resolve(import.meta.dir, "../..");
 
 async function runCli(args: string[]) {
 	const proc = Bun.spawn(["bun", "run", "src/cli/index.ts", ...args], {
-		cwd: import.meta.dir.replace(/\/tests\/unit$/, ""),
+		cwd: packageRoot,
 		env: {
 			...process.env,
 			ATOMIZE_UPDATE_NOTIFIER: "false",
