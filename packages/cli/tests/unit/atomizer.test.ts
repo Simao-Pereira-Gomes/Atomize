@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { inspect } from "node:util";
 import { Atomizer } from "@core/atomizer";
 import { MockPlatformAdapter } from "@platforms/adapters/mock/mock.adapter";
+import type { WorkItem } from "@platforms/interfaces/work-item.interface";
 import type { TaskTemplate } from "@templates/schema";
 import { expectToReject } from "../utils/matchers";
 
@@ -196,6 +197,24 @@ describe("Atomizer", () => {
       };
 
       await expectToReject(atomizer.atomize(invalidTemplate), "Invalid filter");
+    });
+
+    test("onProgress fires task_created once per created task", async () => {
+      await platform.authenticate();
+
+      const createdTasks: WorkItem[] = [];
+      const report = await atomizer.atomize(basicTemplate, {
+        dryRun: false,
+        onProgress: (event) => {
+          if (event.type === "task_created" && event.task) {
+            createdTasks.push(event.task);
+          }
+        },
+      });
+
+      // basicTemplate matches 3 stories × 3 tasks = 9 tasks total
+      expect(createdTasks).toHaveLength(report.tasksCreated);
+      expect(createdTasks.length).toBeGreaterThan(0);
     });
 
     describe("storyIds option", () => {

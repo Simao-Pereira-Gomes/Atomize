@@ -30,7 +30,9 @@ export class StoryProcessor {
     orderedTasks: TemplateTaskDefinition[],
     template: TaskTemplate,
     connectUserEmail: string,
-    options: Pick<AtomizationOptions, "dryRun" | "forceNormalize" | "dependencyConcurrency">,
+    options: Pick<AtomizationOptions, "dryRun" | "forceNormalize" | "dependencyConcurrency"> & {
+      onTaskCreated?: (task: WorkItem) => void;
+    },
     warnings: string[],
   ): Promise<StoryAtomizationResult> {
     logger.info(`Processing: ${story.id} - ${story.title}`);
@@ -80,7 +82,7 @@ export class StoryProcessor {
         story.id,
         calculatedTasks,
         orderedTasks,
-        { dependencyConcurrency: options.dependencyConcurrency },
+        { dependencyConcurrency: options.dependencyConcurrency, onTaskCreated: options.onTaskCreated },
       );
       logger.info(`Created ${tasksCreated.length} tasks`);
     }

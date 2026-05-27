@@ -26,7 +26,11 @@ export interface StoryLearningPlatform
     ChildTaskReader {}
 
 export interface TaskWriter {
-  createTasksBulk(parentId: string, tasks: TaskDefinition[]): Promise<WorkItem[]>;
+  createTasksBulk(
+    parentId: string,
+    tasks: TaskDefinition[],
+    onTaskCreated?: (task: WorkItem) => void,
+  ): Promise<WorkItem[]>;
 }
 
 export interface DependencyLinker {

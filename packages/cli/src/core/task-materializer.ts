@@ -7,6 +7,7 @@ import type { CalculatedTask } from "./estimation-calculator";
 
 export interface TaskMaterializationOptions {
   dependencyConcurrency?: number;
+  onTaskCreated?: (task: WorkItem) => void;
 }
 
 /**
@@ -69,7 +70,7 @@ export class TaskMaterializer {
     templateTasks: TemplateTaskDefinition[],
     options: TaskMaterializationOptions = {},
   ): Promise<WorkItem[]> {
-    const createdTasks = await this.platform.createTasksBulk(parentId, calculatedTasks);
+    const createdTasks = await this.platform.createTasksBulk(parentId, calculatedTasks, options.onTaskCreated);
     const dependencyLinks = planDependencyLinks(calculatedTasks, createdTasks, templateTasks);
     await this.createDependencyLinks(dependencyLinks, options.dependencyConcurrency ?? 5);
     return createdTasks;
