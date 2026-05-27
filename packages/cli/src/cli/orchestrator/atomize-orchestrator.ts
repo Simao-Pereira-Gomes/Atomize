@@ -26,9 +26,23 @@ export interface AtomizeOptions {
   dependencyConcurrency: number;
   forceNormalize: boolean;
   isTTYSession: boolean;
+  jsonStream?: boolean;
 }
 
 const noopSpinner: SpinnerHandle = { message: () => {}, stop: () => {}, fail: () => {} };
+
+/** @internal Exported for testing */
+export function createJsonStreamProgressHandler(
+  write: (line: string) => void,
+): (event: ProgressEvent) => void {
+  return (event) => {
+    match(event.type)
+      .with("story_start", "story_complete", "story_error", "task_created", () => {
+        write(JSON.stringify({ event: "progress", data: event }));
+      })
+      .otherwise(() => {});
+  };
+}
 
 /** @internal Exported for testing */
 export function createProgressHandler(
@@ -128,10 +142,22 @@ export async function runAtomization(
   const generationRun = new GenerationRun(platform);
   const storyProgressRef: { current: ProgressHandle | undefined } = { current: undefined };
 
-  const querySpinner = opts.isTTYSession
+  const querySpinner = (!opts.jsonStream && opts.isTTYSession)
     ? output.startSpinner("Querying work items...")
     : noopSpinner;
-  if (!opts.isTTYSession) output.print("Querying work items...");
+  if (!opts.jsonStream && !opts.isTTYSession) output.print("Querying work items...");
+
+  const onProgress = opts.jsonStream
+    ? createJsonStreamProgressHandler((line) => process.stdout.write(line + "\n"))
+    : createProgressHandler(
+        opts.isTTYSession,
+        querySpinner,
+        storyProgressRef,
+        output.print,
+        log.success,
+        log.error,
+        (total) => progress({ max: total, style: "block" }),
+      );
 
   const report = await generationRun.execute(template, {
     dryRun: opts.dryRun,
@@ -141,18 +167,10 @@ export async function runAtomization(
     storyConcurrency: opts.storyConcurrency,
     dependencyConcurrency: opts.dependencyConcurrency,
     forceNormalize: opts.forceNormalize,
-    onProgress: createProgressHandler(
-      opts.isTTYSession,
-      querySpinner,
-      storyProgressRef,
-      output.print,
-      log.success,
-      log.error,
-      (total) => progress({ max: total, style: "block" }),
-    ),
+    onProgress,
   });
 
-  if (report.storiesProcessed > 0) {
+  if (!opts.jsonStream && report.storiesProcessed > 0) {
     if (opts.isTTYSession && storyProgressRef.current) {
       storyProgressRef.current.stop("Processing complete");
     } else {

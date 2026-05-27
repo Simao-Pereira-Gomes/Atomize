@@ -30,6 +30,7 @@ export interface GenerateCommandOptions {
   limit?: string;
   story?: string[];
   profile?: string;
+  jsonStream?: boolean;
 }
 
 export interface GenerateConcurrencySettings {
@@ -93,6 +94,7 @@ export interface GenerateCommandApplicationDeps {
       forceNormalize: boolean;
       isTTYSession: boolean;
       profileLabel?: string;
+      jsonStream?: boolean;
     },
     output: OutputSink,
   ): Promise<AtomizationReport>;
@@ -200,6 +202,7 @@ export async function runGenerateCommandApplication(input: {
       forceNormalize,
       isTTYSession,
       profileLabel: options.profile,
+      jsonStream: options.jsonStream,
     },
     output,
   );
