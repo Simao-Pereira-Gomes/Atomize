@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { parseNdjsonLines } from '../generate/generate-ndjson.js';
 import type { GenerateReport } from '../generate/generate-html.js';
+import { parseNdjsonLines } from '../generate/generate-ndjson.js';
 
 function makeReport(overrides?: Partial<GenerateReport>): GenerateReport {
 	return {

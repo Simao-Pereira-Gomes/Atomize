@@ -620,7 +620,7 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
 
       const jsonStreamPrintReport = (report: AtomizationReport): number => {
         const { line, exitCode: code } = buildJsonStreamReportLine(report);
-        process.stdout.write(line + "\n");
+        process.stdout.write(`${line}\n`);
         return code;
       };
 

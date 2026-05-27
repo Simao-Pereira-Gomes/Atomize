@@ -22,10 +22,10 @@ export function parseNdjsonLines(
 		}
 		if (typeof parsed !== 'object' || parsed === null) continue;
 		const obj = parsed as Record<string, unknown>;
-		if (obj['event'] === 'progress' && typeof obj['data'] === 'object' && obj['data'] !== null) {
-			onProgress(obj['data'] as NdjsonProgressData);
-		} else if (obj['event'] === 'report' && typeof obj['data'] === 'object' && obj['data'] !== null) {
-			report = obj['data'] as GenerateReport;
+		if (obj.event === 'progress' && typeof obj.data === 'object' && obj.data !== null) {
+			onProgress(obj.data as NdjsonProgressData);
+		} else if (obj.event === 'report' && typeof obj.data === 'object' && obj.data !== null) {
+			report = obj.data as GenerateReport;
 		}
 	}
 	return report;

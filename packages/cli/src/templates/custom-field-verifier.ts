@@ -1,8 +1,8 @@
 import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
 import { extractCustomFieldRefs } from "@/core/condition-evaluator.js";
 import type { TaskTemplate } from "./schema";
-import { FixableWarningCode } from "./validator";
 import type { ValidationError, ValidationWarning } from "./validator";
+import { FixableWarningCode } from "./validator";
 
 export interface CustomFieldVerificationSummary {
   count: number;

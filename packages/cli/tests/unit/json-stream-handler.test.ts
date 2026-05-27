@@ -8,7 +8,9 @@ function makeStory(id: string, title = `Story ${id}`): WorkItem {
 
 function parseFirst(lines: string[]): unknown {
   expect(lines).toHaveLength(1);
-  return JSON.parse(lines[0]!);
+  const [line] = lines;
+  if (line === undefined) throw new Error("Expected one JSON stream line.");
+  return JSON.parse(line);
 }
 
 describe("createJsonStreamProgressHandler — progress events", () => {

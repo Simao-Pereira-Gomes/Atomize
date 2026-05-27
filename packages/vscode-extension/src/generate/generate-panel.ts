@@ -1,9 +1,8 @@
-import { createInterface } from 'node:readline';
 import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import * as vscode from 'vscode';
 import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES } from '../cli/cli-provider.js';
 import { extendedEnv } from '../cli/env-utils.js';
-import { parseNdjsonLines } from './generate-ndjson.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { GenerateReport } from './generate-html.js';
@@ -16,6 +15,7 @@ import {
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
+import { parseNdjsonLines } from './generate-ndjson.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
@@ -69,8 +69,8 @@ function spawnJsonStream(
 			try { parsed = JSON.parse(trimmed); } catch { return; }
 			if (typeof parsed !== 'object' || parsed === null) return;
 			const obj = parsed as Record<string, unknown>;
-			if (obj['event'] === 'progress' && typeof obj['data'] === 'object' && obj['data'] !== null) {
-				onProgress(obj['data'] as ProgressMessage);
+			if (obj.event === 'progress' && typeof obj.data === 'object' && obj.data !== null) {
+				onProgress(obj.data as ProgressMessage);
 			}
 		});
 		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });

@@ -148,7 +148,7 @@ export async function runAtomization(
   if (!opts.jsonStream && !opts.isTTYSession) output.print("Querying work items...");
 
   const onProgress = opts.jsonStream
-    ? createJsonStreamProgressHandler((line) => process.stdout.write(line + "\n"))
+    ? createJsonStreamProgressHandler((line) => process.stdout.write(`${line}\n`))
     : createProgressHandler(
         opts.isTTYSession,
         querySpinner,
