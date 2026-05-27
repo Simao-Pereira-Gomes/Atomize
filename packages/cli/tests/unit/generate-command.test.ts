@@ -6,6 +6,8 @@ import type { AtomizationReport } from "@core/atomizer";
 import { writeReportFile } from "@core/report-formatter";
 import {
   buildJsonOutput,
+  buildJsonStreamReportLine,
+  getJsonStreamConflictError,
   getNonInteractiveLiveExecutionError,
   parseConcurrency,
   printReport,
@@ -435,5 +437,43 @@ describe("buildJsonOutput", () => {
 
   test("returns exit code 1 when stories failed", () => {
     expect(buildJsonOutput(makeReport({ storiesFailed: 2 })).exitCode).toBe(ExitCode.Failure);
+  });
+});
+
+describe("buildJsonStreamReportLine", () => {
+  test("wraps the report in a report envelope", () => {
+    const report = makeReport();
+    const { line } = buildJsonStreamReportLine(report);
+    const parsed = JSON.parse(line);
+    expect(parsed.event).toBe("report");
+    expect(parsed.data).toEqual(report);
+  });
+
+  test("returns exit code 0 when no stories failed", () => {
+    expect(buildJsonStreamReportLine(makeReport({ storiesFailed: 0 })).exitCode).toBe(ExitCode.Success);
+  });
+
+  test("returns exit code 1 when stories failed", () => {
+    expect(buildJsonStreamReportLine(makeReport({ storiesFailed: 2 })).exitCode).toBe(ExitCode.Failure);
+  });
+});
+
+describe("getJsonStreamConflictError", () => {
+  test("returns undefined when neither flag is set", () => {
+    expect(getJsonStreamConflictError({ json: false, jsonStream: false })).toBeUndefined();
+  });
+
+  test("returns undefined when only --json is set", () => {
+    expect(getJsonStreamConflictError({ json: true, jsonStream: false })).toBeUndefined();
+  });
+
+  test("returns undefined when only --json-stream is set", () => {
+    expect(getJsonStreamConflictError({ json: false, jsonStream: true })).toBeUndefined();
+  });
+
+  test("returns an error message when both flags are set", () => {
+    const error = getJsonStreamConflictError({ json: true, jsonStream: true });
+    expect(error).toContain("--json-stream");
+    expect(error).toContain("--json");
   });
 });

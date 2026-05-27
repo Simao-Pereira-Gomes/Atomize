@@ -19,6 +19,7 @@ export interface GenerateWorkflowOptions {
   forceNormalize: boolean;
   isTTYSession: boolean;
   profileLabel?: string;
+  jsonStream?: boolean;
 }
 
 export async function runGenerateWorkflow(
@@ -44,5 +45,6 @@ export async function runGenerateWorkflow(
     dependencyConcurrency: options.dependencyConcurrency,
     forceNormalize: options.forceNormalize,
     isTTYSession: options.isTTYSession,
+    jsonStream: options.jsonStream,
   }, output);
 }

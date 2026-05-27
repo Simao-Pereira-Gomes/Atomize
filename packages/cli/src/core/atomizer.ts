@@ -44,6 +44,8 @@ export interface ProgressEvent {
   dependenciesCreated?: number;
   /** Error message if type is story_error */
   error?: string;
+  /** The task that was just created (type: task_created) */
+  task?: WorkItem;
 }
 
 /**

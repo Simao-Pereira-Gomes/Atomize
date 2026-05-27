@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { isAtomizeDocument } from '../authoring/language-detection.js';
 import { resolveCommandDocument } from '../authoring/command-document-resolution.js';
+import { isAtomizeDocument } from '../authoring/language-detection.js';
 import { buildResolveArgs, probeCli } from '../cli/cli-provider.js';
 import { extendedEnv } from '../cli/env-utils.js';
 import { getConfiguredCliPath } from '../config/atomize-configuration.js';

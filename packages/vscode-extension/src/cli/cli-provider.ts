@@ -123,7 +123,7 @@ export function buildGenDryRunJsonArgs(filePath: string, profile: string): strin
 }
 
 export function buildGenExecuteJsonArgs(filePath: string, profile: string, continueOnError: boolean): string[] {
-	const args = ['gen', filePath, '--profile', profile, '--json', '--execute', '--auto-approve'];
+	const args = ['gen', filePath, '--profile', profile, '--json-stream', '--execute', '--auto-approve'];
 	if (continueOnError) args.push('--continue-on-error');
 	return args;
 }

@@ -207,6 +207,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
   async createTasksBulk(
     parentId: string,
     tasks: TaskDefinition[],
+    onTaskCreated?: (task: WorkItem) => void,
     concurrency = 5
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
@@ -225,6 +226,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
         try {
           const created = await this.createTask(parentId, task);
           results[taskIndex] = created;
+          onTaskCreated?.(created);
           return created;
         } catch (error) {
           logger.error(`MockPlatform: Failed to create task: ${task.title}`, {

@@ -54,13 +54,17 @@ export class StoryBatchProcessor {
 
         emitStoryStart(onProgress, storyIndex, input.stories.length, story);
 
+        const onTaskCreated = onProgress
+          ? (task: WorkItem) => onProgress({ type: "task_created", task, story, storyIndex, totalStories: input.stories.length })
+          : undefined;
+
         try {
           const result = await input.storyProcessor.process(
             story,
             input.orderedTasks,
             input.template,
             input.connectUserEmail,
-            input.options,
+            { ...input.options, onTaskCreated },
             input.warnings,
           );
           results[storyIndex] = result;

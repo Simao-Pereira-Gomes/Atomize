@@ -65,6 +65,22 @@ export function buildJsonOutput(report: AtomizationReport): { stdout: string; ex
   };
 }
 
+/** @internal Exported for testing */
+export function buildJsonStreamReportLine(report: AtomizationReport): { line: string; exitCode: number } {
+  return {
+    line: JSON.stringify({ event: "report", data: report }),
+    exitCode: report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success,
+  };
+}
+
+/** @internal Exported for testing */
+export function getJsonStreamConflictError(options: { json: boolean; jsonStream: boolean }): string | undefined {
+  if (options.json && options.jsonStream) {
+    return "--json-stream and --json are mutually exclusive.";
+  }
+  return undefined;
+}
+
 /**
  * Returns a print function that writes to stdout only when quiet mode is off.
  * @internal Exported for testing
@@ -557,16 +573,25 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
   )
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .option("--json", "Emit AtomizationReport as JSON to stdout; implies dry-run and --quiet", false)
+  .option("--json-stream", "Emit NDJSON progress events then final report to stdout; implies --quiet", false)
   .action(async (templateArg: string | undefined, options) => {
       try {
       const isJson = options.json === true;
+      const isJsonStream = options.jsonStream === true;
       const isTTYSession = isInteractiveTerminal();
-      const isQuiet = isJson || options.quiet === true;
+      const isQuiet = isJson || isJsonStream || options.quiet === true;
       const outputPolicy = resolveGenerateOutputPolicy({
         quiet: isQuiet,
         verbose: options.verbose === true,
       });
       const output = makeOutput({ quiet: isQuiet, verbose: options.verbose === true });
+
+      const conflictError = getJsonStreamConflictError({ json: isJson, jsonStream: isJsonStream });
+      if (conflictError) {
+        output.cancel(conflictError);
+        throw new ExitError(ExitCode.Failure);
+      }
+
         if (options.profile) {
         const { getProfile } = await import("@config/connections.config");
         const profile = await getProfile(options.profile);
@@ -593,9 +618,15 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
         return code;
       };
 
+      const jsonStreamPrintReport = (report: AtomizationReport): number => {
+        const { line, exitCode: code } = buildJsonStreamReportLine(report);
+        process.stdout.write(`${line}\n`);
+        return code;
+      };
+
       const exitCode = await runGenerateCommandApplication({
         templateArg,
-        options: { ...options, execute: options.execute },
+        options: { ...options, execute: options.execute, jsonStream: isJsonStream },
         config,
         prompts,
         isTTYSession,
@@ -612,13 +643,13 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
           renderFilterCriteria,
           confirmLiveExecution,
           runWorkflow: runGenerateWorkflow,
-          printReport: isJson ? jsonPrintReport : printReport,
+          printReport: isJson ? jsonPrintReport : isJsonStream ? jsonStreamPrintReport : printReport,
         },
       });
       process.exit(exitCode);
     } catch (error) {
       if (!(error instanceof ExitError)) {
-        if (options.json === true) {
+        if (options.json === true || options.jsonStream === true) {
           if (error instanceof Error) {
             process.stderr.write(`${sanitizeTty(error.message)}\n`);
           }

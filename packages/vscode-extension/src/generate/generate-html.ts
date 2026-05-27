@@ -104,7 +104,9 @@ details:not([open])>summary{border-bottom:none!important;margin-bottom:0!importa
 .split-menu::before{content:'';position:absolute;top:-7px;right:7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:7px solid rgba(255,255,255,.12)}
 .split-menu::after{content:'';position:absolute;top:-6px;right:8px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid var(--vscode-menu-background,#252526)}
 .menu-row{display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 12px;margin:0;width:100%;box-sizing:border-box;transition:background .08s}
-.menu-row:hover{background:rgba(255,255,255,.07)}`;
+.menu-row:hover{background:rgba(255,255,255,.07)}
+.progress-track{height:3px;background:rgba(255,255,255,.09);border-radius:2px;overflow:hidden;flex:1}
+.progress-fill{height:100%;background:var(--vscode-focusBorder);border-radius:2px;transition:width .45s ease}`;
 
 function panelHeader(
 	mode: 'default' | 'compact',
@@ -451,6 +453,32 @@ ${script}
 
 const SWITCH_MODE_SCRIPT = `function switchMode(m) { vscode.postMessage({ type: 'switchMode', mode: m }); }`;
 
+const LIVE_PROGRESS_SCRIPT = `window.addEventListener('message', function(e) {
+  var msg = e.data;
+  if (!msg || msg.type !== 'liveProgress') return;
+  var storiesEl = document.getElementById('live-stories');
+  var tasksEl   = document.getElementById('live-tasks');
+  var fillEl    = document.getElementById('progress-fill');
+  if (!storiesEl || !tasksEl) return;
+  var total = msg.totalStories;
+  var done  = msg.storiesCompleted;
+  var tasks = msg.tasksCreated;
+  storiesEl.textContent = done + ' / ' + total + ' stories';
+  tasksEl.textContent   = String(tasks);
+  if (fillEl) fillEl.style.width = (total > 0 ? (done / total) * 100 : 0) + '%';
+  [
+    { el: storiesEl, color: 'var(--vscode-descriptionForeground)' },
+    { el: tasksEl,   color: 'var(--vscode-testing-iconPassed)' },
+  ].forEach(function(item) {
+    item.el.style.transition = 'none';
+    item.el.style.color = '#ffffff';
+    requestAnimationFrame(function() {
+      item.el.style.transition = 'color 0.5s ease-out';
+      item.el.style.color = item.color;
+    });
+  });
+});`;
+
 const SPLIT_BUTTON_SCRIPT = `
 ${SWITCH_MODE_SCRIPT}
 function toggleMenu(e) {
@@ -562,14 +590,27 @@ export function renderGenerateLiveRunning(
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
 	const header = panelHeader('default', false, shortFile, profile, dryReport.templateName);
 	const collapsed = collapsedDryRun(dryReport);
+	const totalStories = dryReport.storiesSuccess;
 	const body = `${header}${collapsed}
 <div style="border-top:1px solid var(--vscode-panel-border,#3d3d3d);margin-bottom:14px"></div>
 <div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:var(--vscode-descriptionForeground)">
   <div class="spinner"></div>
   <span style="font-size:.9em">Creating tasks in <strong style="color:var(--vscode-editor-foreground)">${esc(profile)}</strong>…</span>
 </div>
-<div style="font-size:.8em;color:var(--vscode-descriptionForeground);margin-top:4px;padding-left:24px">Story 1 of ${dryReport.storiesSuccess}</div>`;
-	return page('Atomize: Generate — Creating…', body, '');
+<div style="padding-left:24px;margin-top:4px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <div class="progress-track" style="flex:1">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <span id="live-stories" style="font-size:.78em;color:var(--vscode-descriptionForeground);flex-shrink:0">0 / ${totalStories} stories</span>
+  </div>
+  <div style="font-size:.78em;color:var(--vscode-descriptionForeground)">
+    <span style="color:var(--vscode-testing-iconPassed)">✓</span>
+    <span id="live-tasks" style="font-weight:600;color:var(--vscode-testing-iconPassed)">0</span>
+    <span> tasks created</span>
+  </div>
+</div>`;
+	return page('Atomize: Generate — Creating…', body, LIVE_PROGRESS_SCRIPT);
 }
 
 export function renderGenerateLiveSuccess(

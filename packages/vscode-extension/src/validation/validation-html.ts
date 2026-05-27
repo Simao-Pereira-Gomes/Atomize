@@ -1,5 +1,5 @@
-import type { ValidationResult } from './diagnostics.js';
 import css from '../webview/styles.generated.css';
+import type { ValidationResult } from './diagnostics.js';
 
 const CODE_CLS = 'font-mono text-[0.9em] text-[#e0e0e0] bg-white/[0.09] border border-white/[0.12] rounded-[3px] px-1 mx-[3px]';
 
