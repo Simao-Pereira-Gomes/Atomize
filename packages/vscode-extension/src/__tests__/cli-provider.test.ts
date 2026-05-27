@@ -208,15 +208,15 @@ describe('buildGenDryRunJsonArgs', () => {
 });
 
 describe('buildGenExecuteJsonArgs', () => {
-	it('builds gen --json --execute --auto-approve arguments', () => {
+	it('builds gen --json-stream --execute --auto-approve arguments', () => {
 		expect(buildGenExecuteJsonArgs('/templates/auth.atomize.yaml', 'work-ado', false)).toEqual([
-			'gen', '/templates/auth.atomize.yaml', '--profile', 'work-ado', '--json', '--execute', '--auto-approve',
+			'gen', '/templates/auth.atomize.yaml', '--profile', 'work-ado', '--json-stream', '--execute', '--auto-approve',
 		]);
 	});
 
 	it('appends --continue-on-error when continueOnError is true', () => {
 		expect(buildGenExecuteJsonArgs('/templates/auth.atomize.yaml', 'work-ado', true)).toEqual([
-			'gen', '/templates/auth.atomize.yaml', '--profile', 'work-ado', '--json', '--execute', '--auto-approve', '--continue-on-error',
+			'gen', '/templates/auth.atomize.yaml', '--profile', 'work-ado', '--json-stream', '--execute', '--auto-approve', '--continue-on-error',
 		]);
 	});
 });

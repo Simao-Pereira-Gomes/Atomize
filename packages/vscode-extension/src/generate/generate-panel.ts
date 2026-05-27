@@ -1,7 +1,9 @@
+import { createInterface } from 'node:readline';
 import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
 import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES } from '../cli/cli-provider.js';
 import { extendedEnv } from '../cli/env-utils.js';
+import { parseNdjsonLines } from './generate-ndjson.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { GenerateReport } from './generate-html.js';
@@ -41,6 +43,50 @@ function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 			} catch {
 				resolve({ error: 'cli', stderr: stderr.trim() || 'Failed to parse CLI output' });
 			}
+		});
+		proc.on('error', err => resolve({ error: 'cli', stderr: err.message }));
+	});
+}
+
+type ProgressMessage = { storiesCompleted: number; totalStories: number; tasksCreated: number };
+
+function spawnJsonStream(
+	cliPath: string,
+	args: string[],
+	onProgress: (data: ProgressMessage) => void,
+): Promise<SpawnResult> {
+	return new Promise(resolve => {
+		const proc = spawn(cliPath, args, { shell: false, env: extendedEnv() });
+		const lines: string[] = [];
+		let stderr = '';
+		const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
+		rl.on('line', line => {
+			lines.push(line);
+			// Parse incrementally so onProgress fires as lines arrive
+			const trimmed = line.trim();
+			if (!trimmed) return;
+			let parsed: unknown;
+			try { parsed = JSON.parse(trimmed); } catch { return; }
+			if (typeof parsed !== 'object' || parsed === null) return;
+			const obj = parsed as Record<string, unknown>;
+			if (obj['event'] === 'progress' && typeof obj['data'] === 'object' && obj['data'] !== null) {
+				onProgress(obj['data'] as ProgressMessage);
+			}
+		});
+		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+		proc.on('close', code => {
+			if (code !== 0) {
+				const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
+				const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
+				resolve({ error: kind, stderr: cleanStderr.trim() || 'CLI error during task creation.' });
+				return;
+			}
+			const report = parseNdjsonLines(lines, () => undefined);
+			if (!report) {
+				resolve({ error: 'cli', stderr: stderr.trim() || 'No report received from CLI stream.' });
+				return;
+			}
+			resolve({ report });
 		});
 		proc.on('error', err => resolve({ error: 'cli', stderr: err.message }));
 	});
@@ -175,9 +221,17 @@ export class GeneratePanel {
 		this._panel.title = `Atomize: ${fileName} (Generate — Creating…)`;
 		this._panel.webview.html = renderGenerateLiveRunning(dryReport, fileName, this._profile);
 
-		const outcome = await spawnJson(
+		const outcome = await spawnJsonStream(
 			this._cliPath,
 			buildGenExecuteJsonArgs(this._fileUri.fsPath, this._profile, this._continueOnError),
+			data => {
+				this._panel.webview.postMessage({
+					type: 'liveProgress',
+					storiesCompleted: data.storiesCompleted,
+					totalStories: data.totalStories,
+					tasksCreated: data.tasksCreated,
+				});
+			},
 		);
 
 		this._panel.title = `Atomize: ${fileName} (Generate — Done)`;
