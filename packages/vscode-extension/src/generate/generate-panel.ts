@@ -15,7 +15,7 @@ import {
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
-import { type SpawnResult, createStreamResultCoordinator, recoverReportFromProgress } from './generate-ndjson.js';
+import { createStreamResultCoordinator, recoverReportFromProgress, type SpawnResult } from './generate-ndjson.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
