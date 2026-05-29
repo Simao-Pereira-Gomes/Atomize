@@ -114,6 +114,7 @@ function panelHeader(
 	shortFile: string,
 	profile: string,
 	filterLabel?: string,
+	storyIds?: string[],
 ): string {
 	const toggleHtml = showToggle
 		? `<div class="view-toggle" role="tablist" aria-label="Panel layout">
@@ -128,6 +129,10 @@ function panelHeader(
        <span style="font-size:.78em;font-weight:600">${esc(profile)}</span>`
 		: `<span style="font-size:.78em;font-weight:600">${esc(profile)}</span>`;
 
+	const storyFilterHtml = storyIds && storyIds.length > 0
+		? `<div style="font-size:.75em;color:var(--vscode-focusBorder);margin-top:3px">Stories: ${esc(storyIds.join(', '))}</div>`
+		: '';
+
 	return `
 <div style="padding-top:16px;margin-bottom:12px">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
@@ -137,6 +142,7 @@ function panelHeader(
         ${subtitle}
       </div>
       <div style="font-size:.8em;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family,monospace)">${esc(shortFile)}</div>
+      ${storyFilterHtml}
     </div>
     ${toggleHtml}
   </div>
@@ -505,15 +511,18 @@ if (btn) {
   });
 }`;
 
-export function renderGenerateLoading(fileName: string, profile: string): string {
+export function renderGenerateLoading(fileName: string, profile: string, storyIds?: string[]): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
-	const header = panelHeader('default', false, shortFile, profile);
+	const header = panelHeader('default', false, shortFile, profile, undefined, storyIds);
+	const fetchingNote = storyIds && storyIds.length > 0
+		? `Fetching ${storyIds.length} specific ${storyIds.length === 1 ? 'story' : 'stories'} by ID`
+		: 'Fetching matching stories from template filter';
 	const body = `${header}
 <div style="display:flex;align-items:center;gap:10px;padding:16px 0;color:var(--vscode-descriptionForeground)">
   <div class="spinner"></div>
   <span style="font-size:.9em">Running dry run against <strong style="color:var(--vscode-editor-foreground)">${esc(profile)}</strong>…</span>
 </div>
-<div style="font-size:.8em;color:var(--vscode-descriptionForeground);padding-left:24px;margin-top:2px">Fetching matching stories from template filter</div>`;
+<div style="font-size:.8em;color:var(--vscode-descriptionForeground);padding-left:24px;margin-top:2px">${fetchingNote}</div>`;
 	return page('Atomize: Generate — Dry Run', body, '');
 }
 
@@ -522,9 +531,10 @@ export function renderGenerateDrySuccess(
 	mode: 'default' | 'compact',
 	fileName: string,
 	profile: string,
+	storyIds?: string[],
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
-	const header = panelHeader(mode, true, shortFile, profile, report.templateName);
+	const header = panelHeader(mode, true, shortFile, profile, report.templateName, storyIds);
 	const kpis = dryRunKpis(report);
 	const stories = mode === 'default'
 		? report.results.map(storySection).join('')
@@ -538,9 +548,10 @@ export function renderGenerateDryWarnings(
 	mode: 'default' | 'compact',
 	fileName: string,
 	profile: string,
+	storyIds?: string[],
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
-	const header = panelHeader(mode, true, shortFile, profile, report.templateName);
+	const header = panelHeader(mode, true, shortFile, profile, report.templateName, storyIds);
 	const kpis = dryRunKpis(report);
 	const stories = mode === 'default'
 		? report.results.map(storySection).join('')
@@ -557,9 +568,10 @@ export function renderGenerateBlocked(
 	detail: string,
 	fileName: string,
 	profile: string,
+	storyIds?: string[],
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
-	const header = panelHeader('default', false, shortFile, profile);
+	const header = panelHeader('default', false, shortFile, profile, undefined, storyIds);
 
 	if (kind === 'auth') {
 		const ctaHtml = `<button id="btn-manage-profiles" class="btn-primary" style="margin-top:4px">Manage Profiles</button>`;
@@ -586,9 +598,10 @@ export function renderGenerateLiveRunning(
 	dryReport: GenerateReport,
 	fileName: string,
 	profile: string,
+	storyIds?: string[],
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
-	const header = panelHeader('default', false, shortFile, profile, dryReport.templateName);
+	const header = panelHeader('default', false, shortFile, profile, dryReport.templateName, storyIds);
 	const collapsed = collapsedDryRun(dryReport);
 	const totalStories = dryReport.storiesSuccess;
 	const body = `${header}${collapsed}
@@ -619,9 +632,10 @@ export function renderGenerateLiveSuccess(
 	mode: 'default' | 'compact',
 	fileName: string,
 	profile: string,
+	storyIds?: string[],
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
-	const header = panelHeader(mode, true, shortFile, profile, execReport.templateName);
+	const header = panelHeader(mode, true, shortFile, profile, execReport.templateName, storyIds);
 	const collapsed = collapsedDryRun(dryReport);
 	const stories = mode === 'default'
 		? execReport.results.map(execStoryResult).join('')
@@ -644,9 +658,10 @@ export function renderGenerateLivePartial(
 	mode: 'default' | 'compact',
 	fileName: string,
 	profile: string,
+	storyIds?: string[],
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
-	const header = panelHeader(mode, true, shortFile, profile, execReport.templateName);
+	const header = panelHeader(mode, true, shortFile, profile, execReport.templateName, storyIds);
 	const collapsed = collapsedDryRun(dryReport);
 	const stories = mode === 'default'
 		? execReport.results.map(execStoryResult).join('')
