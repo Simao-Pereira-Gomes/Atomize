@@ -13,6 +13,7 @@
 	"engines": {
 		"vscode": "^1.85.0"
 	},
+	"icon": "icons/atomize-product.png",
 	"categories": ["Other"],
 	"extensionPack": ["redhat.vscode-yaml"],
 	"activationEvents": ["onStartupFinished"],

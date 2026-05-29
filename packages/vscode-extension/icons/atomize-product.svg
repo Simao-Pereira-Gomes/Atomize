@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Atomize">
+  <defs>
+    <linearGradient id="story" x1="58" y1="70" x2="138" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#39a8ff"/>
+      <stop offset="1" stop-color="#007acc"/>
+    </linearGradient>
+    <linearGradient id="task" x1="144" y1="62" x2="204" y2="194" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8ee8a7"/>
+      <stop offset="1" stop-color="#3fb950"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="52" y="78" width="72" height="72" rx="14" fill="url(#story)"/>
+    <rect x="68" y="96" width="40" height="8" rx="4" fill="#ffffff" opacity="0.92"/>
+    <rect x="68" y="114" width="30" height="8" rx="4" fill="#ffffff" opacity="0.58"/>
+    <rect x="68" y="132" width="22" height="8" rx="4" fill="#ffffff" opacity="0.38"/>
+  </g>
+
+  <path d="M124 114h25" fill="none" stroke="#9aa7b4" stroke-width="8" stroke-linecap="round"/>
+  <path d="M149 74v108" fill="none" stroke="#9aa7b4" stroke-width="8" stroke-linecap="round"/>
+  <path d="M149 74h15M149 128h15M149 182h15" fill="none" stroke="#9aa7b4" stroke-width="8" stroke-linecap="round"/>
+
+  <g filter="url(#shadow)">
+    <rect x="164" y="48" width="48" height="44" rx="11" fill="url(#task)"/>
+    <rect x="176" y="62" width="24" height="7" rx="3.5" fill="#0c2213" opacity="0.72"/>
+    <rect x="176" y="77" width="17" height="7" rx="3.5" fill="#0c2213" opacity="0.42"/>
+
+    <rect x="164" y="106" width="48" height="44" rx="11" fill="url(#task)"/>
+    <rect x="176" y="120" width="24" height="7" rx="3.5" fill="#0c2213" opacity="0.72"/>
+    <rect x="176" y="135" width="17" height="7" rx="3.5" fill="#0c2213" opacity="0.42"/>
+
+    <rect x="164" y="164" width="48" height="44" rx="11" fill="url(#task)"/>
+    <rect x="176" y="178" width="24" height="7" rx="3.5" fill="#0c2213" opacity="0.72"/>
+    <rect x="176" y="193" width="17" height="7" rx="3.5" fill="#0c2213" opacity="0.42"/>
+  </g>
+
+  <circle cx="88" cy="114" r="7" fill="#ffffff" opacity="0.88"/>
+</svg>
