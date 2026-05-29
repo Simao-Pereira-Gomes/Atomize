@@ -269,6 +269,13 @@ describe("AzureDevOpsAdapter", () => {
       expect(items).toEqual([]);
       expect(true).toBe(true);
     });
+
+    test("returns empty array when getWorkItems returns null for unknown story IDs", async () => {
+      // biome-ignore lint/suspicious/noExplicitAny : simulating ADO SDK returning null at runtime despite typed return
+      mockWorkItemTrackingApi.getWorkItems.mockResolvedValueOnce(null as any);
+      const items = await adapter.queryWorkItems({ workItemIds: ["99999"] });
+      expect(items).toEqual([]);
+    });
   });
 
   describe("getWorkItem", () => {

@@ -135,8 +135,8 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       }).query(filter);
     } catch (error) {
       const message = getErrorMessage(error);
-      logger.error("AzureDevOps: Query failed", { error: message });
-      throw new PlatformError(`Query failed: ${message}`, "azure-devops");
+      logger.debug("AzureDevOps: Query failed", { error: message });
+      throw new PlatformError("Failed to retrieve work items from Azure DevOps", "azure-devops");
     }
   }
 
