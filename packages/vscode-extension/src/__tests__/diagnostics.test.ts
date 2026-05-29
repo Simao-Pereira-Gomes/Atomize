@@ -1,7 +1,8 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { parseValidationOutput } from '../validation/validation-output.js';
 
-describe('parseValidationOutput', () => {
+describe('parseValidationOutput', async () => {
+	const { parseValidationOutput } = await import('../validation/validation-output.js');
+
 	it('parses JSON validation output prefixed by spinner control bytes', () => {
 		const result = parseValidationOutput(
 			'\u001b[?25l\u001b[90m│\u001b[39m\n\u001b[32m◇\u001b[39m  Project reference validation failed\n\u001b[?25h{"valid":true,"errors":[],"warnings":[{"path":"template","message":"Could not validate project references against ADO"}],"mode":"lenient"}',
@@ -22,20 +23,16 @@ describe('resolvePathToRange', () => {
 			Range: class Range {
 				start: { line: number; character: number };
 				end: { line: number; character: number };
-
-				constructor(
-					startLine: number,
-					startCharacter: number,
-					endLine: number,
-					endCharacter: number,
-				) {
-					this.start = { line: startLine, character: startCharacter };
-					this.end = { line: endLine, character: endCharacter };
+				constructor(sl: number, sc: number, el: number, ec: number) {
+					this.start = { line: sl, character: sc };
+					this.end = { line: el, character: ec };
 				}
 			},
 		}));
 
-		const { resolvePathToRange } = await import('../validation/diagnostics.js');
+		// We must re-import the module in EVERY test case where we want a fresh mock
+		const { resolvePathToRange } = await import(`../validation/diagnostics.js?t=${Date.now()}-1`);
+
 		const text = [
 			'# filter.savedQuery: this comment should not receive the diagnostic',
 			'description: "filter.savedQuery: this string should not receive the diagnostic"',
@@ -69,7 +66,8 @@ describe('resolvePathToRange', () => {
 			},
 		}));
 
-		const { resolvePathToRange } = await import('../validation/diagnostics.js');
+		const { resolvePathToRange } = await import(`../validation/diagnostics.js?t=${Date.now()}-2`);
+
 		const text = [
 			'tasks:',
 			'  - title: My Task',
