@@ -8,15 +8,6 @@ tags: ["backend", "api", "standard"]
 filter:
   workItemTypes:
     - "User Story"
-    - "Product Backlog Item"
-  states:
-    - "New"
-    - "Approved"
-    - "Active"
-  tags:
-    include:
-      - "backend"
-      - "api"
   excludeIfHasTasks: true
 
 # Task template with estimation percentages
