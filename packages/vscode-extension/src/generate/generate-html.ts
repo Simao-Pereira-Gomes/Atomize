@@ -470,7 +470,7 @@ const LIVE_PROGRESS_SCRIPT = `window.addEventListener('message', function(e) {
   var done  = msg.storiesCompleted;
   var tasks = msg.tasksCreated;
   storiesEl.textContent = done + ' / ' + total + ' stories';
-  tasksEl.textContent   = String(tasks);
+  if (tasks !== undefined) tasksEl.textContent = String(tasks);
   if (fillEl) fillEl.style.width = (total > 0 ? (done / total) * 100 : 0) + '%';
   [
     { el: storiesEl, color: 'var(--vscode-descriptionForeground)' },
@@ -564,7 +564,7 @@ export function renderGenerateDryWarnings(
 }
 
 export function renderGenerateBlocked(
-	kind: 'auth' | 'no-matches' | 'no-tasks',
+	kind: 'auth' | 'no-matches' | 'no-tasks' | 'exec-error',
 	detail: string,
 	fileName: string,
 	profile: string,
@@ -578,6 +578,11 @@ export function renderGenerateBlocked(
 		const body = header + errorBubble('⚠', 'Authentication failed', detail, true, ctaHtml);
 		const script = `document.getElementById('btn-manage-profiles').addEventListener('click', function() { vscode.postMessage({ type: 'manageProfiles' }); });`;
 		return page('Atomize: Generate — Auth Error', body, script);
+	}
+
+	if (kind === 'exec-error') {
+		const body = header + errorBubble('⚠', 'Task creation failed', detail, true, '');
+		return page('Atomize: Generate — Error', body, '');
 	}
 
 	if (kind === 'no-matches') {

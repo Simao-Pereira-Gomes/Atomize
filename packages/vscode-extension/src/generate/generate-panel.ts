@@ -15,14 +15,12 @@ import {
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
-import { parseNdjsonLines } from './generate-ndjson.js';
+import { type SpawnResult, createStreamResultCoordinator, recoverReportFromProgress } from './generate-ndjson.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
 type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage;
-
-type SpawnResult = { report: GenerateReport } | { error: 'auth' | 'cli'; stderr: string };
 
 function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 	return new Promise(resolve => {
@@ -32,15 +30,15 @@ function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 		proc.on('close', code => {
-			if (code !== 0) {
-				const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
-				const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
-				resolve({ error: kind, stderr: (cleanStderr || stdout).trim() });
-				return;
-			}
 			try {
 				resolve({ report: JSON.parse(stdout.trim()) as GenerateReport });
 			} catch {
+				if (code !== 0) {
+					const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
+					const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
+					resolve({ error: kind, stderr: (cleanStderr || stdout).trim() });
+					return;
+				}
 				resolve({ error: 'cli', stderr: stderr.trim() || 'Failed to parse CLI output' });
 			}
 		});
@@ -48,20 +46,25 @@ function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 	});
 }
 
-type ProgressMessage = { storiesCompleted: number; totalStories: number; tasksCreated: number };
+type ProgressMessage = { completedStories: number; totalStories: number; tasksCreated: number };
 
 function spawnJsonStream(
 	cliPath: string,
 	args: string[],
+	dryReport: GenerateReport,
 	onProgress: (data: ProgressMessage) => void,
 ): Promise<SpawnResult> {
 	return new Promise(resolve => {
 		const proc = spawn(cliPath, args, { shell: false, env: extendedEnv() });
-		const lines: string[] = [];
 		let stderr = '';
+		const coordinator = createStreamResultCoordinator(
+			resolve,
+			() => stderr,
+			(lines, rawStderr) => recoverReportFromProgress(lines, dryReport, rawStderr),
+		);
 		const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
 		rl.on('line', line => {
-			lines.push(line);
+			coordinator.addLine(line);
 			// Parse incrementally so onProgress fires as lines arrive
 			const trimmed = line.trim();
 			if (!trimmed) return;
@@ -70,24 +73,16 @@ function spawnJsonStream(
 			if (typeof parsed !== 'object' || parsed === null) return;
 			const obj = parsed as Record<string, unknown>;
 			if (obj.event === 'progress' && typeof obj.data === 'object' && obj.data !== null) {
-				onProgress(obj.data as ProgressMessage);
+				const ev = obj.data as Record<string, unknown>;
+				// Only forward events that carry both counters needed by the progress display
+				if (ev.type === 'story_complete' || ev.type === 'story_error') {
+					onProgress(ev as unknown as ProgressMessage);
+				}
 			}
 		});
+		rl.on('close', () => { coordinator.markStdoutClosed(); });
 		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', code => {
-			if (code !== 0) {
-				const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
-				const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
-				resolve({ error: kind, stderr: cleanStderr.trim() || 'CLI error during task creation.' });
-				return;
-			}
-			const report = parseNdjsonLines(lines, () => undefined);
-			if (!report) {
-				resolve({ error: 'cli', stderr: stderr.trim() || 'No report received from CLI stream.' });
-				return;
-			}
-			resolve({ report });
-		});
+		proc.on('close', code => { coordinator.markProcessClosed(code); });
 		proc.on('error', err => resolve({ error: 'cli', stderr: err.message }));
 	});
 }
@@ -259,10 +254,11 @@ export class GeneratePanel {
 			const outcome = await spawnJsonStream(
 				this._cliPath,
 				buildGenExecuteJsonArgs(this._fileUri.fsPath, this._profile, this._continueOnError, this._storyIds),
+				dryReport,
 				data => {
 					this._panel.webview.postMessage({
 						type: 'liveProgress',
-						storiesCompleted: data.storiesCompleted,
+						storiesCompleted: data.completedStories,
 						totalStories: data.totalStories,
 						tasksCreated: data.tasksCreated,
 					});
@@ -276,7 +272,7 @@ export class GeneratePanel {
 					? outcome.stderr.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.'
 					: outcome.stderr || 'CLI error during task creation.';
 				this._panel.webview.html = renderGenerateBlocked(
-					outcome.error === 'auth' ? 'auth' : 'no-matches',
+					outcome.error === 'auth' ? 'auth' : 'exec-error',
 					detail,
 					fileName,
 					this._profile,
