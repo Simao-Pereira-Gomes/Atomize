@@ -1,6 +1,6 @@
 # Atomize CLI Reference
 
-Complete command-line interface documentation for Atomize v2.0.0.
+Complete command-line interface documentation for Atomize.
 
 ## Table of Contents
 
@@ -10,6 +10,7 @@ Complete command-line interface documentation for Atomize v2.0.0.
 - [Command Reference](#command-reference)
   - [auth](#auth)
   - [generate](#generate)
+  - [preview](#preview)
   - [fields](#fields)
   - [validate](#validate)
   - [template create](#template-create)
@@ -66,6 +67,7 @@ These options work with any command:
 | `auth test` | - | Test connectivity for a profile |
 | `auth rotate` | - | Replace the PAT for a profile |
 | `generate` | `gen` | Generate tasks from user stories using a template |
+| `preview` | - | Inspect template field requirements or simulate task generation against mock story data |
 | `fields` | - | Browse Azure DevOps work item fields |
 | `fields list` | `fields ls` | List available fields for the current project or work item type |
 | `validate` | - | Validate a template file |
@@ -336,6 +338,43 @@ Do not use it in shared CI pipelines where the report artifact may be visible to
 |------|---------|
 | `0` | All stories processed successfully |
 | `1` | One or more stories failed |
+
+---
+
+### preview
+
+Inspect template field requirements or simulate task generation against a mock story. This command does not connect to Azure DevOps and does not create tasks.
+
+#### Usage
+
+```bash
+atomize preview <source> --inspect
+atomize preview <source> --mock-story '{"id":"123","title":"Example story","estimation":8}'
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<source>` | Path to a YAML template file, catalog ref, or HTTPS URL |
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--inspect` | Output JSON describing which story fields the template references |
+| `--mock-story <json>` | JSON object of mock story field values to preview against |
+
+`--inspect` and `--mock-story` are mutually exclusive. One of them is required.
+
+#### Examples
+
+```bash
+atomize preview template:backend-api --inspect
+
+atomize preview template:backend-api \
+  --mock-story '{"id":"123","title":"Add password reset","estimation":8,"tags":["backend"]}'
+```
 
 ---
 
@@ -972,5 +1011,5 @@ atomize generate template:backend-api --verbose
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors
 - [Platform Guide](./Platform-Guide.md) - Platform setup and configuration
 - [Story Learner](./Story-Learner.md) - Generate templates from existing work items
-- [Template Wizard Guide](./template-wizard-guide.md) - Interactive wizard walkthrough
+- [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows
 - [Examples](../examples/) - Real-world template examples

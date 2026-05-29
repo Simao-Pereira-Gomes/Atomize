@@ -16,6 +16,8 @@ Setup and configuration guide for different work item management platforms.
 
 Atomize connects to two kinds of external service — work item platforms (where tasks are created) and AI providers (for template generation). Each is configured as a named profile.
 
+Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
+
 **Work item platforms:**
 
 | Platform | Status | Features |
@@ -372,7 +374,7 @@ atomize template create --ai --ground --profile work-ado  # grounded with ADO co
 
 `ATOMIZE_AI_PROFILE` can be set as an alternative to `--ai-profile`.
 
-See [Template Creation Wizard — AI-Assisted Generation](./template-wizard-guide.md#ai-assisted-generation) for the full workflow.
+See [Template Creation - AI-Assisted Drafts](./Template-Creation.md#ai-assisted-drafts) for the full workflow.
 
 ---
 
