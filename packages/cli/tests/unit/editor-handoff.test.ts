@@ -16,7 +16,6 @@ describe("resolveEditorCommand", () => {
     ["vscode", "code", ["--reuse-window", templatePath]],
     ["cursor", "cursor", ["--reuse-window", templatePath]],
     ["zed", "zed", [templatePath]],
-    ["sublime", "subl", [templatePath]],
   ])("maps %s to its supported argv", (identifier, commandName, args) => {
     const command = resolveEditorCommand({
       path: templatePath,

@@ -14,6 +14,7 @@ const EnvFileSchema = z
     ATOMIZE_PAT: z.string().min(1).optional(),
     ATOMIZE_PROFILE: z.string().min(1).optional(),
     ATOMIZE_DEV: z.enum(["true", "false"]).optional(),
+    ATOMIZE_EDITOR: z.string().min(1).optional(),
     ATOMIZE_UPDATE_NOTIFIER: updateNotifierModeSchema.optional(),
     LOG_LEVEL: z.enum(LOG_LEVEL_VALUES).optional(),
   })

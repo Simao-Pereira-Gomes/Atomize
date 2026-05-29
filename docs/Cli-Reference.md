@@ -660,7 +660,7 @@ atomize template install ./templates/backend-api.yaml --overwrite
 
 **Editor handoff:**
 
-Pass `--open` to `template create` or `template install` to open the saved Atomize YAML file after success. `ATOMIZE_EDITOR` accepts supported editor identifiers only: `code`, `cursor`, `zed`, or `sublime`. Atomize appends the saved file path to its owned editor command and ignores arbitrary `VISUAL` and `EDITOR` command strings for this handoff. If no supported editor CLI is available, use the printed manual hint.
+Pass `--open` to `template create` or `template install` to open the saved Atomize YAML file after success. `ATOMIZE_EDITOR` accepts supported editor identifiers only: `code`, `cursor`, or `zed`. Atomize appends the saved file path to its owned editor command and ignores arbitrary `VISUAL` and `EDITOR` command strings for this handoff. If no supported editor CLI is available, use the printed manual hint.
 
 ---
 

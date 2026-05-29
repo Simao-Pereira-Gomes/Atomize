@@ -5,7 +5,7 @@ import { confirm } from "@clack/prompts";
 import type { CommandOutput } from "@/cli/utilities/command-output";
 import { assertNotCancelled, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 
-type EditorIdentifier = "code" | "cursor" | "zed" | "sublime";
+type EditorIdentifier = "code" | "cursor" | "zed";
 
 type EditorCommand = {
   command: string;
@@ -58,7 +58,6 @@ const EDITOR_COMMANDS: Record<EditorIdentifier, EditorCommand> = {
   code: { command: "code", args: ["--reuse-window"] },
   cursor: { command: "cursor", args: ["--reuse-window"] },
   zed: { command: "zed", args: [] },
-  sublime: { command: "subl", args: [] },
 };
 
 const EDITOR_ALIASES: Record<string, EditorIdentifier> = {
@@ -66,7 +65,6 @@ const EDITOR_ALIASES: Record<string, EditorIdentifier> = {
   vscode: "code",
   cursor: "cursor",
   zed: "zed",
-  sublime: "sublime",
 };
 
 function defaultCommandExists(command: string): boolean {
