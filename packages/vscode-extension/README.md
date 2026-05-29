@@ -107,4 +107,22 @@ For credential scopes and platform-specific setup, see the [Auth Guide](https://
 
 ## Screenshots
 
-Screenshots will be added before the public Marketplace release.
+### Author Atomize YAML
+
+![Authoring an Atomize YAML file with CodeLens actions, schema support, and diagnostics](./images/screenshots/01-author-atomize-yaml.png)
+
+### Validate Templates
+
+![Offline Validation Report with grouped template errors, warnings, and suggestions](./images/screenshots/02-validation-report.png)
+
+### Preview With Mock Data
+
+![Mock Preview Panel showing entered story fields and the resolved task breakdown](./images/screenshots/03-mock-preview.png)
+
+### Preview A Live Story
+
+![Live Preview Panel showing a connected dry run against a real Story](./images/screenshots/04-live-preview.png)
+
+### Generate After Confirmation
+
+![Generate Panel showing the dry-run report before explicit task creation](./images/screenshots/05-generate-confirmation.png)
