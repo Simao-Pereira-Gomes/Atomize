@@ -15,14 +15,12 @@ import {
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
-import { parseNdjsonLines } from './generate-ndjson.js';
+import { createStreamResultCoordinator, recoverReportFromProgress, type SpawnResult } from './generate-ndjson.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
 type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage;
-
-type SpawnResult = { report: GenerateReport } | { error: 'auth' | 'cli'; stderr: string };
 
 function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 	return new Promise(resolve => {
@@ -32,15 +30,15 @@ function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 		proc.on('close', code => {
-			if (code !== 0) {
-				const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
-				const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
-				resolve({ error: kind, stderr: (cleanStderr || stdout).trim() });
-				return;
-			}
 			try {
 				resolve({ report: JSON.parse(stdout.trim()) as GenerateReport });
 			} catch {
+				if (code !== 0) {
+					const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
+					const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
+					resolve({ error: kind, stderr: (cleanStderr || stdout).trim() });
+					return;
+				}
 				resolve({ error: 'cli', stderr: stderr.trim() || 'Failed to parse CLI output' });
 			}
 		});
@@ -48,20 +46,25 @@ function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 	});
 }
 
-type ProgressMessage = { storiesCompleted: number; totalStories: number; tasksCreated: number };
+type ProgressMessage = { completedStories: number; totalStories: number; tasksCreated: number };
 
 function spawnJsonStream(
 	cliPath: string,
 	args: string[],
+	dryReport: GenerateReport,
 	onProgress: (data: ProgressMessage) => void,
 ): Promise<SpawnResult> {
 	return new Promise(resolve => {
 		const proc = spawn(cliPath, args, { shell: false, env: extendedEnv() });
-		const lines: string[] = [];
 		let stderr = '';
+		const coordinator = createStreamResultCoordinator(
+			resolve,
+			() => stderr,
+			(lines, rawStderr) => recoverReportFromProgress(lines, dryReport, rawStderr),
+		);
 		const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
 		rl.on('line', line => {
-			lines.push(line);
+			coordinator.addLine(line);
 			// Parse incrementally so onProgress fires as lines arrive
 			const trimmed = line.trim();
 			if (!trimmed) return;
@@ -70,24 +73,16 @@ function spawnJsonStream(
 			if (typeof parsed !== 'object' || parsed === null) return;
 			const obj = parsed as Record<string, unknown>;
 			if (obj.event === 'progress' && typeof obj.data === 'object' && obj.data !== null) {
-				onProgress(obj.data as ProgressMessage);
+				const ev = obj.data as Record<string, unknown>;
+				// Only forward events that carry both counters needed by the progress display
+				if (ev.type === 'story_complete' || ev.type === 'story_error') {
+					onProgress(ev as unknown as ProgressMessage);
+				}
 			}
 		});
+		rl.on('close', () => { coordinator.markStdoutClosed(); });
 		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', code => {
-			if (code !== 0) {
-				const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
-				const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
-				resolve({ error: kind, stderr: cleanStderr.trim() || 'CLI error during task creation.' });
-				return;
-			}
-			const report = parseNdjsonLines(lines, () => undefined);
-			if (!report) {
-				resolve({ error: 'cli', stderr: stderr.trim() || 'No report received from CLI stream.' });
-				return;
-			}
-			resolve({ report });
-		});
+		proc.on('close', code => { coordinator.markProcessClosed(code); });
 		proc.on('error', err => resolve({ error: 'cli', stderr: err.message }));
 	});
 }
@@ -100,9 +95,11 @@ export class GeneratePanel {
 	private _cliPath: string;
 	private _mode: 'default' | 'compact';
 	private _profile: string;
+	private _storyIds: string[] | undefined;
 	private _dryRunReport: GenerateReport | undefined;
 	private _execReport: GenerateReport | undefined;
 	private _continueOnError: boolean = false;
+	private _isExecuting: boolean = false;
 
 	private constructor(
 		panel: vscode.WebviewPanel,
@@ -110,12 +107,14 @@ export class GeneratePanel {
 		cliPath: string,
 		mode: 'default' | 'compact',
 		profile: string,
+		storyIds: string[] | undefined,
 	) {
 		this._panel = panel;
 		this._fileUri = fileUri;
 		this._cliPath = cliPath;
 		this._mode = mode;
 		this._profile = profile;
+		this._storyIds = storyIds;
 
 		panel.onDidDispose(() => { GeneratePanel._instance = undefined; });
 		panel.webview.onDidReceiveMessage((msg: unknown) => { void this._handleMessage(msg); });
@@ -125,8 +124,31 @@ export class GeneratePanel {
 		const mode = getPreviewLayout(fileUri);
 		const defaultProfile = getDefaultProfile(fileUri);
 
+		if (GeneratePanel._instance?._isExecuting) {
+			GeneratePanel._instance._panel.reveal(vscode.ViewColumn.Beside, true);
+			return;
+		}
+
 		const profile = await pickProfile(cliPath, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
 		if (profile == null) return;
+
+		const storyIdsInput = await vscode.window.showInputBox({
+			title: 'Atomize: Generate',
+			prompt: 'Filter to specific story IDs (leave blank to use template filter)',
+			placeHolder: '123, 456, 789',
+			validateInput: (value): string | undefined => {
+				const trimmed = value.trim();
+				if (!trimmed) return undefined;
+				const parts = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+				const invalid = parts.filter(p => !/^\d+$/.test(p));
+				if (invalid.length > 0) return `IDs must be numeric. Invalid: ${invalid.join(', ')}`;
+				return undefined;
+			},
+		});
+		if (storyIdsInput === undefined) return;
+		const storyIds = storyIdsInput.trim()
+			? storyIdsInput.split(',').map(s => s.trim()).filter(Boolean)
+			: undefined;
 
 		const fileName = vscode.workspace.asRelativePath(fileUri);
 
@@ -137,6 +159,7 @@ export class GeneratePanel {
 			inst._cliPath = cliPath;
 			inst._mode = mode;
 			inst._profile = profile;
+			inst._storyIds = storyIds;
 			inst._dryRunReport = undefined;
 			inst._execReport = undefined;
 			inst._continueOnError = false;
@@ -150,7 +173,7 @@ export class GeneratePanel {
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);
-			panel = new GeneratePanel(webviewPanel, fileUri, cliPath, mode, profile);
+			panel = new GeneratePanel(webviewPanel, fileUri, cliPath, mode, profile, storyIds);
 			GeneratePanel._instance = panel;
 		}
 
@@ -158,58 +181,63 @@ export class GeneratePanel {
 	}
 
 	private async _runDryRun(): Promise<void> {
-		const fileName = vscode.workspace.asRelativePath(this._fileUri);
-		this._panel.webview.html = renderGenerateLoading(fileName, this._profile);
+		this._isExecuting = true;
+		try {
+			const fileName = vscode.workspace.asRelativePath(this._fileUri);
+			this._panel.webview.html = renderGenerateLoading(fileName, this._profile, this._storyIds);
 
-		const outcome = await spawnJson(
-			this._cliPath,
-			buildGenDryRunJsonArgs(this._fileUri.fsPath, this._profile),
-		);
+			const outcome = await spawnJson(
+				this._cliPath,
+				buildGenDryRunJsonArgs(this._fileUri.fsPath, this._profile, this._storyIds),
+			);
 
-		if ('error' in outcome) {
-			if (outcome.error === 'auth') {
-				const detail = outcome.stderr.replace(/^authentication failed[:\s]*/i, '').trim();
-				this._panel.webview.html = renderGenerateBlocked('auth', detail || 'Personal access token may be expired or revoked.', fileName, this._profile);
-			} else {
+			if ('error' in outcome) {
+				if (outcome.error === 'auth') {
+					const detail = outcome.stderr.replace(/^authentication failed[:\s]*/i, '').trim();
+					this._panel.webview.html = renderGenerateBlocked('auth', detail || 'Personal access token may be expired or revoked.', fileName, this._profile, this._storyIds);
+				} else {
+					this._panel.webview.html = renderGenerateBlocked(
+						'no-matches',
+						outcome.stderr || 'CLI error — check that the template file is valid.',
+						fileName,
+						this._profile,
+						this._storyIds,
+					);
+				}
+				return;
+			}
+
+			const report = outcome.report;
+			this._dryRunReport = report;
+			this._panel.title = `Atomize: ${fileName} (Generate)`;
+
+			if (report.storiesProcessed === 0) {
+				const noMatchMsg = this._storyIds
+					? `None of the specified story IDs were found, or all were excluded by the template's excludeIfHasTasks filter. Verify the IDs are correct and accessible via the "${this._profile}" profile.`
+					: 'The filter returned no work items. Check your YAML filter conditions and verify the profile has access to the configured project.';
+				this._panel.webview.html = renderGenerateBlocked('no-matches', noMatchMsg, fileName, this._profile, this._storyIds);
+				return;
+			}
+
+			if (report.tasksCalculated === 0) {
+				const n = report.storiesProcessed;
 				this._panel.webview.html = renderGenerateBlocked(
-					'no-matches',
-					outcome.stderr || 'CLI error — check that the template file is valid.',
+					'no-tasks',
+					`${n} ${n === 1 ? 'story' : 'stories'} matched but all tasks were filtered out by template conditions. Review your template conditions and re-run.`,
 					fileName,
 					this._profile,
+					this._storyIds,
 				);
+				return;
 			}
-			return;
-		}
 
-		const report = outcome.report;
-		this._dryRunReport = report;
-		this._panel.title = `Atomize: ${fileName} (Generate)`;
-
-		if (report.storiesProcessed === 0) {
-			this._panel.webview.html = renderGenerateBlocked(
-				'no-matches',
-				'The filter returned no work items. Check your YAML filter conditions and verify the profile has access to the configured project.',
-				fileName,
-				this._profile,
-			);
-			return;
-		}
-
-		if (report.tasksCalculated === 0) {
-			const n = report.storiesProcessed;
-			this._panel.webview.html = renderGenerateBlocked(
-				'no-tasks',
-				`${n} ${n === 1 ? 'story' : 'stories'} matched but all tasks were filtered out by template conditions. Review your template conditions and re-run.`,
-				fileName,
-				this._profile,
-			);
-			return;
-		}
-
-		if (report.tasksSkipped > 0 || report.storiesFailed > 0) {
-			this._panel.webview.html = renderGenerateDryWarnings(report, this._mode, fileName, this._profile);
-		} else {
-			this._panel.webview.html = renderGenerateDrySuccess(report, this._mode, fileName, this._profile);
+			if (report.tasksSkipped > 0 || report.storiesFailed > 0) {
+				this._panel.webview.html = renderGenerateDryWarnings(report, this._mode, fileName, this._profile, this._storyIds);
+			} else {
+				this._panel.webview.html = renderGenerateDrySuccess(report, this._mode, fileName, this._profile, this._storyIds);
+			}
+		} finally {
+			this._isExecuting = false;
 		}
 	}
 
@@ -217,45 +245,52 @@ export class GeneratePanel {
 		const dryReport = this._dryRunReport;
 		if (!dryReport) return;
 
-		const fileName = vscode.workspace.asRelativePath(this._fileUri);
-		this._panel.title = `Atomize: ${fileName} (Generate — Creating…)`;
-		this._panel.webview.html = renderGenerateLiveRunning(dryReport, fileName, this._profile);
+		this._isExecuting = true;
+		try {
+			const fileName = vscode.workspace.asRelativePath(this._fileUri);
+			this._panel.title = `Atomize: ${fileName} (Generate — Creating…)`;
+			this._panel.webview.html = renderGenerateLiveRunning(dryReport, fileName, this._profile, this._storyIds);
 
-		const outcome = await spawnJsonStream(
-			this._cliPath,
-			buildGenExecuteJsonArgs(this._fileUri.fsPath, this._profile, this._continueOnError),
-			data => {
-				this._panel.webview.postMessage({
-					type: 'liveProgress',
-					storiesCompleted: data.storiesCompleted,
-					totalStories: data.totalStories,
-					tasksCreated: data.tasksCreated,
-				});
-			},
-		);
-
-		this._panel.title = `Atomize: ${fileName} (Generate — Done)`;
-
-		if ('error' in outcome) {
-			const detail = outcome.error === 'auth'
-				? outcome.stderr.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.'
-				: outcome.stderr || 'CLI error during task creation.';
-			this._panel.webview.html = renderGenerateBlocked(
-				outcome.error === 'auth' ? 'auth' : 'no-matches',
-				detail,
-				fileName,
-				this._profile,
+			const outcome = await spawnJsonStream(
+				this._cliPath,
+				buildGenExecuteJsonArgs(this._fileUri.fsPath, this._profile, this._continueOnError, this._storyIds),
+				dryReport,
+				data => {
+					this._panel.webview.postMessage({
+						type: 'liveProgress',
+						storiesCompleted: data.completedStories,
+						totalStories: data.totalStories,
+						tasksCreated: data.tasksCreated,
+					});
+				},
 			);
-			return;
-		}
 
-		const execReport = outcome.report;
-		this._execReport = execReport;
+			this._panel.title = `Atomize: ${fileName} (Generate — Done)`;
 
-		if (execReport.storiesFailed > 0) {
-			this._panel.webview.html = renderGenerateLivePartial(dryReport, execReport, this._mode, fileName, this._profile);
-		} else {
-			this._panel.webview.html = renderGenerateLiveSuccess(dryReport, execReport, this._mode, fileName, this._profile);
+			if ('error' in outcome) {
+				const detail = outcome.error === 'auth'
+					? outcome.stderr.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.'
+					: outcome.stderr || 'CLI error during task creation.';
+				this._panel.webview.html = renderGenerateBlocked(
+					outcome.error === 'auth' ? 'auth' : 'exec-error',
+					detail,
+					fileName,
+					this._profile,
+					this._storyIds,
+				);
+				return;
+			}
+
+			const execReport = outcome.report;
+			this._execReport = execReport;
+
+			if (execReport.storiesFailed > 0) {
+				this._panel.webview.html = renderGenerateLivePartial(dryReport, execReport, this._mode, fileName, this._profile, this._storyIds);
+			} else {
+				this._panel.webview.html = renderGenerateLiveSuccess(dryReport, execReport, this._mode, fileName, this._profile, this._storyIds);
+			}
+		} finally {
+			this._isExecuting = false;
 		}
 	}
 
@@ -270,9 +305,9 @@ export class GeneratePanel {
 			// Live phase: re-render live result
 			if (this._execReport && this._dryRunReport) {
 				if (this._execReport.storiesFailed > 0) {
-					this._panel.webview.html = renderGenerateLivePartial(this._dryRunReport, this._execReport, this._mode, fileName, this._profile);
+					this._panel.webview.html = renderGenerateLivePartial(this._dryRunReport, this._execReport, this._mode, fileName, this._profile, this._storyIds);
 				} else {
-					this._panel.webview.html = renderGenerateLiveSuccess(this._dryRunReport, this._execReport, this._mode, fileName, this._profile);
+					this._panel.webview.html = renderGenerateLiveSuccess(this._dryRunReport, this._execReport, this._mode, fileName, this._profile, this._storyIds);
 				}
 				return;
 			}
@@ -281,9 +316,9 @@ export class GeneratePanel {
 			if (this._dryRunReport) {
 				const report = this._dryRunReport;
 				if (report.tasksSkipped > 0 || report.storiesFailed > 0) {
-					this._panel.webview.html = renderGenerateDryWarnings(report, this._mode, fileName, this._profile);
+					this._panel.webview.html = renderGenerateDryWarnings(report, this._mode, fileName, this._profile, this._storyIds);
 				} else {
-					this._panel.webview.html = renderGenerateDrySuccess(report, this._mode, fileName, this._profile);
+					this._panel.webview.html = renderGenerateDrySuccess(report, this._mode, fileName, this._profile, this._storyIds);
 				}
 			}
 		} else if (message.type === 'createTasks') {

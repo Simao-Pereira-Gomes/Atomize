@@ -49,7 +49,7 @@ tasks:
 
   # Warning: this task has dependsOn but no id, so dependency links cannot be built
   - title: "QA & Testing"
-    estimationPercent: 10
+    estimationPercent: 100
     activity: "Testing"
     dependsOn:
       - "implement"

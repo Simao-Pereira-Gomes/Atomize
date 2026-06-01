@@ -147,6 +147,7 @@ export class AzureDevOpsWorkItemRetrieval {
       this.config.project,
     );
 
+    if (!workItems) return [];
     return workItems.filter((wi) => wi !== null) as AzureWorkItem[];
   }
 

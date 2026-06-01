@@ -111,6 +111,9 @@ _Avoid_: onboarding, walkthrough, docs link when referring to settings discovery
 **Field Hover Description**:
 Schema-backed explanatory text shown by the editor for an Atomize YAML field while authoring.
 
+**Generate Panel**:
+VS Code webview panel that drives Task generation from a Template against a live Platform Adapter.
+
 **Mock Preview Panel**:
 VS Code webview panel that drives Mock Preview — shows a dynamic form derived from `--inspect`, collects a Mock Story, and renders the resolved task list on submit.
 

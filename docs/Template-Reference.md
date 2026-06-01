@@ -775,5 +775,5 @@ metadata:
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix validation failures
 - [Story Learner](./Story-Learner.md) - Generate templates from existing work items
-- [Template Wizard Guide](./template-wizard-guide.md) - Interactive template creation
+- [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows
 - [Examples](../examples/) - Real-world template examples

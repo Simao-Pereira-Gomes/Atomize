@@ -8,12 +8,19 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Simao-Pereira-Gomes/atomize.git"
+		"url": "https://github.com/Simao-Pereira-Gomes/atomize",
+		"directory": "packages/vscode-extension"
 	},
 	"engines": {
 		"vscode": "^1.85.0"
 	},
-	"categories": ["Other"],
+	"icon": "icons/atomize-product.png",
+	"categories": [
+		"Programming Languages",
+		"Snippets",
+		"Linters",
+		"Other"
+	],
 	"extensionPack": ["redhat.vscode-yaml"],
 	"activationEvents": ["onStartupFinished"],
 	"main": "./dist/extension.js",
@@ -135,7 +142,7 @@
 	"scripts": {
 		"prebuild": "bun run --cwd ../cli generate-schema",
 		"build": "bun esbuild.mjs",
-		"package": "vsce package --no-dependencies",
+		"package": "vsce package --no-dependencies --baseContentUrl https://github.com/Simao-Pereira-Gomes/atomize/blob/HEAD/packages/vscode-extension --baseImagesUrl https://github.com/Simao-Pereira-Gomes/atomize/raw/HEAD/packages/vscode-extension",
 		"typecheck": "tsc --noEmit",
 		"lint": "bunx biome check --max-diagnostics 100",
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100"

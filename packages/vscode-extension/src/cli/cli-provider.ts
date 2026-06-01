@@ -118,13 +118,16 @@ export function buildLivePreviewArgs(filePath: string, storyId: string, profile:
 	return ['gen', filePath, '--story', storyId, '--profile', profile, '--json'];
 }
 
-export function buildGenDryRunJsonArgs(filePath: string, profile: string): string[] {
-	return ['gen', filePath, '--profile', profile, '--json'];
+export function buildGenDryRunJsonArgs(filePath: string, profile: string, storyIds?: string[]): string[] {
+	const args = ['gen', filePath, '--profile', profile, '--json'];
+	if (storyIds && storyIds.length > 0) args.push('--story', ...storyIds);
+	return args;
 }
 
-export function buildGenExecuteJsonArgs(filePath: string, profile: string, continueOnError: boolean): string[] {
+export function buildGenExecuteJsonArgs(filePath: string, profile: string, continueOnError: boolean, storyIds?: string[]): string[] {
 	const args = ['gen', filePath, '--profile', profile, '--json-stream', '--execute', '--auto-approve'];
 	if (continueOnError) args.push('--continue-on-error');
+	if (storyIds && storyIds.length > 0) args.push('--story', ...storyIds);
 	return args;
 }
 

@@ -57,7 +57,8 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Simao-Pereira-Gomes/atomize.git"
+		"url": "https://github.com/Simao-Pereira-Gomes/atomize",
+		"directory": "packages/cli"
 	},
 	"bugs": {
 		"url": "https://github.com/Simao-Pereira-Gomes/atomize/issues"
