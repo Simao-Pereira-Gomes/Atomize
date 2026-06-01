@@ -15,7 +15,12 @@
 		"vscode": "^1.85.0"
 	},
 	"icon": "icons/atomize-product.png",
-	"categories": ["Other"],
+	"categories": [
+		"Programming Languages",
+		"Snippets",
+		"Linters",
+		"Other"
+	],
 	"extensionPack": ["redhat.vscode-yaml"],
 	"activationEvents": ["onStartupFinished"],
 	"main": "./dist/extension.js",
