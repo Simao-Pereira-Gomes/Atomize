@@ -32,11 +32,12 @@ jobs:
         working-directory: packages/cli
 
       - name: Run benchmarks
-        run: bun run benchmark > benchmark-output.json
+        run: CI=true bun benchmarks/index.ts > benchmark-output.json
         working-directory: packages/cli
 
       - name: Process benchmark results
         id: process
+        working-directory: packages/cli
         run: |
           node << 'EOF'
           const fs = require('fs');
@@ -84,7 +85,7 @@ jobs:
         with:
           name: Atomize Benchmarks
           tool: "customSmallerIsBetter"
-          output-file-path: benchmark-results.json
+          output-file-path: packages/cli/benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           alert-threshold: "150%"
@@ -96,5 +97,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-output
-          path: benchmark-output.txt
+          path: packages/cli/benchmark-output.json
           retention-days: 30
