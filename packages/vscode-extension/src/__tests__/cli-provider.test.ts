@@ -25,8 +25,10 @@ import {
 	meetsCliFeatureRequirements,
 	normalizeCliPath,
 	normalizeInstallCommand,
+	resolveCliExecutable,
 	UPDATE_CHECK_TTL_MS,
 } from '../cli/cli-provider.js';
+import { buildExtendedEnv } from '../cli/env-utils.js';
 
 describe('cli-provider', () => {
 	it('uses atomize when no CLI path is configured', () => {
@@ -36,6 +38,49 @@ describe('cli-provider', () => {
 
 	it('preserves a configured executable path', () => {
 		expect(normalizeCliPath('/Users/me/bin/atomize-dev')).toBe('/Users/me/bin/atomize-dev');
+	});
+
+	it('resolves Windows npm .cmd shims from PATH', () => {
+		const existing = new Set(['C:\\Users\\me\\AppData\\Roaming\\npm\\atomize.cmd']);
+		const resolved = resolveCliExecutable('atomize', {
+			platform: 'win32',
+			env: {
+				Path: 'C:\\Users\\me\\AppData\\Roaming\\npm;C:\\Windows\\System32',
+				PATHEXT: '.COM;.EXE;.BAT;.CMD',
+			},
+			exists: path => existing.has(path),
+		});
+
+		expect(resolved).toBe('C:\\Users\\me\\AppData\\Roaming\\npm\\atomize.cmd');
+	});
+
+	it('resolves explicit Windows CLI paths to a .cmd shim when that is what exists', () => {
+		const resolved = resolveCliExecutable('C:\\tools\\atomize', {
+			platform: 'win32',
+			env: { PATHEXT: '.EXE;.CMD' },
+			exists: path => path === 'C:\\tools\\atomize.cmd',
+		});
+
+		expect(resolved).toBe('C:\\tools\\atomize.cmd');
+	});
+
+	it('leaves non-Windows CLI resolution unchanged', () => {
+		expect(resolveCliExecutable('atomize', {
+			platform: 'darwin',
+			env: { PATH: '/opt/bin' },
+			exists: () => true,
+		})).toBe('atomize');
+	});
+
+	it('preserves the existing Windows Path key when extending the environment', () => {
+		const env = buildExtendedEnv({
+			USERPROFILE: 'C:\\Users\\me',
+			Path: 'C:\\Windows\\System32',
+		}, 'win32');
+
+		expect(env.PATH).toBeUndefined();
+		expect(env.Path).toContain('C:\\Windows\\System32');
+		expect(env.Path).not.toContain('/bin:C:\\Windows\\System32');
 	});
 
 	it('keeps validation arguments extension-owned', () => {

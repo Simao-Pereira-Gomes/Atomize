@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildLivePreviewArgs, CLI_EXIT_CODES } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildLivePreviewArgs, CLI_EXIT_CODES, spawnCli } from '../cli/cli-provider.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { AtomizationReport } from './live-preview-html.js';
@@ -25,7 +23,7 @@ async function pickStoryId(): Promise<string | null> {
 
 function spawnGenJson(cliPath: string, filePath: string, storyId: string, profile: string): Promise<{ report: AtomizationReport } | { error: 'auth' | 'notfound'; stderr: string }> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildLivePreviewArgs(filePath, storyId, profile), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildLivePreviewArgs(filePath, storyId, profile));
 		let stdout = '';
 		let stderr = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });

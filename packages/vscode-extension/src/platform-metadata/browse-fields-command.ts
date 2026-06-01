@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildFieldsListArgs, probeCli } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildFieldsListArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
 import { getConfiguredCliPath, getDefaultProfile } from '../config/atomize-configuration.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 
@@ -27,7 +25,7 @@ function parseFieldsJson(stdout: string): FieldJson[] | null {
 
 function fetchFields(cliPath: string, profile: string, type?: string): Promise<FieldJson[] | null> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildFieldsListArgs(profile, type), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildFieldsListArgs(profile, type));
 		let stdout = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 		proc.on('close', () => { resolve(parseFieldsJson(stdout)); });

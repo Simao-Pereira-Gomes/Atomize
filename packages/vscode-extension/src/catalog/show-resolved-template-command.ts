@@ -1,9 +1,7 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
 import { resolveCommandDocument } from '../authoring/command-document-resolution.js';
 import { isAtomizeDocument } from '../authoring/language-detection.js';
-import { buildResolveArgs, probeCli } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildResolveArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
 import { getConfiguredCliPath } from '../config/atomize-configuration.js';
 
 export const RESOLVED_TEMPLATE_SCHEME = 'atomize-resolved';
@@ -42,7 +40,7 @@ function virtualUri(sourceUri: vscode.Uri): vscode.Uri {
 
 function runResolve(cliPath: string, filePath: string): Promise<{ yaml: string } | { error: string }> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildResolveArgs(filePath), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildResolveArgs(filePath));
 		let stdout = '';
 		let stderr = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });

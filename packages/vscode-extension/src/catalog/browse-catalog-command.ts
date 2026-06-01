@@ -1,9 +1,7 @@
-import { spawn } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { isAtomizeDocument } from '../authoring/language-detection.js';
-import { buildTemplateCatalogListArgs, probeCli } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildTemplateCatalogListArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
 import { getConfiguredCliPath } from '../config/atomize-configuration.js';
 
 export const CATALOG_ITEM_SCHEME = 'atomize-catalog';
@@ -56,7 +54,7 @@ const OPEN_FILE_BUTTON: vscode.QuickInputButton = {
 
 function fetchCatalog(cliPath: string): Promise<CatalogJsonItem[] | null> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildTemplateCatalogListArgs(), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildTemplateCatalogListArgs());
 		let stdout = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 		proc.on('close', () => {

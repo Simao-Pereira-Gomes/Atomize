@@ -1,8 +1,6 @@
-import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import * as vscode from 'vscode';
-import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES, spawnCli } from '../cli/cli-provider.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { GenerateReport } from './generate-html.js';
@@ -25,7 +23,7 @@ type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMes
 
 function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, args, { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, args);
 		let stdout = '';
 		let stderr = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
@@ -56,7 +54,7 @@ function spawnJsonStream(
 	onProgress: (data: ProgressMessage) => void,
 ): Promise<SpawnResult> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, args, { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, args);
 		let stderr = '';
 		const coordinator = createStreamResultCoordinator(
 			resolve,

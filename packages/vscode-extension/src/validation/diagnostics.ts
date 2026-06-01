@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildValidateArgs } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildValidateArgs, spawnCli } from '../cli/cli-provider.js';
 import { parseValidationOutput } from './validation-output.js';
 
 export interface ValidationError {
@@ -152,7 +150,7 @@ function runPendingValidation(state: RunState): void {
 
 function spawnValidation(cliPath: string, filePath: string, profile?: string): Promise<ValidationResult> {
 	return new Promise((resolve, reject) => {
-		const proc = spawn(cliPath, buildValidateArgs(filePath, profile), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildValidateArgs(filePath, profile));
 		let stdout = '';
 		let stderr = '';
 

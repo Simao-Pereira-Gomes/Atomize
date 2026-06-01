@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildQueriesListArgs, probeCli } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildQueriesListArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
 import { getConfiguredCliPath, getDefaultProfile } from '../config/atomize-configuration.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 
@@ -25,7 +23,7 @@ function parseQueriesJson(stdout: string): QueryJson[] | null {
 
 function fetchQueries(cliPath: string, profile: string): Promise<QueryJson[] | null> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildQueriesListArgs(profile), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildQueriesListArgs(profile));
 		let stdout = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 		proc.on('close', () => { resolve(parseQueriesJson(stdout)); });

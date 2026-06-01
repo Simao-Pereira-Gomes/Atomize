@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildInspectArgs, buildPreviewArgs } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildInspectArgs, buildPreviewArgs, spawnCli } from '../cli/cli-provider.js';
 import { getPreviewLayout } from '../config/atomize-configuration.js';
 import {
 	type InspectField,
@@ -14,7 +12,7 @@ import {
 
 function spawnInspect(cliPath: string, filePath: string): Promise<InspectField[]> {
 	return new Promise((resolve, reject) => {
-		const proc = spawn(cliPath, buildInspectArgs(filePath), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildInspectArgs(filePath));
 		let stdout = '';
 		let stderr = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
@@ -32,7 +30,7 @@ function spawnInspect(cliPath: string, filePath: string): Promise<InspectField[]
 
 function spawnPreview(cliPath: string, filePath: string, mockStory: string): Promise<PreviewResult> {
 	return new Promise((resolve, reject) => {
-		const proc = spawn(cliPath, buildPreviewArgs(filePath, mockStory), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildPreviewArgs(filePath, mockStory));
 		let stdout = '';
 		let stderr = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });

@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
 import {
 	buildAuthAddArgs,
@@ -9,8 +8,8 @@ import {
 	buildAuthRotateHelpArgs,
 	buildAuthTestArgs,
 	buildAuthUseArgs,
+	spawnCli,
 } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
 import {
 	type AdoProfileJson,
 	parseAdoProfilesJson,
@@ -45,7 +44,7 @@ type ActionItem = vscode.QuickPickItem & {
 
 function runCli(cliPath: string, args: string[], stdin?: string): Promise<CliRunResult> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, args, { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, args);
 		let stdout = '';
 		let stderr = '';
 		proc.stdout.on('data', chunk => { stdout += chunk.toString(); });

@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process';
 import * as vscode from 'vscode';
-import { buildAuthListArgs } from '../cli/cli-provider.js';
-import { extendedEnv } from '../cli/env-utils.js';
+import { buildAuthListArgs, spawnCli } from '../cli/cli-provider.js';
 import { manageProfiles } from './profile-management.js';
 import { type AdoProfileJson, parseAdoProfilesJson, resolveDefaultProfile, sortAdoProfiles } from './profile-management-model.js';
 
@@ -13,7 +11,7 @@ export interface PickProfileOptions {
 
 export function fetchAdoProfiles(cliPath: string): Promise<AdoProfileJson[] | null> {
 	return new Promise(resolve => {
-		const proc = spawn(cliPath, buildAuthListArgs(), { shell: false, env: extendedEnv() });
+		const proc = spawnCli(cliPath, buildAuthListArgs());
 		let stdout = '';
 		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 		proc.on('close', () => { resolve(parseAdoProfilesJson(stdout) ?? null); });
