@@ -1,5 +1,5 @@
 version: "1.0"
-name: "Bug Template"
+name: "Bug Fix"
 description: "Foundation for bug-fix templates. Extend this to inherit a standard investigation and fix task set."
 author: "Atomize"
 tags: ["template", "bug"]

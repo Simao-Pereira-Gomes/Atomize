@@ -1,4 +1,4 @@
-name: "Testing Mixin"
+name: "Test Coverage Tasks"
 description: "Expanded testing tasks. Mix into any template to enforce unit, integration, and E2E test coverage."
 tasks:
   - id: "unit-tests"

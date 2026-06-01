@@ -1,13 +1,20 @@
 version: "1.0"
-name: "Custom Example — Saved Query"
-description: "Same task breakdown as the custom example, but work item selection is delegated to an existing Azure DevOps saved query instead of a structured filter. Useful when your team already maintains a query that encodes complex area path, iteration, and tag logic."
+name: "Agile Story Breakdown"
+description: "Agile story breakdown template. Handles dev stories, mixed dev+test stories, and test-only stories in a single template using conditional tasks and conditional estimation."
 author: "Atomize"
 tags: []
 
 filter:
-  savedQuery:
-    path: "Shared Queries/Teams/Platform/Ready for Sprint"
+  workItemTypes: ["User Story"]
+  states: ["Ready for Sprint"]
+  tags:
+    exclude:
+      - "TestGen"
   excludeIfHasTasks: true
+  areaPaths:
+    - EA-RSP-Platform\Release 2 Team
+  iterations:
+    - "@CurrentIteration"
 
 tasks:
   - title: "Analysis & Playback"
@@ -80,7 +87,7 @@ tasks:
           operator: not-contains
           value: Test Only
 
-  - title: "Code Review"
+  - title: "Code Review "
     estimationPercent: 0
     activity: "Development"
     tags: []
@@ -201,14 +208,8 @@ metadata:
   category: "Agile Project"
   recommendedFor: []
   estimationGuidelines: |
-    Identical task breakdown to the structured-filter custom example.
-    The only difference is in the filter: work item selection is handled
-    entirely by the saved query at the configured path. The query should
-    already encode area path, iteration, and tag constraints so this
-    template stays clean. Update the savedQuery path to match your project.
-
     Handles three story archetypes in one template:
     - Dev and Test story (no special tag): dev tasks + test tasks, base percentages apply.
     - Testing Only / Test Only story: dev tasks skipped; Test Preparation gets 59.70%
       and Test Execution gets 40.30%.
-    - Dev Only story: test tasks skipped.
+    - Dev Only story: test tasks skipped

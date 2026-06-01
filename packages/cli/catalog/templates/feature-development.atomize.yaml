@@ -1,5 +1,5 @@
 version: "1.0"
-name: "Feature Template"
+name: "Feature Development"
 description: "Foundation for feature development templates. Extend this to inherit a standard task set and filter."
 author: "Atomize"
 tags: ["template", "feature"]

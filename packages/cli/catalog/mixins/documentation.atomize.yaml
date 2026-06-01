@@ -1,4 +1,4 @@
-name: "Documentation Mixin"
+name: "Documentation Tasks"
 description: "Standard documentation tasks. Mix into any template to ensure docs are part of the definition of done."
 tasks:
   - id: "update-docs"

@@ -583,21 +583,25 @@ atomize tpl ls        # alias
 ```
 Built-in Templates
 
+  agile-story-breakdown
+    Agile Story Breakdown
+    Agile story breakdown template
+
+  agile-story-breakdown-saved-query
+    Agile Story Breakdown - Saved Query
+    Agile story breakdown template driven by a saved query
+
   backend-api
     Backend API Development
     Standard backend API development with database integration
 
-  feature
-    Feature Template
-    Foundation for feature templates
-
-  bug
-    Bug Template
+  bug-fix
+    Bug Fix
     Foundation for bug-fix templates
 
-  custom
-    Custom Example
-    Example template with custom fields
+  feature-development
+    Feature Development
+    Foundation for feature development templates
 
 User Templates
 

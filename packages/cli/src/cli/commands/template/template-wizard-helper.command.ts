@@ -956,9 +956,9 @@ export async function configureBasicInfo(
 }
 
 export interface TemplateCompositionResult {
-  /** Logical ref (e.g. "template:feature"). */
+  /** Logical ref (e.g. "template:feature-development"). */
   extendsRef: string | undefined;
-  /** Logical mixin refs (e.g. "mixin:security"). */
+  /** Logical mixin refs (e.g. "mixin:security-review"). */
   mixins: string[];
 }
 

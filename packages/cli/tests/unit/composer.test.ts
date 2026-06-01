@@ -268,6 +268,23 @@ describe("TemplateCatalog discovery", () => {
     const backend = templates.find((item) => item.ref === "template:backend-api");
     expect(backend?.scope).toBe("builtin");
     expect(backend?.displayName).toBe("Backend API Development");
+    expect(templates.map((item) => item.ref)).toEqual(expect.arrayContaining([
+      "template:agile-story-breakdown",
+      "template:agile-story-breakdown-saved-query",
+      "template:bug-fix",
+      "template:feature-development",
+    ]));
+  });
+
+  test("exposes Atomize curated mixins as built-in mixins", async () => {
+    const catalog = new TemplateCatalog();
+    const mixins = await catalog.listMixins();
+
+    expect(mixins.map((item) => item.ref)).toEqual(expect.arrayContaining([
+      "mixin:documentation",
+      "mixin:security-review",
+      "mixin:test-coverage",
+    ]));
   });
 
   test("project mixins override user mixins with the same name", async () => {

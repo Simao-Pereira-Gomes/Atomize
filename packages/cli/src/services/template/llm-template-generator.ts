@@ -23,7 +23,7 @@ tags: string[]          # optional
 extends: string         # optional — inherit from a template reference (e.g. "template:backend-api") or a file path (e.g. "./base.yaml").
                         # All fields from the parent template are inherited; fields set here override the parent.
                         # Tasks are merged by id: a task with a matching id replaces the parent task; new tasks are appended.
-mixins: string[]        # optional — list of mixin references or file paths (e.g. ["mixin:security"] or ["./mixins/security.yaml"]).
+mixins: string[]        # optional — list of mixin references or file paths (e.g. ["mixin:security-review"] or ["./mixins/security.yaml"]).
                         # Mixins contribute tasks only. Child tasks override mixin tasks with the same id.
                         # Template names are NOT valid mixin sources.
 

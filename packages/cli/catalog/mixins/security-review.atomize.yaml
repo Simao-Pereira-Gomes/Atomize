@@ -1,4 +1,4 @@
-name: "Security Mixin"
+name: "Security Review Tasks"
 description: "Common security review tasks. Mix into any feature template to enforce a security gate."
 tasks:
   - id: "security-review"
