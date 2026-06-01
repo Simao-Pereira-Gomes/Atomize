@@ -179,7 +179,11 @@ jobs:
         working-directory: packages/vscode-extension
 
       - name: Package extension
-        run: bunx @vscode/vsce package --no-dependencies
+        run: bun run package
+        working-directory: packages/vscode-extension
+
+      - name: Verify packaged README images
+        run: bun run verify:readme-images
         working-directory: packages/vscode-extension
 
       - name: Upload .vsix artifact

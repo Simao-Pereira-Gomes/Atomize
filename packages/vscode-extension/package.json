@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize — generate tasks from YAML templates",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -142,6 +142,7 @@
 		"prebuild": "bun run --cwd ../cli generate-schema",
 		"build": "bun esbuild.mjs",
 		"package": "vsce package --no-dependencies --baseContentUrl https://github.com/Simao-Pereira-Gomes/atomize/blob/HEAD/packages/vscode-extension --baseImagesUrl https://github.com/Simao-Pereira-Gomes/atomize/raw/HEAD/packages/vscode-extension",
+		"verify:readme-images": "node scripts/verify-readme-images.mjs",
 		"typecheck": "tsc --noEmit",
 		"lint": "bunx biome check --max-diagnostics 100",
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100"

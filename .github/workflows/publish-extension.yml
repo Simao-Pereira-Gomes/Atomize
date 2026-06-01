@@ -72,7 +72,11 @@ jobs:
         working-directory: packages/vscode-extension
 
       - name: Package VSIX
-        run: bunx @vscode/vsce package --no-dependencies
+        run: bun run package
+        working-directory: packages/vscode-extension
+
+      - name: Verify packaged README images
+        run: bun run verify:readme-images
         working-directory: packages/vscode-extension
 
       - name: Publish to VS Code Marketplace
