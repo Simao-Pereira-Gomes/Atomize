@@ -11,11 +11,15 @@ export function extendedEnv(): NodeJS.ProcessEnv {
 export function buildExtendedEnv(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
 	const home = env.HOME ?? env.USERPROFILE ?? '';
 	const pathSeparator = platform === 'win32' ? ';' : delimiter;
+	const windowsNpmGlobal = platform === 'win32'
+		? `${env.APPDATA ?? `${home}\\AppData\\Roaming`}\\npm`
+		: null;
 	const extra = [
 		`${home}/.bun/bin`,
 		`${home}/.npm-global/bin`,
 		'/usr/local/bin',
 		'/opt/homebrew/bin',
+		...(windowsNpmGlobal ? [windowsNpmGlobal] : []),
 	].join(pathSeparator);
 	const key = pathEnvKey(env);
 	return { ...env, [key]: `${extra}${pathSeparator}${env[key] ?? ''}` };

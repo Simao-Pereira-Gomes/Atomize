@@ -83,6 +83,25 @@ describe('cli-provider', () => {
 		expect(env.Path).not.toContain('/bin:C:\\Windows\\System32');
 	});
 
+	it('includes the Windows npm global bin in the extended environment so the extension host can find .cmd shims', () => {
+		const env = buildExtendedEnv({
+			USERPROFILE: 'C:\\Users\\me',
+			APPDATA: 'C:\\Users\\me\\AppData\\Roaming',
+			Path: 'C:\\Windows\\System32',
+		}, 'win32');
+
+		expect(env.Path).toContain('C:\\Users\\me\\AppData\\Roaming\\npm');
+	});
+
+	it('falls back to USERPROFILE-derived AppData path when APPDATA env is absent', () => {
+		const env = buildExtendedEnv({
+			USERPROFILE: 'C:\\Users\\me',
+			Path: 'C:\\Windows\\System32',
+		}, 'win32');
+
+		expect(env.Path).toContain('C:\\Users\\me\\AppData\\Roaming\\npm');
+	});
+
 	it('keeps validation arguments extension-owned', () => {
 		expect(buildValidateArgs('/tmp/template.atomize.yaml')).toEqual([
 			'validate',
