@@ -116,16 +116,20 @@ jobs:
         run: bun run validate catalog/templates/backend-api.atomize.yaml
         working-directory: packages/cli
 
-      - name: Validate bug template
-        run: bun run validate catalog/templates/bug.atomize.yaml
+      - name: Validate bug-fix template
+        run: bun run validate catalog/templates/bug-fix.atomize.yaml
         working-directory: packages/cli
 
-      - name: Validate custom template
-        run: bun run validate catalog/templates/custom.atomize.yaml
+      - name: Validate agile story breakdown template
+        run: bun run validate catalog/templates/agile-story-breakdown.atomize.yaml
         working-directory: packages/cli
 
-      - name: Validate feature template
-        run: bun run validate catalog/templates/feature.atomize.yaml
+      - name: Validate feature development template
+        run: bun run validate catalog/templates/feature-development.atomize.yaml
+        working-directory: packages/cli
+
+      - name: Validate agile story breakdown saved query template
+        run: bun run validate catalog/templates/agile-story-breakdown-saved-query.atomize.yaml
         working-directory: packages/cli
 
   check-schema:
