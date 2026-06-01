@@ -29,6 +29,7 @@ export function convertWorkItem(azureItem: AzureWorkItem): WorkItem {
   return {
     id: azureItem.id?.toString() || "",
     title: fields["System.Title"] || "",
+    url: typeof azureItem._links?.html?.href === 'string' ? azureItem._links.html.href : undefined,
     type: fields["System.WorkItemType"] as WorkItemType,
     state: fields["System.State"] || "",
     assignedTo:

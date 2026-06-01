@@ -9,6 +9,9 @@ export interface WorkItem {
   /** Work item title */
   title: string;
 
+  /** Browser URL for the work item */
+  url?: string;
+
   /** Work item type (User Story, Bug, Task, etc.) */
   type: WorkItemType;
 
