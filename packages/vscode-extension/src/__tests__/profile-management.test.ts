@@ -149,7 +149,7 @@ describe('manageProfiles', () => {
 			}),
 		}));
 
-		const { manageProfiles } = await import('../profiles/profile-management.js');
+		const { manageProfiles } = await import(`../profiles/profile-management.js?t=${Date.now()}`);
 		await manageProfiles('atomize', async () => true);
 
 		expect(quickPickLabels).toEqual([

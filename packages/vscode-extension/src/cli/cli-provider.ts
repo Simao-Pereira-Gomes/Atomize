@@ -1,6 +1,4 @@
 import { type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { extname, isAbsolute, join, win32 } from 'node:path';
 import { gt, gte, prerelease, valid } from 'semver';
 import { extendedEnv } from './env-utils.js';
 
@@ -64,65 +62,16 @@ export function buildVersionArgs(): string[] {
 	return ['--version'];
 }
 
-interface ResolveCliExecutableOptions {
-	env?: NodeJS.ProcessEnv;
-	platform?: NodeJS.Platform;
-	exists?: (path: string) => boolean;
-}
-
-function pathEnvKey(env: NodeJS.ProcessEnv): string {
-	return Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH';
-}
-
-function windowsExecutableExtensions(env: NodeJS.ProcessEnv): string[] {
-	const pathext = env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD';
-	return pathext.split(';').map(ext => ext.trim().toLowerCase()).filter(Boolean);
-}
-
-function hasPathSegment(command: string): boolean {
-	return command.includes('/') || command.includes('\\');
-}
-
-export function resolveCliExecutable(cliPath: string, options: ResolveCliExecutableOptions = {}): string {
-	const env = options.env ?? process.env;
-	const platform = options.platform ?? process.platform;
-	const exists = options.exists ?? existsSync;
-	if (platform !== 'win32') return cliPath;
-
-	const commandExt = extname(cliPath).toLowerCase();
-	const executableExtensions = windowsExecutableExtensions(env);
-	if (commandExt && executableExtensions.includes(commandExt)) return cliPath;
-
-	const candidates = executableExtensions.map(ext => `${cliPath}${ext}`);
-	if (hasPathSegment(cliPath) || isAbsolute(cliPath)) {
-		return candidates.find(exists) ?? cliPath;
-	}
-
-	const pathSeparator = platform === 'win32' ? ';' : ':';
-	const pathValue = env[pathEnvKey(env)] ?? '';
-	for (const entry of pathValue.split(pathSeparator)) {
-		if (!entry) continue;
-		for (const candidate of candidates) {
-			const fullPath = platform === 'win32' ? win32.join(entry, candidate) : join(entry, candidate);
-			if (exists(fullPath)) return fullPath;
-		}
-	}
-	return cliPath;
-}
-
 export function spawnCli(
 	cliPath: string,
 	args: string[],
 	options: SpawnOptionsWithoutStdio = {},
 ): ChildProcessWithoutNullStreams {
 	const env = options.env ?? extendedEnv();
-	const command = resolveCliExecutable(cliPath, { env });
-	const shell = process.platform === 'win32' && ['.bat', '.cmd'].includes(extname(command).toLowerCase());
-	return spawn(command, args, {
-		...options,
-		env,
-		shell: shell ? true : options.shell,
-	});
+	// On Windows, shell: true lets cmd.exe handle PATH lookup and .cmd extension
+	// resolution natively — no need to pre-search PATH ourselves.
+	const shell = process.platform === 'win32' ? true : options.shell;
+	return spawn(cliPath, args, { ...options, env, shell });
 }
 
 export function buildInspectArgs(filePath: string): string[] {

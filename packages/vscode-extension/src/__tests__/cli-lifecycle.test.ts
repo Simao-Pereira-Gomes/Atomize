@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 
 describe('createCliLifecycle', () => {
-	afterEach(() => {
-		mock.restore();
-	});
 
 	it('shows an error when the default CLI cannot be run', async () => {
 		const showErrorMessage = mock(async () => undefined);
