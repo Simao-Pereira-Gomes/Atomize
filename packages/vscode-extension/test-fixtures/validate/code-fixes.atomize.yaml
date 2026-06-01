@@ -1,0 +1,78 @@
+# Code Actions test — fixable validation warnings
+#
+# Open this file in VS Code and run "Atomize: Validate" to test quick fixes.
+#
+# ── Offline mode ────────────────────────────────────────────────────────────
+#   Expected result:
+#     - 0 errors
+#     - 2 warnings with quick fixes:
+#         • filter.savedQuery   → Remove conflicting structured filter fields
+#         • "Implementation…"   → Add id derived from task title
+#     - 2 non-fixable warnings:
+#         • saved query could not be verified (no profile)
+#         • custom fields in 1 task could not be verified (no profile)
+#
+# ── Online mode (with a profile that has System.Title as a single-line field) ─
+#   Expected result:
+#     - 0 errors
+#     - 3 warnings with quick fixes:
+#         • filter.savedQuery   → Remove conflicting structured filter fields
+#         • "Implementation…"   → Add id derived from task title
+#         • System.Title        → Strip newlines from single-line field value
+#     - 1 non-fixable warning:
+#         • saved query could not be verified (if query path does not exist)
+
+version: "1.0"
+name: "Code Fix Test Template"
+description: "Fixture for manually testing Atomize VS Code quick fixes."
+author: "Atomize"
+tags: ["extension-test", "code-actions"]
+
+filter:
+  savedQuery:
+    path: "Shared Queries/Current Sprint"
+  workItemTypes:
+    - "User Story"
+  states: ["Active", "New"]
+  tags:
+    include:
+      - "backend"
+  priority:
+    min: 1
+    max: 3
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+
+tasks:
+  - id: "design"
+    title: "Design the change"
+    estimationPercent: 20
+    activity: "Design"
+
+  - title: "Implementation without id"
+    estimationPercent: 40
+    activity: "Development"
+    dependsOn:
+      - "design"
+
+  - id: "test"
+    title: "Test the change"
+    estimationPercent: 25
+    activity: "Testing"
+    dependsOn:
+      - "design"
+
+  - id: "document"
+    title: "Document the change"
+    estimationPercent: 15
+    activity: "Documentation"
+    customFields:
+      System.Title: |
+        First line of notes.
+        Second line of notes.
+
+validation:
+  mode: "lenient"
+  totalEstimationMustBe: 100

@@ -1,0 +1,222 @@
+{
+  "Atomize Template Scaffold": {
+    "prefix": "atm-template",
+    "body": [
+      "# atomize-yaml",
+      "version: \"${1:1.0}\"",
+      "name: \"${2:My Template}\"",
+      "description: \"${3:What this template does.}\"",
+      "",
+      "filter:",
+      "  workItemTypes:",
+      "    - \"${4:User Story}\"",
+      "  states:",
+      "    - \"${5:Active}\"",
+      "  excludeIfHasTasks: ${6|true,false|}",
+      "",
+      "tasks:",
+      "  - id: \"${7:task-id}\"",
+      "    title: \"${8:Task Title}\"",
+      "    description: \"${9:What this task involves.}\"",
+      "    estimationPercent: ${10:100}"
+    ],
+    "description": "Minimal runnable Atomize template scaffold with filter and one task."
+  },
+
+  "Atomize Task": {
+    "prefix": "atm-task",
+    "body": [
+      "- id: \"${1:task-id}\"",
+      "  title: \"${2:Task Title}\"",
+      "  description: \"${3:What this task involves.}\"",
+      "  estimationPercent: ${4:20}"
+    ],
+    "description": "Minimal Atomize task definition with estimate percentage."
+  },
+
+  "Atomize Task with Condition": {
+    "prefix": "atm-task-condition",
+    "body": [
+      "- id: \"${1:task-id}\"",
+      "  title: \"${2:Task Title}\"",
+      "  description: \"${3:What this task involves.}\"",
+      "  estimationPercent: ${4:20}",
+      "  condition:",
+      "    field: \"${5:fieldName}\"",
+      "    operator: ${6|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "    value: \"${7:value}\""
+    ],
+    "description": "Atomize task that is only created when the parent story condition matches."
+  },
+
+  "Atomize Filter": {
+    "prefix": "atm-filter",
+    "body": [
+      "filter:",
+      "  workItemTypes:",
+      "    - \"${1:User Story}\"",
+      "  states:",
+      "    - \"${2:Active}\"",
+      "  excludeIfHasTasks: ${3|true,false|}"
+    ],
+    "description": "Minimal Atomize filter block: work item types, states, and excludeIfHasTasks."
+  },
+
+  "Atomize Filter (Azure DevOps)": {
+    "prefix": "atm-filter-ado",
+    "body": [
+      "filter:",
+      "  team: \"${1:My Team}\"",
+      "  areaPaths:",
+      "    - \"${2:MyProject\\\\TeamArea}\"",
+      "  iterations:",
+      "    - \"${3:@CurrentIteration}\""
+    ],
+    "description": "Azure DevOps–specific filter scoping: team, exact area path, and iteration."
+  },
+
+  "Atomize Filter (Azure DevOps Saved Query)": {
+    "prefix": "atm-filter-saved-query",
+    "body": [
+      "filter:",
+      "  savedQuery:",
+      "    path: \"${1:Shared Queries/Teams/Backend Team/Sprint Active Stories}\"",
+      "  excludeIfHasTasks: ${2|true,false|}"
+    ],
+    "description": "Azure DevOps saved query filter. Use when story selection is delegated to an existing flat saved query."
+  },
+
+  "Atomize Filter Tags": {
+    "prefix": "atm-filter-tags",
+    "body": [
+      "tags:",
+      "  include:",
+      "    - \"${1:backend}\"",
+      "  exclude:",
+      "    - \"${2:deprecated}\""
+    ],
+    "description": "Tag include/exclude criteria for an Atomize filter block."
+  },
+
+  "Atomize Estimation Config": {
+    "prefix": "atm-estimation",
+    "body": [
+      "estimation:",
+      "  strategy: ${1|percentage|}",
+      "  source: \"${2:story-points}\"",
+      "  rounding: ${3|none,nearest,up,down|}"
+    ],
+    "description": "Common Atomize estimation configuration: strategy, source, and rounding."
+  },
+
+  "Atomize Estimation Percent Condition": {
+    "prefix": "atm-estimation-percent-condition",
+    "body": [
+      "estimationPercentCondition:",
+      "  - condition:",
+      "      field: \"${1:tags}\"",
+      "      operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "      value: \"${3:critical}\"",
+      "    percent: ${4:30}"
+    ],
+    "description": "Conditional task estimation override. The first matching rule replaces estimationPercent."
+  },
+
+  "Atomize Validation Config": {
+    "prefix": "atm-validation",
+    "body": [
+      "validation:",
+      "  mode: ${1|lenient,strict|}",
+      "  totalEstimationMustBe: ${2:100}",
+      "  minTasks: ${3:3}"
+    ],
+    "description": "Compact Atomize validation configuration with mode, total estimation, and minimum task count."
+  },
+
+  "Atomize Custom Fields": {
+    "prefix": "atm-custom-fields",
+    "body": [
+      "customFields:",
+      "  Custom.ClientTier: \"${1:Enterprise}\"",
+      "  Custom.ReleaseVersion: \"{{ story.customFields['${2:Custom.ReleaseVersion}'] }}\""
+    ],
+    "description": "Task custom fields keyed by Azure DevOps reference name, including parent story custom-field interpolation."
+  },
+
+  "Atomize Acceptance Criteria": {
+    "prefix": "atm-acceptance-criteria",
+    "body": [
+      "acceptanceCriteria:",
+      "  - \"${1:First expected outcome}\"",
+      "  - \"${2:Second expected outcome}\"",
+      "acceptanceCriteriaAsChecklist: ${3|true,false|}"
+    ],
+    "description": "Task acceptance criteria with optional checklist rendering."
+  },
+
+  "Atomize Condition": {
+    "prefix": "atm-condition",
+    "body": [
+      "condition:",
+      "  field: \"${1:tags}\"",
+      "  operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "  value: \"${3:backend}\""
+    ],
+    "description": "Single task condition clause evaluated against the parent story."
+  },
+
+  "Atomize Condition (all)": {
+    "prefix": "atm-condition-all",
+    "body": [
+      "all:",
+      "  - field: \"${1:fieldName}\"",
+      "    operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "    value: \"${3:value}\"",
+      "  - field: \"${4:fieldName}\"",
+      "    operator: ${5|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "    value: \"${6:value}\""
+    ],
+    "description": "Compound condition: all child conditions must match (AND)."
+  },
+
+  "Atomize Condition (any)": {
+    "prefix": "atm-condition-any",
+    "body": [
+      "any:",
+      "  - field: \"${1:fieldName}\"",
+      "    operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "    value: \"${3:value}\"",
+      "  - field: \"${4:fieldName}\"",
+      "    operator: ${5|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "    value: \"${6:value}\""
+    ],
+    "description": "Compound condition: any child condition must match (OR)."
+  },
+
+  "Atomize Mixin Scaffold": {
+    "prefix": "atm-mixin",
+    "body": [
+      "# atomize-yaml",
+      "name: \"${1:My Mixin}\"",
+      "description: \"${2:What tasks this mixin contributes and when to include it.}\"",
+      "tasks:",
+      "  - id: \"${3:task-id}\"",
+      "    title: \"${4:Task Title}\"",
+      "    description: \"${5:What this task involves.}\"",
+      "    estimationPercent: ${6:20}"
+    ],
+    "description": "Atomize mixin scaffold with name, description, and one seeded task."
+  },
+
+  "Atomize Extends Scaffold": {
+    "prefix": "atm-extends",
+    "body": [
+      "# atomize-yaml",
+      "extends: \"${1:parent-template-name}\"",
+      "name: \"${2:My Template}\"",
+      "mixins:",
+      "  - \"${3:mixin-name}\""
+    ],
+    "description": "Minimal inheriting template scaffold: extends a parent and composes mixins."
+  }
+}

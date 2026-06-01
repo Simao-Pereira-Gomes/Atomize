@@ -1,0 +1,127 @@
+name: Publish VS Code Extension
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  check-version:
+    name: Check version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      version: ${{ steps.check.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if version tag exists
+        id: check
+        run: |
+          VERSION=$(node -p "require('./packages/vscode-extension/package.json').version")
+          TAG="vscode-v${VERSION}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          if git tag -l "${TAG}" | grep -q .; then
+            echo "Tag ${TAG} already exists — skipping publish"
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "Tag ${TAG} not found — will publish"
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+          fi
+
+  publish:
+    name: Publish Extension
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+        working-directory: packages/vscode-extension
+
+      - name: Lint
+        run: bun run lint
+        working-directory: packages/vscode-extension
+
+      - name: Build
+        run: bun run build
+        working-directory: packages/vscode-extension
+
+      - name: Package VSIX
+        run: bunx @vscode/vsce package --no-dependencies
+        working-directory: packages/vscode-extension
+
+      - name: Publish to VS Code Marketplace
+        run: bunx @vscode/vsce publish --no-dependencies --packagePath atomize-${{ needs.check-version.outputs.version }}.vsix
+        working-directory: packages/vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          LAST_TAG=$(git tag -l "vscode-v*" --sort=-version:refname | head -1)
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges -- packages/vscode-extension/)
+            COMPARE_URL="https://github.com/${{ github.repository }}/commits/vscode-v${VERSION}"
+          else
+            COMMITS=$(git log "${LAST_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges -- packages/vscode-extension/)
+            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${LAST_TAG}...vscode-v${VERSION}"
+          fi
+
+          {
+            echo "changelog<<EOF"
+            echo "## What's Changed"
+            echo ""
+            echo "$COMMITS"
+            echo ""
+            echo "**Full Changelog**: $COMPARE_URL"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: vscode-v${{ needs.check-version.outputs.version }}
+          name: Extension v${{ needs.check-version.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
+          make_latest: false
+          files: packages/vscode-extension/atomize-${{ needs.check-version.outputs.version }}.vsix
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish summary
+        run: |
+          echo "### Extension v${{ needs.check-version.outputs.version }} published!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Marketplace:** https://marketplace.visualstudio.com/items?itemName=sppg2001.atomize" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** https://github.com/${{ github.repository }}/releases/tag/vscode-v${{ needs.check-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY

@@ -7,12 +7,6 @@ optional = true
 [install.scopes]
 # Add any scoped package configurations here
 
-[test]
-# Test configuration
-preload = ["./tests/setup.ts"]
-coverage = true
-coverageReporter = ["lcov", "text"]
-coverageDirectory = "./coverage"
 
 [run]
 # Environment

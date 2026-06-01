@@ -5,610 +5,181 @@
 [![NPM Version](https://img.shields.io/npm/v/@sppg2001/atomize)](https://www.npmjs.com/package/@sppg2001/atomize)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node Version](https://img.shields.io/node/v/@sppg2001/atomize)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 
 **Break down stories, build up velocity.**
 
-Atomize is a CLI tool that automatically generates granular tasks from user stories using YAML templates. Streamline your agile workflow with preset templates, story learning, and smart estimation distribution.
+Atomize turns stories into consistent child tasks using reusable YAML templates. Use it from VS Code for guided authoring, validation, preview, and confirmed generation, or use the CLI for automation and scripting.
 
----
+Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
-## Features
+## What You Can Do
 
-- **Preset Templates** - Start with battle-tested templates for common workflows
-- **Story Learning** - Generate templates by analyzing your existing work items (single or multiple stories)
-- **Pattern Detection** - Identify common task patterns across multiple stories with confidence scoring
-- **Smart Estimation** - Automatically distribute story points across tasks with conditional percentage support
-- **Strict & Lenient Validation** - Flexible QA modes to enforce template quality
-- **Azure DevOps Integration** - Native support with WIQL queries and full field mapping
-- **Zero Config** - Works out of the box with sensible defaults
-- **Interactive Wizards** - User-friendly prompts guide you through everything
-- **Built-in Validation** - Catch template errors before they cause problems
-- **CI/CD Ready** - Automation-friendly with JSON report output
+- Author Atomize YAML with schema hovers, completions, snippets, diagnostics, and CodeLens actions in VS Code.
+- Preview task breakdowns with mock story data before connecting to a real platform.
+- Run live dry-runs against Azure DevOps stories before creating anything.
+- Generate child tasks only after reviewing the plan and confirming execution.
+- Reuse built-in, user, and project-scoped templates and mixins.
+- Create templates from the catalog, from scratch, from existing stories, or from an AI-assisted draft.
+- Automate validation and generation from the CLI in CI/CD.
 
----
+## Install
 
-## Installation
-
-### Global Installation (Recommended)
+Install the VS Code extension, then install the Atomize CLI:
 
 ```bash
 npm install -g @sppg2001/atomize
 ```
 
-### Using npx (No Installation)
+The extension uses the CLI for validation, preview, profile management, and generation. By default it runs the `atomize` executable on your `PATH`; set `atomize.cliPath` if your CLI lives somewhere else.
+
+For CLI-only use:
 
 ```bash
 npx @sppg2001/atomize --help
 ```
 
-### Local Development
+## Start In VS Code
+
+1. Open or create an `.atomize.yaml` file.
+2. Run **Atomize: Validate**.
+3. Run **Atomize: Preview (Mock)** to test the template offline.
+4. Run **Atomize: Manage Profiles** when you are ready to connect Azure DevOps.
+5. Run **Atomize: Preview (Live)** to dry-run against a real story.
+6. Run **Atomize: Generate** to review the task plan and create tasks after confirmation.
+
+Use `.atomize.yaml`, `.atomize.yml`, or a first-line `# atomize-yaml` marker for the full editor experience.
+
+## Safety Model
+
+Atomize previews by default. Task creation requires an explicit Generate flow and confirmation.
+
+| Surface | Connects to platform | Creates tasks |
+|---|---:|---:|
+| Authoring, snippets, schema hovers | No | No |
+| Save-time diagnostics | No | No |
+| Validate, offline | No | No |
+| Preview (Mock) | No | No |
+| Validate, online | Yes | No |
+| Preview (Live) | Yes | No |
+| Generate dry run | Yes | No |
+| Generate confirmed execution | Yes | Yes |
+
+CLI generation follows the same boundary:
 
 ```bash
-git clone https://github.com/Simao-Pereira-Gomes/atomize.git
-cd atomize
-bun install
-bun run dev
+atomize generate template:backend-api          # dry run
+atomize generate template:backend-api --execute # create tasks after confirmation
 ```
 
----
-
-## Quick Start
-
-### 1. Connect to Azure DevOps
+Non-interactive live execution requires `--auto-approve`:
 
 ```bash
-# Add your first connection profile (interactive wizard)
-atomize auth add work-ado
+atomize generate template:backend-api --execute --auto-approve
+```
 
-# Verify it works
+## First Template
+
+Start from an existing template unless you already know you need custom YAML.
+
+| Goal | Use |
+|---|---|
+| Try a known pattern | **Atomize: Browse Catalog** or `atomize template list` |
+| Customize a built-in template | `atomize template create --from backend-api` |
+| Build manually | `atomize template create --scratch` or edit YAML in VS Code |
+| Capture existing team practice | `atomize template create --from-stories 123,456,789` |
+| Draft from prose | `atomize template create --ai` |
+
+Minimal template:
+
+```yaml
+version: "1.0"
+name: "Feature Breakdown"
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active"]
+
+tasks:
+  - title: "Design: ${story.title}"
+    estimationPercent: 20
+  - title: "Build: ${story.title}"
+    estimationPercent: 60
+  - title: "Validate: ${story.title}"
+    estimationPercent: 20
+```
+
+See [Template Creation](./docs/Template-Creation.md) for creation workflows and [Template Reference](./docs/Template-Reference.md) for the full YAML schema.
+
+## Connect Azure DevOps
+
+Run **Atomize: Manage Profiles** in VS Code, or use the CLI:
+
+```bash
+atomize auth add work-ado
 atomize auth test work-ado
 ```
 
-You'll be prompted for your Organization URL, project, team, and a [Personal Access Token](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate).
+The Azure DevOps PAT needs Work Items read/write access. Profiles are stored through the Atomize CLI, using the OS keychain when available.
 
-### 2. Generate Tasks from a Template
+See [Auth Guide](./docs/Auth-Guide.md) and [Platform Guide](./docs/Platform-Guide.md) for details.
 
-```bash
-# Use a preset template (dry-run by default — safe to try)
-atomize generate template:backend-api
-
-# When ready to create tasks for real
-atomize generate template:backend-api --execute
-
-# Interactive mode (prompts for everything)
-atomize generate
-```
-
-### 3. Create Your First Template
+## CLI Essentials
 
 ```bash
-# From an existing template
-atomize template create --from backend-api
+# Validate a template
+atomize validate template:backend-api
 
-# Learn from multiple stories (better pattern detection)
-atomize template create --from-stories STORY-1,STORY-2,STORY-3
+# Preview with mock data, no credentials required
+atomize generate template:backend-api --platform mock
 
-# Step-by-step wizard
-atomize template create --scratch
-```
+# Dry-run against Azure DevOps
+atomize generate template:backend-api --profile work-ado
 
-### 4. Validate a Template
+# Create tasks
+atomize generate template:backend-api --profile work-ado --execute
 
-```bash
-# Lenient mode (default) — only hard errors block use
-atomize validate templates/my-template.yaml
-
-# Strict mode — warnings also become errors
-atomize validate templates/my-template.yaml --strict
-```
-
----
-
-## Usage Guide
-
-### Generate Command
-
-The `generate` command creates tasks in your work item management system based on a template.
-
-```bash
-# Basic usage
-atomize generate template:backend-api
-
-# With options
-atomize generate template:backend-api \
-  --platform azure-devops \
-  --execute \
-  --verbose
-
-# Dry run (default — no --execute needed)
-atomize generate template:backend-api
-
-# CI/CD mode with JSON report
+# CI/CD execution with a report
 atomize generate template:backend-api \
   --execute \
   --auto-approve \
   --output report.json
 ```
 
-**Key Options:**
-- `--platform <type>` - Platform: `azure-devops` or `mock`
-- `--profile <name>` - Named connection profile to use (see `atomize auth add`)
-- `--execute` - Actually create tasks (default is dry-run preview)
-- `--auto-approve` - Required with `--execute` in non-interactive mode to acknowledge live task creation
-- `--continue-on-error` - Keep processing if errors occur
-- `--story-concurrency <n>` - Parallel story processing (default: 3, max: 10)
-- `--task-concurrency <n>` - Parallel task creation per story (default: 5, max: 20)
-- `--dependency-concurrency <n>` - Parallel dependency link creation (default: 5, max: 10)
-- `--verbose` - Show detailed output
-- `-o, --output <file>` - Write JSON report to file
-- `--include-sensitive-report-data` - Include descriptions, custom fields, and platform-specific work item data in the JSON report
-
-In non-interactive mode, `--execute` now requires `--auto-approve`. This prevents unattended task creation from wrapper scripts or CI jobs that did not explicitly acknowledge the mutation.
-
-**Example Output:**
-```
-✓ Loaded template: Backend API Development
-✓ Found 3 matching user stories
-✓ Generated 18 tasks (6 per story)
-✓ Created 18 tasks in Azure DevOps
-
-Summary:
-  Stories processed: 3
-  Tasks created: 18
-  Execution time: 2.3s
-```
-
-### Template Commands
-
-#### Create a Template
-
-```bash
-# From an existing template (fastest)
-atomize template create --from feature
-
-# Learn from multiple stories (best pattern detection)
-atomize template create \
-  --from-stories STORY-1,STORY-2,STORY-3 \
-  --save-as learned-api-template
-
-# Interactive wizard (most control)
-atomize template create --scratch
-```
-
-#### List Available Templates
-
-```bash
-atomize template list
-```
-
-**Built-in Templates:**
-- `backend-api` - Backend API with database integration
-- `feature` - General feature task workflow
-- `bug` - Bug investigation and resolution workflow
-- `custom` - Example template with custom fields
-- `custom-saved-query` - Example template using an Azure DevOps saved query
-
-#### Validate a Template
-
-```bash
-atomize validate templates/my-template.yaml
-
-# Strict mode — warnings become errors (recommended for team/production templates)
-atomize validate templates/my-template.yaml --strict
-```
-
----
-
-## Template Structure
-
-Templates are YAML files that define how to break down user stories into tasks.
-
-### Basic Template
-
-```yaml
-version: "1.0"
-name: "Backend API Development"
-description: "Standard backend API workflow"
-
-# Which stories to process
-filter:
-  workItemTypes: ["User Story"]
-  states: ["New", "Active"]
-  tags:
-    include: ["backend", "api"]
-  excludeIfHasTasks: true
-
-# Task breakdown
-tasks:
-  - title: "Design API Endpoints: ${story.title}"
-    description: "Design REST API endpoints and schemas"
-    estimationPercent: 15
-    activity: "Design"
-    tags: ["design", "api"]
-
-  - title: "Implement Core Logic: ${story.title}"
-    description: "Implement business logic and validation"
-    estimationPercent: 40
-    activity: "Development"
-
-  - title: "Write Tests"
-    description: "Unit and integration tests"
-    estimationPercent: 30
-    activity: "Testing"
-
-  - title: "Code Review & Documentation"
-    description: "Review and document the implementation"
-    estimationPercent: 15
-    activity: "Documentation"
-
-# Estimation settings
-estimation:
-  rounding: "nearest"
-  minimumTaskPoints: 0.5
-
-# Validation rules
-validation:
-  totalEstimationMustBe: 100
-  minTasks: 3
-  maxTasks: 10
-```
-
-### Template Features
-
-#### Variable Interpolation
-
-```yaml
-- title: "Design: ${story.title}"
-- description: "Story ${story.id}: ${story.description}"
-```
-
-Available variables: `${story.title}`, `${story.id}`, `${story.description}`, `${story.estimation}`, `${story.tags}`
-
-#### Task Assignment
-
-```yaml
-assignTo: "@ParentAssignee"  # Inherit from story
-assignTo: "@Me"              # Current user
-assignTo: "user@email.com"   # Specific user
-```
-
-#### Conditional Tasks
-
-```yaml
-- title: "Security Review"
-  estimationPercent: 10
-  condition:
-    field: "tags"
-    operator: "contains"
-    value: "security"
-```
-
-#### Conditional Estimation (v1.1)
-
-Adapt task percentage based on story properties. First matching rule wins; `estimationPercent` is the fallback.
-
-```yaml
-- title: "Implementation"
-  estimationPercent: 50                 # Default
-  estimationPercentCondition:
-    - condition:
-        field: "tags"
-        operator: "contains"
-        value: "critical"
-      percent: 60                       # More weight for critical stories
-    - condition:
-        field: "estimation"
-        operator: "gte"
-        value: 13
-      percent: 55                       # More work for large stories
-```
-
-#### Task Dependencies
-
-```yaml
-tasks:
-  - id: "design"
-    title: "Design Phase"
-    estimationPercent: 20
-
-  - id: "implement"
-    title: "Implementation"
-    estimationPercent: 60
-    dependsOn: ["design"]   # Must complete design first
-```
-
----
-
-## Platform Setup
-
-### Azure DevOps
-
-1. **Get a Personal Access Token (PAT)**
-   - Go to: `https://dev.azure.com/[your-org]/_usersSettings/tokens`
-   - Create token with `Work Items (Read, Write)` scope
-
-2. **Save a connection profile**
-   ```bash
-   atomize auth add work-ado
-   # Prompts for org URL, project, team, and PAT
-   ```
-
-3. **Test the connection**
-   ```bash
-   atomize auth test work-ado
-   ```
-
-4. **Generate tasks**
-   ```bash
-   # Use the profile explicitly
-   atomize generate template:backend-api --profile work-ado
-
-   # Or set it as default once
-   atomize auth use work-ado
-   atomize generate template:backend-api
-   ```
-
-See `atomize auth --help` for all profile management commands (`list`, `remove`, `rotate`).
-
-### Mock Platform (Testing)
-
-```bash
-atomize generate template:backend-api --platform mock
-```
-
-No configuration required. Includes 7 built-in sample stories.
-
----
-
-## Strict vs Lenient Validation
-
-Atomize has two validation modes:
-
-| Mode | Warnings | Best For |
-|------|----------|----------|
-| **Lenient** (default) | Non-blocking | Development, personal templates |
-| **Strict** | Treated as errors | Team templates, CI/CD pipelines |
-
-```bash
-# Default (lenient) — only hard errors block use
-atomize validate my-template.yaml
-
-# Strict — warnings also fail validation
-atomize validate my-template.yaml --strict
-```
-
-You can also set the mode in the template itself:
-```yaml
-validation:
-  mode: "strict"
-```
-
----
-
-## Real-World Examples
-
-### Example 1: Backend API Feature
-
-**Story:** "As a user, I want to reset my password via email"
-
-**Generated Tasks:**
-1. Design password reset flow and email templates (1.5 pts)
-2. Implement password reset endpoint (3.5 pts)
-3. Create email service integration (1.5 pts)
-4. Write unit and integration tests (2 pts)
-5. Add API documentation (0.5 pts)
-6. Security review and rate limiting (1 pt)
-
-**Total:** 10 story points perfectly distributed
-
-### Example 2: Multi-Story Learning
-
-```bash
-# Learn from your team's best stories
-atomize template create \
-  --from-stories STORY-100,STORY-115,STORY-132,STORY-148 \
-  --platform azure-devops \
-  --save-as backend-standard
-
-# Validate the learned template
-atomize validate template:backend-standard --strict
-
-# Apply it
-atomize generate template:backend-standard --execute
-```
-
----
-
-## Advanced Usage
-
-### Custom Filters
-
-```yaml
-filter:
-  team: "Backend Team"                    # Override team from the selected profile
-  workItemTypes: ["User Story", "Bug"]
-  states: ["New", "Approved"]
-  statesExclude: ["Done", "Removed"]      # Exclude items in these states
-  statesWereEver: ["In Review"]           # Items that were ever in these states
-  tags:
-    include: ["backend"]
-    exclude: ["deprecated"]
-  areaPaths: ["MyProject\\Backend\\API"]  # Exact match
-  areaPathsUnder: ["MyProject\\Backend"]  # Match and all sub-areas
-  iterations: ["@CurrentIteration"]       # Current sprint
-  iterationsUnder: ["MyProject\\Release 2"] # All sprints under a release
-  assignedTo: ["@Me", "jane@company.com"]
-  changedAfter: "@Today-7"               # Changed in the last 7 days
-  createdAfter: "@Today-30"              # Created in the last 30 days
-  priority:
-    min: 1
-    max: 2
-  excludeIfHasTasks: true
-  customFields:
-    - field: "Custom.Team"
-      operator: "equals"
-      value: "Platform Engineering"
-```
-
-### Estimation Settings
-
-```yaml
-estimation:
-  strategy: "percentage"    # Distribute story points by percentage
-  rounding: "nearest"       # nearest, up, down, none
-  minimumTaskPoints: 0.5    # Minimum points per task
-  ifParentHasNoEstimation: "skip"   # skip, warn, use-default
-```
-
-### Environment Variables
-
-| Variable | Description | Default |
-|---|---|---|
-| `ATOMIZE_PROFILE` | Default connection profile when `--profile` is not specified | _(none)_ |
-| `LOG_LEVEL` | Log verbosity: `error`, `warn`, `info`, `debug` | `warn` |
-
-#### macOS / Linux
-
-Add to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) and restart your terminal:
-
-```bash
-export ATOMIZE_PROFILE=work-ado   # Default connection profile
-export LOG_LEVEL=warn             # Log verbosity (optional)
-```
-
-#### Windows (PowerShell)
-
-To persist across sessions, set them as user environment variables:
-
-```powershell
-[Environment]::SetEnvironmentVariable("ATOMIZE_PROFILE", "work-ado", "User")
-[Environment]::SetEnvironmentVariable("LOG_LEVEL", "warn", "User")
-```
-
-Or for the current session only:
-
-```powershell
-$env:ATOMIZE_PROFILE = "work-ado"
-$env:LOG_LEVEL       = "warn"
-```
-
-#### Windows (Command Prompt)
-
-For the current session only:
-
-```cmd
-set ATOMIZE_PROFILE=work-ado
-set LOG_LEVEL=warn
-```
-
-To persist, use **System Properties → Environment Variables** or `setx`:
-
-```cmd
-setx ATOMIZE_PROFILE "work-ado"
-```
-
-> **Note:** `setx` changes take effect in new terminal windows, not the current one.
-
-#### Using `--env-file` for explicit file-based config
-
-If you prefer file-based configuration (e.g. in CI/CD), pass `--env-file` explicitly:
-
-```bash
-# macOS / Linux
-atomize --env-file ~/.config/atomize.env generate template:backend-api
-
-# Windows (PowerShell)
-atomize --env-file $env:USERPROFILE\.config\atomize.env generate template:backend-api
-```
-
-Shell environment variables always take precedence over values in the file, so it is safe to use `--env-file` as a fallback without risk of overriding real environment config.
-
-See `.env.example` in the repository for a documented template.
-
----
-
-## Testing
-
-```bash
-# Run all tests
-bun test
-
-# Run specific test suite
-bun test tests/unit/atomizer.test.ts
-
-# Run with coverage
-bun test --coverage
-
-# Watch mode
-bun test --watch
-```
-
-### Development Setup
+See [CLI Reference](./docs/Cli-Reference.md) for complete command and flag documentation.
+
+## Documentation
+
+- [Documentation Index](./docs/README.md) - Start here for the full docs map
+- [Workflows](./docs/Workflows.md) - Task-oriented guide across VS Code and CLI
+- [VS Code Extension](./docs/VS-Code-Extension.md) - Editor behavior, commands, settings, and troubleshooting
+- [CLI Reference](./docs/Cli-Reference.md) - Complete command and flag reference
+- [Template Creation](./docs/Template-Creation.md) - Create templates from catalog, wizard, AI, or existing stories
+- [Template Reference](./docs/Template-Reference.md) - Full template schema and semantics
+- [Auth Guide](./docs/Auth-Guide.md) - Credential storage, profiles, and CI/CD setup
+- [Validation Modes](./docs/Validation-Modes.md) - Strict vs lenient validation
+- [Common Validation Errors](./docs/Common-Validation-Errors.md) - Fix validation failures
+- [Platform Guide](./docs/Platform-Guide.md) - Azure DevOps, Mock, and platform concepts
+- [Story Learner](./docs/Story-Learner.md) - Generate templates from existing work items
+
+## Development
 
 ```bash
 git clone https://github.com/Simao-Pereira-Gomes/atomize.git
 cd atomize
 bun install
-bun run dev
 bun test
-bun run build
 ```
 
----
+Repository layout:
 
-## Troubleshooting
-
-### "Not authenticated" error
-
-```bash
-# Check what profiles are saved
-atomize auth list
-
-# Add a profile if none exist
-atomize auth add work-ado
-
-# Test the profile
-atomize auth test work-ado
-
-# Use it explicitly
-atomize generate template:backend-api --profile work-ado
+```text
+packages/
+  cli/                Atomize CLI and template engine
+  vscode-extension/   VS Code extension
+docs/                 User docs, reference docs, and ADRs
+examples/             Example Atomize YAML templates
 ```
-
-### "Template validation failed"
-
-```bash
-# Get detailed output
-atomize validate templates/my-template.yaml --strict
-
-# Common issues:
-# - Total estimation must equal 100%
-# - Task dependencies reference non-existent IDs
-# - Missing required fields
-```
-
----
-
-## Documentation
-
-- [Getting Started](./docs/Getting-Started.md) - First steps and core concepts
-- [CLI Reference](./docs/Cli-Reference.md) - Complete command and flag reference
-- [Template Reference](./docs/Template-Reference.md) - Full template schema
-- [Auth Guide](./docs/Auth-Guide.md) - Credential storage, profiles, and CI/CD setup
-- [Validation Modes](./docs/Validation-Modes.md) - Strict vs lenient explained
-- [Story Learner](./docs/Story-Learner.md) - Generate templates from existing stories
-- [Common Validation Errors](./docs/Common-Validation-Errors.md) - Fix validation failures
-- [Platform Guide](./docs/Platform-Guide.md) - Azure DevOps setup
-- [Template Wizard Guide](./docs/template-wizard-guide.md) - Interactive wizard walkthrough
-
----
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
-
-## Support
-
-- [Report a Bug](https://github.com/Simao-Pereira-Gomes/atomize/issues)
-- [Request a Feature](https://github.com/Simao-Pereira-Gomes/atomize/issues)
-- [Discussions](https://github.com/Simao-Pereira-Gomes/atomize/discussions)
+MIT

@@ -1,0 +1,65 @@
+version: "1.0"
+name: "UI Test — Errors & Warnings"
+description: |
+  Deliberately invalid template for testing the validation webview.
+  Produces 2 errors and 1 warning in lenient mode.
+
+  Errors
+  ------
+  1. tasks[2].dependsOn references "nonexistent-task" (INVALID_DEPENDENCY)
+  2. Total estimation is 95% but totalEstimationMustBe is 100 (INVALID_TOTAL_ESTIMATION)
+
+  Warnings
+  --------
+  1. savedQuery cannot be verified without --profile (needs online verification)
+
+author: "Atomize"
+tags: ["demo", "ui-test"]
+
+filter:
+  workItemTypes:
+    - "User Story"
+  states:
+    - "Active"
+  # Warning: savedQuery + structured filter fields are both set.
+  # The structured fields above will be ignored.
+  savedQuery:
+    path: "Shared Queries/Active Stories"
+
+tasks:
+  - id: "design"
+    title: "Design: ${story.title}"
+    estimationPercent: 15
+    activity: "Design"
+
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    estimationPercent: 55
+    activity: "Development"
+    dependsOn:
+      - "design"
+
+  - id: "review"
+    title: "Code Review"
+    estimationPercent: 15
+    activity: "Documentation"
+    dependsOn:
+      # Error: "nonexistent-task" does not exist in this template
+      - "nonexistent-task"
+
+  # Warning: this task has dependsOn but no id, so dependency links cannot be built
+  - title: "QA & Testing"
+    estimationPercent: 100
+    activity: "Testing"
+    dependsOn:
+      - "implement"
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+
+validation:
+  mode: "lenient"
+  # Error: tasks sum to 95%, not 100%
+  totalEstimationMustBe: 100
+  minTasks: 2

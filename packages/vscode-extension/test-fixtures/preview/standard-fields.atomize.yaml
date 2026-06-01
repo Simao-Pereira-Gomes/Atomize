@@ -1,0 +1,82 @@
+# Preview Panel test — Standard Fields form + conditional tasks
+#
+# Open this file in VS Code and click "Atomize: Preview (Mock)" to test:
+#   • Form: Story Fields section with Estimation (number), Tags (string[]), Priority (number)
+#   • Source dots: Tags has green (filter) + yellow (condition) dots; Priority is green; Estimation is yellow
+#   • Skipped tasks: leave tags blank or use "backend" → oauth task skipped
+#   • Compact vs Default layout toggle in results
+#
+# Suggested values:
+#   All tasks (including oauth):  estimation=8   tags=backend, oauth   priority=1
+#   With skipped tasks:           estimation=8   tags=backend          priority=2
+#   Large story (% adjustment):   estimation=13  tags=backend, oauth   priority=1
+
+version: "1.0"
+name: "Auth Service Feature"
+description: "Auth service with conditional OAuth integration and size-aware estimation"
+author: "Atomize"
+tags: ["preview-test", "standard-fields", "conditional"]
+
+filter:
+  priority:
+    min: 1
+    max: 3
+  excludeIfHasTasks: true
+
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  minimumTaskPoints: 0.5
+
+tasks:
+  - id: "design"
+    title: "Technical Design & API Contracts"
+    estimationPercent: 15
+    activity: "Design"
+    tags: ["design"]
+
+  - id: "backend-impl"
+    title: "Backend Implementation"
+    estimationPercent: 40
+    dependsOn: ["design"]
+    activity: "Development"
+    tags: ["backend"]
+    estimationPercentCondition:
+      - condition:
+          field: estimation
+          operator: gte
+          value: 13
+        percent: 50
+
+  - id: "oauth-integration"
+    title: "OAuth2 / SSO Integration"
+    condition:
+      field: tags
+      operator: contains
+      value: oauth
+    estimationPercent: 20
+    dependsOn: ["backend-impl"]
+    activity: "Development"
+    tags: ["oauth", "backend"]
+
+  - id: "tests"
+    title: "Unit & Integration Tests"
+    estimationPercent: 25
+    dependsOn: ["backend-impl"]
+    activity: "Testing"
+    tags: ["testing"]
+
+  - id: "review"
+    title: "Code Review & Documentation"
+    estimationPercent: 10
+    dependsOn: ["tests"]
+    activity: "Documentation"
+    tags: ["review"]
+
+metadata:
+  category: "Preview Panel Test"
+  difficulty: "beginner"
+  estimationGuidelines: |
+    Without oauth tag: 15+40+25+10 = 90% → normalised to 100
+    With oauth tag:    15+40+20+25+10 = 110% → normalised to 100
+    estimation >= 13 bumps backend-impl from 40% to 50%

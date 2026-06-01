@@ -42,19 +42,22 @@ jobs:
 
       - name: Type check
         run: bun run typecheck
+        working-directory: packages/cli
 
       - name: Run tests
-        run: bun test
+        run: bun run test
+        working-directory: packages/cli
 
       - name: Build
         run: bun run build
+        working-directory: packages/cli
 
       - name: Upload build artifacts
         if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x'
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/
+          path: packages/cli/dist/
           retention-days: 7
 
   integration-test:
@@ -75,7 +78,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run integration tests
-        run: bun test tests/integration
+        run: bun run test:integration
+        working-directory: packages/cli
   validate-templates:
     name: Validate Templates
     runs-on: ubuntu-latest
@@ -94,24 +98,93 @@ jobs:
 
       - name: Build
         run: bun run build
+        working-directory: packages/cli
 
       - name: Validate backend template
-        run: bun run validate examples/backend.yaml
+        run: bun run validate ../../examples/backend.atomize.yaml
+        working-directory: packages/cli
 
       - name: Validate frontend template
-        run: bun run validate examples/frontend.yaml
+        run: bun run validate ../../examples/frontend.yaml
+        working-directory: packages/cli
 
       - name: Validate fullstack template
-        run: bun run validate examples/fullstack.yaml
+        run: bun run validate ../../examples/fullstack.atomize.yaml
+        working-directory: packages/cli
 
       - name: Validate backend-api template
-        run: bun run validate templates/templates/backend-api.yaml
+        run: bun run validate catalog/templates/backend-api.atomize.yaml
+        working-directory: packages/cli
 
-      - name: Validate bug template
-        run: bun run validate templates/templates/bug.yaml
+      - name: Validate bug-fix template
+        run: bun run validate catalog/templates/bug-fix.atomize.yaml
+        working-directory: packages/cli
 
-      - name: Validate custom template
-        run: bun run validate templates/templates/custom.yaml
+      - name: Validate agile story breakdown template
+        run: bun run validate catalog/templates/agile-story-breakdown.atomize.yaml
+        working-directory: packages/cli
 
-      - name: Validate feature template
-        run: bun run validate templates/templates/feature.yaml
+      - name: Validate feature development template
+        run: bun run validate catalog/templates/feature-development.atomize.yaml
+        working-directory: packages/cli
+
+      - name: Validate agile story breakdown saved query template
+        run: bun run validate catalog/templates/agile-story-breakdown-saved-query.atomize.yaml
+        working-directory: packages/cli
+
+  check-schema:
+    name: Schema Sync Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check schema is up to date
+        run: bun run check-schema
+        working-directory: packages/cli
+
+  vscode-extension:
+    name: VSCode Extension
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build extension
+        run: bun run build
+        working-directory: packages/vscode-extension
+
+      - name: Package extension
+        run: bunx @vscode/vsce package --no-dependencies
+        working-directory: packages/vscode-extension
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomize-vscode.vsix
+          path: packages/vscode-extension/*.vsix
+          retention-days: 30

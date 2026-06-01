@@ -1,0 +1,11 @@
+# Validation Code Action factories use the `yaml` package to locate edit targets
+
+Edit factories in the Validation Code Action provider parse the document with the `yaml` package (already a CLI dependency, added to the extension at the same version) to locate task blocks and extract field values, rather than scanning raw lines.
+
+Two properties of Atomize YAML make line scanning unreliable for this use case. First, the `MISSING_TASK_ID` fix derives a slug from the task `title` field, which can be a double-quoted scalar, a single-quoted scalar with embedded escapes, or a block scalar (`>-`, `|`). A line scan gets the raw YAML representation; the parser returns the actual string value without requiring the factory to reimplement YAML scalar decoding. Second, the `SAVED_QUERY_WITH_STRUCTURED_FILTER` fix removes `workItemTypes`, `states`, and `tags` from the same filter block as `savedQuery`. These fields can appear as block sequences or as inline flow sequences (`tags: [backend, infra]`). A scan that removes the key line plus more-indented continuation lines silently produces a syntax error when the value is inline. The parser identifies the value span regardless of style, so the factory can delete the correct character range in both cases.
+
+Every future fixable code adds a new factory. Establishing line scanning as the pattern now means each new code inherits the same edge-case surface. The `yaml` package amortizes across all current and future factories from the first code onward.
+
+**Considered:** line scanning with special-casing for flow-style values — rejected because it requires reimplementing enough of a YAML parser that using the real one is simpler, and the special cases would be untested against the full range of scalar styles authors actually write.
+
+**Considered:** deferring the parser to a later PR and shipping the initial factories with a documented limitation (simple scalars only) — rejected because the limitation would be invisible to users: a Code Action would appear on a diagnostic, the user would apply it, and the edit would either produce the wrong slug or corrupt the document. Silent data corruption is a worse outcome than a slightly larger initial bundle.

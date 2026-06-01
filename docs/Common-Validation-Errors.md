@@ -552,5 +552,5 @@ If you encounter an error not covered here:
 
 - [Template Reference](./Template-Reference.md) - Complete template schema
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
-- [Getting Started](./Getting-Started.md) - Template basics
-- [Template Wizard Guide](./template-wizard-guide.md) - Interactive template creation
+- [Workflows](./Workflows.md) - Template validation and preview workflows
+- [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows

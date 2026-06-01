@@ -1,6 +1,6 @@
 # Atomize CLI Reference
 
-Complete command-line interface documentation for Atomize v2.0.0.
+Complete command-line interface documentation for Atomize.
 
 ## Table of Contents
 
@@ -10,6 +10,7 @@ Complete command-line interface documentation for Atomize v2.0.0.
 - [Command Reference](#command-reference)
   - [auth](#auth)
   - [generate](#generate)
+  - [preview](#preview)
   - [fields](#fields)
   - [validate](#validate)
   - [template create](#template-create)
@@ -66,6 +67,7 @@ These options work with any command:
 | `auth test` | - | Test connectivity for a profile |
 | `auth rotate` | - | Replace the PAT for a profile |
 | `generate` | `gen` | Generate tasks from user stories using a template |
+| `preview` | - | Inspect template field requirements or simulate task generation against mock story data |
 | `fields` | - | Browse Azure DevOps work item fields |
 | `fields list` | `fields ls` | List available fields for the current project or work item type |
 | `validate` | - | Validate a template file |
@@ -217,7 +219,16 @@ atomize auth test            # pick interactively (shows profile type next to ea
 Replace the stored PAT for a profile (e.g. after a token expires).
 
 ```bash
-atomize auth rotate [name]
+atomize auth rotate <name> [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--pat-stdin` | Read the new PAT from stdin instead of prompting interactively |
+| `--insecure-storage` | Allow insecure local file fallback when the OS keychain is unavailable |
+
+```bash
+echo "$NEW_PAT" | atomize auth rotate work-ado --pat-stdin
 ```
 
 ---
@@ -330,6 +341,43 @@ Do not use it in shared CI pipelines where the report artifact may be visible to
 
 ---
 
+### preview
+
+Inspect template field requirements or simulate task generation against a mock story. This command does not connect to Azure DevOps and does not create tasks.
+
+#### Usage
+
+```bash
+atomize preview <source> --inspect
+atomize preview <source> --mock-story '{"id":"123","title":"Example story","estimation":8}'
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<source>` | Path to a YAML template file, catalog ref, or HTTPS URL |
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--inspect` | Output JSON describing which story fields the template references |
+| `--mock-story <json>` | JSON object of mock story field values to preview against |
+
+`--inspect` and `--mock-story` are mutually exclusive. One of them is required.
+
+#### Examples
+
+```bash
+atomize preview template:backend-api --inspect
+
+atomize preview template:backend-api \
+  --mock-story '{"id":"123","title":"Add password reset","estimation":8,"tags":["backend"]}'
+```
+
+---
+
 ### validate
 
 Validate a template file for correctness and completeness.
@@ -432,6 +480,7 @@ atomize tpl create [options]  # alias
 | `--ground` | flag | Ground AI generation with patterns from your Azure DevOps workspace |
 | `--ai-profile <name>` | string | AI provider profile to use (uses default GitHub Models profile if omitted) |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
+| `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
 | `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
 | `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
 | `-q, --quiet` | flag | Suppress non-essential output |
@@ -534,21 +583,25 @@ atomize tpl ls        # alias
 ```
 Built-in Templates
 
+  agile-story-breakdown
+    Agile Story Breakdown
+    Agile story breakdown template
+
+  agile-story-breakdown-saved-query
+    Agile Story Breakdown - Saved Query
+    Agile story breakdown template driven by a saved query
+
   backend-api
     Backend API Development
     Standard backend API development with database integration
 
-  feature
-    Feature Template
-    Foundation for feature templates
-
-  bug
-    Bug Template
+  bug-fix
+    Bug Fix
     Foundation for bug-fix templates
 
-  custom
-    Custom Example
-    Example template with custom fields
+  feature-development
+    Feature Development
+    Foundation for feature development templates
 
 User Templates
 
@@ -570,6 +623,7 @@ Install a template or mixin from a local file or HTTPS URL into the catalog.
 
 ```bash
 atomize template install <source> [options]
+atomize tpl install <source> [options]  # alias
 ```
 
 #### Arguments
@@ -585,6 +639,8 @@ atomize template install <source> [options]
 | `--type <type>` | Force type: `template` or `mixin` (auto-detected from file content if omitted) |
 | `--overwrite` | Overwrite if a template with the same name already exists |
 | `--scope <scope>` | Installation scope: `user` (default, `~/.atomize`) or `project` (`.atomize` in current directory) |
+| `--open` | Open the installed Atomize YAML file in a supported editor after successful installation |
+| `-q, --quiet` | Suppress non-essential output |
 
 #### Examples
 
@@ -603,8 +659,12 @@ atomize template install ./templates/backend-api.yaml --overwrite
 ```
 
 **Scopes:**
-- `user` (default) — installed to `~/.atomize/templates/`, available across all projects
-- `project` — installed to `.atomize/templates/` in the current directory, scoped to this repo
+- `user` (default) — installed to `~/.atomize/catalog/`, available across all projects
+- `project` — installed to `<workspace>/.atomize/catalog/`, scoped to the discovered workspace root
+
+**Editor handoff:**
+
+Pass `--open` to `template create` or `template install` to open the saved Atomize YAML file after success. `ATOMIZE_EDITOR` accepts supported editor identifiers only: `code`, `cursor`, or `zed`. Atomize appends the saved file path to its owned editor command and ignores arbitrary `VISUAL` and `EDITOR` command strings for this handoff. If no supported editor CLI is available, use the printed manual hint.
 
 ---
 
@@ -955,5 +1015,5 @@ atomize generate template:backend-api --verbose
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors
 - [Platform Guide](./Platform-Guide.md) - Platform setup and configuration
 - [Story Learner](./Story-Learner.md) - Generate templates from existing work items
-- [Template Wizard Guide](./template-wizard-guide.md) - Interactive wizard walkthrough
+- [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows
 - [Examples](../examples/) - Real-world template examples

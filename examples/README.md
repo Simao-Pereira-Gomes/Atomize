@@ -6,16 +6,16 @@ Real-world Atomize template examples. Each file is a working template you can va
 
 | File | What it demonstrates |
 |------|----------------------|
-| [`backend.yaml`](#backendyaml) | Standard backend API workflow with task dependencies |
+| [`backend.atomize.yaml`](#backendatomizeyaml) | Standard backend API workflow with task dependencies |
 | [`frontend.yaml`](#frontendyaml) | React component development workflow |
-| [`fullstack.yaml`](#fullstackyaml) | Combined backend + frontend with a branching task graph |
-| [`conditional-dependencies-template.yaml`](#conditional-dependencies-templateyaml) | Conditional tasks — tasks that only appear when a story meets specific criteria |
-| [`conditional-percentage-template.yaml`](#conditional-percentage-templateyaml) | Conditional estimation — task weights that adapt to story size and tags |
-| [`advanced-filtering.yaml`](#advanced-filteringyaml) | Full filter criteria showcase: state exclusion, historical states, area/iteration hierarchy, date filters, team override |
+| [`fullstack.atomize.yaml`](#fullstackatomizeyaml) | Combined backend + frontend with a branching task graph |
+| [`conditional-dependencies-template.atomize.yaml`](#conditional-dependencies-templateatomizeyaml) | Conditional tasks — tasks that only appear when a story meets specific criteria |
+| [`conditional-percentage-template.atomize.yaml`](#conditional-percentage-templateatomizeyaml) | Conditional estimation — task weights that adapt to story size and tags |
+| [`advanced-filtering.atomize.yaml`](#advanced-filteringatomizeyaml) | Full filter criteria showcase: state exclusion, historical states, area/iteration hierarchy, date filters, team override |
 
 ---
 
-## backend.yaml
+## backend.atomize.yaml
 
 A production-ready backend API template. Covers the full development cycle from API design through code review, with dependencies enforcing a logical order.
 
@@ -31,8 +31,8 @@ A production-ready backend API template. Covers the full development cycle from 
 
 **Try it:**
 ```bash
-atomize validate examples/backend.yaml
-atomize generate examples/backend.yaml --platform mock
+atomize validate examples/backend.atomize.yaml
+atomize generate examples/backend.atomize.yaml --platform mock
 ```
 
 ---
@@ -59,7 +59,7 @@ atomize generate examples/frontend.yaml --platform mock
 
 ---
 
-## fullstack.yaml
+## fullstack.atomize.yaml
 
 A combined backend + frontend template for end-to-end features. Uses a branching dependency graph where the backend and frontend tracks run in parallel after the design phase, then converge at integration.
 
@@ -78,13 +78,13 @@ A combined backend + frontend template for end-to-end features. Uses a branching
 
 **Try it:**
 ```bash
-atomize validate examples/fullstack.yaml
-atomize generate examples/fullstack.yaml --platform mock --story STORY-004
+atomize validate examples/fullstack.atomize.yaml
+atomize generate examples/fullstack.atomize.yaml --platform mock --story STORY-004
 ```
 
 ---
 
-## conditional-dependencies-template.yaml
+## conditional-dependencies-template.atomize.yaml
 
 Demonstrates **conditional tasks** — tasks that are only created when a story meets specific criteria. When a conditional task is skipped, its estimation is redistributed to the remaining tasks.
 
@@ -113,13 +113,13 @@ Demonstrates **conditional tasks** — tasks that are only created when a story 
 
 **Try it:**
 ```bash
-atomize validate examples/conditional-dependencies-template.yaml
-atomize generate examples/conditional-dependencies-template.yaml --platform mock --story STORY-004
+atomize validate examples/conditional-dependencies-template.atomize.yaml
+atomize generate examples/conditional-dependencies-template.atomize.yaml --platform mock --story STORY-004
 ```
 
 ---
 
-## conditional-percentage-template.yaml
+## conditional-percentage-template.atomize.yaml
 
 Demonstrates **`estimationPercentCondition`** — each task's percentage of the story adapts based on the story's size and tags. This is useful when the same task represents different amounts of work depending on story complexity.
 
@@ -154,13 +154,13 @@ All totals are normalized to exactly 100% at generation time.
 
 **Try it:**
 ```bash
-atomize validate examples/conditional-percentage-template.yaml
-atomize generate examples/conditional-percentage-template.yaml --platform mock
+atomize validate examples/conditional-percentage-template.atomize.yaml
+atomize generate examples/conditional-percentage-template.atomize.yaml --platform mock
 ```
 
 ---
 
-## advanced-filtering.yaml
+## advanced-filtering.atomize.yaml
 
 A reference template that demonstrates every available filter option. Use it as a starting point when you need precise control over which work items Atomize processes.
 
@@ -184,8 +184,8 @@ A reference template that demonstrates every available filter option. Use it as 
 
 **Try it:**
 ```bash
-atomize validate examples/advanced-filtering.yaml
-atomize generate examples/advanced-filtering.yaml --platform mock --story STORY-001
+atomize validate examples/advanced-filtering.atomize.yaml
+atomize generate examples/advanced-filtering.atomize.yaml --platform mock --story STORY-001
 ```
 
 ---
@@ -200,15 +200,15 @@ for f in examples/*.yaml; do
 done
 
 # Dry-run examples that match the bundled mock filters
-for f in examples/backend.yaml examples/frontend.yaml examples/conditional-percentage-template.yaml; do
+for f in examples/backend.atomize.yaml examples/frontend.yaml examples/conditional-percentage-template.atomize.yaml; do
   echo "Testing $f..."
   atomize generate "$f" --platform mock
 done
 
 # Dry-run examples whose filters are intentionally more specific than the mock dataset
-atomize generate examples/fullstack.yaml --platform mock --story STORY-004
-atomize generate examples/conditional-dependencies-template.yaml --platform mock --story STORY-004
-atomize generate examples/advanced-filtering.yaml --platform mock --story STORY-001
+atomize generate examples/fullstack.atomize.yaml --platform mock --story STORY-004
+atomize generate examples/conditional-dependencies-template.atomize.yaml --platform mock --story STORY-004
+atomize generate examples/advanced-filtering.atomize.yaml --platform mock --story STORY-001
 ```
 
 ---

@@ -1,0 +1,5 @@
+# Resolved Template view: TextDocumentContentProvider over webview panel
+
+The `atomize.showResolvedTemplate` command opens the Resolved Template as a virtual text document via a `TextDocumentContentProvider` registered under the `atomize-resolved:` URI scheme, rather than a webview panel. The output of `template resolve --quiet` is plain YAML with no interactive elements; a virtual document gives native YAML syntax highlighting, find-in-file, copy, and a read-only lock icon for free, while a webview panel would require custom HTML rendering to match the same fidelity. The `atomize-resolved:` scheme is published as part of VS Code's document history, so changing it later carries a migration cost.
+
+**Considered:** webview panel (consistent with `atomize.preview`, `atomize.livePreview`, `atomize.generate`) — rejected because those commands render structured HTML output that benefits from webview control; the Resolved Template view is a static YAML dump where native editor features are strictly better than a custom renderer.

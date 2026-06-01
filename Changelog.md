@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `auth rotate --pat-stdin` for non-interactive PAT rotation.
+
 ---
 
 ## [2.0.0] - 2026-05-03
@@ -143,8 +146,10 @@ The first public release of Atomize - a CLI tool for automatically generating ta
 #### Template Creation Methods
 - **Preset Templates**
   - `backend-api` - Backend API development workflow
-  - `frontend-feature` - React/Vue UI component workflow
+  - `feature-development` - Feature development workflow
   - `bug-fix` - Bug investigation and resolution workflow
+  - `agile-story-breakdown` - Agile story breakdown workflow with conditional tasks
+  - `agile-story-breakdown-saved-query` - Agile story breakdown workflow driven by a saved query
 - **Story Learning** - Generate templates by analyzing existing work items with tasks
 - **Interactive Wizard** - Step-by-step template builder with prompts
 
