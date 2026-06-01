@@ -297,7 +297,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		}),
 
 		vscode.commands.registerCommand('atomize.openSettings', () =>
-			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:sppg2001.atomize'),
+			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:atomize.atomize'),
 		),
 
 		registerBrowseFieldsCommand({ showCliUnavailable: showCliUnavailableMessage }),

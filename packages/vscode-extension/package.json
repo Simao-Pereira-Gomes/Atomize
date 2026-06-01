@@ -2,8 +2,8 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize — generate tasks from YAML templates",
-	"version": "0.0.2",
-	"publisher": "sppg2001",
+	"version": "0.0.3",
+	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
 		"type": "git",

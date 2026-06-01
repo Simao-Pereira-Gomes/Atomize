@@ -123,5 +123,5 @@ jobs:
         run: |
           echo "### Extension v${{ needs.check-version.outputs.version }} published!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Marketplace:** https://marketplace.visualstudio.com/items?itemName=sppg2001.atomize" >> $GITHUB_STEP_SUMMARY
+          echo "**Marketplace:** https://marketplace.visualstudio.com/items?itemName=atomize.atomize" >> $GITHUB_STEP_SUMMARY
           echo "**Release:** https://github.com/${{ github.repository }}/releases/tag/vscode-v${{ needs.check-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY

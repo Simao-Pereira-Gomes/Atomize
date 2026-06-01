@@ -25,7 +25,7 @@ export function createCliLifecycle(ctx: vscode.ExtensionContext): CliLifecycle {
 	let updateCheckStarted = false;
 
 	async function openAtomizeSettings(): Promise<void> {
-		await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:sppg2001.atomize');
+		await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:atomize.atomize');
 	}
 
 	function runInstallCommand(): void {

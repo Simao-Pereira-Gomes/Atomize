@@ -12,7 +12,7 @@ The version bump lives in the feature PR. Merging without bumping the version si
 
 **Considered alternatives:**
 
-*Marketplace query* — use `vsce show sppg2001.atomize --json` to compare the live published version against `package.json`. Rejected: requires the extension to already exist on the Marketplace for all but the first publish, and adds a network dependency to the gate step. The tag sentinel is self-contained.
+*Marketplace query* — use `vsce show atomize.atomize --json` to compare the live published version against `package.json`. Rejected: requires the extension to already exist on the Marketplace for all but the first publish, and adds a network dependency to the gate step. The tag sentinel is self-contained.
 
 *Separate tag push trigger* — require a `vscode-v*` tag to be pushed manually to trigger the publish, matching the CLI's release model. Rejected: it reintroduces a manual step, defeating the automation goal. It also means two separate operations must land on `main` for each release (the code change and the tag), with no enforced ordering.
 
