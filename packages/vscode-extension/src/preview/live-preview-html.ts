@@ -86,7 +86,7 @@ function modeToggle(mode: 'default' | 'compact'): string {
 
 function storyHeader(story: LivePreviewStory, shortFile: string, mode: 'default' | 'compact'): string {
 	const storyLink = story.url
-		? `<a href="${esc(story.url)}" style="font-size:.78em;color:var(--vscode-focusBorder);text-decoration:none" target="_blank">${esc(story.id)} ↗</a>`
+		? `<a data-url="${esc(story.url)}" onclick="event.stopPropagation()" style="font-size:.78em;color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">${esc(story.id)} ↗</a>`
 		: `<span style="font-size:.78em;color:var(--vscode-descriptionForeground)">${esc(story.id)}</span>`;
 
 	const estimation = story.estimation != null
@@ -314,6 +314,10 @@ function page(title: string, body: string, script: string): string {
 ${body}
 <script>
 var vscode = acquireVsCodeApi();
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('[data-url]');
+  if (el) { e.stopPropagation(); e.preventDefault(); var url = el.getAttribute('data-url'); if (url) vscode.postMessage({ type: 'openLink', url: url }); }
+}, true);
 ${script}
 </script>
 </body>

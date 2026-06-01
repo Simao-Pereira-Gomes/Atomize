@@ -20,7 +20,8 @@ import { createStreamResultCoordinator, recoverReportFromProgress, type SpawnRes
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
-type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage;
+interface OpenLinkMessage { type: 'openLink'; url: string; }
+type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage;
 
 function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
 	return new Promise(resolve => {
@@ -341,6 +342,8 @@ export class GeneratePanel {
 			await this._runLive();
 		} else if (message.type === 'manageProfiles') {
 			await vscode.commands.executeCommand('atomize.manageProfiles');
+		} else if (message.type === 'openLink') {
+			await vscode.env.openExternal(vscode.Uri.parse(message.url));
 		}
 	}
 

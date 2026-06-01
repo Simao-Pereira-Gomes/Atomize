@@ -185,7 +185,7 @@ function storySection(result: GenerateResult): string {
 	const skippedCount = tasksSkipped?.length ?? 0;
 
 	const storyLink = story.url
-		? `<a href="${esc(story.url)}" style="color:var(--vscode-focusBorder);text-decoration:none">#${esc(story.id)} ↗</a>`
+		? `<a data-url="${esc(story.url)}" onclick="event.stopPropagation()" style="color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">#${esc(story.id)} ↗</a>`
 		: `<span style="color:var(--vscode-focusBorder)">#${esc(story.id)}</span>`;
 
 	const warningHtml = skippedCount > 0
@@ -224,7 +224,7 @@ function storySectionCompact(result: GenerateResult): string {
 	const skippedCount = tasksSkipped?.length ?? 0;
 
 	const storyLink = story.url
-		? `<a href="${esc(story.url)}" style="color:var(--vscode-focusBorder);text-decoration:none">#${esc(story.id)} ↗</a>`
+		? `<a data-url="${esc(story.url)}" onclick="event.stopPropagation()" style="color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">#${esc(story.id)} ↗</a>`
 		: `<span style="color:var(--vscode-focusBorder)">#${esc(story.id)}</span>`;
 
 	const warningHtml = skippedCount > 0
@@ -296,7 +296,7 @@ function collapsedDryRun(dryReport: GenerateReport): string {
 		const storyH = r.estimationSummary?.totalTaskEstimation ?? tasks.reduce((s, t) => s + (t.estimation ?? 0), 0);
 
 		const storyLink = story.url
-			? `<a href="${esc(story.url)}" style="color:var(--vscode-focusBorder);text-decoration:none">#${esc(story.id)} ↗</a>`
+			? `<a data-url="${esc(story.url)}" onclick="event.stopPropagation()" style="color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">#${esc(story.id)} ↗</a>`
 			: `<span style="color:var(--vscode-focusBorder)">#${esc(story.id)}</span>`;
 
 		const taskItems = tasks.map((t, i) => `
@@ -335,14 +335,14 @@ function collapsedDryRun(dryReport: GenerateReport): string {
 function execStoryResult(result: GenerateResult): string {
 	const { story } = result;
 	const storyLink = story.url
-		? `<a href="${esc(story.url)}" style="color:var(--vscode-focusBorder);text-decoration:none">#${esc(story.id)} ↗</a>`
+		? `<a data-url="${esc(story.url)}" onclick="event.stopPropagation()" style="color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">#${esc(story.id)} ↗</a>`
 		: `<span style="color:var(--vscode-focusBorder)">#${esc(story.id)}</span>`;
 
 	if (result.success) {
 		const tasks = result.tasksCreated;
 		const taskRows = tasks.map(task => {
 			const taskRef = task.url
-				? `<a href="${esc(task.url)}" style="color:var(--vscode-focusBorder);text-decoration:none">#${esc(task.id)}</a>`
+				? `<a data-url="${esc(task.url)}" onclick="event.stopPropagation()" style="color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">#${esc(task.id)}</a>`
 				: `<span style="color:var(--vscode-focusBorder)">#${esc(task.id)}</span>`;
 			return `
   <div style="padding:4px 10px;font-size:.83em;display:flex;align-items:center;gap:8px;margin-bottom:2px">
@@ -381,14 +381,14 @@ function execStoryResult(result: GenerateResult): string {
 function execStoryResultCompact(result: GenerateResult): string {
 	const { story } = result;
 	const storyLink = story.url
-		? `<a href="${esc(story.url)}" style="color:var(--vscode-focusBorder);text-decoration:none">#${esc(story.id)} ↗</a>`
+		? `<a data-url="${esc(story.url)}" onclick="event.stopPropagation()" style="color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">#${esc(story.id)} ↗</a>`
 		: `<span style="color:var(--vscode-focusBorder)">#${esc(story.id)}</span>`;
 
 	if (result.success) {
 		const tasks = result.tasksCreated;
 		const idLinks = tasks.map(t =>
 			t.url
-				? `<a href="${esc(t.url)}" style="color:var(--vscode-focusBorder);text-decoration:none">#${esc(t.id)}</a>`
+				? `<a data-url="${esc(t.url)}" onclick="event.stopPropagation()" style="color:var(--vscode-focusBorder);text-decoration:none;cursor:pointer">#${esc(t.id)}</a>`
 				: `<span style="color:var(--vscode-focusBorder)">#${esc(t.id)}</span>`,
 		).join(' ');
 		return `
@@ -450,6 +450,10 @@ function page(title: string, body: string, script: string): string {
 ${body}
 <script>
 var vscode = acquireVsCodeApi();
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('[data-url]');
+  if (el) { e.stopPropagation(); e.preventDefault(); var url = el.getAttribute('data-url'); if (url) vscode.postMessage({ type: 'openLink', url: url }); }
+}, true);
 ${script}
 </script>
 </body>

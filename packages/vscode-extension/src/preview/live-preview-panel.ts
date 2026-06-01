@@ -11,7 +11,8 @@ interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface RerunMessage { type: 'rerun'; }
 interface OpenTemplateMessage { type: 'openTemplate'; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
-type WebviewMessage = SwitchModeMessage | RerunMessage | OpenTemplateMessage | ManageProfilesMessage;
+interface OpenLinkMessage { type: 'openLink'; url: string; }
+type WebviewMessage = SwitchModeMessage | RerunMessage | OpenTemplateMessage | ManageProfilesMessage | OpenLinkMessage;
 
 async function pickStoryId(): Promise<string | null> {
 	const value = await vscode.window.showInputBox({
@@ -137,6 +138,8 @@ export class LivePreviewPanel {
 			await vscode.commands.executeCommand('vscode.open', this._fileUri);
 		} else if (message.type === 'manageProfiles') {
 			await vscode.commands.executeCommand('atomize.manageProfiles');
+		} else if (message.type === 'openLink') {
+			await vscode.env.openExternal(vscode.Uri.parse(message.url));
 		}
 	}
 
