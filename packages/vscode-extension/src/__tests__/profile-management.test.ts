@@ -88,6 +88,14 @@ describe('manageProfiles', () => {
 		mock.module('vscode', () => ({
 			ProgressLocation: { Notification: 15 },
 			QuickPickItemKind: { Separator: -1 },
+			Range: class Range {
+				start: { line: number; character: number };
+				end: { line: number; character: number };
+				constructor(sl: number, sc: number, el: number, ec: number) {
+					this.start = { line: sl, character: sc };
+					this.end = { line: el, character: ec };
+				}
+			},
 			window: {
 				showErrorMessage: mock(() => undefined),
 				showInformationMessage: mock(() => undefined),
