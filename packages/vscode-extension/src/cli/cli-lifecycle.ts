@@ -86,7 +86,7 @@ export function createCliLifecycle(ctx: vscode.ExtensionContext): CliLifecycle {
 
 	async function showCliUnavailableMessage(cliPath: string, defaultMessage: string): Promise<void> {
 		if (cliPath === DEFAULT_CLI_PATH) {
-			const selection = await vscode.window.showWarningMessage(defaultMessage, 'Install', 'Open Settings', 'Dismiss');
+			const selection = await vscode.window.showErrorMessage(defaultMessage, 'Install', 'Open Settings', 'Dismiss');
 			if (selection === 'Install') {
 				runInstallCommand();
 				await promptRecheckAfterInstall();
@@ -96,7 +96,7 @@ export function createCliLifecycle(ctx: vscode.ExtensionContext): CliLifecycle {
 			return;
 		}
 
-		const selection = await vscode.window.showWarningMessage(
+		const selection = await vscode.window.showErrorMessage(
 			`Configured Atomize CLI path could not be executed: ${cliPath}`,
 			'Open Settings',
 			'Dismiss',
