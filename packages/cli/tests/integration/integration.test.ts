@@ -10,6 +10,7 @@ describe("Integration Tests", () => {
   const fixturesPath = resolve(__dirname, "../fixtures/templates");
   const examplesFolder = resolve(__dirname, "../../../../examples");
   const exampleTemplates = {
+    advancedFiltering: "advanced-filtering.atomize.yaml",
     backend: "backend.atomize.yaml",
     frontend: "frontend.yaml",
     fullstack: "fullstack.atomize.yaml",
@@ -184,7 +185,7 @@ describe("Integration Tests", () => {
   describe("Template Features", () => {
     test("should support all filter types", async () => {
       const template = await loader.load(
-        resolve(examplesFolder, exampleTemplates.backend)
+        resolve(examplesFolder, exampleTemplates.advancedFiltering)
       );
 
       expect(template.filter.workItemTypes).toBeDefined();

@@ -12,7 +12,7 @@ import type {
   TaskDefinition,
   WorkItem,
 } from "@platforms/interfaces/work-item.interface";
-import { AuthError, getErrorMessage, PlatformError, UnknownError } from "@utils/errors";
+import { AuthError, ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "@utils/errors";
 import * as azdev from "azure-devops-node-api";
 import {
   QueryExpand,
@@ -136,6 +136,9 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     } catch (error) {
       const message = getErrorMessage(error);
       logger.debug("AzureDevOps: Query failed", { error: message });
+      if (error instanceof PlatformError || error instanceof ConfigurationError) {
+        throw error;
+      }
       throw new PlatformError("Failed to retrieve work items from Azure DevOps", "azure-devops");
     }
   }
