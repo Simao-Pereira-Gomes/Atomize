@@ -112,7 +112,7 @@ async function openCatalogItemFile(item: CatalogJsonItem, provider: CatalogItemP
 		const uri = vscode.Uri.from({
 			scheme: CATALOG_ITEM_SCHEME,
 			authority: 'catalog',
-			path: `/${item.kind}/${item.name}.yaml`,
+			path: `/${item.kind}/${item.name}.atomize.yaml`,
 		});
 		provider.set(uri, content);
 		const doc = await vscode.workspace.openTextDocument(uri);
