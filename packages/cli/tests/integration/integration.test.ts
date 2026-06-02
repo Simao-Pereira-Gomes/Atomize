@@ -241,7 +241,7 @@ describe("Integration Tests", () => {
 
   describe("Template Composition", () => {
     test("child template inherits filter and tasks from parent", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       expect(template.name).toBe("Child Template");
       expect(template.filter.workItemTypes).toEqual(["User Story"]);
@@ -249,7 +249,7 @@ describe("Integration Tests", () => {
     });
 
     test("child template overrides parent task by id", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       const designTask = template.tasks.find((t) => t.id === "design");
       expect(designTask?.estimationPercent).toBe(15);
@@ -257,7 +257,7 @@ describe("Integration Tests", () => {
     });
 
     test("child template appends new tasks to parent", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       const taskIds = template.tasks.map((t) => t.id);
       expect(taskIds).toContain("implement");
@@ -266,7 +266,7 @@ describe("Integration Tests", () => {
     });
 
     test("composed child template is valid at 100% estimation", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.yaml"));
+      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
       const result = validator.validate(template);
 
       expect(result.valid).toBe(true);
@@ -317,7 +317,7 @@ describe("Integration Tests", () => {
     });
 
     test("loadWithMeta reports composition metadata for inheriting template", async () => {
-      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "child-template.yaml"));
+      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       expect(meta.isComposed).toBe(true);
       expect(meta.extendsRef).toContain("base-template.yaml");

@@ -123,7 +123,7 @@ describe("TemplateComposer", () => {
     });
 
     test("resolves relative paths from context", async () => {
-      const childPath = resolve(fixturesPath, "child-template.yaml");
+      const childPath = resolve(fixturesPath, "child-template.atomize.yaml");
       const loader = new TemplateLoader();
       const result = await loader.load(childPath);
 
@@ -228,7 +228,7 @@ describe("TemplateComposer", () => {
     test("child template loads with inherited filter and merged tasks", async () => {
       const loader = new TemplateLoader();
       const template = await loader.load(
-        resolve(fixturesPath, "child-template.yaml"),
+        resolve(fixturesPath, "child-template.atomize.yaml"),
       );
 
       expect(template.name).toBe("Child Template");
@@ -490,7 +490,7 @@ describe("TemplateLoader.loadWithMeta", () => {
   test("child template reports extendsRef and resolved path", async () => {
     const loader = new TemplateLoader();
     const { meta } = await loader.loadWithMeta(
-      resolve(fixturesPath, "child-template.yaml"),
+      resolve(fixturesPath, "child-template.atomize.yaml"),
     );
     expect(meta.isComposed).toBe(true);
     expect(meta.extendsRef).toBe("./base-template.yaml");
@@ -510,7 +510,7 @@ describe("TemplateLoader.loadWithMeta", () => {
   test("file extends reports resolved path metadata", async () => {
     const loader = new TemplateLoader();
     const { meta } = await loader.loadWithMeta(
-      resolve(fixturesPath, "child-template.yaml"),
+      resolve(fixturesPath, "child-template.atomize.yaml"),
     );
     expect(meta.resolvedExtendsPath).toBeDefined();
   });
