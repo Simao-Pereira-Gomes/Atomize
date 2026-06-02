@@ -149,3 +149,7 @@ An editor action that applies a deterministic fix for a fixable Validation Diagn
 
 **Editor Handoff**:
 An opt-in CLI action that opens a saved Atomize YAML File in the user's editor after successful creation or installation, while the CLI remains responsible for template creation, installation, validation, persistence, and catalog lifecycle.
+
+**Template Builder**:
+A standalone desktop application for visually authoring Templates. Supports three starting paths: scratch, cloning an existing Catalog item, or generating a draft from a prose description. All paths converge on the same visual authoring surface. Produces a downloadable Atomize YAML File for manual installation via the CLI.
+_Avoid_: conflating with the CLI template wizard, which is a sequential terminal-driven flow for the same purpose.
