@@ -3,8 +3,8 @@ import {
 	CliAbsentError,
 	CliRuntimeError,
 	CliVersionError,
-	MalformedOutputError,
 	invoke,
+	MalformedOutputError,
 	probeCli,
 } from '../cli-bridge.js';
 
