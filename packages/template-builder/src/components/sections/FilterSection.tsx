@@ -108,8 +108,9 @@ export function FilterSection(props: { store: FilterStore }) {
         <SelectField
           label="Saved query"
           value={f.fields.savedQueryIds[0] ?? ""}
+          error={f.errors.savedQueryIds}
           options={SAVED_QUERIES.map((query) => ({ value: query.id, label: query.path }))}
-          onInput={(id) => f.set("savedQueryIds", id === "" ? [] : [id])}
+          onInput={(id) => { f.set("savedQueryIds", id === "" ? [] : [id]); f.validate(); }}
         />
       </Show>
     </>

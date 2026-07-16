@@ -455,6 +455,10 @@ export const MetadataSchema = z.object({
       "Human-readable guidance on how to estimate stories before using this template.",
     )
     .optional(),
+  notes: z
+    .string()
+    .describe("Free-form context for the template's authors and maintainers.")
+    .optional(),
   examples: z
     .array(z.string())
     .describe(

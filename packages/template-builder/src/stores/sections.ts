@@ -27,6 +27,7 @@ export const SECTION_META: { id: SectionId; label: string; description: string }
 type BasicInfoFields = {
   name: string;
   description: string;
+  category: string;
   author: string;
   tags: string[];
   version: string;
@@ -83,23 +84,41 @@ type EstimationFields = {
   source: string;
   rounding: "none" | "nearest" | "up" | "down";
   minimumTaskPoints: string;
+  ifParentHasNoEstimation: "" | "skip" | "warn" | "use-default";
+  defaultParentEstimation: string;
 };
 
-type EstimationAdvanced = Omit<EstimationConfig, keyof EstimationFields | "strategy" | "minimumTaskPoints">;
+type EstimationAdvanced = Omit<EstimationConfig, keyof EstimationFields | "strategy">;
+
+type RequiredTaskFields = { title: string; id: string };
 
 type ValidationFields = {
   mode: "" | "strict" | "lenient";
   totalEstimationMustBe: string;
+  totalEstimationRangeMin: string;
+  totalEstimationRangeMax: string;
   minTasks: string;
   maxTasks: string;
+  taskEstimationRangeMin: string;
+  taskEstimationRangeMax: string;
+  requiredTasks: RequiredTaskFields[];
 };
 
-type ValidationAdvanced = Omit<ValidationConfig, "mode" | "totalEstimationMustBe" | "minTasks" | "maxTasks">;
+type ValidationAdvanced = Omit<
+  ValidationConfig,
+  | "mode"
+  | "totalEstimationMustBe"
+  | "totalEstimationRange"
+  | "minTasks"
+  | "maxTasks"
+  | "taskEstimationRange"
+  | "requiredTasks"
+>;
 
 type MetadataFields = {
-  category: string;
   difficulty: "" | "beginner" | "intermediate" | "advanced";
   estimationGuidelines: string;
+  notes: string;
 };
 
 type MetadataAdvanced = Omit<Metadata, keyof MetadataFields>;
@@ -107,6 +126,7 @@ type MetadataAdvanced = Omit<Metadata, keyof MetadataFields>;
 const defaultBasicInfo = (): BasicInfoFields => ({
   name: "",
   description: "",
+  category: "",
   author: "",
   tags: [],
   version: "1.0",
@@ -146,19 +166,26 @@ const defaultEstimation = (): EstimationFields => ({
   source: "",
   rounding: "none",
   minimumTaskPoints: "",
+  ifParentHasNoEstimation: "",
+  defaultParentEstimation: "",
 });
 
 const defaultValidation = (): ValidationFields => ({
   mode: "",
   totalEstimationMustBe: "",
+  totalEstimationRangeMin: "",
+  totalEstimationRangeMax: "",
   minTasks: "",
   maxTasks: "",
+  taskEstimationRangeMin: "",
+  taskEstimationRangeMax: "",
+  requiredTasks: [],
 });
 
 const defaultMetadata = (): MetadataFields => ({
-  category: "",
   difficulty: "",
   estimationGuidelines: "",
+  notes: "",
 });
 
 function nonEmpty(value: string): string | undefined {
@@ -183,6 +210,12 @@ function isNonNegativeNumber(value: string): boolean {
 function isPercentage(value: string): boolean {
   const numeric = optionalNumber(value);
   return numeric === undefined || (!Number.isNaN(numeric) && numeric >= 0 && numeric <= 100);
+}
+
+function isOrderedRange(min: string, max: string): boolean {
+  const minValue = optionalNumber(min);
+  const maxValue = optionalNumber(max);
+  return minValue === undefined || maxValue === undefined || minValue <= maxValue;
 }
 
 function isNonNegativeInteger(value: string): boolean {
@@ -270,12 +303,20 @@ function makeEstimation() {
     clearErrors(errors, (value) => setErrors(reconcile(value)));
   };
   const validate = () => {
-    setErrors(
-      "minimumTaskPoints",
-      !isNonNegativeNumber(fields.minimumTaskPoints) ? "Must be 0 or greater" : undefined,
-    );
+    setErrors(reconcile({
+      minimumTaskPoints: !isNonNegativeNumber(fields.minimumTaskPoints) ? "Must be 0 or greater" : undefined,
+      defaultParentEstimation:
+        !isNonNegativeNumber(fields.defaultParentEstimation)
+          ? "Must be 0 or greater"
+          : fields.ifParentHasNoEstimation === "use-default" && fields.defaultParentEstimation.trim() === ""
+            ? "A default estimate is required"
+            : undefined,
+    }));
   };
-  const isValid = () => isNonNegativeNumber(fields.minimumTaskPoints);
+  const isValid = () =>
+    isNonNegativeNumber(fields.minimumTaskPoints) &&
+    isNonNegativeNumber(fields.defaultParentEstimation) &&
+    (fields.ifParentHasNoEstimation !== "use-default" || fields.defaultParentEstimation.trim() !== "");
   return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
 }
 
@@ -299,6 +340,20 @@ function makeValidation() {
     if (!isNonNegativeInteger(fields.maxTasks)) {
       nextErrors.maxTasks = "Must be a whole number 0 or greater";
     }
+    const validateRange = (min: string, max: string, prefix: string) => {
+      if (!isPercentage(min)) nextErrors[`${prefix}Min`] = "Must be 0-100";
+      if (!isPercentage(max)) nextErrors[`${prefix}Max`] = "Must be 0-100";
+      const minValue = optionalNumber(min);
+      const maxValue = optionalNumber(max);
+      if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
+        nextErrors[`${prefix}Max`] = "Must be greater than or equal to the minimum";
+      }
+    };
+    validateRange(fields.totalEstimationRangeMin, fields.totalEstimationRangeMax, "totalEstimationRange");
+    validateRange(fields.taskEstimationRangeMin, fields.taskEstimationRangeMax, "taskEstimationRange");
+    fields.requiredTasks.forEach((task, index) => {
+      if (task.title.trim() === "") nextErrors[`requiredTasks.${index}.title`] = "Title is required";
+    });
     const minTasks = optionalNumber(fields.minTasks);
     const maxTasks = optionalNumber(fields.maxTasks);
     if (
@@ -319,10 +374,19 @@ function makeValidation() {
       isPercentage(fields.totalEstimationMustBe) &&
       isNonNegativeInteger(fields.minTasks) &&
       isNonNegativeInteger(fields.maxTasks) &&
-      (minTasks === undefined || maxTasks === undefined || minTasks <= maxTasks)
+      (minTasks === undefined || maxTasks === undefined || minTasks <= maxTasks) &&
+      isPercentage(fields.totalEstimationRangeMin) &&
+      isPercentage(fields.totalEstimationRangeMax) &&
+      isPercentage(fields.taskEstimationRangeMin) &&
+      isPercentage(fields.taskEstimationRangeMax) &&
+      isOrderedRange(fields.totalEstimationRangeMin, fields.totalEstimationRangeMax) &&
+      isOrderedRange(fields.taskEstimationRangeMin, fields.taskEstimationRangeMax) &&
+      fields.requiredTasks.every((task) => task.title.trim() !== "")
     );
   };
-  return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
+  const addRequiredTask = () => set("requiredTasks", fields.requiredTasks.length, { title: "", id: "" });
+  const removeRequiredTask = (index: number) => set("requiredTasks", (tasks) => tasks.filter((_, i) => i !== index));
+  return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid, addRequiredTask, removeRequiredTask };
 }
 
 function makeMetadata() {
@@ -424,11 +488,15 @@ function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
     source: nonEmpty(store.fields.source),
     rounding: store.fields.rounding,
     minimumTaskPoints: optionalNumber(store.fields.minimumTaskPoints),
+    ifParentHasNoEstimation: store.fields.ifParentHasNoEstimation || undefined,
+    defaultParentEstimation: optionalNumber(store.fields.defaultParentEstimation),
   };
 
   const hasMeaningfulValue =
     estimation.source !== undefined ||
     estimation.minimumTaskPoints !== undefined ||
+    estimation.ifParentHasNoEstimation !== undefined ||
+    estimation.defaultParentEstimation !== undefined ||
     store.fields.rounding !== "none" ||
     Object.keys(store.advanced).length > 0;
 
@@ -440,18 +508,31 @@ function buildValidation(store: ValidationStore): ValidationConfig | undefined {
     ...store.advanced,
     mode: store.fields.mode === "" ? undefined : store.fields.mode,
     totalEstimationMustBe: optionalNumber(store.fields.totalEstimationMustBe),
+    totalEstimationRange:
+      store.fields.totalEstimationRangeMin !== "" || store.fields.totalEstimationRangeMax !== ""
+        ? { min: optionalNumber(store.fields.totalEstimationRangeMin) ?? 0, max: optionalNumber(store.fields.totalEstimationRangeMax) ?? 100 }
+        : undefined,
     minTasks: optionalNumber(store.fields.minTasks),
     maxTasks: optionalNumber(store.fields.maxTasks),
+    taskEstimationRange:
+      store.fields.taskEstimationRangeMin !== "" || store.fields.taskEstimationRangeMax !== ""
+        ? { min: optionalNumber(store.fields.taskEstimationRangeMin) ?? 0, max: optionalNumber(store.fields.taskEstimationRangeMax) ?? 100 }
+        : undefined,
+    requiredTasks: nonEmptyArray(store.fields.requiredTasks.map((task) => ({
+      title: task.title.trim(),
+      id: nonEmpty(task.id),
+    }))),
   };
   return Object.values(validation).some((value) => value !== undefined) ? validation : undefined;
 }
 
-function buildMetadata(store: MetadataStore): Metadata | undefined {
+function buildMetadata(store: MetadataStore, category: string): Metadata | undefined {
   const metadata: Metadata = {
     ...store.advanced,
-    category: nonEmpty(store.fields.category),
+    category: nonEmpty(category),
     difficulty: store.fields.difficulty === "" ? undefined : store.fields.difficulty,
     estimationGuidelines: nonEmpty(store.fields.estimationGuidelines),
+    notes: nonEmpty(store.fields.notes),
   };
   return Object.values(metadata).some((value) => value !== undefined) ? metadata : undefined;
 }
@@ -507,6 +588,7 @@ export function createAuthoringStore(): AuthoringStore {
         version: template.version,
         name: template.name,
         description: template.description ?? "",
+        category: template.metadata?.category ?? "",
         author: template.author ?? "",
         tags: template.tags ?? [],
       },
@@ -549,6 +631,8 @@ export function createAuthoringStore(): AuthoringStore {
       source,
       rounding,
       minimumTaskPoints,
+      ifParentHasNoEstimation,
+      defaultParentEstimation,
       ...advancedEstimation
     } = template.estimation ?? {};
     estimation.replace(
@@ -557,6 +641,8 @@ export function createAuthoringStore(): AuthoringStore {
         source: source ?? "",
         rounding: rounding ?? "none",
         minimumTaskPoints: minimumTaskPoints === undefined ? "" : String(minimumTaskPoints),
+        ifParentHasNoEstimation: ifParentHasNoEstimation ?? "",
+        defaultParentEstimation: defaultParentEstimation === undefined ? "" : String(defaultParentEstimation),
       },
       advancedEstimation,
     );
@@ -564,31 +650,39 @@ export function createAuthoringStore(): AuthoringStore {
     const {
       mode,
       totalEstimationMustBe,
+      totalEstimationRange,
       minTasks,
       maxTasks,
+      taskEstimationRange,
+      requiredTasks,
       ...advancedValidation
     } = template.validation ?? {};
     validation.replace(
       {
         mode: mode ?? "",
         totalEstimationMustBe: totalEstimationMustBe === undefined ? "" : String(totalEstimationMustBe),
+        totalEstimationRangeMin: totalEstimationRange?.min === undefined ? "" : String(totalEstimationRange.min),
+        totalEstimationRangeMax: totalEstimationRange?.max === undefined ? "" : String(totalEstimationRange.max),
         minTasks: minTasks === undefined ? "" : String(minTasks),
         maxTasks: maxTasks === undefined ? "" : String(maxTasks),
+        taskEstimationRangeMin: taskEstimationRange?.min === undefined ? "" : String(taskEstimationRange.min),
+        taskEstimationRangeMax: taskEstimationRange?.max === undefined ? "" : String(taskEstimationRange.max),
+        requiredTasks: requiredTasks?.map((task) => ({ title: task.title, id: task.id ?? "" })) ?? [],
       },
       advancedValidation,
     );
 
     const {
-      category,
       difficulty,
       estimationGuidelines,
+      notes,
       ...advancedMetadata
     } = template.metadata ?? {};
     metadata.replace(
       {
-        category: category ?? "",
         difficulty: difficulty ?? "",
         estimationGuidelines: estimationGuidelines ?? "",
+        notes: notes ?? "",
       },
       advancedMetadata,
     );
@@ -604,6 +698,7 @@ export function createAuthoringStore(): AuthoringStore {
       version: nonEmpty(basicInfo.fields.version) ?? "1.0",
       name: basicInfo.fields.name.trim(),
       description: nonEmpty(basicInfo.fields.description),
+      metadata: buildMetadata(metadata, basicInfo.fields.category),
       author: nonEmpty(basicInfo.fields.author),
       tags: nonEmptyArray(basicInfo.fields.tags),
       created: basicInfo.advanced.created,
@@ -612,7 +707,6 @@ export function createAuthoringStore(): AuthoringStore {
       tasks: buildTasks(tasks),
       estimation: buildEstimation(estimation),
       validation: buildValidation(validation),
-      metadata: buildMetadata(metadata),
       extends: basicInfo.advanced.extends,
       mixins: basicInfo.advanced.mixins,
       origin: basicInfo.advanced.origin,

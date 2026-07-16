@@ -878,11 +878,20 @@ export async function configureMetadata(defaults?: Metadata): Promise<Metadata |
     }),
   );
 
+  const notes = assertNotCancelled(
+    await text({
+      message: "Template notes:",
+      placeholder: "Optional context for template authors and maintainers",
+      initialValue: defaults?.notes ?? "",
+    }),
+  );
+
   if (category) metadata.category = category;
   if (difficulty) metadata.difficulty = difficulty as Metadata["difficulty"];
   if (recommendedFor.length > 0) metadata.recommendedFor = recommendedFor;
   if (estimationGuidelines)
     metadata.estimationGuidelines = estimationGuidelines;
+  if (notes) metadata.notes = notes;
 
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }

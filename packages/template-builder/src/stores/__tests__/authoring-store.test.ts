@@ -220,18 +220,46 @@ describe("createAuthoringStore", () => {
     });
   });
 
+  it("serialises all Estimation settings and Validation rules into Atomize YAML", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("ifParentHasNoEstimation", "use-default");
+    store.estimation.set("defaultParentEstimation", "8");
+    store.validation.set("totalEstimationRangeMin", "90");
+    store.validation.set("totalEstimationRangeMax", "100");
+    store.validation.set("taskEstimationRangeMin", "5");
+    store.validation.set("taskEstimationRangeMax", "80");
+    store.validation.addRequiredTask();
+    store.validation.set("requiredTasks", 0, "title", "Analysis");
+    store.validation.set("requiredTasks", 0, "id", "analysis");
+
+    expect(serialisedObject(store)).toMatchObject({
+      estimation: {
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: 8,
+      },
+      validation: {
+        totalEstimationRange: { min: 90, max: 100 },
+        taskEstimationRange: { min: 5, max: 80 },
+        requiredTasks: [{ title: "Analysis", id: "analysis" }],
+      },
+    });
+  });
+
   it("serialises Metadata fields into Atomize YAML", () => {
     const store = createAuthoringStore();
     store.loadTemplate(baseTemplate);
-    store.metadata.set("category", "Frontend");
+    store["basic-info"].set("category", "Frontend");
     store.metadata.set("difficulty", "intermediate");
     store.metadata.set("estimationGuidelines", "Estimate the parent story before generation.");
+    store.metadata.set("notes", "Use this template for product work.");
 
     expect(serialisedObject(store)).toMatchObject({
       metadata: {
         category: "Frontend",
         difficulty: "intermediate",
         estimationGuidelines: "Estimate the parent story before generation.",
+        notes: "Use this template for product work.",
       },
     });
   });

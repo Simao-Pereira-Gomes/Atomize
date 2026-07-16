@@ -7,11 +7,15 @@ export function BasicInfoSection(props: { store: BasicInfoStore }) {
     <>
       <TextField
         label="Name" value={s.fields.name} error={s.errors.name} required
-        onInput={(v) => s.set("name", v)} onBlur={s.validate} placeholder="My Template"
+        onInput={(v) => { s.set("name", v); s.validate(); }} onBlur={s.validate} placeholder="My Template"
       />
       <TextareaField
         label="Description" value={s.fields.description}
         onInput={(v) => s.set("description", v)} placeholder="What this template is for…"
+      />
+      <TextField
+        label="Category" value={s.fields.category}
+        onInput={(v) => s.set("category", v)} placeholder="Frontend"
       />
       <TextField
         label="Author" value={s.fields.author}

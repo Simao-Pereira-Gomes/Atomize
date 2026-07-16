@@ -23,7 +23,7 @@ export function TasksSection(props: { store: TasksStore }) {
               value={task.fields.title}
               error={s.errors[`tasks.${index()}.title`]}
               required
-              onInput={(v) => s.set("items", index(), "fields", "title", v)}
+              onInput={(v) => { s.set("items", index(), "fields", "title", v); s.validate(); }}
               onBlur={s.validate}
               placeholder="Task title"
             />
@@ -43,7 +43,7 @@ export function TasksSection(props: { store: TasksStore }) {
               label="Estimation percent"
               value={task.fields.estimationPercent}
               error={s.errors[`tasks.${index()}.estimationPercent`]}
-              onInput={(v) => s.set("items", index(), "fields", "estimationPercent", v)}
+              onInput={(v) => { s.set("items", index(), "fields", "estimationPercent", v); s.validate(); }}
               onBlur={s.validate}
               placeholder="20"
             />

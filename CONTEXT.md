@@ -18,6 +18,10 @@ A child Work Item produced from a Template task definition.
 **Template**:
 A YAML-defined task breakdown recipe for matching Stories.
 
+**Template Notes**:
+Optional free-form context attached to a Template for its authors and maintainers. Template Notes are distinct from estimation guidelines and from a Task's description.
+_Avoid_: using "notes" to refer to Task details.
+
 **Mixin**:
 A reusable partial Template that contributes Tasks during composition.
 

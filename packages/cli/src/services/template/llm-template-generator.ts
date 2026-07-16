@@ -91,6 +91,7 @@ metadata:               # optional
   difficulty: "beginner" | "intermediate" | "advanced"
   recommendedFor: string[]
   estimationGuidelines: string
+  notes: string              # optional context for template authors and maintainers
 
 CONSTRAINTS (you must follow these):
 1. Estimation sums:

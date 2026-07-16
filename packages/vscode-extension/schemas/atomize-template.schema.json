@@ -620,6 +620,10 @@
               "type": "string",
               "description": "Human-readable guidance on how to estimate stories before using this template."
             },
+            "notes": {
+              "type": "string",
+              "description": "Free-form context for the template's authors and maintainers."
+            },
             "examples": {
               "type": "array",
               "items": {
@@ -1169,6 +1173,10 @@
             "estimationGuidelines": {
               "type": "string",
               "description": "Human-readable guidance on how to estimate stories before using this template."
+            },
+            "notes": {
+              "type": "string",
+              "description": "Free-form context for the template's authors and maintainers."
             },
             "examples": {
               "type": "array",

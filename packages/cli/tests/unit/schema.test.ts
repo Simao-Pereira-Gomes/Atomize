@@ -582,6 +582,7 @@ describe("Schema Validation", () => {
         metadata: {
           category: "Development",
           difficulty: "intermediate",
+          notes: "Use for planned product work.",
         },
 
       };

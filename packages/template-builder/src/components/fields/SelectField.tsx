@@ -1,5 +1,5 @@
 import { Select } from "@kobalte/core";
-import { createMemo } from "solid-js";
+import { createMemo, Show } from "solid-js";
 
 type SelectOption = { value: string; label: string };
 
@@ -7,6 +7,7 @@ export function SelectField(props: {
   label: string;
   value: string;
   options: SelectOption[];
+  error?: string;
   onInput: (v: string) => void;
 }) {
   const selected = createMemo(() => props.options.find((o) => o.value === props.value) ?? null);
@@ -39,6 +40,7 @@ export function SelectField(props: {
           </Select.Content>
         </Select.Portal>
       </Select.Root>
+      <Show when={props.error}><p class="ui-error">{props.error}</p></Show>
     </div>
   );
 }

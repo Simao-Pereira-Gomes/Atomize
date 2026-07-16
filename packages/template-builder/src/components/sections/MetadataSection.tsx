@@ -1,5 +1,5 @@
 import type { MetadataStore } from "../../stores/sections";
-import { SelectField, TextareaField, TextField } from "../fields";
+import { SelectField, TextareaField } from "../fields";
 
 const DIFFICULTY_VALUES = ["", "beginner", "intermediate", "advanced"] as const;
 type DifficultyValue = (typeof DIFFICULTY_VALUES)[number];
@@ -12,10 +12,6 @@ export function MetadataSection(props: { store: MetadataStore }) {
   const s = props.store;
   return (
     <>
-      <TextField
-        label="Category" value={s.fields.category}
-        onInput={(v) => s.set("category", v)} placeholder="Frontend"
-      />
       <SelectField
         label="Difficulty" value={s.fields.difficulty}
         options={[
@@ -32,6 +28,11 @@ export function MetadataSection(props: { store: MetadataStore }) {
         label="Estimation guidelines" value={s.fields.estimationGuidelines}
         onInput={(v) => s.set("estimationGuidelines", v)}
         placeholder="Guidance on how to estimate stories before using this template…"
+      />
+      <TextareaField
+        label="Template notes" value={s.fields.notes}
+        onInput={(v) => s.set("notes", v)}
+        placeholder="Optional context for template authors and maintainers…"
       />
     </>
   );

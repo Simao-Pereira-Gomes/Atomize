@@ -221,6 +221,9 @@ function displayMetadata(template: TaskTemplate): void {
   if (template.metadata.category) {
     output.print(`  Category: ${template.metadata.category}`);
   }
+  if (template.metadata.notes) {
+    output.print(`  Notes: ${template.metadata.notes}`);
+  }
 }
 
 /**
