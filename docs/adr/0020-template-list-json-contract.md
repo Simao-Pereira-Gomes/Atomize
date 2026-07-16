@@ -6,6 +6,8 @@
 
 Each item in the array carries: `name`, `displayName`, `description`, `ref`, `scope`, `kind`, and `path`. Items that participate in a Catalog Override include an `overrides` object — `{ name, ref, scope, path }` — for the shadowed entry. The `ref` field is included in `overrides` (beyond what the spec strictly required) because the extension uses catalog refs as canonical identifiers everywhere; reconstructing `ref` from `kind` + `name` at every call site is unnecessary friction.
 
+Resolvable Template items additionally carry a `template` field containing the Resolved Template payload. This allows the Template Builder's Catalog clone Starting Path to load the selected source Template through the CLI's JSON interface, rather than reading a Catalog path from the WebView. A Template whose composition cannot resolve remains listed as Catalog metadata but omits this payload, so consumers can exclude it without making the whole Catalog unavailable. A clone materialises inherited and Mixin-contributed content, then removes its `extends` and `mixins` declarations before it becomes editable; native composition authoring is not part of the Builder's initial scope. Mixin items omit this field because the Template Builder does not author Mixins.
+
 Items with a resolved Template Lineage include an `origin` object — `{ ref, scope }`. Unresolvable lineage (the `origin` field is declared in the YAML but the referenced item is absent from the catalog) is **silently omitted**, consistent with ADR-0010's treatment in the human output. Partial objects with a missing `scope` are never emitted.
 
 Items are sorted alphabetically by `ref` within each kind, with all templates before all mixins.

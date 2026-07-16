@@ -1,6 +1,7 @@
 import { gte, valid } from 'semver';
 
-export const CLI_MINIMUM_VERSION = '2.0.1';
+// Catalog clone requires the resolved `template` payload added in CLI 2.0.2.
+export const CLI_MINIMUM_VERSION = '2.0.2';
 
 export type CliExecutor = (args: string[]) => Promise<{ code: number | null; stdout: string; stderr: string }>;
 
@@ -94,4 +95,8 @@ export async function invoke(args: string[], execute: CliExecutor = defaultExecu
 	} catch {
 		throw new MalformedOutputError(result.stdout);
 	}
+}
+
+export async function listCatalogTemplates(execute: CliExecutor = defaultExecute): Promise<unknown> {
+	return await invoke(['template', 'list', '--type', 'template', '--json'], execute);
 }

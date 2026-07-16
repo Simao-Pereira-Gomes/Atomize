@@ -4,7 +4,6 @@ import {
   SECTION_META,
   type SectionId,
   type SectionStores,
-  useSectionStores,
 } from "../stores/sections";
 import { sectionFilledCount, sectionStatus, usesDefaultSectionSettings } from "./section-status";
 import {
@@ -47,13 +46,14 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function TemplateBuilder() {
+export function TemplateBuilder(props: { stores: SectionStores; onChangeStartingPath: () => void }) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
-  const stores = useSectionStores();
+  const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>("basic-info");
+  const [confirmReset, setConfirmReset] = createSignal(false);
 
   const filledCount = (id: SectionId) =>
     id === "review" ? 0 : sectionFilledCount(stores, id);
@@ -85,6 +85,13 @@ export function TemplateBuilder() {
           </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">
+          <button
+            class="hidden text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400 md:block"
+            type="button"
+            onClick={() => setConfirmReset(true)}
+          >
+            Change starting path
+          </button>
           <span class="hidden text-sm text-slate-500 dark:text-slate-400 md:inline">
             {completedSections()} of {SECTION_META.length} sections ready
           </span>
@@ -219,6 +226,18 @@ export function TemplateBuilder() {
           </section>
         </aside>
       </main>
+      <Show when={confirmReset()}>
+        <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-5" role="presentation">
+          <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+            <h2 id="reset-title" class="text-xl font-bold text-slate-950 dark:text-white">Change starting path?</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Everything you have entered will be reset. This cannot be undone.</p>
+            <div class="mt-6 flex justify-end gap-3">
+              <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" type="button" onClick={() => setConfirmReset(false)}>Cancel</button>
+              <button class="rounded-lg !border-0 !bg-rose-600 px-4 py-2 text-sm font-semibold !text-white !shadow-none hover:!bg-rose-500" type="button" onClick={props.onChangeStartingPath}>Reset and change path</button>
+            </div>
+          </section>
+        </div>
+      </Show>
     </div>
   );
 }

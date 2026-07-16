@@ -20,5 +20,9 @@ A failure to determine the availability or version of the CLI even though its ex
 **Starting Path**:
 One of three entry points into the Template Builder's authoring surface: scratch, Catalog clone, or AI draft. All Starting Paths converge on the same authoring surface.
 
+**Catalog Clone**:
+A Starting Path that materialises a selected Catalog Template's Resolved Template into the Authoring Store. Its inherited and Mixin-contributed content becomes directly editable; the cloned Template does not retain `extends` or `mixins` declarations.
+The clone records Template Lineage to the selected source through its informational `origin` field.
+
 **Authoring Store**:
 The single source of truth for the Template being authored in the Template Builder. The YAML preview, Review section, and Starting Path loaders all read from it.

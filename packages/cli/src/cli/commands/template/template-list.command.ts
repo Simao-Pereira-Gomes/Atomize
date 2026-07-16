@@ -16,6 +16,8 @@ import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { formatScope, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 import { TemplateLibrary } from "@/templates/template-library";
+import { TemplateLoader } from "@/templates/loader";
+import type { TaskTemplate } from "@/templates/schema";
 import { getErrorMessage } from "@/utils/errors";
 
 type ListOptions = {
@@ -31,6 +33,7 @@ interface CatalogJsonItem {
   scope: TemplateCatalogScope;
   kind: TemplateCatalogKind;
   path: string;
+  template?: TaskTemplate;
   overrides?: { name: string; ref: string; scope: TemplateCatalogScope; path: string };
   origin?: { ref: string; scope: TemplateCatalogScope };
 }
@@ -58,7 +61,7 @@ export const templateListCommand = new Command("list")
         const { items, overrides, lineage } = await library.getCatalog(type);
 
         if (jsonMode) {
-          output.printJson(buildJsonItems(items, overrides, lineage));
+          output.printJson(await buildJsonItems(items, overrides, lineage));
           return;
         }
 
@@ -89,7 +92,7 @@ export const templateListCommand = new Command("list")
 
       if (jsonMode) {
         const { items, overrides, lineage } = await library.getCatalogAll();
-        output.printJson(buildJsonItems(items, overrides, lineage));
+        output.printJson(await buildJsonItems(items, overrides, lineage));
         return;
       }
 
@@ -144,11 +147,11 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function buildJsonItems(
+async function buildJsonItems(
   items: TemplateCatalogItem[],
   overrides: CatalogOverride[],
   lineage: CatalogLineage[],
-): CatalogJsonItem[] {
+): Promise<CatalogJsonItem[]> {
   const overrideMap = new Map(overrides.map(({ active, overridden }) => [active.ref, overridden]));
   const lineageMap = new Map(lineage.map(({ item, originItem }) => [item.ref, originItem]));
 
@@ -157,9 +160,18 @@ function buildJsonItems(
     return a.ref.localeCompare(b.ref);
   });
 
-  return sorted.map((item): CatalogJsonItem => {
+  const loader = new TemplateLoader();
+  return await Promise.all(sorted.map(async (item): Promise<CatalogJsonItem> => {
     const overriddenItem = overrideMap.get(item.ref);
     const originItem = lineageMap.get(item.ref);
+    let template: TaskTemplate | undefined;
+    if (item.kind === "template") {
+      try {
+        template = await loader.load(item.path);
+      } catch {
+        // Keep the metadata entry visible; callers that require a resolved payload skip it.
+      }
+    }
     return {
       name: item.name,
       displayName: item.displayName,
@@ -168,6 +180,7 @@ function buildJsonItems(
       scope: item.scope,
       kind: item.kind,
       path: item.path,
+      ...(template !== undefined ? { template } : {}),
       ...(overriddenItem !== undefined ? {
         overrides: {
           name: overriddenItem.name,
@@ -183,7 +196,7 @@ function buildJsonItems(
         },
       } : {}),
     };
-  });
+  }));
 }
 
 function printCatalogItem(

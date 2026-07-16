@@ -13,7 +13,10 @@ import {
   installCli,
   NpmUnavailableError,
 } from "./cli/cli-installer";
+import { StartingPathPicker } from "./components/StartingPathPicker";
 import { TemplateBuilder } from "./components/TemplateBuilder";
+import { type CatalogTemplateItem, toCatalogClone } from "./starting-paths/catalog-clone";
+import { createAuthoringStore } from "./stores/sections";
 import "./App.css";
 
 type GateState =
@@ -28,6 +31,21 @@ type GateState =
 
 export function CliGate(props: { probe?: () => Promise<CliProbeResult> }) {
   const [state, setState] = createSignal<GateState>({ kind: "checking" });
+  const [surface, setSurface] = createSignal<"starting-paths" | "builder">("starting-paths");
+  const stores = createAuthoringStore();
+
+  const startScratch = () => {
+    stores.reset();
+    setSurface("builder");
+  };
+  const startCatalogClone = (item: CatalogTemplateItem) => {
+    stores.loadTemplate(toCatalogClone(item));
+    setSurface("builder");
+  };
+  const changeStartingPath = () => {
+    stores.reset();
+    setSurface("starting-paths");
+  };
 
   const checkCli = async () => {
     setState({ kind: "checking" });
@@ -68,7 +86,12 @@ export function CliGate(props: { probe?: () => Promise<CliProbeResult> }) {
   return (
     <Switch>
       <Match when={state().kind === "ready"}>
-        <TemplateBuilder />
+        <Show
+          when={surface() === "builder"}
+          fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} />}
+        >
+          <TemplateBuilder stores={stores} onChangeStartingPath={changeStartingPath} />
+        </Show>
       </Match>
       <Match when={true}>
         <main class="cli-gate" aria-live="polite">

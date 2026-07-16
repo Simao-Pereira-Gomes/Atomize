@@ -5,6 +5,7 @@ import {
 	CliRuntimeError,
 	CliVersionError,
 	invoke,
+	listCatalogTemplates,
 	MalformedOutputError,
 	probeCli,
 } from '../cli-bridge.js';
@@ -47,11 +48,11 @@ describe('probeCli', () => {
 	});
 
 	it('throws CliVersionError when CLI version is below minimum', async () => {
-		const execute = makeExecutor({ code: 0, stdout: 'atomize 1.9.0\n', stderr: '' });
+		const execute = makeExecutor({ code: 0, stdout: 'atomize 2.0.1\n', stderr: '' });
 		const error = await probeCli(execute).catch(e => e);
 		expect(error).toBeInstanceOf(CliVersionError);
-		expect((error as CliVersionError).version).toBe('1.9.0');
-		expect((error as CliVersionError).minimum).toBe('2.0.1');
+		expect((error as CliVersionError).version).toBe('2.0.1');
+		expect((error as CliVersionError).minimum).toBe('2.0.2');
 	});
 });
 
@@ -75,5 +76,16 @@ describe('invoke', () => {
 		const error = await invoke(['template', 'list', '--json'], execute).catch(e => e);
 		expect(error).toBeInstanceOf(MalformedOutputError);
 		expect((error as MalformedOutputError).output).toBe('not json');
+	});
+});
+
+describe('listCatalogTemplates', () => {
+	it('requests only Templates in JSON mode', async () => {
+		const calls: string[][] = [];
+		await listCatalogTemplates(async (args) => {
+			calls.push(args);
+			return { code: 0, stdout: '[]', stderr: '' };
+		});
+		expect(calls).toEqual([['template', 'list', '--type', 'template', '--json']]);
 	});
 });
