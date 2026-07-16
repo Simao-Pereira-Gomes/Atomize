@@ -436,7 +436,7 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 														>
 															<Show when={!rotating()}>
 																<button
-																	class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
+																	class="w-44 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
 																	type="button"
 																	onClick={() => {
 																		setFormError("");
@@ -450,7 +450,7 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 													</div>
 													<div class="mt-8">
 														<button
-															class="rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-900 dark:text-rose-300"
+															class="w-44 rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-900 dark:text-rose-300"
 															type="button"
 															onClick={() => void removeManagedProject()}
 														>
@@ -478,16 +478,16 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 										<input
 											class="ui-input w-full"
 											required
-											value={name()}
-                  onInput={(event) => setOrganizationUrl(event.currentTarget.value)}
+															value={name()}
+															onInput={(event) => setName(event.currentTarget.value)}
 											placeholder="Connection name, e.g. website-team"
 										/>
 										<input
 											class="ui-input w-full"
 											required
 											type="url"
-											value={organizationUrl()}
-											onInput={(event) => setName(event.currentTarget.value)}
+															value={organizationUrl()}
+															onInput={(event) => setOrganizationUrl(event.currentTarget.value)}
 											placeholder="https://dev.azure.com/your-organization"
 										/>
 										<div class="grid grid-cols-2 gap-3">
