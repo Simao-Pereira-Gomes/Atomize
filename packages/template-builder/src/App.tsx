@@ -1,4 +1,5 @@
 import { createSignal, Match, onMount, Show, Switch } from "solid-js";
+import atomizeIcon from "../../vscode-extension/icons/atomize-product.svg";
 import {
   CliAbsentError,
   CliProbeError,
@@ -71,47 +72,66 @@ function CliGate() {
       </Match>
       <Match when={true}>
         <main class="cli-gate" aria-live="polite">
-          <section class="cli-gate__card">
+          <section class="cli-gate__intro">
+            <div class="cli-gate__brand"><img src={atomizeIcon} alt="" /> <span>Atomize</span></div>
+            <div class="cli-gate__intro-copy">
+              <div class="cli-gate__eyebrow">Template Builder</div>
+              <h1>Build task templates without editing YAML by hand.</h1>
+              <p>The desktop app uses the Atomize CLI to validate, import, and save your work.</p>
+            </div>
+            <div class="cli-gate__steps"><span class="is-active">1</span><i /><span>2</span><i /><span>3</span></div>
+          </section>
+          <section class="cli-gate__action">
             <Show when={state().kind === "checking"}>
-              <h1>Checking Atomize CLI</h1>
+              <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Checking setup</div>
+              <h2>Checking Atomize CLI</h2>
               <p>The Template Builder needs a compatible Atomize CLI before it can open.</p>
             </Show>
             <Show when={state().kind === "absent"}>
-              <h1>Install Atomize CLI</h1>
+              <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Required setup</div>
+              <h2>Install Atomize CLI</h2>
               <p>Atomize CLI was not found on your PATH.</p>
-              <button type="button" onClick={install}>Install Atomize CLI</button>
+              <button class="cli-gate__primary" type="button" onClick={install}>Install and continue <span>→</span></button>
+              <p class="cli-gate__hint">Uses npm. You can install with another package manager, then return here.</p>
+              <p class="cli-gate__retry">Already installed it? <button type="button" onClick={checkCli}>Check again</button></p>
             </Show>
             <Show when={state().kind === "outdated"}>
-              <h1>Upgrade Atomize CLI</h1>
+              <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Update required</div>
+              <h2>Upgrade Atomize CLI</h2>
               <p>
                 Version {(state() as Extract<GateState, { kind: "outdated" }>).error.version} is installed;
                 version {(state() as Extract<GateState, { kind: "outdated" }>).error.minimum} or newer is required.
               </p>
-              <button type="button" onClick={install}>Upgrade Atomize CLI</button>
+              <button class="cli-gate__primary" type="button" onClick={install}>Upgrade and continue <span>→</span></button>
+              <p class="cli-gate__retry">Already upgraded it? <button type="button" onClick={checkCli}>Check again</button></p>
             </Show>
             <Show when={state().kind === "probe-failure"}>
-              <h1>Atomize CLI needs repair</h1>
+              <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Setup needs attention</div>
+              <h2>Atomize CLI needs repair</h2>
               <p>{(state() as Extract<GateState, { kind: "probe-failure" }>).message}</p>
-              <button type="button" onClick={install}>Reinstall Atomize CLI</button>
-              <button class="cli-gate__secondary" type="button" onClick={checkCli}>Retry check</button>
+              <button class="cli-gate__primary" type="button" onClick={install}>Reinstall and continue <span>→</span></button>
+              <p class="cli-gate__retry">Already repaired it? <button type="button" onClick={checkCli}>Check again</button></p>
             </Show>
             <Show when={state().kind === "installing"}>
-              <h1>Installing Atomize CLI</h1>
+              <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Installing</div>
+              <h2>Installing Atomize CLI</h2>
               <p>Please keep this window open while installation completes.</p>
               <pre class="cli-gate__console">{(state() as Extract<GateState, { kind: "installing" }>).output}</pre>
             </Show>
             <Show when={state().kind === "npm-unavailable"}>
-              <h1>npm is unavailable</h1>
+              <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Setup needs attention</div>
+              <h2>npm is unavailable</h2>
               <p>{(state() as Extract<GateState, { kind: "npm-unavailable" }>).message}</p>
               <p>Install Node.js/npm, or install Atomize manually with another package manager, then retry.</p>
-              <button type="button" onClick={checkCli}>Retry check</button>
+              <p class="cli-gate__retry"><button type="button" onClick={checkCli}>Check again</button></p>
             </Show>
             <Show when={state().kind === "install-failure"}>
-              <h1>Atomize CLI installation failed</h1>
+              <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Setup needs attention</div>
+              <h2>Atomize CLI installation failed</h2>
               <p>{(state() as Extract<GateState, { kind: "install-failure" }>).message}</p>
               <pre class="cli-gate__console">{(state() as Extract<GateState, { kind: "install-failure" }>).output}</pre>
-              <button type="button" onClick={install}>Try again</button>
-              <button class="cli-gate__secondary" type="button" onClick={checkCli}>Retry check</button>
+              <button class="cli-gate__primary" type="button" onClick={install}>Try again <span>→</span></button>
+              <p class="cli-gate__retry">Installed it another way? <button type="button" onClick={checkCli}>Check again</button></p>
             </Show>
           </section>
         </main>
@@ -121,6 +141,10 @@ function CliGate() {
 }
 
 function App() {
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "builder") {
+    return <TemplateBuilder />;
+  }
+
   return <CliGate />;
 }
 
