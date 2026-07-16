@@ -10,7 +10,8 @@ import {
 import { createStore, reconcile } from "solid-js/store";
 import { stringify } from "yaml";
 
-export type SectionId = "basic-info" | "filter" | "tasks" | "estimation" | "validation" | "metadata";
+export type SectionId = "basic-info" | "filter" | "tasks" | "estimation" | "validation" | "metadata" | "review";
+export type AuthoringSectionId = Exclude<SectionId, "review">;
 export type Errors = Partial<Record<string, string>>;
 
 export const SECTION_META: { id: SectionId; label: string; description: string }[] = [
@@ -20,6 +21,7 @@ export const SECTION_META: { id: SectionId; label: string; description: string }
   { id: "estimation", label: "Estimation", description: "Map story estimates into generated task estimates." },
   { id: "validation", label: "Validation", description: "Set the guardrails that keep generated tasks within expected bounds." },
   { id: "metadata", label: "Metadata", description: "Add classification and guidance for template discovery and review." },
+  { id: "review", label: "Review", description: "Review the completed Template and its Atomize YAML before saving." },
 ];
 
 type BasicInfoFields = {
@@ -361,6 +363,17 @@ export type AuthoringStore = AuthoringSectionStores & {
   serialise: () => string;
 };
 
+export function isAuthoringStoreReadyForReview(store: AuthoringSectionStores): boolean {
+  return [
+    store["basic-info"],
+    store.filter,
+    store.tasks,
+    store.estimation,
+    store.validation,
+    store.metadata,
+  ].every((section) => section.isValid());
+}
+
 function buildFilter(store: FilterStore): FilterCriteria {
   if (store.fields.filterMode === "query") {
     const savedQueryRef = store.fields.savedQueryIds[0] ?? "";
@@ -583,6 +596,9 @@ export function createAuthoringStore(): AuthoringStore {
 
   const toTemplate = () => {
     for (const store of Object.values(stores)) store.validate();
+    if (!isAuthoringStoreReadyForReview(stores)) {
+      throw new Error("Template contains invalid section data");
+    }
 
     const template = {
       version: nonEmpty(basicInfo.fields.version) ?? "1.0",

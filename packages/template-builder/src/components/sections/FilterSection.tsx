@@ -1,9 +1,9 @@
 import { createSignal, type ParentProps, Show } from "solid-js";
 import {
-  AREA_PATHS, ASSIGNEES, ITERATIONS, queryIdToPath, queryPathToId, SAVED_QUERIES, STATES, WORK_ITEM_TYPES,
+  AREA_PATHS, ASSIGNEES, ITERATIONS, SAVED_QUERIES, STATES, WORK_ITEM_TYPES,
 } from "../../data/mock-platform-data";
 import type { FilterStore } from "../../stores/sections";
-import { MultiSelectField, TagChipInput, ToggleField } from "../fields";
+import { MultiSelectField, SelectField, TagChipInput, ToggleField } from "../fields";
 
 function FilterModeToggle(props: { mode: "build" | "query"; onChange: (m: "build" | "query") => void }) {
   return (
@@ -105,12 +105,11 @@ export function FilterSection(props: { store: FilterStore }) {
           Select a saved query from Azure DevOps. The query path is shown for readability;
           the query ID will be stamped in the YAML.
         </p>
-        <MultiSelectField
+        <SelectField
           label="Saved query"
-          selected={f.fields.savedQueryIds.map(queryIdToPath)}
-          options={SAVED_QUERIES.map((q) => q.path)}
-          placeholder="Select a query…"
-          onChange={(paths) => f.set("savedQueryIds", paths.map(queryPathToId))}
+          value={f.fields.savedQueryIds[0] ?? ""}
+          options={SAVED_QUERIES.map((query) => ({ value: query.id, label: query.path }))}
+          onInput={(id) => f.set("savedQueryIds", id === "" ? [] : [id])}
         />
       </Show>
     </>

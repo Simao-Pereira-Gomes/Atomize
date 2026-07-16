@@ -1,7 +1,7 @@
 import { type TaskTemplate, TaskTemplateSchema } from "@sppg2001/atomize-schema";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { createAuthoringStore } from "../sections";
+import { createAuthoringStore, isAuthoringStoreReadyForReview } from "../sections";
 
 const baseTemplate: TaskTemplate = {
   version: "1.0",
@@ -119,6 +119,31 @@ describe("createAuthoringStore", () => {
       },
     });
   });
+
+  it("rejects multiple saved queries instead of serialising only the first", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.filter.set("filterMode", "query");
+    store.filter.set("savedQueryIds", [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    ]);
+
+    expect(store.filter.isValid()).toBe(false);
+    expect(() => store.serialise()).toThrow();
+  });
+
+  it("is ready for Review when optional Estimation and Validation are omitted", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+
+    expect(store.estimation.fields.source).toBe("");
+    expect(store.validation.fields.mode).toBe("");
+    expect(isAuthoringStoreReadyForReview(store)).toBe(true);
+    expect(serialisedObject(store)).not.toHaveProperty("estimation");
+    expect(serialisedObject(store)).not.toHaveProperty("validation");
+  });
+
 
   it("serialises Tasks fields into Atomize YAML", () => {
     const store = createAuthoringStore();

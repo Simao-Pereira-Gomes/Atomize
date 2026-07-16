@@ -26,13 +26,13 @@ type GateState =
   | { kind: "npm-unavailable"; message: string }
   | { kind: "install-failure"; message: string; output: string };
 
-function CliGate() {
+export function CliGate(props: { probe?: () => Promise<CliProbeResult> }) {
   const [state, setState] = createSignal<GateState>({ kind: "checking" });
 
   const checkCli = async () => {
     setState({ kind: "checking" });
     try {
-      setState({ kind: "ready", result: await probeCli() });
+      setState({ kind: "ready", result: await (props.probe ?? probeCli)() });
     } catch (error) {
       if (error instanceof CliAbsentError) setState({ kind: "absent" });
       else if (error instanceof CliVersionError) setState({ kind: "outdated", error });
@@ -141,10 +141,6 @@ function CliGate() {
 }
 
 function App() {
-  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "builder") {
-    return <TemplateBuilder />;
-  }
-
   return <CliGate />;
 }
 

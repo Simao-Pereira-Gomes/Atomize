@@ -1,47 +1,25 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import {
-  type Errors,
+  isAuthoringStoreReadyForReview,
   SECTION_META,
   type SectionId,
   type SectionStores,
   useSectionStores,
 } from "../stores/sections";
+import { sectionFilledCount, sectionStatus, usesDefaultSectionSettings } from "./section-status";
 import {
   BasicInfoSection,
   EstimationSection,
   FilterSection,
   MetadataSection,
+  ReviewSection,
   TasksSection,
   ValidationSection,
 } from "./sections";
 
-// Default field values that don't count toward "filled" status
-const FILLED_DEFAULTS = new Set(["", "percentage", "none", "1.0", "build"]);
+const OPTIONAL_SECTIONS = new Set<SectionId>(["metadata"]);
 
-function countFilledFields(fields: Record<string, unknown>): number {
-  return Object.values(fields).filter((v) =>
-    Array.isArray(v)
-      ? v.length > 0
-      : typeof v === "boolean"
-        ? false
-        : !FILLED_DEFAULTS.has(v as string),
-  ).length;
-}
-
-type StoreView = { errors: Errors; isValid: () => boolean; fields: Record<string, unknown> };
-
-function storeView(stores: SectionStores, id: SectionId): StoreView {
-  return stores[id] as unknown as StoreView;
-}
-
-function sectionStatus(stores: SectionStores, id: SectionId): "ok" | "warn" | "neutral" {
-  const s = storeView(stores, id);
-  if (Object.values(s.errors).some(Boolean)) return "warn";
-  if (countFilledFields(s.fields) > 0 && s.isValid()) return "ok";
-  return "neutral";
-}
-
-function SectionContent(props: { id: SectionId; stores: SectionStores }) {
+function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean }) {
   return (
     <>
       <Show when={props.id === "basic-info"}>
@@ -62,6 +40,9 @@ function SectionContent(props: { id: SectionId; stores: SectionStores }) {
       <Show when={props.id === "metadata"}>
         <MetadataSection store={props.stores.metadata} />
       </Show>
+      <Show when={props.id === "review"}>
+        <ReviewSection store={props.stores} canReview={props.canReview} />
+      </Show>
     </>
   );
 }
@@ -74,10 +55,15 @@ export function TemplateBuilder() {
   const stores = useSectionStores();
   const [active, setActive] = createSignal<SectionId>("basic-info");
 
-  const filledCount = (id: SectionId) => countFilledFields(storeView(stores, id).fields);
-  const statusFor = (id: SectionId) => sectionStatus(stores, id);
+  const filledCount = (id: SectionId) =>
+    id === "review" ? 0 : sectionFilledCount(stores, id);
+  const allSectionsValid = createMemo(() => isAuthoringStoreReadyForReview(stores));
+  const statusFor = (id: SectionId): "ok" | "warn" | "neutral" =>
+    id === "review" ? (allSectionsValid() ? "ok" : "neutral") : sectionStatus(stores, id);
+  const usesDefaultsFor = (id: SectionId) =>
+    id !== "review" && usesDefaultSectionSettings(stores, id);
+  const isOptionalSection = (id: SectionId) => OPTIONAL_SECTIONS.has(id);
   const activeMeta = createMemo(() => SECTION_META.find((s) => s.id === active()));
-  const allSectionsValid = createMemo(() => SECTION_META.every((s) => storeView(stores, s.id).isValid()));
   const completedSections = createMemo(
     () => SECTION_META.filter((section) => statusFor(section.id) === "ok").length,
   );
@@ -120,7 +106,7 @@ export function TemplateBuilder() {
           </button>
         </div>
       </header>
-      <main class="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[15rem_minmax(0,1fr)_17rem] lg:px-7 lg:py-8">
+      <main class="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[18rem_minmax(0,1fr)_17rem] lg:px-7 lg:py-8">
         <aside class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-6 lg:h-fit">
           <p class="px-3 pb-2 pt-1 text-xs font-bold tracking-widest text-slate-400 uppercase">
             Build a template
@@ -129,15 +115,18 @@ export function TemplateBuilder() {
             <For each={SECTION_META}>
               {(section, index) => {
                 const status = () => statusFor(section.id);
+                const usesDefaults = () => usesDefaultsFor(section.id);
+                const isOptional = () => isOptionalSection(section.id);
                 return (
                   <li>
                     <button
                       type="button"
                       class={`flex w-full items-center gap-3 rounded-xl !border-0 px-3 py-3 text-left !shadow-none transition ${active() === section.id ? "!bg-indigo-50 font-semibold text-indigo-700 dark:!bg-indigo-950/60 dark:text-indigo-200" : "!bg-transparent text-slate-600 hover:!bg-slate-100 dark:text-slate-300 dark:hover:!bg-slate-800"}`}
                       onClick={() => setActive(section.id)}
+                      aria-label={`${section.label}${isOptional() ? " (optional)" : ""} — ${status() === "ok" ? (usesDefaults() ? "ready with defaults" : "complete") : status() === "warn" ? "needs attention" : "in progress"}`}
                     >
                       <span
-                        class={`grid size-5 shrink-0 place-items-center rounded-full border text-xs font-bold ${active() === section.id ? "border-indigo-600 bg-indigo-600 text-white" : status() === "ok" ? "border-emerald-500 bg-emerald-500 text-white" : status() === "warn" ? "border-amber-500 bg-amber-500 text-white" : "border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400"}`}
+                        class={`grid size-5 shrink-0 place-items-center rounded-full border text-xs font-bold ${status() === "warn" ? "border-amber-500 bg-amber-500 text-white" : active() === section.id ? "border-indigo-600 bg-indigo-600 text-white" : status() === "ok" ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400"}`}
                       >
                         {status() === "ok" ? "✓" : index() + 1}
                       </span>
@@ -145,6 +134,16 @@ export function TemplateBuilder() {
                       <Show when={filledCount(section.id) > 0}>
                         <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                           {filledCount(section.id)}
+                        </span>
+                      </Show>
+                      <Show when={usesDefaults()}>
+                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          Standard settings
+                        </span>
+                      </Show>
+                      <Show when={isOptional()}>
+                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          Optional
                         </span>
                       </Show>
                     </button>
@@ -176,14 +175,16 @@ export function TemplateBuilder() {
               class={`rounded-full px-3 py-1 text-xs font-bold ${statusFor(active()) === "ok" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : statusFor(active()) === "warn" ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}
             >
               {statusFor(active()) === "ok"
-                ? "Ready"
+                ? usesDefaultsFor(active())
+                  ? "Ready · using standard settings"
+                  : "Ready"
                 : statusFor(active()) === "warn"
                   ? "Needs attention"
                   : "In progress"}
             </span>
           </div>
           <div class="mt-7">
-            <SectionContent id={active()} stores={stores} />
+            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} />
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">
