@@ -8,6 +8,7 @@ import {
 	listCatalogTemplates,
 	MalformedOutputError,
 	probeCli,
+	rotateAzureDevOpsToken,
 } from '../cli-bridge.js';
 
 function makeExecutor(result: { code: number | null; stdout: string; stderr: string }) {
@@ -48,7 +49,7 @@ describe('probeCli', () => {
 	});
 
 	it('throws CliVersionError when CLI version is below minimum', async () => {
-		const execute = makeExecutor({ code: 0, stdout: 'atomize 2.0.1\n', stderr: '' });
+	const execute = makeExecutor({ code: 0, stdout: 'atomize 2.0.1\n', stderr: '' });
 		const error = await probeCli(execute).catch(e => e);
 		expect(error).toBeInstanceOf(CliVersionError);
 		expect((error as CliVersionError).version).toBe('2.0.1');
@@ -87,5 +88,19 @@ describe('listCatalogTemplates', () => {
 			return { code: 0, stdout: '[]', stderr: '' };
 		});
 		expect(calls).toEqual([['template', 'list', '--type', 'template', '--json']]);
+	});
+});
+
+describe('rotateAzureDevOpsToken', () => {
+	it('sends the new token only through stdin', async () => {
+		const calls: Array<{ args: string[]; stdin: string }> = [];
+		await rotateAzureDevOpsToken('website-team', 'new-secret', async (args, stdin) => {
+			calls.push({ args, stdin });
+			return { code: 0, stdout: '', stderr: '' };
+		});
+		expect(calls).toEqual([{
+			args: ['auth', 'rotate', 'website-team', '--pat-stdin'],
+			stdin: 'new-secret',
+		}]);
 	});
 });

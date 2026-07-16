@@ -40,6 +40,7 @@ type FilterFields = {
   workItemTypes: string[];
   states: string[];
   statesExclude: string[];
+  team: string;
   areaPaths: string[];
   iterations: string[];
   tagsInclude: string[];
@@ -54,6 +55,7 @@ type FilterAdvanced = Omit<
   | "workItemTypes"
   | "states"
   | "statesExclude"
+  | "team"
   | "areaPaths"
   | "iterations"
   | "tags"
@@ -137,6 +139,7 @@ const defaultFilter = (): FilterFields => ({
   workItemTypes: [],
   states: [],
   statesExclude: [],
+  team: "",
   areaPaths: [],
   iterations: [],
   tagsInclude: [],
@@ -462,6 +465,7 @@ function buildFilter(store: FilterStore): FilterCriteria {
     workItemTypes: nonEmptyArray(store.fields.workItemTypes),
     states: nonEmptyArray(store.fields.states),
     statesExclude: nonEmptyArray(store.fields.statesExclude),
+    team: nonEmpty(store.fields.team),
     areaPaths: nonEmptyArray(store.fields.areaPaths),
     iterations: nonEmptyArray(store.fields.iterations),
     tags,
@@ -599,6 +603,7 @@ export function createAuthoringStore(): AuthoringStore {
       workItemTypes,
       states,
       statesExclude,
+      team,
       areaPaths,
       iterations,
       tags: filterTags,
@@ -613,6 +618,7 @@ export function createAuthoringStore(): AuthoringStore {
         workItemTypes: workItemTypes ?? [],
         states: states ?? [],
         statesExclude: statesExclude ?? [],
+        team: team ?? "",
         areaPaths: areaPaths ?? [],
         iterations: iterations ?? [],
         tagsInclude: filterTags?.include ?? [],

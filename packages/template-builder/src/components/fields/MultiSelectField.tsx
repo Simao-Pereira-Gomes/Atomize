@@ -1,14 +1,24 @@
 import { Combobox } from "@kobalte/core";
 import { For, Show } from "solid-js";
+import { SEARCHABLE_OPTIONS_THRESHOLD, shouldAddCustomValue } from "./multi-select-utils";
 
 export function MultiSelectField(props: {
   label: string;
   selected: string[];
   options: string[];
   placeholder?: string;
+  allowCustom?: boolean;
   onChange: (v: string[]) => void;
 }) {
   const showSummary = () => props.selected.length > 2;
+  const isSearchable = () => props.options.length > SEARCHABLE_OPTIONS_THRESHOLD;
+  const inputPlaceholder = () => isSearchable()
+    ? `Search ${props.label.toLowerCase()}…`
+    : props.placeholder ?? "None selected";
+  const addCustom = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed && !props.selected.includes(trimmed)) props.onChange([...props.selected, trimmed]);
+  };
 
   return (
     <div class="ui-field">
@@ -58,7 +68,19 @@ export function MultiSelectField(props: {
                     )}
                   </For>
                 </Show>
-                <Combobox.Input class="sk-combobox-input" />
+                  <Combobox.Input
+                    class="sk-combobox-input"
+                    aria-label={isSearchable() ? `Search ${props.label.toLowerCase()}` : props.label}
+                    placeholder={inputPlaceholder()}
+                    onKeyDown={(event) => {
+                    if (!props.allowCustom || event.key !== "Enter") return;
+                    const value = event.currentTarget.value;
+                    if (!shouldAddCustomValue(value, props.options)) return;
+                    event.preventDefault();
+                    addCustom(value);
+                    event.currentTarget.value = "";
+                  }}
+                />
               </div>
               <Show when={props.selected.length > 0}>
                 <button
@@ -81,7 +103,10 @@ export function MultiSelectField(props: {
             <Combobox.Listbox<string> class="sk-command-list" />
           </Combobox.Content>
         </Combobox.Portal>
-      </Combobox.Root>
-    </div>
+        </Combobox.Root>
+        <Show when={isSearchable()}>
+          <p class="ui-hint"><span aria-hidden="true">💡</span> Search the available {props.label.toLowerCase()}, or press Enter to add a value with no match.</p>
+        </Show>
+      </div>
   );
 }

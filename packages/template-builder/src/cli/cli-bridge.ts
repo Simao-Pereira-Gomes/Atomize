@@ -1,9 +1,10 @@
 import { gte, valid } from 'semver';
 
-// Catalog clone requires the resolved `template` payload added in CLI 2.0.2.
+// Grounding requires `template metadata --json`, included in CLI 2.0.2.
 export const CLI_MINIMUM_VERSION = '2.0.2';
 
 export type CliExecutor = (args: string[]) => Promise<{ code: number | null; stdout: string; stderr: string }>;
+export type CliStdinExecutor = (args: string[], stdin: string) => Promise<{ code: number | null; stdout: string; stderr: string }>;
 
 export interface CliProbeResult {
 	version: string;
@@ -64,6 +65,20 @@ async function defaultExecute(args: string[]): Promise<{ code: number | null; st
 	return { code: result.code, stdout: result.stdout, stderr: result.stderr };
 }
 
+async function defaultExecuteWithStdin(args: string[], stdin: string): Promise<{ code: number | null; stdout: string; stderr: string }> {
+	const { Command } = await import('@tauri-apps/plugin-shell');
+	const command = Command.create('atomize', args);
+	let stdout = '';
+	let stderr = '';
+	return await new Promise((resolve, reject) => {
+		command.stdout.on('data', chunk => { stdout += chunk; });
+		command.stderr.on('data', chunk => { stderr += chunk; });
+		command.on('error', reject);
+		command.on('close', ({ code }) => resolve({ code, stdout, stderr }));
+		void command.spawn().then(async child => { await child.write(`${stdin}\n`); }).catch(reject);
+	});
+}
+
 export async function probeCli(execute: CliExecutor = defaultExecute): Promise<CliProbeResult> {
 	let result: { code: number | null; stdout: string; stderr: string };
 	try {
@@ -99,4 +114,28 @@ export async function invoke(args: string[], execute: CliExecutor = defaultExecu
 
 export async function listCatalogTemplates(execute: CliExecutor = defaultExecute): Promise<unknown> {
 	return await invoke(['template', 'list', '--type', 'template', '--json'], execute);
+}
+
+export type NewAzureDevOpsProfile = { name: string; organizationUrl: string; project: string; team: string; pat: string };
+
+export async function addAzureDevOpsProfile(profile: NewAzureDevOpsProfile, execute: CliStdinExecutor = defaultExecuteWithStdin): Promise<void> {
+	const result = await execute([
+		'auth', 'add', profile.name, '--pat-stdin', '--org-url', profile.organizationUrl,
+		'--project', profile.project, '--team', profile.team,
+	], profile.pat);
+	if (result.code !== 0) throw new CliRuntimeError(result.code ?? 1, result.stderr || result.stdout || 'Could not add the project.');
+}
+
+async function runCli(args: string[], execute: CliExecutor = defaultExecute): Promise<void> {
+	const result = await execute(args);
+	if (result.code !== 0) throw new CliRuntimeError(result.code ?? 1, result.stderr || result.stdout || 'Atomize could not complete that connection action.');
+}
+
+export async function rotateAzureDevOpsToken(name: string, pat: string, execute: CliStdinExecutor = defaultExecuteWithStdin): Promise<void> {
+	const result = await execute(['auth', 'rotate', name, '--pat-stdin'], pat);
+	if (result.code !== 0) throw new CliRuntimeError(result.code ?? 1, result.stderr || result.stdout || 'Atomize could not update the access token.');
+}
+
+export async function removeConnectionProfile(name: string, execute?: CliExecutor): Promise<void> {
+	await runCli(['auth', 'remove', name, '--confirm'], execute);
 }

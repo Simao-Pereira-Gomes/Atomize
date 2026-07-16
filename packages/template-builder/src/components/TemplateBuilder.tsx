@@ -1,10 +1,18 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken } from "../cli/cli-bridge";
+import {
+  type AzureDevOpsProfile,
+  type GroundedFieldOptions,
+  listAzureDevOpsProfiles,
+  loadGroundedFieldOptions,
+} from "../grounding/grounding-service";
 import {
   isAuthoringStoreReadyForReview,
   SECTION_META,
   type SectionId,
   type SectionStores,
 } from "../stores/sections";
+import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
 import { sectionFilledCount, sectionStatus, usesDefaultSectionSettings } from "./section-status";
 import {
   BasicInfoSection,
@@ -18,14 +26,14 @@ import {
 
 const OPTIONAL_SECTIONS = new Set<SectionId>(["metadata"]);
 
-function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean }) {
+function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession }) {
   return (
     <>
       <Show when={props.id === "basic-info"}>
         <BasicInfoSection store={props.stores["basic-info"]} />
       </Show>
       <Show when={props.id === "filter"}>
-        <FilterSection store={props.stores.filter} />
+        <FilterSection store={props.stores.filter} grounding={props.grounding} />
       </Show>
       <Show when={props.id === "tasks"}>
         <TasksSection store={props.stores.tasks} />
@@ -54,6 +62,44 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
   const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>("basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
+  const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
+  const [grounded, setGrounded] = createSignal<GroundedFieldOptions>();
+  const [selectedProfile, setSelectedProfile] = createSignal("");
+  const [groundingState, setGroundingState] = createSignal<"idle" | "loading" | "ready" | "error">("idle");
+  const [groundingError, setGroundingError] = createSignal("");
+
+  onMount(async () => {
+    try { setProfiles(await listAzureDevOpsProfiles()); } catch { /* Connecting is optional. */ }
+  });
+  const loadGrounding = async (profile = selectedProfile()) => {
+    if (!profile) { setGrounded(undefined); setGroundingState("idle"); return true; }
+    setGroundingState("loading"); setGroundingError("");
+    try { setGrounded(await loadGroundedFieldOptions(profile)); setGroundingState("ready"); return true; }
+    catch (error) { setGroundingState("error"); setGroundingError(error instanceof Error ? error.message : "We could not get project choices right now."); return false; }
+  };
+  const grounding: GroundingSession = {
+    profiles,
+    selectedProfile,
+    options: grounded,
+    state: groundingState,
+    error: groundingError,
+    selectProfile: async (profile) => { setSelectedProfile(profile); return loadGrounding(profile); },
+    refresh: () => loadGrounding(),
+    addProject: async (project) => {
+      await addAzureDevOpsProfile(project);
+      const available = await listAzureDevOpsProfiles();
+      setProfiles(available);
+      setSelectedProfile(project.name);
+      await loadGrounding(project.name);
+    },
+    rotateToken: async (name, pat) => { await rotateAzureDevOpsToken(name, pat); },
+    removeProject: async (name) => {
+      await removeConnectionProfile(name);
+      const available = await listAzureDevOpsProfiles();
+      setProfiles(available);
+      if (selectedProfile() === name) { setSelectedProfile(""); setGrounded(undefined); setGroundingState("idle"); }
+    },
+  };
 
   const filledCount = (id: SectionId) =>
     id === "review" ? 0 : sectionFilledCount(stores, id);
@@ -68,6 +114,11 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
     () => SECTION_META.filter((section) => statusFor(section.id) === "ok").length,
   );
   const completion = createMemo(() => Math.round((completedSections() / SECTION_META.length) * 100));
+  const tabNumber = (id: SectionId) => String(SECTION_META.findIndex((section) => section.id === id) + 1).padStart(2, "0");
+  const nextSections = createMemo(() => {
+    const currentIndex = SECTION_META.findIndex((section) => section.id === active());
+    return SECTION_META.slice(currentIndex + 1, currentIndex + 4);
+  });
 
   return (
     <div
@@ -92,6 +143,7 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
           >
             Change starting path
           </button>
+          <GroundingSettings session={grounding} />
           <span class="hidden text-sm text-slate-500 dark:text-slate-400 md:inline">
             {completedSections()} of {SECTION_META.length} sections ready
           </span>
@@ -191,7 +243,7 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
             </span>
           </div>
           <div class="mt-7">
-            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} />
+            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} />
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">
@@ -205,19 +257,21 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
               <div class="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${completion()}%` }} />
             </div>
           </section>
+          <Show when={nextSections().length > 0}>
           <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <p class="text-sm font-bold text-slate-950 dark:text-white">Up next</p>
+            <p class="text-sm font-bold text-slate-950 dark:text-white">Next steps</p>
             <ol class="mt-3 space-y-3">
-              <For each={SECTION_META.filter((section) => section.id !== active()).slice(0, 3)}>
-                {(section, index) => (
+              <For each={nextSections()}>
+                {(section) => (
                   <li class="flex gap-3 text-sm text-slate-600 dark:text-slate-300">
-                    <span class="font-mono text-slate-400">0{index() + 1}</span>
+                    <span class="font-mono text-slate-400">{tabNumber(section.id)}</span>
                     <span>{section.label}</span>
                   </li>
                 )}
               </For>
             </ol>
           </section>
+          </Show>
           <section class="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 text-sm leading-6 text-indigo-900 dark:border-indigo-950 dark:bg-indigo-950/50 dark:text-indigo-100">
             <p class="font-semibold">Tip</p>
             <p class="mt-1 text-indigo-700 dark:text-indigo-200">

@@ -26,3 +26,23 @@ The clone records Template Lineage to the selected source through its informatio
 
 **Authoring Store**:
 The single source of truth for the Template being authored in the Template Builder. The YAML preview, Review section, and Starting Path loaders all read from it.
+
+**Grounded Field Options**:
+Platform metadata fetched on demand through a selected Connection Profile and offered as choices for Template fields. They include filter choices (work item types, type-dependent states, teams, area paths, iteration paths, and saved queries) and Azure DevOps field schemas with their allowed values for custom fields and conditions. Grounded Field Options improve selection accuracy but never prevent manual, offline authoring.
+Manually entered values remain available after grounding, profile changes, and refreshes.
+_Avoid_: treating grounding as a requirement for creating a Template, or removing a manually entered value because it is absent from grounded data.
+
+**CLI Grounding Parity**:
+The Template Builder presents the same Azure DevOps-backed field choices as the interactive `atomize template create` flow. It does not restrict grounding to only the controls that happen to be visible in the Builder's initial Filter section.
+
+**Grounding Session**:
+The transient selection of a Connection Profile in the Template Builder used to fetch Grounded Field Options. A Grounding Session is not part of a Template and is never written into its Atomize YAML File.
+
+**Authoring-Time Grounding**:
+Using Grounded Field Options while authoring to reduce invalid platform-specific values. It does not provide exhaustive Online Validation of a completed Template.
+
+**Grounding Service**:
+The Template Builder capability that manages a Grounding Session and retrieves Grounded Field Options for present and future authoring controls. The first consumer set is the Filter section; custom-field and condition controls adopt it when those controls are introduced.
+
+**Work Project Setting**:
+The Template Builder's global header setting for choosing the Connection Profile used by the current Grounding Session. It uses non-technical language and applies choices across the Builder without becoming part of the Template.

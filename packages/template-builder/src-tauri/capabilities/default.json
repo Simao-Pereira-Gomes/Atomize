@@ -16,8 +16,10 @@
     {
       "identifier": "shell:allow-spawn",
       "allow": [
+        { "name": "atomize", "cmd": "atomize", "sidecar": false, "args": true },
         { "name": "npm", "cmd": "npm", "sidecar": false, "args": ["install", "-g", "@sppg2001/atomize"] }
       ]
-    }
+    },
+    "shell:allow-stdin-write"
   ]
 }
