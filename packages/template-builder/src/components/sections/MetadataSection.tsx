@@ -1,6 +1,13 @@
 import type { MetadataStore } from "../../stores/sections";
 import { SelectField, TextareaField, TextField } from "../fields";
 
+const DIFFICULTY_VALUES = ["", "beginner", "intermediate", "advanced"] as const;
+type DifficultyValue = (typeof DIFFICULTY_VALUES)[number];
+
+function isDifficultyValue(value: string): value is DifficultyValue {
+  return DIFFICULTY_VALUES.includes(value as DifficultyValue);
+}
+
 export function MetadataSection(props: { store: MetadataStore }) {
   const s = props.store;
   return (
@@ -17,7 +24,9 @@ export function MetadataSection(props: { store: MetadataStore }) {
           { value: "intermediate", label: "Intermediate"  },
           { value: "advanced",     label: "Advanced"      },
         ]}
-        onInput={(v) => s.set("difficulty", v)}
+        onInput={(v) => {
+          if (isDifficultyValue(v)) s.set("difficulty", v);
+        }}
       />
       <TextareaField
         label="Estimation guidelines" value={s.fields.estimationGuidelines}

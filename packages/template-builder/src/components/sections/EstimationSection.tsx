@@ -1,6 +1,13 @@
 import type { EstimationStore } from "../../stores/sections";
 import { LockedField, SelectField, TextField } from "../fields";
 
+const ROUNDING_VALUES = ["none", "nearest", "up", "down"] as const;
+type RoundingValue = (typeof ROUNDING_VALUES)[number];
+
+function isRoundingValue(value: string): value is RoundingValue {
+  return ROUNDING_VALUES.includes(value as RoundingValue);
+}
+
 export function EstimationSection(props: { store: EstimationStore }) {
   const s = props.store;
   return (
@@ -22,7 +29,9 @@ export function EstimationSection(props: { store: EstimationStore }) {
           { value: "up",      label: "Up"      },
           { value: "down",    label: "Down"    },
         ]}
-        onInput={(v) => s.set("rounding", v)}
+        onInput={(v) => {
+          if (isRoundingValue(v)) s.set("rounding", v);
+        }}
       />
       <TextField
         label="Minimum task points" value={s.fields.minimumTaskPoints}

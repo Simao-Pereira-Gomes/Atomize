@@ -11,6 +11,7 @@ import {
   EstimationSection,
   FilterSection,
   MetadataSection,
+  TasksSection,
   ValidationSection,
 } from "./sections";
 
@@ -49,6 +50,9 @@ function SectionContent(props: { id: SectionId; stores: SectionStores }) {
       <Show when={props.id === "filter"}>
         <FilterSection store={props.stores.filter} />
       </Show>
+      <Show when={props.id === "tasks"}>
+        <TasksSection store={props.stores.tasks} />
+      </Show>
       <Show when={props.id === "estimation"}>
         <EstimationSection store={props.stores.estimation} />
       </Show>
@@ -73,6 +77,7 @@ export function TemplateBuilder() {
   const filledCount = (id: SectionId) => countFilledFields(storeView(stores, id).fields);
   const statusFor = (id: SectionId) => sectionStatus(stores, id);
   const activeMeta = createMemo(() => SECTION_META.find((s) => s.id === active()));
+  const allSectionsValid = createMemo(() => SECTION_META.every((s) => storeView(stores, s.id).isValid()));
 
   return (
     <div class="ui-proto-root" data-theme={theme()}>
@@ -100,7 +105,7 @@ export function TemplateBuilder() {
             )}
           </For>
           <div class="sidebar-footer">
-            <button class="btn btn--save btn--full" type="button" disabled={!stores["basic-info"].isValid()}>
+            <button class="btn btn--save btn--full" type="button" disabled={!allSectionsValid()}>
               Save template
             </button>
           </div>

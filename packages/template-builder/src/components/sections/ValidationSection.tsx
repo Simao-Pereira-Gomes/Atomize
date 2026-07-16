@@ -1,6 +1,13 @@
 import type { ValidationStore } from "../../stores/sections";
 import { SelectField, TextField } from "../fields";
 
+const VALIDATION_MODES = ["", "strict", "lenient"] as const;
+type ValidationModeValue = (typeof VALIDATION_MODES)[number];
+
+function isValidationModeValue(value: string): value is ValidationModeValue {
+  return VALIDATION_MODES.includes(value as ValidationModeValue);
+}
+
 export function ValidationSection(props: { store: ValidationStore }) {
   const s = props.store;
   return (
@@ -12,7 +19,9 @@ export function ValidationSection(props: { store: ValidationStore }) {
           { value: "strict",  label: "Strict"      },
           { value: "lenient", label: "Lenient"      },
         ]}
-        onInput={(v) => s.set("mode", v)}
+        onInput={(v) => {
+          if (isValidationModeValue(v)) s.set("mode", v);
+        }}
       />
       <TextField
         label="Total estimation must be (%)" value={s.fields.totalEstimationMustBe}
