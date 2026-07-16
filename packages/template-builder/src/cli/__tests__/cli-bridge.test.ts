@@ -28,6 +28,10 @@ describe('probeCli', () => {
 		await expect(probeCli(makeFailingExecutor())).rejects.toBeInstanceOf(CliAbsentError);
 	});
 
+	it('treats the macOS missing-executable error as an absent CLI', async () => {
+		await expect(probeCli(makeFailingExecutor(new Error('No such file or directory (os error 2)')))).rejects.toBeInstanceOf(CliAbsentError);
+	});
+
 	it('throws CliProbeError when the executable fails for a reason other than being absent', async () => {
 		await expect(probeCli(makeFailingExecutor(new Error('permission denied')))).rejects.toBeInstanceOf(CliProbeError);
 	});

@@ -12,6 +12,12 @@
         { "name": "atomize", "cmd": "atomize", "sidecar": false, "args": true },
         { "name": "npm", "cmd": "npm", "sidecar": false, "args": ["install", "-g", "@sppg2001/atomize"] }
       ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        { "name": "npm", "cmd": "npm", "sidecar": false, "args": ["install", "-g", "@sppg2001/atomize"] }
+      ]
     }
   ]
 }

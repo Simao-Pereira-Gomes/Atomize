@@ -54,7 +54,7 @@ function extractVersion(value: string): string | undefined {
 
 function isExecutableNotFound(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
-	return /(?:ENOENT|not found|could not find|executable)/i.test(message);
+	return /(?:ENOENT|no such file or directory|not found|could not find|executable)/i.test(message);
 }
 
 async function defaultExecute(args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }> {
