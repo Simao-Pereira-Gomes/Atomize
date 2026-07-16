@@ -8,7 +8,10 @@
     "opener:default",
     {
       "identifier": "shell:allow-execute",
-      "allow": [{ "name": "atomize", "cmd": "atomize", "sidecar": false, "args": true }]
+      "allow": [
+        { "name": "atomize", "cmd": "atomize", "sidecar": false, "args": true },
+        { "name": "npm", "cmd": "npm", "sidecar": false, "args": ["install", "-g", "@sppg2001/atomize"] }
+      ]
     }
   ]
 }

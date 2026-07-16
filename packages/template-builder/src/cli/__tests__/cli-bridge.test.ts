@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	CliAbsentError,
+	CliProbeError,
 	CliRuntimeError,
 	CliVersionError,
 	invoke,
@@ -25,6 +26,20 @@ describe('probeCli', () => {
 
 	it('throws CliAbsentError when CLI is not in PATH', async () => {
 		await expect(probeCli(makeFailingExecutor())).rejects.toBeInstanceOf(CliAbsentError);
+	});
+
+	it('throws CliProbeError when the executable fails for a reason other than being absent', async () => {
+		await expect(probeCli(makeFailingExecutor(new Error('permission denied')))).rejects.toBeInstanceOf(CliProbeError);
+	});
+
+	it('throws CliProbeError when the version command exits unsuccessfully', async () => {
+		const error = await probeCli(makeExecutor({ code: 1, stdout: '', stderr: 'runtime failure' })).catch(e => e);
+		expect(error).toBeInstanceOf(CliProbeError);
+		expect((error as CliProbeError).message).toBe('runtime failure');
+	});
+
+	it('throws CliProbeError when the CLI does not report a semantic version', async () => {
+		await expect(probeCli(makeExecutor({ code: 0, stdout: 'atomize development', stderr: '' }))).rejects.toBeInstanceOf(CliProbeError);
 	});
 
 	it('throws CliVersionError when CLI version is below minimum', async () => {

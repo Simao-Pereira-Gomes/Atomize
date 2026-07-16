@@ -25,6 +25,10 @@ export class CliVersionError extends Error {
 	}
 }
 
+export class CliProbeError extends Error {
+	override readonly name = 'CliProbeError';
+}
+
 export class CliRuntimeError extends Error {
 	override readonly name = 'CliRuntimeError';
 	constructor(
@@ -48,6 +52,11 @@ function extractVersion(value: string): string | undefined {
 	return valid(match[0]) ?? undefined;
 }
 
+function isExecutableNotFound(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /(?:ENOENT|not found|could not find|executable)/i.test(message);
+}
+
 async function defaultExecute(args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }> {
 	const { Command } = await import('@tauri-apps/plugin-shell');
 	const result = await Command.create('atomize', args).execute();
@@ -58,17 +67,21 @@ export async function probeCli(execute: CliExecutor = defaultExecute): Promise<C
 	let result: { code: number | null; stdout: string; stderr: string };
 	try {
 		result = await execute(['--version']);
-	} catch {
-		throw new CliAbsentError();
+	} catch (error) {
+		if (isExecutableNotFound(error)) throw new CliAbsentError();
+		throw new CliProbeError(error instanceof Error ? error.message : 'Unable to start Atomize CLI probe.');
 	}
 	if (result.code !== 0) {
-		throw new CliAbsentError();
+		throw new CliProbeError(result.stderr || result.stdout || 'Atomize CLI version check failed.');
 	}
 	const version = extractVersion(result.stdout) ?? extractVersion(result.stderr);
+	if (version === undefined) {
+		throw new CliProbeError('Atomize CLI did not report a valid semantic version.');
+	}
 	if (version !== undefined && !gte(version, CLI_MINIMUM_VERSION)) {
 		throw new CliVersionError(version, CLI_MINIMUM_VERSION);
 	}
-	return { version: version ?? result.stdout.trim() };
+	return { version };
 }
 
 export async function invoke(args: string[], execute: CliExecutor = defaultExecute): Promise<unknown> {
