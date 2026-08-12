@@ -166,13 +166,6 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
           >
             {theme() === "dark" ? "☀" : "☾"}
           </button>
-          <button
-            class="hidden rounded-lg !border-0 !bg-emerald-600 px-4 py-2 text-sm font-semibold !text-white !shadow-none hover:!bg-emerald-500 sm:block"
-            type="button"
-            disabled={!allSectionsValid()}
-          >
-            Save template
-          </button>
         </div>
       </header>
       <main class="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[18rem_minmax(0,1fr)_17rem] lg:px-7 lg:py-8">
@@ -221,13 +214,6 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
               }}
             </For>
           </ol>
-          <button
-            class="mt-3 w-full rounded-lg !border-0 !bg-emerald-600 px-4 py-2.5 text-sm font-semibold !text-white !shadow-none hover:!bg-emerald-500 sm:hidden"
-            type="button"
-            disabled={!allSectionsValid()}
-          >
-            Save template
-          </button>
         </aside>
         <section class="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
           <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6 dark:border-slate-800">
