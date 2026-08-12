@@ -1,10 +1,12 @@
-import { createSignal, createUniqueId, For, Show } from "solid-js";
+import { createSignal, createUniqueId, For, Show, type JSX } from "solid-js";
 
 export function TagChipInput(props: {
   label: string;
   value: string[];
   placeholder?: string;
   onChange: (v: string[]) => void;
+  /** Rendered next to the label, e.g. a compact format-toggle pill. */
+  labelExtra?: JSX.Element;
 }) {
   const inputId = createUniqueId();
   const [draft, setDraft] = createSignal("");
@@ -24,7 +26,10 @@ export function TagChipInput(props: {
 
   return (
     <div class="ui-field">
-      <label class="ui-label" for={inputId}>{props.label}</label>
+      <div class="flex items-center justify-between">
+        <label class="ui-label" for={inputId}>{props.label}</label>
+        <Show when={props.labelExtra}>{props.labelExtra}</Show>
+      </div>
       <div class="sk-combobox-control tag-control">
         <div class="sk-combobox-value">
           <For each={props.value}>

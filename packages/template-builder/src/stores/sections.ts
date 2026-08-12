@@ -7,6 +7,7 @@ import {
   TaskTemplateSchema,
   type ValidationConfig,
 } from "@sppg2001/atomize-schema";
+import { normalizeEstimationPercentages } from "@sppg2001/atomize-schema";
 import { createStore, reconcile } from "solid-js/store";
 import { stringify } from "yaml";
 
@@ -72,7 +73,9 @@ type TaskFields = {
   tags: string[];
 };
 
-type EditableTask = {
+export type EditableTask = {
+  /** UI-only identity: never serialised as the Atomize task id. */
+  key: string;
   fields: TaskFields;
   advanced: Omit<TaskDefinition, keyof TaskFields | "estimationPercent">;
 };
@@ -150,6 +153,7 @@ const defaultFilter = (): FilterFields => ({
 });
 
 const defaultTask = (): EditableTask => ({
+  key: crypto.randomUUID(),
   fields: {
     id: "",
     title: "",
@@ -276,7 +280,55 @@ function makeTasks() {
   };
   const addTask = () => set("items", fields.items.length, defaultTask());
   const removeTask = (index: number) => {
-    set("items", (items) => (items.length <= 1 ? items : items.filter((_, i) => i !== index)));
+    const removedId = fields.items[index]?.fields.id.trim();
+    set("items", (items) =>
+      items
+        .filter((_, itemIndex) => itemIndex !== index)
+        .map((task) => ({
+          ...task,
+          advanced: {
+            ...task.advanced,
+            dependsOn: removedId
+              ? task.advanced.dependsOn?.filter((dependency) => dependency !== removedId)
+              : task.advanced.dependsOn,
+          },
+        })),
+    );
+  };
+  const updateTaskId = (index: number, value: string) => {
+    const previous = fields.items[index]?.fields.id.trim();
+    const next = value.trim();
+    set("items", index, "fields", "id", value);
+    if (!previous || previous === next) return;
+    set("items", (items) =>
+      items.map((task) => ({
+        ...task,
+        advanced: {
+          ...task.advanced,
+          dependsOn: task.advanced.dependsOn?.map((dependency) => dependency === previous ? next : dependency),
+        },
+      })),
+    );
+  };
+  const moveTask = (from: number, to: number) => {
+    if (to < 0 || to >= fields.items.length || from === to) return;
+    set("items", (items) => { const next = [...items]; const [task] = next.splice(from, 1); if (task) next.splice(to, 0, task); return next; });
+    validate();
+  };
+  const updatePercentage = (index: number, value: string, autoNormalize = false) => {
+    set("items", index, "fields", "estimationPercent", value);
+    const parsed = optionalNumber(value);
+    if (!autoNormalize || parsed === undefined || Number.isNaN(parsed) || parsed < 0 || parsed > 100 || fields.items.length <= 1) return;
+    const siblings = fields.items
+      .filter((_, itemIndex) => itemIndex !== index)
+      .filter((task) => {
+        const percentage = optionalNumber(task.fields.estimationPercent);
+        return percentage !== undefined && !Number.isNaN(percentage) && percentage >= 0 && percentage <= 100;
+      });
+    if (siblings.length === 0) return;
+    const normalized = siblings.map((task) => ({ task, estimationPercent: optionalNumber(task.fields.estimationPercent) ?? 0 }));
+    normalizeEstimationPercentages(normalized, { skipIfAlreadyNormalized: false, targetTotal: 100 - parsed });
+    normalized.forEach(({ task, estimationPercent }) => set("items", fields.items.findIndex((item) => item.key === task.key), "fields", "estimationPercent", String(estimationPercent)));
   };
   const validate = () => {
     const nextErrors: Errors = {};
@@ -293,7 +345,7 @@ function makeTasks() {
     fields.items.every(
       (task) => task.fields.title.trim() !== "" && isPercentage(task.fields.estimationPercent),
     );
-  return { fields, set, replace, errors, addTask, removeTask, validate, isValid };
+  return { fields, set, replace, errors, addTask, removeTask, updateTaskId, moveTask, updatePercentage, validate, isValid };
 }
 
 function makeEstimation() {
@@ -548,6 +600,7 @@ function omitUndefined<T extends Record<string, unknown>>(value: T): T {
 function toTaskFields(task: TaskDefinition): EditableTask {
   const { id, title, description, estimationPercent, tags, ...advanced } = task;
   return {
+    key: crypto.randomUUID(),
     fields: {
       id: id ?? "",
       title,

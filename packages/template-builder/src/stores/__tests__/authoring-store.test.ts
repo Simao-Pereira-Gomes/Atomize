@@ -373,4 +373,60 @@ describe("createAuthoringStore", () => {
     expect(store["basic-info"].advanced.origin).toBeUndefined();
     expect(() => store.serialise()).toThrow();
   });
+
+  it("keeps UI task identities stable while reordering and repairs dependent references on rename or removal", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { id: "design", title: "Design", estimationPercent: 25 },
+        { id: "build", title: "Build", estimationPercent: 75, dependsOn: ["design"] },
+      ],
+    });
+    const designKey = store.tasks.fields.items[0]?.key;
+    const buildKey = store.tasks.fields.items[1]?.key;
+
+    store.tasks.moveTask(0, 1);
+    expect(store.tasks.fields.items.map((task) => task.key)).toEqual([buildKey, designKey]);
+
+    store.tasks.updateTaskId(1, "plan");
+    expect(store.tasks.fields.items[0]?.advanced.dependsOn).toEqual(["plan"]);
+
+    store.tasks.removeTask(1);
+    expect(store.tasks.fields.items).toHaveLength(1);
+    expect(store.tasks.fields.items[0]?.advanced.dependsOn).toEqual([]);
+  });
+
+  it("only auto-normalises valid percentage siblings after an edited percentage", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { id: "one", title: "One", estimationPercent: 20 },
+        { id: "two", title: "Two", estimationPercent: 30 },
+        { id: "three", title: "Three", estimationPercent: 50 },
+        { id: "blank", title: "Blank" },
+      ],
+    });
+    store.tasks.updatePercentage(0, "40", true);
+
+    expect(store.tasks.fields.items.map((task) => task.fields.estimationPercent)).toEqual(["40", "23", "37", ""]);
+  });
+
+  it("revalidates error paths after a task is reordered", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { id: "one", title: "", estimationPercent: 50 },
+        { id: "two", title: "Two", estimationPercent: 50 },
+      ],
+    });
+    store.tasks.validate();
+    expect(store.tasks.errors["tasks.0.title"]).toBe("Title is required");
+
+    store.tasks.moveTask(0, 1);
+    expect(store.tasks.errors["tasks.0.title"]).toBeUndefined();
+    expect(store.tasks.errors["tasks.1.title"]).toBe("Title is required");
+  });
 });

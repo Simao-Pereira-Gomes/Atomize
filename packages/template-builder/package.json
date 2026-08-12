@@ -14,11 +14,12 @@
     "lint:fix": "bunx biome check --fix --max-diagnostics 100"
   },
   "dependencies": {
+    "@kobalte/core": "^0.13.11",
     "@sppg2001/atomize-schema": "workspace:*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-shell": "^2",
-    "@kobalte/core": "^0.13.11",
+    "@thisbeyond/solid-dnd": "^0.7.5",
     "semver": "^7.7.2",
     "solid-js": "^1.9.3",
     "yaml": "^2.8.3"

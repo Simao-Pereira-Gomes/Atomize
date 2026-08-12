@@ -26,7 +26,7 @@ import {
 
 const OPTIONAL_SECTIONS = new Set<SectionId>(["metadata"]);
 
-function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession }) {
+function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean }) {
   return (
     <>
       <Show when={props.id === "basic-info"}>
@@ -36,7 +36,7 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
         <FilterSection store={props.stores.filter} grounding={props.grounding} />
       </Show>
       <Show when={props.id === "tasks"}>
-        <TasksSection store={props.stores.tasks} />
+        <TasksSection store={props.stores.tasks} grounding={props.grounding} conditionWorkItemTypes={props.stores.filter.fields.workItemTypes} autoNormalize={props.autoNormalize} />
       </Show>
       <Show when={props.id === "estimation"}>
         <EstimationSection store={props.stores.estimation} />
@@ -54,19 +54,20 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function TemplateBuilder(props: { stores: SectionStores; onChangeStartingPath: () => void }) {
+export function TemplateBuilder(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId }) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
   const stores = props.stores;
-  const [active, setActive] = createSignal<SectionId>("basic-info");
+  const [active, setActive] = createSignal<SectionId>(props.initialSection ?? "basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
   const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
   const [grounded, setGrounded] = createSignal<GroundedFieldOptions>();
   const [selectedProfile, setSelectedProfile] = createSignal("");
   const [groundingState, setGroundingState] = createSignal<"idle" | "loading" | "ready" | "error">("idle");
   const [groundingError, setGroundingError] = createSignal("");
+  const [autoNormalize, setAutoNormalize] = createSignal(false);
 
   onMount(async () => {
     try { setProfiles(await listAzureDevOpsProfiles()); } catch { /* Connecting is optional. */ }
@@ -144,6 +145,15 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
             Change starting path
           </button>
           <GroundingSettings session={grounding} />
+          <button
+            class={`hidden rounded-lg px-3 py-2 text-sm font-semibold sm:block ${autoNormalize() ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}
+            type="button"
+            aria-pressed={autoNormalize()}
+            title="When you change one percentage, keep it and redistribute the other valid percentage Tasks so their total stays at 100%. This preference is not written to YAML."
+            onClick={() => setAutoNormalize((value) => !value)}
+          >
+            Task percentages: total 100% · {autoNormalize() ? "On" : "Off"}
+          </button>
           <span class="hidden text-sm text-slate-500 dark:text-slate-400 md:inline">
             {completedSections()} of {SECTION_META.length} sections ready
           </span>
@@ -243,7 +253,7 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
             </span>
           </div>
           <div class="mt-7">
-            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} />
+            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} />
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">

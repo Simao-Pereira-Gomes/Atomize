@@ -15,6 +15,7 @@ import {
 } from "./cli/cli-installer";
 import { StartingPathPicker } from "./components/StartingPathPicker";
 import { TemplateBuilder } from "./components/TemplateBuilder";
+import { TaskWidgetsPrototype } from "./components/prototypes/TaskWidgetsPrototype";
 import { type CatalogTemplateItem, toCatalogClone } from "./starting-paths/catalog-clone";
 import { createAuthoringStore } from "./stores/sections";
 import "./App.css";
@@ -164,6 +165,15 @@ export function CliGate(props: { probe?: () => Promise<CliProbeResult> }) {
 }
 
 function App() {
+  const params = new URLSearchParams(window.location.search);
+  if (import.meta.env.DEV && params.get("prototype") === "task-widgets") {
+    return <TaskWidgetsPrototype />;
+  }
+  // Temporary diagnostic route: the browser dev server has no Tauri shell bridge.
+  if (import.meta.env.DEV && params.get("diagnostic") === "builder") {
+    const stores = createAuthoringStore();
+    return <TemplateBuilder stores={stores} onChangeStartingPath={() => stores.reset()} initialSection="tasks" />;
+  }
   return <CliGate />;
 }
 
