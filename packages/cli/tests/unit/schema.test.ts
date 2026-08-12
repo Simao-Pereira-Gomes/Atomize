@@ -353,6 +353,22 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
+    test("should reject equals/not-equals against the multi-value tags field", () => {
+      const equalsTask = {
+        title: "Task",
+        estimationPercent: 50,
+        condition: { field: "tags", operator: "equals", value: "security" },
+      };
+      const notEqualsTask = {
+        title: "Task",
+        estimationPercent: 50,
+        condition: { field: "tags", operator: "not-equals", value: "security" },
+      };
+
+      expect(TaskDefinitionSchema.safeParse(equalsTask).success).toBe(false);
+      expect(TaskDefinitionSchema.safeParse(notEqualsTask).success).toBe(false);
+    });
+
     test("should accept compound condition (all)", () => {
       const task = {
         title: "Task",

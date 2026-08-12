@@ -63,6 +63,9 @@ export type Condition =
   | { all: Condition[] }
   | { any: Condition[] };
 
+const MULTI_VALUE_STANDARD_FIELDS = new Set(["tags"]);
+const MULTI_VALUE_FIELD_OPERATORS = new Set<ConditionOperator>(["contains", "not-contains"]);
+
 export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
   z.union([
     z.object({
@@ -74,7 +77,15 @@ export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
         ),
       operator: ConditionOperatorSchema,
       value: ConditionValueSchema,
-    }).strict(),
+    }).strict().superRefine((data, ctx) => {
+      if (MULTI_VALUE_STANDARD_FIELDS.has(data.field) && !MULTI_VALUE_FIELD_OPERATORS.has(data.operator)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["operator"],
+          message: `Field "${data.field}" is multi-value; only "contains"/"not-contains" are supported (got "${data.operator}").`,
+        });
+      }
+    }),
     z.object({
       customField: z
         .string()
