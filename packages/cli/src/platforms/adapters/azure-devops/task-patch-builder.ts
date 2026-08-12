@@ -1,6 +1,44 @@
 import type { TaskDefinition } from "@platforms/interfaces/work-item.interface";
 import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 
+const DATE_MACRO_RE =
+  /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(?:\s*([+-])\s*(\d+))?$/i;
+
+/**
+ * Resolves a date macro (see atomize-schema's DateOrMacroSchema) into the literal date a
+ * Task custom field value needs. WIQL query filters (changedAfter/createdAfter) send these
+ * macros to Azure DevOps as-is and let it resolve them server-side (see
+ * work-item-query.ts's formatDateMacro); a direct field write on task creation has no such
+ * resolution step, so it has to happen locally, at generation time, right before the patch
+ * is built — otherwise the literal string "@Today" would be sent as the field's value.
+ */
+export function resolveDateMacro(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const match = DATE_MACRO_RE.exec(value.trim());
+  if (!match) return value;
+  const [, macro, sign, amountStr] = match;
+  const offsetDays = amountStr ? (sign === "-" ? -1 : 1) * Number(amountStr) : 0;
+  const now = new Date();
+  let base: Date;
+  switch (macro!.toLowerCase()) {
+    case "@today":
+    case "@startofday":
+      base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+    case "@startofweek":
+      base = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      break;
+    case "@startofmonth":
+      base = new Date(now.getFullYear(), now.getMonth(), 1);
+      break;
+    default:
+      base = new Date(now.getFullYear(), 0, 1);
+      break;
+  }
+  base.setDate(base.getDate() + offsetDays);
+  return base.toISOString().slice(0, 10);
+}
+
 export function buildCreateTaskPatch(
   organizationUrl: string,
   parentId: number,
@@ -101,7 +139,7 @@ export function buildCreateTaskPatch(
     ...Object.entries(task.customFields ?? {}).map(([referenceName, value]) => ({
       op: "add" as const,
       path: `/fields/${referenceName}`,
-      value,
+      value: resolveDateMacro(value),
     })),
     {
       op: "add",

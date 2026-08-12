@@ -13,6 +13,7 @@ export type TemplateGroundingMetadata = {
   teams: string[];
   savedQueries: Array<{ id: string; path: string }>;
   taskFields: unknown[];
+  fieldsByWorkItemType: Record<string, unknown[]>;
 };
 
 export function describeMetadataConnectionError(error: unknown): string {
@@ -38,13 +39,14 @@ export const templateMetadataCommand = new Command("metadata")
       const metadataReader = requireProjectMetadataReader(adapter);
       const queryReader = requireSavedQueryReader(adapter);
       const workItemTypes = await metadataReader.getWorkItemTypes();
-      const [states, areaPaths, iterationPaths, teams, savedQueries, taskFields] = await Promise.all([
+      const [states, areaPaths, iterationPaths, teams, savedQueries, taskFields, fieldsByWorkItemType] = await Promise.all([
         Promise.all(workItemTypes.map(async (type) => [type, await metadataReader.getStatesForWorkItemType(type)] as const)),
         metadataReader.getAreaPaths(),
         metadataReader.getIterationPaths(),
         metadataReader.getTeams(),
         queryReader.listSavedQueries(),
         metadataReader.getFieldSchemas("Task"),
+        Promise.all(workItemTypes.map(async (type) => [type, await metadataReader.getFieldSchemas(type)] as const)),
       ]);
       const result: TemplateGroundingMetadata = {
         workItemTypes,
@@ -54,6 +56,7 @@ export const templateMetadataCommand = new Command("metadata")
         teams,
         savedQueries: savedQueries.map(({ id, path }) => ({ id, path })),
         taskFields,
+        fieldsByWorkItemType: Object.fromEntries(fieldsByWorkItemType),
       };
       if (options.json) output.printJson(result);
       else output.print(JSON.stringify(result, null, 2));
