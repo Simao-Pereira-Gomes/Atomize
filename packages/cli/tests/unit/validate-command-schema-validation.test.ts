@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { validateCustomFieldsAgainstSchemas } from "@/cli/commands/validate.command";
-import type { ADoFieldSchema } from "@/platforms/interfaces/field-schema.interface";
-import type { TaskTemplate } from "@/templates/schema";
 
 describe("validateCustomFieldsAgainstSchemas", () => {
   test("flags invalid picklist values against task schema", async () => {

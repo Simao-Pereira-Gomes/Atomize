@@ -1,12 +1,12 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
-import type { SavedQueryInfo } from "@platforms/interfaces/platform.interface";
-import type { TemplateCatalogItem } from "@services/template/template-catalog";
+import type { SavedQueryInfo } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
+import type { TemplateCatalogItem } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type {
   EstimationConfig,
   FilterCriteria,
   Metadata,
   ValidationConfig,
-} from "@templates/schema";
+} from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import {
   createCommandOutput,

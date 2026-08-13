@@ -3,10 +3,10 @@ import { resolveAIProvider } from "@config/ai.config";
 import { readConnectionsFile } from "@config/connections.config";
 import type { ConnectionProfile } from "@config/connections.interface";
 import { resolveAzureConfig } from "@config/profile-resolver";
-import { PlatformFactory } from "@platforms/platform-factory";
+import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
+import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
 import type { AIProvider } from "@/ai/providers/provider.interface";
 import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
-import type { IPlatformAdapter } from "@/platforms";
 
 const PLATFORM_LABELS: Record<ConnectionProfile["platform"], string> = {
   "azure-devops": "Azure DevOps",

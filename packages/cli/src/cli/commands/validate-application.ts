@@ -1,13 +1,13 @@
 import { logger } from "@config/logger";
-import type { CustomFieldVerificationSummary } from "@templates/custom-field-verifier";
-import { getCustomFieldVerificationSummary } from "@templates/custom-field-verifier";
-import type { CompositionMeta } from "@templates/loader";
-import { analyzeTemplateProjectVerification } from "@templates/project-verifier";
-import type { TaskTemplate } from "@templates/schema";
-import type { ResolvedTemplateSource } from "@templates/source-resolver";
-import type { TemplateVerificationOptions } from "@templates/template-verification";
-import { verifyTemplate } from "@templates/template-verification";
-import type { ValidationOptions, ValidationResult, ValidationWarning } from "@templates/validator";
+import type { CustomFieldVerificationSummary } from "@sppg2001/atomize-core/templates/custom-field-verifier";
+import { getCustomFieldVerificationSummary } from "@sppg2001/atomize-core/templates/custom-field-verifier";
+import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
+import { analyzeTemplateProjectVerification } from "@sppg2001/atomize-core/templates/project-verifier";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import type { ResolvedTemplateSource } from "@sppg2001/atomize-core/templates/source-resolver";
+import type { TemplateVerificationOptions } from "@sppg2001/atomize-core/templates/template-verification";
+import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
+import type { ValidationOptions, ValidationResult, ValidationWarning } from "@sppg2001/atomize-core/templates/validator";
 import chalk from "chalk";
 import type { CommandOutput } from "@/cli/utilities/command-output";
 

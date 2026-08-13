@@ -1,14 +1,14 @@
 import { select, text } from "@clack/prompts";
 import { resolveAIProvider } from "@config/ai.config";
-import { parseAndValidate } from "@services/template/llm-template-generator";
+import { parseAndValidate } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { CancellationError, ConfigurationError } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
-import type { TaskTemplate } from "@/templates/schema";
-import { CancellationError, ConfigurationError } from "@/utils/errors";
 import { customizeTemplate } from "../template-customize";
 import { buildMinimalTemplate, runGeneration } from "./generation";
 import { resolveGrounding } from "./grounding";

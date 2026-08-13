@@ -1,10 +1,10 @@
-import type { AtomizationReport } from "@core/atomizer";
+import type { AtomizationReport } from "@sppg2001/atomize-core/core/atomizer";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
   ProjectMetadataReader,
-} from "@platforms/interfaces/platform-capabilities";
-import type { TaskTemplate } from "@templates/schema";
+} from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import type { OutputSink } from "@/cli/utilities/output-sink";
 import { connectPlatform, runAtomization } from "./atomize-orchestrator";
 import { validateCustomFieldsPreFlight } from "./generation-preflight";

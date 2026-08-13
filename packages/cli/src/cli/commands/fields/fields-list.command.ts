@@ -1,5 +1,6 @@
-import { AzureDevOpsAdapter } from "@platforms/adapters/azure-devops/azure-devops.adapter";
-import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
+import { AzureDevOpsAdapter } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/azure-devops.adapter";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
@@ -9,7 +10,6 @@ import {
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
-import { getErrorMessage } from "@/utils/errors";
 
 export const fieldsListCommand = new Command("list")
   .alias("ls")

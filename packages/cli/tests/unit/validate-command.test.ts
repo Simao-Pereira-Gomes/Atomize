@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import type { ValidationResult } from "@sppg2001/atomize-core/templates/validator";
 import {
   appendOfflineVerificationWarning,
   checkValueType,
@@ -7,8 +9,6 @@ import {
   resolveValidateLogLevel,
   resolveValidationOptions,
 } from "@/cli/commands/validate.command";
-import type { TaskTemplate } from "@/templates/schema";
-import type { ValidationResult } from "@/templates/validator";
 
 describe("resolveValidationOptions", () => {
   test("returns empty options when no flags are set (uses template config)", () => {

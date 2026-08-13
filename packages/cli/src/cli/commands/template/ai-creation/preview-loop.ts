@@ -1,4 +1,6 @@
 import { select } from "@clack/prompts";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { CancellationError } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { stringify as stringifyYaml } from "yaml";
 import {
@@ -6,8 +8,6 @@ import {
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
-import type { TaskTemplate } from "@/templates/schema";
-import { CancellationError } from "@/utils/errors";
 import { displayTemplatePreview } from "../template-wizard";
 
 const output = createCommandOutput(resolveCommandOutputPolicy({}));

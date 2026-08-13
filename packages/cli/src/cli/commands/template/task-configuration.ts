@@ -1,6 +1,6 @@
 import { confirm, select, text } from "@clack/prompts";
-import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
-import type { Condition, EstimationPercentCondition, TaskDefinition } from "@templates/schema";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
+import type { Condition, EstimationPercentCondition, TaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,

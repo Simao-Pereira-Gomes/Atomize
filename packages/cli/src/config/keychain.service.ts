@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { logger } from "@config/logger";
-import { AuthError, getErrorMessage } from "@utils/errors";
+import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import type keytar from "keytar";
 import type { EncryptedToken } from "./connections.interface";
 import { decryptWithKeyfile, encryptWithKeyfile } from "./keyfile.service";

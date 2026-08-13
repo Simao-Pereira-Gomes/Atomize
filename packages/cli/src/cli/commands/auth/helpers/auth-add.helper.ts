@@ -6,7 +6,7 @@ import {
 } from "@config/connections.config";
 import type { ConnectionProfile } from "@config/connections.interface";
 import { storeToken } from "@config/keychain.service";
-import { z } from "zod";
+import { validateOrganizationUrl } from "@sppg2001/atomize-core";
 import { assertNotCancelled, createManagedSpinner, selectOrAutocomplete } from "@/cli/utilities/prompt-utilities";
 export interface AzureDevOpsProfileInputs {
   name: string;
@@ -27,42 +27,6 @@ export interface GitHubModelsProfileInputs {
 export type ProfileInputs = AzureDevOpsProfileInputs | GitHubModelsProfileInputs;
 
 const PROFILE_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
-const AZURE_DEVOPS_HOST_RE =
-  /^(dev\.azure\.com|vsrm\.dev\.azure\.com|[^.]+\.visualstudio\.com)$/i;
-
-const OrganizationUrlSchema = z
-  .preprocess(
-    (value) => (typeof value === "string" ? value.trim() : value),
-    z.string().min(1, "Organization URL is required"),
-  )
-  .superRefine((input, ctx) => {
-    let parsed: URL;
-
-    try {
-      parsed = new URL(input);
-    } catch {
-      ctx.addIssue({
-        code: "custom",
-        message: "Organization URL must be a valid URL",
-      });
-      return;
-    }
-
-    if (parsed.protocol !== "https:") {
-      ctx.addIssue({
-        code: "custom",
-        message: "Organization URL must use https://",
-      });
-    }
-
-    if (!AZURE_DEVOPS_HOST_RE.test(parsed.hostname)) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Organization URL must be an Azure DevOps host (dev.azure.com or *.visualstudio.com)",
-      });
-    }
-  });
 
 export function validateProfileName(
   name: string | undefined,
@@ -71,16 +35,6 @@ export function validateProfileName(
   if (!PROFILE_NAME_PATTERN.test(name))
     return "Only letters, numbers, hyphens, and underscores are allowed";
   return undefined;
-}
-
-export function validateOrganizationUrl(
-  organizationUrl: string | undefined,
-): string | undefined {
-  if (organizationUrl === undefined) {
-    return "Organization URL is required";
-  }
-  const result = OrganizationUrlSchema.safeParse(organizationUrl);
-  return result.success ? undefined : result.error.issues[0]?.message;
 }
 
 export async function checkProfileNameAvailable(

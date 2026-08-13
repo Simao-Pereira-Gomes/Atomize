@@ -1,9 +1,9 @@
+import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
+import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
-import { requireProjectMetadataReader, requireSavedQueryReader } from "@/platforms/capabilities";
-import { AuthError, getErrorMessage } from "@/utils/errors";
 
 export type TemplateGroundingMetadata = {
   workItemTypes: string[];

@@ -1,5 +1,6 @@
 import { select } from "@clack/prompts";
 import { readConnectionsFile, setDefaultProfile } from "@config/connections.config";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
 import {
   createCommandOutput,
@@ -7,7 +8,6 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, sanitizeTty } from "@/cli/utilities/prompt-utilities";
-import { getErrorMessage } from "@/utils/errors";
 
 export function makeAuthUseCommand(): Command {
   return new Command("use")

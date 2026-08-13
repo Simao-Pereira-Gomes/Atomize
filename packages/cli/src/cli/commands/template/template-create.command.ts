@@ -5,9 +5,20 @@ import {
   text,
 } from "@clack/prompts";
 import { logger } from "@config/logger";
-import { PlatformFactory } from "@platforms/platform-factory";
-import { StoryLearner } from "@services/template/story-learner";
-import type { MixinTemplate, PartialTaskTemplate } from "@templates/schema";
+import {
+  requireProjectMetadataReader,
+  requireSavedQueryReader,
+  requireStoryLearningPlatform,
+} from "@sppg2001/atomize-core/platforms/capabilities";
+import type { IPlatformAdapter, PlatformType } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
+import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
+import { StoryLearner } from "@sppg2001/atomize-core/services/template/story-learner";
+import type { MultiStoryLearningResult } from "@sppg2001/atomize-core/services/template/story-learner.types";
+import type { 
+  Metadata,MixinTemplate, PartialTaskTemplate, 
+  TaskTemplate,
+  ValidationConfig,} from "@sppg2001/atomize-core/templates/schema";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import chalk from "chalk";
 import { Command } from "commander";
 import { match } from "ts-pattern";
@@ -24,24 +35,11 @@ import {
   isInteractiveTerminal,
   selectOrAutocomplete,
 } from "@/cli/utilities/prompt-utilities";
-import type { IPlatformAdapter, PlatformType } from "@/platforms";
-import {
-  requireProjectMetadataReader,
-  requireSavedQueryReader,
-  requireStoryLearningPlatform,
-} from "@/platforms/capabilities";
-import type { MultiStoryLearningResult } from "@/services/template/story-learner.types";
-import type {
-  Metadata,
-  TaskTemplate,
-  ValidationConfig,
-} from "@/templates/schema";
-import { TemplateLibrary } from "@/templates/template-library";
 
 type AnyTaskTemplate = TaskTemplate | PartialTaskTemplate;
 
+import { CancellationError, ConfigurationError } from "@sppg2001/atomize-core/utils/errors";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
-import { CancellationError, ConfigurationError } from "@/utils/errors";
 import { createWithAI } from "./ai-creation";
 import { customizeTemplate } from "./template-customize";
 import {
@@ -342,7 +340,7 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
   return { ...parentTemplate, origin: `template:${templateName}` };
 }
 
-function formatCatalogChoice(label: string, scope: import("@services/template/template-catalog").TemplateCatalogScope): string {
+function formatCatalogChoice(label: string, scope: import("@sppg2001/atomize-core/services/template/template-catalog").TemplateCatalogScope): string {
   return `${label} (${formatScope(scope)})`;
 }
 
@@ -687,7 +685,7 @@ export async function createFromScratch(
     currentStep++;
 
     let filterCtx: import("./template-wizard-helper.command").FilterWizardContext;
-    let fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
+    let fieldSchemas: import("@sppg2001/atomize-core/platforms/interfaces/field-schema.interface").ADoFieldSchema[];
     let adapterForWizard: ReturnType<typeof requireProjectMetadataReader>;
 
     const wasAlreadyConnected = connectionSettled;
@@ -936,8 +934,8 @@ async function createMixin(
 async function loadTaskWizardSchemas(
   profile: string | undefined,
 ): Promise<{
-  fieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
-  storyFieldSchemas: import("@platforms/interfaces/field-schema.interface").ADoFieldSchema[];
+  fieldSchemas: import("@sppg2001/atomize-core/platforms/interfaces/field-schema.interface").ADoFieldSchema[];
+  storyFieldSchemas: import("@sppg2001/atomize-core/platforms/interfaces/field-schema.interface").ADoFieldSchema[];
 }> {
   const adapter = await createAzureDevOpsAdapter(profile);
   const metadataReader = requireProjectMetadataReader(adapter);

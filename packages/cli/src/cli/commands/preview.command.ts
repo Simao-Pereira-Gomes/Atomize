@@ -1,4 +1,4 @@
-import { TemplateLibrary } from "@templates/template-library";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";

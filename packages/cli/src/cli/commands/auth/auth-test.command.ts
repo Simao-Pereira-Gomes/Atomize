@@ -1,4 +1,5 @@
 import { readConnectionsFile } from "@config/connections.config";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
@@ -7,7 +8,6 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
-import { getErrorMessage } from "@/utils/errors";
 import {
   promptProfileToTest,
   resolveTestTarget,

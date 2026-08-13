@@ -1,7 +1,8 @@
 import { confirm, select } from "@clack/prompts";
-import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
-import type { TaskDefinition, TaskTemplate } from "@templates/schema";
-import { normalizeEstimationPercentages } from "@utils/estimation-normalizer";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
+import type { TaskDefinition, TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
+import { normalizeEstimationPercentages } from "@sppg2001/atomize-core/utils/estimation-normalizer";
 import chalk from "chalk";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
@@ -9,7 +10,6 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { CancellationError, getErrorMessage } from "@/utils/errors";
 import { assertNotCancelled } from "../../utilities/prompt-utilities";
 import { buildTaskDefinition } from "./task-configuration";
 import type { FilterWizardContext } from "./template-wizard-helper.command";

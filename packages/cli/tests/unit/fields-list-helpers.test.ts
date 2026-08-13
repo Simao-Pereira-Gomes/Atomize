@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import {
   buildTypeLabel,
   filterFieldsForList,
 } from "@/cli/commands/fields/fields-list.command";
-import type { ADoFieldSchema } from "@/platforms/interfaces/field-schema.interface";
 
 describe("filterFieldsForList", () => {
   const fields: ADoFieldSchema[] = [

@@ -1,11 +1,11 @@
 import {
   extractCustomFieldRefs,
   extractStandardFieldRefs,
-} from "@core/condition-evaluator";
-import { DependencyResolver } from "@core/dependency-resolver";
-import { EstimationCalculator } from "@core/estimation-calculator";
-import type { WorkItem } from "@platforms/interfaces/work-item.interface";
-import type { FilterCriteria, TaskTemplate } from "@templates/schema";
+} from "@sppg2001/atomize-core/core/condition-evaluator";
+import { DependencyResolver } from "@sppg2001/atomize-core/core/dependency-resolver";
+import { EstimationCalculator } from "@sppg2001/atomize-core/core/estimation-calculator";
+import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
+import type { FilterCriteria, TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 
 export type InspectFieldType = "string" | "number" | "boolean" | "string[]" | "unknown";
 export type InspectFieldSource = "filter" | "condition" | "estimation";

@@ -1,8 +1,10 @@
 import { confirm } from "@clack/prompts";
-import type { TemplateCatalogKind } from "@services/template/template-catalog";
+import type { TemplateCatalogKind } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type {
   TemplateInstallScope,
-} from "@services/template/template-install-source";
+} from "@sppg2001/atomize-core/services/template/template-install-source";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
+import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
@@ -18,8 +20,6 @@ import {
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
-import { TemplateLibrary } from "@/templates/template-library";
-import { CancellationError, getErrorMessage } from "@/utils/errors";
 
 type InstallOptions = {
   type?: TemplateCatalogKind;

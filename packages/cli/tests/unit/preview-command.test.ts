@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import {
   inspectTemplate,
   parseMockStory,
   runPreview,
 } from "@/cli/commands/preview-application";
-import type { TaskTemplate } from "@/templates/schema";
 
 function makeTemplate(overrides: Partial<TaskTemplate> = {}): TaskTemplate {
   return {

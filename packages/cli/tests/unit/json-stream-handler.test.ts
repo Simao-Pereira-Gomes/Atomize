@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { createJsonStreamProgressHandler } from "@/cli/orchestrator/atomize-orchestrator";
-import type { WorkItem } from "@/platforms/interfaces/work-item.interface";
 
 function makeStory(id: string, title = `Story ${id}`): WorkItem {
   return { id, title } as WorkItem;

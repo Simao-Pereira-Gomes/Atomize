@@ -16,19 +16,19 @@ import {
 } from "@config/connections.config";
 import type { AzureDevOpsProfile, ConnectionProfile } from "@config/connections.interface";
 import { encryptWithKeyfile } from "@config/keyfile.service";
+import { validateOrganizationUrl } from "@sppg2001/atomize-core";
+import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { AIProvider } from "@/ai/providers/provider.interface";
 import {
   applyDefault,
   persistProfile,
   resolveDefaultBehaviour,
-  validateOrganizationUrl,
   validateProfileName,
 } from "@/cli/commands/auth/helpers/auth-add.helper";
 import { deleteProfile } from "@/cli/commands/auth/helpers/auth-remove.helper";
 import { rotateToken, validateNewPat } from "@/cli/commands/auth/helpers/auth-rotate.helper";
 import { readPatFromStdin } from "@/cli/commands/auth/helpers/auth-stdin";
 import { testAIProviderConnection, testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
-import type { IPlatformAdapter } from "@/platforms";
 
 beforeAll(async () => {
   await rm(ATOMIZE_DIR, { recursive: true, force: true });

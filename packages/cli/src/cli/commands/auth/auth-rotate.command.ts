@@ -1,5 +1,6 @@
 import { confirm } from "@clack/prompts";
 import { keychainAvailable } from "@config/keychain.service";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
 import {
   createCommandOutput,
@@ -11,7 +12,6 @@ import {
   createManagedSpinner,
 } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
-import { getErrorMessage } from "@/utils/errors";
 import {
   hasProfiles,
   loadProfileOrFail,

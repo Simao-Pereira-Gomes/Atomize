@@ -1,12 +1,12 @@
 import { log, progress } from "@clack/prompts";
 import { logger } from "@config/logger";
-import type { AtomizationReport, ProgressEvent } from "@core/atomizer";
-import { GenerationRun } from "@core/generation-run";
+import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
+import { GenerationRun } from "@sppg2001/atomize-core/core/generation-run";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
-} from "@platforms/interfaces/platform-capabilities";
-import type { TaskTemplate } from "@templates/schema";
+} from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { match } from "ts-pattern";
 import type { OutputSink, SpinnerHandle } from "@/cli/utilities/output-sink";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";

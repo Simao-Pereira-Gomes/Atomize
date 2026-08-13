@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AtomizationReport } from "@core/atomizer";
-import { writeReportFile } from "@core/report-formatter";
+import type { AtomizationReport } from "@sppg2001/atomize-core/core/atomizer";
+import { writeReportFile } from "@sppg2001/atomize-core/core/report-formatter";
 import {
   buildJsonOutput,
   buildJsonStreamReportLine,
