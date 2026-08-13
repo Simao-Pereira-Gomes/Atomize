@@ -1,0 +1,31 @@
+version: "1.0"
+name: "Test Template"
+description: "Valid template for testing"
+
+filter:
+  workItemTypes:
+    - "User Story"
+  states:
+    - "New"
+  tags:
+    include:
+      - "test"
+
+tasks:
+  - id: "task1"
+    title: "Task 1"
+    description: "First task"
+    estimationPercent: 50
+    tags: ["dev"]
+
+  - id: "task2"
+    title: "Task 2"
+    description: "Second task"
+    estimationPercent: 50
+    tags: ["test"]
+    dependsOn: ["task1"]
+
+validation:
+  totalEstimationMustBe: 100
+  minTasks: 2
+  maxTasks: 5
