@@ -16,11 +16,10 @@ tasks:
 
 export class MockAIProvider implements AIProvider {
   readonly id = "mock";
-  private response: string;
 
-  constructor(response?: string) {
-    this.response = response ?? DEFAULT_MOCK_TEMPLATE;
-  }
+  constructor(private readonly response = DEFAULT_MOCK_TEMPLATE) {}
+
+  async authenticate(): Promise<void> {}
 
   async generate(_systemPrompt: string, _userPrompt: string): Promise<string> {
     return this.response;
@@ -28,8 +27,8 @@ export class MockAIProvider implements AIProvider {
 
   async *stream(_systemPrompt: string, _userPrompt: string): AsyncIterable<string> {
     const chunkSize = 50;
-    for (let i = 0; i < this.response.length; i += chunkSize) {
-      yield this.response.slice(i, i + chunkSize);
+    for (let index = 0; index < this.response.length; index += chunkSize) {
+      yield this.response.slice(index, index + chunkSize);
     }
   }
 }

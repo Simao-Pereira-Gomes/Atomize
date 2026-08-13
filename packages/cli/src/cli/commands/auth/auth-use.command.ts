@@ -19,14 +19,15 @@ export function makeAuthUseCommand(): Command {
       output.intro(" Atomize — Set Default Profile");
 
       const file = await readConnectionsFile();
-      if (file.profiles.length === 0) {
-        output.outro("No profiles found. Run: atomize auth add");
+      const profiles = file.profiles.filter((profile) => profile.platform === "azure-devops");
+      if (profiles.length === 0) {
+        output.outro("No Azure DevOps profiles found. Run: atomize auth add");
         return;
       }
 
       let name: string;
       if (nameArg) {
-        if (!file.profiles.find((p) => p.name === nameArg)) {
+        if (!profiles.find((p) => p.name === nameArg)) {
           output.cancel(`Profile "${nameArg}" not found. Run: atomize auth list`);
           throw new ExitError(ExitCode.Failure);
         }
@@ -35,7 +36,7 @@ export function makeAuthUseCommand(): Command {
         name = assertNotCancelled(
           await select({
             message: "Select default profile:",
-            options: file.profiles.map((p) => ({
+            options: profiles.map((p) => ({
               label: file.defaultProfiles[p.platform] === p.name
                 ? `${sanitizeTty(p.name)} (current default)`
                 : sanitizeTty(p.name),

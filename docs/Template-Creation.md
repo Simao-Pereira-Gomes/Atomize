@@ -88,14 +88,7 @@ atomize generate my-template.atomize.yaml --platform mock
 
 Use AI-assisted creation when you can describe the desired workflow but do not want to write the initial YAML.
 
-First configure a GitHub Models profile:
-
-```bash
-atomize auth add my-ai
-atomize auth test my-ai
-```
-
-Then create a draft:
+Create a draft. Atomize starts GitHub Copilot sign-in when needed and uses your active Copilot subscription:
 
 ```bash
 atomize template create --ai

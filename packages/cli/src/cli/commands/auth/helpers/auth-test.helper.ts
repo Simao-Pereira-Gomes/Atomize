@@ -1,43 +1,36 @@
 import { select } from "@clack/prompts";
-import { resolveAIProvider } from "@config/ai.config";
 import { readConnectionsFile } from "@config/connections.config";
-import type { ConnectionProfile } from "@config/connections.interface";
 import { resolveAzureConfig } from "@config/profile-resolver";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
-import type { AIProvider } from "@/ai/providers/provider.interface";
 import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
-
-const PLATFORM_LABELS: Record<ConnectionProfile["platform"], string> = {
-  "azure-devops": "Azure DevOps",
-  "github-models": "GitHub Models (AI)",
-};
 
 export async function promptProfileToTest(nameArg?: string): Promise<string | undefined> {
   if (nameArg) return nameArg;
 
   const file = await readConnectionsFile();
-  if (file.profiles.length === 1) return file.profiles[0]?.name;
-  if (file.profiles.length === 0) return undefined;
+  const profiles = file.profiles.filter((profile) => profile.platform === "azure-devops");
+  if (profiles.length === 1) return profiles[0]?.name;
+  if (profiles.length === 0) return undefined;
 
   const defaults = file.defaultProfiles;
-  const defaultNames = new Set(Object.values(defaults).filter((v): v is string => !!v));
-  const firstDefault = defaults["azure-devops"] ?? defaults["github-models"];
+  const defaultNames = new Set([defaults["azure-devops"]].filter((v): v is string => !!v));
+  const firstDefault = defaults["azure-devops"];
 
   return assertNotCancelled(
     await select({
       message: "Select profile to test:",
       options: [
-        ...file.profiles
+        ...profiles
           .filter((p) => defaultNames.has(p.name))
           .map((p) => ({
-            label: `${p.name} (${PLATFORM_LABELS[p.platform]} · default)`,
+            label: `${p.name} (Azure DevOps · default)`,
             value: p.name,
           })),
-        ...file.profiles
+        ...profiles
           .filter((p) => !defaultNames.has(p.name))
           .map((p) => ({
-            label: `${p.name} (${PLATFORM_LABELS[p.platform]})`,
+            label: `${p.name} (Azure DevOps)`,
             value: p.name,
           })),
       ],
@@ -46,28 +39,22 @@ export async function promptProfileToTest(nameArg?: string): Promise<string | un
   ) as string;
 }
 
-export type TestTarget =
-  | { kind: "ado"; platform: IPlatformAdapter }
-  | { kind: "ai"; provider: AIProvider; model?: string };
+export type TestTarget = { kind: "ado"; platform: IPlatformAdapter };
 
 export async function resolveTestTarget(profileName?: string): Promise<TestTarget> {
   const file = await readConnectionsFile();
   const profile = profileName
     ? file.profiles.find((p) => p.name === profileName)
-    : (file.profiles.find((p) => p.name === file.defaultProfiles["azure-devops"]) ??
-       file.profiles.find((p) => p.name === file.defaultProfiles["github-models"]) ??
-       file.profiles[0]);
+    : (file.profiles.find((p) => p.name === file.defaultProfiles["azure-devops"]) ?? file.profiles.find((p) => p.platform === "azure-devops"));
 
   if (!profile) throw new Error("No profile found. Run: atomize auth add");
 
-  if (profile.platform === "azure-devops") {
-    const config = await resolveAzureConfig(profile.name);
-    const platform = PlatformFactory.create("azure-devops", config);
-    return { kind: "ado", platform };
+  if (profile.platform !== "azure-devops") {
+    throw new Error("GitHub Models was retired. Remove this legacy profile with: atomize auth remove " + profile.name);
   }
-
-  const provider = await resolveAIProvider(profile.name);
-  return { kind: "ai", provider, model: profile.model };
+  const config = await resolveAzureConfig(profile.name);
+  const platform = PlatformFactory.create("azure-devops", config);
+  return { kind: "ado", platform };
 }
 
 export type TestResult =
@@ -86,17 +73,4 @@ export async function testPlatformConnection(platform: IPlatformAdapter): Promis
 
   const meta = platform.getPlatformMetadata();
   return { ok: true, label: `Connected: ${meta.name} v${meta.version} ✓` };
-}
-
-export async function testAIProviderConnection(
-  provider: AIProvider,
-  model?: string,
-): Promise<TestResult> {
-  if (provider.testConnection) {
-    const ok = await provider.testConnection();
-    return ok
-      ? { ok: true, label: `GitHub Models ready — model: ${model ?? "default"} ✓` }
-      : { ok: false, reason: "Could not reach GitHub Models. Check your token." };
-  }
-  return { ok: true, label: "GitHub Models token accepted ✓" };
 }

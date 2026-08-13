@@ -101,7 +101,7 @@ export function makeAuthListCommand(): Command {
             output.print(`    Project:  ${sanitizeTty(profile.project)}`);
             output.print(`    Team:     ${sanitizeTty(profile.team)}`);
           } else {
-            output.print(`    Model:    ${sanitizeTty(profile.model ?? "gpt-4o-mini (default)")}`);
+            output.print(chalk.yellow("    Status:   retired — remove this legacy record when convenient"));
           }
           output.print(`    Token:    ${tokenDisplay}`);
           output.print(`    Created:  ${sanitizeTty(profile.createdAt).slice(0, 16).replace("T", " ")}`);

@@ -1,4 +1,4 @@
-import { confirm, password, select, text } from "@clack/prompts";
+import { confirm, password, text } from "@clack/prompts";
 import {
   readConnectionsFile,
   saveProfile,
@@ -7,7 +7,7 @@ import {
 import type { ConnectionProfile } from "@config/connections.interface";
 import { storeToken } from "@config/keychain.service";
 import { validateOrganizationUrl } from "@sppg2001/atomize-core";
-import { assertNotCancelled, createManagedSpinner, selectOrAutocomplete } from "@/cli/utilities/prompt-utilities";
+import { assertNotCancelled } from "@/cli/utilities/prompt-utilities";
 export interface AzureDevOpsProfileInputs {
   name: string;
   platform: "azure-devops";
@@ -17,14 +17,7 @@ export interface AzureDevOpsProfileInputs {
   pat: string;
 }
 
-export interface GitHubModelsProfileInputs {
-  name: string;
-  platform: "github-models";
-  model?: string;
-  pat: string;
-}
-
-export type ProfileInputs = AzureDevOpsProfileInputs | GitHubModelsProfileInputs;
+export type ProfileInputs = AzureDevOpsProfileInputs;
 
 const PROFILE_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -67,82 +60,10 @@ export function validateGitHubPAT(pat: string | undefined): string | undefined {
   return undefined;
 }
 
-const GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com";
-
-interface GitHubModel {
-  name: string;
-  friendly_name: string;
-  task: string;
-}
-
-export interface FetchedModel {
-  name: string;
-  label: string;
-}
-
-async function fetchGitHubModels(token: string): Promise<FetchedModel[]> {
-  try {
-    const res = await fetch(`${GITHUB_MODELS_BASE_URL}/models`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return [];
-    const body = (await res.json()) as GitHubModel[];
-    if (!Array.isArray(body)) return [];
-    return body
-      .filter((m) => m.task === "chat-completion")
-      .map((m) => ({ name: m.name, label: m.friendly_name || m.name }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  } catch {
-    return [];
-  }
-}
-
-async function promptGitHubModelsInputs(name: string): Promise<GitHubModelsProfileInputs> {
-  const pat = assertNotCancelled(
-    await password({
-      message: "GitHub Personal Access Token (PAT):",
-      validate: validateGitHubPAT,
-    }),
-  );
-
-  const modelSpinner = createManagedSpinner();
-  modelSpinner.start("Fetching available models from GitHub Models…");
-  const models = await fetchGitHubModels(pat);
-  modelSpinner.stop(models.length > 0 ? `${models.length} models available` : "Could not fetch model list");
-
-  if (models.length === 0) {
-    throw new Error("No models could be fetched. Check your PAT and try again.");
-  }
-
-  const defaultModel = models.find((m) => m.name === "gpt-4o-mini")?.name ?? models[0]?.name;
-  const model = await selectOrAutocomplete({
-    message: "Model:",
-    options: models.map((m) => ({ label: m.label, value: m.name })),
-    initialValue: defaultModel,
-  });
-
-  return { name, platform: "github-models", model, pat };
-}
-
 export async function promptRemainingInputs(
   name: string,
   prefill: Partial<Omit<AzureDevOpsProfileInputs, "name" | "platform">> = {},
 ): Promise<ProfileInputs> {
-  const platform = assertNotCancelled(
-    await select({
-      message: "Platform:",
-      options: [
-        { label: "Azure DevOps", value: "azure-devops" },
-        { label: "GitHub Models (AI template generation)", value: "github-models" },
-      ],
-      initialValue: "azure-devops",
-    }),
-  ) as "azure-devops" | "github-models";
-
-  if (platform === "github-models") {
-    return promptGitHubModelsInputs(name);
-  }
-
   const organizationUrl = prefill.organizationUrl ?? assertNotCancelled(
     await text({
       message: "Organization URL:",
@@ -182,7 +103,7 @@ export async function promptRemainingInputs(
     }),
   );
 
-  return { name, platform, organizationUrl, project, team, pat };
+  return { name, platform: "azure-devops", organizationUrl, project, team, pat };
 }
 
 export async function persistProfile(
@@ -199,15 +120,6 @@ export async function persistProfile(
       organizationUrl: inputs.organizationUrl,
       project: inputs.project,
       team: inputs.team,
-      token: tokenData,
-      createdAt: now,
-      updatedAt: now,
-    });
-  } else {
-    await saveProfile({
-      name: inputs.name,
-      platform: "github-models",
-      model: inputs.model,
       token: tokenData,
       createdAt: now,
       updatedAt: now,

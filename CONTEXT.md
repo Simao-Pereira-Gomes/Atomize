@@ -63,8 +63,12 @@ Task generation dry-run evaluated against a real Story fetched from a Platform A
 _Avoid_: "live run" — Live Preview never creates Tasks.
 
 **Connection Profile**:
-A named platform connection record (Azure DevOps or GitHub Models), with its non-secret fields and per-platform default stored in the shared Atomize connections file. The CLI and Atomize Studio both read and write that file and resolve the profile's token through compatible OS credential-manager entries, using their own native credential APIs rather than a shared keychain implementation. Studio supports only OS-keyring-backed tokens: a CLI profile using the optional insecure keyfile fallback must be rotated in Studio before Studio can use it, which converts its token marker to the shared keyring strategy. Each platform type has its own independent default profile; the first profile for a platform becomes its default, and later default changes are explicit.
-_Avoid_: "auth profile" or "credentials" when referring to a saved named connection.
+A named Azure DevOps connection record, with its non-secret fields and default stored in the shared Atomize connections file. The CLI and Atomize Studio both read and write that file and resolve the profile's token through compatible OS credential-manager entries, using their own native credential APIs rather than a shared keychain implementation. Studio supports only OS-keyring-backed tokens: a CLI profile using the optional insecure keyfile fallback must be rotated in Studio before Studio can use it, which converts its token marker to the shared keyring strategy. The first Azure DevOps profile becomes the default, and later default changes are explicit. Legacy GitHub Models records are retained only for explicit user cleanup; they cannot be used as Connection Profiles.
+_Avoid_: "auth profile" or "credentials" when referring to a saved named connection; do not use Connection Profile for Copilot sign-in.
+
+**Copilot Session**:
+An ephemeral, tool-free GitHub Copilot SDK session Atomize uses to draft a Template with the user's locally signed-in Copilot account. Atomize initiates sign-in interactively when needed but stores neither a Copilot token nor a Copilot Connection Profile. Copilot Sessions use automatic model selection and are discarded after each draft.
+_Avoid_: calling this a Connection Profile or a GitHub Models profile.
 
 **Offline Validation**:
 Template validation that checks structure only, without connecting to any platform. Runs without credentials and produces results immediately.

@@ -82,6 +82,13 @@ export function makeAuthRotateCommand(): Command {
         throw new ExitError(ExitCode.Failure);
       }
 
+      if (profile.platform !== "azure-devops") {
+        const message = `GitHub Models was retired. Remove this legacy profile with: atomize auth remove ${name}`;
+        if (usePatStdin) writeManagedOutput("stderr", `Error: ${message}`);
+        else output.cancel(message);
+        throw new ExitError(ExitCode.Failure);
+      }
+
       if (usePatStdin) {
         stdinPat = readPatFromStdin();
         const patError = validateNewPat(stdinPat);

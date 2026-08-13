@@ -478,7 +478,6 @@ atomize tpl create [options]  # alias
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
 | `--ground` | flag | Ground AI generation with patterns from your Azure DevOps workspace |
-| `--ai-profile <name>` | string | AI provider profile to use (uses default GitHub Models profile if omitted) |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
 | `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
 | `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
@@ -511,11 +510,9 @@ atomize template create --ai
 # Ground with real patterns from your ADO workspace
 atomize template create --ai --ground --profile work-ado
 
-# Specify which AI profile to use
-atomize template create --ai --ai-profile my-ai
 ```
 
-Requires a GitHub Models profile (`atomize auth add` → select GitHub Models).
+Requires an active GitHub Copilot subscription. Atomize starts the bundled Copilot sign-in flow when needed.
 
 ---
 

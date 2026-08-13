@@ -343,36 +343,16 @@ Maps to Azure DevOps fields:
 
 ---
 
-## GitHub Models (AI)
+## GitHub Copilot (AI)
 
-GitHub Models is the AI provider used by `template create --ai`. It is not a work item platform — no tasks are created through it — but it requires its own connection profile.
-
-### Prerequisites
-
-- A GitHub personal access token with the `models:read` scope
-  - Create one at `https://github.com/settings/tokens`
-
-### Setup
-
-```bash
-atomize auth add my-ai
-# → select "GitHub Models (AI template generation)" when prompted for platform type
-# → enter your GitHub PAT
-
-atomize auth test my-ai
-```
+GitHub Copilot drafts Templates for `template create --ai`. It is not a work item platform and does not use a Connection Profile: Atomize runs the Copilot SDK's bundled runtime with the locally signed-in user's subscription.
 
 ### Usage
 
-Once the profile is saved, pass it when generating AI templates:
-
 ```bash
-atomize template create --ai                        # uses default GitHub Models profile
-atomize template create --ai --ai-profile my-ai     # explicit profile
+atomize template create --ai
 atomize template create --ai --ground --profile work-ado  # grounded with ADO context
 ```
-
-`ATOMIZE_AI_PROFILE` can be set as an alternative to `--ai-profile`.
 
 See [Template Creation - AI-Assisted Drafts](./Template-Creation.md#ai-assisted-drafts) for the full workflow.
 

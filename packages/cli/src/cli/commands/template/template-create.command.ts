@@ -74,7 +74,6 @@ interface CreateOptions {
   scratch?: boolean;
   ai?: boolean;
   ground?: boolean;
-  aiProfile?: string;
   saveAs?: string;
   platform?: string;
   profile?: string;
@@ -95,7 +94,6 @@ export const templateCreateCommand = new Command("create")
   .option("--scratch", "Create from scratch (skip mode selection)")
   .option("--ai", "Use AI-assisted generation (describe the template in natural language)")
   .option("--ground", "Ground AI generation with patterns from your Azure DevOps workspace")
-  .option("--ai-profile <name>", "AI provider profile to use (uses default AI profile if omitted)")
   .option("--save-as <name>", "Name to save the template under")
   .option("--open", "Open the saved Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)

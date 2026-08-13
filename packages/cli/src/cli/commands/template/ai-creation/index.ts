@@ -19,7 +19,6 @@ const output = createCommandOutput(resolveCommandOutputPolicy({}));
 export interface AICreationOptions {
   ai?: boolean;
   ground?: boolean;
-  aiProfile?: string;
   profile?: string;
 }
 
@@ -28,10 +27,11 @@ export async function createWithAI(options: AICreationOptions): Promise<TaskTemp
 
   const providerSpinner = createManagedSpinner();
   providerSpinner.start("Resolving AI provider…");
-  let provider: Awaited<ReturnType<typeof resolveAIProvider>>;
+  let provider: ReturnType<typeof resolveAIProvider>;
   try {
-    provider = await resolveAIProvider(options.aiProfile);
-    providerSpinner.stop(`Using provider: ${provider.id}`);
+    provider = resolveAIProvider();
+    await provider.authenticate();
+    providerSpinner.stop("Using GitHub Copilot");
   } catch (err) {
     providerSpinner.stop("Failed to resolve AI provider");
     throw new ConfigurationError(err instanceof Error ? err.message : String(err));

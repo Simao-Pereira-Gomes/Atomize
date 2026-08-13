@@ -19,10 +19,9 @@ Atomize manages credentials as named profiles. Instead of passing a token on eve
 
 | Type | Used for | Set up with |
 |------|----------|-------------|
-| **Azure DevOps** | `generate`, `validate`, `fields list`, `queries list` | `atomize auth add` → select Azure DevOps |
-| **GitHub Models** | AI-assisted template generation (`template create --ai`) | `atomize auth add` → select GitHub Models |
+| **Azure DevOps** | `generate`, `validate`, `fields list`, `queries list` | `atomize auth add` |
 
-Each type has its own independent default. You can have a default ADO profile and a default GitHub Models profile at the same time — they do not conflict.
+AI-assisted template generation uses the locally signed-in GitHub Copilot account, not a Connection Profile. Atomize stores no Copilot token.
 
 ---
 
@@ -72,15 +71,13 @@ atomize auth add work-ado
 # Verify it works
 atomize auth test work-ado
 
-# GitHub Models profile (only needed for template create --ai)
-atomize auth add my-ai
-# → prompted for a GitHub PAT with models:read scope
-atomize auth test my-ai
+# AI drafting starts the bundled Copilot sign-in flow when needed
+atomize template create --ai
 ```
 
 **Getting a PAT:**
 - Azure DevOps: `https://dev.azure.com/{org}/_usersSettings/tokens` — scopes: Work Items (Read, Write)
-- GitHub Models: `https://github.com/settings/tokens` — scope: `models:read` (under Models)
+- GitHub Copilot: an active Copilot subscription; Atomize uses its bundled Copilot runtime and your local sign-in.
 
 ### Verify your profiles
 

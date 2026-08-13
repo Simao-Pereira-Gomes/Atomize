@@ -1,0 +1,143 @@
+import { CopilotClient, type CopilotSession } from "@github/copilot-sdk";
+import { createRequire } from "node:module";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AIProvider } from "../provider.interface";
+
+export class CopilotAuthenticationError extends Error {
+  constructor(message = "GitHub Copilot is not signed in. Complete the Copilot sign-in flow, then try AI drafting again.") {
+    super(message);
+    this.name = "CopilotAuthenticationError";
+  }
+}
+
+export class GitHubCopilotProvider implements AIProvider {
+  readonly id = "github-copilot";
+
+  async authenticate(): Promise<void> {
+    if (await this.isAuthenticated()) return;
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new CopilotAuthenticationError("GitHub Copilot is not signed in. Run an interactive Atomize AI draft to complete Copilot sign-in first.");
+    }
+    await this.startLogin();
+    if (!(await this.isAuthenticated())) throw new CopilotAuthenticationError();
+  }
+
+  async testConnection(): Promise<boolean> {
+    try {
+      await this.withClient(async (client) => {
+        const status = await client.getAuthStatus();
+        if (!status.isAuthenticated) throw new CopilotAuthenticationError();
+        await client.listModels();
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    return this.withSession(systemPrompt, false, async (session) => {
+      const response = await session.sendAndWait({ prompt: userPrompt });
+      return response?.data.content ?? "";
+    });
+  }
+
+  async *stream(systemPrompt: string, userPrompt: string): AsyncIterable<string> {
+    const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
+    const client = new CopilotClient({ baseDirectory, logLevel: "error", mode: "empty" });
+    try {
+      await client.start();
+      const status = await client.getAuthStatus();
+      if (!status.isAuthenticated) throw new CopilotAuthenticationError();
+
+      const session = await this.createSession(client, systemPrompt, true);
+      const chunks: string[] = [];
+      let completed = false;
+      let wake: (() => void) | undefined;
+      const unsubscribe = session.on("assistant.message_delta", (event) => {
+        chunks.push(event.data.deltaContent);
+        wake?.();
+      });
+      const generation = session.sendAndWait({ prompt: userPrompt }).then((response) => {
+        if (chunks.length === 0 && response?.data.content) chunks.push(response.data.content);
+      }).finally(() => {
+        completed = true;
+        wake?.();
+      });
+
+      try {
+        while (!completed || chunks.length > 0) {
+          const chunk = chunks.shift();
+          if (chunk) {
+            yield chunk;
+            continue;
+          }
+          await new Promise<void>((resolve) => { wake = resolve; });
+          wake = undefined;
+        }
+        await generation;
+      } finally {
+        unsubscribe();
+        await session.disconnect().catch(() => {});
+      }
+    } finally {
+      await client.stop().catch(() => []);
+      await rm(baseDirectory, { recursive: true, force: true });
+    }
+  }
+
+  private async withSession<T>(
+    systemPrompt: string,
+    streaming: boolean,
+    action: (session: CopilotSession) => Promise<T>,
+  ): Promise<T> {
+    return this.withClient(async (client) => {
+      const status = await client.getAuthStatus();
+      if (!status.isAuthenticated) throw new CopilotAuthenticationError();
+      const session = await this.createSession(client, systemPrompt, streaming);
+      try {
+        return await action(session);
+      } finally {
+        await session.disconnect().catch(() => {});
+      }
+    });
+  }
+
+  private async createSession(client: CopilotClient, systemPrompt: string, streaming: boolean): Promise<CopilotSession> {
+    return client.createSession({
+      model: "auto",
+      availableTools: [],
+      streaming,
+      systemMessage: { mode: "customize", content: systemPrompt },
+    });
+  }
+
+  private async withClient<T>(action: (client: CopilotClient) => Promise<T>): Promise<T> {
+    const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
+    const client = new CopilotClient({ baseDirectory, logLevel: "error", mode: "empty" });
+    try {
+      await client.start();
+      return await action(client);
+    } finally {
+      await client.stop().catch(() => []);
+      await rm(baseDirectory, { recursive: true, force: true });
+    }
+  }
+
+  private async isAuthenticated(): Promise<boolean> {
+    return this.withClient(async (client) => (await client.getAuthStatus()).isAuthenticated);
+  }
+
+  private async startLogin(): Promise<void> {
+    const require = createRequire(import.meta.url);
+    const loader = require.resolve("@github/copilot/npm-loader.js");
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(process.execPath, [loader, "login"], { stdio: "inherit" });
+      child.once("error", reject);
+      child.once("exit", (code) => code === 0 ? resolve() : reject(new CopilotAuthenticationError("GitHub Copilot sign-in did not complete.")));
+    });
+  }
+}
