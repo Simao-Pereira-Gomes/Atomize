@@ -27,7 +27,7 @@ This repository has a shared domain and product-surface contexts:
 └── packages/
     ├── vscode-extension/
     │   └── CONTEXT.md
-    └── template-builder/
+    └── atomize-studio/
         └── CONTEXT.md
 ```
 

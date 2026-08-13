@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Template Builder",
+  "productName": "Atomize Studio",
   "version": "0.1.0",
-  "identifier": "io.github.simao-pereira-gomes.template-builder",
+  "identifier": "io.github.simao-pereira-gomes.atomize-studio",
   "build": {
     "beforeDevCommand": "bun run vite:dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Template Builder",
+        "title": "Atomize Studio",
         "width": 1200,
         "height": 800
       }

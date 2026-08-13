@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    template_builder_lib::run()
+    atomize_studio_lib::run()
 }

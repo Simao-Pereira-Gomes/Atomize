@@ -23,7 +23,7 @@ const catalogFixture = [
   {
     name: "release",
     displayName: "Release Mixin",
-    description: "Not cloneable by the Template Builder.",
+    description: "Not cloneable by Atomize Studio.",
     ref: "mixin:release",
     scope: "project",
     kind: "mixin",

@@ -1,4 +1,4 @@
-# Template Builder
+# Atomize Studio
 
 Standalone desktop application for visually authoring Atomize Templates. Supports three starting paths — scratch, catalog clone, and AI draft from prose — all converging on the same visual authoring surface. Produces a downloadable Atomize YAML File for manual installation via `atomize template install`.
 

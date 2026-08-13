@@ -54,7 +54,7 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function TemplateBuilder(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId }) {
+export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId }) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -133,7 +133,7 @@ export function TemplateBuilder(props: { stores: SectionStores; onChangeStarting
           </div>
           <div class="min-w-0">
             <p class="truncate font-semibold tracking-tight text-slate-950 dark:text-white">Atomize</p>
-            <p class="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Template Builder</p>
+            <p class="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Atomize Studio</p>
           </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">

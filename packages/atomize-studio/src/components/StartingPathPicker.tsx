@@ -38,7 +38,7 @@ export function StartingPathPicker(props: {
     <main class={`min-h-screen bg-slate-100 px-5 py-10 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-8 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
       <section class="mx-auto max-w-4xl">
         <div class="flex items-center justify-between gap-4">
-          <p class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Template Builder</p>
+          <p class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Atomize Studio</p>
           <button
             class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-200 text-slate-700 !shadow-none hover:!bg-slate-300 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
             type="button"

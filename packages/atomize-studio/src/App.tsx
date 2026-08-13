@@ -14,7 +14,7 @@ import {
   NpmUnavailableError,
 } from "./cli/cli-installer";
 import { StartingPathPicker } from "./components/StartingPathPicker";
-import { TemplateBuilder } from "./components/TemplateBuilder";
+import { AtomizeStudio } from "./components/AtomizeStudio";
 import { TaskWidgetsPrototype } from "./components/prototypes/TaskWidgetsPrototype";
 import { type CatalogTemplateItem, toCatalogClone } from "./starting-paths/catalog-clone";
 import { createAuthoringStore } from "./stores/sections";
@@ -91,7 +91,7 @@ export function CliGate(props: { probe?: () => Promise<CliProbeResult> }) {
           when={surface() === "builder"}
           fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} />}
         >
-          <TemplateBuilder stores={stores} onChangeStartingPath={changeStartingPath} />
+          <AtomizeStudio stores={stores} onChangeStartingPath={changeStartingPath} />
         </Show>
       </Match>
       <Match when={true}>
@@ -99,7 +99,7 @@ export function CliGate(props: { probe?: () => Promise<CliProbeResult> }) {
           <section class="cli-gate__intro">
             <div class="cli-gate__brand"><img src={atomizeIcon} alt="" /> <span>Atomize</span></div>
             <div class="cli-gate__intro-copy">
-              <div class="cli-gate__eyebrow">Template Builder</div>
+              <div class="cli-gate__eyebrow">Atomize Studio</div>
               <h1>Build task templates without editing YAML by hand.</h1>
               <p>The desktop app uses the Atomize CLI to validate, import, and save your work.</p>
             </div>
@@ -109,7 +109,7 @@ export function CliGate(props: { probe?: () => Promise<CliProbeResult> }) {
             <Show when={state().kind === "checking"}>
               <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Checking setup</div>
               <h2>Checking Atomize CLI</h2>
-              <p>The Template Builder needs a compatible Atomize CLI before it can open.</p>
+              <p>Atomize Studio needs a compatible Atomize CLI before it can open.</p>
             </Show>
             <Show when={state().kind === "absent"}>
               <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Required setup</div>
@@ -172,7 +172,7 @@ function App() {
   // Temporary diagnostic route: the browser dev server has no Tauri shell bridge.
   if (import.meta.env.DEV && params.get("diagnostic") === "builder") {
     const stores = createAuthoringStore();
-    return <TemplateBuilder stores={stores} onChangeStartingPath={() => stores.reset()} initialSection="tasks" />;
+    return <AtomizeStudio stores={stores} onChangeStartingPath={() => stores.reset()} initialSection="tasks" />;
   }
   return <CliGate />;
 }

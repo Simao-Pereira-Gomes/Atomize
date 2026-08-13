@@ -18,6 +18,34 @@
         "typescript": "^6.0.3",
       },
     },
+    "packages/atomize-studio": {
+      "name": "@sppg2001/atomize-studio",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kobalte/core": "^0.13.11",
+        "@sppg2001/atomize-schema": "workspace:*",
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-dialog": "~2",
+        "@tauri-apps/plugin-fs": "~2",
+        "@tauri-apps/plugin-opener": "^2",
+        "@tauri-apps/plugin-shell": "^2",
+        "@thisbeyond/solid-dnd": "^0.7.5",
+        "semver": "^7.7.2",
+        "solid-js": "^1.9.3",
+        "yaml": "^2.8.3",
+      },
+      "devDependencies": {
+        "@tailwindcss/vite": "^4.3.3",
+        "@tauri-apps/cli": "^2",
+        "@types/node": "^25.6.0",
+        "@types/semver": "^7.5.8",
+        "tailwindcss": "^4.3.3",
+        "typescript": "^6.0.3",
+        "vite": "^6.0.3",
+        "vite-plugin-solid": "^2.11.0",
+        "vitest": "^3.2.4",
+      },
+    },
     "packages/cli": {
       "name": "@sppg2001/atomize",
       "version": "2.0.2",
@@ -49,34 +77,6 @@
       },
       "peerDependencies": {
         "typescript": "^6.0.3",
-      },
-    },
-    "packages/template-builder": {
-      "name": "@sppg2001/template-builder",
-      "version": "0.1.0",
-      "dependencies": {
-        "@kobalte/core": "^0.13.11",
-        "@sppg2001/atomize-schema": "workspace:*",
-        "@tauri-apps/api": "^2",
-        "@tauri-apps/plugin-dialog": "~2",
-        "@tauri-apps/plugin-fs": "~2",
-        "@tauri-apps/plugin-opener": "^2",
-        "@tauri-apps/plugin-shell": "^2",
-        "@thisbeyond/solid-dnd": "^0.7.5",
-        "semver": "^7.7.2",
-        "solid-js": "^1.9.3",
-        "yaml": "^2.8.3",
-      },
-      "devDependencies": {
-        "@tailwindcss/vite": "^4.3.3",
-        "@tauri-apps/cli": "^2",
-        "@types/node": "^25.6.0",
-        "@types/semver": "^7.5.8",
-        "tailwindcss": "^4.3.3",
-        "typescript": "^6.0.3",
-        "vite": "^6.0.3",
-        "vite-plugin-solid": "^2.11.0",
-        "vitest": "^3.2.4",
       },
     },
     "packages/vscode-extension": {
@@ -410,7 +410,7 @@
 
     "@sppg2001/atomize-schema": ["@sppg2001/atomize-schema@workspace:packages/atomize-schema"],
 
-    "@sppg2001/template-builder": ["@sppg2001/template-builder@workspace:packages/template-builder"],
+    "@sppg2001/atomize-studio": ["@sppg2001/atomize-studio@workspace:packages/atomize-studio"],
 
     "@swc/helpers": ["@swc/helpers@0.5.23", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw=="],
 
