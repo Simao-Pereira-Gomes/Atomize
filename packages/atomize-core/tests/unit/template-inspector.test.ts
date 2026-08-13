@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import {
   inspectTemplate,
   parseMockStory,
   runPreview,
-} from "@/cli/commands/preview-application";
+} from "../../src/templates/template-inspector";
+import type { TaskTemplate } from "../../src/templates/schema";
 
 function makeTemplate(overrides: Partial<TaskTemplate> = {}): TaskTemplate {
   return {
@@ -263,7 +263,7 @@ describe("parseMockStory", () => {
   });
 
   test("throws a clear error on invalid JSON", () => {
-    expect(() => parseMockStory("{not json}")).toThrow("Invalid --mock-story JSON");
+    expect(() => parseMockStory("{not json}")).toThrow("Invalid mock story JSON");
   });
 
   test("throws when JSON is an array", () => {
@@ -399,6 +399,6 @@ describe("runPreview", () => {
 
   test("throws on invalid mock story JSON", () => {
     const template = makeTemplate();
-    expect(() => runPreview(template, "not json")).toThrow("Invalid --mock-story JSON");
+    expect(() => runPreview(template, "not json")).toThrow("Invalid mock story JSON");
   });
 });

@@ -1,11 +1,11 @@
 import {
   extractCustomFieldRefs,
   extractStandardFieldRefs,
-} from "@sppg2001/atomize-core/core/condition-evaluator";
-import { DependencyResolver } from "@sppg2001/atomize-core/core/dependency-resolver";
-import { EstimationCalculator } from "@sppg2001/atomize-core/core/estimation-calculator";
-import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
-import type { FilterCriteria, TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+} from "../core/condition-evaluator";
+import { DependencyResolver } from "../core/dependency-resolver";
+import { EstimationCalculator } from "../core/estimation-calculator";
+import type { WorkItem } from "../platforms/interfaces/work-item.interface";
+import type { FilterCriteria, TaskTemplate } from "./schema";
 
 export type InspectFieldType = "string" | "number" | "boolean" | "string[]" | "unknown";
 export type InspectFieldSource = "filter" | "condition" | "estimation";
@@ -151,11 +151,11 @@ export function parseMockStory(json: string): WorkItem {
   try {
     parsed = JSON.parse(json);
   } catch (e) {
-    throw new Error(`Invalid --mock-story JSON: ${(e as Error).message}`);
+    throw new Error(`Invalid mock story JSON: ${(e as Error).message}`);
   }
 
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("--mock-story must be a JSON object, not an array or primitive");
+    throw new Error("Mock story must be a JSON object, not an array or primitive");
   }
 
   return { ...MOCK_DEFAULTS, ...(parsed as Record<string, unknown>) } as WorkItem;
