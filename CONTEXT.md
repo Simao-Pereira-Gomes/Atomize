@@ -63,7 +63,7 @@ Task generation dry-run evaluated against a real Story fetched from a Platform A
 _Avoid_: "live run" — Live Preview never creates Tasks.
 
 **Connection Profile**:
-A named set of credentials for a specific platform (Azure DevOps or GitHub Models). Each platform type has its own independent default profile.
+A named platform connection record (Azure DevOps or GitHub Models), with its non-secret fields and per-platform default stored in the shared Atomize connections file. The CLI and Atomize Studio both read and write that file and resolve the profile's token through compatible OS credential-manager entries, using their own native credential APIs rather than a shared keychain implementation. Studio supports only OS-keyring-backed tokens: a CLI profile using the optional insecure keyfile fallback must be rotated in Studio before Studio can use it, which converts its token marker to the shared keyring strategy. Each platform type has its own independent default profile; the first profile for a platform becomes its default, and later default changes are explicit.
 _Avoid_: "auth profile" or "credentials" when referring to a saved named connection.
 
 **Offline Validation**:

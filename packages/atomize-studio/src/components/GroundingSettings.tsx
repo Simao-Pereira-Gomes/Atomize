@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
-import type { NewAzureDevOpsProfile } from "../cli/cli-bridge";
+import type { NewAzureDevOpsProfile } from "../connections/connection-client";
 import type {
 	AzureDevOpsProfile,
 	GroundedFieldOptions,
@@ -15,6 +15,7 @@ export type GroundingSession = {
 	refresh: () => Promise<boolean>;
 	addProject: (project: NewAzureDevOpsProfile) => Promise<void>;
 	rotateToken: (name: string, pat: string) => Promise<void>;
+	setDefault: (name: string) => Promise<void>;
 	removeProject: (name: string) => Promise<void>;
 };
 
@@ -118,6 +119,13 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 					: "We could not update that token.",
 			);
 		}
+	};
+	const setDefault = async () => {
+		const profile = managedProfile();
+		if (!profile) return;
+		setFormError("");
+		try { await props.session.setDefault(profile.name); }
+		catch (error) { setFormError(error instanceof Error ? error.message : "We could not set that default project."); }
 	};
 	const removeManagedProject = async () => {
 		const profile = managedProfile();
@@ -392,6 +400,11 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 														</div>
 													</dl>
 													<div class="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
+														<Show when={!profile().isDefault}>
+															<button class="mb-3 w-44 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200" type="button" onClick={() => void setDefault()}>
+																Set as default
+															</button>
+														</Show>
 														<Show
 															when={!rotating()}
 															fallback={

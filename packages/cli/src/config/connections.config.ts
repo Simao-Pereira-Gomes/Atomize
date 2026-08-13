@@ -1,4 +1,4 @@
-import { chmod, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { assertSafeFilePermissions, ensureAtomizeDir, getAtomizeDir } from "./atomize-paths";
@@ -51,6 +51,29 @@ function getConnectionsPath(): string {
 
 function getConnectionsTmpPath(): string {
   return join(getAtomizeDir(), "connections.json.tmp");
+}
+
+function getConnectionsLockPath(): string {
+  return join(getAtomizeDir(), "connections.json.lock");
+}
+
+async function withConnectionsLock<T>(operation: () => Promise<T>): Promise<T> {
+  await ensureAtomizeDir();
+  const lockPath = getConnectionsLockPath();
+  const deadline = Date.now() + 5_000;
+  while (true) {
+    try {
+      const lock = await open(lockPath, "wx", 0o600);
+      await lock.close();
+      try { return await operation(); } finally { await unlink(lockPath).catch(() => {}); }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const stale = await stat(lockPath).then(info => Date.now() - info.mtimeMs > 30_000).catch(() => false);
+      if (stale) { await unlink(lockPath).catch(() => {}); continue; }
+      if (Date.now() >= deadline) throw new Error("Another Atomize client is updating Connection Profiles. Try again shortly.");
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
 }
 
 // Migration from v1 single-default format (defaultProfile: string | null) to per-platform
@@ -133,39 +156,35 @@ async function writeConnectionsFile(data: ConnectionsFile): Promise<void> {
 }
 
 export async function saveProfile(profile: ConnectionProfile): Promise<void> {
-  const file = await readConnectionsFile();
-  const idx = file.profiles.findIndex((p) => p.name === profile.name);
-  if (idx >= 0) {
-    file.profiles[idx] = profile;
-  } else {
-    file.profiles.push(profile);
-  }
-  await writeConnectionsFile(file);
+  await withConnectionsLock(async () => {
+    const file = await readConnectionsFile();
+    const idx = file.profiles.findIndex((p) => p.name === profile.name);
+    if (idx >= 0) file.profiles[idx] = profile;
+    else file.profiles.push(profile);
+    await writeConnectionsFile(file);
+  });
 }
 
 export async function removeProfile(name: string): Promise<{ wasDefault: boolean }> {
-  const file = await readConnectionsFile();
-  const profile = file.profiles.find((p) => p.name === name);
-  file.profiles = file.profiles.filter((p) => p.name !== name);
-
-  let wasDefault = false;
-  if (profile && file.defaultProfiles[profile.platform] === name) {
-    delete file.defaultProfiles[profile.platform];
-    wasDefault = true;
-  }
-
-  await writeConnectionsFile(file);
-  return { wasDefault };
+  return await withConnectionsLock(async () => {
+    const file = await readConnectionsFile();
+    const profile = file.profiles.find((p) => p.name === name);
+    file.profiles = file.profiles.filter((p) => p.name !== name);
+    const wasDefault = Boolean(profile && file.defaultProfiles[profile.platform] === name);
+    if (profile && wasDefault) delete file.defaultProfiles[profile.platform];
+    await writeConnectionsFile(file);
+    return { wasDefault };
+  });
 }
 
 export async function setDefaultProfile(name: string): Promise<void> {
-  const file = await readConnectionsFile();
-  const profile = file.profiles.find((p) => p.name === name);
-  if (!profile) {
-    throw new Error(`Profile "${name}" not found`);
-  }
-  file.defaultProfiles[profile.platform] = name;
-  await writeConnectionsFile(file);
+  await withConnectionsLock(async () => {
+    const file = await readConnectionsFile();
+    const profile = file.profiles.find((p) => p.name === name);
+    if (!profile) throw new Error(`Profile "${name}" not found`);
+    file.defaultProfiles[profile.platform] = name;
+    await writeConnectionsFile(file);
+  });
 }
 
 export async function getProfile(name: string): Promise<ConnectionProfile | undefined> {

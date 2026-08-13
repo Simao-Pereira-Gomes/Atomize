@@ -1,4 +1,5 @@
 mod sidecar;
+mod connections;
 use std::sync::Arc;
 use serde_json::json;
 use sidecar::SidecarRelay;
@@ -15,6 +16,12 @@ fn retry_sidecar(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<(), Strin
 #[tauri::command]
 fn sidecar_fatal(relay: tauri::State<'_, Arc<SidecarRelay>>) -> bool { relay.is_fatal() }
 
+#[tauri::command] fn connection_list_profiles() -> Result<Vec<connections::AzureDevOpsProfile>, String> { connections::list() }
+#[tauri::command] fn connection_add_profile(profile: connections::NewAzureDevOpsProfile) -> Result<(), String> { connections::add(profile) }
+#[tauri::command] fn connection_rotate_token(name: String, pat: String) -> Result<(), String> { connections::rotate(name, pat) }
+#[tauri::command] fn connection_remove_profile(name: String) -> Result<(), String> { connections::remove(name) }
+#[tauri::command] fn connection_set_default(name: String) -> Result<(), String> { connections::set_default(name) }
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -23,7 +30,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_templates, retry_sidecar, sidecar_fatal])
+        .invoke_handler(tauri::generate_handler![catalog_list_templates, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

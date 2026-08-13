@@ -1,13 +1,7 @@
 import { type CliExecutor, CliRuntimeError, invoke } from "../cli/cli-bridge";
+import { listAzureDevOpsProfiles as listNativeAzureDevOpsProfiles, type AzureDevOpsProfile } from "../connections/connection-client";
 
-export type AzureDevOpsProfile = {
-  name: string;
-  platform: "azure-devops";
-  isDefault: boolean;
-  organizationUrl: string;
-  project: string;
-  team: string;
-};
+export type { AzureDevOpsProfile } from "../connections/connection-client";
 
 export type SavedQuery = { id: string; path: string };
 
@@ -156,6 +150,7 @@ export function parseGroundedFieldOptions(value: unknown): GroundedFieldOptions 
 }
 
 export async function listAzureDevOpsProfiles(execute?: CliExecutor): Promise<AzureDevOpsProfile[]> {
+  if (!execute) return await listNativeAzureDevOpsProfiles();
   const value = await invoke(["auth", "list", "--json"], execute);
   if (!Array.isArray(value)) throw new Error("CLI returned invalid Connection Profiles.");
   return value.flatMap((profile) =>

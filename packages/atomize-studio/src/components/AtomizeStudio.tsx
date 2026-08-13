@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
-import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken } from "../cli/cli-bridge";
+import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken, setDefaultConnectionProfile } from "../connections/connection-client";
 import {
   type AzureDevOpsProfile,
   type GroundedFieldOptions,
@@ -94,6 +94,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
       await loadGrounding(project.name);
     },
     rotateToken: async (name, pat) => { await rotateAzureDevOpsToken(name, pat); },
+    setDefault: async (name) => { await setDefaultConnectionProfile(name); setProfiles(await listAzureDevOpsProfiles()); },
     removeProject: async (name) => {
       await removeConnectionProfile(name);
       const available = await listAzureDevOpsProfiles();
