@@ -1,8 +1,12 @@
+import { Atomizer } from '@sppg2001/atomize-core';
+import type { AtomizationReport } from '@sppg2001/atomize-core/core/atomizer';
+import { AuthError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
-import { buildLivePreviewArgs, CLI_EXIT_CODES, spawnCli } from '../cli/cli-provider.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
+import { createTemplateLibrary } from '../core-library.js';
+import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
-import type { AtomizationReport } from './live-preview-html.js';
+import type { ProfileStore } from '../profiles/profile-store.js';
 import { renderLivePreviewError, renderLivePreviewResults } from './live-preview-html.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
@@ -21,28 +25,24 @@ async function pickStoryId(): Promise<string | null> {
 	return value?.trim() ?? null;
 }
 
-function spawnGenJson(cliPath: string, filePath: string, storyId: string, profile: string): Promise<{ report: AtomizationReport } | { error: 'auth' | 'notfound'; stderr: string }> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, buildLivePreviewArgs(filePath, storyId, profile));
-		let stdout = '';
-		let stderr = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', code => {
-			if (code !== 0) {
-				const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'notfound' as const;
-				const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
-				resolve({ error: kind, stderr: (cleanStderr || stdout).trim() });
-				return;
-			}
-			try {
-				resolve({ report: JSON.parse(stdout.trim()) as AtomizationReport });
-			} catch {
-				resolve({ error: 'notfound', stderr: stderr.trim() || 'Failed to parse CLI output' });
-			}
-		});
-		proc.on('error', err => resolve({ error: 'notfound', stderr: err.message }));
-	});
+async function runLivePreview(
+	credentialResolver: CredentialResolver,
+	profile: string,
+	fileUri: vscode.Uri,
+	storyId: string,
+): Promise<{ report: AtomizationReport } | { error: 'auth' | 'notfound'; detail: string }> {
+	try {
+		const adapter = await credentialResolver.resolveByName(profile);
+		const { template } = await createTemplateLibrary().loadSource(fileUri.fsPath);
+		const atomizer = new Atomizer(adapter);
+		const report = await atomizer.atomize(template, { dryRun: true, storyIds: [storyId] });
+		return { report };
+	} catch (err) {
+		if (err instanceof AuthError) {
+			return { error: 'auth', detail: err.message.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.' };
+		}
+		return { error: 'notfound', detail: err instanceof Error ? err.message : String(err) };
+	}
 }
 
 export class LivePreviewPanel {
@@ -50,30 +50,29 @@ export class LivePreviewPanel {
 
 	private _panel: vscode.WebviewPanel;
 	private _fileUri: vscode.Uri;
-	private _cliPath: string;
 	private _mode: 'default' | 'compact';
 	private _lastReport: AtomizationReport | undefined;
 
 	private constructor(
 		panel: vscode.WebviewPanel,
 		fileUri: vscode.Uri,
-		cliPath: string,
+		private readonly _store: ProfileStore,
+		private readonly _credentialResolver: CredentialResolver,
 		mode: 'default' | 'compact',
 	) {
 		this._panel = panel;
 		this._fileUri = fileUri;
-		this._cliPath = cliPath;
 		this._mode = mode;
 
 		panel.onDidDispose(() => { LivePreviewPanel._instance = undefined; });
 		panel.webview.onDidReceiveMessage((msg: unknown) => { void this._handleMessage(msg); });
 	}
 
-	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
+	static async open(fileUri: vscode.Uri, store: ProfileStore, credentialResolver: CredentialResolver): Promise<void> {
 		const mode = getPreviewLayout(fileUri);
 		const defaultProfile = getDefaultProfile(fileUri);
 
-		const profile = await pickProfile(cliPath, { title: 'Atomize: Live Preview', allowOffline: false, defaultProfile });
+		const profile = await pickProfile(store, credentialResolver, { title: 'Atomize: Live Preview', allowOffline: false, defaultProfile });
 		if (profile == null) return;
 
 		const storyId = await pickStoryId();
@@ -85,7 +84,6 @@ export class LivePreviewPanel {
 		if (LivePreviewPanel._instance) {
 			const inst = LivePreviewPanel._instance;
 			inst._fileUri = fileUri;
-			inst._cliPath = cliPath;
 			inst._mode = mode;
 			inst._lastReport = undefined;
 			inst._panel.title = `Atomize: ${fileName} (Live Preview — Dry Run)`;
@@ -98,7 +96,7 @@ export class LivePreviewPanel {
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);
-			panel = new LivePreviewPanel(webviewPanel, fileUri, cliPath, mode);
+			panel = new LivePreviewPanel(webviewPanel, fileUri, store, credentialResolver, mode);
 			LivePreviewPanel._instance = panel;
 		}
 
@@ -109,10 +107,10 @@ export class LivePreviewPanel {
 		const fileName = vscode.workspace.asRelativePath(this._fileUri);
 		this._panel.webview.html = `<!DOCTYPE html><html><body style="color:var(--vscode-editor-foreground);padding:16px">Running…</body></html>`;
 
-		const outcome = await spawnGenJson(this._cliPath, this._fileUri.fsPath, storyId, profile);
+		const outcome = await runLivePreview(this._credentialResolver, profile, this._fileUri, storyId);
 
 		if ('error' in outcome) {
-			this._panel.webview.html = renderLivePreviewError(outcome.error, outcome.stderr, fileName);
+			this._panel.webview.html = renderLivePreviewError(outcome.error, outcome.detail, fileName);
 		} else {
 			this._lastReport = outcome.report;
 			this._panel.webview.html = renderLivePreviewResults(outcome.report, this._mode, fileName);
@@ -131,7 +129,7 @@ export class LivePreviewPanel {
 			}
 		} else if (message.type === 'rerun') {
 			LivePreviewPanel._instance?._panel.dispose();
-			await LivePreviewPanel.open(this._fileUri, this._cliPath);
+			await LivePreviewPanel.open(this._fileUri, this._store, this._credentialResolver);
 		} else if (message.type === 'openTemplate') {
 			await vscode.commands.executeCommand('vscode.open', this._fileUri);
 		} else if (message.type === 'manageProfiles') {

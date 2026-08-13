@@ -1,37 +1,24 @@
+import { requireSavedQueryReader } from '@sppg2001/atomize-core/platforms/capabilities';
+import type { SavedQueryInfo } from '@sppg2001/atomize-core/platforms/interfaces/platform.interface';
 import * as vscode from 'vscode';
-import { buildQueriesListArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
-import { getConfiguredCliPath, getDefaultProfile } from '../config/atomize-configuration.js';
+import { getDefaultProfile } from '../config/atomize-configuration.js';
+import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
-
-interface QueryJson {
-	id: string;
-	name: string;
-	path: string;
-	isPublic: boolean;
-}
+import type { ProfileStore } from '../profiles/profile-store.js';
 
 type QueryItem = vscode.QuickPickItem & { path: string };
 
-function parseQueriesJson(stdout: string): QueryJson[] | null {
+async function fetchQueries(credentialResolver: CredentialResolver, profile: string): Promise<SavedQueryInfo[] | null> {
 	try {
-		const parsed = JSON.parse(stdout);
-		return Array.isArray(parsed) ? parsed : null;
+		const adapter = await credentialResolver.resolveByName(profile);
+		const savedQueryReader = requireSavedQueryReader(adapter);
+		return await savedQueryReader.listSavedQueries();
 	} catch {
 		return null;
 	}
 }
 
-function fetchQueries(cliPath: string, profile: string): Promise<QueryJson[] | null> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, buildQueriesListArgs(profile));
-		let stdout = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.on('close', () => { resolve(parseQueriesJson(stdout)); });
-		proc.on('error', () => resolve(null));
-	});
-}
-
-function buildQueryItems(queries: QueryJson[]): QueryItem[] {
+function buildQueryItems(queries: SavedQueryInfo[]): QueryItem[] {
 	return queries.map(q => ({
 		label: q.path,
 		description: q.isPublic ? 'shared' : 'private',
@@ -40,29 +27,23 @@ function buildQueryItems(queries: QueryJson[]): QueryItem[] {
 }
 
 export interface BrowseQueriesCommandDeps {
-	showCliUnavailable: (cliPath: string, message: string) => Promise<void>;
+	store: ProfileStore;
+	credentialResolver: CredentialResolver;
 }
 
 export function registerBrowseQueriesCommand(deps: BrowseQueriesCommandDeps): vscode.Disposable {
 	return vscode.commands.registerCommand('atomize.browseQueries', async () => {
-		const cliPath = getConfiguredCliPath();
-		const probe = await probeCli(cliPath);
-		if (!probe.available) {
-			await deps.showCliUnavailable(cliPath, 'Atomize CLI not found. Install it to browse queries.');
-			return;
-		}
-
 		const defaultProfile = getDefaultProfile(vscode.window.activeTextEditor?.document.uri);
-		const profile = await pickProfile(cliPath, { title: 'Atomize: Browse Queries', allowOffline: false, defaultProfile });
+		const profile = await pickProfile(deps.store, deps.credentialResolver, { title: 'Atomize: Browse Queries', allowOffline: false, defaultProfile });
 		if (!profile) return;
 
 		const queries = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Fetching queries…', cancellable: false },
-			() => fetchQueries(cliPath, profile),
+			() => fetchQueries(deps.credentialResolver, profile),
 		);
 
 		if (queries === null) {
-			void vscode.window.showErrorMessage('Could not fetch queries. Check the CLI and your connection profile.');
+			void vscode.window.showErrorMessage('Could not fetch queries. Check your connection profile.');
 			return;
 		}
 

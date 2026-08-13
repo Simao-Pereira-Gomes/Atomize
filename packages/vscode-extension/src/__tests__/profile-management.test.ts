@@ -1,73 +1,27 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { EventEmitter } from 'node:events';
+import { baseVscodeMock } from './vscode-test-helpers.js';
 
-import {
-	type AdoProfileJson,
-	parseAdoProfilesJson,
-	sanitizeCliError,
-	sortAdoProfiles,
-	supportsNativeRotation,
-} from '../profiles/profile-management-model.js';
+function createFakeContext() {
+	const globalStateMap = new Map<string, unknown>();
+	const secretsMap = new Map<string, string>();
+	return {
+		globalState: {
+			get: (key: string, def?: unknown) => globalStateMap.has(key) ? globalStateMap.get(key) : def,
+			update: async (key: string, value: unknown) => { globalStateMap.set(key, value); },
+		},
+		secrets: {
+			get: async (key: string) => secretsMap.get(key),
+			store: async (key: string, value: string) => { secretsMap.set(key, value); },
+			delete: async (key: string) => { secretsMap.delete(key); },
+		},
+	};
+}
 
-const profiles: AdoProfileJson[] = [
-	{
-		name: 'zeta',
-		platform: 'azure-devops',
-		isDefault: false,
-		organizationUrl: 'https://dev.azure.com/acme',
-		project: 'Product',
-		team: 'Core',
-		tokenStorage: 'keychain',
-	},
-	{
-		name: 'alpha',
-		platform: 'azure-devops',
-		isDefault: true,
-		organizationUrl: 'https://dev.azure.com/acme',
-		project: 'Product',
-		team: 'Core',
-		tokenStorage: 'file',
-	},
-	{
-		name: 'beta',
-		platform: 'azure-devops',
-		isDefault: false,
-		organizationUrl: 'https://dev.azure.com/acme',
-		project: 'Product',
-		team: 'Core',
-		tokenStorage: 'keychain',
-	},
-];
+const fakeCredentialResolver = {
+	resolveByName: async () => { throw new Error('not used in this test'); },
+};
 
-describe('profile-management helpers', () => {
-	it('sorts default first, then alphabetically', () => {
-		expect(sortAdoProfiles(profiles).map(p => p.name)).toEqual(['alpha', 'beta', 'zeta']);
-	});
-
-	it('parses only Azure DevOps profiles from auth list JSON', () => {
-		const parsed = parseAdoProfilesJson(JSON.stringify([
-			...profiles,
-			{ name: 'ai', platform: 'github-models', isDefault: true, model: 'gpt-4o', tokenStorage: 'keychain' },
-		]));
-		expect(parsed?.map(p => p.name)).toEqual(['zeta', 'alpha', 'beta']);
-	});
-
-	it('rejects malformed auth list JSON', () => {
-		expect(parseAdoProfilesJson('not json')).toBeUndefined();
-		expect(parseAdoProfilesJson(JSON.stringify({ profiles }))).toBeUndefined();
-	});
-
-	it('allows native rotation only for keychain-backed profiles', () => {
-		expect(supportsNativeRotation(profiles[0])).toBe(true);
-		expect(supportsNativeRotation(profiles[1])).toBe(false);
-		expect(supportsNativeRotation({ ...profiles[0], tokenStorage: undefined })).toBe(false);
-	});
-
-	it('compacts CLI error output', () => {
-		expect(sanitizeCliError({ stderr: 'Error: failed\n', stdout: 'details' })).toBe('Error: failed details');
-		expect(sanitizeCliError({ stderr: '   ', stdout: '' })).toBeUndefined();
-	});
-});
+let importCounter = 0;
 
 describe('manageProfiles', () => {
 	afterEach(() => {
@@ -83,19 +37,9 @@ describe('manageProfiles', () => {
 			'Core',
 			'pat-token',
 		];
-		let profileListCall = 0;
 
 		mock.module('vscode', () => ({
-			ProgressLocation: { Notification: 15 },
-			QuickPickItemKind: { Separator: -1 },
-			Range: class Range {
-				start: { line: number; character: number };
-				end: { line: number; character: number };
-				constructor(sl: number, sc: number, el: number, ec: number) {
-					this.start = { line: sl, character: sc };
-					this.end = { line: el, character: ec };
-				}
-			},
+			...baseVscodeMock(),
 			window: {
 				showErrorMessage: mock(() => undefined),
 				showInformationMessage: mock(() => undefined),
@@ -111,46 +55,15 @@ describe('manageProfiles', () => {
 			},
 		}));
 
-		mock.module('node:child_process', () => ({
-			spawn: mock((_cliPath: string, args: string[]) => {
-				const stdout = new EventEmitter();
-				const stderr = new EventEmitter();
-				const proc = new EventEmitter() as EventEmitter & {
-					stdout: EventEmitter;
-					stderr: EventEmitter;
-					stdin: { end: (input?: string) => void };
-				};
-				proc.stdout = stdout;
-				proc.stderr = stderr;
-				proc.stdin = {
-					end: () => {
-						queueMicrotask(() => {
-							let output = '';
-							if (args.join(' ') === 'auth remove --help') output = '--confirm\n--new-default\n';
-							else if (args.join(' ') === 'auth rotate --help') output = '--pat-stdin\n';
-							else if (args.join(' ') === 'auth list --json') {
-								profileListCall += 1;
-								output = JSON.stringify(profileListCall < 3 ? [] : [{
-									name: 'work',
-									platform: 'azure-devops',
-									isDefault: true,
-									organizationUrl: 'https://dev.azure.com/acme',
-									project: 'Product',
-									team: 'Core',
-									tokenStorage: 'keychain',
-								}]);
-							}
-							if (output) stdout.emit('data', Buffer.from(output));
-							proc.emit('close', 0);
-						});
-					},
-				};
-				return proc;
-			}),
+		mock.module('../profiles/cli-import.js', () => ({
+			readCliProfiles: async () => [],
 		}));
 
-		const { manageProfiles } = await import(`../profiles/profile-management.js?t=${Date.now()}`);
-		await manageProfiles('atomize', async () => true);
+		const { manageProfiles } = await import(`../profiles/profile-management.js?t=${importCounter++}`);
+		const { ProfileStore } = await import(`../profiles/profile-store.js?t=${importCounter++}`);
+
+		const store = new ProfileStore(createFakeContext());
+		await manageProfiles(store, fakeCredentialResolver);
 
 		expect(quickPickLabels).toEqual([
 			['Add profile...'],

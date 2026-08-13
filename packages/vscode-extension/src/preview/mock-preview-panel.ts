@@ -1,49 +1,22 @@
+import { inspectTemplate, runPreview } from '@sppg2001/atomize-core/templates/template-inspector';
 import * as vscode from 'vscode';
-import { buildInspectArgs, buildPreviewArgs, spawnCli } from '../cli/cli-provider.js';
 import { getPreviewLayout } from '../config/atomize-configuration.js';
+import { createTemplateLibrary } from '../core-library.js';
 import {
 	type InspectField,
-	type InspectResult,
-	type PreviewResult,
 	renderPreviewForm,
 	renderPreviewResults,
 	type StoredValues,
 } from './mock-preview-html.js';
 
-function spawnInspect(cliPath: string, filePath: string): Promise<InspectField[]> {
-	return new Promise((resolve, reject) => {
-		const proc = spawnCli(cliPath, buildInspectArgs(filePath));
-		let stdout = '';
-		let stderr = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', () => {
-			try {
-				resolve((JSON.parse(stdout.trim()) as InspectResult).fields);
-			} catch {
-				reject(new Error(stderr.trim() || 'Failed to parse inspect output'));
-			}
-		});
-		proc.on('error', reject);
-	});
+async function inspectFile(fileUri: vscode.Uri): Promise<InspectField[]> {
+	const { template } = await createTemplateLibrary().loadSource(fileUri.fsPath);
+	return inspectTemplate(template).fields;
 }
 
-function spawnPreview(cliPath: string, filePath: string, mockStory: string): Promise<PreviewResult> {
-	return new Promise((resolve, reject) => {
-		const proc = spawnCli(cliPath, buildPreviewArgs(filePath, mockStory));
-		let stdout = '';
-		let stderr = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', () => {
-			try {
-				resolve(JSON.parse(stdout.trim()) as PreviewResult);
-			} catch {
-				reject(new Error(stderr.trim() || 'Failed to parse preview output'));
-			}
-		});
-		proc.on('error', reject);
-	});
+async function previewFile(fileUri: vscode.Uri, mockStory: string) {
+	const { template } = await createTemplateLibrary().loadSource(fileUri.fsPath);
+	return runPreview(template, mockStory);
 }
 
 function buildMockStory(fields: InspectField[], values: Record<string, unknown>): string {
@@ -75,21 +48,18 @@ export class PreviewPanel {
 	private _fileUri: vscode.Uri;
 	private _fields: InspectField[];
 	private _mode: 'default' | 'compact';
-	private _lastResult: PreviewResult | undefined;
-	private _cliPath: string;
+	private _lastResult: Awaited<ReturnType<typeof previewFile>> | undefined;
 
 	private constructor(
 		panel: vscode.WebviewPanel,
 		fileUri: vscode.Uri,
 		fields: InspectField[],
 		mode: 'default' | 'compact',
-		cliPath: string,
 	) {
 		this._panel = panel;
 		this._fileUri = fileUri;
 		this._fields = fields;
 		this._mode = mode;
-		this._cliPath = cliPath;
 
 		panel.onDidDispose(() => { PreviewPanel._instance = undefined; });
 		panel.webview.onDidReceiveMessage((msg: unknown) => { void this._handleMessage(msg); });
@@ -97,12 +67,12 @@ export class PreviewPanel {
 		this._showForm();
 	}
 
-	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
+	static async open(fileUri: vscode.Uri): Promise<void> {
 		const mode = getPreviewLayout(fileUri);
 
 		let fields: InspectField[];
 		try {
-			fields = await spawnInspect(cliPath, fileUri.fsPath);
+			fields = await inspectFile(fileUri);
 		} catch (err) {
 			await vscode.window.showWarningMessage(
 				`Atomize: Failed to inspect template — ${err instanceof Error ? err.message : String(err)}`,
@@ -118,7 +88,6 @@ export class PreviewPanel {
 			inst._fields = fields;
 			inst._mode = mode;
 			inst._lastResult = undefined;
-			inst._cliPath = cliPath;
 			inst._panel.title = `Atomize: ${fileName} (Preview)`;
 			inst._showForm();
 			inst._panel.reveal(vscode.ViewColumn.Beside, true);
@@ -129,7 +98,7 @@ export class PreviewPanel {
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);
-			PreviewPanel._instance = new PreviewPanel(panel, fileUri, fields, mode, cliPath);
+			PreviewPanel._instance = new PreviewPanel(panel, fileUri, fields, mode);
 		}
 	}
 
@@ -139,7 +108,7 @@ export class PreviewPanel {
 		this._panel.webview.html = renderPreviewForm(this._fields, stored, fileName, error);
 	}
 
-	private _showResults(result: PreviewResult): void {
+	private _showResults(result: Awaited<ReturnType<typeof previewFile>>): void {
 		const fileName = vscode.workspace.asRelativePath(this._fileUri);
 		this._lastResult = result;
 		this._panel.webview.html = renderPreviewResults(result, this._mode, fileName);
@@ -153,7 +122,7 @@ export class PreviewPanel {
 			PreviewPanel._storedValues.set(this._fileUri.toString(), message.values as StoredValues);
 			const mockStory = buildMockStory(this._fields, message.values);
 			try {
-				const result = await spawnPreview(this._cliPath, this._fileUri.fsPath, mockStory);
+				const result = await previewFile(this._fileUri, mockStory);
 				this._showResults(result);
 			} catch (err) {
 				this._showForm(err instanceof Error ? err.message : String(err));

@@ -1,20 +1,20 @@
 import * as vscode from 'vscode';
 import { isAtomizeDocument } from '../authoring/language-detection.js';
-import type { UpdateCheckSummary } from '../cli/cli-lifecycle.js';
-import { probeCli } from '../cli/cli-provider.js';
-import { getConfiguredCliPath, getDefaultProfile } from '../config/atomize-configuration.js';
+import { getDefaultProfile } from '../config/atomize-configuration.js';
 import { AtomizePanel } from '../panel.js';
+import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
+import type { ProfileStore } from '../profiles/profile-store.js';
 import { runReportValidation } from './diagnostics.js';
 import { renderValidationHtml } from './validation-html.js';
 
 export interface ValidateCommandDeps {
 	diagnostics: vscode.DiagnosticCollection;
+	store: ProfileStore;
+	credentialResolver: CredentialResolver;
 	onValidationSuccess: (uri: vscode.Uri) => void;
 	onRunnerFailure: (doc: vscode.TextDocument) => void;
-	showCliUnavailable: (cliPath: string, message: string) => Promise<void>;
 	checkDirtyDocument: (doc: vscode.TextDocument, verb: string) => Promise<boolean>;
-	checkForCliUpdate: (cliPath: string, version: string | undefined) => Promise<UpdateCheckSummary | undefined>;
 }
 
 export function registerValidateCommand(deps: ValidateCommandDeps): vscode.Disposable {
@@ -25,24 +25,16 @@ export function registerValidateCommand(deps: ValidateCommandDeps): vscode.Dispo
 		if (!doc || !isAtomizeDocument(doc)) return;
 		if (!await deps.checkDirtyDocument(doc, 'validate')) return;
 
-		const cliPath = getConfiguredCliPath();
-		const probe = await probeCli(cliPath);
-		if (!probe.available) {
-			await deps.showCliUnavailable(cliPath, 'Atomize CLI not found. Install it to enable validation and preview.');
-			return;
-		}
-
 		const defaultProfile = getDefaultProfile(doc.uri);
-		const picked = await pickProfile(cliPath, { title: 'Atomize: Validate', allowOffline: true, defaultProfile });
+		const picked = await pickProfile(deps.store, deps.credentialResolver, { title: 'Atomize: Validate', allowOffline: true, defaultProfile });
 		if (picked === null) return;
 		const profile = picked;
 
-		void deps.checkForCliUpdate(cliPath, probe.version);
 		const mode = profile ? 'Online' : 'Offline';
-		runReportValidation(doc, deps.diagnostics, cliPath, result => {
+		runReportValidation(doc, deps.diagnostics, result => {
 			deps.onValidationSuccess(doc.uri);
 			const fileName = vscode.workspace.asRelativePath(doc.uri);
 			AtomizePanel.show(`Atomize: ${fileName} (${mode})`, renderValidationHtml(result, fileName));
-		}, () => { deps.onRunnerFailure(doc); }, profile);
+		}, () => { deps.onRunnerFailure(doc); }, profile, deps.credentialResolver);
 	});
 }

@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { AtomizeCodeLensProvider } from './authoring/codelens-provider.js';
 import {
 	handleDocument,
-	isAtomizeDocument,
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
@@ -11,67 +10,51 @@ import { ValidationCodeActionProvider } from './authoring/validation-code-action
 import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './authoring/yaml-schema-contributor.js';
 import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './catalog/browse-catalog-command.js';
 import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './catalog/show-resolved-template-command.js';
-import { createCliLifecycle, type UpdateCheckSummary } from './cli/cli-lifecycle.js';
-import { meetsCliFeatureRequirements, probeCli } from './cli/cli-provider.js';
-import { deriveStatusBarState } from './cli/cli-status-bar.js';
-import { getConfiguredCliPath } from './config/atomize-configuration.js';
 import { GeneratePanel } from './generate/generate-panel.js';
 import { AtomizePanel } from './panel.js';
 import { registerBrowseFieldsCommand } from './platform-metadata/browse-fields-command.js';
 import { registerBrowseQueriesCommand } from './platform-metadata/browse-queries-command.js';
 import { LivePreviewPanel } from './preview/live-preview-panel.js';
 import { PreviewPanel } from './preview/mock-preview-panel.js';
+import { createCredentialResolver } from './profiles/credential-resolver.js';
 import { manageProfiles } from './profiles/profile-management.js';
+import { ProfileStore } from './profiles/profile-store.js';
 import { clearRunState, runDiagnosticValidation } from './validation/diagnostics.js';
 import { registerValidateCommand } from './validation/validate-command.js';
 
-let cliWarningShown = false;
+const DEPRECATED_CLI_SETTINGS_NOTICE_KEY = 'atomize.deprecatedCliSettingsNoticeShown';
+const DEPRECATED_CLI_SETTING_KEYS = ['cliPath', 'cli.installCommand', 'cli.autoCheckUpdates'];
+
+function hasLingeringDeprecatedCliSetting(): boolean {
+	const config = vscode.workspace.getConfiguration('atomize');
+	return DEPRECATED_CLI_SETTING_KEYS.some(key => {
+		const inspected = config.inspect(key);
+		return inspected !== undefined && (
+			inspected.globalValue !== undefined
+			|| inspected.workspaceValue !== undefined
+			|| inspected.workspaceFolderValue !== undefined
+		);
+	});
+}
+
+async function maybeShowDeprecatedCliSettingsNotice(ctx: vscode.ExtensionContext): Promise<void> {
+	if (ctx.globalState.get<boolean>(DEPRECATED_CLI_SETTINGS_NOTICE_KEY)) return;
+	if (!hasLingeringDeprecatedCliSetting()) return;
+	await ctx.globalState.update(DEPRECATED_CLI_SETTINGS_NOTICE_KEY, true);
+	void vscode.window.showInformationMessage(
+		'Atomize: the atomize.cliPath, atomize.cli.installCommand, and atomize.cli.autoCheckUpdates settings are no longer used — Atomize now runs directly in the extension, with no CLI install required. You can remove them from your settings.',
+	);
+}
 
 export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 	// Register schema contributor before anything else to minimise the timing
 	// window between extension activation and the YAML LS calling requestSchema.
 	await registerYamlSchemaContributor(ctx);
 
-	const { checkForCliUpdate, showCliUnavailableMessage, showCliTooOldMessage } = createCliLifecycle(ctx);
-	const initialCliPath = getConfiguredCliPath();
-	const initialProbe = await probeCli(initialCliPath);
+	void maybeShowDeprecatedCliSettingsNotice(ctx);
 
-	if (!initialProbe.available && !cliWarningShown) {
-		cliWarningShown = true;
-		await showCliUnavailableMessage(initialCliPath, 'Atomize CLI not found. Install it to enable validation, preview, and testing.');
-	} else if (initialProbe.available && !meetsCliFeatureRequirements(initialProbe.version)) {
-		await showCliTooOldMessage(initialProbe.version ?? 'unknown');
-	}
-
-	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-	let statusBarUpdateResult: UpdateCheckSummary | undefined;
-
-	function refreshStatusBar(): void {
-		const state = deriveStatusBarState(initialProbe, statusBarUpdateResult);
-		statusBarItem.text = state.text;
-		statusBarItem.tooltip = state.tooltip;
-		statusBarItem.command = state.command;
-	}
-
-	function syncStatusBarVisibility(editor: vscode.TextEditor | undefined): void {
-		if (editor && isAtomizeDocument(editor.document)) {
-			statusBarItem.show();
-		} else {
-			statusBarItem.hide();
-		}
-	}
-
-	refreshStatusBar();
-	syncStatusBarVisibility(vscode.window.activeTextEditor);
-
-	if (initialProbe.available) {
-		void checkForCliUpdate(initialCliPath, initialProbe.version).then(result => {
-			if (result) {
-				statusBarUpdateResult = result;
-				refreshStatusBar();
-			}
-		});
-	}
+	const store = new ProfileStore(ctx);
+	const credentialResolver = createCredentialResolver(store);
 
 	const diagnostics = vscode.languages.createDiagnosticCollection('atomize');
 	const validationFailureWarnedUris = new Set<string>();
@@ -86,13 +69,9 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			return;
 		}
-		void probeCli(getConfiguredCliPath()).then(probe => {
-			if (probe.available) void checkForCliUpdate(getConfiguredCliPath(), probe.version);
-		});
 		runDiagnosticValidation(
 			doc,
 			diagnostics,
-			getConfiguredCliPath(),
 			() => { validationFailureWarnedUris.delete(doc.uri.toString()); },
 			() => { showValidationRunnerFailure(doc, true); },
 		);
@@ -183,15 +162,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 	ctx.subscriptions.push(
 		diagnostics,
-		statusBarItem,
 		resolvedTemplateProvider,
 		catalogItemProvider,
-
-		vscode.window.onDidChangeActiveTextEditor(editor => syncStatusBarVisibility(editor)),
-
-		vscode.commands.registerCommand('atomize.showCliUnavailable', () =>
-			showCliUnavailableMessage(getConfiguredCliPath(), 'Atomize CLI not found. Install it to enable validation, preview, and testing.'),
-		),
 
 		vscode.workspace.onDidOpenTextDocument(doc => {
 			warnContentOnlyDetected(doc);
@@ -225,11 +197,11 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 		registerValidateCommand({
 			diagnostics,
+			store,
+			credentialResolver,
 			onValidationSuccess: uri => { validationFailureWarnedUris.delete(uri.toString()); },
 			onRunnerFailure: doc => showValidationRunnerFailure(doc, false),
-			showCliUnavailable: showCliUnavailableMessage,
 			checkDirtyDocument,
-			checkForCliUpdate,
 		}),
 
 		vscode.commands.registerCommand('atomize.preview', async (uri?: vscode.Uri) => {
@@ -238,15 +210,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
 			if (!await checkDirtyDocument(doc, 'preview')) return;
-
-			const cliPath = getConfiguredCliPath();
-			const probe = await probeCli(cliPath);
-			if (!probe.available) {
-				await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to enable validation and preview.');
-				return;
-			}
-			void checkForCliUpdate(cliPath, probe.version);
-			await PreviewPanel.open(doc.uri, cliPath);
+			await PreviewPanel.open(doc.uri);
 		}),
 
 		vscode.commands.registerCommand('atomize.livePreview', async (uri?: vscode.Uri) => {
@@ -255,15 +219,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
 			if (!await checkDirtyDocument(doc, 'preview')) return;
-
-			const cliPath = getConfiguredCliPath();
-			const probe = await probeCli(cliPath);
-			if (!probe.available) {
-				await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to enable live preview.');
-				return;
-			}
-			void checkForCliUpdate(cliPath, probe.version);
-			await LivePreviewPanel.open(doc.uri, cliPath);
+			await LivePreviewPanel.open(doc.uri, store, credentialResolver);
 		}),
 
 		vscode.commands.registerCommand('atomize.generate', async (uri?: vscode.Uri) => {
@@ -272,42 +228,24 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
 			if (!await checkDirtyDocument(doc, 'generate')) return;
-
-			const cliPath = getConfiguredCliPath();
-			const probe = await probeCli(cliPath);
-			if (!probe.available) {
-				await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to generate tasks.');
-				return;
-			}
-			void checkForCliUpdate(cliPath, probe.version);
-			await GeneratePanel.open(doc.uri, cliPath);
+			await GeneratePanel.open(doc.uri, store, credentialResolver);
 		}),
 
 		vscode.commands.registerCommand('atomize.manageProfiles', async () => {
-			const cliPath = getConfiguredCliPath();
-			await manageProfiles(cliPath, async () => {
-				const probe = await probeCli(cliPath);
-				if (!probe.available) {
-					await showCliUnavailableMessage(cliPath, 'Atomize CLI not found. Install it to manage profiles.');
-					return false;
-				}
-				void checkForCliUpdate(cliPath, probe.version);
-				return true;
-			});
+			await manageProfiles(store, credentialResolver);
 		}),
 
 		vscode.commands.registerCommand('atomize.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:atomize.atomize'),
 		),
 
-		registerBrowseFieldsCommand({ showCliUnavailable: showCliUnavailableMessage }),
-		registerBrowseQueriesCommand({ showCliUnavailable: showCliUnavailableMessage }),
-		registerBrowseCatalogCommand({ provider: catalogItemProvider, showCliUnavailable: showCliUnavailableMessage }),
+		registerBrowseFieldsCommand({ store, credentialResolver }),
+		registerBrowseQueriesCommand({ store, credentialResolver }),
+		registerBrowseCatalogCommand({ provider: catalogItemProvider }),
 		vscode.workspace.registerTextDocumentContentProvider(CATALOG_ITEM_SCHEME, catalogItemProvider),
 		vscode.workspace.registerTextDocumentContentProvider(RESOLVED_TEMPLATE_SCHEME, resolvedTemplateProvider),
 		registerShowResolvedTemplateCommand({
 			provider: resolvedTemplateProvider,
-			showCliUnavailable: showCliUnavailableMessage,
 			checkDirtyDocument,
 		}),
 	);

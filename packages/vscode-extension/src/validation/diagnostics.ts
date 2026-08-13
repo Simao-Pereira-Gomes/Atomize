@@ -1,28 +1,13 @@
+import { requireProjectMetadataReader, requireSavedQueryReader } from '@sppg2001/atomize-core/platforms/capabilities';
+import type { TemplateVerificationOptions } from '@sppg2001/atomize-core/templates/template-verification';
+import { verifyTemplate } from '@sppg2001/atomize-core/templates/template-verification';
+import type { ValidationWarning } from '@sppg2001/atomize-core/templates/validator';
 import * as vscode from 'vscode';
-import { buildValidateArgs, spawnCli } from '../cli/cli-provider.js';
-import { parseValidationOutput } from './validation-output.js';
+import { createTemplateLibrary } from '../core-library.js';
+import type { CredentialResolver } from '../profiles/credential-resolver.js';
 
-export interface ValidationError {
-	path: string;
-	message: string;
-	code: string;
-	suggestion?: string;
-}
-
-export interface ValidationWarning {
-	path: string;
-	message: string;
-	suggestion?: string;
-	code?: string;
-	nonBlocking?: boolean;
-}
-
-export interface ValidationResult {
-	valid: boolean;
-	errors: ValidationError[];
-	warnings: ValidationWarning[];
-	mode: string;
-}
+export type { ValidationError, ValidationResult, ValidationWarning } from '@sppg2001/atomize-core/templates/validator';
+import type { ValidationResult } from '@sppg2001/atomize-core/templates/validator';
 
 interface RunState {
 	running: boolean;
@@ -34,8 +19,8 @@ const runStates = new Map<string, RunState>();
 interface BaseValidationRequest {
 	doc: vscode.TextDocument;
 	diagnostics: vscode.DiagnosticCollection;
-	cliPath: string;
 	profile?: string;
+	credentialResolver?: CredentialResolver;
 	onError?: (error: Error) => void;
 }
 
@@ -67,41 +52,25 @@ export function clearRunState(uri: vscode.Uri): void {
 export function runDiagnosticValidation(
 	doc: vscode.TextDocument,
 	diagnostics: vscode.DiagnosticCollection,
-	cliPath: string,
 	onSuccess?: () => void,
 	onError?: (error: Error) => void,
 ): void {
-	runValidation({
-		doc,
-		diagnostics,
-		cliPath,
-		kind: 'diagnostics',
-		onSuccess,
-		onError,
-	});
+	runValidation({ doc, diagnostics, kind: 'diagnostics', onSuccess, onError });
 }
 
 export function runReportValidation(
 	doc: vscode.TextDocument,
 	diagnostics: vscode.DiagnosticCollection,
-	cliPath: string,
 	onResult: (result: ValidationResult) => void,
 	onError?: (error: Error) => void,
 	profile?: string,
+	credentialResolver?: CredentialResolver,
 ): void {
-	runValidation({
-		doc,
-		diagnostics,
-		cliPath,
-		profile,
-		kind: 'report',
-		onResult,
-		onError,
-	});
+	runValidation({ doc, diagnostics, profile, credentialResolver, kind: 'report', onResult, onError });
 }
 
 function runValidation(request: ValidationRequest): void {
-	const { doc, diagnostics, cliPath, kind, onError } = request;
+	const { doc, diagnostics, kind, onError } = request;
 
 	const key = doc.uri.toString();
 	const state = getRunState(key);
@@ -114,7 +83,7 @@ function runValidation(request: ValidationRequest): void {
 	state.running = true;
 	state.pending = undefined;
 
-	spawnValidation(cliPath, doc.uri.fsPath, request.profile).then(result => {
+	runValidationInProcess(doc.uri.fsPath, request.profile, request.credentialResolver).then(result => {
 		state.running = false;
 
 		const items = [
@@ -148,26 +117,42 @@ function runPendingValidation(state: RunState): void {
 	runValidation(pending);
 }
 
-function spawnValidation(cliPath: string, filePath: string, profile?: string): Promise<ValidationResult> {
-	return new Promise((resolve, reject) => {
-		const proc = spawnCli(cliPath, buildValidateArgs(filePath, profile));
-		let stdout = '';
-		let stderr = '';
+async function runValidationInProcess(
+	filePath: string,
+	profile: string | undefined,
+	credentialResolver: CredentialResolver | undefined,
+): Promise<ValidationResult> {
+	const { template } = await createTemplateLibrary().loadSource(filePath);
 
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+	const connectionWarnings: ValidationWarning[] = [];
+	let project: TemplateVerificationOptions['project'];
 
-		proc.on('close', () => {
-			const result = parseValidationOutput(stdout);
-			if (result) {
-				resolve(result);
-			} else {
-				reject(new Error(stderr || 'Failed to parse validation output'));
-			}
-		});
+	if (profile && credentialResolver) {
+		try {
+			const adapter = await credentialResolver.resolveByName(profile);
+			const metadataReader = requireProjectMetadataReader(adapter);
+			const savedQueryReader = requireSavedQueryReader(adapter);
+			project = {
+				mode: 'online',
+				platform: {
+					getFieldSchemas: workItemType => metadataReader.getFieldSchemas(workItemType),
+					listSavedQueries: folder => savedQueryReader.listSavedQueries(folder),
+				},
+			};
+		} catch (err) {
+			project = { mode: 'online' };
+			connectionWarnings.push({
+				path: 'template',
+				message: `Could not validate project references against ADO: ${err instanceof Error ? err.message : String(err)}`,
+			});
+		}
+	} else {
+		project = { mode: 'offline' };
+	}
 
-		proc.on('error', reject);
-	});
+	const result = await verifyTemplate(template, { project });
+	result.warnings.push(...connectionWarnings);
+	return result;
 }
 
 export function resolvePathToRange(path: string, doc: vscode.TextDocument): vscode.Range {

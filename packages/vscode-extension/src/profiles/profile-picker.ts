@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { buildAuthListArgs, spawnCli } from '../cli/cli-provider.js';
+import type { CredentialResolver } from './credential-resolver.js';
 import { manageProfiles } from './profile-management.js';
-import { type AdoProfileJson, parseAdoProfilesJson, resolveDefaultProfile, sortAdoProfiles } from './profile-management-model.js';
+import { resolveDefaultProfile, sortProfiles } from './profile-helpers.js';
+import type { AzureDevOpsProfileMeta, ProfileStore } from './profile-store.js';
 
 export interface PickProfileOptions {
 	title: string;
@@ -9,20 +10,10 @@ export interface PickProfileOptions {
 	defaultProfile: string | undefined;
 }
 
-export function fetchAdoProfiles(cliPath: string): Promise<AdoProfileJson[] | null> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, buildAuthListArgs());
-		let stdout = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.on('close', () => { resolve(parseAdoProfilesJson(stdout) ?? null); });
-		proc.on('error', () => resolve(null));
-	});
-}
-
 type ProfileItem = vscode.QuickPickItem & { profileName: string | undefined };
 
-function buildProfileItems(profiles: AdoProfileJson[], allowOffline: boolean): ProfileItem[] {
-	const items: ProfileItem[] = sortAdoProfiles(profiles).map(p => ({
+function buildProfileItems(profiles: AzureDevOpsProfileMeta[], allowOffline: boolean): ProfileItem[] {
+	const items: ProfileItem[] = sortProfiles(profiles).map(p => ({
 		label: p.name,
 		description: p.isDefault ? 'default' : '',
 		detail: `${p.organizationUrl} · ${p.project}`,
@@ -53,17 +44,14 @@ async function showProfileQuickPick(
 }
 
 export async function pickProfile(
-	cliPath: string,
+	store: ProfileStore,
+	credentialResolver: CredentialResolver,
 	opts: PickProfileOptions,
 ): Promise<string | undefined | null> {
-	let adoProfiles = await fetchAdoProfiles(cliPath);
-	if (adoProfiles === null) {
-		void vscode.window.showErrorMessage('Could not list Azure DevOps profiles.');
-		return null;
-	}
-
 	while (true) {
-		if (adoProfiles.length === 0) {
+		const profiles = store.list();
+
+		if (profiles.length === 0) {
 			if (opts.allowOffline) {
 				type ZeroItem = vscode.QuickPickItem & { action: 'offline' | 'add' };
 				const picked = await vscode.window.showQuickPick<ZeroItem>(
@@ -75,27 +63,20 @@ export async function pickProfile(
 				);
 				if (!picked) return null;
 				if (picked.action === 'offline') return undefined;
-				await manageProfiles(cliPath, async () => true);
+				await manageProfiles(store, credentialResolver);
 			} else {
-				type ZeroItem = vscode.QuickPickItem & { action: 'add' | 'cancel' };
+				type ZeroItem = vscode.QuickPickItem & { action: 'add' };
 				const picked = await vscode.window.showQuickPick<ZeroItem>(
 					[{ label: 'Add profile...', action: 'add' }],
 					{ title: opts.title, placeHolder: `No Azure DevOps profiles configured — required for ${opts.title.replace('Atomize: ', '')}` },
 				);
 				if (!picked) return null;
-				await manageProfiles(cliPath, async () => true);
-			}
-			adoProfiles = await fetchAdoProfiles(cliPath);
-			if (adoProfiles === null) {
-				void vscode.window.showErrorMessage('Could not list Azure DevOps profiles.');
-				return null;
+				await manageProfiles(store, credentialResolver);
 			}
 		} else {
-			const items = buildProfileItems(adoProfiles, opts.allowOffline);
-			const defaultAdoProfile = resolveDefaultProfile(adoProfiles, opts.defaultProfile);
-			const activeItem = defaultAdoProfile
-				? items.find(i => i.profileName === defaultAdoProfile.name)
-				: undefined;
+			const items = buildProfileItems(profiles, opts.allowOffline);
+			const defaultProfile = resolveDefaultProfile(profiles, opts.defaultProfile);
+			const activeItem = defaultProfile ? items.find(i => i.profileName === defaultProfile.name) : undefined;
 			const picked = await showProfileQuickPick(items, opts.title, activeItem);
 			if (!picked) return null;
 			return picked.profileName ?? undefined;
