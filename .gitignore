@@ -83,6 +83,10 @@ out
 dist
 *.vsix
 
+# packages/cli/catalog is a build-time copy of packages/atomize-core/catalog
+# (the single authored source) — see packages/cli/scripts/prepare-dist.mjs
+packages/cli/catalog
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
