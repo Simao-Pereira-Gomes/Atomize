@@ -1,34 +1,62 @@
-# Template Builder context
+# Atomize Studio context
 
-The Template Builder is a standalone desktop application for visually authoring Templates. It consumes the shared Atomize domain in [../../CONTEXT.md](../../CONTEXT.md).
+Atomize Studio is a standalone desktop application covering visual Template authoring, task generation, Catalog management, and Connection Profile management — the desktop counterpart to the CLI and the VS Code extension. It consumes the shared Atomize domain in [../../CONTEXT.md](../../CONTEXT.md).
 
 ## Glossary
 
-**Template Builder**:
-A standalone desktop application for visually authoring Templates. It supports three Starting Paths: scratch, cloning an existing Catalog item, or generating a draft from a prose description. All paths converge on the same visual authoring surface. It produces a downloadable Atomize YAML File for manual installation via the CLI.
-_Avoid_: conflating with the CLI template wizard, which is a sequential terminal-driven flow for the same purpose.
+**Atomize Studio**:
+A standalone desktop application organised as independent Studio Sections (Templates, Generate, Catalog, Connections) behind a single Atomize Studio CLI Gate. The Templates Section supports three Starting Paths — scratch, Catalog Clone, Local File Clone — plus a fourth entry point, AI draft, all converging on the same visual authoring surface. Formerly named Template Builder.
+_Avoid_: Template Builder, its former name, now inaccurate since scope extends well beyond authoring; conflating with the CLI template wizard, which is a sequential terminal-driven flow for template authoring only.
 
-**Template Builder CLI Installation Command**:
-The user-approved `npm install -g @sppg2001/atomize` command the Template Builder runs in an in-app installation console to install or update its required CLI. The console shows the command and its output; the builder rechecks CLI availability and version after the command finishes. If npm is unavailable, the console explains that users may install Atomize manually with another package manager and then retry the CLI check.
+**Studio Section**:
+One of Atomize Studio's independent top-level areas — Templates, Generate, Catalog, or Connections — each reachable directly from the sidebar rather than as a step in a linear flow.
+_Avoid_: "panel", the VS Code extension's term for its webview surfaces (Generate Panel, Mock Preview Panel, Live Preview Panel), which are commands rather than persistent sidebar destinations.
 
-**Template Builder CLI Gate**:
-The exclusive launch surface that verifies the required CLI before the Template Builder authoring surface is available. It runs at app launch and after an explicit recovery action, not when the app regains focus or before every later CLI command.
+**Atomize Studio CLI Installation Command**:
+The user-approved `npm install -g @sppg2001/atomize` command Atomize Studio runs in an in-app installation console to install or update its required CLI. The console shows the command and its output; Atomize Studio rechecks CLI availability and version after the command finishes. If npm is unavailable, the console explains that users may install Atomize manually with another package manager and then retry the CLI check.
+
+**Atomize Studio CLI Gate**:
+The exclusive launch surface that verifies the required CLI before any Studio Section is available. It runs at app launch and after an explicit recovery action, not when the app regains focus or before every later CLI command.
 
 **CLI Probe Failure**:
-A failure to determine the availability or version of the CLI even though its executable may exist. In the Template Builder, a non-zero `atomize --version` result or output without a valid semantic version is a CLI Probe Failure; inability to start the executable is an absent CLI. A CLI Probe Failure is distinct from an absent or below-minimum CLI and offers reinstall and retry recovery actions.
+A failure to determine the availability or version of the CLI even though its executable may exist. In Atomize Studio, a non-zero `atomize --version` result or output without a valid semantic version is a CLI Probe Failure; inability to start the executable is an absent CLI. A CLI Probe Failure is distinct from an absent or below-minimum CLI and offers reinstall and retry recovery actions.
 
 **Starting Path**:
-One of three entry points into the Template Builder's authoring surface: scratch, Catalog clone, or AI draft. All Starting Paths converge on the same authoring surface.
+One of the Templates Section's entry points into the authoring surface: scratch, Catalog Clone, Local File Clone, or AI draft. All Starting Paths converge on the same authoring surface and produce a detached, new Template.
+_Avoid_: conflating with Open, which edits an existing local file in place rather than starting a new authoring session.
 
 **Catalog Clone**:
 A Starting Path that materialises a selected Catalog Template's Resolved Template into the Authoring Store. Its inherited and Mixin-contributed content becomes directly editable; the cloned Template does not retain `extends` or `mixins` declarations.
 The clone records Template Lineage to the selected source through its informational `origin` field.
+_Avoid_: conflating with Local File Clone, which clones from a local file rather than the Catalog and never sets `origin`.
+
+**Local File Clone**:
+A Starting Path that materialises a selected local Atomize YAML File into the Authoring Store as a detached copy, the same way Catalog Clone does for a Catalog item. It never sets `origin`: Template Lineage is a Catalog-only concept in the shared domain, so a Local File Clone records no provenance back to its source file. A file that fails to parse as YAML or lacks the top-level Template shape (no `tasks`, `name`, or `version`, or it is structurally a Mixin) is rejected outright; a file with the Template shape but invalid field values loads with inline errors, the same tolerance the Authoring Store already has for in-progress Templates.
+_Avoid_: conflating with Open, which edits the source file directly instead of producing a detached copy.
+
+**Open**:
+An Atomize Studio action that loads an existing local Atomize YAML File into the Authoring Store for direct editing, saving changes back to that same file rather than producing a new one. Applies the same format-rejection and field-level tolerance as Local File Clone.
+_Avoid_: conflating with Local File Clone, which produces a new, detached Template rather than editing the source file; conflating with a Starting Path, since Open continues an existing Template's identity rather than starting a new authoring session.
 
 **Authoring Store**:
-The single source of truth for the Template being authored in the Template Builder. The YAML preview, Review section, and Starting Path loaders all read from it.
+The single source of truth for the Template being authored in Atomize Studio. The Review section and Starting Path loaders read from it. Its `serialise` operation is all-or-nothing: it throws unless every section already validates, so there is no partial or incremental YAML view of an in-progress Template.
 
 **Task Auto-normalisation**:
 An opt-in, in-memory Task Builder behavior for Percentage-mode Tasks that preserves a valid edited Task percentage and proportionally redistributes the remaining percentage among its valid sibling Tasks. It is not part of a Template and is never written into its Atomize YAML File.
+
+**Live Execution Confirmation**:
+The confirmation step shown in the Generate Section before every task-creating execution, naming the Template, scope, and platform and defaulting to not proceeding. Shown on every execution with no session-level bypass, mirroring the CLI's per-invocation LIVE MODE confirmation.
+_Avoid_: assuming a "don't ask again this session" affordance exists — it was deliberately rejected to keep this safeguard identical to the CLI's.
+
+**Template Diff**:
+A read-only comparison, available in the Templates Section, between a Catalog Clone (or its descendant edits) and the Catalog item recorded in its `origin` field, showing what has changed since the clone. Available only when `origin` is set, so it does not apply to Local File Clones or from-scratch Templates.
+_Avoid_: conflating with Resolved Template, which shows composition output rather than a change comparison.
+
+**Catalog Install**:
+A Catalog Section action that installs an authored or generated Template directly into the user or project Catalog, in addition to exporting a downloadable Atomize YAML File for manual `atomize template install`.
+
+**Catalog Remove**:
+A Catalog Section action that deletes a user-installed Catalog item, the counterpart to Catalog Install.
 
 **Grounded Field Options**:
 Platform metadata fetched on demand through a selected Connection Profile and offered as choices for Template fields. They include filter choices (work item types, type-dependent states, teams, area paths, iteration paths, and saved queries) and Azure DevOps field schemas with their allowed values for custom fields and conditions. Grounded Field Options improve selection accuracy but never prevent manual, offline authoring.
@@ -36,16 +64,16 @@ Manually entered values remain available after grounding, profile changes, and r
 _Avoid_: treating grounding as a requirement for creating a Template, or removing a manually entered value because it is absent from grounded data.
 
 **CLI Grounding Parity**:
-The Template Builder presents the same Azure DevOps-backed field choices as the interactive `atomize template create` flow. It does not restrict grounding to only the controls that happen to be visible in the Builder's initial Filter section.
+Atomize Studio presents the same Azure DevOps-backed field choices as the interactive `atomize template create` flow. It does not restrict grounding to only the controls that happen to be visible in the Templates Section's initial Filter section.
 
 **Grounding Session**:
-The transient selection of a Connection Profile in the Template Builder used to fetch Grounded Field Options. A Grounding Session is not part of a Template and is never written into its Atomize YAML File.
+The transient selection of a Connection Profile in Atomize Studio used to fetch Grounded Field Options. A Grounding Session is not part of a Template and is never written into its Atomize YAML File.
 
 **Authoring-Time Grounding**:
 Using Grounded Field Options while authoring to reduce invalid platform-specific values. It does not provide exhaustive Online Validation of a completed Template.
 
 **Grounding Service**:
-The Template Builder capability that manages a Grounding Session and retrieves Grounded Field Options for present and future authoring controls. The first consumer set is the Filter section; custom-field and condition controls adopt it when those controls are introduced.
+The Atomize Studio capability that manages a Grounding Session and retrieves Grounded Field Options for present and future authoring controls. The first consumer set is the Filter section; custom-field and condition controls adopt it when those controls are introduced.
 
 **Work Project Setting**:
-The Template Builder's global header setting for choosing the Connection Profile used by the current Grounding Session. It uses non-technical language and applies choices across the Builder without becoming part of the Template.
+Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session. It uses non-technical language and applies choices across the app without becoming part of the Template.

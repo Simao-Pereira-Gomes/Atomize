@@ -1,0 +1,7 @@
+# Atomize Studio: Local File Clone omits origin / Template Lineage
+
+Local File Clone lets a user clone from any local Atomize YAML File, not just a Catalog item, mirroring what Catalog Clone already does. Catalog Clone always records provenance via the `origin` field, per the shared domain's Template Lineage concept — the root `CONTEXT.md` defines `origin` as "a Catalog ref (`template:<name>` or `mixin:<name>`) this template was derived from," and `atomize template list`'s "↖ based on:" display assumes that shape. A local file has no stable Catalog identity to reference that way: there's no name it could be looked up by in `template list`, and stuffing a file path (or a synthetic `file:<path>` value) into `origin` would violate the documented contract and could break or confuse that display.
+
+**Decision:** Local File Clone strips `origin` entirely, exactly as it already strips `extends`/`mixins` on clone — no provenance is recorded back to the source file. Template Lineage remains a Catalog-only concept in the shared domain. A consequence: Template Diff, which compares a clone against its `origin`, does not apply to Local File Clones — only to Catalog Clones.
+
+**Considered:** recording the file path in `origin` anyway — rejected because it's a shared-domain contract change requiring coordination with the CLI/schema package and with how `atomize template list` renders lineage, for a feature (Local File Clone) that is otherwise scoped entirely to Atomize Studio's own context.
