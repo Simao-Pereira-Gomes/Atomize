@@ -208,6 +208,18 @@ jobs:
         run: bun run package
         working-directory: packages/vscode-extension
 
+      - name: Check packaged extension size
+        working-directory: packages/vscode-extension
+        run: |
+          VSIX=$(ls *.vsix)
+          SIZE=$(stat -c%s "$VSIX")
+          MAX=$((5 * 1024 * 1024))
+          echo "Packaged extension: $VSIX ($SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "::error::Packaged extension is ${SIZE} bytes, exceeding the 5MB budget (${MAX} bytes)."
+            exit 1
+          fi
+
       - name: Verify packaged README images
         run: bun run verify:readme-images
         working-directory: packages/vscode-extension
