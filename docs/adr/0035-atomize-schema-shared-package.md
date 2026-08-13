@@ -6,6 +6,8 @@ The Template Builder needs the same Zod schema types (`TaskTemplate`, `FilterCri
 
 This keeps the canonical schema definition in one place, makes the data model a first-class package, and avoids any coupling between the Template Builder and CLI runtime code.
 
+**Still true post-ADR-0038:** `@sppg2001/atomize-core` (the extracted runtime package) depends on `atomize-schema` — `templates/schema.ts` is already a re-export of it — rather than absorbing it. Atomize Studio's frontend is a browser webview that imports `atomize-schema` directly today; `atomize-core` is Node-only (filesystem, platform SDKs, credential-injection logic), so merging the two would pull Node-only code into a browser bundle for no reason. The split stays live, not just historical.
+
 ## Considered options
 
 **Subpath export from the CLI** (`"exports": { "./schema": "./src/templates/schema.ts" }`): exposes types without a new package, but still requires resolving the internal `@/utils/graph.js` alias from outside the CLI's tsconfig, and it conflates a binary package with a library API.
