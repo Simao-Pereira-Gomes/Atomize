@@ -5,13 +5,22 @@ import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors"
 import { readFile } from "node:fs/promises";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
+import { CopilotAuthenticationError, GitHubCopilotProvider, type AIDraftSession } from "@sppg2001/atomize-ai";
+import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
 export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
 export type RpcNotification = { jsonrpc: "2.0"; method: "sidecar.ready" };
 export type CatalogLibrary = Pick<TemplateLibrary, "getCatalog">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
-export type SidecarServices = { library: CatalogLibrary; fetchGrounding: (connection: GroundingConnection) => Promise<unknown> };
+export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
+export type SidecarServices = {
+  library: CatalogLibrary;
+  fetchGrounding: (connection: GroundingConnection) => Promise<unknown>;
+  createDraftSession: () => Promise<AIDraftSession>;
+  drafts: Map<string, AIDraftSession>;
+  cancelledDrafts: Set<string>;
+};
 
 export function createTemplateLibrary(): TemplateLibrary {
   // The CI bundle copies atomize-core's catalog beside the sidecar binary.
@@ -20,7 +29,73 @@ export function createTemplateLibrary(): TemplateLibrary {
 }
 
 export function createSidecarServices(library = createTemplateLibrary()): SidecarServices {
-  return { library, fetchGrounding };
+  const provider = new GitHubCopilotProvider();
+  return { library, fetchGrounding, createDraftSession: () => provider.createDraftSession(), drafts: new Map(), cancelledDrafts: new Set() };
+}
+
+function aiDraftParams(params: unknown): AIDraftParams {
+  if (typeof params !== "object" || params === null) throw Object.assign(new Error("AI drafting requires a draft id and description."), { code: "INVALID_PARAMS" });
+  const value = params as Partial<AIDraftParams>;
+  if (typeof value.draftId !== "string" || !value.draftId || typeof value.prose !== "string" || !value.prose.trim()) {
+    throw Object.assign(new Error("AI drafting requires a draft id and description."), { code: "INVALID_PARAMS" });
+  }
+  return value as AIDraftParams;
+}
+
+function isRawTemplate(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    && typeof (value as Record<string, unknown>).version === "string"
+    && typeof (value as Record<string, unknown>).name === "string"
+    && Array.isArray((value as Record<string, unknown>).tasks)
+    && typeof (value as Record<string, unknown>).filter === "object"
+    && (value as Record<string, unknown>).filter !== null;
+}
+
+function parseRawTemplate(output: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = parseYaml(output.replace(/^```ya?ml\n?/i, "").replace(/\n?```\s*$/, "").trim());
+    return isRawTemplate(parsed) ? parsed : undefined;
+  } catch { return undefined; }
+}
+
+async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown> }> {
+  if (services.drafts.has(params.draftId)) throw Object.assign(new Error("That AI draft is already running."), { code: "AI_DRAFT_IN_PROGRESS" });
+  let session: AIDraftSession;
+  try { session = await services.createDraftSession(); }
+  catch (error) {
+    if (error instanceof CopilotAuthenticationError) throw Object.assign(error, { code: "COPILOT_AUTH_REQUIRED" });
+    throw error;
+  }
+  services.drafts.set(params.draftId, session);
+  try {
+    const grounding = params.grounding === undefined ? undefined : JSON.stringify(params.grounding);
+    let repair: string[] | undefined;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const output = await session.generate(buildSystemPrompt(), buildUserPrompt(params.prose, grounding, repair));
+      if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
+      const template = parseRawTemplate(output);
+      if (template) return { template };
+      repair = ["The result was not an Atomize Template-shaped YAML object. Return YAML with version, name, filter, and a tasks array."];
+    }
+    throw Object.assign(new Error("Copilot did not return a usable Template. Your description is still available to edit."), { code: "AI_DRAFT_MALFORMED" });
+  } catch (error) {
+    if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
+    throw error;
+  } finally {
+    services.drafts.delete(params.draftId);
+    services.cancelledDrafts.delete(params.draftId);
+    await session.dispose();
+  }
+}
+
+async function cancelDraft(params: unknown, services: SidecarServices): Promise<{ cancelled: boolean }> {
+  const draftId = typeof params === "object" && params !== null ? (params as { draftId?: unknown }).draftId : undefined;
+  if (typeof draftId !== "string" || !draftId) throw Object.assign(new Error("AI cancellation requires a draft id."), { code: "INVALID_PARAMS" });
+  const session = services.drafts.get(draftId);
+  if (!session) return { cancelled: false };
+  services.cancelledDrafts.add(draftId);
+  await session.abort();
+  return { cancelled: true };
 }
 
 export async function fetchGrounding(connection: GroundingConnection): Promise<unknown> {
@@ -67,6 +142,8 @@ export async function dispatch(request: RpcRequest, services: SidecarServices): 
       return await Promise.all(items.map(async item => ({ ...item, template: parseYaml(await readFile(item.path, "utf8")) })));
     })
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
+    .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
+    .with("ai.cancel", () => cancelDraft(request.params, services))
     .otherwise(method => { throw Object.assign(new Error(`Unknown method: ${method}`), { code: "METHOD_NOT_FOUND" }); });
 }
 

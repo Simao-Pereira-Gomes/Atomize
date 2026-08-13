@@ -25,7 +25,7 @@
     "active": true,
     "targets": "all",
     "icon": ["../../vscode-extension/icons/atomize-product.png"],
-    "externalBin": ["binaries/atomize-sidecar"],
+    "externalBin": ["binaries/atomize-sidecar", "binaries/atomize-copilot"],
     "resources": {
       "../../atomize-core/catalog": "catalog"
     }

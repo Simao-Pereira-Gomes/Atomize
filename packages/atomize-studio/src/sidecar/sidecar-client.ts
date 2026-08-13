@@ -24,3 +24,13 @@ export async function loadGrounding(profile: string, call: SidecarInvoker = taur
   try { return await call("grounding_load", { profile }); }
   catch (error) { throw sidecarError(error); }
 }
+
+export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("ai_generate", { draftId, prose, grounding }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+export async function cancelAIDraft(draftId: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
+  try { await call("ai_cancel", { draftId }); }
+  catch (error) { throw sidecarError(error); }
+}

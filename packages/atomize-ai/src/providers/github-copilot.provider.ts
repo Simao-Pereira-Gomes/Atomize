@@ -1,10 +1,10 @@
-import { CopilotClient, type CopilotSession } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection, type CopilotSession } from "@github/copilot-sdk";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AIProvider } from "../provider.interface";
+import type { AIDraftSession, AIProvider } from "../provider.interface";
 
 export class CopilotAuthenticationError extends Error {
   constructor(message = "GitHub Copilot is not signed in. Complete the Copilot sign-in flow, then try AI drafting again.") {
@@ -45,9 +45,36 @@ export class GitHubCopilotProvider implements AIProvider {
     });
   }
 
+  /** Creates the single session which is deliberately shared by repair attempts. */
+  async createDraftSession(): Promise<AIDraftSession> {
+    const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
+    const client = this.createClient(baseDirectory);
+    try {
+      await client.start();
+      if (!(await client.getAuthStatus()).isAuthenticated) throw new CopilotAuthenticationError();
+      let session: CopilotSession | undefined;
+      return {
+        generate: async (systemPrompt, userPrompt) => {
+          session ??= await this.createSession(client, systemPrompt, false);
+          return (await session.sendAndWait({ prompt: userPrompt }))?.data.content ?? "";
+        },
+        abort: async () => { await session?.abort(); },
+        dispose: async () => {
+          await session?.disconnect().catch(() => {});
+          await client.stop().catch(() => []);
+          await rm(baseDirectory, { recursive: true, force: true });
+        },
+      };
+    } catch (error) {
+      await client.stop().catch(() => []);
+      await rm(baseDirectory, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
   async *stream(systemPrompt: string, userPrompt: string): AsyncIterable<string> {
     const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
-    const client = new CopilotClient({ baseDirectory, logLevel: "error", mode: "empty" });
+    const client = this.createClient(baseDirectory);
     try {
       await client.start();
       const status = await client.getAuthStatus();
@@ -117,7 +144,7 @@ export class GitHubCopilotProvider implements AIProvider {
 
   private async withClient<T>(action: (client: CopilotClient) => Promise<T>): Promise<T> {
     const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
-    const client = new CopilotClient({ baseDirectory, logLevel: "error", mode: "empty" });
+    const client = this.createClient(baseDirectory);
     try {
       await client.start();
       return await action(client);
@@ -127,8 +154,19 @@ export class GitHubCopilotProvider implements AIProvider {
     }
   }
 
+
   private async isAuthenticated(): Promise<boolean> {
     return this.withClient(async (client) => (await client.getAuthStatus()).isAuthenticated);
+  }
+
+  private createClient(baseDirectory: string): CopilotClient {
+    const cliPath = process.env.ATOMIZE_COPILOT_CLI_PATH;
+    return new CopilotClient({
+      baseDirectory,
+      logLevel: "error",
+      mode: "empty",
+      connection: cliPath ? RuntimeConnection.forStdio({ path: cliPath }) : undefined,
+    });
   }
 
   private async startLogin(): Promise<void> {

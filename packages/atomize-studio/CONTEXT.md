@@ -16,7 +16,7 @@ _Avoid_: "panel", the VS Code extension's term for its webview surfaces (Generat
 The app-level recovery surface shown only when Studio's bundled companion process cannot start or repeatedly exits. It offers Retry, preserves the current in-memory authoring session, and leaves offline authoring and native Connection Profile management available while blocking companion-dependent actions. It is distinct from normal Studio launch and never checks for or installs an external CLI.
 
 **Starting Path**:
-One of the Templates Section's entry points into the authoring surface: scratch, Catalog Clone, Local File Clone, or AI draft. All Starting Paths converge on the same authoring surface and produce a detached, new Template.
+One of the Templates Section's entry points into the authoring surface: scratch, Catalog Clone, Local File Clone, or AI draft. All Starting Paths converge on the same authoring surface and produce a detached, new Template; an AI draft with Template shape may enter the Authoring Store with inline field-level errors, while malformed or non-Template output is rejected before handoff.
 _Avoid_: conflating with Open, which edits an existing local file in place rather than starting a new authoring session.
 
 **Catalog Clone**:
@@ -61,7 +61,7 @@ _Avoid_: treating grounding as a requirement for creating a Template, or removin
 Atomize Studio presents the same Azure DevOps-backed field choices as the interactive `atomize template create` flow. It does not restrict grounding to only the controls that happen to be visible in the Templates Section's initial Filter section.
 
 **Grounding Session**:
-The transient selection of a Connection Profile in Atomize Studio used to fetch Grounded Field Options. A Grounding Session is not part of a Template and is never written into its Atomize YAML File.
+The transient selection of a Connection Profile in Atomize Studio used to fetch Grounded Field Options and ground an AI draft. A Grounding Session is not part of a Template and is never written into its Atomize YAML File; a failed selected grounding request requires an explicit retry or switch to an ungrounded draft.
 
 **Authoring-Time Grounding**:
 Using Grounded Field Options while authoring to reduce invalid platform-specific values. It does not provide exhaustive Online Validation of a completed Template.
@@ -70,4 +70,4 @@ Using Grounded Field Options while authoring to reduce invalid platform-specific
 The Atomize Studio capability that manages a Grounding Session and retrieves Grounded Field Options for present and future authoring controls. The first consumer set is the Filter section; custom-field and condition controls adopt it when those controls are introduced.
 
 **Work Project Setting**:
-Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session. It uses non-technical language and applies choices across the app without becoming part of the Template.
+Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session and an AI draft. It uses non-technical language and applies choices across the app without becoming part of the Template; its explicit ungrounded state produces an AI draft without Azure DevOps context.

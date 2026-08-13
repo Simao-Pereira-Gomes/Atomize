@@ -54,7 +54,7 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; sidecarAvailable: Accessor<boolean> }) {
+export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; sidecarAvailable: Accessor<boolean>; aiDraftReady?: boolean }) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -218,6 +218,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
           </ol>
         </aside>
         <section class="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <Show when={props.aiDraftReady}><div class="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">AI draft ready to review — check the highlighted fields before saving.</div></Show>
           <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6 dark:border-slate-800">
             <div>
               <p class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Template details</p>

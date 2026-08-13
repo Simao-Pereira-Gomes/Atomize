@@ -15,4 +15,5 @@ export function createAIProvider(config: AIProviderConfig): AIProvider {
   }
 }
 
-export type { AIProvider } from "./provider.interface";
+export type { AIDraftSession, AIProvider } from "./provider.interface";
+export { CopilotAuthenticationError, GitHubCopilotProvider } from "./providers/github-copilot.provider";

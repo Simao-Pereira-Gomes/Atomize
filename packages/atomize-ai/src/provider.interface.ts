@@ -5,3 +5,10 @@ export interface AIProvider {
   generate(systemPrompt: string, userPrompt: string): Promise<string>;
   stream(systemPrompt: string, userPrompt: string): AsyncIterable<string>;
 }
+
+/** An ephemeral, tool-free conversation used for one user-requested draft. */
+export interface AIDraftSession {
+  generate(systemPrompt: string, userPrompt: string): Promise<string>;
+  abort(): Promise<void>;
+  dispose(): Promise<void>;
+}

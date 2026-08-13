@@ -745,6 +745,7 @@ export function createAuthoringStore(): AuthoringStore {
       },
       advancedMetadata,
     );
+    for (const store of Object.values(stores)) store.validate();
   };
 
   const toTemplate = () => {

@@ -17,6 +17,16 @@ async fn grounding_load(profile: String, relay: tauri::State<'_, Arc<SidecarRela
 }
 
 #[tauri::command]
+async fn ai_generate(draft_id: String, prose: String, grounding: Option<serde_json::Value>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("ai.generate", json!({ "draftId": draft_id, "prose": prose, "grounding": grounding })).await
+}
+
+#[tauri::command]
+async fn ai_cancel(draft_id: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("ai.cancel", json!({ "draftId": draft_id })).await
+}
+
+#[tauri::command]
 fn retry_sidecar(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<(), String> { relay.retry() }
 
 #[tauri::command]
@@ -36,7 +46,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_templates, grounding_load, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
+        .invoke_handler(tauri::generate_handler![catalog_list_templates, grounding_load, ai_generate, ai_cancel, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

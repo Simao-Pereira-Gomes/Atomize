@@ -4,6 +4,7 @@ import { StartingPathPicker } from "./components/StartingPathPicker";
 import { AtomizeStudio } from "./components/AtomizeStudio";
 import { TaskWidgetsPrototype } from "./components/prototypes/TaskWidgetsPrototype";
 import { type CatalogTemplateItem, toCatalogClone } from "./starting-paths/catalog-clone";
+import { type TaskTemplate } from "@sppg2001/atomize-schema";
 import { createAuthoringStore } from "./stores/sections";
 import "./App.css";
 
@@ -12,10 +13,11 @@ function StudioFlow(props: { sidecarAvailable: Accessor<boolean> }) {
   const stores = createAuthoringStore();
   const startScratch = () => { stores.reset(); setSurface("builder"); };
   const startCatalogClone = (item: CatalogTemplateItem) => { stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
+  const startAIDraft = (template: TaskTemplate) => { stores.loadTemplate(template); setSurface("builder"); };
   const changeStartingPath = () => { stores.reset(); setSurface("starting-paths"); };
 
-  return <Show when={surface() === "builder"} fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} catalogAvailable={props.sidecarAvailable} />}>
-    <AtomizeStudio stores={stores} onChangeStartingPath={changeStartingPath} sidecarAvailable={props.sidecarAvailable} />
+  return <Show when={surface() === "builder"} fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} onAIDraft={startAIDraft} catalogAvailable={props.sidecarAvailable} />}>
+    <AtomizeStudio stores={stores} onChangeStartingPath={changeStartingPath} sidecarAvailable={props.sidecarAvailable} aiDraftReady />
   </Show>;
 }
 

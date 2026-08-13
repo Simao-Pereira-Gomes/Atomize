@@ -29,7 +29,10 @@ impl SidecarRelay {
     pub fn start(self: &Arc<Self>) -> Result<(), String> {
         if self.fatal.load(Ordering::SeqCst) { return Err("Atomize sidecar is unavailable. Retry to start it again.".into()); }
         let catalog_root = self.app.path().resource_dir().map_err(|e| e.to_string())?;
-        let command = self.app.shell().sidecar(SIDECAR_NAME).map_err(|e| e.to_string())?.env("ATOMIZE_CATALOG_ROOT", catalog_root);
+        let copilot = copilot_cli_path()?;
+        let command = self.app.shell().sidecar(SIDECAR_NAME).map_err(|e| e.to_string())?
+            .env("ATOMIZE_CATALOG_ROOT", catalog_root)
+            .env("ATOMIZE_COPILOT_CLI_PATH", copilot);
         let (mut receiver, child) = command.spawn().map_err(|e| e.to_string())?;
         *self.child.lock().unwrap() = Some(child);
         let relay = Arc::clone(self);
@@ -87,6 +90,17 @@ impl SidecarRelay {
     pub fn is_fatal(&self) -> bool { self.fatal.load(Ordering::SeqCst) }
 }
 
+// Tauri strips the target suffix while staging external binaries beside the app
+// executable (both in target/debug and in a packaged app).
+fn copilot_cli_path() -> Result<std::path::PathBuf, String> {
+    let executable_dir = std::env::current_exe()
+        .map_err(|error| error.to_string())?
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| "Atomize Studio executable has no parent directory.".to_string())?;
+    Ok(executable_dir.join(format!("atomize-copilot{}", if cfg!(target_os = "windows") { ".exe" } else { "" })))
+}
+
 fn response_outcome(value: &Value) -> Result<Value, SidecarError> {
     match (value.get("result"), value.get("error")) {
         (Some(result), _) => Ok(result.clone()),
@@ -111,5 +125,10 @@ mod tests {
         let error = response_outcome(&json!({ "error": { "code": "GROUNDING_TOKEN_EXPIRED", "message": "Token expired." } })).unwrap_err();
         assert_eq!(error.code, "GROUNDING_TOKEN_EXPIRED");
         assert_eq!(error.message, "Token expired.");
+    }
+    #[test] fn resolves_the_staged_copilot_binary_without_a_target_suffix() {
+        let path = copilot_cli_path().unwrap();
+        let file_name = path.file_name().unwrap().to_string_lossy();
+        assert_eq!(file_name, if cfg!(target_os = "windows") { "atomize-copilot.exe" } else { "atomize-copilot" });
     }
 }
