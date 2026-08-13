@@ -153,4 +153,7 @@ packages/vscode-extension/src/webview/styles.generated.css
 
 # Locally compiled Tauri sidecar binaries and Bun's temporary build files.
 packages/atomize-sidecar/*.bun-build
+packages/atomize-sidecar/atomize-sidecar
+packages/atomize-sidecar/atomize-sidecar.exe
+packages/atomize-studio/*.bun-build
 packages/atomize-studio/src-tauri/binaries/atomize-sidecar-*
