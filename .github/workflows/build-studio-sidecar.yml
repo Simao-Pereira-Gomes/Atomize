@@ -1,0 +1,45 @@
+name: Build Studio sidecar
+
+on:
+  push:
+    branches: [main, "release/**"]
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  sidecar:
+    name: Sidecar (${{ matrix.triple }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            triple: x86_64-pc-windows-msvc
+          - os: macos-14
+            triple: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test
+        working-directory: packages/atomize-sidecar
+      - run: bun run build:standalone
+        working-directory: packages/atomize-sidecar
+      - name: Stage Tauri external binary
+        shell: bash
+        run: |
+          mkdir -p packages/atomize-studio/src-tauri/binaries
+          if [ "${{ runner.os }}" = "Windows" ]; then EXT=.exe; else EXT=; fi
+          cp "packages/atomize-sidecar/atomize-sidecar${EXT}" "packages/atomize-studio/src-tauri/binaries/atomize-sidecar-${{ matrix.triple }}${EXT}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atomize-sidecar-${{ matrix.triple }}
+          path: packages/atomize-studio/src-tauri/binaries/
+          retention-days: 7

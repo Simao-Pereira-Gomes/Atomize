@@ -5,7 +5,6 @@ import {
 	CliRuntimeError,
 	CliVersionError,
 	invoke,
-	listCatalogTemplates,
 	MalformedOutputError,
 	probeCli,
 	rotateAzureDevOpsToken,
@@ -77,17 +76,6 @@ describe('invoke', () => {
 		const error = await invoke(['template', 'list', '--json'], execute).catch(e => e);
 		expect(error).toBeInstanceOf(MalformedOutputError);
 		expect((error as MalformedOutputError).output).toBe('not json');
-	});
-});
-
-describe('listCatalogTemplates', () => {
-	it('requests only Templates in JSON mode', async () => {
-		const calls: string[][] = [];
-		await listCatalogTemplates(async (args) => {
-			calls.push(args);
-			return { code: 0, stdout: '[]', stderr: '' };
-		});
-		expect(calls).toEqual([['template', 'list', '--type', 'template', '--json']]);
 	});
 });
 

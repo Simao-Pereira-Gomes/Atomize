@@ -1,5 +1,5 @@
 import { createSignal, For, Match, Switch } from "solid-js";
-import { listCatalogTemplates } from "../cli/cli-bridge";
+import { listCatalogTemplates } from "../sidecar/sidecar-client";
 import {
   type CatalogTemplateItem,
   parseCatalogTemplates,

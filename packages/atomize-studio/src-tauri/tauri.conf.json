@@ -24,6 +24,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["../../vscode-extension/icons/atomize-product.png"]
+    "icon": ["../../vscode-extension/icons/atomize-product.png"],
+    "externalBin": ["binaries/atomize-sidecar"],
+    "resources": {
+      "../../atomize-core/catalog": "catalog"
+    }
   }
 }

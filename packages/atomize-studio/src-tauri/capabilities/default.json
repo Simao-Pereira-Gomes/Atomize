@@ -47,6 +47,12 @@
             "-g",
             "@sppg2001/atomize"
           ]
+        },
+        {
+          "name": "atomize-sidecar",
+          "cmd": "binaries/atomize-sidecar",
+          "sidecar": true,
+          "args": false
         }
       ]
     },

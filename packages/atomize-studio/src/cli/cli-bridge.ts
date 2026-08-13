@@ -112,10 +112,6 @@ export async function invoke(args: string[], execute: CliExecutor = defaultExecu
 	}
 }
 
-export async function listCatalogTemplates(execute: CliExecutor = defaultExecute): Promise<unknown> {
-	return await invoke(['template', 'list', '--type', 'template', '--json'], execute);
-}
-
 export type NewAzureDevOpsProfile = { name: string; organizationUrl: string; project: string; team: string; pat: string };
 
 export async function addAzureDevOpsProfile(profile: NewAzureDevOpsProfile, execute: CliStdinExecutor = defaultExecuteWithStdin): Promise<void> {

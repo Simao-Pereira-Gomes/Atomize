@@ -1,4 +1,5 @@
-import { createSignal, Match, onMount, Show, Switch } from "solid-js";
+import { createSignal, Match, onCleanup, onMount, Show, Switch, type JSX } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import atomizeIcon from "../../vscode-extension/icons/atomize-product.svg";
 import {
   CliAbsentError,
@@ -174,7 +175,26 @@ function App() {
     const stores = createAuthoringStore();
     return <AtomizeStudio stores={stores} onChangeStartingPath={() => stores.reset()} initialSection="tasks" />;
   }
-  return <CliGate />;
+  return <SidecarGate><CliGate /></SidecarGate>;
+}
+
+function SidecarGate(props: { children: JSX.Element }) {
+  const [fatal, setFatal] = createSignal(false);
+  const refresh = async () => setFatal(await invoke<boolean>("sidecar_fatal").catch(() => false));
+  onMount(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 1000);
+    onCleanup(() => window.clearInterval(timer));
+  });
+  const retry = async () => { await invoke("retry_sidecar"); await refresh(); };
+  return <Show when={!fatal()} fallback={
+    <main class="cli-gate" aria-live="assertive"><section class="cli-gate__action">
+      <div class="cli-gate__state"><span class="cli-gate__status-dot" /> Companion process unavailable</div>
+      <h1>Atomize Studio needs to restart its companion process</h1>
+      <p>The bundled Atomize service stopped repeatedly. Your work remains in this window.</p>
+      <button class="cli-gate__primary" type="button" onClick={() => void retry()}>Retry <span>→</span></button>
+    </section></main>
+  }>{props.children}</Show>;
 }
 
 export default App;
