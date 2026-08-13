@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { handleLine, type SidecarServices } from "./protocol";
 
-const services: SidecarServices = { library: { getCatalog: async () => ({ items: [] }) }, fetchGrounding: async () => ({}) };
+const services: SidecarServices = {
+  library: { getCatalog: async () => ({ items: [], overrides: [], lineage: [] }) },
+  fetchGrounding: async () => ({}),
+};
 
 describe("sidecar protocol", () => {
   it("serializes a catalog.list result", async () => {
