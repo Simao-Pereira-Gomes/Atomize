@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  CliGroundingUnavailableError,
   conditionFields,
   coerceGroundedTaskValue,
   editableTaskFields,
-  listAzureDevOpsProfiles,
   loadGroundedFieldOptions,
   ProjectConnectionError,
   parseGroundedFieldOptions,
@@ -30,22 +28,13 @@ describe("grounding service", () => {
     expect(conditionFields(options, ["User Story"]).map((field) => field.referenceName)).toEqual(["Custom.ClientTier"]);
   });
 
-  it("uses the CLI for Azure DevOps profiles and profile-scoped metadata", async () => {
-    const calls: string[][] = [];
-    const execute = async (args: string[]) => {
-      calls.push(args);
-      if (args[0] === "auth") return { code: 0, stdout: JSON.stringify([
-        { name: "ado", platform: "azure-devops", isDefault: true, organizationUrl: "https://dev.azure.com/org", project: "Project", team: "Platform" },
-        { name: "ai", platform: "github-models", isDefault: false, model: "gpt", tokenStorage: "keychain" },
-      ]), stderr: "" };
-      return { code: 0, stdout: JSON.stringify({ workItemTypes: [], statesByWorkItemType: {}, areaPaths: [], iterationPaths: [], teams: [], savedQueries: [], taskFields: [], fieldsByWorkItemType: {} }), stderr: "" };
-    };
-    await expect(listAzureDevOpsProfiles(execute)).resolves.toMatchObject([{ name: "ado", platform: "azure-devops" }]);
-    await loadGroundedFieldOptions("ado", execute);
-    expect(calls).toEqual([
-      ["auth", "list", "--json"],
-      ["template", "metadata", "--profile", "ado", "--json"],
-    ]);
+  it("fetches profile-scoped metadata through the native sidecar command", async () => {
+    const calls: Array<[string, Record<string, unknown> | undefined]> = [];
+    await loadGroundedFieldOptions("ado", async <T>(command: string, args?: Record<string, unknown>) => {
+      calls.push([command, args]);
+      return { workItemTypes: [], statesByWorkItemType: {}, areaPaths: [], iterationPaths: [], teams: [], savedQueries: [], taskFields: [], fieldsByWorkItemType: {} } as T;
+    });
+    expect(calls).toEqual([["grounding_load", { profile: "ado" }]]);
   });
 });
 
@@ -92,12 +81,20 @@ it("passes datetime field values through unchanged, including date macros", () =
   expect(coerceGroundedTaskValue(field, "@Today")).toBe("@Today");
 });
 
-it("explains when the installed CLI predates project grounding", async () => {
-  await expect(loadGroundedFieldOptions("ado", async () => ({ code: 1, stdout: "", stderr: "error: unknown command 'metadata'" }))).rejects.toBeInstanceOf(CliGroundingUnavailableError);
-});
-
-it("does not expose a CLI stack trace when an Azure DevOps token expires", async () => {
-  const error = await loadGroundedFieldOptions("ado", async () => ({ code: 1, stdout: "", stderr: "AuthError: Authentication failed: Access Denied: The Personal Access Token used has expired.\nfile:///stack.js:1" })).catch((reason) => reason);
+it("preserves the sidecar's safe expired-token message", async () => {
+  const error = await loadGroundedFieldOptions("ado", async () => Promise.reject({ code: "GROUNDING_TOKEN_EXPIRED", message: "Your Azure DevOps access token has expired. Add a new project connection with a current token, then try again." })).catch((reason) => reason);
   expect(error).toBeInstanceOf(ProjectConnectionError);
   expect((error as Error).message).toBe("Your Azure DevOps access token has expired. Add a new project connection with a current token, then try again.");
+});
+
+it("explains how to recover a CLI keyfile-backed profile", async () => {
+  const error = await loadGroundedFieldOptions("ado", async () => Promise.reject({ code: "INSECURE_TOKEN_STORAGE", message: "This Connection Profile uses CLI insecure storage. Rotate its token in Studio to use it here." })).catch((reason) => reason);
+  expect(error).toBeInstanceOf(ProjectConnectionError);
+  expect((error as Error).message).toBe("This Connection Profile uses CLI insecure storage. Rotate its token in Studio to use it here.");
+});
+
+it("explains how to recover a keychain-backed profile whose token is missing", async () => {
+  const error = await loadGroundedFieldOptions("ado", async () => Promise.reject({ code: "CREDENTIAL_MISSING", message: "This Connection Profile has no token in your operating system's credential store. Rotate its token in Studio to reconnect." })).catch((reason) => reason);
+  expect(error).toBeInstanceOf(ProjectConnectionError);
+  expect((error as Error).message).toBe("This Connection Profile has no token in your operating system's credential store. Rotate its token in Studio to reconnect.");
 });

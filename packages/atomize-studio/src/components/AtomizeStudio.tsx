@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onMount, Show, type Accessor } from "solid-js";
 import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken, setDefaultConnectionProfile } from "../connections/connection-client";
 import {
   type AzureDevOpsProfile,
@@ -54,7 +54,7 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId }) {
+export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; sidecarAvailable: Accessor<boolean> }) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -74,6 +74,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
   });
   const loadGrounding = async (profile = selectedProfile()) => {
     if (!profile) { setGrounded(undefined); setGroundingState("idle"); return true; }
+    if (!props.sidecarAvailable()) { setGroundingState("error"); setGroundingError("Grounding is unavailable while the companion process recovers."); return false; }
     setGroundingState("loading"); setGroundingError("");
     try { setGrounded(await loadGroundedFieldOptions(profile)); setGroundingState("ready"); return true; }
     catch (error) { setGroundingState("error"); setGroundingError(error instanceof Error ? error.message : "We could not get project choices right now."); return false; }
@@ -145,7 +146,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
           >
             Change starting path
           </button>
-          <GroundingSettings session={grounding} />
+          <GroundingSettings session={grounding} sidecarAvailable={props.sidecarAvailable} />
           <button
             class={`hidden rounded-lg px-3 py-2 text-sm font-semibold sm:block ${autoNormalize() ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}
             type="button"

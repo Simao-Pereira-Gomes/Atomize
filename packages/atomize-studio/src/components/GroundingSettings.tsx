@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, Show, type Accessor } from "solid-js";
 import type { NewAzureDevOpsProfile } from "../connections/connection-client";
 import type {
 	AzureDevOpsProfile,
@@ -29,7 +29,7 @@ function ProjectIcon(props: { project: string; active: boolean }) {
 	);
 }
 
-export function GroundingSettings(props: { session: GroundingSession }) {
+export function GroundingSettings(props: { session: GroundingSession; sidecarAvailable: Accessor<boolean> }) {
 	const [quickOpen, setQuickOpen] = createSignal(false);
 	const [manageOpen, setManageOpen] = createSignal(false);
 	const [managedProfileName, setManagedProfileName] = createSignal("");
@@ -57,7 +57,7 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 	});
 
 	const connect = async (profile: string) => {
-		if (connecting()) return;
+		if (connecting() || !props.sidecarAvailable()) return;
 		setConnecting(true);
 		const connected = await props.session.selectProfile(profile);
 		setConnecting(false);
@@ -168,7 +168,7 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 						<button
 							class={`flex w-full items-center gap-3 rounded-xl !border-0 p-3 text-left !shadow-none transition ${props.session.selectedProfile() === "" ? "!bg-indigo-50 dark:!bg-indigo-950/50" : "!bg-transparent hover:!bg-slate-50 dark:hover:!bg-slate-800"}`}
 							type="button"
-							disabled={connecting()}
+								disabled={connecting()}
 							onClick={disconnect}
 						>
 							<span
@@ -196,7 +196,7 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 								<button
 									class={`flex w-full items-center gap-3 rounded-xl !border-0 p-3 text-left !shadow-none transition ${profile.name === props.session.selectedProfile() ? "!bg-indigo-50 dark:!bg-indigo-950/50" : "!bg-transparent hover:!bg-slate-50 dark:hover:!bg-slate-800"}`}
 									type="button"
-									disabled={connecting()}
+									disabled={connecting() || !props.sidecarAvailable()}
 									onClick={() => void connect(profile.name)}
 								>
 									<ProjectIcon
@@ -246,6 +246,7 @@ export function GroundingSettings(props: { session: GroundingSession }) {
 							<button
 								class="text-sm font-semibold text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
 								type="button"
+								disabled={!props.sidecarAvailable()}
 								onClick={() => void props.session.refresh()}
 							>
 								Refresh

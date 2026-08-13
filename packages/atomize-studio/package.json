@@ -23,7 +23,6 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-shell": "^2",
     "@thisbeyond/solid-dnd": "^0.7.5",
-    "semver": "^7.7.2",
     "solid-js": "^1.9.3",
     "yaml": "^2.8.3"
   },
@@ -31,7 +30,6 @@
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2",
     "@types/node": "^25.6.0",
-    "@types/semver": "^7.5.8",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^6.0.3",

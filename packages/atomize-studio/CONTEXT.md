@@ -5,21 +5,15 @@ Atomize Studio is a standalone desktop application covering visual Template auth
 ## Glossary
 
 **Atomize Studio**:
-A standalone desktop application organised as independent Studio Sections (Templates, Generate, Catalog, Connections) behind a single Atomize Studio CLI Gate. The Templates Section supports three Starting Paths — scratch, Catalog Clone, Local File Clone — plus a fourth entry point, AI draft, all converging on the same visual authoring surface. Formerly named Template Builder.
+A standalone desktop application organised as independent Studio Sections (Templates, Generate, Catalog, Connections). The Templates Section supports three Starting Paths — scratch, Catalog Clone, Local File Clone — plus a fourth entry point, AI draft, all converging on the same visual authoring surface. Formerly named Template Builder.
 _Avoid_: Template Builder, its former name, now inaccurate since scope extends well beyond authoring; conflating with the CLI template wizard, which is a sequential terminal-driven flow for template authoring only.
 
 **Studio Section**:
 One of Atomize Studio's independent top-level areas — Templates, Generate, Catalog, or Connections — each reachable directly from the sidebar rather than as a step in a linear flow.
 _Avoid_: "panel", the VS Code extension's term for its webview surfaces (Generate Panel, Mock Preview Panel, Live Preview Panel), which are commands rather than persistent sidebar destinations.
 
-**Atomize Studio CLI Installation Command**:
-The user-approved `npm install -g @sppg2001/atomize` command Atomize Studio runs in an in-app installation console to install or update its required CLI. The console shows the command and its output; Atomize Studio rechecks CLI availability and version after the command finishes. If npm is unavailable, the console explains that users may install Atomize manually with another package manager and then retry the CLI check.
-
-**Atomize Studio CLI Gate**:
-The exclusive launch surface that verifies the required CLI before any Studio Section is available. It runs at app launch and after an explicit recovery action, not when the app regains focus or before every later CLI command.
-
-**CLI Probe Failure**:
-A failure to determine the availability or version of the CLI even though its executable may exist. In Atomize Studio, a non-zero `atomize --version` result or output without a valid semantic version is a CLI Probe Failure; inability to start the executable is an absent CLI. A CLI Probe Failure is distinct from an absent or below-minimum CLI and offers reinstall and retry recovery actions.
+**Companion Process Recovery**:
+The app-level recovery surface shown only when Studio's bundled companion process cannot start or repeatedly exits. It offers Retry, preserves the current in-memory authoring session, and leaves offline authoring and native Connection Profile management available while blocking companion-dependent actions. It is distinct from normal Studio launch and never checks for or installs an external CLI.
 
 **Starting Path**:
 One of the Templates Section's entry points into the authoring surface: scratch, Catalog Clone, Local File Clone, or AI draft. All Starting Paths converge on the same authoring surface and produce a detached, new Template.

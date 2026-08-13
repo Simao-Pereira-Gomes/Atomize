@@ -1,5 +1,5 @@
-import { type CliExecutor, CliRuntimeError, invoke } from "../cli/cli-bridge";
 import { listAzureDevOpsProfiles as listNativeAzureDevOpsProfiles, type AzureDevOpsProfile } from "../connections/connection-client";
+import { loadGrounding, SidecarRequestError, type SidecarInvoker } from "../sidecar/sidecar-client";
 
 export type { AzureDevOpsProfile } from "../connections/connection-client";
 
@@ -79,13 +79,6 @@ export function conditionFields(options: GroundedFieldOptions | undefined, workI
     .sort((left, right) => Number(right.isCustom) - Number(left.isCustom) || left.name.localeCompare(right.name));
 }
 
-export class CliGroundingUnavailableError extends Error {
-  override readonly name = "CliGroundingUnavailableError";
-  constructor() {
-    super("Your installed Atomize CLI needs an update before it can connect a work project. Install the current Atomize build, then try again.");
-  }
-}
-
 export class ProjectConnectionError extends Error {
   override readonly name = "ProjectConnectionError";
   constructor(message = "We couldn’t connect to that Azure DevOps project. Check the project settings and try again.") {
@@ -149,39 +142,15 @@ export function parseGroundedFieldOptions(value: unknown): GroundedFieldOptions 
   };
 }
 
-export async function listAzureDevOpsProfiles(execute?: CliExecutor): Promise<AzureDevOpsProfile[]> {
-  if (!execute) return await listNativeAzureDevOpsProfiles();
-  const value = await invoke(["auth", "list", "--json"], execute);
-  if (!Array.isArray(value)) throw new Error("CLI returned invalid Connection Profiles.");
-  return value.flatMap((profile) =>
-    isRecord(profile) && profile.platform === "azure-devops" &&
-    typeof profile.name === "string" && typeof profile.isDefault === "boolean" &&
-    typeof profile.organizationUrl === "string" && typeof profile.project === "string" && typeof profile.team === "string"
-      ? [{
-        name: profile.name,
-        platform: "azure-devops" as const,
-        isDefault: profile.isDefault,
-        organizationUrl: profile.organizationUrl,
-        project: profile.project,
-        team: profile.team,
-      }]
-      : [],
-  );
+export async function listAzureDevOpsProfiles(): Promise<AzureDevOpsProfile[]> {
+  return await listNativeAzureDevOpsProfiles();
 }
 
-export async function loadGroundedFieldOptions(profile: string, execute?: CliExecutor): Promise<GroundedFieldOptions> {
+export async function loadGroundedFieldOptions(profile: string, call?: SidecarInvoker): Promise<GroundedFieldOptions> {
   try {
-    return parseGroundedFieldOptions(await invoke(["template", "metadata", "--profile", profile, "--json"], execute));
+    return parseGroundedFieldOptions(await loadGrounding(profile, call));
   } catch (error) {
-    if (error instanceof CliRuntimeError && /unknown command ['"]?metadata/i.test(error.message)) {
-      throw new CliGroundingUnavailableError();
-    }
-    if (error instanceof CliRuntimeError) {
-      if (/token.*expired|personal access token.*expired/i.test(error.message)) {
-        throw new ProjectConnectionError("Your Azure DevOps access token has expired. Add a new project connection with a current token, then try again.");
-      }
-      throw new ProjectConnectionError();
-    }
+    if (error instanceof SidecarRequestError) throw new ProjectConnectionError(error.message);
     throw error;
   }
 }

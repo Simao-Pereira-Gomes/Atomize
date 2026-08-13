@@ -1,4 +1,4 @@
-import { createSignal, For, Match, Switch } from "solid-js";
+import { createSignal, For, Match, Switch, type Accessor } from "solid-js";
 import { listCatalogTemplates } from "../sidecar/sidecar-client";
 import {
   type CatalogTemplateItem,
@@ -15,6 +15,7 @@ type CatalogState =
 export function StartingPathPicker(props: {
   onScratch: () => void;
   onCatalogClone: (item: CatalogTemplateItem) => void;
+  catalogAvailable?: Accessor<boolean>;
 }) {
   const [catalog, setCatalog] = createSignal<CatalogState>({ kind: "idle" });
   const [theme, setTheme] = createSignal<"light" | "dark">(
@@ -22,6 +23,7 @@ export function StartingPathPicker(props: {
   );
 
   const openCatalog = async () => {
+    if (props.catalogAvailable?.() === false) return;
     setCatalog({ kind: "loading" });
     try {
       const items = parseCatalogTemplates(await listCatalogTemplates());
@@ -61,7 +63,7 @@ export function StartingPathPicker(props: {
                 <p class="text-lg font-bold">Start from scratch</p>
                 <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Begin with empty fields and standard settings.</p>
               </button>
-              <button class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-slate-800 dark:bg-slate-900" type="button" onClick={openCatalog}>
+              <button class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-indigo-400 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900" type="button" disabled={props.catalogAvailable?.() === false} title={props.catalogAvailable?.() === false ? "Catalog Clone is unavailable while the companion process recovers." : undefined} onClick={openCatalog}>
                 <p class="text-lg font-bold">Clone from Catalog</p>
                 <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Use an existing Template as a fully editable starting point.</p>
               </button>
@@ -76,8 +78,8 @@ export function StartingPathPicker(props: {
               <button class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={() => setCatalog({ kind: "idle" })}>← Back to starting paths</button>
               <Switch>
                 <Match when={catalog().kind === "loading"}><p class="mt-6 text-slate-600 dark:text-slate-300">Loading Catalog Templates…</p></Match>
-                <Match when={catalog().kind === "empty"}><div class="mt-6"><h2 class="text-xl font-bold">No Templates available</h2><p class="mt-2 text-slate-600 dark:text-slate-300">Install or create a Template, then try again.</p><button class="mt-4 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={openCatalog}>Retry</button></div></Match>
-                <Match when={catalog().kind === "error"}><div class="mt-6"><h2 class="text-xl font-bold">Could not load the Catalog</h2><p class="mt-2 text-slate-600 dark:text-slate-300">{(catalog() as Extract<CatalogState, { kind: "error" }>).message}</p><button class="mt-4 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={openCatalog}>Retry</button></div></Match>
+                <Match when={catalog().kind === "empty"}><div class="mt-6"><h2 class="text-xl font-bold">No Templates available</h2><p class="mt-2 text-slate-600 dark:text-slate-300">Install or create a Template, then try again.</p><button class="mt-4 text-sm font-semibold text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400" type="button" disabled={props.catalogAvailable?.() === false} onClick={openCatalog}>Retry</button></div></Match>
+                <Match when={catalog().kind === "error"}><div class="mt-6"><h2 class="text-xl font-bold">Could not load the Catalog</h2><p class="mt-2 text-slate-600 dark:text-slate-300">{(catalog() as Extract<CatalogState, { kind: "error" }>).message}</p><button class="mt-4 text-sm font-semibold text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400" type="button" disabled={props.catalogAvailable?.() === false} onClick={openCatalog}>Retry</button></div></Match>
                 <Match when={catalog().kind === "ready"}><div class="mt-6"><h2 class="text-xl font-bold">Choose a Template</h2><div class="mt-4 space-y-3"><For each={(catalog() as Extract<CatalogState, { kind: "ready" }>).items}>{(item) => <button class="w-full rounded-xl border border-slate-200 p-4 text-left hover:border-indigo-400 dark:border-slate-700" type="button" onClick={() => props.onCatalogClone(item)}><p class="font-semibold">{item.displayName}</p><p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{item.description}</p><p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{item.ref} · {item.scope}</p></button>}</For></div></div></Match>
               </Switch>
             </div>

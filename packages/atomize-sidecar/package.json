@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@sppg2001/atomize-core": "workspace:*",
+    "ts-pattern": "^5.9.0",
     "yaml": "^2.8.3"
   },
   "devDependencies": {

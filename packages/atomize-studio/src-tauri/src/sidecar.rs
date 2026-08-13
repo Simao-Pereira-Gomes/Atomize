@@ -8,10 +8,13 @@ const SIDECAR_NAME: &str = "atomize-sidecar";
 const MAX_RESTARTS: usize = 3;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SidecarError { pub code: String, pub message: String }
+
 pub struct SidecarRelay {
     app: AppHandle,
     next_id: AtomicU64,
-    pending: Mutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>,
+    pending: Mutex<HashMap<u64, oneshot::Sender<Result<Value, SidecarError>>>>,
     child: Mutex<Option<CommandChild>>,
     restarts: Mutex<Vec<Instant>>,
     ready: AtomicBool,
@@ -47,11 +50,7 @@ impl SidecarRelay {
         if value.get("method").and_then(Value::as_str) == Some("sidecar.ready") { self.ready.store(true, Ordering::SeqCst); return; }
         let Some(id) = value.get("id").and_then(Value::as_u64) else { return };
         let Some(sender) = self.pending.lock().unwrap().remove(&id) else { return };
-        let outcome = match (value.get("result"), value.get("error")) {
-            (Some(result), _) => Ok(result.clone()),
-            (_, Some(error)) => Err(error.get("message").and_then(Value::as_str).unwrap_or("Sidecar request failed.").to_owned()),
-            _ => Err("Malformed sidecar response.".into()),
-        };
+        let outcome = response_outcome(&value);
         let _ = sender.send(outcome);
     }
 
@@ -67,16 +66,16 @@ impl SidecarRelay {
         let _ = self.start();
     }
 
-    pub async fn request(&self, method: &str, params: Value) -> Result<Value, String> {
-        if self.fatal.load(Ordering::SeqCst) { return Err("Atomize sidecar failed repeatedly. Select Retry to restart it.".into()); }
-        if !self.ready.load(Ordering::SeqCst) { return Err("Atomize sidecar is still starting.".into()); }
+    pub async fn request(&self, method: &str, params: Value) -> Result<Value, SidecarError> {
+        if self.fatal.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar failed repeatedly. Select Retry to restart it.".into() }); }
+        if !self.ready.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_STARTING".into(), message: "Atomize sidecar is still starting.".into() }); }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (sender, receiver) = oneshot::channel();
         self.pending.lock().unwrap().insert(id, sender);
         let request = encode_request(id, method, params);
-        if let Some(child) = self.child.lock().unwrap().as_mut() { child.write(format!("{request}\n").as_bytes()).map_err(|e| e.to_string())?; }
-        else { self.pending.lock().unwrap().remove(&id); return Err("Atomize sidecar is not running.".into()); }
-        receiver.await.map_err(|_| "Atomize sidecar stopped before responding.".to_owned())?
+        if let Some(child) = self.child.lock().unwrap().as_mut() { child.write(format!("{request}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string() })?; }
+        else { self.pending.lock().unwrap().remove(&id); return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar is not running.".into() }); }
+        receiver.await.map_err(|_| SidecarError { code: "SIDECAR_STOPPED".into(), message: "Atomize sidecar stopped before responding.".into() })?
     }
 
     pub fn retry(self: &Arc<Self>) -> Result<(), String> {
@@ -86,6 +85,14 @@ impl SidecarRelay {
     }
     pub fn mark_fatal(&self) { self.fatal.store(true, Ordering::SeqCst); }
     pub fn is_fatal(&self) -> bool { self.fatal.load(Ordering::SeqCst) }
+}
+
+fn response_outcome(value: &Value) -> Result<Value, SidecarError> {
+    match (value.get("result"), value.get("error")) {
+        (Some(result), _) => Ok(result.clone()),
+        (_, Some(error)) => Err(SidecarError { code: error.get("code").and_then(Value::as_str).unwrap_or("SIDECAR_REQUEST_FAILED").to_owned(), message: error.get("message").and_then(Value::as_str).unwrap_or("Sidecar request failed.").to_owned() }),
+        _ => Err(SidecarError { code: "MALFORMED_SIDECAR_RESPONSE".into(), message: "Malformed sidecar response.".into() }),
+    }
 }
 
 pub fn encode_request(id: u64, method: &str, params: Value) -> String { json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }).to_string() }
@@ -99,5 +106,10 @@ mod tests {
         assert!(malformed.is_err());
         let mut pending: HashMap<u64, oneshot::Sender<Result<Value, String>>> = HashMap::new();
         assert!(pending.remove(&999).is_none());
+    }
+    #[test] fn preserves_a_structured_sidecar_error() {
+        let error = response_outcome(&json!({ "error": { "code": "GROUNDING_TOKEN_EXPIRED", "message": "Token expired." } })).unwrap_err();
+        assert_eq!(error.code, "GROUNDING_TOKEN_EXPIRED");
+        assert_eq!(error.message, "Token expired.");
     }
 }
