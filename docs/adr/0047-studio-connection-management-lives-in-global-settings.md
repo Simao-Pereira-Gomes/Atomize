@@ -1,0 +1,7 @@
+# Connection Profile management lives in Global Settings, not a Connections Studio Area
+
+Atomize Studio's sidebar navigation shell (#131) has three Studio Areas — Templates, Generate, Catalog. Connection Profile management (add, rotate, set default, remove, list) is not a fourth Studio Area; it lives in a Global Settings surface reachable from any area, alongside appearance (Theme). This overturns #129's Implementation Decision, which assigned Connection Profile management a dedicated Connections Section. Connection Profiles are cross-cutting infrastructure consumed by multiple areas — Templates' Grounding Session, Generate's execution target, and Catalog — rather than a workflow owned by any single one, mirroring how the CLI treats `auth` as global rather than scoped to a subcommand. A fourth sidebar area for this would either duplicate a settings surface reachable elsewhere or dress up settings as a workflow it isn't.
+
+**Considered:** a dedicated Connections Studio Area, per #129's original design — rejected because it forces users to choose between navigating to "Connections" to manage profiles versus everywhere else in the app that merely consumes them, when the underlying action (open settings, manage a credential) is the same regardless of which area a user is in.
+
+This leaves open where PRD stories #8–9 (browsing a profile's Azure DevOps field/query metadata) surface now that there is no Connections Area — parked as a future decision, not resolved here.
