@@ -174,7 +174,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
                 <GroundingSettings session={grounding} sidecarAvailable={props.sidecarAvailable} />
               </div>
               <div class="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-                <span class="text-sm text-slate-600 dark:text-slate-300">Appearance</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">Theme</span>
                 <button
                   class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-100 text-slate-600 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-300 dark:hover:!bg-slate-700"
                   type="button"
