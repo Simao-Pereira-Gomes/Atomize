@@ -62,6 +62,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
   const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>(props.initialSection ?? "basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
   const [grounded, setGrounded] = createSignal<GroundedFieldOptions>();
   const [selectedProfile, setSelectedProfile] = createSignal("");
@@ -138,48 +139,59 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
       class={`ui-proto-root min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`}
       data-theme={theme()}
     >
-      <header class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
-        <div class="flex min-w-0 items-center gap-3">
-          <div class="grid size-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-sm font-black text-white">
-            A
+      <header class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
+        <div class="flex min-w-0 items-center gap-4">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="grid size-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-sm font-black text-white">
+              A
+            </div>
+            <div class="min-w-0">
+              <p class="truncate font-semibold tracking-tight text-slate-950 dark:text-white">Atomize</p>
+              <p class="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Atomize Studio</p>
+            </div>
           </div>
-          <div class="min-w-0">
-            <p class="truncate font-semibold tracking-tight text-slate-950 dark:text-white">Atomize</p>
-            <p class="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Atomize Studio</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 sm:gap-3">
           <button
-            class="hidden text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400 md:block"
+            class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
             type="button"
             onClick={() => setConfirmReset(true)}
           >
-            Change starting path
-          </button>
-          <GroundingSettings session={grounding} sidecarAvailable={props.sidecarAvailable} />
-          <button
-            class={`hidden rounded-lg px-3 py-2 text-sm font-semibold sm:block ${autoNormalize() ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"}`}
-            type="button"
-            aria-pressed={autoNormalize()}
-            title="When you change one percentage, keep it and redistribute the other valid percentage Tasks so their total stays at 100%. This preference is not written to YAML."
-            onClick={() => setAutoNormalize((value) => !value)}
-          >
-            Task percentages: total 100% · {autoNormalize() ? "On" : "Off"}
-          </button>
-          <span class="hidden text-sm text-slate-500 dark:text-slate-400 md:inline">
-            {completedSections()} of {SECTION_META.length} sections ready
-          </span>
-          <button
-            class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-100 text-slate-600 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-300 dark:hover:!bg-slate-700"
-            type="button"
-            onClick={toggleTheme}
-            title="Toggle light/dark mode"
-            aria-label="Toggle light/dark mode"
-          >
-            {theme() === "dark" ? "☀" : "☾"}
+            ← Back to starting paths
           </button>
         </div>
+        <div class="relative">
+          <button
+            class="flex items-center gap-2 rounded-xl !border-0 !bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
+            type="button"
+            onClick={() => setSettingsOpen((value) => !value)}
+            aria-expanded={settingsOpen()}
+          >
+            ⚙ Settings
+          </button>
+          <Show when={settingsOpen()}>
+            <div class="absolute right-0 top-12 z-50 w-72 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+              <div>
+                <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Work project</p>
+                <GroundingSettings session={grounding} sidecarAvailable={props.sidecarAvailable} />
+              </div>
+              <div class="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+                <span class="text-sm text-slate-600 dark:text-slate-300">Appearance</span>
+                <button
+                  class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-100 text-slate-600 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-300 dark:hover:!bg-slate-700"
+                  type="button"
+                  onClick={toggleTheme}
+                  title="Toggle light/dark mode"
+                  aria-label="Toggle light/dark mode"
+                >
+                  {theme() === "dark" ? "☀" : "☾"}
+                </button>
+              </div>
+            </div>
+          </Show>
+        </div>
       </header>
+      <div class="h-1 w-full bg-slate-100 dark:bg-slate-800" role="presentation">
+        <div class="h-full bg-emerald-400 transition-all" style={{ width: `${completion()}%` }} />
+      </div>
       <main class="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[18rem_minmax(0,1fr)_17rem] lg:px-7 lg:py-8">
         <aside class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-6 lg:h-fit">
           <p class="px-3 pb-2 pt-1 text-xs font-bold tracking-widest text-slate-400 uppercase">
