@@ -13,11 +13,11 @@ export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?
 export type RpcNotification =
   | { jsonrpc: "2.0"; method: "sidecar.ready" }
   | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } };
-export type CatalogLibrary = Pick<TemplateLibrary, "getCatalog">;
+export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalog" | "getRunnableTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
 export type SidecarServices = {
-  library: CatalogLibrary;
+  library: SidecarTemplateLibrary;
   fetchGrounding: (connection: GroundingConnection) => Promise<unknown>;
   createDraftSession: () => Promise<AIDraftSession>;
   drafts: Map<string, AIDraftSession>;
@@ -150,6 +150,26 @@ export async function fetchGrounding(connection: GroundingConnection): Promise<u
   }
 }
 
+/** Composes a local file's `extends`/`mixins` for Studio's Open, without throwing on field-level invalidity — see ADR-0048. */
+export async function resolveLocalTemplate(path: string, services: SidecarServices): Promise<unknown> {
+  try {
+    const runnable = await services.library.getRunnableTemplate(path, { validate: false });
+    return runnable.template;
+  } catch (error) {
+    throw Object.assign(
+      new Error(`Atomize Studio could not resolve this template's extends/mixins: ${getErrorMessage(error)}`),
+      { code: "TEMPLATE_RESOLUTION_FAILED" },
+    );
+  }
+}
+
+function resolveLocalTemplateParams(params: unknown): { path: string } {
+  if (typeof params !== "object" || params === null || typeof (params as { path?: unknown }).path !== "string" || !(params as { path: string }).path.trim()) {
+    throw Object.assign(new Error("Resolving a local template requires a file path."), { code: "INVALID_PARAMS" });
+  }
+  return params as { path: string };
+}
+
 function groundingConnection(params: unknown): GroundingConnection {
   if (typeof params !== "object" || params === null) throw Object.assign(new Error("Grounding requires a resolved connection."), { code: "INVALID_PARAMS" });
   const value = params as Partial<GroundingConnection>;
@@ -168,6 +188,7 @@ export async function dispatch(request: RpcRequest, services: SidecarServices): 
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.cancel", () => cancelDraft(request.params, services))
+    .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))
     .otherwise(method => { throw Object.assign(new Error(`Unknown method: ${method}`), { code: "METHOD_NOT_FOUND" }); });
 }
 

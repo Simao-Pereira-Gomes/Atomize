@@ -2,7 +2,12 @@ import { describe, expect, it } from "bun:test";
 import { handleLine, type SidecarServices } from "./protocol";
 
 const services: SidecarServices = {
-  library: { getCatalog: async () => ({ items: [], overrides: [], lineage: [] }) },
+  library: {
+    getCatalog: async () => ({ items: [], overrides: [], lineage: [] }),
+    getRunnableTemplate: async () => {
+      throw new Error("getRunnableTemplate not stubbed for this test");
+    },
+  },
   fetchGrounding: async () => ({}),
   createDraftSession: async () => ({ generate: async () => "", abort: async () => {}, dispose: async () => {} }),
   drafts: new Map(),
@@ -25,6 +30,42 @@ describe("sidecar protocol", () => {
     const grounding: SidecarServices = { ...services, fetchGrounding: async connection => { received = connection; return { workItemTypes: ["Task"] }; } };
     await expect(handleLine('{"jsonrpc":"2.0","id":3,"method":"grounding.fetch","params":{"organizationUrl":"https://dev.azure.com/org","project":"P","team":"T","token":"secret"}}', grounding)).resolves.toEqual({ jsonrpc: "2.0", id: 3, result: { workItemTypes: ["Task"] } });
     expect(received).toEqual({ organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" });
+  });
+});
+
+describe("template.resolveLocal", () => {
+  it("resolves a local file's composed template with validation disabled", async () => {
+    let received: unknown;
+    const runnable: SidecarServices = {
+      ...services,
+      library: {
+        ...services.library,
+        getRunnableTemplate: async (source, options) => {
+          received = { source, options };
+          return { template: { name: "Composed" }, meta: {}, source: { kind: "file", input: source }, validation: { valid: true, errors: [] } } as never;
+        },
+      },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":20,"method":"template.resolveLocal","params":{"path":"/tmp/child.atomize.yaml"}}', runnable))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 20, result: { name: "Composed" } });
+    expect(received).toEqual({ source: "/tmp/child.atomize.yaml", options: { validate: false } });
+  });
+
+  it("rejects a request missing a path", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":21,"method":"template.resolveLocal","params":{}}', services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 21, error: { code: "INVALID_PARAMS", message: "Resolving a local template requires a file path." } });
+  });
+
+  it("wraps a resolution failure as TEMPLATE_RESOLUTION_FAILED", async () => {
+    const failing: SidecarServices = {
+      ...services,
+      library: {
+        ...services.library,
+        getRunnableTemplate: async () => { throw new Error('template "base" not found.'); },
+      },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":22,"method":"template.resolveLocal","params":{"path":"/tmp/child.atomize.yaml"}}', failing))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 22, error: { code: "TEMPLATE_RESOLUTION_FAILED", message: 'Atomize Studio could not resolve this template\'s extends/mixins: template "base" not found.' } });
   });
 });
 

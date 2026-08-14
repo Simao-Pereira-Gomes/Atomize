@@ -42,3 +42,9 @@ export async function cancelAIDraft(draftId: string, call: SidecarInvoker = taur
   try { await call("ai_cancel", { draftId }); }
   catch (error) { throw sidecarError(error); }
 }
+
+/** Resolves a local file's `extends`/`mixins` into a composed Template, so Open never has to strip them itself — see ADR-0048. */
+export async function resolveLocalTemplate(path: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("template_resolve_local", { path }); }
+  catch (error) { throw sidecarError(error); }
+}
