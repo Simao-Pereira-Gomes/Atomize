@@ -106,6 +106,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
 
   const [surface, setSurface] = createSignal<"starting-paths" | "builder">(props.diagnosticInitialSection ? "builder" : "starting-paths");
   const [isAIDraft, setIsAIDraft] = createSignal(false);
+  const [openFilePath, setOpenFilePath] = createSignal<string>();
   const stores = createAuthoringStore();
 
   const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
@@ -150,10 +151,11 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     },
   };
 
-  const startScratch = () => { setIsAIDraft(false); stores.reset(); setSurface("builder"); };
-  const startCatalogClone = (item: CatalogTemplateItem) => { setIsAIDraft(false); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
+  const startScratch = () => { setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("builder"); };
+  const startCatalogClone = (item: CatalogTemplateItem) => { setIsAIDraft(false); setOpenFilePath(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
   const startAIDraft = (template: TaskTemplate, workProject: string, groundingOptions?: GroundedFieldOptions) => {
     setIsAIDraft(true);
+    setOpenFilePath(undefined);
     stores.loadTemplate(template);
     if (workProject) {
       setSelectedProfile(workProject);
@@ -164,7 +166,8 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     }
     setSurface("builder");
   };
-  const changeStartingPath = () => { setIsAIDraft(false); stores.reset(); setSurface("starting-paths"); };
+  const startOpen = (template: TaskTemplate, path: string) => { setIsAIDraft(false); setOpenFilePath(path); stores.loadTemplate(template); setSurface("builder"); };
+  const changeStartingPath = () => { setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("starting-paths"); };
 
   return (
     <div class={`min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
@@ -175,13 +178,14 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
           <Show when={activeArea() === "templates"}>
             <Show
               when={surface() === "builder"}
-              fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} onAIDraft={startAIDraft} catalogAvailable={props.sidecarAvailable} />}
+              fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} onAIDraft={startAIDraft} onOpen={startOpen} catalogAvailable={props.sidecarAvailable} />}
             >
               <AtomizeStudio
                 stores={stores}
                 onChangeStartingPath={changeStartingPath}
                 initialSection={props.diagnosticInitialSection}
                 aiDraftReady={isAIDraft()}
+                openFilePath={openFilePath()}
                 grounding={grounding}
               />
             </Show>

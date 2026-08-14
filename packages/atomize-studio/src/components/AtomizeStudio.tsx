@@ -19,7 +19,7 @@ import {
 
 const OPTIONAL_SECTIONS = new Set<SectionId>(["metadata"]);
 
-function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean; onAutoNormalizeChange: () => void }) {
+function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean; onAutoNormalizeChange: () => void; openFilePath?: string }) {
   return (
     <>
       <Show when={props.id === "basic-info"}>
@@ -41,13 +41,13 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
         <MetadataSection store={props.stores.metadata} />
       </Show>
       <Show when={props.id === "review"}>
-        <ReviewSection store={props.stores} canReview={props.canReview} />
+        <ReviewSection store={props.stores} canReview={props.canReview} openFilePath={props.openFilePath} />
       </Show>
     </>
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; aiDraftReady?: boolean; grounding: GroundingSession }) {
+export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; aiDraftReady?: boolean; openFilePath?: string; grounding: GroundingSession }) {
   const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>(props.initialSection ?? "basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
@@ -159,7 +159,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
             </span>
           </div>
           <div class="mt-7">
-            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} onAutoNormalizeChange={() => setAutoNormalize((value) => !value)} />
+            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} onAutoNormalizeChange={() => setAutoNormalize((value) => !value)} openFilePath={props.openFilePath} />
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">

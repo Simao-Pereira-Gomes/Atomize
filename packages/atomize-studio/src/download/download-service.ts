@@ -48,3 +48,16 @@ export async function downloadTemplate(
 	}
 	return path;
 }
+
+/** Writes back to a known path with no save dialog — Open's in-place Save action. */
+export async function saveTemplateToPath(
+	path: string,
+	yaml: string,
+	writeFile: FileWriter = defaultWriteFile,
+): Promise<void> {
+	try {
+		await writeFile(path, yaml);
+	} catch (error) {
+		throw new DownloadError(error instanceof Error ? error.message : 'Could not save the template file.');
+	}
+}

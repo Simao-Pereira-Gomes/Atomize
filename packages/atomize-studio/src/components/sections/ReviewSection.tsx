@@ -1,5 +1,5 @@
 import { createSignal, Show } from "solid-js";
-import { downloadTemplate, slugifyTemplateName } from "../../download/download-service";
+import { downloadTemplate, saveTemplateToPath, slugifyTemplateName } from "../../download/download-service";
 import type { AuthoringStore } from "../../stores/sections";
 
 async function revealInFolder(path: string) {
@@ -7,7 +7,7 @@ async function revealInFolder(path: string) {
   await revealItemInDir(path);
 }
 
-export function ReviewSection(props: { store: AuthoringStore; canReview: boolean }) {
+export function ReviewSection(props: { store: AuthoringStore; canReview: boolean; openFilePath?: string }) {
   const [downloading, setDownloading] = createSignal(false);
   const [downloadError, setDownloadError] = createSignal("");
   const [saved, setSaved] = createSignal<{ name: string; path: string }>();
@@ -31,6 +31,22 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
         setSaved({ name, path });
         setTimeout(() => setSaved(undefined), 6000);
       }
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "We could not save the template.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const save = async () => {
+    const path = props.openFilePath;
+    if (!path || downloading()) return;
+    setDownloadError("");
+    setDownloading(true);
+    try {
+      await saveTemplateToPath(path, props.store.serialise());
+      setSaved({ name: fileName(), path });
+      setTimeout(() => setSaved(undefined), 6000);
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : "We could not save the template.");
     } finally {
@@ -68,14 +84,36 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
               >
                 Copy YAML
               </button>
-              <button
-                type="button"
-                class="rounded-md !border-0 !bg-emerald-600 px-2.5 py-1 text-xs font-semibold !text-white !shadow-none hover:!bg-emerald-500 disabled:opacity-60"
-                disabled={downloading()}
-                onClick={download}
+              <Show
+                when={props.openFilePath}
+                fallback={
+                  <button
+                    type="button"
+                    class="rounded-md !border-0 !bg-emerald-600 px-2.5 py-1 text-xs font-semibold !text-white !shadow-none hover:!bg-emerald-500 disabled:opacity-60"
+                    disabled={downloading()}
+                    onClick={download}
+                  >
+                    {downloading() ? "Exporting…" : "Export file…"}
+                  </button>
+                }
               >
-                {downloading() ? "Exporting…" : "Export file…"}
-              </button>
+                <button
+                  type="button"
+                  class="rounded-md !border-0 !bg-emerald-600 px-2.5 py-1 text-xs font-semibold !text-white !shadow-none hover:!bg-emerald-500 disabled:opacity-60"
+                  disabled={downloading()}
+                  onClick={save}
+                >
+                  {downloading() ? "Saving…" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-60"
+                  disabled={downloading()}
+                  onClick={download}
+                >
+                  {downloading() ? "Exporting…" : "Export as copy…"}
+                </button>
+              </Show>
               <button
                 type="button"
                 class="grid size-7 place-items-center rounded-md text-lg font-semibold text-slate-300 hover:bg-slate-800"

@@ -1,5 +1,7 @@
 import { createSignal, For, Match, Show, Switch, type Accessor } from "solid-js";
+import type { TaskTemplate } from "@sppg2001/atomize-schema";
 import { listAzureDevOpsProfiles, type AzureDevOpsProfile } from "../connections/connection-client";
+import { openLocalFile } from "../files/open";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
 import { cancelAIDraft, generateAIDraft, listCatalogTemplates, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
@@ -21,10 +23,13 @@ export function StartingPathPicker(props: {
   onScratch: () => void;
   onCatalogClone: (item: CatalogTemplateItem) => void;
   onAIDraft: (template: ReturnType<typeof parseAIDraftResponse>, workProject: string, grounding?: GroundedFieldOptions) => void;
+  onOpen: (template: TaskTemplate, path: string) => void;
   catalogAvailable?: Accessor<boolean>;
 }) {
   const [catalog, setCatalog] = createSignal<CatalogState>({ kind: "idle" });
   const [aiState, setAiState] = createSignal<AIState>("idle");
+  const [opening, setOpening] = createSignal(false);
+  const [openError, setOpenError] = createSignal("");
   const [prose, setProse] = createSignal("");
   const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
   const [profile, setProfile] = createSignal("");
@@ -47,6 +52,21 @@ export function StartingPathPicker(props: {
         kind: "error",
         message: error instanceof Error ? error.message : "Unable to load the Catalog.",
       });
+    }
+  };
+  const openFile = async () => {
+    if (opening()) return;
+    setOpenError("");
+    setOpening(true);
+    try {
+      const result = await openLocalFile();
+      if (result.kind === "cancelled") return;
+      if (result.kind === "wrong-format") { setOpenError(result.message); return; }
+      props.onOpen(result.template, result.path);
+    } catch (error) {
+      setOpenError(error instanceof Error ? error.message : "We could not open that file.");
+    } finally {
+      setOpening(false);
     }
   };
   const openAI = async () => {
@@ -123,7 +143,7 @@ export function StartingPathPicker(props: {
             </div>
           </Match>
           <Match when={catalog().kind === "idle"}>
-            <div class="mt-8 grid gap-4 md:grid-cols-3">
+            <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <button class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-slate-800 dark:bg-slate-900" type="button" onClick={props.onScratch}>
                 <p class="text-lg font-bold">Start from scratch</p>
                 <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Begin with empty fields and standard settings.</p>
@@ -132,8 +152,15 @@ export function StartingPathPicker(props: {
                 <p class="text-lg font-bold">Clone from Catalog</p>
                 <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Use an existing Template as a fully editable starting point.</p>
               </button>
+              <button class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-indigo-400 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900" type="button" disabled={opening()} onClick={() => void openFile()}>
+                <p class="text-lg font-bold">{opening() ? "Opening…" : "Open"}</p>
+                <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Load a local Atomize YAML File — save your edits back to it, or export a separate copy.</p>
+              </button>
               <button class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-indigo-400 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900" type="button" disabled={props.catalogAvailable?.() === false} title={props.catalogAvailable?.() === false ? "AI draft is unavailable while the companion process recovers." : undefined} onClick={() => void openAI()}><p class="text-lg font-bold">AI draft</p><p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Generate a first Template draft from a prose description.</p></button>
             </div>
+            <Show when={openError()}>
+              <p class="ui-error mt-4">{openError()}</p>
+            </Show>
           </Match>
           <Match when={catalog().kind !== "idle"}>
             <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">

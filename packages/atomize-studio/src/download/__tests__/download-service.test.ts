@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DownloadError, downloadTemplate, slugifyTemplateName } from '../download-service.js';
+import { DownloadError, downloadTemplate, saveTemplateToPath, slugifyTemplateName } from '../download-service.js';
 
 describe('downloadTemplate', () => {
 	it('writes the yaml to the chosen path and returns it', async () => {
@@ -46,6 +46,30 @@ describe('downloadTemplate', () => {
 		};
 
 		const error = await downloadTemplate('name: test\n', 'x.atomize.yaml', saveDialog, writeFile).catch(e => e);
+		expect(error).toBeInstanceOf(DownloadError);
+		expect((error as DownloadError).message).toBe('disk full');
+	});
+});
+
+describe('saveTemplateToPath', () => {
+	it('writes the yaml straight to the given path, with no dialog', async () => {
+		const writes: Array<{ path: string; contents: string }> = [];
+		const writeFile = async (path: string, contents: string) => {
+			writes.push({ path, contents });
+		};
+
+		await saveTemplateToPath('/Users/me/Desktop/backend-standard.atomize.yaml', 'name: test\n', writeFile);
+
+		expect(writes).toEqual([{ path: '/Users/me/Desktop/backend-standard.atomize.yaml', contents: 'name: test\n' }]);
+	});
+
+	it('wraps a write failure in DownloadError', async () => {
+		const writeFile = async () => {
+			throw new Error('disk full');
+		};
+
+		const error = await saveTemplateToPath('/Users/me/Desktop/x.atomize.yaml', 'name: test\n', writeFile).catch(e => e);
+
 		expect(error).toBeInstanceOf(DownloadError);
 		expect((error as DownloadError).message).toBe('disk full');
 	});
