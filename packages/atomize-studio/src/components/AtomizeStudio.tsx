@@ -1,18 +1,11 @@
-import { createMemo, createSignal, For, onMount, Show, type Accessor } from "solid-js";
-import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken, setDefaultConnectionProfile } from "../connections/connection-client";
-import {
-  type AzureDevOpsProfile,
-  type GroundedFieldOptions,
-  listAzureDevOpsProfiles,
-  loadGroundedFieldOptions,
-} from "../grounding/grounding-service";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import {
   isAuthoringStoreReadyForReview,
   SECTION_META,
   type SectionId,
   type SectionStores,
 } from "../stores/sections";
-import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
+import { type GroundingSession } from "./GroundingSettings";
 import { sectionFilledCount, sectionStatus, usesDefaultSectionSettings } from "./section-status";
 import {
   BasicInfoSection,
@@ -54,66 +47,12 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; sidecarAvailable: Accessor<boolean>; aiDraftReady?: boolean; initialWorkProject?: string; initialGroundedOptions?: GroundedFieldOptions }) {
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
-
+export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; aiDraftReady?: boolean; grounding: GroundingSession }) {
   const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>(props.initialSection ?? "basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
-  const [settingsOpen, setSettingsOpen] = createSignal(false);
-  const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
-  const [grounded, setGrounded] = createSignal<GroundedFieldOptions>();
-  const [selectedProfile, setSelectedProfile] = createSignal("");
-  const [groundingState, setGroundingState] = createSignal<"idle" | "loading" | "ready" | "error">("idle");
-  const [groundingError, setGroundingError] = createSignal("");
   const [autoNormalize, setAutoNormalize] = createSignal(false);
-
-  onMount(async () => {
-    try {
-      const available = await listAzureDevOpsProfiles();
-      setProfiles(available);
-      if (props.initialWorkProject && available.some((profile) => profile.name === props.initialWorkProject)) {
-        setSelectedProfile(props.initialWorkProject);
-        // The AI draft flow already resolved this profile's token and fetched grounding once;
-        // reuse that result instead of triggering a second OS credential-store read here.
-        if (props.initialGroundedOptions) { setGrounded(props.initialGroundedOptions); setGroundingState("ready"); }
-        else await loadGrounding(props.initialWorkProject);
-      }
-    } catch { /* Connecting is optional. */ }
-  });
-  const loadGrounding = async (profile = selectedProfile()) => {
-    if (!profile) { setGrounded(undefined); setGroundingState("idle"); return true; }
-    if (!props.sidecarAvailable()) { setGroundingState("error"); setGroundingError("Grounding is unavailable while the companion process recovers."); return false; }
-    setGroundingState("loading"); setGroundingError("");
-    try { setGrounded(await loadGroundedFieldOptions(profile)); setGroundingState("ready"); return true; }
-    catch (error) { setGroundingState("error"); setGroundingError(error instanceof Error ? error.message : "We could not get project choices right now."); return false; }
-  };
-  const grounding: GroundingSession = {
-    profiles,
-    selectedProfile,
-    options: grounded,
-    state: groundingState,
-    error: groundingError,
-    selectProfile: async (profile) => { setSelectedProfile(profile); return loadGrounding(profile); },
-    refresh: () => loadGrounding(),
-    addProject: async (project) => {
-      await addAzureDevOpsProfile(project);
-      const available = await listAzureDevOpsProfiles();
-      setProfiles(available);
-      setSelectedProfile(project.name);
-      await loadGrounding(project.name);
-    },
-    rotateToken: async (name, pat) => { await rotateAzureDevOpsToken(name, pat); },
-    setDefault: async (name) => { await setDefaultConnectionProfile(name); setProfiles(await listAzureDevOpsProfiles()); },
-    removeProject: async (name) => {
-      await removeConnectionProfile(name);
-      const available = await listAzureDevOpsProfiles();
-      setProfiles(available);
-      if (selectedProfile() === name) { setSelectedProfile(""); setGrounded(undefined); setGroundingState("idle"); }
-    },
-  };
+  const grounding = props.grounding;
 
   const filledCount = (id: SectionId) =>
     id === "review" ? 0 : sectionFilledCount(stores, id);
@@ -135,60 +74,16 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
   });
 
   return (
-    <div
-      class={`ui-proto-root min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`}
-      data-theme={theme()}
-    >
-      <header class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
-        <div class="flex min-w-0 items-center gap-4">
-          <div class="flex min-w-0 items-center gap-3">
-            <div class="grid size-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-sm font-black text-white">
-              A
-            </div>
-            <div class="min-w-0">
-              <p class="truncate font-semibold tracking-tight text-slate-950 dark:text-white">Atomize</p>
-              <p class="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Atomize Studio</p>
-            </div>
-          </div>
-          <button
-            class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
-            type="button"
-            onClick={() => setConfirmReset(true)}
-          >
-            ← Back to starting paths
-          </button>
-        </div>
-        <div class="relative">
-          <button
-            class="flex items-center gap-2 rounded-xl !border-0 !bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
-            type="button"
-            onClick={() => setSettingsOpen((value) => !value)}
-            aria-expanded={settingsOpen()}
-          >
-            ⚙ Settings
-          </button>
-          <Show when={settingsOpen()}>
-            <div class="absolute right-0 top-12 z-50 w-72 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-              <div>
-                <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Work project</p>
-                <GroundingSettings session={grounding} sidecarAvailable={props.sidecarAvailable} />
-              </div>
-              <div class="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-                <span class="text-sm text-slate-600 dark:text-slate-300">Theme</span>
-                <button
-                  class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-100 text-slate-600 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-300 dark:hover:!bg-slate-700"
-                  type="button"
-                  onClick={toggleTheme}
-                  title="Toggle light/dark mode"
-                  aria-label="Toggle light/dark mode"
-                >
-                  {theme() === "dark" ? "☀" : "☾"}
-                </button>
-              </div>
-            </div>
-          </Show>
-        </div>
-      </header>
+    <div class="ui-proto-root">
+      <div class="border-b border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
+        <button
+          class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+          type="button"
+          onClick={() => setConfirmReset(true)}
+        >
+          ← Back to starting paths
+        </button>
+      </div>
       <div class="h-1 w-full bg-slate-100 dark:bg-slate-800" role="presentation">
         <div class="h-full bg-emerald-400 transition-all" style={{ width: `${completion()}%` }} />
       </div>

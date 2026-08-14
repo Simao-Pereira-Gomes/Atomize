@@ -35,9 +35,6 @@ export function StartingPathPicker(props: {
   // getting close") without ever claiming completion before the sidecar call resolves.
   const progressPercent = () => streamLength() === 0 ? 8 : Math.min(92, Math.round((streamLength() / (streamLength() + 400)) * 100));
   const draftLifecycle = createAIDraftLifecycle();
-  const [theme, setTheme] = createSignal<"light" | "dark">(
-    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
-  );
 
   const openCatalog = async () => {
     if (props.catalogAvailable?.() === false) return;
@@ -93,20 +90,8 @@ export function StartingPathPicker(props: {
   };
 
   return (
-    <main class={`min-h-screen bg-slate-100 px-5 py-10 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-8 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
+    <div class="px-5 py-10 sm:px-8">
       <section class="mx-auto max-w-4xl">
-        <div class="flex items-center justify-between gap-4">
-          <p class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Atomize Studio</p>
-          <button
-            class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-200 text-slate-700 !shadow-none hover:!bg-slate-300 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
-            type="button"
-            onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
-            title="Toggle light/dark mode"
-            aria-label="Toggle light/dark mode"
-          >
-            {theme() === "dark" ? "☀" : "☾"}
-          </button>
-        </div>
         <Show when={aiState() === "idle" && catalog().kind === "idle"} fallback={<button class="mt-5 text-sm font-semibold text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400" type="button" disabled={aiState() === "generating" || aiState() === "cancelling"} onClick={() => { setAiState("idle"); setCatalog({ kind: "idle" }); }}>← Back to starting paths</button>}>
           <h1 class="mt-2 text-4xl font-bold tracking-tight text-slate-950 dark:text-white">Choose a starting path</h1>
           <p class="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
@@ -162,6 +147,6 @@ export function StartingPathPicker(props: {
           </Match>
         </Switch>
       </section>
-    </main>
+    </div>
   );
 }

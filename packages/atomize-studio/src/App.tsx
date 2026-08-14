@@ -1,28 +1,7 @@
-import { createSignal, onCleanup, onMount, Show, type Accessor } from "solid-js";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
-import { StartingPathPicker } from "./components/StartingPathPicker";
-import { AtomizeStudio } from "./components/AtomizeStudio";
-import type { GroundedFieldOptions } from "./grounding/grounding-service";
-import { type CatalogTemplateItem, toCatalogClone } from "./starting-paths/catalog-clone";
-import { type TaskTemplate } from "@sppg2001/atomize-schema";
-import { createAuthoringStore } from "./stores/sections";
+import { StudioShell } from "./components/StudioShell";
 import "./App.css";
-
-function StudioFlow(props: { sidecarAvailable: Accessor<boolean> }) {
-  const [surface, setSurface] = createSignal<"starting-paths" | "builder">("starting-paths");
-  const [aiDraftWorkProject, setAiDraftWorkProject] = createSignal("");
-  const [aiDraftGrounding, setAiDraftGrounding] = createSignal<GroundedFieldOptions>();
-  const [isAIDraft, setIsAIDraft] = createSignal(false);
-  const stores = createAuthoringStore();
-  const startScratch = () => { setIsAIDraft(false); setAiDraftWorkProject(""); setAiDraftGrounding(undefined); stores.reset(); setSurface("builder"); };
-  const startCatalogClone = (item: CatalogTemplateItem) => { setIsAIDraft(false); setAiDraftWorkProject(""); setAiDraftGrounding(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
-  const startAIDraft = (template: TaskTemplate, workProject: string, grounding?: GroundedFieldOptions) => { setIsAIDraft(true); setAiDraftWorkProject(workProject); setAiDraftGrounding(grounding); stores.loadTemplate(template); setSurface("builder"); };
-  const changeStartingPath = () => { setIsAIDraft(false); setAiDraftWorkProject(""); setAiDraftGrounding(undefined); stores.reset(); setSurface("starting-paths"); };
-
-  return <Show when={surface() === "builder"} fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} onAIDraft={startAIDraft} catalogAvailable={props.sidecarAvailable} />}>
-    <AtomizeStudio stores={stores} onChangeStartingPath={changeStartingPath} sidecarAvailable={props.sidecarAvailable} aiDraftReady={isAIDraft()} initialWorkProject={aiDraftWorkProject()} initialGroundedOptions={aiDraftGrounding()} />
-  </Show>;
-}
 
 function StudioApplication() {
   const [fatal, setFatal] = createSignal(false);
@@ -35,7 +14,7 @@ function StudioApplication() {
   const retry = async () => { await invoke("retry_sidecar"); await refresh(); };
 
   return <>
-    <StudioFlow sidecarAvailable={() => !fatal()} />
+    <StudioShell sidecarAvailable={() => !fatal()} />
     <Show when={fatal()}>
       <aside class="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-xl rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 shadow-2xl dark:border-amber-700 dark:bg-amber-950 dark:text-amber-50" aria-live="assertive" role="alert">
         <p class="font-bold">Companion process unavailable</p>
@@ -49,8 +28,9 @@ function StudioApplication() {
 function App() {
   const params = new URLSearchParams(window.location.search);
   if (import.meta.env.DEV && params.get("diagnostic") === "builder") {
-    const stores = createAuthoringStore();
-    return <AtomizeStudio stores={stores} onChangeStartingPath={() => stores.reset()} initialSection="tasks" sidecarAvailable={() => true} />;
+    // Bypasses only the sidecar_fatal companion-process check; still goes through the
+    // real shell (rail, Global Settings) so this diagnostic route exercises production UI.
+    return <StudioShell sidecarAvailable={() => true} diagnosticInitialSection="tasks" />;
   }
   return <StudioApplication />;
 }
