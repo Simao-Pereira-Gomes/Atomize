@@ -54,7 +54,7 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; sidecarAvailable: Accessor<boolean>; aiDraftReady?: boolean }) {
+export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; sidecarAvailable: Accessor<boolean>; aiDraftReady?: boolean; initialWorkProject?: string; initialGroundedOptions?: GroundedFieldOptions }) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -70,7 +70,17 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
   const [autoNormalize, setAutoNormalize] = createSignal(false);
 
   onMount(async () => {
-    try { setProfiles(await listAzureDevOpsProfiles()); } catch { /* Connecting is optional. */ }
+    try {
+      const available = await listAzureDevOpsProfiles();
+      setProfiles(available);
+      if (props.initialWorkProject && available.some((profile) => profile.name === props.initialWorkProject)) {
+        setSelectedProfile(props.initialWorkProject);
+        // The AI draft flow already resolved this profile's token and fetched grounding once;
+        // reuse that result instead of triggering a second OS credential-store read here.
+        if (props.initialGroundedOptions) { setGrounded(props.initialGroundedOptions); setGroundingState("ready"); }
+        else await loadGrounding(props.initialWorkProject);
+      }
+    } catch { /* Connecting is optional. */ }
   });
   const loadGrounding = async (profile = selectedProfile()) => {
     if (!profile) { setGrounded(undefined); setGroundingState("idle"); return true; }
@@ -282,11 +292,11 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
       <Show when={confirmReset()}>
         <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-5" role="presentation">
           <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="reset-title">
-            <h2 id="reset-title" class="text-xl font-bold text-slate-950 dark:text-white">Change starting path?</h2>
+            <h2 id="reset-title" class="text-xl font-bold text-slate-950 dark:text-white">Back to starting paths?</h2>
             <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Everything you have entered will be reset. This cannot be undone.</p>
             <div class="mt-6 flex justify-end gap-3">
               <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" type="button" onClick={() => setConfirmReset(false)}>Cancel</button>
-              <button class="rounded-lg !border-0 !bg-rose-600 px-4 py-2 text-sm font-semibold !text-white !shadow-none hover:!bg-rose-500" type="button" onClick={props.onChangeStartingPath}>Reset and change path</button>
+              <button class="rounded-lg !border-0 !bg-rose-600 px-4 py-2 text-sm font-semibold !text-white !shadow-none hover:!bg-rose-500" type="button" onClick={props.onChangeStartingPath}>Reset and go back</button>
             </div>
           </section>
         </div>

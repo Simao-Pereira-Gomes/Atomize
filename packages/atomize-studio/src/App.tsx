@@ -2,7 +2,7 @@ import { createSignal, onCleanup, onMount, Show, type Accessor } from "solid-js"
 import { invoke } from "@tauri-apps/api/core";
 import { StartingPathPicker } from "./components/StartingPathPicker";
 import { AtomizeStudio } from "./components/AtomizeStudio";
-import { TaskWidgetsPrototype } from "./components/prototypes/TaskWidgetsPrototype";
+import type { GroundedFieldOptions } from "./grounding/grounding-service";
 import { type CatalogTemplateItem, toCatalogClone } from "./starting-paths/catalog-clone";
 import { type TaskTemplate } from "@sppg2001/atomize-schema";
 import { createAuthoringStore } from "./stores/sections";
@@ -10,14 +10,17 @@ import "./App.css";
 
 function StudioFlow(props: { sidecarAvailable: Accessor<boolean> }) {
   const [surface, setSurface] = createSignal<"starting-paths" | "builder">("starting-paths");
+  const [aiDraftWorkProject, setAiDraftWorkProject] = createSignal("");
+  const [aiDraftGrounding, setAiDraftGrounding] = createSignal<GroundedFieldOptions>();
+  const [isAIDraft, setIsAIDraft] = createSignal(false);
   const stores = createAuthoringStore();
-  const startScratch = () => { stores.reset(); setSurface("builder"); };
-  const startCatalogClone = (item: CatalogTemplateItem) => { stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
-  const startAIDraft = (template: TaskTemplate) => { stores.loadTemplate(template); setSurface("builder"); };
-  const changeStartingPath = () => { stores.reset(); setSurface("starting-paths"); };
+  const startScratch = () => { setIsAIDraft(false); setAiDraftWorkProject(""); setAiDraftGrounding(undefined); stores.reset(); setSurface("builder"); };
+  const startCatalogClone = (item: CatalogTemplateItem) => { setIsAIDraft(false); setAiDraftWorkProject(""); setAiDraftGrounding(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
+  const startAIDraft = (template: TaskTemplate, workProject: string, grounding?: GroundedFieldOptions) => { setIsAIDraft(true); setAiDraftWorkProject(workProject); setAiDraftGrounding(grounding); stores.loadTemplate(template); setSurface("builder"); };
+  const changeStartingPath = () => { setIsAIDraft(false); setAiDraftWorkProject(""); setAiDraftGrounding(undefined); stores.reset(); setSurface("starting-paths"); };
 
   return <Show when={surface() === "builder"} fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} onAIDraft={startAIDraft} catalogAvailable={props.sidecarAvailable} />}>
-    <AtomizeStudio stores={stores} onChangeStartingPath={changeStartingPath} sidecarAvailable={props.sidecarAvailable} aiDraftReady />
+    <AtomizeStudio stores={stores} onChangeStartingPath={changeStartingPath} sidecarAvailable={props.sidecarAvailable} aiDraftReady={isAIDraft()} initialWorkProject={aiDraftWorkProject()} initialGroundedOptions={aiDraftGrounding()} />
   </Show>;
 }
 
@@ -45,7 +48,6 @@ function StudioApplication() {
 
 function App() {
   const params = new URLSearchParams(window.location.search);
-  if (import.meta.env.DEV && params.get("prototype") === "task-widgets") return <TaskWidgetsPrototype />;
   if (import.meta.env.DEV && params.get("diagnostic") === "builder") {
     const stores = createAuthoringStore();
     return <AtomizeStudio stores={stores} onChangeStartingPath={() => stores.reset()} initialSection="tasks" sidecarAvailable={() => true} />;

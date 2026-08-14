@@ -10,7 +10,9 @@ import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/servi
 
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
 export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
-export type RpcNotification = { jsonrpc: "2.0"; method: "sidecar.ready" };
+export type RpcNotification =
+  | { jsonrpc: "2.0"; method: "sidecar.ready" }
+  | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } };
 export type CatalogLibrary = Pick<TemplateLibrary, "getCatalog">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
@@ -20,6 +22,8 @@ export type SidecarServices = {
   createDraftSession: () => Promise<AIDraftSession>;
   drafts: Map<string, AIDraftSession>;
   cancelledDrafts: Set<string>;
+  /** Writes an out-of-band notification (no request id) to the transport, e.g. live AI draft progress. */
+  notify: (notification: RpcNotification) => void;
 };
 
 export function createTemplateLibrary(): TemplateLibrary {
@@ -30,7 +34,14 @@ export function createTemplateLibrary(): TemplateLibrary {
 
 export function createSidecarServices(library = createTemplateLibrary()): SidecarServices {
   const provider = new GitHubCopilotProvider();
-  return { library, fetchGrounding, createDraftSession: () => provider.createDraftSession(), drafts: new Map(), cancelledDrafts: new Set() };
+  return {
+    library,
+    fetchGrounding,
+    createDraftSession: () => provider.createDraftSession(),
+    drafts: new Map(),
+    cancelledDrafts: new Set(),
+    notify: (notification) => process.stdout.write(`${JSON.stringify(notification)}\n`),
+  };
 }
 
 function aiDraftParams(params: unknown): AIDraftParams {
@@ -71,7 +82,20 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
     const grounding = params.grounding === undefined ? undefined : JSON.stringify(params.grounding);
     let repair: string[] | undefined;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const output = await session.generate(buildSystemPrompt(), buildUserPrompt(params.prose, grounding, repair));
+      const systemPrompt = buildSystemPrompt();
+      const userPrompt = buildUserPrompt(params.prose, grounding, repair);
+      // Only the first attempt streams (mirrors the CLI's runGeneration): repairs are
+      // rare, and re-subscribing per attempt isn't worth it for progress feedback alone.
+      let output: string;
+      if (attempt === 0 && session.stream) {
+        output = "";
+        for await (const chunk of session.stream(systemPrompt, userPrompt)) {
+          output += chunk;
+          services.notify({ jsonrpc: "2.0", method: "ai.progress", params: { draftId: params.draftId, length: output.length } });
+        }
+      } else {
+        output = await session.generate(systemPrompt, userPrompt);
+      }
       if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
       const template = parseRawTemplate(output);
       if (template) return { template };

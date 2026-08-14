@@ -1,7 +1,7 @@
 import { createSignal, For, Match, Show, Switch, type Accessor } from "solid-js";
 import { listAzureDevOpsProfiles, type AzureDevOpsProfile } from "../connections/connection-client";
-import { loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { cancelAIDraft, generateAIDraft, listCatalogTemplates, SidecarRequestError } from "../sidecar/sidecar-client";
+import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
+import { cancelAIDraft, generateAIDraft, listCatalogTemplates, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
 import { createAIDraftLifecycle } from "../starting-paths/ai-draft-lifecycle";
 import {
@@ -15,12 +15,12 @@ type CatalogState =
   | { kind: "ready"; items: CatalogTemplateItem[] }
   | { kind: "empty" }
   | { kind: "error"; message: string };
-type AIState = "idle" | "form" | "grounding-error" | "generating" | "auth-error" | "error";
+type AIState = "idle" | "form" | "grounding-error" | "generating" | "cancelling" | "auth-error" | "error";
 
 export function StartingPathPicker(props: {
   onScratch: () => void;
   onCatalogClone: (item: CatalogTemplateItem) => void;
-  onAIDraft: (template: ReturnType<typeof parseAIDraftResponse>) => void;
+  onAIDraft: (template: ReturnType<typeof parseAIDraftResponse>, workProject: string, grounding?: GroundedFieldOptions) => void;
   catalogAvailable?: Accessor<boolean>;
 }) {
   const [catalog, setCatalog] = createSignal<CatalogState>({ kind: "idle" });
@@ -30,6 +30,10 @@ export function StartingPathPicker(props: {
   const [profile, setProfile] = createSignal("");
   const [aiError, setAiError] = createSignal("");
   const [draftId, setDraftId] = createSignal("");
+  const [streamLength, setStreamLength] = createSignal(0);
+  // Diminishing-returns curve over streamed character count: honest ("still working,
+  // getting close") without ever claiming completion before the sidecar call resolves.
+  const progressPercent = () => streamLength() === 0 ? 8 : Math.min(92, Math.round((streamLength() / (streamLength() + 400)) * 100));
   const draftLifecycle = createAIDraftLifecycle();
   const [theme, setTheme] = createSignal<"light" | "dark">(
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
@@ -55,13 +59,14 @@ export function StartingPathPicker(props: {
   };
   const generate = async (withoutProject = false) => {
     if (!prose().trim()) { setAiError("Describe the Template you want to draft."); return; }
-    const id = draftLifecycle.begin(); setDraftId(id); setAiState("generating"); setAiError("");
+    const id = draftLifecycle.begin(); setDraftId(id); setAiState("generating"); setAiError(""); setStreamLength(0);
+    const unlisten = await listenAIDraftProgress((progress) => { if (progress.draftId === id) setStreamLength(progress.length); });
     try {
       const grounding = !withoutProject && profile() ? await loadGroundedFieldOptions(profile()) : undefined;
       if (!draftLifecycle.isActive(id)) return;
       const result = await generateAIDraft(id, prose(), grounding);
       if (!draftLifecycle.isActive(id)) return;
-      props.onAIDraft(parseAIDraftResponse(result));
+      props.onAIDraft(parseAIDraftResponse(result), withoutProject ? "" : profile(), grounding);
     } catch (error) {
       if (!draftLifecycle.isActive(id)) return;
       const code = error instanceof SidecarRequestError ? error.code : "";
@@ -69,12 +74,15 @@ export function StartingPathPicker(props: {
       else if (code === "COPILOT_AUTH_REQUIRED") setAiState("auth-error");
       else if (code === "AI_DRAFT_CANCELLED") setAiState("form");
       else { setAiState("error"); setAiError(error instanceof Error ? error.message : "We could not create a draft."); }
+    } finally {
+      unlisten();
     }
   };
   const cancel = async () => {
     const id = draftId();
     draftLifecycle.cancel(id);
     setDraftId("");
+    setAiState("cancelling");
     try {
       if (id) await cancelAIDraft(id);
       setAiState("form");
@@ -99,21 +107,34 @@ export function StartingPathPicker(props: {
             {theme() === "dark" ? "☀" : "☾"}
           </button>
         </div>
-        <h1 class="mt-2 text-4xl font-bold tracking-tight text-slate-950 dark:text-white">Choose a starting path</h1>
-        <p class="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
-          Start fresh, use an existing template as a starting point, or let AI help you create a first draft.
-        </p>
+        <Show when={aiState() === "idle" && catalog().kind === "idle"} fallback={<button class="mt-5 text-sm font-semibold text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400" type="button" disabled={aiState() === "generating" || aiState() === "cancelling"} onClick={() => { setAiState("idle"); setCatalog({ kind: "idle" }); }}>← Back to starting paths</button>}>
+          <h1 class="mt-2 text-4xl font-bold tracking-tight text-slate-950 dark:text-white">Choose a starting path</h1>
+          <p class="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
+            Start fresh, use an existing template as a starting point, or let AI help you create a first draft.
+          </p>
+        </Show>
 
         <Switch>
           <Match when={aiState() !== "idle"}>
-            <div class="mt-8 max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <button class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" disabled={aiState() === "generating"} onClick={() => setAiState("idle")}>← Back to starting paths</button>
-              <Switch>
-                <Match when={aiState() === "generating"}><h2 class="mt-6 text-xl font-bold">Creating your AI draft…</h2><p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Copilot is preparing a Template. Your description remains private to this session.</p><button class="mt-5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" type="button" onClick={() => void cancel()}>Cancel draft</button></Match>
-                <Match when={aiState() === "grounding-error"}><h2 class="mt-6 text-xl font-bold">Could not load work-project context</h2><p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Your description is unchanged. Retry the project connection, or explicitly continue without project context.</p><div class="mt-5 flex gap-3"><button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry</button><button class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" type="button" onClick={() => void generate(true)}>Draft without project context</button></div></Match>
-                <Match when={aiState() === "auth-error"}><h2 class="mt-6 text-xl font-bold">Sign in to GitHub Copilot</h2><p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Complete Copilot sign-in on this computer, then retry your preserved draft.</p><button class="mt-5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry after sign-in</button></Match>
-                <Match when={aiState() === "form" || aiState() === "error"}><h2 class="mt-6 text-xl font-bold">Draft a Template with AI</h2><p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Describe the work and task breakdown you want. This prose is used only for this draft.</p><label class="mt-5 block text-sm font-semibold">Description<textarea class="mt-2 min-h-36 w-full rounded-lg border border-slate-300 p-3 dark:border-slate-700 dark:bg-slate-950" value={prose()} onInput={(event) => setProse(event.currentTarget.value)} placeholder="For example: a backend API feature with design, implementation, tests, and review." /></label><label class="mt-4 block text-sm font-semibold">Work project (optional)<select class="mt-2 w-full rounded-lg border border-slate-300 p-3 dark:border-slate-700 dark:bg-slate-950" value={profile()} onChange={(event) => setProfile(event.currentTarget.value)}><option value="">Use without a project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.project} · {item.team}</option>}</For></select></label><Show when={aiError()}><p class="mt-3 text-sm text-rose-600">{aiError()}</p></Show><button class="mt-5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Generate draft</button></Match>
-              </Switch>
+            <div class="mt-8 grid max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[minmax(0,1.3fr)_minmax(19rem,.7fr)]">
+              <div class="min-w-0 p-6">
+                <h2 class="text-3xl font-bold tracking-tight">AI draft</h2>
+                <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">Describe the work and task breakdown you want. Copilot creates a reviewable first Template draft.</p>
+                <label class="mt-6 block text-sm font-semibold">Template brief<textarea class="mt-2 min-h-64 w-full rounded-lg border border-slate-300 bg-white p-4 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950" value={prose()} disabled={aiState() === "generating" || aiState() === "cancelling"} onInput={(event) => setProse(event.currentTarget.value)} placeholder="For example: a backend API feature with design, implementation, tests, documentation, and review." /></label>
+                <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Your description is used only for this draft and remains private to this session.</p>
+                <Show when={aiError()}><p class="mt-3 text-sm text-rose-600">{aiError()}</p></Show>
+                <Show when={aiState() === "form" || aiState() === "error"}><button class="mt-5 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700" type="button" onClick={() => void generate()}>Create draft</button></Show>
+              </div>
+              <aside class="min-w-0 border-t border-slate-200 bg-slate-50 p-6 dark:border-slate-800 dark:bg-slate-950 md:border-t-0 md:border-l">
+                <p class="text-sm font-bold">Draft context</p>
+                <label class="mt-4 block min-w-0 text-sm font-semibold">Work Project <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span><select class="mt-2 block w-full min-w-0 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal dark:border-slate-700 dark:bg-slate-950" value={profile()} disabled={aiState() === "generating" || aiState() === "cancelling"} onChange={(event) => setProfile(event.currentTarget.value)}><option value="">No Work Project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.project}</option>}</For></select></label>
+                <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options, never its credentials.</p>
+                <Switch>
+                  <Match when={aiState() === "grounding-error"}><section class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-50"><p class="font-bold">Couldn’t load Work Project context</p><p class="mt-1 text-sm leading-6">Your description is unchanged. Retry the connection, or explicitly continue without project context.</p><div class="mt-4 flex flex-wrap gap-2"><button class="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry connection</button><button class="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold dark:border-amber-700" type="button" onClick={() => void generate(true)}>Draft without project context</button></div></section></Match>
+                  <Match when={aiState() === "auth-error"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">Sign in to GitHub Copilot</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">Complete Copilot sign-in on this computer, then retry your preserved draft. Atomize does not store a Copilot token.</p><button class="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry after sign-in</button></section></Match>
+                  <Match when={aiState() === "generating" || aiState() === "cancelling"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">{aiState() === "cancelling" ? "Cancelling draft…" : "Creating your AI draft…"}</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">{aiState() === "cancelling" ? "Waiting for Copilot to acknowledge cancellation." : "Copilot is preparing a Template. Output will open in the authoring surface for review."}</p><div class="mt-4 h-1.5 overflow-hidden rounded-full bg-indigo-200 dark:bg-indigo-950"><div class="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${progressPercent()}%` }} /></div><Show when={aiState() === "generating"}><button class="mt-4 rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-800 dark:border-indigo-700 dark:text-indigo-100" type="button" onClick={() => void cancel()}>Cancel draft</button></Show></section></Match>
+                </Switch>
+              </aside>
             </div>
           </Match>
           <Match when={catalog().kind === "idle"}>
@@ -131,7 +152,6 @@ export function StartingPathPicker(props: {
           </Match>
           <Match when={catalog().kind !== "idle"}>
             <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <button class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={() => setCatalog({ kind: "idle" })}>← Back to starting paths</button>
               <Switch>
                 <Match when={catalog().kind === "loading"}><p class="mt-6 text-slate-600 dark:text-slate-300">Loading Catalog Templates…</p></Match>
                 <Match when={catalog().kind === "empty"}><div class="mt-6"><h2 class="text-xl font-bold">No Templates available</h2><p class="mt-2 text-slate-600 dark:text-slate-300">Install or create a Template, then try again.</p><button class="mt-4 text-sm font-semibold text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400" type="button" disabled={props.catalogAvailable?.() === false} onClick={openCatalog}>Retry</button></div></Match>

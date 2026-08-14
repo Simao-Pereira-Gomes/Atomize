@@ -1,7 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type SidecarInvoker = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 const tauriInvoke: SidecarInvoker = invoke;
+
+export type AIDraftProgress = { draftId: string; length: number };
+
+/** Live progress for a running AI draft, forwarded from the sidecar's streaming response. */
+export async function listenAIDraftProgress(onProgress: (progress: AIDraftProgress) => void): Promise<UnlistenFn> {
+  return listen<AIDraftProgress>("ai-draft-progress", (event) => onProgress(event.payload));
+}
 
 export class SidecarRequestError extends Error {
   constructor(readonly code: string, message: string) { super(message); this.name = "SidecarRequestError"; }

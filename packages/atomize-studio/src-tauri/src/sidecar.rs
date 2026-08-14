@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}, time::{Duration, Instant}};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::{process::{CommandChild, CommandEvent}, ShellExt};
 use tokio::sync::oneshot;
 
@@ -50,7 +50,13 @@ impl SidecarRelay {
 
     fn handle_stdout(&self, bytes: &[u8]) {
         let Ok(value) = serde_json::from_slice::<Value>(bytes) else { return };
-        if value.get("method").and_then(Value::as_str) == Some("sidecar.ready") { self.ready.store(true, Ordering::SeqCst); return; }
+        match value.get("method").and_then(Value::as_str) {
+            Some("sidecar.ready") => { self.ready.store(true, Ordering::SeqCst); return; }
+            // Out-of-band notifications carry no request id; forward their params
+            // straight to the frontend as a Tauri event instead of matching a pending call.
+            Some("ai.progress") => { let _ = self.app.emit("ai-draft-progress", value.get("params")); return; }
+            _ => {}
+        }
         let Some(id) = value.get("id").and_then(Value::as_u64) else { return };
         let Some(sender) = self.pending.lock().unwrap().remove(&id) else { return };
         let outcome = response_outcome(&value);

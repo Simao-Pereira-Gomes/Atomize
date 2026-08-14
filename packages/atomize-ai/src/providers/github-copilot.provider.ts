@@ -13,6 +13,38 @@ export class CopilotAuthenticationError extends Error {
   }
 }
 
+/** Sends a prompt on an already-streaming session and yields its response incrementally. */
+async function* consumeDeltaStream(session: CopilotSession, userPrompt: string): AsyncIterable<string> {
+  const chunks: string[] = [];
+  let completed = false;
+  let wake: (() => void) | undefined;
+  const unsubscribe = session.on("assistant.message_delta", (event) => {
+    chunks.push(event.data.deltaContent);
+    wake?.();
+  });
+  const generation = session.sendAndWait({ prompt: userPrompt }).then((response) => {
+    if (chunks.length === 0 && response?.data.content) chunks.push(response.data.content);
+  }).finally(() => {
+    completed = true;
+    wake?.();
+  });
+
+  try {
+    while (!completed || chunks.length > 0) {
+      const chunk = chunks.shift();
+      if (chunk) {
+        yield chunk;
+        continue;
+      }
+      await new Promise<void>((resolve) => { wake = resolve; });
+      wake = undefined;
+    }
+    await generation;
+  } finally {
+    unsubscribe();
+  }
+}
+
 export class GitHubCopilotProvider implements AIProvider {
   readonly id = "github-copilot";
 
@@ -53,10 +85,18 @@ export class GitHubCopilotProvider implements AIProvider {
       await client.start();
       if (!(await client.getAuthStatus()).isAuthenticated) throw new CopilotAuthenticationError();
       let session: CopilotSession | undefined;
+      // Streaming is enabled unconditionally so the same shared session can serve either
+      // generate() or stream() first, whichever a caller reaches for; it does not change
+      // sendAndWait's behavior, only whether delta events are also emitted alongside it.
+      const ensureSession = async (systemPrompt: string) => session ??= await this.createSession(client, systemPrompt, true);
       return {
         generate: async (systemPrompt, userPrompt) => {
-          session ??= await this.createSession(client, systemPrompt, false);
-          return (await session.sendAndWait({ prompt: userPrompt }))?.data.content ?? "";
+          const active = await ensureSession(systemPrompt);
+          return (await active.sendAndWait({ prompt: userPrompt }))?.data.content ?? "";
+        },
+        stream: async function* (systemPrompt, userPrompt) {
+          const active = await ensureSession(systemPrompt);
+          yield* consumeDeltaStream(active, userPrompt);
         },
         abort: async () => { await session?.abort(); },
         dispose: async () => {
@@ -81,33 +121,9 @@ export class GitHubCopilotProvider implements AIProvider {
       if (!status.isAuthenticated) throw new CopilotAuthenticationError();
 
       const session = await this.createSession(client, systemPrompt, true);
-      const chunks: string[] = [];
-      let completed = false;
-      let wake: (() => void) | undefined;
-      const unsubscribe = session.on("assistant.message_delta", (event) => {
-        chunks.push(event.data.deltaContent);
-        wake?.();
-      });
-      const generation = session.sendAndWait({ prompt: userPrompt }).then((response) => {
-        if (chunks.length === 0 && response?.data.content) chunks.push(response.data.content);
-      }).finally(() => {
-        completed = true;
-        wake?.();
-      });
-
       try {
-        while (!completed || chunks.length > 0) {
-          const chunk = chunks.shift();
-          if (chunk) {
-            yield chunk;
-            continue;
-          }
-          await new Promise<void>((resolve) => { wake = resolve; });
-          wake = undefined;
-        }
-        await generation;
+        yield* consumeDeltaStream(session, userPrompt);
       } finally {
-        unsubscribe();
         await session.disconnect().catch(() => {});
       }
     } finally {

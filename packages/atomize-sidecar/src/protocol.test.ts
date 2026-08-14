@@ -7,6 +7,7 @@ const services: SidecarServices = {
   createDraftSession: async () => ({ generate: async () => "", abort: async () => {}, dispose: async () => {} }),
   drafts: new Map(),
   cancelledDrafts: new Set(),
+  notify: () => {},
 };
 
 describe("sidecar protocol", () => {
@@ -60,6 +61,29 @@ describe("AI draft protocol", () => {
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":10,"method":"ai.generate","params":{"draftId":"draft-1","prose":"Build something"}}', ai)).resolves.toEqual({ jsonrpc: "2.0", id: 10, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "", estimationPercent: 120 }] } } });
     expect(disposed).toBe(true);
+  });
+
+  it("streams the first attempt through session.stream and notifies progress by accumulated length", async () => {
+    const notifications: unknown[] = [];
+    const template = "version: '1.0'\nname: Draft\nfilter: {}\ntasks: []";
+    const chunks = [template.slice(0, 10), template.slice(10)];
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      notify: (notification) => notifications.push(notification),
+      createDraftSession: async () => ({
+        generate: async () => { throw new Error("generate() should not be called when stream() is available"); },
+        stream: async function* () { for (const chunk of chunks) yield chunk; },
+        abort: async () => {}, dispose: async () => {},
+      }),
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":14,"method":"ai.generate","params":{"draftId":"draft-stream","prose":"Build something"}}', ai))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [] } } });
+    expect(notifications).toEqual([
+      { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: chunks[0]!.length } },
+      { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: template.length } },
+    ]);
   });
 
   it("retries malformed output no more than three times", async () => {
