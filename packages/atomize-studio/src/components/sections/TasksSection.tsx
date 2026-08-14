@@ -487,7 +487,7 @@ function SortableTaskOutlineItem(props: { store: TasksStore; taskKey: string; in
   </div>;
 }
 
-export function TasksSection(props: { store: TasksStore; grounding?: GroundingSession; conditionWorkItemTypes: string[]; autoNormalize: boolean }) {
+export function TasksSection(props: { store: TasksStore; grounding?: GroundingSession; conditionWorkItemTypes: string[]; autoNormalize: boolean; onAutoNormalizeChange: () => void }) {
   const s = props.store;
   const [selectedKey, setSelectedKey] = createSignal("");
   const selectedIndex = createMemo(() => s.fields.items.findIndex((task) => task.key === selectedKey()));
@@ -519,7 +519,20 @@ export function TasksSection(props: { store: TasksStore; grounding?: GroundingSe
     <aside class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
       <div class="mb-3 flex items-center justify-between px-1">
         <div><p class="text-xs font-bold tracking-widest text-slate-500 uppercase">Task outline</p><p class="mt-1 text-xs text-slate-500">Use the handle to arrange generation order.</p></div>
-        <button type="button" class="grid size-9 place-items-center rounded-lg text-xl font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40" onClick={add} aria-label="Add task">+</button>
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            class={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold ${props.autoNormalize ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"}`}
+            aria-pressed={props.autoNormalize}
+            aria-label={`Auto-normalise percentages: ${props.autoNormalize ? "on" : "off"}`}
+            title="When you change one percentage, keep it and redistribute the other valid percentage Tasks so their total stays at 100%. This preference is not written to YAML."
+            onClick={props.onAutoNormalizeChange}
+          >
+            <span class={`size-1.5 shrink-0 rounded-full ${props.autoNormalize ? "bg-indigo-600" : "bg-slate-400 dark:bg-slate-600"}`} aria-hidden="true" />
+            Normalise
+          </button>
+          <button type="button" class="grid size-9 place-items-center rounded-lg text-xl font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40" onClick={add} aria-label="Add task">+</button>
+        </div>
       </div>
       <DragDropProvider onDragEnd={({ draggable, droppable }) => { if (droppable) reorder(String(draggable.id), String(droppable.id)); }}>
         <DragDropSensors>

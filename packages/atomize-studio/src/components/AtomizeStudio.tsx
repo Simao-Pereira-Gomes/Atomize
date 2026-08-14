@@ -26,7 +26,7 @@ import {
 
 const OPTIONAL_SECTIONS = new Set<SectionId>(["metadata"]);
 
-function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean }) {
+function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean; onAutoNormalizeChange: () => void }) {
   return (
     <>
       <Show when={props.id === "basic-info"}>
@@ -36,7 +36,7 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
         <FilterSection store={props.stores.filter} grounding={props.grounding} />
       </Show>
       <Show when={props.id === "tasks"}>
-        <TasksSection store={props.stores.tasks} grounding={props.grounding} conditionWorkItemTypes={props.stores.filter.fields.workItemTypes} autoNormalize={props.autoNormalize} />
+        <TasksSection store={props.stores.tasks} grounding={props.grounding} conditionWorkItemTypes={props.stores.filter.fields.workItemTypes} autoNormalize={props.autoNormalize} onAutoNormalizeChange={props.onAutoNormalizeChange} />
       </Show>
       <Show when={props.id === "estimation"}>
         <EstimationSection store={props.stores.estimation} />
@@ -252,7 +252,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
             </span>
           </div>
           <div class="mt-7">
-            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} />
+            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} onAutoNormalizeChange={() => setAutoNormalize((value) => !value)} />
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">
