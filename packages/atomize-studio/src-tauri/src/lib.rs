@@ -6,8 +6,13 @@ use sidecar::SidecarRelay;
 use tauri::Manager;
 
 #[tauri::command]
-async fn catalog_list_templates(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, String> {
+async fn catalog_list_items(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, String> {
     relay.request("catalog.list", json!({})).await.map_err(|error| error.message)
+}
+
+#[tauri::command]
+async fn catalog_remove_item(kind: String, name: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("catalog.remove", json!({ "kind": kind, "name": name })).await
 }
 
 #[tauri::command]
@@ -51,7 +56,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_templates, grounding_load, ai_generate, ai_cancel, template_resolve_local, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, grounding_load, ai_generate, ai_cancel, template_resolve_local, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

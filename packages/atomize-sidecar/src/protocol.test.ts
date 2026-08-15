@@ -3,9 +3,12 @@ import { handleLine, type SidecarServices } from "./protocol";
 
 const services: SidecarServices = {
   library: {
-    getCatalog: async () => ({ items: [], overrides: [], lineage: [] }),
+    getCatalogAll: async () => ({ items: [], overrides: [], lineage: [] }),
     getRunnableTemplate: async () => {
       throw new Error("getRunnableTemplate not stubbed for this test");
+    },
+    removeCatalogItem: async () => {
+      throw new Error("removeCatalogItem not stubbed for this test");
     },
   },
   fetchGrounding: async () => ({}),
@@ -30,6 +33,38 @@ describe("sidecar protocol", () => {
     const grounding: SidecarServices = { ...services, fetchGrounding: async connection => { received = connection; return { workItemTypes: ["Task"] }; } };
     await expect(handleLine('{"jsonrpc":"2.0","id":3,"method":"grounding.fetch","params":{"organizationUrl":"https://dev.azure.com/org","project":"P","team":"T","token":"secret"}}', grounding)).resolves.toEqual({ jsonrpc: "2.0", id: 3, result: { workItemTypes: ["Task"] } });
     expect(received).toEqual({ organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" });
+  });
+});
+
+describe("catalog.remove", () => {
+  it("removes a Catalog item and reports success", async () => {
+    let received: unknown;
+    const removing: SidecarServices = {
+      ...services,
+      library: { ...services.library, removeCatalogItem: async (kind, name) => { received = { kind, name }; return { kind, scope: "user", name, displayName: name, description: "", ref: `${kind}:${name}`, path: "/tmp/x" }; } },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":30,"method":"catalog.remove","params":{"kind":"template","name":"delivery"}}', removing))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 30, result: { removed: true } });
+    expect(received).toEqual({ kind: "template", name: "delivery" });
+  });
+
+  it("rejects a request missing kind or name", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":31,"method":"catalog.remove","params":{"kind":"template"}}', services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 31, error: { code: "INVALID_PARAMS", message: "Removing a Catalog item requires its kind and name." } });
+  });
+
+  it("rejects an unrecognized kind", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":32,"method":"catalog.remove","params":{"kind":"platform","name":"delivery"}}', services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 32, error: { code: "INVALID_PARAMS", message: "Removing a Catalog item requires its kind and name." } });
+  });
+
+  it("propagates a structured error from the catalog without string-scraping it", async () => {
+    const notUserScoped: SidecarServices = {
+      ...services,
+      library: { ...services.library, removeCatalogItem: async () => { throw Object.assign(new Error('Cannot remove "delivery" — it is a project template and is not user-installed.'), { code: "CATALOG_ITEM_NOT_USER_SCOPED" }); } },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":33,"method":"catalog.remove","params":{"kind":"template","name":"delivery"}}', notUserScoped))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 33, error: { code: "CATALOG_ITEM_NOT_USER_SCOPED", message: 'Cannot remove "delivery" — it is a project template and is not user-installed.' } });
   });
 });
 

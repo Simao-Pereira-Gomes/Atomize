@@ -1,19 +1,19 @@
-import { buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
-import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
-import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
-import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { readFile } from "node:fs/promises";
+import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
+import { buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
+import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
+import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import { TemplateCatalog, type TemplateCatalogKind } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
-import { CopilotAuthenticationError, GitHubCopilotProvider, type AIDraftSession } from "@sppg2001/atomize-ai";
-import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
 export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
 export type RpcNotification =
   | { jsonrpc: "2.0"; method: "sidecar.ready" }
   | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } };
-export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalog" | "getRunnableTemplate">;
+export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
 export type SidecarServices = {
@@ -170,6 +170,15 @@ function resolveLocalTemplateParams(params: unknown): { path: string } {
   return params as { path: string };
 }
 
+function removeCatalogItemParams(params: unknown): { kind: TemplateCatalogKind; name: string } {
+  if (typeof params !== "object" || params === null) throw Object.assign(new Error("Removing a Catalog item requires its kind and name."), { code: "INVALID_PARAMS" });
+  const value = params as Partial<{ kind: unknown; name: unknown }>;
+  if ((value.kind !== "template" && value.kind !== "mixin") || typeof value.name !== "string" || !value.name.trim()) {
+    throw Object.assign(new Error("Removing a Catalog item requires its kind and name."), { code: "INVALID_PARAMS" });
+  }
+  return { kind: value.kind, name: value.name };
+}
+
 function groundingConnection(params: unknown): GroundingConnection {
   if (typeof params !== "object" || params === null) throw Object.assign(new Error("Grounding requires a resolved connection."), { code: "INVALID_PARAMS" });
   const value = params as Partial<GroundingConnection>;
@@ -182,8 +191,13 @@ function groundingConnection(params: unknown): GroundingConnection {
 export async function dispatch(request: RpcRequest, services: SidecarServices): Promise<unknown> {
   return await match(request.method)
     .with("catalog.list", async () => {
-      const { items } = await services.library.getCatalog("template");
-      return await Promise.all(items.map(async item => ({ ...item, template: parseYaml(await readFile(item.path, "utf8")) })));
+      const { items } = await services.library.getCatalogAll();
+      return await Promise.all(items.map(async item => ({ ...item, content: parseYaml(await readFile(item.path, "utf8")) })));
+    })
+    .with("catalog.remove", async () => {
+      const { kind, name } = removeCatalogItemParams(request.params);
+      await services.library.removeCatalogItem(kind, name);
+      return { removed: true };
     })
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
