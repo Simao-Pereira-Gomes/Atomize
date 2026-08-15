@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises";
 import { confirm } from "@clack/prompts";
 import type { TemplateCatalogKind } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
@@ -69,7 +68,7 @@ export const templateRemoveCommand = new Command("remove")
         }
       }
 
-      await rm(item.path);
+      await library.removeCatalogItem(kind, name);
       output.print(chalk.green(`Removed ${kind}: ${sanitizeTty(name)}`));
       output.outro("Done.");
     } catch (error) {
