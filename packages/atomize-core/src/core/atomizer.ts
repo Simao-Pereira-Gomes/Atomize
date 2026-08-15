@@ -83,6 +83,9 @@ export interface AtomizationOptions {
 
   /** Fetch these specific work item IDs directly, bypassing the template filter (excludeIfHasTasks still applies) */
   storyIds?: string[];
+
+  /** Batch-level cancellation: checked between story batches and before each story starts. In-flight batches still complete — see ADR-0057. */
+  signal?: AbortSignal;
 }
 
 /**

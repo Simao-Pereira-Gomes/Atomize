@@ -274,6 +274,45 @@ describe("Atomizer", () => {
         expect(report.storiesProcessed).toBe(0);
       });
     });
+
+    describe("cancellation (signal)", () => {
+      test("a pre-aborted signal skips all stories", async () => {
+        await platform.authenticate();
+
+        const controller = new AbortController();
+        controller.abort();
+
+        const report = await atomizer.atomize(basicTemplate, {
+          dryRun: true,
+          signal: controller.signal,
+        });
+
+        expect(report.results).toHaveLength(0);
+      });
+
+      test("aborting mid-run lets the in-flight batch finish but starts no further batches", async () => {
+        await platform.authenticate();
+
+        const controller = new AbortController();
+
+        // basicTemplate matches 3 stories (STORY-001, STORY-003, STORY-005); forcing
+        // concurrency to 1 gives one batch per story, so aborting during the first
+        // story's processing should let only that story complete.
+        const report = await atomizer.atomize(basicTemplate, {
+          dryRun: true,
+          storyConcurrency: 1,
+          signal: controller.signal,
+          onProgress: (event) => {
+            if (event.type === "story_start" && event.storyIndex === 0) {
+              controller.abort();
+            }
+          },
+        });
+
+        expect(report.results).toHaveLength(1);
+        expect(report.results[0]?.story.id).toBe("STORY-001");
+      });
+    });
   });
 
   describe("preview", () => {

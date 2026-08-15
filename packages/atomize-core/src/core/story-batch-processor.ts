@@ -40,15 +40,17 @@ export class StoryBatchProcessor {
     let completedStories = 0;
     let totalTasksCreated = 0;
     const onProgress = input.options.onProgress;
+    const signal = input.options.signal;
+    const isCancelled = () => stopProcessing || signal?.aborted === true;
 
     for (let i = 0; i < input.stories.length; i += input.concurrency) {
-      if (stopProcessing) break;
+      if (isCancelled()) break;
 
       const batch = input.stories.slice(i, i + input.concurrency);
       const batchResults = batch.map(async (story, batchIndex) => {
         const storyIndex = i + batchIndex;
 
-        if (stopProcessing) {
+        if (isCancelled()) {
           return null;
         }
 
