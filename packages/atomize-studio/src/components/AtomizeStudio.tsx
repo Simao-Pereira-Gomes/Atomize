@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show, type Accessor } from "solid-js";
 import {
   isAuthoringStoreReadyForReview,
   SECTION_META,
@@ -16,10 +16,11 @@ import {
   TasksSection,
   ValidationSection,
 } from "./sections";
+import type { OnlineValidationSession } from "./sections/ReviewSection";
 
 const OPTIONAL_SECTIONS = new Set<SectionId>(["metadata"]);
 
-function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean; onAutoNormalizeChange: () => void; openFilePath?: string }) {
+function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean; onAutoNormalizeChange: () => void; openFilePath?: string; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; onManageProjects: () => void }) {
   return (
     <>
       <Show when={props.id === "basic-info"}>
@@ -41,13 +42,13 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
         <MetadataSection store={props.stores.metadata} />
       </Show>
       <Show when={props.id === "review"}>
-        <ReviewSection store={props.stores} canReview={props.canReview} openFilePath={props.openFilePath} />
+        <ReviewSection store={props.stores} canReview={props.canReview} openFilePath={props.openFilePath} grounding={props.grounding} sidecarAvailable={props.sidecarAvailable} onlineValidation={props.onlineValidation} onManageProjects={props.onManageProjects} />
       </Show>
     </>
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => void; initialSection?: SectionId; aiDraftReady?: boolean; openFilePath?: string; grounding: GroundingSession }) {
+export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => void; initialSection?: SectionId; aiDraftReady?: boolean; openFilePath?: string; grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; onManageProjects: () => void }) {
   const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>(props.initialSection ?? "basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
@@ -87,7 +88,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => v
       <div class="h-1 w-full bg-slate-100 dark:bg-slate-800" role="presentation">
         <div class="h-full bg-emerald-400 transition-all" style={{ width: `${completion()}%` }} />
       </div>
-      <main class="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[18rem_minmax(0,1fr)_17rem] lg:px-7 lg:py-8">
+      <main class="grid w-full gap-6 px-5 py-6 lg:grid-cols-[15rem_minmax(0,1fr)_14rem] lg:px-7 lg:py-8">
         <aside class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-6 lg:h-fit">
           <p class="px-3 pb-2 pt-1 text-xs font-bold tracking-widest text-slate-400 uppercase">
             Build a template
@@ -159,7 +160,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => v
             </span>
           </div>
           <div class="mt-7">
-            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} onAutoNormalizeChange={() => setAutoNormalize((value) => !value)} openFilePath={props.openFilePath} />
+            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} onAutoNormalizeChange={() => setAutoNormalize((value) => !value)} openFilePath={props.openFilePath} sidecarAvailable={props.sidecarAvailable} onlineValidation={props.onlineValidation} onManageProjects={props.onManageProjects} />
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">

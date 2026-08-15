@@ -29,7 +29,7 @@ function ProjectIcon(props: { project: string; active: boolean }) {
 	);
 }
 
-export function GroundingSettings(props: { session: GroundingSession; sidecarAvailable: Accessor<boolean> }) {
+export function GroundingSettings(props: { session: GroundingSession; sidecarAvailable: Accessor<boolean>; openManagerRequest?: Accessor<number> }) {
 	const [quickOpen, setQuickOpen] = createSignal(false);
 	const [manageOpen, setManageOpen] = createSignal(false);
 	const [managedProfileName, setManagedProfileName] = createSignal("");
@@ -43,6 +43,7 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 	const [rotating, setRotating] = createSignal(false);
 	const [newPat, setNewPat] = createSignal("");
 	const [connecting, setConnecting] = createSignal(false);
+	let lastManagerRequest = 0;
 	const activeProfile = () =>
 		props.session
 			.profiles()
@@ -78,6 +79,10 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 		);
 		setManageOpen(true);
 	};
+	createEffect(() => {
+		const request = props.openManagerRequest?.() ?? 0;
+		if (request > lastManagerRequest) { lastManagerRequest = request; openManagement(); }
+	});
 	const addProject = async (event: SubmitEvent) => {
 		event.preventDefault();
 		setFormError("");

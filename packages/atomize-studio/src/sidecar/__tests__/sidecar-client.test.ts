@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { inspectPreview, installCatalogItem, removeCatalogItem, runMockPreview, SidecarRequestError } from '../sidecar-client.js';
+import { cancelOnlineValidation, inspectPreview, installCatalogItem, removeCatalogItem, runMockPreview, SidecarRequestError, validateOnline } from '../sidecar-client.js';
+
+describe('Online Validation bridge', () => {
+	it('sends the Template, selected profile, and client validation id through the native bridge', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return { valid: true, errors: [], warnings: [], mode: 'lenient', requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, needsOnlineVerification: false } } as T;
+		};
+		const template = { version: '1.0', name: 'Delivery', filter: {}, tasks: [] };
+		await validateOnline('validation-1', template, 'ado', call);
+		expect(calls).toEqual([{ command: 'validation_online', args: { validationId: 'validation-1', template, profile: 'ado' } }]);
+	});
+
+	it('cancels an active validation by its client id', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		await cancelOnlineValidation('validation-1', async <T>(command: string, args?: Record<string, unknown>) => {
+			calls.push({ command, args });
+			return undefined as T;
+		});
+		expect(calls).toEqual([{ command: 'validation_cancel', args: { validationId: 'validation-1' } }]);
+	});
+});
 
 describe('installCatalogItem', () => {
 	it('invokes catalog_install_item with content, name, scope, and overwrite', async () => {

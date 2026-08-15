@@ -15,6 +15,7 @@ pub struct SidecarRelay {
     app: AppHandle,
     next_id: AtomicU64,
     pending: Mutex<HashMap<u64, oneshot::Sender<Result<Value, SidecarError>>>>,
+    validation_requests: Mutex<HashMap<String, u64>>,
     child: Mutex<Option<CommandChild>>,
     restarts: Mutex<Vec<Instant>>,
     ready: AtomicBool,
@@ -23,7 +24,7 @@ pub struct SidecarRelay {
 
 impl SidecarRelay {
     pub fn new(app: AppHandle) -> Arc<Self> {
-        Arc::new(Self { app, next_id: AtomicU64::new(1), pending: Mutex::new(HashMap::new()), child: Mutex::new(None), restarts: Mutex::new(Vec::new()), ready: AtomicBool::new(false), fatal: AtomicBool::new(false) })
+        Arc::new(Self { app, next_id: AtomicU64::new(1), pending: Mutex::new(HashMap::new()), validation_requests: Mutex::new(HashMap::new()), child: Mutex::new(None), restarts: Mutex::new(Vec::new()), ready: AtomicBool::new(false), fatal: AtomicBool::new(false) })
     }
 
     pub fn start(self: &Arc<Self>) -> Result<(), String> {
@@ -76,15 +77,35 @@ impl SidecarRelay {
     }
 
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, SidecarError> {
+        self.request_with_validation_key(method, params, None).await
+    }
+
+    async fn request_with_validation_key(&self, method: &str, params: Value, validation_key: Option<&str>) -> Result<Value, SidecarError> {
         if self.fatal.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar failed repeatedly. Select Retry to restart it.".into() }); }
         if !self.ready.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_STARTING".into(), message: "Atomize sidecar is still starting.".into() }); }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (sender, receiver) = oneshot::channel();
         self.pending.lock().unwrap().insert(id, sender);
+        if let Some(key) = validation_key { self.validation_requests.lock().unwrap().insert(key.to_owned(), id); }
         let request = encode_request(id, method, params);
         if let Some(child) = self.child.lock().unwrap().as_mut() { child.write(format!("{request}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string() })?; }
         else { self.pending.lock().unwrap().remove(&id); return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar is not running.".into() }); }
-        receiver.await.map_err(|_| SidecarError { code: "SIDECAR_STOPPED".into(), message: "Atomize sidecar stopped before responding.".into() })?
+        let outcome = receiver.await.map_err(|_| SidecarError { code: "SIDECAR_STOPPED".into(), message: "Atomize sidecar stopped before responding.".into() })?;
+        if let Some(key) = validation_key { self.validation_requests.lock().unwrap().remove(key); }
+        outcome
+    }
+
+    pub async fn validate(&self, validation_id: String, params: Value) -> Result<Value, SidecarError> {
+        self.request_with_validation_key("validation.online", params, Some(&validation_id)).await
+    }
+
+    pub fn cancel_validation(&self, validation_id: &str) -> Result<(), SidecarError> {
+        let Some(id) = self.validation_requests.lock().unwrap().remove(validation_id) else { return Ok(()); };
+        self.pending.lock().unwrap().remove(&id);
+        let notification = json!({ "jsonrpc": "2.0", "method": "$/cancelRequest", "params": { "id": id } });
+        let mut child = self.child.lock().unwrap();
+        let Some(child) = child.as_mut() else { return Ok(()); };
+        child.write(format!("{notification}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string() })
     }
 
     pub fn retry(self: &Arc<Self>) -> Result<(), String> {

@@ -1,5 +1,5 @@
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
-import { type Accessor, createSignal, For, onMount, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, onMount, Show } from "solid-js";
 import type { CatalogItem } from "../catalog/catalog-item";
 import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken, setDefaultConnectionProfile } from "../connections/connection-client";
 import {
@@ -9,6 +9,8 @@ import {
   loadGroundedFieldOptions,
 } from "../grounding/grounding-service";
 import { toCatalogClone } from "../starting-paths/catalog-clone";
+import { cancelOnlineValidation } from "../sidecar/sidecar-client";
+import type { OnlineValidationSession, StoredOnlineValidation } from "./sections/ReviewSection";
 import { createNavigationHistory } from "../stores/navigation-history";
 import { createAuthoringStore, type SectionId } from "../stores/sections";
 import { STUDIO_AREAS, type StudioAreaId } from "../stores/studio-areas";
@@ -73,8 +75,9 @@ function AreaRail(props: { active: StudioAreaId; onSelect: (id: StudioAreaId) =>
   );
 }
 
-function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; theme: Accessor<"light" | "dark">; onToggleTheme: () => void }) {
+function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; theme: Accessor<"light" | "dark">; onToggleTheme: () => void; manageProjectRequest: Accessor<number> }) {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  createEffect(() => { if (props.manageProjectRequest() > 0) setSettingsOpen(true); });
   return (
     <header class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
       <div class="flex min-w-0 items-center gap-3">
@@ -97,7 +100,7 @@ function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Acc
           <div class="absolute right-0 top-12 z-50 w-72 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <div>
               <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Work project</p>
-              <GroundingSettings session={props.grounding} sidecarAvailable={props.sidecarAvailable} />
+              <GroundingSettings session={props.grounding} sidecarAvailable={props.sidecarAvailable} openManagerRequest={props.manageProjectRequest} />
             </div>
             <div class="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
               <span class="text-sm text-slate-600 dark:text-slate-300">Theme</span>
@@ -124,7 +127,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const toggleTheme = () => setTheme((value) => (value === "dark" ? "light" : "dark"));
 
   const [activeArea, setActiveArea] = createSignal<StudioAreaId>("templates");
-  const [railCollapsed, setRailCollapsed] = createSignal(false);
+  const [railCollapsed, setRailCollapsed] = createSignal(true);
 
   const [surface, setSurface] = createSignal<"starting-paths" | "builder">(props.diagnosticInitialSection ? "builder" : "starting-paths");
   const [isAIDraft, setIsAIDraft] = createSignal(false);
@@ -133,6 +136,29 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const [pendingStart, setPendingStart] = createSignal<PendingStart>();
   const stores = createAuthoringStore();
   const history = createNavigationHistory();
+  const [onlineValidationResult, setOnlineValidationResult] = createSignal<StoredOnlineValidation>();
+  const [onlineValidationError, setOnlineValidationError] = createSignal("");
+  const [onlineValidationRunning, setOnlineValidationRunning] = createSignal(false);
+  const [activeValidationId, setActiveValidationId] = createSignal<string>();
+  const [manageProjectRequest, setManageProjectRequest] = createSignal(0);
+  const onlineValidation: OnlineValidationSession = {
+    result: onlineValidationResult,
+    error: onlineValidationError,
+    running: onlineValidationRunning,
+    activeId: activeValidationId,
+    start: (id) => { setActiveValidationId(id); setOnlineValidationRunning(true); setOnlineValidationError(""); },
+    complete: (value) => { setOnlineValidationResult(value); setOnlineValidationRunning(false); setActiveValidationId(undefined); },
+    fail: (message) => { setOnlineValidationResult((current) => current ? { ...current, stale: true } : current); setOnlineValidationError(message); setOnlineValidationRunning(false); setActiveValidationId(undefined); },
+    dismiss: () => { setOnlineValidationResult(undefined); setOnlineValidationError(""); },
+  };
+  const clearOnlineValidation = () => {
+    const id = activeValidationId();
+    if (id) void cancelOnlineValidation(id);
+    setActiveValidationId(undefined);
+    setOnlineValidationRunning(false);
+    setOnlineValidationResult(undefined);
+    setOnlineValidationError("");
+  };
 
   const navigateToArea = (id: StudioAreaId) => {
     if (id === activeArea()) return;
@@ -202,9 +228,10 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     },
   };
 
-  const startScratch = () => { enterBuilderFrom(); setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("builder"); setHasActiveDraft(true); };
-  const startCatalogClone = (item: Extract<CatalogItem, { kind: "template" }>) => { enterBuilderFrom(); setIsAIDraft(false); setOpenFilePath(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); setActiveArea("templates"); setHasActiveDraft(true); };
+  const startScratch = () => { clearOnlineValidation(); enterBuilderFrom(); setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("builder"); setHasActiveDraft(true); };
+  const startCatalogClone = (item: Extract<CatalogItem, { kind: "template" }>) => { clearOnlineValidation(); enterBuilderFrom(); setIsAIDraft(false); setOpenFilePath(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); setActiveArea("templates"); setHasActiveDraft(true); };
   const startAIDraft = (template: TaskTemplate, workProject: string, groundingOptions?: GroundedFieldOptions) => {
+    clearOnlineValidation();
     enterBuilderFrom();
     setIsAIDraft(true);
     setOpenFilePath(undefined);
@@ -219,8 +246,8 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     setSurface("builder");
     setHasActiveDraft(true);
   };
-  const startOpen = (template: TaskTemplate, path: string) => { enterBuilderFrom(); setIsAIDraft(false); setOpenFilePath(path); stores.loadTemplate(template); setSurface("builder"); setHasActiveDraft(true); };
-  const discardDraft = () => { history.clear(); setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("starting-paths"); setHasActiveDraft(false); };
+  const startOpen = (template: TaskTemplate, path: string) => { clearOnlineValidation(); enterBuilderFrom(); setIsAIDraft(false); setOpenFilePath(path); stores.loadTemplate(template); setSurface("builder"); setHasActiveDraft(true); };
+  const discardDraft = () => { clearOnlineValidation(); history.clear(); setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("starting-paths"); setHasActiveDraft(false); };
 
   const runPendingStart = (start: PendingStart) => {
     if (start.kind === "scratch") startScratch();
@@ -242,7 +269,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
 
   return (
     <div class={`min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
-      <ShellHeader grounding={grounding} sidecarAvailable={props.sidecarAvailable} theme={theme} onToggleTheme={toggleTheme} />
+      <ShellHeader grounding={grounding} sidecarAvailable={props.sidecarAvailable} theme={theme} onToggleTheme={toggleTheme} manageProjectRequest={manageProjectRequest} />
       <div class="flex min-h-[calc(100vh-4.5rem)]">
         <AreaRail active={activeArea()} onSelect={navigateToArea} collapsed={railCollapsed()} onToggleCollapsed={() => setRailCollapsed((value) => !value)} canGoBack={history.canGoBack()} onBack={goBack} />
         <div class="min-w-0 flex-1">
@@ -269,6 +296,9 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
                 aiDraftReady={isAIDraft()}
                 openFilePath={openFilePath()}
                 grounding={grounding}
+                sidecarAvailable={props.sidecarAvailable}
+                onlineValidation={onlineValidation}
+                onManageProjects={() => setManageProjectRequest((request) => request + 1)}
               />
             </Show>
           </Show>

@@ -5,6 +5,14 @@ export type SidecarInvoker = <T>(command: string, args?: Record<string, unknown>
 const tauriInvoke: SidecarInvoker = invoke;
 
 export type AIDraftProgress = { draftId: string; length: number };
+export type OnlineValidationDiagnostic = { path: string; message: string; code?: string };
+export type OnlineValidationResult = {
+  valid: boolean;
+  errors: OnlineValidationDiagnostic[];
+  warnings: OnlineValidationDiagnostic[];
+  mode: "lenient" | "strict";
+  requirements: { customFieldTaskCount: number; conditionFieldRefs: string[]; hasSavedQuery: boolean; needsOnlineVerification: boolean };
+};
 
 /** Live progress for a running AI draft, forwarded from the sidecar's streaming response. */
 export async function listenAIDraftProgress(onProgress: (progress: AIDraftProgress) => void): Promise<UnlistenFn> {
@@ -49,6 +57,18 @@ export async function installCatalogItem(
 /** The frontend supplies only a profile name; Rust resolves and injects its token. */
 export async function loadGrounding(profile: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("grounding_load", { profile }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Runs Core's Online Validation with a Rust-injected credential; the webview never sees a token. */
+export async function validateOnline(validationId: string, template: unknown, profile: string, call: SidecarInvoker = tauriInvoke): Promise<OnlineValidationResult> {
+  try { return await call("validation_online", { validationId, template, profile }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Best-effort cancellation of an active Online Validation request. */
+export async function cancelOnlineValidation(validationId: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
+  try { await call("validation_cancel", { validationId }); }
   catch (error) { throw sidecarError(error); }
 }
 

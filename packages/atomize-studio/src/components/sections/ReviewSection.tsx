@@ -1,8 +1,48 @@
-import { createSignal, type JSX, Show } from "solid-js";
+import { createSignal, For, type Accessor, type JSX, Show } from "solid-js";
 import { stringify } from "yaml";
 import { downloadTemplate, saveTemplateToPath, slugifyTemplateName } from "../../download/download-service";
-import { type CatalogInstallScope, installCatalogItem, SidecarRequestError } from "../../sidecar/sidecar-client";
+import { type CatalogInstallScope, installCatalogItem, type OnlineValidationResult, SidecarRequestError, validateOnline } from "../../sidecar/sidecar-client";
 import type { AuthoringStore } from "../../stores/sections";
+import type { GroundingSession } from "../GroundingSettings";
+
+export type StoredOnlineValidation = { result: OnlineValidationResult; template: string; workProject: string; profile: string; stale?: boolean };
+export type OnlineValidationSession = {
+  result: Accessor<StoredOnlineValidation | undefined>;
+  error: Accessor<string>;
+  running: Accessor<boolean>;
+  activeId: Accessor<string | undefined>;
+  start: (id: string) => void;
+  complete: (value: StoredOnlineValidation) => void;
+  fail: (message: string) => void;
+  dismiss: () => void;
+};
+
+/** A deliberately small YAML renderer for the read-only preview. It colours the
+ * stable YAML constructs Atomize emits without turning the preview into an editor. */
+function YamlLine(props: { line: string }) {
+  const comment = props.line.match(/^(.*?)(\s+#.*)$/);
+  const source = comment?.[1] ?? props.line;
+  const mapping = source.match(/^(\s*(?:-\s+)?)([^:#][^:]*)(:)(.*)$/);
+  if (!mapping) {
+    return <><span class="text-sky-300">{source.match(/^(\s*-\s*)/)?.[1] ?? ""}</span><span class="text-slate-100">{source.replace(/^\s*-\s*/, "")}</span><span class="text-slate-500">{comment?.[2] ?? ""}</span></>;
+  }
+  const prefix = mapping[1] ?? "";
+  const key = mapping[2] ?? "";
+  const colon = mapping[3] ?? ":";
+  const value = mapping[4] ?? "";
+  const valueClass = /^\s*(?:true|false|null|~)\s*$/i.test(value)
+    ? "text-fuchsia-300"
+    : /^\s*-?\d+(?:\.\d+)?\s*$/.test(value)
+      ? "text-amber-300"
+      : /^\s*["']/.test(value)
+        ? "text-emerald-300"
+        : "text-slate-100";
+  return <><span class="text-sky-300">{prefix}</span><span class="text-violet-300">{key}</span><span class="text-slate-400">{colon}</span><span class={valueClass}>{value}</span><span class="text-slate-500">{comment?.[2] ?? ""}</span></>;
+}
+
+function YamlCode(props: { value: string }) {
+  return <code><For each={props.value.split("\n")}>{(line, index) => <><YamlLine line={line} />{index() < props.value.split("\n").length - 1 ? "\n" : ""}</>}</For></code>;
+}
 
 async function revealInFolder(path: string) {
   const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
@@ -22,41 +62,66 @@ function ReviewToolbar(props: {
   onExport: () => void;
   onSave: () => void;
   onInstall: () => void;
+  onlineValidationDisabled: boolean;
+  onlineValidationRunning: boolean;
+  onValidateOnline: () => void;
   trailing: JSX.Element;
 }) {
   return (
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-t-xl border border-b-0 border-slate-800 bg-slate-900 px-4 py-2.5">
-      <span class="truncate font-mono text-xs text-slate-400">{props.fileName}</span>
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <div class="flex overflow-hidden rounded-md border border-slate-700">
-          <button type="button" class="grid size-7 place-items-center text-sm font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-40" disabled={props.zoom <= 70} onClick={props.onZoomOut} aria-label="Decrease YAML zoom" title="Decrease YAML zoom">−</button>
-          <span class="grid min-w-10 place-items-center border-x border-slate-700 px-1 text-xs text-slate-300" aria-live="polite">{props.zoom}%</span>
-          <button type="button" class="grid size-7 place-items-center text-sm font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-40" disabled={props.zoom >= 160} onClick={props.onZoomIn} aria-label="Increase YAML zoom" title="Increase YAML zoom">+</button>
-        </div>
-        <button type="button" class="rounded-md px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800" onClick={props.onCopy}>
-          Copy YAML
-        </button>
-        <Show
-          when={props.openFilePath}
-          fallback={
-            <button
-              type="button"
-              class="rounded-md !border-0 !bg-emerald-600 px-2.5 py-1 text-xs font-semibold !text-white !shadow-none hover:!bg-emerald-500 disabled:opacity-60"
-              disabled={props.downloading}
-              onClick={props.onExport}
-            >
-              {props.downloading ? "Exporting…" : "Export file…"}
-            </button>
-          }
-        >
+    <div class="space-y-3 rounded-t-xl border border-b-0 border-slate-800 bg-slate-900 px-4 py-3">
+      <div class="min-w-0 truncate font-mono text-xs text-slate-400">{props.fileName}</div>
+      <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="rounded-md !border-0 !bg-emerald-600 px-2.5 py-1 text-xs font-semibold !text-white !shadow-none hover:!bg-emerald-500 disabled:opacity-60"
-            disabled={props.downloading}
-            onClick={props.onSave}
+            class="rounded-md !border-0 !bg-sky-600 px-3 py-1.5 text-xs font-semibold !text-white !shadow-none hover:!bg-sky-500 disabled:opacity-60"
+            disabled={props.onlineValidationDisabled || props.onlineValidationRunning}
+            title={props.onlineValidationDisabled ? "Online Validation is unavailable while the companion process recovers." : undefined}
+            onClick={props.onValidateOnline}
           >
-            {props.downloading ? "Saving…" : "Save"}
+            {props.onlineValidationRunning ? "Validating online…" : "Validate online…"}
           </button>
+          <Show
+            when={props.openFilePath}
+            fallback={
+              <button
+                type="button"
+                class="rounded-md !border-0 !bg-emerald-600 px-3 py-1.5 text-xs font-semibold !text-white !shadow-none hover:!bg-emerald-500 disabled:opacity-60"
+                disabled={props.downloading}
+                onClick={props.onExport}
+              >
+                {props.downloading ? "Exporting…" : "Export file…"}
+              </button>
+            }
+          >
+            <button
+              type="button"
+              class="rounded-md !border-0 !bg-emerald-600 px-3 py-1.5 text-xs font-semibold !text-white !shadow-none hover:!bg-emerald-500 disabled:opacity-60"
+              disabled={props.downloading}
+              onClick={props.onSave}
+            >
+              {props.downloading ? "Saving…" : "Save"}
+            </button>
+          </Show>
+          <button
+            type="button"
+            class="rounded-md border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+            onClick={props.onInstall}
+          >
+            Install to Catalog…
+          </button>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-700 pt-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="rounded-md px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800" onClick={props.onCopy}>
+            Copy YAML
+          </button>
+          <div class="flex overflow-hidden rounded-md border border-slate-700">
+            <button type="button" class="grid size-7 place-items-center text-sm font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-40" disabled={props.zoom <= 70} onClick={props.onZoomOut} aria-label="Decrease YAML zoom" title="Decrease YAML zoom">−</button>
+            <span class="grid min-w-10 place-items-center border-x border-slate-700 px-1 text-xs text-slate-300" aria-live="polite">{props.zoom}%</span>
+            <button type="button" class="grid size-7 place-items-center text-sm font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-40" disabled={props.zoom >= 160} onClick={props.onZoomIn} aria-label="Increase YAML zoom" title="Increase YAML zoom">+</button>
+          </div>
+          {props.trailing}
+        <Show when={props.openFilePath}>
           <button
             type="button"
             class="rounded-md border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-60"
@@ -66,26 +131,20 @@ function ReviewToolbar(props: {
             {props.downloading ? "Exporting…" : "Export as copy…"}
           </button>
         </Show>
-        <button
-          type="button"
-          class="rounded-md border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800"
-          onClick={props.onInstall}
-        >
-          Install to Catalog…
-        </button>
-        {props.trailing}
+        </div>
       </div>
     </div>
   );
 }
 
-export function ReviewSection(props: { store: AuthoringStore; canReview: boolean; openFilePath?: string }) {
+export function ReviewSection(props: { store: AuthoringStore; canReview: boolean; openFilePath?: string; grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; onManageProjects: () => void }) {
   const [downloading, setDownloading] = createSignal(false);
   const [downloadError, setDownloadError] = createSignal("");
   const [saved, setSaved] = createSignal<{ name: string; path: string }>();
   const [copied, setCopied] = createSignal(false);
   const [yamlMaximized, setYamlMaximized] = createSignal(false);
   const [yamlZoom, setYamlZoom] = createSignal(100);
+  const [profilePickerOpen, setProfilePickerOpen] = createSignal(false);
 
   const [installOpen, setInstallOpen] = createSignal(false);
   const [installScope, setInstallScope] = createSignal<CatalogInstallScope>("user");
@@ -99,6 +158,32 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
   const increaseZoom = () => setYamlZoom((zoom) => Math.min(160, zoom + 10));
   const yamlFontSize = () => `${(14 * yamlZoom()) / 100}px`;
   const copyYaml = () => navigator.clipboard.writeText(props.store.serialise());
+  const currentYaml = () => props.store.serialise();
+  const resultIsOutdated = () => {
+    const value = props.onlineValidation.result();
+    return !!value && (value.stale === true || value.template !== currentYaml() || value.workProject !== props.grounding.selectedProfile());
+  };
+  const runOnlineValidation = async (profile: string) => {
+    const template = currentYaml();
+    const validationId = crypto.randomUUID();
+    const workProject = props.grounding.selectedProfile();
+    setProfilePickerOpen(false);
+    props.onlineValidation.start(validationId);
+    try {
+      const result = await validateOnline(validationId, props.store.toTemplate(), profile);
+      if (props.onlineValidation.activeId() !== validationId) return;
+      props.onlineValidation.complete({ result, template, workProject, profile });
+    } catch (error) {
+      if (props.onlineValidation.activeId() !== validationId) return;
+      props.onlineValidation.fail(error instanceof Error ? error.message : "We could not validate this Template online.");
+    }
+  };
+  const requestOnlineValidation = () => {
+    if (!props.sidecarAvailable() || props.onlineValidation.running()) return;
+    const profile = props.grounding.selectedProfile();
+    if (profile) void runOnlineValidation(profile);
+    else setProfilePickerOpen(true);
+  };
 
   const download = async () => {
     if (downloading()) return;
@@ -196,6 +281,9 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
             onExport={download}
             onSave={save}
             onInstall={openInstall}
+            onlineValidationDisabled={!props.sidecarAvailable()}
+            onlineValidationRunning={props.onlineValidation.running()}
+            onValidateOnline={requestOnlineValidation}
             trailing={
               <button
                 type="button"
@@ -208,8 +296,36 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
               </button>
             }
           />
+          <Show when={props.onlineValidation.running()}>
+            <div class="my-3 flex items-center gap-3 rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100" role="status" aria-live="polite">
+              <span class="size-4 animate-spin rounded-full border-2 border-sky-300 border-t-sky-700 dark:border-sky-800 dark:border-t-sky-200" aria-hidden="true" />
+              <span><strong>Validating online…</strong> Checking this Template against Azure DevOps.</span>
+            </div>
+          </Show>
+          <Show when={props.onlineValidation.error()}>
+            <p class="ui-error my-3">{props.onlineValidation.error()}</p>
+          </Show>
+          <Show when={props.onlineValidation.result()}>
+            {(validation) => (
+              <section class={`my-3 rounded-xl border p-4 text-sm ${resultIsOutdated() ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : validation().result.valid ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30"}`} aria-live="polite">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="font-semibold">Online Validation {resultIsOutdated() ? "— Outdated" : validation().result.valid ? "passed" : "found errors"}</p>
+                  <div class="flex items-center gap-3"><span class="font-mono text-xs opacity-75">{validation().profile}</span><button type="button" class="text-xs font-semibold underline" onClick={props.onlineValidation.dismiss} aria-label="Dismiss Online Validation result">Dismiss</button></div>
+                </div>
+                <Show when={!validation().result.requirements.needsOnlineVerification && validation().result.valid}>
+                  <p class="mt-2">Connected successfully. This Template has no platform-specific references to verify.</p>
+                </Show>
+                <Show when={validation().result.errors.length > 0}>
+                  <div class="mt-3"><p class="font-semibold">Errors</p><ul class="mt-1 space-y-2"><For each={validation().result.errors}>{(item) => <li><code class="text-xs">{item.path}</code>{item.code ? ` · ${item.code}` : ""}<br />{item.message}</li>}</For></ul></div>
+                </Show>
+                <Show when={validation().result.warnings.length > 0}>
+                  <div class="mt-3"><p class="font-semibold">Warnings</p><ul class="mt-1 space-y-2"><For each={validation().result.warnings}>{(item) => <li><code class="text-xs">{item.path}</code>{item.code ? ` · ${item.code}` : ""}<br />{item.message}</li>}</For></ul></div>
+                </Show>
+              </section>
+            )}
+          </Show>
           <pre class="overflow-x-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}>
-            <code>{props.store.serialise()}</code>
+            <YamlCode value={props.store.serialise()} />
           </pre>
           <Show when={yamlMaximized()}>
             <div class="fixed inset-0 z-[850] flex flex-col bg-slate-950/90 p-4 sm:p-7" role="dialog" aria-modal="true" aria-label="Maximized YAML preview">
@@ -225,23 +341,67 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
                   onExport={download}
                   onSave={save}
                   onInstall={openInstall}
+                  onlineValidationDisabled={!props.sidecarAvailable()}
+                  onlineValidationRunning={props.onlineValidation.running()}
+                  onValidateOnline={requestOnlineValidation}
                   trailing={
                     <button
                       type="button"
-                      class="rounded-md bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-600"
+                      class="grid size-8 place-items-center rounded-md bg-slate-700 text-lg font-semibold text-white hover:bg-slate-600"
                       onClick={() => setYamlMaximized(false)}
-                      aria-label="Close maximized YAML preview"
+                      aria-label="Exit expanded YAML preview"
+                      title="Exit expanded YAML preview"
                     >
-                      Close
+                      ⤡
                     </button>
                   }
                 />
+                <Show when={props.onlineValidation.running()}>
+                  <div class="my-3 flex items-center gap-3 rounded-xl border border-sky-700 bg-sky-950/50 px-4 py-3 text-sm text-sky-100" role="status" aria-live="polite">
+                    <span class="size-4 animate-spin rounded-full border-2 border-sky-700 border-t-sky-200" aria-hidden="true" />
+                    <span><strong>Validating online…</strong> Checking this Template against Azure DevOps.</span>
+                  </div>
+                </Show>
+                <Show when={props.onlineValidation.error()}>
+                  <p class="ui-error my-3">{props.onlineValidation.error()}</p>
+                </Show>
+                <Show when={props.onlineValidation.result()}>
+                  {(validation) => (
+                    <section class={`my-3 rounded-xl border p-4 text-sm ${resultIsOutdated() ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : validation().result.valid ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30"}`} aria-live="polite">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="font-semibold">Online Validation {resultIsOutdated() ? "— Outdated" : validation().result.valid ? "passed" : "found errors"}</p>
+                        <div class="flex items-center gap-3"><span class="font-mono text-xs opacity-75">{validation().profile}</span><button type="button" class="text-xs font-semibold underline" onClick={props.onlineValidation.dismiss} aria-label="Dismiss Online Validation result">Dismiss</button></div>
+                      </div>
+                      <Show when={!validation().result.requirements.needsOnlineVerification && validation().result.valid}>
+                        <p class="mt-2">Connected successfully. This Template has no platform-specific references to verify.</p>
+                      </Show>
+                      <Show when={validation().result.errors.length > 0}>
+                        <div class="mt-3"><p class="font-semibold">Errors</p><ul class="mt-1 space-y-2"><For each={validation().result.errors}>{(item) => <li><code class="text-xs">{item.path}</code>{item.code ? ` · ${item.code}` : ""}<br />{item.message}</li>}</For></ul></div>
+                      </Show>
+                      <Show when={validation().result.warnings.length > 0}>
+                        <div class="mt-3"><p class="font-semibold">Warnings</p><ul class="mt-1 space-y-2"><For each={validation().result.warnings}>{(item) => <li><code class="text-xs">{item.path}</code>{item.code ? ` · ${item.code}` : ""}<br />{item.message}</li>}</For></ul></div>
+                      </Show>
+                    </section>
+                  )}
+                </Show>
               </div>
-              <pre class="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}><code>{props.store.serialise()}</code></pre>
+              <pre class="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}><YamlCode value={props.store.serialise()} /></pre>
             </div>
           </Show>
           <Show when={downloadError()}>
             <p class="ui-error mt-3">{downloadError()}</p>
+          </Show>
+          <Show when={profilePickerOpen()}>
+            <div class="fixed inset-0 z-[900] grid place-items-center bg-slate-950/50 p-5" role="presentation">
+              <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="online-validation-profile-title">
+                <h2 id="online-validation-profile-title" class="text-lg font-bold text-slate-950 dark:text-white">Choose a work project</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Online Validation needs a Connection Profile for this one run.</p>
+                <Show when={props.grounding.profiles().length > 0} fallback={<div class="mt-5 rounded-lg bg-slate-100 p-3 text-sm dark:bg-slate-800"><p>No Connection Profiles are available.</p><button type="button" class="mt-2 font-semibold text-indigo-700 hover:underline dark:text-indigo-300" onClick={() => { setProfilePickerOpen(false); props.onManageProjects(); }}>Manage work projects…</button></div>}>
+                  <div class="mt-5 space-y-2"><For each={props.grounding.profiles()}>{(profile) => <button type="button" class="block w-full rounded-lg border border-slate-300 px-3 py-2 text-left text-sm font-semibold dark:border-slate-700" onClick={() => void runOnlineValidation(profile.name)}>{profile.project}<span class="ml-2 font-normal text-slate-500">{profile.team}</span></button>}</For></div>
+                </Show>
+                <div class="mt-5 flex justify-end"><button type="button" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold dark:border-slate-700" onClick={() => setProfilePickerOpen(false)}>Cancel</button></div>
+              </section>
+            </div>
           </Show>
 
           <Show when={saved()}>

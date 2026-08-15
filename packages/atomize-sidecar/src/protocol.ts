@@ -6,6 +6,8 @@ import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/servi
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
+import { verifyTemplate, type TemplateVerificationResult } from "@sppg2001/atomize-core/templates/template-verification";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
@@ -17,13 +19,16 @@ export type RpcNotification =
   | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } };
 export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
+export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
 export type SidecarServices = {
   library: SidecarTemplateLibrary;
   fetchGrounding: (connection: GroundingConnection) => Promise<unknown>;
+  validateOnline: (params: OnlineValidationParams, signal: AbortSignal) => Promise<TemplateVerificationResult>;
   createDraftSession: () => Promise<AIDraftSession>;
   drafts: Map<string, AIDraftSession>;
   cancelledDrafts: Set<string>;
+  activeRequests: Map<number, AbortController>;
   /** Writes an out-of-band notification (no request id) to the transport, e.g. live AI draft progress. */
   notify: (notification: RpcNotification) => void;
 };
@@ -42,11 +47,50 @@ export function createSidecarServices(library = createTemplateLibrary()): Sideca
   return {
     library,
     fetchGrounding,
+    validateOnline,
     createDraftSession: () => provider.createDraftSession(),
     drafts: new Map(),
     cancelledDrafts: new Set(),
+    activeRequests: new Map(),
     notify: (notification) => process.stdout.write(`${JSON.stringify(notification)}\n`),
   };
+}
+
+async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) throw Object.assign(new Error("Request cancelled."), { code: "REQUEST_CANCELLED" });
+  return await Promise.race([
+    work,
+    new Promise<T>((_, reject) => signal.addEventListener("abort", () => reject(Object.assign(new Error("Request cancelled."), { code: "REQUEST_CANCELLED" })), { once: true })),
+  ]);
+}
+
+export async function validateOnline(params: OnlineValidationParams, signal: AbortSignal): Promise<TemplateVerificationResult> {
+  try {
+    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
+    await abortable(adapter.authenticate(), signal);
+    const metadataReader = requireProjectMetadataReader(adapter);
+    const queryReader = requireSavedQueryReader(adapter);
+    return await abortable(verifyTemplate(params.template, {
+      project: {
+        mode: "online",
+        platform: {
+          getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
+          listSavedQueries: () => queryReader.listSavedQueries(),
+        },
+      },
+    }), signal);
+  } catch (error) {
+    if (signal.aborted) throw error;
+    const message = getErrorMessage(error);
+    const code = error instanceof AuthError || /authentication failed|access denied/i.test(message)
+      ? (/token.*expired|personal access token.*expired/i.test(message) ? "VALIDATION_TOKEN_EXPIRED" : "VALIDATION_AUTH_FAILED")
+      : "ONLINE_VALIDATION_FAILED";
+    throw Object.assign(new Error(code === "VALIDATION_TOKEN_EXPIRED"
+      ? "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again."
+      : code === "VALIDATION_AUTH_FAILED"
+        ? "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again."
+        : "Atomize could not validate this Template against Azure DevOps. Check the connection and try again."), { code });
+  }
 }
 
 function aiDraftParams(params: unknown): AIDraftParams {
@@ -239,7 +283,16 @@ function groundingConnection(params: unknown): GroundingConnection {
   return value as GroundingConnection;
 }
 
-export async function dispatch(request: RpcRequest, services: SidecarServices): Promise<unknown> {
+function onlineValidationParams(params: unknown): OnlineValidationParams {
+  if (typeof params !== "object" || params === null) throw Object.assign(new Error("Online Validation requires a Template and resolved connection."), { code: "INVALID_PARAMS" });
+  const value = params as Partial<OnlineValidationParams>;
+  if (typeof value.template !== "object" || value.template === null || Array.isArray(value.template)) {
+    throw Object.assign(new Error("Online Validation requires a Template."), { code: "INVALID_PARAMS" });
+  }
+  return { template: value.template as TaskTemplate, connection: groundingConnection(value.connection) };
+}
+
+export async function dispatch(request: RpcRequest, services: SidecarServices, signal: AbortSignal): Promise<unknown> {
   return await match(request.method)
     .with("catalog.list", async () => {
       const { items } = await services.library.getCatalogAll();
@@ -255,6 +308,7 @@ export async function dispatch(request: RpcRequest, services: SidecarServices): 
       return await services.library.installTemplate({ source: { content, name }, scope, overwrite });
     })
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
+    .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.cancel", () => cancelDraft(request.params, services))
     .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))
@@ -276,11 +330,28 @@ export async function dispatch(request: RpcRequest, services: SidecarServices): 
 export async function handleLine(line: string, services: SidecarServices): Promise<RpcResponse | undefined> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { return { jsonrpc: "2.0", id: 0, error: { code: "PARSE_ERROR", message: "Request is not valid JSON." } }; }
+  if (isCancellation(value)) {
+    services.activeRequests.get(value.params.id)?.abort();
+    return undefined;
+  }
   if (!isRequest(value)) return { jsonrpc: "2.0", id: typeof (value as { id?: unknown }).id === "number" ? (value as { id: number }).id : 0, error: { code: "INVALID_REQUEST", message: "Request must include jsonrpc, numeric id, and method." } };
-  try { return { jsonrpc: "2.0", id: value.id, result: await dispatch(value, services) }; }
-  catch (error) { return { jsonrpc: "2.0", id: value.id, error: { code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "SIDECAR_REQUEST_FAILED", message: error instanceof Error ? error.message : "Sidecar request failed." } }; }
+  const controller = new AbortController();
+  services.activeRequests.set(value.id, controller);
+  try {
+    const result = await dispatch(value, services, controller.signal);
+    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, result };
+  } catch (error) {
+    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, error: { code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "SIDECAR_REQUEST_FAILED", message: error instanceof Error ? error.message : "Sidecar request failed." } };
+  } finally { services.activeRequests.delete(value.id); }
 }
 
 function isRequest(value: unknown): value is RpcRequest {
   return typeof value === "object" && value !== null && (value as RpcRequest).jsonrpc === "2.0" && typeof (value as RpcRequest).id === "number" && typeof (value as RpcRequest).method === "string";
+}
+
+function isCancellation(value: unknown): value is { jsonrpc: "2.0"; method: "$/cancelRequest"; params: { id: number } } {
+  return typeof value === "object" && value !== null
+    && (value as { jsonrpc?: unknown }).jsonrpc === "2.0"
+    && (value as { method?: unknown }).method === "$/cancelRequest"
+    && typeof (value as { params?: { id?: unknown } }).params?.id === "number";
 }

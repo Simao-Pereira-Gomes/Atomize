@@ -79,4 +79,4 @@ The Template a user selects within the Generate Area to run Mock Preview against
 _Avoid_: assuming Mock Preview runs against whatever Template is currently open in the Templates Area — the Generate Area's Preview Source is a separate, independent selection.
 
 **Work Project Setting**:
-Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session and an AI draft. It uses non-technical language and applies choices across the app without becoming part of the Template; its explicit ungrounded state produces an AI draft without Azure DevOps context.
+Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session, an AI draft, and Online Validation. It uses non-technical language and applies choices across the app without becoming part of the Template; its explicit ungrounded state produces an AI draft without Azure DevOps context and requires an explicit profile choice before Online Validation can run.

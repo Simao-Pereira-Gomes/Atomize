@@ -15,9 +15,11 @@ const services: SidecarServices = {
     },
   },
   fetchGrounding: async () => ({}),
+  validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, needsOnlineVerification: false } }),
   createDraftSession: async () => ({ generate: async () => "", abort: async () => {}, dispose: async () => {} }),
   drafts: new Map(),
   cancelledDrafts: new Set(),
+  activeRequests: new Map(),
   notify: () => {},
 };
 
@@ -36,6 +38,40 @@ describe("sidecar protocol", () => {
     const grounding: SidecarServices = { ...services, fetchGrounding: async connection => { received = connection; return { workItemTypes: ["Task"] }; } };
     await expect(handleLine('{"jsonrpc":"2.0","id":3,"method":"grounding.fetch","params":{"organizationUrl":"https://dev.azure.com/org","project":"P","team":"T","token":"secret"}}', grounding)).resolves.toEqual({ jsonrpc: "2.0", id: 3, result: { workItemTypes: ["Task"] } });
     expect(received).toEqual({ organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" });
+  });
+});
+
+describe("validation.online", () => {
+  it("passes the in-memory Template and resolved connection to Online Validation", async () => {
+    let received: unknown;
+    const validating: SidecarServices = {
+      ...services,
+      validateOnline: async (params) => {
+        received = params;
+        return { valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, needsOnlineVerification: false } };
+      },
+    };
+    const template = makeTemplate();
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 70, method: "validation.online", params: { template, connection: { organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" } } }), validating))
+      .resolves.toMatchObject({ jsonrpc: "2.0", id: 70, result: { valid: true } });
+    expect(received).toEqual({ template, connection: { organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" } });
+  });
+
+  it("cancels an in-flight correlated request without emitting a late response", async () => {
+    let started!: () => void;
+    const validating: SidecarServices = {
+      ...services,
+      activeRequests: new Map(),
+      validateOnline: async (_params, signal) => await new Promise<never>((resolve, reject) => {
+        started = () => resolve(undefined as never);
+        signal.addEventListener("abort", () => reject(Object.assign(new Error("cancelled"), { code: "REQUEST_CANCELLED" })));
+      }) as never,
+    };
+    const pending = handleLine(JSON.stringify({ jsonrpc: "2.0", id: 71, method: "validation.online", params: { template: makeTemplate(), connection: { organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" } } }), validating);
+    while (!validating.activeRequests.has(71)) await new Promise(resolve => setTimeout(resolve, 0));
+    await expect(handleLine('{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":71}}', validating)).resolves.toBeUndefined();
+    started();
+    await expect(pending).resolves.toBeUndefined();
   });
 });
 
