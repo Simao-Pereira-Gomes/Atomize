@@ -431,7 +431,10 @@ export class TemplateCatalog {
       ? this.getProjectTemplatePath(kind, name)
       : this.getUserTemplatePath(kind, name);
     if (!overwrite && await this.destinationExists(kind, scope, name)) {
-      throw new Error(`A ${kind} named "${name}" already exists.`);
+      throw Object.assign(
+        new Error(`A ${kind} named "${name}" already exists.`),
+        { code: "CATALOG_ITEM_ALREADY_EXISTS" },
+      );
     }
     return targetPath;
   }

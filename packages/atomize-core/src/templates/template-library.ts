@@ -8,6 +8,7 @@ import {
   parseTemplateCatalogKind,
   type ResolvedTemplateInstallSource,
   resolveTemplateInstallSource,
+  type TemplateInstallContentSource,
   type TemplateInstallScope,
 } from "../services/template/template-install-source";
 import { TemplateResolver } from "../services/template/template-resolver";
@@ -53,7 +54,7 @@ export interface SaveTemplateInput {
 }
 
 export interface InstallTemplateInput {
-  source: string;
+  source: string | TemplateInstallContentSource;
   scope?: Extract<TemplateCatalogScope, "user" | "project">;
   kind?: TemplateCatalogKind;
   overwrite?: boolean;

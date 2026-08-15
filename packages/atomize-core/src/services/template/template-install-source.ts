@@ -19,6 +19,12 @@ export interface TemplateInstallSourceOptions {
   onRawUrl?: (url: string) => void;
 }
 
+/** In-memory YAML content with no file path or URL — e.g. Atomize Studio's authored/generated Template. */
+export interface TemplateInstallContentSource {
+  content: string;
+  name: string;
+}
+
 export interface ResolvedTemplateInstallSource {
   kind: TemplateCatalogKind;
   name: string;
@@ -29,10 +35,14 @@ export interface ResolvedTemplateInstallSource {
 const TEMPLATE_TYPES: TemplateCatalogKind[] = ["template", "mixin"];
 
 export async function resolveTemplateInstallSource(
-  source: string,
+  source: string | TemplateInstallContentSource,
   catalog: TemplateCatalog,
   options: TemplateInstallSourceOptions,
 ): Promise<ResolvedTemplateInstallSource> {
+  if (typeof source !== "string") {
+    return resolveContentInstallSource(source, catalog, options);
+  }
+
   if (source.startsWith("http://")) {
     throw new Error("Only HTTPS URLs are supported.");
   }
@@ -47,6 +57,21 @@ export async function resolveTemplateInstallSource(
     kind,
     name: basename(resolve(source), ext),
     install: (installOptions = {}) => catalog.installFromFile(source, kind, options.scope, installOptions),
+  };
+}
+
+function resolveContentInstallSource(
+  source: TemplateInstallContentSource,
+  catalog: TemplateCatalog,
+  options: TemplateInstallSourceOptions,
+): ResolvedTemplateInstallSource {
+  const kind = options.type ?? detectKindFromContent(source.content);
+  const filename = `${source.name}.atomize.yaml`;
+  return {
+    kind,
+    name: source.name,
+    install: (installOptions = {}) =>
+      catalog.installFromContent(source.content, filename, kind, options.scope, installOptions),
   };
 }
 
