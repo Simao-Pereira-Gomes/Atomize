@@ -3,7 +3,7 @@ import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider 
 import { buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
-import { TemplateCatalog, type TemplateCatalogKind } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
@@ -13,7 +13,7 @@ export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?
 export type RpcNotification =
   | { jsonrpc: "2.0"; method: "sidecar.ready" }
   | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } };
-export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem">;
+export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
 export type SidecarServices = {
@@ -179,6 +179,27 @@ function removeCatalogItemParams(params: unknown): { kind: TemplateCatalogKind; 
   return { kind: value.kind, name: value.name };
 }
 
+type InstallCatalogItemParams = {
+  content: string;
+  name: string;
+  scope: Extract<TemplateCatalogScope, "user" | "project">;
+  overwrite: boolean;
+};
+
+function installCatalogItemParams(params: unknown): InstallCatalogItemParams {
+  const invalid = () => Object.assign(new Error("Installing a Catalog item requires its content, name, and scope."), { code: "INVALID_PARAMS" });
+  if (typeof params !== "object" || params === null) throw invalid();
+  const value = params as Partial<{ content: unknown; name: unknown; scope: unknown; overwrite: unknown }>;
+  if (
+    typeof value.content !== "string" || !value.content.trim()
+    || typeof value.name !== "string" || !value.name.trim()
+    || (value.scope !== "user" && value.scope !== "project")
+  ) {
+    throw invalid();
+  }
+  return { content: value.content, name: value.name, scope: value.scope, overwrite: value.overwrite === true };
+}
+
 function groundingConnection(params: unknown): GroundingConnection {
   if (typeof params !== "object" || params === null) throw Object.assign(new Error("Grounding requires a resolved connection."), { code: "INVALID_PARAMS" });
   const value = params as Partial<GroundingConnection>;
@@ -198,6 +219,10 @@ export async function dispatch(request: RpcRequest, services: SidecarServices): 
       const { kind, name } = removeCatalogItemParams(request.params);
       await services.library.removeCatalogItem(kind, name);
       return { removed: true };
+    })
+    .with("catalog.install", async () => {
+      const { content, name, scope, overwrite } = installCatalogItemParams(request.params);
+      return await services.library.installTemplate({ source: { content, name }, scope, overwrite });
     })
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))

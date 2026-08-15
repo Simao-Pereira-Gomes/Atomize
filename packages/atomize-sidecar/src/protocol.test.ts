@@ -10,6 +10,9 @@ const services: SidecarServices = {
     removeCatalogItem: async () => {
       throw new Error("removeCatalogItem not stubbed for this test");
     },
+    installTemplate: async () => {
+      throw new Error("installTemplate not stubbed for this test");
+    },
   },
   fetchGrounding: async () => ({}),
   createDraftSession: async () => ({ generate: async () => "", abort: async () => {}, dispose: async () => {} }),
@@ -65,6 +68,53 @@ describe("catalog.remove", () => {
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":33,"method":"catalog.remove","params":{"kind":"template","name":"delivery"}}', notUserScoped))
       .resolves.toEqual({ jsonrpc: "2.0", id: 33, error: { code: "CATALOG_ITEM_NOT_USER_SCOPED", message: 'Cannot remove "delivery" — it is a project template and is not user-installed.' } });
+  });
+});
+
+describe("catalog.install", () => {
+  it("installs a Catalog item from in-memory content and reports the created item", async () => {
+    let received: unknown;
+    const installing: SidecarServices = {
+      ...services,
+      library: {
+        ...services.library,
+        installTemplate: async (input) => {
+          received = input;
+          return { kind: "template", scope: "user", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" };
+        },
+      },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":40,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery","scope":"user"}}', installing))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 40, result: { kind: "template", scope: "user", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" } });
+    expect(received).toEqual({ source: { content: "name: Delivery", name: "delivery" }, scope: "user", overwrite: false });
+  });
+
+  it("passes overwrite through when set", async () => {
+    let received: unknown;
+    const installing: SidecarServices = {
+      ...services,
+      library: {
+        ...services.library,
+        installTemplate: async (input) => { received = input; return { kind: "template", scope: "project", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" }; },
+      },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":41,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery","scope":"project","overwrite":true}}', installing))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 41, result: { kind: "template", scope: "project", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" } });
+    expect(received).toEqual({ source: { content: "name: Delivery", name: "delivery" }, scope: "project", overwrite: true });
+  });
+
+  it("rejects a request missing content, name, or scope", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":42,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery"}}', services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 42, error: { code: "INVALID_PARAMS", message: "Installing a Catalog item requires its content, name, and scope." } });
+  });
+
+  it("propagates a structured collision error without string-scraping it", async () => {
+    const colliding: SidecarServices = {
+      ...services,
+      library: { ...services.library, installTemplate: async () => { throw Object.assign(new Error('A template named "delivery" already exists.'), { code: "CATALOG_ITEM_ALREADY_EXISTS" }); } },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":43,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery","scope":"user"}}', colliding))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 43, error: { code: "CATALOG_ITEM_ALREADY_EXISTS", message: 'A template named "delivery" already exists.' } });
   });
 });
 
