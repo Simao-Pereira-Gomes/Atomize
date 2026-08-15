@@ -1,9 +1,12 @@
 import { type Accessor, createSignal, For, Match, onMount, Show, Switch } from "solid-js";
 import { type CatalogItem, parseCatalogItems } from "../catalog/catalog-item";
 import { pickLocalFile } from "../files/pick-local-file";
-import { buildMockStoryJson, type InspectResult, type PreviewResult, type PreviewSource, parseInspectResult, parsePreviewResult, previewSourceDetail, previewSourceLabel, previewSourceValue } from "../generate/preview";
+import { buildMockStoryJson, type InspectResult, type PreviewResult, type PreviewSource, parseInspectResult, parsePreviewResult, previewSourceLabel, previewSourceValue } from "../generate/preview";
 import { inspectPreview, listCatalogItems, runMockPreview, SidecarRequestError } from "../sidecar/sidecar-client";
+import type { GroundingSession } from "./GroundingSettings";
+import { GenerateLiveArea } from "./GenerateLiveArea";
 import { GenerateMockPreview } from "./GeneratePreviewVariants";
+import { GenerateModeToggle, type GenerateMode } from "./GenerateModeToggle";
 import { GenerateSourcePicker } from "./GenerateSourcePicker";
 
 type CatalogTemplateItem = Extract<CatalogItem, { kind: "template" }>;
@@ -25,7 +28,7 @@ type RunState =
   | { kind: "ready"; result: PreviewResult }
   | { kind: "error"; message: string };
 
-export function GenerateArea(props: { sidecarAvailable: Accessor<boolean> }) {
+export function GenerateArea(props: { sidecarAvailable: Accessor<boolean>; grounding: GroundingSession }) {
   const [source, setSource] = createSignal<PreviewSource>();
   const [pickerMode, setPickerMode] = createSignal<"catalog" | "file">("catalog");
   const [catalog, setCatalog] = createSignal<CatalogPickerState>({ kind: "loading" });
@@ -35,6 +38,7 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean> }) {
   const [inspect, setInspect] = createSignal<InspectState>({ kind: "loading" });
   const [formValues, setFormValues] = createSignal<Record<string, string>>({});
   const [run, setRun] = createSignal<RunState>({ kind: "idle" });
+  const [generateMode, setGenerateMode] = createSignal<GenerateMode>("mock");
 
   const loadCatalog = async () => {
     if (!props.sidecarAvailable()) return;
@@ -53,6 +57,7 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean> }) {
     setSource(next);
     setRun({ kind: "idle" });
     setFormValues({});
+    setGenerateMode("mock");
     setInspect({ kind: "loading" });
     try {
       const result = parseInspectResult(await inspectPreview(previewSourceValue(next)));
@@ -100,18 +105,23 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean> }) {
     <div class="p-6 lg:p-8">
       <section class="mx-auto max-w-4xl">
         <h1 class="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">Generate</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Run Mock Preview against a Template — offline, without connecting to a platform.</p>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          {generateMode() === "live"
+            ? "Preview against real Stories, then execute to create real Work Items in Azure DevOps."
+            : "Run Mock Preview against a Template — offline, without connecting to a platform."}
+        </p>
 
         <Show when={source()}>
           {(current) => {
             const selectedSource = current();
             return <div class="mt-6">
-              <button class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={changeSource}>
-                ← Choose a different Template
-              </button>
-              <div class="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900" title={selectedSource.kind === "file" ? selectedSource.path : undefined}>
-                <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{selectedSource.kind === "catalog" ? "📚" : "↗"}</span>
-                <div class="min-w-0"><p class="truncate text-sm font-bold text-slate-950 dark:text-white">{previewSourceLabel(selectedSource)}</p><p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{previewSourceDetail(selectedSource)}</p></div>
+              <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" title={selectedSource.kind === "file" ? selectedSource.path : undefined}>
+                <div class="flex min-w-0 items-center gap-2">
+                  <span class="grid size-6 shrink-0 place-items-center rounded-md bg-indigo-50 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{selectedSource.kind === "catalog" ? "📚" : "↗"}</span>
+                  <p class="truncate text-sm font-bold text-slate-950 dark:text-white">{previewSourceLabel(selectedSource)}</p>
+                  <button class="shrink-0 text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={changeSource}>Change</button>
+                </div>
+                <GenerateModeToggle mode={generateMode()} onChange={setGenerateMode} />
               </div>
 
               <Switch>
@@ -126,7 +136,17 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean> }) {
                     <Show when={(inspect() as Extract<InspectState, { kind: "ready" }>).result.fields.length === 0}>
                       <p class="mt-6 text-sm text-slate-600 dark:text-slate-300">This Template references no Story fields.</p>
                     </Show>
-                    <GenerateMockPreview inspect={(inspect() as Extract<InspectState, { kind: "ready" }>).result} formValues={formValues} setFormValues={setFormValues} run={run} onRun={() => void runPreview()} />
+                    <Show when={generateMode() === "mock"}>
+                      <GenerateMockPreview inspect={(inspect() as Extract<InspectState, { kind: "ready" }>).result} formValues={formValues} setFormValues={setFormValues} run={run} onRun={() => void runPreview()} />
+                    </Show>
+                    <Show when={generateMode() === "live"}>
+                      <Show
+                        when={props.grounding.selectedProfile()}
+                        fallback={<p class="mt-6 text-sm text-slate-600 dark:text-slate-300">Choose a Work Project in the header before running Live Preview or Execute.</p>}
+                      >
+                        {(profile) => <GenerateLiveArea source={selectedSource} profile={profile} />}
+                      </Show>
+                    </Show>
                   </div>
                 </Match>
               </Switch>

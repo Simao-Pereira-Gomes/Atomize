@@ -303,7 +303,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
             </Show>
           </Show>
           <Show when={activeArea() === "generate"}>
-            <GenerateArea sidecarAvailable={props.sidecarAvailable} />
+            <GenerateArea sidecarAvailable={props.sidecarAvailable} grounding={grounding} />
           </Show>
           <Show when={activeArea() === "catalog"}>
             <CatalogArea sidecarAvailable={props.sidecarAvailable} onClone={requestCatalogClone} />
