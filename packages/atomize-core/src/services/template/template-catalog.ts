@@ -362,6 +362,33 @@ export class TemplateCatalog {
     return items.find((item) => item.name === name);
   }
 
+  /**
+   * Deletes a user-installed catalog item from disk. Built-in and project-scope items are
+   * refused — this mirrors the CLI's `template remove` guard, now shared by every caller
+   * instead of each reimplementing it.
+   */
+  async removeUserItem(
+    kind: TemplateCatalogKind,
+    name: string,
+  ): Promise<TemplateCatalogItem> {
+    const item = await this.findItem(kind, name);
+    if (!item) {
+      throw Object.assign(
+        new Error(`${kind === "template" ? "Template" : "Mixin"} "${name}" not found.`),
+        { code: "CATALOG_ITEM_NOT_FOUND" },
+      );
+    }
+    if (item.scope !== "user") {
+      throw Object.assign(
+        new Error(`Cannot remove "${name}" — it is a ${item.scope} ${kind} and is not user-installed.`),
+        { code: "CATALOG_ITEM_NOT_USER_SCOPED" },
+      );
+    }
+
+    await unlink(item.path);
+    return item;
+  }
+
   parseRef(
     ref: string,
     defaultKind: TemplateCatalogKind,

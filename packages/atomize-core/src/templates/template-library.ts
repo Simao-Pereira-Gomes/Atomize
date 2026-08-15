@@ -164,6 +164,13 @@ export class TemplateLibrary {
     return await this.catalog.findByRef(ref, defaultKind);
   }
 
+  async removeCatalogItem(
+    kind: TemplateCatalogKind,
+    name: string,
+  ): Promise<TemplateCatalogItem> {
+    return await this.catalog.removeUserItem(kind, name);
+  }
+
   async saveTemplate(input: SaveTemplateInput): Promise<TemplateCatalogItem> {
     return await this.catalog.saveUserTemplate({
       ...input,
