@@ -109,6 +109,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const [surface, setSurface] = createSignal<"starting-paths" | "builder">(props.diagnosticInitialSection ? "builder" : "starting-paths");
   const [isAIDraft, setIsAIDraft] = createSignal(false);
   const [openFilePath, setOpenFilePath] = createSignal<string>();
+  const [pendingClone, setPendingClone] = createSignal<Extract<CatalogItem, { kind: "template" }>>();
   const stores = createAuthoringStore();
 
   const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
@@ -154,7 +155,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   };
 
   const startScratch = () => { setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("builder"); };
-  const startCatalogClone = (item: Extract<CatalogItem, { kind: "template" }>) => { setIsAIDraft(false); setOpenFilePath(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
+  const startCatalogClone = (item: Extract<CatalogItem, { kind: "template" }>) => { setIsAIDraft(false); setOpenFilePath(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); setActiveArea("templates"); };
   const startAIDraft = (template: TaskTemplate, workProject: string, groundingOptions?: GroundedFieldOptions) => {
     setIsAIDraft(true);
     setOpenFilePath(undefined);
@@ -170,6 +171,13 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   };
   const startOpen = (template: TaskTemplate, path: string) => { setIsAIDraft(false); setOpenFilePath(path); stores.loadTemplate(template); setSurface("builder"); };
   const changeStartingPath = () => { setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("starting-paths"); };
+  // Cloning from the Catalog Area is reachable without going through "Back to starting
+  // paths" first, so an in-progress builder session needs its own discard confirmation here
+  // — every other Starting Path stays gated behind that existing reset flow.
+  const requestCatalogClone = (item: Extract<CatalogItem, { kind: "template" }>) => {
+    if (surface() === "builder") { setPendingClone(item); return; }
+    startCatalogClone(item);
+  };
 
   return (
     <div class={`min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
@@ -180,7 +188,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
           <Show when={activeArea() === "templates"}>
             <Show
               when={surface() === "builder"}
-              fallback={<StartingPathPicker onScratch={startScratch} onCatalogClone={startCatalogClone} onAIDraft={startAIDraft} onOpen={startOpen} catalogAvailable={props.sidecarAvailable} />}
+              fallback={<StartingPathPicker onScratch={startScratch} onBrowseCatalog={() => setActiveArea("catalog")} onAIDraft={startAIDraft} onOpen={startOpen} catalogAvailable={props.sidecarAvailable} />}
             >
               <AtomizeStudio
                 stores={stores}
@@ -200,10 +208,24 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
             )}
           </For>
           <Show when={activeArea() === "catalog"}>
-            <CatalogArea sidecarAvailable={props.sidecarAvailable} />
+            <CatalogArea sidecarAvailable={props.sidecarAvailable} onClone={requestCatalogClone} />
           </Show>
         </div>
       </div>
+      <Show when={pendingClone()}>
+        {(item) => (
+          <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-5" role="presentation">
+            <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="clone-reset-title">
+              <h2 id="clone-reset-title" class="text-xl font-bold text-slate-950 dark:text-white">Discard your in-progress Template?</h2>
+              <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Cloning "{item().displayName}" replaces everything you have entered. This cannot be undone.</p>
+              <div class="mt-6 flex justify-end gap-3">
+                <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" type="button" onClick={() => setPendingClone(undefined)}>Cancel</button>
+                <button class="rounded-lg !border-0 !bg-rose-600 px-4 py-2 text-sm font-semibold !text-white !shadow-none hover:!bg-rose-500" type="button" onClick={() => { startCatalogClone(item()); setPendingClone(undefined); }}>Discard and clone</button>
+              </div>
+            </section>
+          </div>
+        )}
+      </Show>
     </div>
   );
 }

@@ -17,7 +17,7 @@ const SCOPE_GROUPS: { scope: CatalogItem["scope"]; label: string }[] = [
 
 const KIND_LABEL: Record<CatalogItem["kind"], string> = { template: "Template", mixin: "Mixin" };
 
-export function CatalogArea(props: { sidecarAvailable: Accessor<boolean> }) {
+export function CatalogArea(props: { sidecarAvailable: Accessor<boolean>; onClone: (item: Extract<CatalogItem, { kind: "template" }>) => void }) {
   const [state, setState] = createSignal<CatalogState>({ kind: "loading" });
   const [confirming, setConfirming] = createSignal<CatalogItem>();
   const [confirmText, setConfirmText] = createSignal("");
@@ -60,7 +60,7 @@ export function CatalogArea(props: { sidecarAvailable: Accessor<boolean> }) {
     <div class="p-6 lg:p-8">
       <section class="mx-auto max-w-4xl">
         <h1 class="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">Catalog</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Browse Templates and Mixins across Built-in, User, and Project scopes.</p>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Browse Templates and Mixins across Built-in, User, and Project scopes, clone a Template to start authoring, or remove a User-installed item.</p>
 
         <Switch>
           <Match when={state().kind === "unavailable"}>
@@ -99,11 +99,18 @@ export function CatalogArea(props: { sidecarAvailable: Accessor<boolean> }) {
                                   <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{item.description}</p>
                                   <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{item.ref}</p>
                                 </div>
-                                <Show when={item.scope === "user"}>
-                                  <button class="shrink-0 rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40" type="button" onClick={() => openConfirm(item)}>
-                                    Remove
-                                  </button>
-                                </Show>
+                                <div class="flex shrink-0 items-center gap-2">
+                                  <Show when={item.kind === "template"}>
+                                    <button class="rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40" type="button" onClick={() => props.onClone(item as Extract<CatalogItem, { kind: "template" }>)}>
+                                      Clone
+                                    </button>
+                                  </Show>
+                                  <Show when={item.scope === "user"}>
+                                    <button class="rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40" type="button" onClick={() => openConfirm(item)}>
+                                      Remove
+                                    </button>
+                                  </Show>
+                                </div>
                               </div>
                             )}
                           </For>
