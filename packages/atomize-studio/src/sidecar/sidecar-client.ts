@@ -23,8 +23,13 @@ function sidecarError(error: unknown): SidecarRequestError {
 }
 
 /** The sole frontend seam for calls handled by Atomize Studio's companion process. */
-export async function listCatalogTemplates(): Promise<unknown> {
-  return await invoke("catalog_list_templates");
+export async function listCatalogItems(): Promise<unknown> {
+  return await invoke("catalog_list_items");
+}
+
+export async function removeCatalogItem(kind: "template" | "mixin", name: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
+  try { await call("catalog_remove_item", { kind, name }); }
+  catch (error) { throw sidecarError(error); }
 }
 
 /** The frontend supplies only a profile name; Rust resolves and injects its token. */

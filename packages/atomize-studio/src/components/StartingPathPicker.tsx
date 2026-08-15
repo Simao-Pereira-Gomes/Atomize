@@ -1,15 +1,14 @@
-import { createSignal, For, Match, Show, Switch, type Accessor } from "solid-js";
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
-import { listAzureDevOpsProfiles, type AzureDevOpsProfile } from "../connections/connection-client";
+import { type Accessor, createSignal, For, Match, Show, Switch } from "solid-js";
+import { type CatalogItem, parseCatalogItems } from "../catalog/catalog-item";
+import { type AzureDevOpsProfile, listAzureDevOpsProfiles } from "../connections/connection-client";
 import { openLocalFile } from "../files/open";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { cancelAIDraft, generateAIDraft, listCatalogTemplates, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
+import { cancelAIDraft, generateAIDraft, listCatalogItems, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
 import { createAIDraftLifecycle } from "../starting-paths/ai-draft-lifecycle";
-import {
-  type CatalogTemplateItem,
-  parseCatalogTemplates,
-} from "../starting-paths/catalog-clone";
+
+type CatalogTemplateItem = Extract<CatalogItem, { kind: "template" }>;
 
 type CatalogState =
   | { kind: "idle" }
@@ -45,7 +44,7 @@ export function StartingPathPicker(props: {
     if (props.catalogAvailable?.() === false) return;
     setCatalog({ kind: "loading" });
     try {
-      const items = parseCatalogTemplates(await listCatalogTemplates());
+      const items = parseCatalogItems(await listCatalogItems()).filter((item): item is CatalogTemplateItem => item.kind === "template");
       setCatalog(items.length === 0 ? { kind: "empty" } : { kind: "ready", items });
     } catch (error) {
       setCatalog({

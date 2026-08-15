@@ -1,4 +1,6 @@
-import { createSignal, For, onMount, Show, type Accessor } from "solid-js";
+import type { TaskTemplate } from "@sppg2001/atomize-schema";
+import { type Accessor, createSignal, For, onMount, Show } from "solid-js";
+import type { CatalogItem } from "../catalog/catalog-item";
 import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken, setDefaultConnectionProfile } from "../connections/connection-client";
 import {
   type AzureDevOpsProfile,
@@ -6,14 +8,14 @@ import {
   listAzureDevOpsProfiles,
   loadGroundedFieldOptions,
 } from "../grounding/grounding-service";
-import { type SectionId, createAuthoringStore } from "../stores/sections";
+import { toCatalogClone } from "../starting-paths/catalog-clone";
+import { createAuthoringStore, type SectionId } from "../stores/sections";
 import { STUDIO_AREAS, type StudioAreaId } from "../stores/studio-areas";
 import { AreaPlaceholder } from "./AreaPlaceholder";
 import { AtomizeStudio } from "./AtomizeStudio";
+import { CatalogArea } from "./CatalogArea";
 import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
 import { StartingPathPicker } from "./StartingPathPicker";
-import { type CatalogTemplateItem, toCatalogClone } from "../starting-paths/catalog-clone";
-import { type TaskTemplate } from "@sppg2001/atomize-schema";
 
 function AreaRail(props: { active: StudioAreaId; onSelect: (id: StudioAreaId) => void; collapsed: boolean; onToggleCollapsed: () => void }) {
   return (
@@ -152,7 +154,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   };
 
   const startScratch = () => { setIsAIDraft(false); setOpenFilePath(undefined); stores.reset(); setSurface("builder"); };
-  const startCatalogClone = (item: CatalogTemplateItem) => { setIsAIDraft(false); setOpenFilePath(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
+  const startCatalogClone = (item: Extract<CatalogItem, { kind: "template" }>) => { setIsAIDraft(false); setOpenFilePath(undefined); stores.loadTemplate(toCatalogClone(item)); setSurface("builder"); };
   const startAIDraft = (template: TaskTemplate, workProject: string, groundingOptions?: GroundedFieldOptions) => {
     setIsAIDraft(true);
     setOpenFilePath(undefined);
@@ -190,13 +192,16 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
               />
             </Show>
           </Show>
-          <For each={STUDIO_AREAS.filter((area) => area.id !== "templates")}>
+          <For each={STUDIO_AREAS.filter((area) => area.id === "generate")}>
             {(area) => (
               <Show when={activeArea() === area.id}>
                 <AreaPlaceholder icon={area.icon} label={area.label} description={area.description} />
               </Show>
             )}
           </For>
+          <Show when={activeArea() === "catalog"}>
+            <CatalogArea sidecarAvailable={props.sidecarAvailable} />
+          </Show>
         </div>
       </div>
     </div>
