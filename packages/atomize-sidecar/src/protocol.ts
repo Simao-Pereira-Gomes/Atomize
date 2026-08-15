@@ -1,7 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
-import { buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
+import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
+import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
+import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
+import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
@@ -16,15 +19,22 @@ export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: 
 export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
 export type RpcNotification =
   | { jsonrpc: "2.0"; method: "sidecar.ready" }
-  | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } };
+  | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } }
+  | { jsonrpc: "2.0"; method: "generate.progress"; params: { runId: string; event: ProgressEvent } };
 export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
+/** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
+export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
+export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection };
+export type GenerateRunParams = { runId: string; source: string; connection: GroundingConnection; dryRun: boolean; scope: GenerateScope; continueOnError?: boolean };
 export type SidecarServices = {
   library: SidecarTemplateLibrary;
   fetchGrounding: (connection: GroundingConnection) => Promise<unknown>;
   validateOnline: (params: OnlineValidationParams, signal: AbortSignal) => Promise<TemplateVerificationResult>;
+  queryGenerateStories: (params: GenerateQueryStoriesParams) => Promise<{ stories: WorkItem[] }>;
+  runGenerate: (params: GenerateRunParams, signal: AbortSignal) => Promise<{ report: AtomizationReport }>;
   createDraftSession: () => Promise<AIDraftSession>;
   drafts: Map<string, AIDraftSession>;
   cancelledDrafts: Set<string>;
@@ -44,15 +54,18 @@ export function createTemplateLibrary(): TemplateLibrary {
 
 export function createSidecarServices(library = createTemplateLibrary()): SidecarServices {
   const provider = new GitHubCopilotProvider();
+  const notify: SidecarServices["notify"] = (notification) => process.stdout.write(`${JSON.stringify(notification)}\n`);
   return {
     library,
     fetchGrounding,
     validateOnline,
+    queryGenerateStories: (params) => queryGenerateStories(params, library),
+    runGenerate: (params, signal) => runGenerate(params, library, notify, signal),
     createDraftSession: () => provider.createDraftSession(),
     drafts: new Map(),
     cancelledDrafts: new Set(),
     activeRequests: new Map(),
-    notify: (notification) => process.stdout.write(`${JSON.stringify(notification)}\n`),
+    notify,
   };
 }
 
@@ -199,6 +212,68 @@ export async function fetchGrounding(connection: GroundingConnection): Promise<u
   }
 }
 
+async function resolveGenerateTemplate(source: string, library: SidecarTemplateLibrary): Promise<TaskTemplate> {
+  try {
+    const runnable = await library.getRunnableTemplate(source, { validate: false });
+    return runnable.template;
+  } catch (error) {
+    throw Object.assign(new Error(`Atomize Studio could not resolve this Template: ${getErrorMessage(error)}`), { code: "TEMPLATE_RESOLUTION_FAILED" });
+  }
+}
+
+function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: string, authFailedCode: string, defaultCode: string, defaultMessage: string): { code: string; message: string } {
+  const message = getErrorMessage(error);
+  if (error instanceof AuthError || /authentication failed|access denied/i.test(message)) {
+    return /token.*expired|personal access token.*expired/i.test(message)
+      ? { code: tokenExpiredCode, message: "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again." }
+      : { code: authFailedCode, message: "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again." };
+  }
+  return { code: defaultCode, message: defaultMessage };
+}
+
+/** Wraps `queryWorkItems` for the Generate Area's Story browser — see ADR-0056 (Generate Scope via Story browser). */
+export async function queryGenerateStories(params: GenerateQueryStoriesParams, library: SidecarTemplateLibrary): Promise<{ stories: WorkItem[] }> {
+  const template = await resolveGenerateTemplate(params.source, library);
+  try {
+    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
+    await adapter.authenticate();
+    const connectUserEmail = await adapter.getConnectUserEmail();
+    const platformFilter = new FilterEngine().convertFilter(template.filter, connectUserEmail);
+    const stories = await adapter.queryWorkItems(platformFilter);
+    return { stories };
+  } catch (error) {
+    const classified = classifyGenerateAdapterError(error, "GENERATE_TOKEN_EXPIRED", "GENERATE_AUTH_FAILED", "GENERATE_QUERY_FAILED", "Atomize could not fetch Stories from Azure DevOps. Check the connection and try again.");
+    throw Object.assign(new Error(classified.message), { code: classified.code });
+  }
+}
+
+/**
+ * Wraps `Atomizer.atomize` for the Generate Area — one call for both Live Preview (`dryRun: true`)
+ * and Execute (`dryRun: false`), see ADR-0055. `atomize-core` has no cancellation hook of its own,
+ * so a caller-initiated cancel (routed by Rust as a raw `$/cancelRequest`, mirroring
+ * `validation.online`/`validation.cancel`) only abandons the pending response — Stories already
+ * sent to Azure DevOps by the time of cancellation are not rolled back.
+ */
+export async function runGenerate(params: GenerateRunParams, library: SidecarTemplateLibrary, notify: SidecarServices["notify"], signal: AbortSignal): Promise<{ report: AtomizationReport }> {
+  const template = await resolveGenerateTemplate(params.source, library);
+  try {
+    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
+    await abortable(adapter.authenticate(), signal);
+    const atomizer = new Atomizer(adapter);
+    const report = await abortable(atomizer.atomize(template, {
+      dryRun: params.dryRun,
+      continueOnError: params.continueOnError,
+      storyIds: params.scope.kind === "stories" ? params.scope.storyIds : undefined,
+      onProgress: (event) => notify({ jsonrpc: "2.0", method: "generate.progress", params: { runId: params.runId, event } }),
+    }), signal);
+    return { report };
+  } catch (error) {
+    if (signal.aborted) throw error;
+    const classified = classifyGenerateAdapterError(error, "GENERATE_TOKEN_EXPIRED", "GENERATE_AUTH_FAILED", "GENERATE_RUN_FAILED", "Atomize could not complete this Generate run. Check the connection and try again.");
+    throw Object.assign(new Error(classified.message), { code: classified.code });
+  }
+}
+
 /** Composes a local file's `extends`/`mixins` for Studio's Open, without throwing on field-level invalidity — see ADR-0048. */
 export async function resolveLocalTemplate(path: string, services: SidecarServices): Promise<unknown> {
   try {
@@ -292,6 +367,41 @@ function onlineValidationParams(params: unknown): OnlineValidationParams {
   return { template: value.template as TaskTemplate, connection: groundingConnection(value.connection) };
 }
 
+function generateScope(value: unknown): GenerateScope {
+  const invalid = () => Object.assign(new Error("Generate requires a scope of Stories or the Template's filter."), { code: "INVALID_PARAMS" });
+  if (typeof value !== "object" || value === null) throw invalid();
+  const scope = value as Partial<{ kind: unknown; storyIds: unknown }>;
+  if (scope.kind === "filter") return { kind: "filter" };
+  if (scope.kind === "stories" && Array.isArray(scope.storyIds) && scope.storyIds.length > 0 && scope.storyIds.every((id) => typeof id === "string")) {
+    return { kind: "stories", storyIds: scope.storyIds as string[] };
+  }
+  throw invalid();
+}
+
+function generateQueryStoriesParams(params: unknown): GenerateQueryStoriesParams {
+  if (typeof params !== "object" || params === null || typeof (params as { source?: unknown }).source !== "string" || !(params as { source: string }).source.trim()) {
+    throw Object.assign(new Error("Browsing Stories requires a Template source and a resolved connection."), { code: "INVALID_PARAMS" });
+  }
+  return { source: (params as { source: string }).source, connection: groundingConnection((params as { connection?: unknown }).connection) };
+}
+
+function generateRunParams(params: unknown): GenerateRunParams {
+  const invalid = () => Object.assign(new Error("Generating requires a run id, Template source, resolved connection, scope, and dryRun flag."), { code: "INVALID_PARAMS" });
+  if (typeof params !== "object" || params === null) throw invalid();
+  const value = params as Partial<{ runId: unknown; source: unknown; connection: unknown; dryRun: unknown; scope: unknown; continueOnError: unknown }>;
+  if (typeof value.runId !== "string" || !value.runId || typeof value.source !== "string" || !value.source.trim() || typeof value.dryRun !== "boolean") {
+    throw invalid();
+  }
+  return {
+    runId: value.runId,
+    source: value.source,
+    connection: groundingConnection(value.connection),
+    dryRun: value.dryRun,
+    scope: generateScope(value.scope),
+    continueOnError: value.continueOnError === true,
+  };
+}
+
 export async function dispatch(request: RpcRequest, services: SidecarServices, signal: AbortSignal): Promise<unknown> {
   return await match(request.method)
     .with("catalog.list", async () => {
@@ -312,6 +422,8 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.cancel", () => cancelDraft(request.params, services))
     .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))
+    .with("generate.queryStories", () => services.queryGenerateStories(generateQueryStoriesParams(request.params)))
+    .with("generate.run", () => services.runGenerate(generateRunParams(request.params), signal))
     .with("preview.inspect", async () => {
       const { source } = inspectPreviewParams(request.params);
       const template = await resolvePreviewSource(source, services);

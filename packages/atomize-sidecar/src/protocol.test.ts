@@ -16,6 +16,10 @@ const services: SidecarServices = {
   },
   fetchGrounding: async () => ({}),
   validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, needsOnlineVerification: false } }),
+  queryGenerateStories: async () => ({ stories: [] }),
+  runGenerate: async () => {
+    throw new Error("runGenerate not stubbed for this test");
+  },
   createDraftSession: async () => ({ generate: async () => "", abort: async () => {}, dispose: async () => {} }),
   drafts: new Map(),
   cancelledDrafts: new Set(),
@@ -202,6 +206,81 @@ function makeTemplate(overrides: Record<string, unknown> = {}): unknown {
     ...overrides,
   };
 }
+
+const connection = { organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" };
+
+describe("generate.queryStories", () => {
+  it("passes the Preview Source and resolved connection to the injected service, returning its Stories", async () => {
+    let received: unknown;
+    const generating: SidecarServices = {
+      ...services,
+      queryGenerateStories: async (params) => { received = params; return { stories: [{ id: "1031", title: "Add OAuth login" } as never] }; },
+    };
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 80, method: "generate.queryStories", params: { source: "template:release-checklist", connection } }), generating))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 80, result: { stories: [{ id: "1031", title: "Add OAuth login" }] } });
+    expect(received).toEqual({ source: "template:release-checklist", connection });
+  });
+
+  it("rejects a missing source as INVALID_PARAMS", async () => {
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 81, method: "generate.queryStories", params: { connection } }), services))
+      .resolves.toMatchObject({ jsonrpc: "2.0", id: 81, error: { code: "INVALID_PARAMS" } });
+  });
+});
+
+describe("generate.run", () => {
+  it("passes runId, source, connection, dryRun, and scope to the injected service", async () => {
+    let received: unknown;
+    const generating: SidecarServices = {
+      ...services,
+      runGenerate: async (params) => { received = params; return { report: { templateName: "Release Checklist", storiesProcessed: 1, storiesSuccess: 1, storiesFailed: 0, tasksCalculated: 2, tasksCreated: 2, tasksSkipped: 0, results: [], errors: [], warnings: [], executionTime: 0, dryRun: true } as never }; },
+    };
+    const params = { runId: "run-1", source: "template:release-checklist", connection, dryRun: true, scope: { kind: "stories", storyIds: ["1031"] } };
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 90, method: "generate.run", params }), generating))
+      .resolves.toMatchObject({ jsonrpc: "2.0", id: 90, result: { report: { storiesProcessed: 1 } } });
+    expect(received).toEqual({ ...params, continueOnError: false });
+  });
+
+  it("accepts a filter scope with no storyIds", async () => {
+    let received: unknown;
+    const generating: SidecarServices = {
+      ...services,
+      runGenerate: async (params) => { received = params; return { report: {} as never }; },
+    };
+    const params = { runId: "run-2", source: "template:release-checklist", connection, dryRun: false, scope: { kind: "filter" } };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 91, method: "generate.run", params }), generating);
+    expect(received).toEqual({ ...params, continueOnError: false });
+  });
+
+  it("rejects a missing dryRun flag as INVALID_PARAMS", async () => {
+    const params = { runId: "run-3", source: "template:release-checklist", connection, scope: { kind: "filter" } };
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 92, method: "generate.run", params }), services))
+      .resolves.toMatchObject({ jsonrpc: "2.0", id: 92, error: { code: "INVALID_PARAMS" } });
+  });
+
+  it("rejects a stories scope with an empty storyIds array as INVALID_PARAMS", async () => {
+    const params = { runId: "run-4", source: "template:release-checklist", connection, dryRun: true, scope: { kind: "stories", storyIds: [] } };
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 93, method: "generate.run", params }), services))
+      .resolves.toMatchObject({ jsonrpc: "2.0", id: 93, error: { code: "INVALID_PARAMS" } });
+  });
+
+  it("cancels an in-flight run without emitting a late response — mirrors validation.online's cancellation", async () => {
+    let started!: () => void;
+    const generating: SidecarServices = {
+      ...services,
+      activeRequests: new Map(),
+      runGenerate: (_params, signal) => new Promise<never>((resolve, reject) => {
+        started = () => resolve(undefined as never);
+        signal.addEventListener("abort", () => reject(Object.assign(new Error("cancelled"), { code: "REQUEST_CANCELLED" })));
+      }),
+    };
+    const params = { runId: "run-5", source: "template:release-checklist", connection, dryRun: false, scope: { kind: "filter" } };
+    const pending = handleLine(JSON.stringify({ jsonrpc: "2.0", id: 94, method: "generate.run", params }), generating);
+    while (!generating.activeRequests.has(94)) await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(handleLine('{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":94}}', generating)).resolves.toBeUndefined();
+    started();
+    await expect(pending).resolves.toBeUndefined();
+  });
+});
 
 describe("preview.inspect", () => {
   it("resolves the source with validation disabled and inspects the result", async () => {
