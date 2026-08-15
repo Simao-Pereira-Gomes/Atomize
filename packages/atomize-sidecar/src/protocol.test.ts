@@ -154,6 +154,98 @@ describe("template.resolveLocal", () => {
   });
 });
 
+function makeTemplate(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    version: "1.0",
+    name: "Test Template",
+    filter: {},
+    tasks: [
+      { title: "Task A", estimationPercent: 60 },
+      { title: "Task B", estimationPercent: 40 },
+    ],
+    ...overrides,
+  };
+}
+
+describe("preview.inspect", () => {
+  it("resolves the source with validation disabled and inspects the result", async () => {
+    let received: unknown;
+    const inspecting: SidecarServices = {
+      ...services,
+      library: {
+        ...services.library,
+        getRunnableTemplate: async (source, options) => {
+          received = { source, options };
+          return { template: makeTemplate(), meta: {}, source: { kind: "file", input: source }, validation: { valid: true, errors: [] } } as never;
+        },
+      },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":50,"method":"preview.inspect","params":{"source":"template:delivery"}}', inspecting))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 50, result: { fields: [{ name: "estimation", type: "number", sources: ["estimation"], required: true }] } });
+    expect(received).toEqual({ source: "template:delivery", options: { validate: false } });
+  });
+
+  it("rejects a request missing a source", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":51,"method":"preview.inspect","params":{}}', services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 51, error: { code: "INVALID_PARAMS", message: "Inspecting a Template requires its source." } });
+  });
+
+  it("wraps a resolution failure as TEMPLATE_RESOLUTION_FAILED", async () => {
+    const failing: SidecarServices = {
+      ...services,
+      library: { ...services.library, getRunnableTemplate: async () => { throw new Error("template not found."); } },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":52,"method":"preview.inspect","params":{"source":"template:missing"}}', failing))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 52, error: { code: "TEMPLATE_RESOLUTION_FAILED", message: "Atomize Studio could not resolve this Template: template not found." } });
+  });
+});
+
+describe("preview.mockStory", () => {
+  it("resolves the source with validation disabled and previews against the mock Story", async () => {
+    const previewing: SidecarServices = {
+      ...services,
+      library: { ...services.library, getRunnableTemplate: async () => ({ template: makeTemplate(), meta: {}, source: { kind: "file", input: "" }, validation: { valid: true, errors: [] } }) as never },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":53,"method":"preview.mockStory","params":{"source":"/tmp/delivery.atomize.yaml","mockStory":"{\\"estimation\\":10}"}}', previewing))
+      .resolves.toEqual({
+        jsonrpc: "2.0", id: 53, result: {
+          tasks: [
+            { title: "Task A", estimation: 6, estimationPercent: 60 },
+            { title: "Task B", estimation: 4, estimationPercent: 40 },
+          ],
+          skippedTasks: [],
+          estimationSummary: { storyEstimation: 10, totalTaskEstimation: 10, percentageUsed: 100 },
+        },
+      });
+  });
+
+  it("rejects a request missing source or mockStory", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":54,"method":"preview.mockStory","params":{"source":"template:delivery"}}', services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 54, error: { code: "INVALID_PARAMS", message: "Previewing a Template requires its source and mock Story values." } });
+  });
+
+  it("wraps malformed mock Story JSON as MOCK_STORY_INVALID without resolving the source", async () => {
+    let resolved = false;
+    const untouched: SidecarServices = {
+      ...services,
+      library: { ...services.library, getRunnableTemplate: async () => { resolved = true; return { template: makeTemplate(), meta: {}, source: { kind: "file", input: "" }, validation: { valid: true, errors: [] } } as never; } },
+    };
+    const response = await handleLine('{"jsonrpc":"2.0","id":55,"method":"preview.mockStory","params":{"source":"template:delivery","mockStory":"not json"}}', untouched);
+    expect(response).toMatchObject({ jsonrpc: "2.0", id: 55, error: { code: "MOCK_STORY_INVALID" } });
+    expect((response as { error: { message: string } }).error.message).toContain("Invalid mock story JSON");
+    expect(resolved).toBe(false);
+  });
+
+  it("wraps a resolution failure as TEMPLATE_RESOLUTION_FAILED", async () => {
+    const failing: SidecarServices = {
+      ...services,
+      library: { ...services.library, getRunnableTemplate: async () => { throw new Error("template not found."); } },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":56,"method":"preview.mockStory","params":{"source":"template:missing","mockStory":"{}"}}', failing))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 56, error: { code: "TEMPLATE_RESOLUTION_FAILED", message: "Atomize Studio could not resolve this Template: template not found." } });
+  });
+});
+
 describe("AI draft protocol", () => {
   it("rejects a late generation result after cancellation and waits for abort acknowledgement", async () => {
     let resolveGeneration!: (value: string) => void;

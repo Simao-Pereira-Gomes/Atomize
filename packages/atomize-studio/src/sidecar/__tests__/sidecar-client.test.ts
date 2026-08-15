@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { installCatalogItem, removeCatalogItem, SidecarRequestError } from '../sidecar-client.js';
+import { inspectPreview, installCatalogItem, removeCatalogItem, runMockPreview, SidecarRequestError } from '../sidecar-client.js';
 
 describe('installCatalogItem', () => {
 	it('invokes catalog_install_item with content, name, scope, and overwrite', async () => {
@@ -65,5 +65,56 @@ describe('removeCatalogItem', () => {
 		await removeCatalogItem('template', 'delivery', call);
 
 		expect(calls).toEqual([{ command: 'catalog_remove_item', args: { kind: 'template', name: 'delivery' } }]);
+	});
+});
+
+describe('inspectPreview', () => {
+	it('invokes preview_inspect with the Preview Source', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return { fields: [] } as T;
+		};
+
+		const result = await inspectPreview('template:delivery', call);
+
+		expect(calls).toEqual([{ command: 'preview_inspect', args: { source: 'template:delivery' } }]);
+		expect(result).toEqual({ fields: [] });
+	});
+
+	it('wraps a structured sidecar error, preserving its code', async () => {
+		const call = async () => {
+			throw { code: 'TEMPLATE_RESOLUTION_FAILED', message: 'Atomize Studio could not resolve this Template: template not found.' };
+		};
+
+		const error = await inspectPreview('template:missing', call).catch((e) => e);
+
+		expect(error).toBeInstanceOf(SidecarRequestError);
+		expect((error as SidecarRequestError).code).toBe('TEMPLATE_RESOLUTION_FAILED');
+	});
+});
+
+describe('runMockPreview', () => {
+	it('invokes preview_mock_story with the Preview Source and mock Story JSON', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return { tasks: [], skippedTasks: [], estimationSummary: { storyEstimation: 0, totalTaskEstimation: 0, percentageUsed: 0 } } as T;
+		};
+
+		await runMockPreview('/tmp/delivery.atomize.yaml', '{"estimation":10}', call);
+
+		expect(calls).toEqual([{ command: 'preview_mock_story', args: { source: '/tmp/delivery.atomize.yaml', mockStory: '{"estimation":10}' } }]);
+	});
+
+	it('wraps an unstructured failure as SIDECAR_REQUEST_FAILED', async () => {
+		const call = async () => {
+			throw new Error('sidecar unreachable');
+		};
+
+		const error = await runMockPreview('template:delivery', '{}', call).catch((e) => e);
+
+		expect(error).toBeInstanceOf(SidecarRequestError);
+		expect((error as SidecarRequestError).code).toBe('SIDECAR_REQUEST_FAILED');
 	});
 });

@@ -4,6 +4,8 @@ import { buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
+import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
 import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
@@ -29,7 +31,10 @@ export type SidecarServices = {
 export function createTemplateLibrary(): TemplateLibrary {
   // The CI bundle copies atomize-core's catalog beside the sidecar binary.
   const packageRoot = process.env.ATOMIZE_CATALOG_ROOT;
-  return new TemplateLibrary(undefined, new TemplateCatalog(packageRoot ? { packageRoot } : undefined));
+  // Catalog listing and catalog-reference resolution must use the same root. The
+  // bundled Studio catalog is not at atomize-core's default package location.
+  const catalog = new TemplateCatalog(packageRoot ? { packageRoot } : undefined);
+  return new TemplateLibrary(new TemplateSourceResolver(undefined, catalog), catalog);
 }
 
 export function createSidecarServices(library = createTemplateLibrary()): SidecarServices {
@@ -170,6 +175,31 @@ function resolveLocalTemplateParams(params: unknown): { path: string } {
   return params as { path: string };
 }
 
+/** Resolves a Generate Area Preview Source (Catalog ref or local path) for Mock Preview, tolerating field-level invalidity the same way Open does — see ADR-0048. */
+async function resolvePreviewSource(source: string, services: SidecarServices) {
+  try {
+    const runnable = await services.library.getRunnableTemplate(source, { validate: false });
+    return runnable.template;
+  } catch (error) {
+    throw Object.assign(new Error(`Atomize Studio could not resolve this Template: ${getErrorMessage(error)}`), { code: "TEMPLATE_RESOLUTION_FAILED" });
+  }
+}
+
+function inspectPreviewParams(params: unknown): { source: string } {
+  if (typeof params !== "object" || params === null || typeof (params as { source?: unknown }).source !== "string" || !(params as { source: string }).source.trim()) {
+    throw Object.assign(new Error("Inspecting a Template requires its source."), { code: "INVALID_PARAMS" });
+  }
+  return { source: (params as { source: string }).source };
+}
+
+function mockStoryPreviewParams(params: unknown): { source: string; mockStory: string } {
+  const invalid = () => Object.assign(new Error("Previewing a Template requires its source and mock Story values."), { code: "INVALID_PARAMS" });
+  if (typeof params !== "object" || params === null) throw invalid();
+  const value = params as Partial<{ source: unknown; mockStory: unknown }>;
+  if (typeof value.source !== "string" || !value.source.trim() || typeof value.mockStory !== "string") throw invalid();
+  return { source: value.source, mockStory: value.mockStory };
+}
+
 function removeCatalogItemParams(params: unknown): { kind: TemplateCatalogKind; name: string } {
   if (typeof params !== "object" || params === null) throw Object.assign(new Error("Removing a Catalog item requires its kind and name."), { code: "INVALID_PARAMS" });
   const value = params as Partial<{ kind: unknown; name: unknown }>;
@@ -228,6 +258,18 @@ export async function dispatch(request: RpcRequest, services: SidecarServices): 
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.cancel", () => cancelDraft(request.params, services))
     .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))
+    .with("preview.inspect", async () => {
+      const { source } = inspectPreviewParams(request.params);
+      const template = await resolvePreviewSource(source, services);
+      return inspectTemplate(template);
+    })
+    .with("preview.mockStory", async () => {
+      const { source, mockStory } = mockStoryPreviewParams(request.params);
+      try { parseMockStory(mockStory); }
+      catch (error) { throw Object.assign(new Error(getErrorMessage(error)), { code: "MOCK_STORY_INVALID" }); }
+      const template = await resolvePreviewSource(source, services);
+      return runPreview(template, mockStory);
+    })
     .otherwise(method => { throw Object.assign(new Error(`Unknown method: ${method}`), { code: "METHOD_NOT_FOUND" }); });
 }
 

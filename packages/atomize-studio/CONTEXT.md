@@ -74,5 +74,9 @@ Using Grounded Field Options while authoring to reduce invalid platform-specific
 **Grounding Service**:
 The Atomize Studio capability that manages a Grounding Session and retrieves Grounded Field Options for present and future authoring controls. The first consumer set is the Filter section; custom-field and condition controls adopt it when those controls are introduced.
 
+**Preview Source**:
+The Template a user selects within the Generate Area to run Mock Preview against — either a Catalog Template (browsed the same way as Catalog Clone, Mixins excluded since they cannot stand alone) or a local Atomize YAML File (picked via the same native file dialog Open uses). It is independent of the Templates Area's Authoring Store: switching or editing the Template currently being authored has no effect on it, and picking a Preview Source never loads it into the Authoring Store.
+_Avoid_: assuming Mock Preview runs against whatever Template is currently open in the Templates Area — the Generate Area's Preview Source is a separate, independent selection.
+
 **Work Project Setting**:
 Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session and an AI draft. It uses non-technical language and applies choices across the app without becoming part of the Template; its explicit ungrounded state produces an AI draft without Azure DevOps context.

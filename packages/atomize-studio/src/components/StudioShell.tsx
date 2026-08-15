@@ -12,9 +12,9 @@ import { toCatalogClone } from "../starting-paths/catalog-clone";
 import { createNavigationHistory } from "../stores/navigation-history";
 import { createAuthoringStore, type SectionId } from "../stores/sections";
 import { STUDIO_AREAS, type StudioAreaId } from "../stores/studio-areas";
-import { AreaPlaceholder } from "./AreaPlaceholder";
 import { AtomizeStudio } from "./AtomizeStudio";
 import { CatalogArea } from "./CatalogArea";
+import { GenerateArea } from "./GenerateArea";
 import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
 import { StartingPathPicker } from "./StartingPathPicker";
 
@@ -272,13 +272,9 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
               />
             </Show>
           </Show>
-          <For each={STUDIO_AREAS.filter((area) => area.id === "generate")}>
-            {(area) => (
-              <Show when={activeArea() === area.id}>
-                <AreaPlaceholder icon={area.icon} label={area.label} description={area.description} />
-              </Show>
-            )}
-          </For>
+          <Show when={activeArea() === "generate"}>
+            <GenerateArea sidecarAvailable={props.sidecarAvailable} />
+          </Show>
           <Show when={activeArea() === "catalog"}>
             <CatalogArea sidecarAvailable={props.sidecarAvailable} onClone={requestCatalogClone} />
           </Show>

@@ -67,3 +67,15 @@ export async function resolveLocalTemplate(path: string, call: SidecarInvoker = 
   try { return await call("template_resolve_local", { path }); }
   catch (error) { throw sidecarError(error); }
 }
+
+/** Inspects a Generate Area Preview Source (Catalog ref or local path), reporting which mock Story fields it references. */
+export async function inspectPreview(source: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("preview_inspect", { source }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Runs Mock Preview: resolves the Preview Source and evaluates it against mock Story field values (JSON string). */
+export async function runMockPreview(source: string, mockStory: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("preview_mock_story", { source, mockStory }); }
+  catch (error) { throw sidecarError(error); }
+}
