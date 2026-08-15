@@ -43,10 +43,6 @@ The single source of truth for the Template being authored in Atomize Studio. Th
 **Task Auto-normalisation**:
 An opt-in, in-memory Task Builder behavior for Percentage-mode Tasks that preserves a valid edited Task percentage and proportionally redistributes the remaining percentage among its valid sibling Tasks. It is not part of a Template and is never written into its Atomize YAML File.
 
-**Live Execution Confirmation**:
-The confirmation step shown in the Generate Area before every task-creating execution, naming the Template, scope, and platform and defaulting to not proceeding. Shown on every execution with no session-level bypass, mirroring the CLI's per-invocation LIVE MODE confirmation.
-_Avoid_: assuming a "don't ask again this session" affordance exists — it was deliberately rejected to keep this safeguard identical to the CLI's.
-
 **Template Diff**:
 A read-only comparison, available in the Templates Area, between a Catalog Clone (or its descendant edits) and the Catalog item recorded in its `origin` field, showing what has changed since the clone. Available only when `origin` is set, so it does not apply to Local File Clones or from-scratch Templates.
 _Avoid_: conflating with Resolved Template, which shows composition output rather than a change comparison.
@@ -75,8 +71,16 @@ Using Grounded Field Options while authoring to reduce invalid platform-specific
 The Atomize Studio capability that manages a Grounding Session and retrieves Grounded Field Options for present and future authoring controls. The first consumer set is the Filter section; custom-field and condition controls adopt it when those controls are introduced.
 
 **Preview Source**:
-The Template a user selects within the Generate Area to run Mock Preview against — either a Catalog Template (browsed the same way as Catalog Clone, Mixins excluded since they cannot stand alone) or a local Atomize YAML File (picked via the same native file dialog Open uses). It is independent of the Templates Area's Authoring Store: switching or editing the Template currently being authored has no effect on it, and picking a Preview Source never loads it into the Authoring Store.
-_Avoid_: assuming Mock Preview runs against whatever Template is currently open in the Templates Area — the Generate Area's Preview Source is a separate, independent selection.
+The Template a user selects within the Generate Area to run Mock Preview, Live Preview, or Execute against — either a Catalog Template (browsed the same way as Catalog Clone, Mixins excluded since they cannot stand alone) or a local Atomize YAML File (picked via the same native file dialog Open uses). It is independent of the Templates Area's Authoring Store: switching or editing the Template currently being authored has no effect on it, and picking a Preview Source never loads it into the Authoring Store.
+_Avoid_: assuming Mock Preview runs against whatever Template is currently open in the Templates Area — the Generate Area's Preview Source is a separate, independent selection; assuming Preview Source is Mock-Preview-specific — Live Preview and Execute select their Template the same way.
+
+**Generate Scope**:
+Which Stories a Generate Area run — Live Preview or Execute — processes: either specific Stories the user picks from real, matching results fetched through the current Work Project Setting, or the Preview Source Template's own filter, unscoped, for a full batch run. It is chosen fresh per run rather than inferred from the Template's filter alone.
+_Avoid_: assuming Generate Scope is always a single Story — it is a user choice between one-or-more picked Stories and the Template's full filter.
+
+**Live Execution Confirmation**:
+The confirmation step shown in the Generate Area before every task-creating execution, naming the Template, Generate Scope, and platform, and rendering the dry run's resolved Task list inline — Studio has no separate Live Preview step, so this confirmation is the only place that list appears before execution. It defaults to not proceeding and is shown on every execution with no session-level bypass, mirroring the CLI's per-invocation LIVE MODE confirmation.
+_Avoid_: assuming a "don't ask again this session" affordance exists — it was deliberately rejected to keep this safeguard identical to the CLI's; assuming a separate Live Preview capability exists elsewhere in the Generate Area — the dry run shown here is the only preview of a live-scoped run.
 
 **Work Project Setting**:
-Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session, an AI draft, and Online Validation. It uses non-technical language and applies choices across the app without becoming part of the Template; its explicit ungrounded state produces an AI draft without Azure DevOps context and requires an explicit profile choice before Online Validation can run.
+Atomize Studio's global header setting for choosing the Connection Profile used by the current Grounding Session, an AI draft, Online Validation, and Generate Area runs. It uses non-technical language and applies choices across the app without becoming part of the Template; its explicit ungrounded state produces an AI draft without Azure DevOps context and requires an explicit profile choice before Online Validation or a Generate Area run can proceed. Since Atomize Studio supports only the Azure DevOps platform today, the platform named in Live Execution Confirmation is always the one implied by the chosen Connection Profile, not a separate selection.

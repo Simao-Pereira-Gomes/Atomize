@@ -1,0 +1,7 @@
+# Studio's Generate action has no separate Live Preview step
+
+Atomize Studio's Generate Area does not implement Live Preview as a distinct capability or sidecar RPC. It is one Generate action — the same underlying `atomize()` call the CLI and VS Code extension already share, gated by a `dryRun` flag — always run dry-run first; its resolved `AtomizationReport` is rendered inline as part of Live Execution Confirmation, and re-invoking the identical call with `dryRun: false` after confirmation is what Execute does. The Live Execution Confirmation state machine itself stays exactly `template`/`scope`/`platform`; the dry run's report is caller-side state feeding its render, not part of the machine's typed payload, keeping the machine's job scoped to gating the `idle → executing` transition rather than also owning fetched data.
+
+## Considered Options
+
+Issue #138 originally specified Live Preview and the Execute confirmation as two separate acceptance-criteria bullets, implying a distinct preview construct alongside the confirmation gate. That was rejected once `atomize-core`'s `atomize()` — and both the CLI's `generate` command and the VS Code extension's `generate-panel.ts` — turned out to already treat dry-run and live execution as the same function differing only by one boolean. There was no second code path to mirror, and inventing one would have duplicated behavior the report/confirmation flow already provides.
