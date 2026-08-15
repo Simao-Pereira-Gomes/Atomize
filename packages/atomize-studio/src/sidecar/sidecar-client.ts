@@ -32,6 +32,20 @@ export async function removeCatalogItem(kind: "template" | "mixin", name: string
   catch (error) { throw sidecarError(error); }
 }
 
+export type CatalogInstallScope = "user" | "project";
+
+/** Installs in-memory YAML content (no file path or URL) into the Catalog — see ADR-0052. */
+export async function installCatalogItem(
+  content: string,
+  name: string,
+  scope: CatalogInstallScope,
+  overwrite = false,
+  call: SidecarInvoker = tauriInvoke,
+): Promise<unknown> {
+  try { return await call("catalog_install_item", { content, name, scope, overwrite }); }
+  catch (error) { throw sidecarError(error); }
+}
+
 /** The frontend supplies only a profile name; Rust resolves and injects its token. */
 export async function loadGrounding(profile: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("grounding_load", { profile }); }

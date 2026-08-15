@@ -16,6 +16,11 @@ async fn catalog_remove_item(kind: String, name: String, relay: tauri::State<'_,
 }
 
 #[tauri::command]
+async fn catalog_install_item(content: String, name: String, scope: String, overwrite: bool, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("catalog.install", json!({ "content": content, "name": name, "scope": scope, "overwrite": overwrite })).await
+}
+
+#[tauri::command]
 async fn grounding_load(profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
     relay.request("grounding.fetch", json!({ "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token })).await
@@ -56,7 +61,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, grounding_load, ai_generate, ai_cancel, template_resolve_local, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, ai_generate, ai_cancel, template_resolve_local, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
