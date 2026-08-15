@@ -15,7 +15,10 @@ pub struct SidecarRelay {
     app: AppHandle,
     next_id: AtomicU64,
     pending: Mutex<HashMap<u64, oneshot::Sender<Result<Value, SidecarError>>>>,
-    validation_requests: Mutex<HashMap<String, u64>>,
+    // Keyed by a caller-chosen domain id (a Validation id or a Generate run id) rather than the
+    // internal JSON-RPC id, so Rust can translate a cancel-by-domain-id call into the raw
+    // `$/cancelRequest` notification the sidecar's generic per-request AbortSignal understands.
+    cancellable_requests: Mutex<HashMap<String, u64>>,
     child: Mutex<Option<CommandChild>>,
     restarts: Mutex<Vec<Instant>>,
     ready: AtomicBool,
@@ -24,7 +27,7 @@ pub struct SidecarRelay {
 
 impl SidecarRelay {
     pub fn new(app: AppHandle) -> Arc<Self> {
-        Arc::new(Self { app, next_id: AtomicU64::new(1), pending: Mutex::new(HashMap::new()), validation_requests: Mutex::new(HashMap::new()), child: Mutex::new(None), restarts: Mutex::new(Vec::new()), ready: AtomicBool::new(false), fatal: AtomicBool::new(false) })
+        Arc::new(Self { app, next_id: AtomicU64::new(1), pending: Mutex::new(HashMap::new()), cancellable_requests: Mutex::new(HashMap::new()), child: Mutex::new(None), restarts: Mutex::new(Vec::new()), ready: AtomicBool::new(false), fatal: AtomicBool::new(false) })
     }
 
     pub fn start(self: &Arc<Self>) -> Result<(), String> {
@@ -56,6 +59,7 @@ impl SidecarRelay {
             // Out-of-band notifications carry no request id; forward their params
             // straight to the frontend as a Tauri event instead of matching a pending call.
             Some("ai.progress") => { let _ = self.app.emit("ai-draft-progress", value.get("params")); return; }
+            Some("generate.progress") => { let _ = self.app.emit("generate-run-progress", value.get("params")); return; }
             _ => {}
         }
         let Some(id) = value.get("id").and_then(Value::as_u64) else { return };
@@ -77,30 +81,45 @@ impl SidecarRelay {
     }
 
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, SidecarError> {
-        self.request_with_validation_key(method, params, None).await
+        self.request_with_cancel_key(method, params, None).await
     }
 
-    async fn request_with_validation_key(&self, method: &str, params: Value, validation_key: Option<&str>) -> Result<Value, SidecarError> {
+    async fn request_with_cancel_key(&self, method: &str, params: Value, cancel_key: Option<&str>) -> Result<Value, SidecarError> {
         if self.fatal.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar failed repeatedly. Select Retry to restart it.".into() }); }
         if !self.ready.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_STARTING".into(), message: "Atomize sidecar is still starting.".into() }); }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (sender, receiver) = oneshot::channel();
         self.pending.lock().unwrap().insert(id, sender);
-        if let Some(key) = validation_key { self.validation_requests.lock().unwrap().insert(key.to_owned(), id); }
+        if let Some(key) = cancel_key { self.cancellable_requests.lock().unwrap().insert(key.to_owned(), id); }
         let request = encode_request(id, method, params);
         if let Some(child) = self.child.lock().unwrap().as_mut() { child.write(format!("{request}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string() })?; }
         else { self.pending.lock().unwrap().remove(&id); return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar is not running.".into() }); }
         let outcome = receiver.await.map_err(|_| SidecarError { code: "SIDECAR_STOPPED".into(), message: "Atomize sidecar stopped before responding.".into() })?;
-        if let Some(key) = validation_key { self.validation_requests.lock().unwrap().remove(key); }
+        if let Some(key) = cancel_key { self.cancellable_requests.lock().unwrap().remove(key); }
         outcome
     }
 
     pub async fn validate(&self, validation_id: String, params: Value) -> Result<Value, SidecarError> {
-        self.request_with_validation_key("validation.online", params, Some(&validation_id)).await
+        self.request_with_cancel_key("validation.online", params, Some(&validation_id)).await
     }
 
     pub fn cancel_validation(&self, validation_id: &str) -> Result<(), SidecarError> {
-        let Some(id) = self.validation_requests.lock().unwrap().remove(validation_id) else { return Ok(()); };
+        self.cancel_by_key(validation_id)
+    }
+
+    /// `generate.run` has no dedicated sidecar-side cancel handler — like Online Validation, cancelling
+    /// only abandons the pending response via the generic `$/cancelRequest` mechanism (`atomize-core`
+    /// has no cancellation hook to actually interrupt an in-flight batch).
+    pub async fn run_generate(&self, run_id: String, params: Value) -> Result<Value, SidecarError> {
+        self.request_with_cancel_key("generate.run", params, Some(&run_id)).await
+    }
+
+    pub fn cancel_generate(&self, run_id: &str) -> Result<(), SidecarError> {
+        self.cancel_by_key(run_id)
+    }
+
+    fn cancel_by_key(&self, key: &str) -> Result<(), SidecarError> {
+        let Some(id) = self.cancellable_requests.lock().unwrap().remove(key) else { return Ok(()); };
         self.pending.lock().unwrap().remove(&id);
         let notification = json!({ "jsonrpc": "2.0", "method": "$/cancelRequest", "params": { "id": id } });
         let mut child = self.child.lock().unwrap();

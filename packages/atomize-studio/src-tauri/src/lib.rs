@@ -48,6 +48,30 @@ async fn ai_cancel(draft_id: String, relay: tauri::State<'_, Arc<SidecarRelay>>)
 }
 
 #[tauri::command]
+async fn generate_query_stories(source: String, profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
+    relay.request("generate.queryStories", json!({ "source": source, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await
+}
+
+#[tauri::command]
+async fn generate_run(run_id: String, source: String, profile: String, dry_run: bool, scope: serde_json::Value, continue_on_error: Option<bool>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
+    relay.run_generate(run_id.clone(), json!({
+        "runId": run_id,
+        "source": source,
+        "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token },
+        "dryRun": dry_run,
+        "scope": scope,
+        "continueOnError": continue_on_error,
+    })).await
+}
+
+#[tauri::command]
+fn generate_cancel(run_id: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<(), sidecar::SidecarError> {
+    relay.cancel_generate(&run_id)
+}
+
+#[tauri::command]
 async fn template_resolve_local(path: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     relay.request("template.resolveLocal", json!({ "path": path })).await
 }
@@ -82,7 +106,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_cancel, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
