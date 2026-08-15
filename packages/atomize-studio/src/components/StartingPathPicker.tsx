@@ -15,6 +15,10 @@ export function StartingPathPicker(props: {
   onAIDraft: (template: ReturnType<typeof parseAIDraftResponse>, workProject: string, grounding?: GroundedFieldOptions) => void;
   onOpen: (template: TaskTemplate, path: string) => void;
   catalogAvailable?: Accessor<boolean>;
+  /** A draft can be parked here (via Back) with no other way back to it — see ADR-0051 addendum. */
+  hasActiveDraft?: Accessor<boolean>;
+  activeDraftName?: Accessor<string>;
+  onResumeDraft?: () => void;
 }) {
   const [aiState, setAiState] = createSignal<AIState>("idle");
   const [opening, setOpening] = createSignal(false);
@@ -93,6 +97,23 @@ export function StartingPathPicker(props: {
           <p class="mt-3 max-w-2xl text-slate-600 dark:text-slate-300">
             Start fresh, use an existing template as a starting point, or let AI help you create a first draft.
           </p>
+          <Show when={props.hasActiveDraft?.()}>
+            <div class="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-900 dark:bg-indigo-950/40">
+              <div class="min-w-0">
+                <p class="font-bold text-indigo-950 dark:text-indigo-50">Continue your in-progress Template</p>
+                <p class="mt-1 truncate text-sm leading-6 text-indigo-900 dark:text-indigo-100">
+                  {props.activeDraftName?.().trim() || "Untitled Template"} is still open — pick up where you left off, or start something new below.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="shrink-0 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+                onClick={props.onResumeDraft}
+              >
+                Continue editing
+              </button>
+            </div>
+          </Show>
         </Show>
 
         <Switch>

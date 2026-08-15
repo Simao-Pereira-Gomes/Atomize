@@ -151,6 +151,14 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     history.clear();
     history.record({ activeArea: activeArea(), surface: surface() });
   };
+  // Back can leave an active draft parked at Starting Paths with the history stack exhausted
+  // (e.g. after backing out through several Area switches) — with no Forward control, that
+  // draft would otherwise become unreachable except through the discard-confirmation dialog.
+  // This re-enters the builder the same way goBack would, without touching the Authoring Store.
+  const resumeDraft = () => {
+    history.record({ activeArea: activeArea(), surface: surface() });
+    setSurface("builder");
+  };
 
   const [profiles, setProfiles] = createSignal<AzureDevOpsProfile[]>([]);
   const [grounded, setGrounded] = createSignal<GroundedFieldOptions>();
@@ -241,7 +249,18 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
           <Show when={activeArea() === "templates"}>
             <Show
               when={surface() === "builder"}
-              fallback={<StartingPathPicker onScratch={requestScratch} onBrowseCatalog={() => navigateToArea("catalog")} onAIDraft={requestAIDraft} onOpen={requestOpen} catalogAvailable={props.sidecarAvailable} />}
+              fallback={
+                <StartingPathPicker
+                  onScratch={requestScratch}
+                  onBrowseCatalog={() => navigateToArea("catalog")}
+                  onAIDraft={requestAIDraft}
+                  onOpen={requestOpen}
+                  catalogAvailable={props.sidecarAvailable}
+                  hasActiveDraft={hasActiveDraft}
+                  activeDraftName={() => stores["basic-info"].fields.name}
+                  onResumeDraft={resumeDraft}
+                />
+              }
             >
               <AtomizeStudio
                 stores={stores}
