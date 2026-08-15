@@ -26,44 +26,11 @@ Workspace discovery is based on the invocation directory, not on install source 
 
 ## Migration Compatibility
 
-During migration, the CLI reads legacy user and project paths but writes only to the new `catalog` paths:
+During migration, the CLI reads legacy user and project paths (`~/.atomize/templates/{templates,mixins}`, `<workspace>/.atomize/templates/{templates,mixins}`) but writes only to the new `catalog` paths. Precedence within each scope favors the new path over the legacy one; scope precedence remains project → user → builtin. When a new-path and legacy-path item collide within the same scope, the new-path item wins and the legacy one is shown as overridden — the public `template list --json` contract is unchanged, since which path an item resolved from is exposed only through its `path` value, not a new field.
 
-- legacy user paths: `~/.atomize/templates/{templates,mixins}`
-- legacy project paths: `<workspace>/.atomize/templates/{templates,mixins}`
+Writes to a same-named item fail without explicit overwrite when the destination scope already holds that item under either path; overwrite writes the new path and removes the same-stem legacy files, leaving other scopes and unrelated files untouched. `template remove` removes only the resolved active user item (new or legacy path) — it does not sweep hidden legacy duplicates or other scopes.
 
-Precedence is:
-
-1. project catalog
-2. project legacy templates
-3. user catalog
-4. user legacy templates
-5. builtin
-
-Legacy project reads are anchored to the discovered workspace root. Atomize does not scan accidental invocation-subdirectory legacy catalogs.
-
-When a new-path item and legacy-path item collide within the same scope, the new-path item is active and the legacy-path item is shown as overridden with its actual source path. `template list` and `template list --json` keep the public JSON contract unchanged; actual `path` values identify whether an item came from new or legacy storage. The internal source tier is not part of `template list --json`; consumers use public `scope` and `path`.
-
-Every scanned catalog or legacy directory preserves ADR-0006 filename compatibility: `.atomize.yaml` and `.atomize.yml` variants are preferred over plain `.yaml` and `.yml` variants for the same logical name.
-
-## Write Behavior
-
-Installing or saving a same-named item fails without explicit overwrite only when the destination scope already has that item in either the new path or the legacy path. Built-in items and other scopes do not block installs.
-
-With overwrite, Atomize writes the new-path item and deletes same-stem legacy item files in the destination scope (`.atomize.yaml`, `.atomize.yml`, `.yaml`, and `.yml` variants), leaving unrelated legacy files, other scopes, and directories in place.
-
-Commands that write named catalog items, including `template install` and `template create --save-as`, use the same destination-scope conflict behavior.
-
-## Remove Behavior
-
-`template remove` removes the resolved active user item whether it lives in the new user catalog or the legacy user path. It does not remove hidden legacy duplicates, project items, built-ins, unrelated files, or empty directories.
-
-Project removal remains out of scope for this decision.
-
-## Built-In Catalog Assets
-
-Built-in catalog assets move to `packages/cli/catalog/{templates,mixins}`. The package includes only the new `catalog` asset paths; it does not ship the old `templates/{templates,mixins}` package layout. Built-in discovery hard-switches to `<packageRoot>/catalog`.
-
-Built-in items continue to use public scope `builtin`.
+Built-in catalog assets move to `packages/cli/catalog/{templates,mixins}`; the package no longer ships the old `templates/{templates,mixins}` layout, so built-in discovery hard-switches rather than falling back.
 
 ## Consequences
 

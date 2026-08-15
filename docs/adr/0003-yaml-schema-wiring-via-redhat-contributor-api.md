@@ -8,15 +8,8 @@ Atomize YAML files need autocomplete, hover documentation, and inline validation
 
 The programmatic contributor is the single schema-association path. The extension does not also declare `contributes.yamlValidation`, because static path-based wiring can diverge from the durable/session opt-in rules and make `.atomize.yaml` behave differently from modeline or content-detected Atomize YAML files.
 
-**Scoping strategy — dual-signal in `requestSchema`:**
-The callback is called by `yaml-language-server` before our language detection has run on first open. To cover this timing gap without leaking onto arbitrary YAML files, `requestSchema` applies two checks in order:
-1. If the document's language ID is already `atomize-yaml` → return schema URI (fast path).
-2. If the language ID is `yaml` but the document has a durable Atomize marker (`.atomize.yaml`, `.atomize.yml`, or first-line `# atomize-yaml`) → return schema URI (first-open coverage).
-3. If the language ID is `yaml` and content heuristics identify it as an Atomize YAML file → return schema URI for session-only authoring support, without changing the document's language ID.
-4. Otherwise → return `undefined`.
+**Scoping strategy:** `yaml-language-server` calls the callback before our language detection has run on first open, so `requestSchema` checks language ID, durable markers, and content heuristics (in that order of confidence) to decide whether to return the schema URI — covering that timing gap without leaking onto arbitrary YAML files.
 
-**`anyOf` at root instead of `oneOf`:** The schema generator originally converted `anyOf` → `oneOf` because a file is exactly one of Template or Mixin. At validation time this is correct, but `yaml-language-server` with `oneOf` marks a partially-authored document invalid immediately (before `version:` or task `id:` are present), suppressing completions. The root combinator is kept as `anyOf` so the schema guides authoring rather than blocking it. Runtime validation enforces the mutual-exclusion constraint.
+**`anyOf` at root instead of `oneOf`:** The schema generator originally converted `anyOf` → `oneOf` because a file is exactly one of Template or Mixin. At validation time this is correct, but `yaml-language-server` with `oneOf` marks a partially-authored document invalid immediately (before `version:` or task `id:` are present), suppressing completions. The root combinator is kept as `anyOf` so the schema guides authoring rather than blocking it; runtime validation enforces the mutual-exclusion constraint.
 
-**Graceful degradation:** If `redhat.vscode-yaml` is not installed, `registerContributor` is silently skipped. Language detection continues to work; the user just gets no autocomplete. `redhat.vscode-yaml` is listed as a recommended extension in `package.json`, which is the appropriate channel for the install nudge.
-
-**Consequences:** The `registerContributor` call is runtime behaviour, not a static manifest contribution. If `redhat.vscode-yaml` changes or removes this API, the schema wiring breaks silently. Descriptions for hover tooltips must come from `"description"` annotations in the JSON Schema, which are sourced from `.describe()` calls on Zod field definitions — not from the generated JSON file directly, which would be wiped on regeneration.
+**Consequences:** The `registerContributor` call is runtime behaviour, not a static manifest contribution — if `redhat.vscode-yaml` is missing or changes this API, schema wiring degrades or breaks silently rather than erroring.
