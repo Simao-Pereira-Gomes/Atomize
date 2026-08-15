@@ -249,10 +249,10 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
 
 /**
  * Wraps `Atomizer.atomize` for the Generate Area — one call for both Live Preview (`dryRun: true`)
- * and Execute (`dryRun: false`), see ADR-0055. `atomize-core` has no cancellation hook of its own,
- * so a caller-initiated cancel (routed by Rust as a raw `$/cancelRequest`, mirroring
- * `validation.online`/`validation.cancel`) only abandons the pending response — Stories already
- * sent to Azure DevOps by the time of cancellation are not rolled back.
+ * and Execute (`dryRun: false`), see ADR-0055. The per-request `signal` (routed by Rust as a raw
+ * `$/cancelRequest`, mirroring `validation.online`/`validation.cancel`) is passed straight into
+ * `atomize()`'s options, so a caller-initiated cancel stops at the next batch boundary — see
+ * ADR-0057. Stories whose batch was already in flight when cancel was requested still complete.
  */
 export async function runGenerate(params: GenerateRunParams, library: SidecarTemplateLibrary, notify: SidecarServices["notify"], signal: AbortSignal): Promise<{ report: AtomizationReport }> {
   const template = await resolveGenerateTemplate(params.source, library);
@@ -260,12 +260,13 @@ export async function runGenerate(params: GenerateRunParams, library: SidecarTem
     const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
     await abortable(adapter.authenticate(), signal);
     const atomizer = new Atomizer(adapter);
-    const report = await abortable(atomizer.atomize(template, {
+    const report = await atomizer.atomize(template, {
       dryRun: params.dryRun,
       continueOnError: params.continueOnError,
       storyIds: params.scope.kind === "stories" ? params.scope.storyIds : undefined,
       onProgress: (event) => notify({ jsonrpc: "2.0", method: "generate.progress", params: { runId: params.runId, event } }),
-    }), signal);
+      signal,
+    });
     return { report };
   } catch (error) {
     if (signal.aborted) throw error;
