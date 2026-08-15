@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { GenerateScope } from "../generate/live-execution-confirmation";
 
 export type SidecarInvoker = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 const tauriInvoke: SidecarInvoker = invoke;
@@ -17,6 +18,13 @@ export type OnlineValidationResult = {
 /** Live progress for a running AI draft, forwarded from the sidecar's streaming response. */
 export async function listenAIDraftProgress(onProgress: (progress: AIDraftProgress) => void): Promise<UnlistenFn> {
   return listen<AIDraftProgress>("ai-draft-progress", (event) => onProgress(event.payload));
+}
+
+export type GenerateRunProgress = { runId: string; event: unknown };
+
+/** Live progress for a running Generate call (Live Preview or Execute), forwarded from atomize-core's ProgressEvent stream. */
+export async function listenGenerateProgress(onProgress: (progress: GenerateRunProgress) => void): Promise<UnlistenFn> {
+  return listen<GenerateRunProgress>("generate-run-progress", (event) => onProgress(event.payload));
 }
 
 export class SidecarRequestError extends Error {
@@ -97,5 +105,31 @@ export async function inspectPreview(source: string, call: SidecarInvoker = taur
 /** Runs Mock Preview: resolves the Preview Source and evaluates it against mock Story field values (JSON string). */
 export async function runMockPreview(source: string, mockStory: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("preview_mock_story", { source, mockStory }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Fetches the real Stories a Generate Scope's Story browser can pick from — see ADR-0056. The frontend supplies only a profile name; Rust resolves and injects its token. */
+export async function queryGenerateStories(source: string, profile: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("generate_query_stories", { source, profile }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Runs Generate — one call for both Live Preview (`dryRun: true`) and Execute (`dryRun: false`), see ADR-0055. */
+export async function runGenerate(
+  runId: string,
+  source: string,
+  profile: string,
+  dryRun: boolean,
+  scope: GenerateScope,
+  continueOnError = false,
+  call: SidecarInvoker = tauriInvoke,
+): Promise<unknown> {
+  try { return await call("generate_run", { runId, source, profile, dryRun, scope, continueOnError }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Best-effort cancellation of an active Generate run — Stories already sent to Azure DevOps are not rolled back. */
+export async function cancelGenerate(runId: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
+  try { await call("generate_cancel", { runId }); }
   catch (error) { throw sidecarError(error); }
 }

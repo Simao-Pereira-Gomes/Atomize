@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cancelOnlineValidation, inspectPreview, installCatalogItem, removeCatalogItem, runMockPreview, SidecarRequestError, validateOnline } from '../sidecar-client.js';
+import { cancelGenerate, cancelOnlineValidation, inspectPreview, installCatalogItem, queryGenerateStories, removeCatalogItem, runGenerate, runMockPreview, SidecarRequestError, validateOnline } from '../sidecar-client.js';
 
 describe('Online Validation bridge', () => {
 	it('sends the Template, selected profile, and client validation id through the native bridge', async () => {
@@ -138,5 +138,85 @@ describe('runMockPreview', () => {
 
 		expect(error).toBeInstanceOf(SidecarRequestError);
 		expect((error as SidecarRequestError).code).toBe('SIDECAR_REQUEST_FAILED');
+	});
+});
+
+describe('queryGenerateStories', () => {
+	it('invokes generate_query_stories with the Preview Source and profile name', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return { stories: [] } as T;
+		};
+
+		const result = await queryGenerateStories('template:release-checklist', 'contoso-prod', call);
+
+		expect(calls).toEqual([{ command: 'generate_query_stories', args: { source: 'template:release-checklist', profile: 'contoso-prod' } }]);
+		expect(result).toEqual({ stories: [] });
+	});
+
+	it('wraps a structured sidecar error, preserving its code', async () => {
+		const call = async () => {
+			throw { code: 'GENERATE_AUTH_FAILED', message: 'Atomize could not sign in to this Azure DevOps project. Check its access token, then try again.' };
+		};
+
+		const error = await queryGenerateStories('template:release-checklist', 'contoso-prod', call).catch((e) => e);
+
+		expect(error).toBeInstanceOf(SidecarRequestError);
+		expect((error as SidecarRequestError).code).toBe('GENERATE_AUTH_FAILED');
+	});
+});
+
+describe('runGenerate', () => {
+	it('invokes generate_run with the run id, source, profile, dryRun, and scope', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return { report: { storiesProcessed: 0 } } as T;
+		};
+
+		await runGenerate('run-1', 'template:release-checklist', 'contoso-prod', true, { kind: 'filter' }, false, call);
+
+		expect(calls).toEqual([{
+			command: 'generate_run',
+			args: { runId: 'run-1', source: 'template:release-checklist', profile: 'contoso-prod', dryRun: true, scope: { kind: 'filter' }, continueOnError: false },
+		}]);
+	});
+
+	it('defaults continueOnError to false when omitted', async () => {
+		const calls: Array<Record<string, unknown> | undefined> = [];
+		const call = async <T>(_command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push(args);
+			return undefined as T;
+		};
+
+		await runGenerate('run-2', 'template:release-checklist', 'contoso-prod', false, { kind: 'stories', storyIds: ['1031'] }, undefined, call);
+
+		expect(calls).toEqual([{ runId: 'run-2', source: 'template:release-checklist', profile: 'contoso-prod', dryRun: false, scope: { kind: 'stories', storyIds: ['1031'] }, continueOnError: false }]);
+	});
+
+	it('wraps an unstructured failure as SIDECAR_REQUEST_FAILED', async () => {
+		const call = async () => {
+			throw new Error('sidecar unreachable');
+		};
+
+		const error = await runGenerate('run-3', 'template:release-checklist', 'contoso-prod', true, { kind: 'filter' }, false, call).catch((e) => e);
+
+		expect(error).toBeInstanceOf(SidecarRequestError);
+		expect((error as SidecarRequestError).code).toBe('SIDECAR_REQUEST_FAILED');
+	});
+});
+
+describe('cancelGenerate', () => {
+	it('invokes generate_cancel with the run id', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return undefined as T;
+		};
+
+		await cancelGenerate('run-1', call);
+
+		expect(calls).toEqual([{ command: 'generate_cancel', args: { runId: 'run-1' } }]);
 	});
 });
