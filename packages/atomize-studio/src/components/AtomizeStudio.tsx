@@ -47,7 +47,7 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPath: () => void; initialSection?: SectionId; aiDraftReady?: boolean; openFilePath?: string; grounding: GroundingSession }) {
+export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => void; initialSection?: SectionId; aiDraftReady?: boolean; openFilePath?: string; grounding: GroundingSession }) {
   const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>(props.initialSection ?? "basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
@@ -77,11 +77,11 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
     <div class="ui-proto-root">
       <div class="border-b border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
         <button
-          class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+          class="text-sm font-semibold text-rose-600 hover:underline dark:text-rose-400"
           type="button"
           onClick={() => setConfirmReset(true)}
         >
-          ← Back to starting paths
+          Discard draft
         </button>
       </div>
       <div class="h-1 w-full bg-slate-100 dark:bg-slate-800" role="presentation">
@@ -199,11 +199,11 @@ export function AtomizeStudio(props: { stores: SectionStores; onChangeStartingPa
       <Show when={confirmReset()}>
         <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-5" role="presentation">
           <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="reset-title">
-            <h2 id="reset-title" class="text-xl font-bold text-slate-950 dark:text-white">Back to starting paths?</h2>
+            <h2 id="reset-title" class="text-xl font-bold text-slate-950 dark:text-white">Discard this draft?</h2>
             <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Everything you have entered will be reset. This cannot be undone.</p>
             <div class="mt-6 flex justify-end gap-3">
               <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" type="button" onClick={() => setConfirmReset(false)}>Cancel</button>
-              <button class="rounded-lg !border-0 !bg-rose-600 px-4 py-2 text-sm font-semibold !text-white !shadow-none hover:!bg-rose-500" type="button" onClick={props.onChangeStartingPath}>Reset and go back</button>
+              <button class="rounded-lg !border-0 !bg-rose-600 px-4 py-2 text-sm font-semibold !text-white !shadow-none hover:!bg-rose-500" type="button" onClick={props.onDiscard}>Discard draft</button>
             </div>
           </section>
         </div>
