@@ -26,6 +26,7 @@
   --color-shadow:        rgba(15, 23, 42, 0.12);
 }
 
+:root[data-theme="dark"],
 .ui-proto-root[data-theme="dark"] {
   --color-surface:       #151821;
   --color-sidebar-hover: rgba(255,255,255,0.055);

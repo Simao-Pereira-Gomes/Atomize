@@ -127,6 +127,15 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const [theme, setTheme] = createSignal<"light" | "dark">(prefersDark ? "dark" : "light");
   const toggleTheme = () => setTheme((value) => (value === "dark" ? "light" : "dark"));
 
+  // Reflect the theme onto <html> so the App.css design tokens (used by .ui-input and the
+  // Kobalte-backed controls) resolve to their dark values everywhere — including the Select
+  // and Combobox listboxes, which Kobalte portals to <body>, outside this component's tree.
+  createEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme();
+    root.classList.toggle("dark", theme() === "dark");
+  });
+
   const [activeArea, setActiveArea] = createSignal<StudioAreaId>("templates");
   const [railCollapsed, setRailCollapsed] = createSignal(true);
 
