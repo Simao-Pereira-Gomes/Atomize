@@ -4,8 +4,8 @@ import {
 	handleDocument,
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
-	isMixinDocument,
 	isContentOnlyDetected,
+	isMixinDocument,
 } from './authoring/language-detection.js';
 import { ValidationCodeActionProvider } from './authoring/validation-code-action-provider.js';
 import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './authoring/yaml-schema-contributor.js';

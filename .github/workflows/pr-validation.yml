@@ -65,6 +65,9 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
+          # Tauri/Wry's Linux GTK3 stack is pinned to glib 0.18; the advisory is fixed in glib 0.20.
+          # Remove this exception when upstream supports the fixed GTK stack.
+          allow-ghsas: GHSA-wrw7-89jp-8q8g
 
   security-audit:
     name: Security Audit

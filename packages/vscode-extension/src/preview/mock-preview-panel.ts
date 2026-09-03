@@ -1,7 +1,7 @@
 import { inspectTemplate, runPreview } from '@sppg2001/atomize-core/templates/template-inspector';
 import * as vscode from 'vscode';
-import { getPreviewLayout } from '../config/atomize-configuration.js';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
+import { getPreviewLayout } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
 import {
 	type InspectField,
