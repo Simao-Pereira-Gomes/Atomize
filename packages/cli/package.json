@@ -24,7 +24,7 @@
 		"dev": "ATOMIZE_DEV=true bun run src/cli/index.ts",
 		"build": "bun run --cwd ../atomize-ai build && bun run typecheck && bun run build:bun",
 		"postbuild": "node make-executable.js",
-		"build:bun": "node ./scripts/prepare-dist.mjs && bun build ./src/cli/index.ts --outdir ./dist/cli --target node --format esm --external keytar --external @sppg2001/atomize-ai",
+		"build:bun": "node ./scripts/prepare-dist.mjs && bun build ./src/cli/index.ts --outdir ./dist/cli --target node --format esm --external keytar --external @github/copilot --external @github/copilot-sdk",
 		"build:standalone": "bun build src/cli/index.ts --compile --outfile atomize",
 		"prepublishOnly": "bun run build",
 		"test": "bun test",
@@ -77,9 +77,8 @@
 		"typescript": "^6.0.3"
 	},
 	"dependencies": {
-		"@sppg2001/atomize-ai": "workspace:*",
-		"@sppg2001/atomize-core": "workspace:*",
-		"@sppg2001/atomize-schema": "workspace:*",
+		"@github/copilot": "^1.0.79",
+		"@github/copilot-sdk": "^1.0.9",
 		"@clack/prompts": "^1.2.0",
 		"azure-devops-node-api": "^15.1.2",
 		"chalk": "^5.6.2",
