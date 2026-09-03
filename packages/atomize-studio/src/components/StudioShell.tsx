@@ -16,6 +16,7 @@ import { createAuthoringStore, type SectionId } from "../stores/sections";
 import { STUDIO_AREAS, type StudioAreaId } from "../stores/studio-areas";
 import { AtomizeStudio } from "./AtomizeStudio";
 import { CatalogArea } from "./CatalogArea";
+import { dismissOverlay } from "./dismiss-overlay";
 import { GenerateArea } from "./GenerateArea";
 import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
 import { StartingPathPicker } from "./StartingPathPicker";
@@ -79,6 +80,9 @@ function AreaRail(props: { active: StudioAreaId; onSelect: (id: StudioAreaId) =>
 function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; theme: Accessor<"light" | "dark">; onToggleTheme: () => void; manageProjectRequest: Accessor<number> }) {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   createEffect(() => { if (props.manageProjectRequest() > 0) setSettingsOpen(true); });
+  let triggerRef: HTMLButtonElement | undefined;
+  let panelRef: HTMLDivElement | undefined;
+  dismissOverlay(settingsOpen, () => setSettingsOpen(false), () => [triggerRef, panelRef]);
   return (
     <header class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
       <div class="flex min-w-0 items-center gap-3">
@@ -90,6 +94,7 @@ function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Acc
       </div>
       <div class="relative">
         <button
+          ref={triggerRef}
           class="flex items-center gap-2 rounded-xl !border-0 !bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
           type="button"
           onClick={() => setSettingsOpen((value) => !value)}
@@ -98,7 +103,7 @@ function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Acc
           ⚙ Global Settings
         </button>
         <Show when={settingsOpen()}>
-          <div class="absolute right-0 top-12 z-50 w-72 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          <div ref={panelRef} class="absolute right-0 top-12 z-50 w-72 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <div>
               <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Work project</p>
               <GroundingSettings session={props.grounding} sidecarAvailable={props.sidecarAvailable} openManagerRequest={props.manageProjectRequest} />
