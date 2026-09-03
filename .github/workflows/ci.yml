@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - "release/**"
   pull_request:
     branches:
       - main
@@ -12,16 +11,16 @@ permissions: {}
 
 jobs:
   test:
-    name: Test & Lint (${{ matrix.os }}, node ${{ matrix.node-version }})
+    name: Test & Lint (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [18.x, 20.x, 22.x]
 
     steps:
       - name: Checkout code
@@ -32,13 +31,12 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Build AI workspace dependency
+        run: bun run build
+        working-directory: packages/atomize-ai
 
       - name: Type check
         run: bun run typecheck
@@ -53,7 +51,7 @@ jobs:
         working-directory: packages/cli
 
       - name: Upload build artifacts
-        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x'
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -65,6 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -92,6 +91,7 @@ jobs:
     needs: [test, atomize-core]
     permissions:
       contents: read
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -111,6 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -163,6 +164,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -187,6 +189,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code

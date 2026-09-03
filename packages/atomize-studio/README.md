@@ -36,6 +36,10 @@ bun run build
 
 Produces a platform-native installer in `src-tauri/target/release/bundle/`.
 
+## Releases
+
+CI artifacts and release configuration are documented in [Studio Releases](../../docs/Studio-Releases.md).
+
 ## Type checking
 
 ```sh

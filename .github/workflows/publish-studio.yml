@@ -1,0 +1,233 @@
+name: Build and Publish Atomize Studio
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/atomize-studio/**
+      - packages/atomize-sidecar/**
+      - packages/atomize-ai/**
+      - packages/atomize-core/**
+      - packages/atomize-schema/**
+      - .github/workflows/publish-studio.yml
+
+permissions: {}
+
+concurrency:
+  group: publish-studio
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build unsigned (${{ matrix.name }})
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            runner: macos-14
+            args: --target aarch64-apple-darwin
+            experimental: false
+          - name: macOS Intel
+            runner: macos-13
+            args: --target x86_64-apple-darwin
+            experimental: false
+          - name: Windows
+            runner: windows-latest
+            args: ""
+            experimental: false
+          - name: Linux (experimental)
+            runner: ubuntu-latest
+            args: ""
+            experimental: true
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+        working-directory: packages/atomize-studio
+      - run: bun run typecheck
+        working-directory: packages/atomize-studio
+      - run: bun run lint
+        working-directory: packages/atomize-studio
+      - run: bun run build -- ${{ matrix.args }}
+        working-directory: packages/atomize-studio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-build-${{ runner.os }}-${{ runner.arch }}
+          path: packages/atomize-studio/src-tauri/target/**/release/bundle/
+          retention-days: 14
+          if-no-files-found: error
+
+  check-version:
+    name: Verify Studio release version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        name: Check version tag
+        shell: bash
+        run: |
+          package_version=$(node -p "require('./packages/atomize-studio/package.json').version")
+          tauri_version=$(node -e "console.log(require('./packages/atomize-studio/src-tauri/tauri.conf.json').version)")
+          test "$package_version" = "$tauri_version"
+          tag="studio-v$package_version"
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+          if git tag -l "$tag" | grep -q .; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-macos-release:
+    name: Build macOS installer (${{ matrix.name }})
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Apple Silicon
+            runner: macos-14
+            args: --target aarch64-apple-darwin
+          - name: Intel
+            runner: macos-13
+            args: --target x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bun install --frozen-lockfile
+      - run: bun run test && bun run typecheck && bun run lint
+        working-directory: packages/atomize-studio
+      - run: bun run build -- ${{ matrix.args }}
+        working-directory: packages/atomize-studio
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-macos-${{ matrix.name }}
+          path: packages/atomize-studio/src-tauri/target/**/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  build-windows-release:
+    name: Build Windows installers
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bun install --frozen-lockfile
+      - run: bun run test && bun run typecheck && bun run lint
+        working-directory: packages/atomize-studio
+      - run: bun run build
+        working-directory: packages/atomize-studio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-windows
+          path: |
+            packages/atomize-studio/src-tauri/target/release/bundle/msi/*.msi
+            packages/atomize-studio/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  build-linux-release:
+    name: Build Linux installers (experimental)
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+        working-directory: packages/atomize-studio
+      - name: Label experimental installers
+        shell: bash
+        run: |
+          mkdir release-assets
+          find packages/atomize-studio/src-tauri/target/release/bundle \
+            -type f \( -name '*.AppImage' -o -name '*.deb' \) \
+            -exec cp {} release-assets/ \;
+          for asset in release-assets/*; do
+            mv "$asset" "${asset%.*}-experimental.${asset##*.}"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-linux-experimental
+          path: release-assets/
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Studio release
+    needs: [check-version, build-macos-release, build-windows-release, build-linux-release]
+    if: >-
+      always() &&
+      needs.check-version.outputs.should_publish == 'true' &&
+      needs.build-macos-release.result == 'success' &&
+      needs.build-windows-release.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: studio-macos-*
+          merge-multiple: true
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: studio-windows
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        if: needs.build-linux-release.result == 'success'
+        with:
+          name: studio-linux-experimental
+          path: release-assets
+      - name: Generate checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS.txt
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "studio-v${{ needs.check-version.outputs.version }}" release-assets/* \
+            --title "Atomize Studio ${{ needs.check-version.outputs.version }}" \
+            --notes $'## Installer verification\n\nVerify every download with `SHA256SUMS.txt`. macOS installers are ad-hoc signed but not notarised; Windows installers are unsigned. Your operating system may show a security warning before installation.'

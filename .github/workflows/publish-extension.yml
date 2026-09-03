@@ -6,12 +6,17 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: publish-extension
+  cancel-in-progress: false
+
 jobs:
   check-version:
     name: Check version
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    timeout-minutes: 10
     outputs:
       should_publish: ${{ steps.check.outputs.should_publish }}
       version: ${{ steps.check.outputs.version }}
@@ -42,6 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v4

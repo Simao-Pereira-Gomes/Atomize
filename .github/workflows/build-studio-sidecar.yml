@@ -2,9 +2,21 @@ name: Build Studio sidecar
 
 on:
   push:
-    branches: [main, "release/**"]
+    branches: [main]
+    paths:
+      - packages/atomize-sidecar/**
+      - packages/atomize-ai/**
+      - packages/atomize-core/**
+      - packages/atomize-schema/**
+      - .github/workflows/build-studio-sidecar.yml
   pull_request:
     branches: [main]
+    paths:
+      - packages/atomize-sidecar/**
+      - packages/atomize-ai/**
+      - packages/atomize-core/**
+      - packages/atomize-schema/**
+      - .github/workflows/build-studio-sidecar.yml
 
 permissions: {}
 
@@ -12,6 +24,7 @@ jobs:
   sidecar:
     name: Sidecar (${{ matrix.triple }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -28,18 +41,9 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - run: bun run build
+        working-directory: packages/atomize-ai
       - run: bun test
         working-directory: packages/atomize-sidecar
       - run: bun run build:standalone
         working-directory: packages/atomize-sidecar
-      - name: Stage Tauri external binary
-        shell: bash
-        run: |
-          mkdir -p packages/atomize-studio/src-tauri/binaries
-          if [ "${{ runner.os }}" = "Windows" ]; then EXT=.exe; else EXT=; fi
-          cp "packages/atomize-sidecar/atomize-sidecar${EXT}" "packages/atomize-studio/src-tauri/binaries/atomize-sidecar-${{ matrix.triple }}${EXT}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: atomize-sidecar-${{ matrix.triple }}
-          path: packages/atomize-studio/src-tauri/binaries/
-          retention-days: 7
