@@ -270,6 +270,26 @@ describe("AzureDevOpsAdapter", () => {
       expect(true).toBe(true);
     });
 
+    test("exposes Azure DevOps query failures to callers", async () => {
+      mockWorkItemTrackingApi.queryByWiql.mockRejectedValueOnce(
+        new Error("The team with id 'Backend Team' does not exist, or you do not have permission to access it."),
+      );
+
+      await expect(adapter.queryWorkItems({})).rejects.toThrow(
+        "Failed to retrieve work items from Azure DevOps: The team with id 'Backend Team' does not exist, or you do not have permission to access it.",
+      );
+    });
+
+    test("redacts credentials from Azure DevOps query failures", async () => {
+      mockWorkItemTrackingApi.queryByWiql.mockRejectedValueOnce(
+        new Error("Request failed: authorization: Bearer secret-value; https://example.test?token=another-secret"),
+      );
+
+      await expect(adapter.queryWorkItems({})).rejects.toThrow(
+        "Failed to retrieve work items from Azure DevOps: Request failed: authorization: Bearer [REDACTED]; https://example.test?token=[REDACTED]",
+      );
+    });
+
     test("returns empty array when getWorkItems returns null for unknown story IDs", async () => {
       // biome-ignore lint/suspicious/noExplicitAny : simulating ADO SDK returning null at runtime despite typed return
       mockWorkItemTrackingApi.getWorkItems.mockResolvedValueOnce(null as any);

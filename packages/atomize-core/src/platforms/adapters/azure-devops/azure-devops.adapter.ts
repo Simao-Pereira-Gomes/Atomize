@@ -103,7 +103,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       this.authenticated = true;
       logger.info("AzureDevOps: Authentication successful");
     } catch (error) {
-      const message = extractAzureErrorMessage(error);
+      const message = sanitizeAzureErrorMessage(error);
       logger.debug("AzureDevOps: Authentication failed", { error: message });
       throw new AuthError(`Authentication failed: ${message}`, "azure-devops");
     }
@@ -134,12 +134,15 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         team: this.config.team,
       }).query(filter);
     } catch (error) {
-      const message = getErrorMessage(error);
+      const message = sanitizeAzureErrorMessage(error);
       logger.debug("AzureDevOps: Query failed", { error: message });
       if (error instanceof PlatformError || error instanceof ConfigurationError) {
         throw error;
       }
-      throw new PlatformError("Failed to retrieve work items from Azure DevOps", "azure-devops");
+      throw new PlatformError(
+        `Failed to retrieve work items from Azure DevOps: ${message}`,
+        "azure-devops",
+      );
     }
   }
 
@@ -176,7 +179,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       return convertWorkItem(workItem);
     } catch (error) {
-      const message = getErrorMessage(error);
+      const message = sanitizeAzureErrorMessage(error);
       logger.error(`AzureDevOps: Failed to get work item ${id}`, {
         error: message,
       });
@@ -222,7 +225,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
       return convertWorkItem(createdItem);
     } catch (error) {
-      const message = getErrorMessage(error);
+      const message = sanitizeAzureErrorMessage(error);
       logger.error(`AzureDevOps: Failed to create task`, { error: message });
       throw new PlatformError(
         `Failed to create task: ${message}`,
@@ -432,7 +435,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         `AzureDevOps: Created dependency link: ${dependentId} -> ${predecessorId}`,
       );
     } catch (error) {
-      const message = getErrorMessage(error);
+      const message = sanitizeAzureErrorMessage(error);
       logger.error(
         `AzureDevOps: Failed to create dependency link between ${dependentId} and ${predecessorId}`,
         { error: message },
@@ -632,6 +635,27 @@ function extractAzureErrorMessage(error: unknown): string {
     // not JSON — fall through
   }
   return raw;
+}
+
+/**
+ * Keeps Azure DevOps errors actionable while preventing credential-like values
+ * and terminal control characters from reaching logs or user-facing output.
+ */
+function sanitizeAzureErrorMessage(error: unknown): string {
+  return extractAzureErrorMessage(error)
+    // Azure errors can include HTTP header/query fragments; retain the key but redact its value.
+    .replace(
+      /(\b(?:access[_-]?token|token|pat|api[-_]?key|authorization|secret|password)\b\s*(?:=|:)\s*(?:Bearer\s+)?)(["']?)[^\s,;"'}\]]+\2/gi,
+      "$1[REDACTED]",
+    )
+    .replace(
+      /([?&](?:access[_-]?token|token|pat|api[-_]?key|authorization|secret|password)=)[^&#\s]+/gi,
+      "$1[REDACTED]",
+    )
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: strips terminal control characters from remote error text
+    .replace(/[\x00-\x1f\x7f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
