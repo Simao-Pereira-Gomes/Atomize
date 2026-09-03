@@ -65,6 +65,9 @@
 	"author": "Simão Pereira Gomes",
 	"license": "MIT",
 	"devDependencies": {
+		"@sppg2001/atomize-ai": "workspace:*",
+		"@sppg2001/atomize-core": "workspace:*",
+		"@sppg2001/atomize-schema": "workspace:*",
 		"@types/bun": "1.3.13",
 		"@types/keytar": "^4.4.2",
 		"@types/node": "^25.6.0",
