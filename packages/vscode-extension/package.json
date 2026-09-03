@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize — generate tasks from YAML templates",
-	"version": "0.0.8",
+	"version": "0.1.0",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {

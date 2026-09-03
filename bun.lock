@@ -100,7 +100,7 @@
     },
     "packages/cli": {
       "name": "@sppg2001/atomize",
-      "version": "2.0.2",
+      "version": "3.0.0",
       "bin": {
         "atomize": "dist/cli/index.js",
         "atom": "dist/cli/index.js",
@@ -136,7 +136,7 @@
     },
     "packages/vscode-extension": {
       "name": "atomize",
-      "version": "0.0.8",
+      "version": "0.1.0",
       "dependencies": {
         "@sppg2001/atomize-core": "workspace:*",
         "yaml": "^2.8.3",
