@@ -1,11 +1,12 @@
-import { createMemo, createSignal, For, Show, type Accessor } from "solid-js";
+import { type Accessor, createMemo, createSignal, For, Show } from "solid-js";
+import type { OriginBaselineSession } from "../diff/origin-baseline";
 import {
   isAuthoringStoreReadyForReview,
   SECTION_META,
   type SectionId,
   type SectionStores,
 } from "../stores/sections";
-import { type GroundingSession } from "./GroundingSettings";
+import type { GroundingSession } from "./GroundingSettings";
 import { sectionFilledCount, sectionStatus, usesDefaultSectionSettings } from "./section-status";
 import {
   BasicInfoSection,
@@ -20,7 +21,7 @@ import type { OnlineValidationSession } from "./sections/ReviewSection";
 
 const OPTIONAL_SECTIONS = new Set<SectionId>(["metadata"]);
 
-function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean; onAutoNormalizeChange: () => void; openFilePath?: string; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; onManageProjects: () => void }) {
+function SectionContent(props: { id: SectionId; stores: SectionStores; canReview: boolean; grounding: GroundingSession; autoNormalize: boolean; onAutoNormalizeChange: () => void; openFilePath?: string; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; originBaseline: OriginBaselineSession; onManageProjects: () => void }) {
   return (
     <>
       <Show when={props.id === "basic-info"}>
@@ -42,13 +43,13 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
         <MetadataSection store={props.stores.metadata} />
       </Show>
       <Show when={props.id === "review"}>
-        <ReviewSection store={props.stores} canReview={props.canReview} openFilePath={props.openFilePath} grounding={props.grounding} sidecarAvailable={props.sidecarAvailable} onlineValidation={props.onlineValidation} onManageProjects={props.onManageProjects} />
+        <ReviewSection store={props.stores} canReview={props.canReview} openFilePath={props.openFilePath} grounding={props.grounding} sidecarAvailable={props.sidecarAvailable} onlineValidation={props.onlineValidation} originBaseline={props.originBaseline} onManageProjects={props.onManageProjects} />
       </Show>
     </>
   );
 }
 
-export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => void; initialSection?: SectionId; aiDraftReady?: boolean; openFilePath?: string; grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; onManageProjects: () => void }) {
+export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => void; initialSection?: SectionId; aiDraftReady?: boolean; openFilePath?: string; grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; originBaseline: OriginBaselineSession; onManageProjects: () => void }) {
   const stores = props.stores;
   const [active, setActive] = createSignal<SectionId>(props.initialSection ?? "basic-info");
   const [confirmReset, setConfirmReset] = createSignal(false);
@@ -160,7 +161,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => v
             </span>
           </div>
           <div class="mt-7">
-            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} onAutoNormalizeChange={() => setAutoNormalize((value) => !value)} openFilePath={props.openFilePath} sidecarAvailable={props.sidecarAvailable} onlineValidation={props.onlineValidation} onManageProjects={props.onManageProjects} />
+            <SectionContent id={active()} stores={stores} canReview={allSectionsValid()} grounding={grounding} autoNormalize={autoNormalize()} onAutoNormalizeChange={() => setAutoNormalize((value) => !value)} openFilePath={props.openFilePath} sidecarAvailable={props.sidecarAvailable} onlineValidation={props.onlineValidation} originBaseline={props.originBaseline} onManageProjects={props.onManageProjects} />
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">

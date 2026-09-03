@@ -2,15 +2,15 @@ import type { TaskTemplate } from "@sppg2001/atomize-schema";
 import { type Accessor, createEffect, createSignal, For, onMount, Show } from "solid-js";
 import type { CatalogItem } from "../catalog/catalog-item";
 import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken, setDefaultConnectionProfile } from "../connections/connection-client";
+import { loadOriginBaseline, type OriginBaselineSession, type OriginBaselineState, shouldLoadBaseline } from "../diff/origin-baseline";
 import {
   type AzureDevOpsProfile,
   type GroundedFieldOptions,
   listAzureDevOpsProfiles,
   loadGroundedFieldOptions,
 } from "../grounding/grounding-service";
-import { toCatalogClone } from "../starting-paths/catalog-clone";
 import { cancelOnlineValidation } from "../sidecar/sidecar-client";
-import type { OnlineValidationSession, StoredOnlineValidation } from "./sections/ReviewSection";
+import { toCatalogClone } from "../starting-paths/catalog-clone";
 import { createNavigationHistory } from "../stores/navigation-history";
 import { createAuthoringStore, type SectionId } from "../stores/sections";
 import { STUDIO_AREAS, type StudioAreaId } from "../stores/studio-areas";
@@ -19,6 +19,7 @@ import { CatalogArea } from "./CatalogArea";
 import { GenerateArea } from "./GenerateArea";
 import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
 import { StartingPathPicker } from "./StartingPathPicker";
+import type { OnlineValidationSession, StoredOnlineValidation } from "./sections/ReviewSection";
 
 type PendingStart =
   | { kind: "scratch" }
@@ -151,6 +152,38 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     fail: (message) => { setOnlineValidationResult((current) => current ? { ...current, stale: true } : current); setOnlineValidationError(message); setOnlineValidationRunning(false); setActiveValidationId(undefined); },
     dismiss: () => { setOnlineValidationResult(undefined); setOnlineValidationError(""); },
   };
+  // Template Diff baseline — fetched once per `origin` and cached for the authoring session,
+  // reset (like Online Validation) whenever a Starting Path replaces the Authoring Store.
+  const [originBaselineState, setOriginBaselineState] = createSignal<OriginBaselineState>({ phase: "idle" });
+  let originBaselineToken = 0;
+  const loadBaseline = async (origin: string) => {
+    const token = ++originBaselineToken;
+    setOriginBaselineState({ phase: "loading" });
+    try {
+      const result = await loadOriginBaseline(origin);
+      if (token !== originBaselineToken) return;
+      setOriginBaselineState(
+        result.status === "resolved"
+          ? { phase: "resolved", ref: origin, baseline: result.template }
+          : { phase: "not-in-catalog", ref: origin },
+      );
+    } catch (error) {
+      if (token !== originBaselineToken) return;
+      setOriginBaselineState({ phase: "error", message: error instanceof Error ? error.message : "We could not load the original to compare against." });
+    }
+  };
+  const clearOriginBaseline = () => {
+    originBaselineToken++;
+    setOriginBaselineState({ phase: "idle" });
+  };
+  const originBaseline: OriginBaselineSession = {
+    state: originBaselineState,
+    ensure: (origin) => {
+      if (shouldLoadBaseline(originBaselineState(), origin)) void loadBaseline(origin);
+    },
+    refresh: (origin) => void loadBaseline(origin),
+  };
+
   const clearOnlineValidation = () => {
     const id = activeValidationId();
     if (id) void cancelOnlineValidation(id);
@@ -158,6 +191,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     setOnlineValidationRunning(false);
     setOnlineValidationResult(undefined);
     setOnlineValidationError("");
+    clearOriginBaseline();
   };
 
   const navigateToArea = (id: StudioAreaId) => {
@@ -298,6 +332,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
                 grounding={grounding}
                 sidecarAvailable={props.sidecarAvailable}
                 onlineValidation={onlineValidation}
+                originBaseline={originBaseline}
                 onManageProjects={() => setManageProjectRequest((request) => request + 1)}
               />
             </Show>

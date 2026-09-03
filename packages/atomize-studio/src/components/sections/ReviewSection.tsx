@@ -1,9 +1,11 @@
-import { createSignal, For, type Accessor, type JSX, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, type JSX, Show } from "solid-js";
 import { stringify } from "yaml";
+import { catalogTemplateOrigin, type OriginBaselineSession } from "../../diff/origin-baseline";
 import { downloadTemplate, saveTemplateToPath, slugifyTemplateName } from "../../download/download-service";
 import { type CatalogInstallScope, installCatalogItem, type OnlineValidationResult, SidecarRequestError, validateOnline } from "../../sidecar/sidecar-client";
 import type { AuthoringStore } from "../../stores/sections";
 import type { GroundingSession } from "../GroundingSettings";
+import { TemplateDiffView } from "./TemplateDiffView";
 
 export type StoredOnlineValidation = { result: OnlineValidationResult; template: string; workProject: string; profile: string; stale?: boolean };
 export type OnlineValidationSession = {
@@ -137,8 +139,19 @@ function ReviewToolbar(props: {
   );
 }
 
-export function ReviewSection(props: { store: AuthoringStore; canReview: boolean; openFilePath?: string; grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; onManageProjects: () => void }) {
+export function ReviewSection(props: { store: AuthoringStore; canReview: boolean; openFilePath?: string; grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; onlineValidation: OnlineValidationSession; originBaseline: OriginBaselineSession; onManageProjects: () => void }) {
   const [downloading, setDownloading] = createSignal(false);
+  const [reviewTab, setReviewTab] = createSignal<"template" | "diff">("template");
+
+  const originRef = () => catalogTemplateOrigin(props.store["basic-info"].advanced.origin);
+  const hasOrigin = () => originRef() !== undefined;
+  const segmentClass = (active: boolean) =>
+    `px-3 py-1.5 text-sm font-semibold transition-colors ${active ? "bg-indigo-600 text-white" : "bg-transparent text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"}`;
+
+  createEffect(() => {
+    const ref = originRef();
+    if (ref && reviewTab() === "diff") props.originBaseline.ensure(ref);
+  });
   const [downloadError, setDownloadError] = createSignal("");
   const [saved, setSaved] = createSignal<{ name: string; path: string }>();
   const [copied, setCopied] = createSignal(false);
@@ -269,7 +282,30 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
   return (
     <div class="space-y-5">
       {props.canReview ? (
-        <div class="space-y-0">
+        <div class="space-y-4">
+          <Show when={hasOrigin()}>
+            <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-700">
+              <button type="button" aria-pressed={reviewTab() === "template"} class={segmentClass(reviewTab() === "template")} onClick={() => setReviewTab("template")}>
+                Template
+              </button>
+              <button type="button" aria-pressed={reviewTab() === "diff"} class={`border-l border-slate-300 dark:border-slate-700 ${segmentClass(reviewTab() === "diff")}`} onClick={() => setReviewTab("diff")}>
+                Compare to original
+              </button>
+            </div>
+          </Show>
+          <Show when={hasOrigin() && reviewTab() === "diff"}>
+            <TemplateDiffView
+              state={props.originBaseline.state()}
+              current={() => props.store.toTemplate()}
+              onRefresh={() => {
+                const ref = originRef();
+                if (ref) props.originBaseline.refresh(ref);
+              }}
+              sidecarAvailable={props.sidecarAvailable}
+            />
+          </Show>
+          <Show when={!hasOrigin() || reviewTab() === "template"}>
+          <div class="space-y-0">
           <ReviewToolbar
             fileName={fileName()}
             zoom={yamlZoom()}
@@ -529,6 +565,8 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
                 </div>
               </section>
             </div>
+          </Show>
+          </div>
           </Show>
         </div>
       ) : (
