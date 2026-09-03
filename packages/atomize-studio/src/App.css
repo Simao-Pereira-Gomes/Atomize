@@ -135,7 +135,10 @@
 .sk-combobox-summary {
   display: inline-flex; align-items: center; gap: 0.45rem;
   min-width: 0; color: var(--color-text);
+  border: 0; background: transparent; box-shadow: none;
+  padding: 0; font: inherit; font-weight: 500; cursor: pointer;
 }
+.sk-combobox-summary:hover { color: var(--color-accent); }
 .sk-combobox-count {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 1.35rem; height: 1.35rem; border-radius: 999px;
