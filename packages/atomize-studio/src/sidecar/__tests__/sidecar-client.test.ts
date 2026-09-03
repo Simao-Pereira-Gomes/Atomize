@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cancelGenerate, cancelOnlineValidation, inspectPreview, installCatalogItem, queryGenerateStories, removeCatalogItem, runGenerate, runMockPreview, SidecarRequestError, validateOnline } from '../sidecar-client.js';
+import { cancelGenerate, cancelOnlineValidation, checkCopilotAuthStatus, inspectPreview, installCatalogItem, queryGenerateStories, removeCatalogItem, runGenerate, runMockPreview, SidecarRequestError, validateOnline } from '../sidecar-client.js';
 
 describe('Online Validation bridge', () => {
 	it('sends the Template, selected profile, and client validation id through the native bridge', async () => {
@@ -220,3 +220,19 @@ describe('cancelGenerate', () => {
 		expect(calls).toEqual([{ command: 'generate_cancel', args: { runId: 'run-1' } }]);
 	});
 });
+
+describe('checkCopilotAuthStatus', () => {
+	it('invokes ai_auth_status and returns the result', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return { authenticated: false } as T;
+		};
+
+		const result = await checkCopilotAuthStatus(call);
+
+		expect(calls).toEqual([{ command: 'ai_auth_status', args: undefined }]);
+		expect(result).toEqual({ authenticated: false });
+	});
+});
+

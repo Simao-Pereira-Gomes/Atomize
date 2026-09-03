@@ -3,7 +3,7 @@ import { type Accessor, createSignal, For, Match, Show, Switch } from "solid-js"
 import { type AzureDevOpsProfile, listAzureDevOpsProfiles } from "../connections/connection-client";
 import { openLocalFile } from "../files/open";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { cancelAIDraft, generateAIDraft, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
+import { cancelAIDraft, checkCopilotAuthStatus, generateAIDraft, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
 import { createAIDraftLifecycle } from "../starting-paths/ai-draft-lifecycle";
 
@@ -52,7 +52,12 @@ export function StartingPathPicker(props: {
   const openAI = async () => {
     if (props.catalogAvailable?.() === false) return;
     setProfiles(await listAzureDevOpsProfiles().catch(() => []));
-    setAiState("form"); setAiError("");
+    setAiError("");
+    // Checked upfront so a missing Copilot sign-in is shown immediately, not only after a
+    // failed Create draft. If the check itself fails (e.g. sidecar unreachable), fall through to
+    // the form and let generate() surface the real error instead of blocking AI draft entirely.
+    const authenticated = await checkCopilotAuthStatus().then((status) => status.authenticated).catch(() => true);
+    setAiState(authenticated ? "form" : "auth-error");
   };
   const generate = async (withoutProject = false) => {
     if (!prose().trim()) { setAiError("Describe the Template you want to draft."); return; }
@@ -133,7 +138,7 @@ export function StartingPathPicker(props: {
                 <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options, never its credentials.</p>
                 <Switch>
                   <Match when={aiState() === "grounding-error"}><section class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-50"><p class="font-bold">Couldn’t load Work Project context</p><p class="mt-1 text-sm leading-6">Your description is unchanged. Retry the connection, or explicitly continue without project context.</p><div class="mt-4 flex flex-wrap gap-2"><button class="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry connection</button><button class="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold dark:border-amber-700" type="button" onClick={() => void generate(true)}>Draft without project context</button></div></section></Match>
-                  <Match when={aiState() === "auth-error"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">Sign in to GitHub Copilot</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">Complete Copilot sign-in on this computer, then retry your preserved draft. Atomize does not store a Copilot token.</p><button class="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry after sign-in</button></section></Match>
+                  <Match when={aiState() === "auth-error"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">Sign in to GitHub Copilot</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">Run <code>gh auth login</code> in a terminal on this computer, then retry your preserved draft. Atomize does not store a Copilot token.</p><button class="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry after sign-in</button></section></Match>
                   <Match when={aiState() === "generating" || aiState() === "cancelling"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">{aiState() === "cancelling" ? "Cancelling draft…" : "Creating your AI draft…"}</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">{aiState() === "cancelling" ? "Waiting for Copilot to acknowledge cancellation." : "Copilot is preparing a Template. Output will open in the authoring surface for review."}</p><div class="mt-4 h-1.5 overflow-hidden rounded-full bg-indigo-200 dark:bg-indigo-950"><div class="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${progressPercent()}%` }} /></div><Show when={aiState() === "generating"}><button class="mt-4 rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-800 dark:border-indigo-700 dark:text-indigo-100" type="button" onClick={() => void cancel()}>Cancel draft</button></Show></section></Match>
                 </Switch>
               </aside>

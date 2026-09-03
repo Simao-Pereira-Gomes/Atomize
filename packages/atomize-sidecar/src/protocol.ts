@@ -36,6 +36,7 @@ export type SidecarServices = {
   queryGenerateStories: (params: GenerateQueryStoriesParams) => Promise<{ stories: WorkItem[] }>;
   runGenerate: (params: GenerateRunParams, signal: AbortSignal) => Promise<{ report: AtomizationReport }>;
   createDraftSession: () => Promise<AIDraftSession>;
+  checkCopilotAuth: () => Promise<{ authenticated: boolean }>;
   drafts: Map<string, AIDraftSession>;
   cancelledDrafts: Set<string>;
   activeRequests: Map<number, AbortController>;
@@ -62,6 +63,7 @@ export function createSidecarServices(library = createTemplateLibrary()): Sideca
     queryGenerateStories: (params) => queryGenerateStories(params, library),
     runGenerate: (params, signal) => runGenerate(params, library, notify, signal),
     createDraftSession: () => provider.createDraftSession(),
+    checkCopilotAuth: async () => ({ authenticated: await provider.checkAuthStatus() }),
     drafts: new Map(),
     cancelledDrafts: new Set(),
     activeRequests: new Map(),
@@ -422,6 +424,7 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
     .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.cancel", () => cancelDraft(request.params, services))
+    .with("ai.authStatus", () => services.checkCopilotAuth())
     .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))
     .with("generate.queryStories", () => services.queryGenerateStories(generateQueryStoriesParams(request.params)))
     .with("generate.run", () => services.runGenerate(generateRunParams(request.params), signal))

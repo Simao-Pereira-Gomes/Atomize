@@ -21,6 +21,9 @@ const services: SidecarServices = {
     throw new Error("runGenerate not stubbed for this test");
   },
   createDraftSession: async () => ({ generate: async () => "", abort: async () => {}, dispose: async () => {} }),
+  checkCopilotAuth: async () => {
+    throw new Error("checkCopilotAuth not stubbed for this test");
+  },
   drafts: new Map(),
   cancelledDrafts: new Set(),
   activeRequests: new Map(),
@@ -279,6 +282,14 @@ describe("generate.run", () => {
     await expect(handleLine('{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":94}}', generating)).resolves.toBeUndefined();
     started();
     await expect(pending).resolves.toBeUndefined();
+  });
+});
+
+describe("ai.authStatus", () => {
+  it("delegates to the injected service and returns its result", async () => {
+    const checking: SidecarServices = { ...services, checkCopilotAuth: async () => ({ authenticated: false }) };
+    await expect(handleLine('{"jsonrpc":"2.0","id":97,"method":"ai.authStatus"}', checking))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 97, result: { authenticated: false } });
   });
 });
 

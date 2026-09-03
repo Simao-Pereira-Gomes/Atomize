@@ -90,6 +90,12 @@ export async function cancelAIDraft(draftId: string, call: SidecarInvoker = taur
   catch (error) { throw sidecarError(error); }
 }
 
+/** Checks Copilot sign-in state before a draft is attempted, so AI draft can surface a sign-in error immediately instead of only after a failed generate. */
+export async function checkCopilotAuthStatus(call: SidecarInvoker = tauriInvoke): Promise<{ authenticated: boolean }> {
+  try { return await call("ai_auth_status"); }
+  catch (error) { throw sidecarError(error); }
+}
+
 /** Resolves a local file's `extends`/`mixins` into a composed Template, so Open never has to strip them itself — see ADR-0048. */
 export async function resolveLocalTemplate(path: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("template_resolve_local", { path }); }

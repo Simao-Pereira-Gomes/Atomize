@@ -48,6 +48,11 @@ async fn ai_cancel(draft_id: String, relay: tauri::State<'_, Arc<SidecarRelay>>)
 }
 
 #[tauri::command]
+async fn ai_auth_status(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("ai.authStatus", json!({})).await
+}
+
+#[tauri::command]
 async fn generate_query_stories(source: String, profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
     relay.request("generate.queryStories", json!({ "source": source, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await
@@ -106,7 +111,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_cancel, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_cancel, ai_auth_status, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
