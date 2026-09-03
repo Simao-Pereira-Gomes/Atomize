@@ -384,7 +384,7 @@ export const ValidationConfigSchema = z.object({
   totalEstimationMustBe: z
     .number()
     .describe(
-      "Sum of all non-conditional task percentages must equal this value exactly.",
+      "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles.",
     )
     .optional(),
   totalEstimationRange: z
@@ -398,7 +398,7 @@ export const ValidationConfigSchema = z.object({
     })
     .strict()
     .describe(
-      "Sum of all non-conditional task percentages must fall within this range.",
+      "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles.",
     )
     .optional(),
   minTasks: z

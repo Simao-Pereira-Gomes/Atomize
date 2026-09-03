@@ -246,6 +246,31 @@ describe("createAuthoringStore", () => {
     });
   });
 
+  it("allows total estimation constraints above 100%", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { id: "development", title: "Development", estimationPercent: 60 },
+        { id: "testing", title: "Testing", estimationPercent: 60 },
+      ],
+    });
+    store.validation.set("totalEstimationMustBe", "120");
+    store.validation.set("totalEstimationRangeMin", "110");
+    store.validation.set("totalEstimationRangeMax", "130");
+    store.validation.validate();
+
+    expect(store.validation.isValid()).toBe(true);
+    expect(store.validation.errors.totalEstimationMustBe).toBeUndefined();
+    expect(store.validation.errors.totalEstimationRangeMax).toBeUndefined();
+    expect(serialisedObject(store)).toMatchObject({
+      validation: {
+        totalEstimationMustBe: 120,
+        totalEstimationRange: { min: 110, max: 130 },
+      },
+    });
+  });
+
   it("serialises Metadata fields into Atomize YAML", () => {
     const store = createAuthoringStore();
     store.loadTemplate(baseTemplate);

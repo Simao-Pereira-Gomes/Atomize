@@ -520,7 +520,7 @@
             },
             "totalEstimationMustBe": {
               "type": "number",
-              "description": "Sum of all non-conditional task percentages must equal this value exactly."
+              "description": "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles."
             },
             "totalEstimationRange": {
               "type": "object",
@@ -539,7 +539,7 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Sum of all non-conditional task percentages must fall within this range."
+              "description": "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles."
             },
             "minTasks": {
               "type": "number",
@@ -1074,7 +1074,7 @@
             },
             "totalEstimationMustBe": {
               "type": "number",
-              "description": "Sum of all non-conditional task percentages must equal this value exactly."
+              "description": "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles."
             },
             "totalEstimationRange": {
               "type": "object",
@@ -1093,7 +1093,7 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Sum of all non-conditional task percentages must fall within this range."
+              "description": "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles."
             },
             "minTasks": {
               "type": "number",

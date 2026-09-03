@@ -465,7 +465,7 @@ describe("Schema Validation", () => {
   describe("ValidationConfigSchema", () => {
     test("should accept valid config", () => {
       const config = {
-        totalEstimationMustBe: 100,
+        totalEstimationMustBe: 120,
         minTasks: 3,
         maxTasks: 10,
       };
@@ -477,8 +477,8 @@ describe("Schema Validation", () => {
     test("should accept estimation range", () => {
       const config = {
         totalEstimationRange: {
-          min: 95,
-          max: 105,
+          min: 110,
+          max: 130,
         },
       };
 

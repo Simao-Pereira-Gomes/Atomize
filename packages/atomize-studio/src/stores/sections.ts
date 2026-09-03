@@ -219,6 +219,11 @@ function isPercentage(value: string): boolean {
   return numeric === undefined || (!Number.isNaN(numeric) && numeric >= 0 && numeric <= 100);
 }
 
+function isNonNegativeEstimationTotal(value: string): boolean {
+  const numeric = optionalNumber(value);
+  return numeric === undefined || (!Number.isNaN(numeric) && numeric >= 0);
+}
+
 function isOrderedRange(min: string, max: string): boolean {
   const minValue = optionalNumber(min);
   const maxValue = optionalNumber(max);
@@ -388,8 +393,8 @@ function makeValidation() {
   };
   const validate = () => {
     const nextErrors: Errors = {};
-    if (!isPercentage(fields.totalEstimationMustBe)) {
-      nextErrors.totalEstimationMustBe = "Must be 0-100";
+    if (!isNonNegativeEstimationTotal(fields.totalEstimationMustBe)) {
+      nextErrors.totalEstimationMustBe = "Must be 0 or greater";
     }
     if (!isNonNegativeInteger(fields.minTasks)) {
       nextErrors.minTasks = "Must be a whole number 0 or greater";
@@ -406,7 +411,16 @@ function makeValidation() {
         nextErrors[`${prefix}Max`] = "Must be greater than or equal to the minimum";
       }
     };
-    validateRange(fields.totalEstimationRangeMin, fields.totalEstimationRangeMax, "totalEstimationRange");
+    const validateTotalRange = (min: string, max: string) => {
+      if (!isNonNegativeEstimationTotal(min)) nextErrors.totalEstimationRangeMin = "Must be 0 or greater";
+      if (!isNonNegativeEstimationTotal(max)) nextErrors.totalEstimationRangeMax = "Must be 0 or greater";
+      const minValue = optionalNumber(min);
+      const maxValue = optionalNumber(max);
+      if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
+        nextErrors.totalEstimationRangeMax = "Must be greater than or equal to the minimum";
+      }
+    };
+    validateTotalRange(fields.totalEstimationRangeMin, fields.totalEstimationRangeMax);
     validateRange(fields.taskEstimationRangeMin, fields.taskEstimationRangeMax, "taskEstimationRange");
     fields.requiredTasks.forEach((task, index) => {
       if (task.title.trim() === "") nextErrors[`requiredTasks.${index}.title`] = "Title is required";
@@ -428,12 +442,12 @@ function makeValidation() {
     const minTasks = optionalNumber(fields.minTasks);
     const maxTasks = optionalNumber(fields.maxTasks);
     return (
-      isPercentage(fields.totalEstimationMustBe) &&
+      isNonNegativeEstimationTotal(fields.totalEstimationMustBe) &&
       isNonNegativeInteger(fields.minTasks) &&
       isNonNegativeInteger(fields.maxTasks) &&
       (minTasks === undefined || maxTasks === undefined || minTasks <= maxTasks) &&
-      isPercentage(fields.totalEstimationRangeMin) &&
-      isPercentage(fields.totalEstimationRangeMax) &&
+      isNonNegativeEstimationTotal(fields.totalEstimationRangeMin) &&
+      isNonNegativeEstimationTotal(fields.totalEstimationRangeMax) &&
       isPercentage(fields.taskEstimationRangeMin) &&
       isPercentage(fields.taskEstimationRangeMax) &&
       isOrderedRange(fields.totalEstimationRangeMin, fields.totalEstimationRangeMax) &&

@@ -52,16 +52,16 @@ export function ValidationSection(props: { store: ValidationStore }) {
       <div class="divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
         <PolicyRow
           title="Estimation limits"
-          description="Require total or individual task estimates to fit the ranges this Template expects."
+          description="Require total or individual task estimates to fit the ranges this Template expects. Totals may exceed 100% when tasks span roles."
           configured={isConfigured(s, "estimation")}
           open={openPolicy() === "estimation"}
           onToggle={() => togglePolicy("estimation")}
         >
           <div class="grid gap-4 sm:grid-cols-2">
-            <TextField label="Total estimation must be (%)" value={s.fields.totalEstimationMustBe} error={s.errors.totalEstimationMustBe} onInput={(v) => { s.set("totalEstimationMustBe", v); s.validate(); }} onBlur={s.validate} placeholder="100" />
+            <TextField label="Total estimation must be (%)" value={s.fields.totalEstimationMustBe} error={s.errors.totalEstimationMustBe} onInput={(v) => { s.set("totalEstimationMustBe", v); s.validate(); }} onBlur={s.validate} placeholder="100 or 120" />
             <div />
             <TextField label="Total range minimum (%)" value={s.fields.totalEstimationRangeMin} error={s.errors.totalEstimationRangeMin} onInput={(v) => { s.set("totalEstimationRangeMin", v); s.validate(); }} onBlur={s.validate} placeholder="0" />
-            <TextField label="Total range maximum (%)" value={s.fields.totalEstimationRangeMax} error={s.errors.totalEstimationRangeMax} onInput={(v) => { s.set("totalEstimationRangeMax", v); s.validate(); }} onBlur={s.validate} placeholder="100" />
+            <TextField label="Total range maximum (%)" value={s.fields.totalEstimationRangeMax} error={s.errors.totalEstimationRangeMax} onInput={(v) => { s.set("totalEstimationRangeMax", v); s.validate(); }} onBlur={s.validate} placeholder="100 or 120" />
             <TextField label="Per-task range minimum (%)" value={s.fields.taskEstimationRangeMin} error={s.errors.taskEstimationRangeMin} onInput={(v) => { s.set("taskEstimationRangeMin", v); s.validate(); }} onBlur={s.validate} placeholder="0" />
             <TextField label="Per-task range maximum (%)" value={s.fields.taskEstimationRangeMax} error={s.errors.taskEstimationRangeMax} onInput={(v) => { s.set("taskEstimationRangeMax", v); s.validate(); }} onBlur={s.validate} placeholder="100" />
           </div>

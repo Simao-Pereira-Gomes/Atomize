@@ -763,8 +763,8 @@ export async function configureValidation(defaults?: ValidationConfig): Promise<
     await select({
       message: "Estimation validation type:",
       options: [
-        { label: "Must equal 100%", value: "exact" },
-        { label: "Range (e.g., 95-105%)", value: "range" },
+        { label: "Must equal a total (%)", value: "exact" },
+        { label: "Range (e.g., 95-105% or 110-130%)", value: "range" },
         { label: "No validation", value: "none" },
       ],
       initialValue: initialValidationType,
@@ -772,13 +772,22 @@ export async function configureValidation(defaults?: ValidationConfig): Promise<
   );
 
   if (validationType === "exact") {
-    validation.totalEstimationMustBe = 100;
+    const exactRaw = assertNotCancelled(
+      await text({
+        message: "Required total estimation %:",
+        initialValue: String(defaults?.totalEstimationMustBe ?? 100),
+        placeholder: "e.g. 100 or 120",
+        validate: Validators.nonNegative("Required total estimation"),
+      }),
+    );
+    validation.totalEstimationMustBe = Number(exactRaw);
   } else if (validationType === "range") {
     const minRaw = assertNotCancelled(
       await text({
         message: "Minimum total estimation %:",
         initialValue: String(defaults?.totalEstimationRange?.min ?? 95),
         placeholder: "e.g. 95",
+        validate: Validators.nonNegative("Minimum total estimation"),
       }),
     );
     const maxRaw = assertNotCancelled(
@@ -790,6 +799,7 @@ export async function configureValidation(defaults?: ValidationConfig): Promise<
           if (!input || input.trim() === "") return undefined;
           const n = Number(input);
           if (Number.isNaN(n)) return "Must be a valid number";
+          if (n < 0) return "Maximum cannot be negative";
           if (n < Number(minRaw))
             return `Maximum must be ≥ minimum (${minRaw}%)`;
           return undefined;
