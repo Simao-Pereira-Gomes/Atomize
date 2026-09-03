@@ -17,13 +17,18 @@ export function MultiSelectField(props: {
   const inputPlaceholder = () => isSearchable()
     ? `Search ${props.label.toLowerCase()}…`
     : props.placeholder ?? "None selected";
-  // Feed the listbox every selected value, so custom entries and grounded values
-  // that aren't in `options` still show up (checked) when the dropdown is opened.
-  // Kobalte drops any selected value it can't find here — both from the rendered
-  // list and from its `onChange` payload — so this also keeps them selectable.
+  // The listbox options: grounded options plus any selected value not among them
+  // (custom entries, grounded values that load in later) — Kobalte drops any value
+  // it can't find here, from the rendered list and from its `onChange` payload —
+  // with the selected ones grouped to the top. Order within each group is the
+  // grounded order, untouched.
   const listOptions = () => {
     const extras = props.selected.filter((value) => !props.options.includes(value));
-    return extras.length ? [...props.options, ...extras] : props.options;
+    const all = extras.length ? [...props.options, ...extras] : props.options;
+    const selected = new Set(props.selected);
+    const chosen = all.filter((value) => selected.has(value));
+    const rest = all.filter((value) => !selected.has(value));
+    return chosen.length && rest.length ? [...chosen, ...rest] : all;
   };
   const addCustom = (value: string) => {
     const trimmed = value.trim();
