@@ -3,6 +3,7 @@ import type { TemplateVerificationOptions } from '@sppg2001/atomize-core/templat
 import { verifyTemplate } from '@sppg2001/atomize-core/templates/template-verification';
 import type { ValidationWarning } from '@sppg2001/atomize-core/templates/validator';
 import * as vscode from 'vscode';
+import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { createTemplateLibrary } from '../core-library.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 
@@ -84,7 +85,7 @@ function runValidation(request: ValidationRequest): void {
 	state.running = true;
 	state.pending = undefined;
 
-	runValidationInProcess(doc.uri.fsPath, request.profile, request.credentialResolver).then(result => {
+	runValidationInProcess(resolveDocumentPath(doc.uri), request.profile, request.credentialResolver).then(result => {
 		state.running = false;
 
 		const items = [

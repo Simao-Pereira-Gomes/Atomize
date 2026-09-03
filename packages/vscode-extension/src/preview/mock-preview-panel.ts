@@ -1,6 +1,7 @@
 import { inspectTemplate, runPreview } from '@sppg2001/atomize-core/templates/template-inspector';
 import * as vscode from 'vscode';
 import { getPreviewLayout } from '../config/atomize-configuration.js';
+import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { createTemplateLibrary } from '../core-library.js';
 import {
 	type InspectField,
@@ -10,12 +11,12 @@ import {
 } from './mock-preview-html.js';
 
 async function inspectFile(fileUri: vscode.Uri): Promise<InspectField[]> {
-	const { template } = await createTemplateLibrary().loadSource(fileUri.fsPath);
+	const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
 	return inspectTemplate(template).fields;
 }
 
 async function previewFile(fileUri: vscode.Uri, mockStory: string) {
-	const { template } = await createTemplateLibrary().loadSource(fileUri.fsPath);
+	const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
 	return runPreview(template, mockStory);
 }
 

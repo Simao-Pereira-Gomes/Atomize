@@ -4,6 +4,7 @@ import {
 	handleDocument,
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
+	isMixinDocument,
 	isContentOnlyDetected,
 } from './authoring/language-detection.js';
 import { ValidationCodeActionProvider } from './authoring/validation-code-action-provider.js';
@@ -103,6 +104,14 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		void vscode.window.showWarningMessage(
 			'Atomize validation could not complete. Existing diagnostics were left unchanged.',
 		);
+	}
+
+	function isRunnableTemplate(doc: vscode.TextDocument): boolean {
+		if (!isMixinDocument(doc)) return true;
+		void vscode.window.showInformationMessage(
+			'Atomize: Mixins are reusable partial Templates and cannot be previewed, generated, or resolved on their own.',
+		);
+		return false;
 	}
 
 	// Seed the schema URI set for already-open Atomize YAML documents.
@@ -209,6 +218,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
+			if (!isRunnableTemplate(doc)) return;
 			if (!await checkDirtyDocument(doc, 'preview')) return;
 			await PreviewPanel.open(doc.uri);
 		}),
@@ -218,6 +228,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
+			if (!isRunnableTemplate(doc)) return;
 			if (!await checkDirtyDocument(doc, 'preview')) return;
 			await LivePreviewPanel.open(doc.uri, store, credentialResolver);
 		}),
@@ -227,6 +238,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
 			if (!doc) return;
+			if (!isRunnableTemplate(doc)) return;
 			if (!await checkDirtyDocument(doc, 'generate')) return;
 			await GeneratePanel.open(doc.uri, store, credentialResolver);
 		}),

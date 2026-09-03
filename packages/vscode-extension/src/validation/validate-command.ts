@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isAtomizeDocument } from '../authoring/language-detection.js';
+import { isAtomizeDocument, isMixinDocument } from '../authoring/language-detection.js';
 import { getDefaultProfile } from '../config/atomize-configuration.js';
 import { AtomizePanel } from '../panel.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
@@ -23,6 +23,10 @@ export function registerValidateCommand(deps: ValidateCommandDeps): vscode.Dispo
 			? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 			: vscode.window.activeTextEditor?.document;
 		if (!doc || !isAtomizeDocument(doc)) return;
+		if (isMixinDocument(doc)) {
+			await vscode.window.showInformationMessage('Atomize: Mixins are validated when they are composed into a Template.');
+			return;
+		}
 		if (!await deps.checkDirtyDocument(doc, 'validate')) return;
 
 		const defaultProfile = getDefaultProfile(doc.uri);

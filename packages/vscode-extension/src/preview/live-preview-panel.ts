@@ -2,6 +2,7 @@ import { Atomizer } from '@sppg2001/atomize-core';
 import type { AtomizationReport } from '@sppg2001/atomize-core/core/atomizer';
 import { AuthError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
+import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
@@ -33,7 +34,7 @@ async function runLivePreview(
 ): Promise<{ report: AtomizationReport } | { error: 'auth' | 'notfound'; detail: string }> {
 	try {
 		const adapter = await credentialResolver.resolveByName(profile);
-		const { template } = await createTemplateLibrary().loadSource(fileUri.fsPath);
+		const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
 		const atomizer = new Atomizer(adapter);
 		const report = await atomizer.atomize(template, { dryRun: true, storyIds: [storyId] });
 		return { report };

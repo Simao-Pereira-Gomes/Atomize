@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { stringify as stringifyYaml } from 'yaml';
 import { resolveCommandDocument } from '../authoring/command-document-resolution.js';
-import { isAtomizeDocument } from '../authoring/language-detection.js';
+import { isAtomizeDocument, isMixinDocument } from '../authoring/language-detection.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { resolveDocumentPath } from './catalog-document-path.js';
 
 export const RESOLVED_TEMPLATE_SCHEME = 'atomize-resolved';
 
@@ -69,11 +70,15 @@ export function registerShowResolvedTemplateCommand(deps: ShowResolvedTemplateCo
 				await vscode.window.showErrorMessage('Atomize: The selected file is not recognized as an Atomize YAML file.');
 				return;
 			}
+			if (isMixinDocument(doc)) {
+				await vscode.window.showInformationMessage('Atomize: Mixins are reusable partial Templates and do not have an effective Template view.');
+				return;
+			}
 			if (!await deps.checkDirtyDocument(doc, 'resolve')) return;
 
 			const result = await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Window, title: 'Resolving effective template…' },
-				() => runResolve(doc.uri.fsPath),
+				() => runResolve(resolveDocumentPath(doc.uri)),
 			);
 
 			if ('error' in result) {

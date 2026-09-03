@@ -3,6 +3,7 @@ import type { TemplateCatalogItem } from '@sppg2001/atomize-core/services/templa
 import * as vscode from 'vscode';
 import { isAtomizeDocument } from '../authoring/language-detection.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { forgetCatalogDocumentPath, rememberCatalogDocumentPath } from './catalog-document-path.js';
 
 export const CATALOG_ITEM_SCHEME = 'atomize-catalog';
 
@@ -18,6 +19,7 @@ export class CatalogItemProvider implements vscode.TextDocumentContentProvider, 
 
 	delete(uri: vscode.Uri): void {
 		this._content.delete(uri.toString());
+		forgetCatalogDocumentPath(uri);
 	}
 
 	provideTextDocumentContent(uri: vscode.Uri): string {
@@ -115,6 +117,7 @@ async function openCatalogItemFile(item: CatalogPickEntry, provider: CatalogItem
 			path: `/${item.kind}/${item.name}.atomize.yaml`,
 		});
 		provider.set(uri, content);
+		rememberCatalogDocumentPath(uri, item.path);
 		const doc = await vscode.workspace.openTextDocument(uri);
 		await vscode.languages.setTextDocumentLanguage(doc, 'yaml');
 		await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false });
