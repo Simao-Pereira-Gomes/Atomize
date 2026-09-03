@@ -1,13 +1,14 @@
 import { CopilotClient, RuntimeConnection, type CopilotSession } from "@github/copilot-sdk";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AIDraftSession, AIProvider } from "../provider.interface";
 
 export class CopilotAuthenticationError extends Error {
-  constructor(message = "GitHub Copilot is not signed in. Complete the Copilot sign-in flow, then try AI drafting again.") {
+  // The SDK runtime's "logged-in user" detection checks `gh auth token`, not `copilot login`'s
+  // own separately-stored credential — `gh auth login` is what actually satisfies this check.
+  constructor(message = "GitHub Copilot is not signed in. Run `gh auth login` in a terminal, then try AI drafting again.") {
     super(message);
     this.name = "CopilotAuthenticationError";
   }
@@ -51,10 +52,15 @@ export class GitHubCopilotProvider implements AIProvider {
   async authenticate(): Promise<void> {
     if (await this.isAuthenticated()) return;
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      throw new CopilotAuthenticationError("GitHub Copilot is not signed in. Run an interactive Atomize AI draft to complete Copilot sign-in first.");
+      throw new CopilotAuthenticationError("GitHub Copilot is not signed in. Run `gh auth login` in a terminal first.");
     }
     await this.startLogin();
     if (!(await this.isAuthenticated())) throw new CopilotAuthenticationError();
+  }
+
+  /** Whether Copilot is currently signed in — lets a caller check before attempting a draft. */
+  async checkAuthStatus(): Promise<boolean> {
+    return this.isAuthenticated();
   }
 
   async testConnection(): Promise<boolean> {
@@ -79,8 +85,7 @@ export class GitHubCopilotProvider implements AIProvider {
 
   /** Creates the single session which is deliberately shared by repair attempts. */
   async createDraftSession(): Promise<AIDraftSession> {
-    const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
-    const client = this.createClient(baseDirectory);
+    const client = this.createClient();
     try {
       await client.start();
       if (!(await client.getAuthStatus()).isAuthenticated) throw new CopilotAuthenticationError();
@@ -102,19 +107,16 @@ export class GitHubCopilotProvider implements AIProvider {
         dispose: async () => {
           await session?.disconnect().catch(() => {});
           await client.stop().catch(() => []);
-          await rm(baseDirectory, { recursive: true, force: true });
         },
       };
     } catch (error) {
       await client.stop().catch(() => []);
-      await rm(baseDirectory, { recursive: true, force: true });
       throw error;
     }
   }
 
   async *stream(systemPrompt: string, userPrompt: string): AsyncIterable<string> {
-    const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
-    const client = this.createClient(baseDirectory);
+    const client = this.createClient();
     try {
       await client.start();
       const status = await client.getAuthStatus();
@@ -128,7 +130,6 @@ export class GitHubCopilotProvider implements AIProvider {
       }
     } finally {
       await client.stop().catch(() => []);
-      await rm(baseDirectory, { recursive: true, force: true });
     }
   }
 
@@ -159,26 +160,31 @@ export class GitHubCopilotProvider implements AIProvider {
   }
 
   private async withClient<T>(action: (client: CopilotClient) => Promise<T>): Promise<T> {
-    const baseDirectory = await mkdtemp(join(tmpdir(), "atomize-copilot-"));
-    const client = this.createClient(baseDirectory);
+    const client = this.createClient();
     try {
       await client.start();
       return await action(client);
     } finally {
       await client.stop().catch(() => []);
-      await rm(baseDirectory, { recursive: true, force: true });
     }
   }
-
 
   private async isAuthenticated(): Promise<boolean> {
     return this.withClient(async (client) => (await client.getAuthStatus()).isAuthenticated);
   }
 
-  private createClient(baseDirectory: string): CopilotClient {
+  /**
+   * `baseDirectory` sets `COPILOT_HOME` for the spawned runtime — it IS the credential/config
+   * root, not a scratch directory. A fresh temp directory here (the previous implementation)
+   * meant every auth check ran against a brand-new, never-authenticated identity, regardless of
+   * how many times sign-in actually succeeded — always reporting "not signed in". Pointing this
+   * at the same real, persistent home `copilot login` itself uses (honoring `COPILOT_HOME` when
+   * set, e.g. for isolated testing) is what makes sign-in state actually visible here.
+   */
+  private createClient(): CopilotClient {
     const cliPath = process.env.ATOMIZE_COPILOT_CLI_PATH;
     return new CopilotClient({
-      baseDirectory,
+      baseDirectory: process.env.COPILOT_HOME || join(homedir(), ".copilot"),
       logLevel: "error",
       mode: "empty",
       connection: cliPath ? RuntimeConnection.forStdio({ path: cliPath }) : undefined,
