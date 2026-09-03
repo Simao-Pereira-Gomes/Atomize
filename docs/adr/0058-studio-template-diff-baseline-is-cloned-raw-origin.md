@@ -1,0 +1,22 @@
+# Studio's Template Diff compares against the cloned raw origin, not the resolved origin
+
+Issue #136 (and its parent #129) describe the Template Diff's baseline as "the Catalog item currently **resolved** at the clone's `origin` ref" — implying the diff compares the Authoring Store against the origin's fully composed form (parent `extends` + `mixins` tasks inlined), fetched through a Core/sidecar capability. Tracing `toCatalogClone` (`packages/atomize-studio/src/starting-paths/catalog-clone.ts`) showed that framing is unsafe: Catalog Clone does **not** compose. It runs `TaskTemplateSchema.parse(item.content)` on the raw Catalog file content and then strips `extends`/`mixins`/`origin` without ever resolving them. So a clone seeded from an `extends`-based Catalog Template holds only that template's *own* literal tasks, never its parent's. A diff of that clone against the *resolved* origin would report every inherited task as "removed" the instant the clone is created, before the user edits anything.
+
+**Decision:** the Template Diff baseline is the `origin` Catalog item's **raw content**, passed through the **exact same strip transform `toCatalogClone` applies**. That transform is extracted into one shared function (`stripToAuthoredTemplate`, consumed by both `catalog-clone.ts` and the diff's `origin-baseline.ts`) so the clone seed and the diff baseline cannot drift apart. A freshly created, unedited clone therefore diffs as `identical: true` by construction.
+
+The baseline is obtained by reusing the existing `catalog.list` sidecar call (`listCatalogItems` / `parseCatalogItems`) and matching `item.ref === template.origin` with `item.kind === "template"` — no new sidecar RPC, no Rust relay or wire-protocol change. A non-match (the origin Template was removed or renamed) is reported by the diff view as "no longer in your Catalog", consistent with [ADR-0010](0010-origin-based-template-lineage.md)'s stance that `origin` is advisory.
+
+The diff **engine** itself (`diffTemplates(base, current)`) is a pure function with no knowledge of `origin`, lineage, the Catalog, or the Authoring Store. All of that lives in the view's orchestration layer. If arbitrary two-Template comparison is ever wanted, it is a new caller plus a picker — zero engine change.
+
+## Consequences
+
+- Proper composition support for Catalog Clone is deferred, not solved here. When it lands it **must change `toCatalogClone` and the diff baseline together** — both consume `stripToAuthoredTemplate`, so switching that one function to a resolve-then-strip keeps them aligned. Splitting the change across the two paths would reintroduce the spurious-diff problem above.
+- The diff compares like against like (raw-stripped vs. raw-stripped), so it faithfully answers "what have I changed since I cloned" even for an `extends`-based origin — it just does not show what the origin *would* compose to. That is the Resolved Template view's job, and the `CONTEXT.md` glossary entry says so explicitly.
+- The task-identity heuristic the engine uses (match by non-empty `id`, then by `title` positionally; reorder detected via the longest common subsequence of matched tasks) is a conventional diff approach, internal to the engine and cheap to change. It is covered by the engine's unit tests rather than its own ADR.
+
+## Considered
+
+- **Resolved-origin baseline, as #136/#129 word it** — rejected until `toCatalogClone` actually composes; against a non-composing clone it produces a large phantom diff at creation time.
+- **Fixing `toCatalogClone` to compose as part of this issue** — rejected as scope: composition for the clone path is its own change with its own resolution-failure and offline-availability questions (mirroring Open's, see [ADR-0048](0048-studio-open-flattens-extends-mixins-at-load.md)), and #136 is already mid-chain in the #129 PRD.
+- **A dedicated `catalog.getRef` sidecar RPC for the baseline** — rejected in favour of reusing `catalog.list`: the Catalog is a small local inventory the app already fetches wholesale, an individually allow-listed RPC ([ADR-0042](0042-studio-sidecar-wire-protocol.md)) is friction this issue does not need, and the "is `origin` still in the Catalog" check falls out of the list match for free. Adding `catalog.getRef` later would be a pure optimization.
+- **A diff engine that takes `origin` and does its own resolution** — rejected: keeping the engine origin-agnostic makes it trivially reusable and keeps its test surface to in-memory Template pairs.

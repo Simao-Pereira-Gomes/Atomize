@@ -44,8 +44,8 @@ The single source of truth for the Template being authored in Atomize Studio. Th
 An opt-in, in-memory Task Builder behavior for Percentage-mode Tasks that preserves a valid edited Task percentage and proportionally redistributes the remaining percentage among its valid sibling Tasks. It is not part of a Template and is never written into its Atomize YAML File.
 
 **Template Diff**:
-A read-only comparison, available in the Templates Area, between a Catalog Clone (or its descendant edits) and the Catalog item recorded in its `origin` field, showing what has changed since the clone. Available only when `origin` is set, so it does not apply to Local File Clones or from-scratch Templates.
-_Avoid_: conflating with Resolved Template, which shows composition output rather than a change comparison.
+A read-only comparison, shown in the Templates Area's Review step, between the Template currently being authored and the Catalog item its `origin` records — showing what has changed since it was cloned. Available only when `origin` is a Catalog Template ref that still resolves to a Catalog item; unavailable for from-scratch and AI draft Templates, for an Open session exported as a copy (`origin` stripped), and when the recorded `origin` is no longer in the Catalog. It is offered only once every authoring section is valid, the same gate as the rest of the Review step.
+_Avoid_: conflating with Resolved Template, which shows composition output rather than a change comparison; assuming the comparison is against the origin's fully composed form — it is against the same content Catalog Clone seeds from.
 
 **Catalog Install**:
 A Catalog Area action that installs an authored or generated Template directly into the user or project Catalog, in addition to exporting a downloadable Atomize YAML File for manual `atomize template install`.
