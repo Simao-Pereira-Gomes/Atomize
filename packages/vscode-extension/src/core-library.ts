@@ -1,5 +1,7 @@
 import { TemplateLibrary } from '@sppg2001/atomize-core';
 import { TemplateCatalog } from '@sppg2001/atomize-core/services/template/template-catalog';
+import { TemplateLoader } from '@sppg2001/atomize-core/templates/loader';
+import { TemplateSourceResolver } from '@sppg2001/atomize-core/templates/source-resolver';
 import * as vscode from 'vscode';
 
 /**
@@ -11,8 +13,10 @@ import * as vscode from 'vscode';
  */
 export function createTemplateLibrary(): TemplateLibrary {
 	const invocationCwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	const catalog = new TemplateCatalog({ packageRoot: __dirname, invocationCwd });
+	const resolver = new TemplateSourceResolver(new TemplateLoader(catalog), catalog);
 	return new TemplateLibrary(
-		undefined,
-		new TemplateCatalog({ packageRoot: __dirname, invocationCwd }),
+		resolver,
+		catalog,
 	);
 }

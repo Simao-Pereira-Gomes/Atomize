@@ -133,7 +133,7 @@
     },
     "packages/vscode-extension": {
       "name": "atomize",
-      "version": "0.0.7",
+      "version": "0.0.8",
       "dependencies": {
         "@sppg2001/atomize-core": "workspace:*",
         "yaml": "^2.8.3",
