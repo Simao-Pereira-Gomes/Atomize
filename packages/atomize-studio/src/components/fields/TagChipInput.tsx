@@ -1,4 +1,4 @@
-import { createSignal, createUniqueId, For, Show, type JSX } from "solid-js";
+import { createSignal, createUniqueId, For, type JSX, Show } from "solid-js";
 
 export function TagChipInput(props: {
   label: string;

@@ -1,5 +1,5 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { StudioShell } from "./components/StudioShell";
 import "./App.css";
 

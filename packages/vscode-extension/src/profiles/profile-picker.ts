@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { CredentialResolver } from './credential-resolver.js';
-import { manageProfiles } from './profile-management.js';
 import { resolveDefaultProfile, sortProfiles } from './profile-helpers.js';
+import { manageProfiles } from './profile-management.js';
 import type { AzureDevOpsProfileMeta, ProfileStore } from './profile-store.js';
 
 export interface PickProfileOptions {

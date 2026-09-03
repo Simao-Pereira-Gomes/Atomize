@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseAIDraftResponse } from "../ai-draft";
 import { createAuthoringStore } from "../../stores/sections";
+import { parseAIDraftResponse } from "../ai-draft";
 
 describe("AI draft handoff", () => {
   it("loads Template-shaped field errors into the Authoring Store", () => {

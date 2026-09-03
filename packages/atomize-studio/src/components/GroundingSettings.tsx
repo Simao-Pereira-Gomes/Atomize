@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show, type Accessor } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, Show } from "solid-js";
 import type { NewAzureDevOpsProfile } from "../connections/connection-client";
 import type {
 	AzureDevOpsProfile,

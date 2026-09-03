@@ -7,6 +7,7 @@ import { createTemplateLibrary } from '../core-library.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 
 export type { ValidationError, ValidationResult, ValidationWarning } from '@sppg2001/atomize-core/templates/validator';
+
 import type { ValidationResult } from '@sppg2001/atomize-core/templates/validator';
 
 interface RunState {

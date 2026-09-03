@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 
 const PROFILES_KEY = 'atomize.profiles';
 

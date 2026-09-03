@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  conditionFields,
   coerceGroundedTaskValue,
+  conditionFields,
   editableTaskFields,
   loadGroundedFieldOptions,
   ProjectConnectionError,

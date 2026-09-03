@@ -2,12 +2,12 @@ import {
   type EstimationConfig,
   type FilterCriteria,
   type Metadata,
+  normalizeEstimationPercentages,
   type TaskDefinition,
   type TaskTemplate,
   TaskTemplateSchema,
   type ValidationConfig,
 } from "@sppg2001/atomize-schema";
-import { normalizeEstimationPercentages } from "@sppg2001/atomize-schema";
 import { createStore, reconcile } from "solid-js/store";
 import { stringify } from "yaml";
 
@@ -328,7 +328,9 @@ function makeTasks() {
     if (siblings.length === 0) return;
     const normalized = siblings.map((task) => ({ task, estimationPercent: optionalNumber(task.fields.estimationPercent) ?? 0 }));
     normalizeEstimationPercentages(normalized, { skipIfAlreadyNormalized: false, targetTotal: 100 - parsed });
-    normalized.forEach(({ task, estimationPercent }) => set("items", fields.items.findIndex((item) => item.key === task.key), "fields", "estimationPercent", String(estimationPercent)));
+    normalized.forEach(({ task, estimationPercent }) => {
+      set("items", fields.items.findIndex((item) => item.key === task.key), "fields", "estimationPercent", String(estimationPercent));
+    });
   };
   const validate = () => {
     const nextErrors: Errors = {};

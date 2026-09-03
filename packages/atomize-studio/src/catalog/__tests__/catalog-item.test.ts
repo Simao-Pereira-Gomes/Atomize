@@ -32,8 +32,8 @@ const catalogFixture = [
 describe("parseCatalogItems", () => {
   it("parses both Templates and Mixins across scopes", () => {
     expect(parseCatalogItems(catalogFixture)).toEqual([
-      { name: "delivery", displayName: "Delivery Template", description: "A complete delivery workflow.", ref: "template:delivery", scope: "project", kind: "template", content: catalogFixture[0]!.content },
-      { name: "release", displayName: "Release Mixin", description: "Reusable release tasks.", ref: "mixin:release", scope: "user", kind: "mixin", content: catalogFixture[1]!.content },
+      { name: "delivery", displayName: "Delivery Template", description: "A complete delivery workflow.", ref: "template:delivery", scope: "project", kind: "template", content: catalogFixture[0]?.content },
+      { name: "release", displayName: "Release Mixin", description: "Reusable release tasks.", ref: "mixin:release", scope: "user", kind: "mixin", content: catalogFixture[1]?.content },
     ]);
   });
 

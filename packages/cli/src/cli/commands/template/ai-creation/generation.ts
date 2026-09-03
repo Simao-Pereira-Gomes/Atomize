@@ -1,3 +1,4 @@
+import type { AIProvider } from "@sppg2001/atomize-ai";
 import {
   buildSystemPrompt,
   buildUserPrompt,
@@ -6,7 +7,6 @@ import {
 } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
-import type { AIProvider } from "@sppg2001/atomize-ai";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,

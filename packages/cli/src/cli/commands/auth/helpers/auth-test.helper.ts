@@ -50,7 +50,7 @@ export async function resolveTestTarget(profileName?: string): Promise<TestTarge
   if (!profile) throw new Error("No profile found. Run: atomize auth add");
 
   if (profile.platform !== "azure-devops") {
-    throw new Error("GitHub Models was retired. Remove this legacy profile with: atomize auth remove " + profile.name);
+    throw new Error(`GitHub Models was retired. Remove this legacy profile with: atomize auth remove ${profile.name}`);
   }
   const config = await resolveAzureConfig(profile.name);
   const platform = PlatformFactory.create("azure-devops", config);

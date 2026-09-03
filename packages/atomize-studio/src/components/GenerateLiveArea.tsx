@@ -2,12 +2,12 @@
 // see ADR-0056) → dry-run Preview → Live Execution Confirmation (gated by the pure FSM in
 // generate/live-execution-confirmation.ts, see ADR-0055) → Execute, with live per-Story progress
 // and a final grouped, navigable result list mirroring the VS Code extension's Generate Panel.
-import { createSignal, For, Show, Switch, Match } from "solid-js";
-import type { GenerateScope, LiveExecutionEvent } from "../generate/live-execution-confirmation";
-import { initialLiveExecutionState, transitionLiveExecution } from "../generate/live-execution-confirmation";
+import { createSignal, For, Match, Show, Switch } from "solid-js";
 import type { GenerateReport, GenerateResultRow as GenerateResultRowData, GenerateWorkItem } from "../generate/live";
 import { parseGenerateProgressEvent, parseGenerateReport, parseGenerateStories } from "../generate/live";
-import { previewSourceValue, type PreviewSource } from "../generate/preview";
+import type { GenerateScope, LiveExecutionEvent } from "../generate/live-execution-confirmation";
+import { initialLiveExecutionState, transitionLiveExecution } from "../generate/live-execution-confirmation";
+import { type PreviewSource, previewSourceValue } from "../generate/preview";
 import { cancelGenerate, listenGenerateProgress, queryGenerateStories, runGenerate, SidecarRequestError } from "../sidecar/sidecar-client";
 import { GenerateResultRow } from "./GenerateResultRow";
 
@@ -96,22 +96,27 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
       const event = parseGenerateProgressEvent(progress.event);
       if (!event) return;
       if (event.type === "story_start" && event.story) {
-        setExecPending((prev) => new Map(prev).set(event.story!.id, { story: event.story!, tasksCreated: [], success: false }));
+        const story = event.story;
+        setExecPending((prev) => new Map(prev).set(story.id, { story, tasksCreated: [], success: false }));
       } else if (event.type === "task_created" && event.task && event.story) {
+        const story = event.story;
+        const task = event.task;
         setExecPending((prev) => {
           const next = new Map(prev);
-          const row = next.get(event.story!.id);
-          if (row) next.set(event.story!.id, { ...row, tasksCreated: [...row.tasksCreated, event.task!] });
+          const row = next.get(story.id);
+          if (row) next.set(story.id, { ...row, tasksCreated: [...row.tasksCreated, task] });
           return next;
         });
       } else if (event.type === "story_complete" && event.story) {
-        const pending = execPending().get(event.story.id);
-        setExecRows((prev) => [...prev, { story: event.story!, tasksCreated: pending?.tasksCreated ?? [], success: true }]);
-        setExecPending((prev) => { const next = new Map(prev); next.delete(event.story!.id); return next; });
+        const story = event.story;
+        const pending = execPending().get(story.id);
+        setExecRows((prev) => [...prev, { story, tasksCreated: pending?.tasksCreated ?? [], success: true }]);
+        setExecPending((prev) => { const next = new Map(prev); next.delete(story.id); return next; });
       } else if (event.type === "story_error" && event.story) {
-        const pending = execPending().get(event.story.id);
-        setExecRows((prev) => [...prev, { story: event.story!, tasksCreated: pending?.tasksCreated ?? [], success: false, error: event.error }]);
-        setExecPending((prev) => { const next = new Map(prev); next.delete(event.story!.id); return next; });
+        const story = event.story;
+        const pending = execPending().get(story.id);
+        setExecRows((prev) => [...prev, { story, tasksCreated: pending?.tasksCreated ?? [], success: false, error: event.error }]);
+        setExecPending((prev) => { const next = new Map(prev); next.delete(story.id); return next; });
       }
     });
 

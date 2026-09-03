@@ -1,5 +1,5 @@
-import { listAzureDevOpsProfiles as listNativeAzureDevOpsProfiles, type AzureDevOpsProfile } from "../connections/connection-client";
-import { loadGrounding, SidecarRequestError, type SidecarInvoker } from "../sidecar/sidecar-client";
+import { type AzureDevOpsProfile, listAzureDevOpsProfiles as listNativeAzureDevOpsProfiles } from "../connections/connection-client";
+import { loadGrounding, type SidecarInvoker, SidecarRequestError } from "../sidecar/sidecar-client";
 
 export type { AzureDevOpsProfile } from "../connections/connection-client";
 

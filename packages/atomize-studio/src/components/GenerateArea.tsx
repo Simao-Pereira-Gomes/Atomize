@@ -3,11 +3,11 @@ import { type CatalogItem, parseCatalogItems } from "../catalog/catalog-item";
 import { pickLocalFile } from "../files/pick-local-file";
 import { buildMockStoryJson, type InspectResult, type PreviewResult, type PreviewSource, parseInspectResult, parsePreviewResult, previewSourceLabel, previewSourceValue } from "../generate/preview";
 import { inspectPreview, listCatalogItems, runMockPreview, SidecarRequestError } from "../sidecar/sidecar-client";
-import type { GroundingSession } from "./GroundingSettings";
 import { GenerateLiveArea } from "./GenerateLiveArea";
+import { type GenerateMode, GenerateModeToggle } from "./GenerateModeToggle";
 import { GenerateMockPreview } from "./GeneratePreviewVariants";
-import { GenerateModeToggle, type GenerateMode } from "./GenerateModeToggle";
 import { GenerateSourcePicker } from "./GenerateSourcePicker";
+import type { GroundingSession } from "./GroundingSettings";
 
 type CatalogTemplateItem = Extract<CatalogItem, { kind: "template" }>;
 
