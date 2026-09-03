@@ -1,0 +1,39 @@
+name: Validate Studio frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/atomize-studio/**
+      - packages/atomize-sidecar/**
+      - .github/workflows/validate-studio-frontend.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - packages/atomize-studio/**
+      - packages/atomize-sidecar/**
+      - .github/workflows/validate-studio-frontend.yml
+
+permissions: {}
+
+jobs:
+  studio-frontend:
+    name: Studio frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+        working-directory: packages/atomize-studio
+      - run: bun run typecheck
+        working-directory: packages/atomize-studio
+      - run: bun run lint
+        working-directory: packages/atomize-studio
+      - run: bun run vite:build
+        working-directory: packages/atomize-studio
