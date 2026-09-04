@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { handleLine, type SidecarServices } from "./protocol";
+import { classifyGenerateAdapterError, handleLine, type SidecarServices } from "./protocol";
+import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
 
 const services: SidecarServices = {
   library: {
@@ -227,6 +228,21 @@ describe("generate.queryStories", () => {
   it("rejects a missing source as INVALID_PARAMS", async () => {
     await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 81, method: "generate.queryStories", params: { connection } }), services))
       .resolves.toMatchObject({ jsonrpc: "2.0", id: 81, error: { code: "INVALID_PARAMS" } });
+  });
+});
+
+describe("Generate failure messages", () => {
+  it("keeps a safe platform failure detail instead of blaming the connection", () => {
+    expect(classifyGenerateAdapterError(
+      new PlatformError("Failed to create task: TF401320: Rule validation error.", "azure-devops"),
+      "GENERATE_TOKEN_EXPIRED",
+      "GENERATE_AUTH_FAILED",
+      "GENERATE_RUN_FAILED",
+      "Atomize could not complete this Generate run. Check the connection and try again.",
+    )).toEqual({
+      code: "GENERATE_RUN_FAILED",
+      message: "Atomize could not complete this Generate run: Failed to create task: TF401320: Rule validation error.",
+    });
   });
 });
 

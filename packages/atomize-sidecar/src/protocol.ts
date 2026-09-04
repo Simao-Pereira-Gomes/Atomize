@@ -11,7 +11,7 @@ import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
 import { verifyTemplate, type TemplateVerificationResult } from "@sppg2001/atomize-core/templates/template-verification";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
-import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
+import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
 
@@ -223,12 +223,20 @@ async function resolveGenerateTemplate(source: string, library: SidecarTemplateL
   }
 }
 
-function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: string, authFailedCode: string, defaultCode: string, defaultMessage: string): { code: string; message: string } {
+export function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: string, authFailedCode: string, defaultCode: string, defaultMessage: string): { code: string; message: string } {
   const message = getErrorMessage(error);
   if (error instanceof AuthError || /authentication failed|access denied/i.test(message)) {
     return /token.*expired|personal access token.*expired/i.test(message)
       ? { code: tokenExpiredCode, message: "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again." }
       : { code: authFailedCode, message: "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again." };
+  }
+  // AzureDevOpsAdapter constructs PlatformError messages from its sanitised REST response. They
+  // identify template rules, missing fields, and permission failures without exposing the PAT.
+  if (error instanceof PlatformError || error instanceof ConfigurationError) {
+    return {
+      code: defaultCode,
+      message: `${defaultMessage.replace(/\. Check the connection and try again\.$/, "")}: ${message}`,
+    };
   }
   return { code: defaultCode, message: defaultMessage };
 }
