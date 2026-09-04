@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { handleLine, type SidecarServices } from "./protocol";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { classifyGenerateAdapterError, handleLine, type SidecarServices } from "./protocol";
+import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
 
 const services: SidecarServices = {
   library: {
@@ -115,6 +119,30 @@ describe("catalog.remove", () => {
 });
 
 describe("catalog.install", () => {
+  it("rejects a project install without an explicit workspace root", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":39,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery","scope":"project"}}', services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 39, error: { code: "PROJECT_WORKSPACE_REQUIRED", message: "Choose a project folder before installing to the project Catalog." } });
+  });
+
+  it("installs a project item beneath the selected workspace", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "atomize-studio-project-"));
+    try {
+      const response = await handleLine(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 39,
+        method: "catalog.install",
+        params: { content: "version: \"1.0\"\nname: Delivery\nfilter: {}\ntasks:\n  - title: Plan delivery\n    estimationPercent: 100\n", name: "delivery", scope: "project", workspaceRoot },
+      }), services);
+      expect(response).toMatchObject({
+        jsonrpc: "2.0",
+        id: 39,
+        result: { scope: "project", path: join(workspaceRoot, ".atomize", "catalog", "templates", "delivery.atomize.yaml") },
+      });
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it("installs a Catalog item from in-memory content and reports the created item", async () => {
     let received: unknown;
     const installing: SidecarServices = {
@@ -138,12 +166,12 @@ describe("catalog.install", () => {
       ...services,
       library: {
         ...services.library,
-        installTemplate: async (input) => { received = input; return { kind: "template", scope: "project", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" }; },
+        installTemplate: async (input) => { received = input; return { kind: "template", scope: "user", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" }; },
       },
     };
-    await expect(handleLine('{"jsonrpc":"2.0","id":41,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery","scope":"project","overwrite":true}}', installing))
-      .resolves.toEqual({ jsonrpc: "2.0", id: 41, result: { kind: "template", scope: "project", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" } });
-    expect(received).toEqual({ source: { content: "name: Delivery", name: "delivery" }, scope: "project", overwrite: true });
+    await expect(handleLine('{"jsonrpc":"2.0","id":41,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery","scope":"user","overwrite":true}}', installing))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 41, result: { kind: "template", scope: "user", name: "delivery", displayName: "Delivery", description: "", ref: "template:delivery", path: "/tmp/delivery.atomize.yaml" } });
+    expect(received).toEqual({ source: { content: "name: Delivery", name: "delivery" }, scope: "user", overwrite: true });
   });
 
   it("rejects a request missing content, name, or scope", async () => {
@@ -227,6 +255,21 @@ describe("generate.queryStories", () => {
   it("rejects a missing source as INVALID_PARAMS", async () => {
     await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 81, method: "generate.queryStories", params: { connection } }), services))
       .resolves.toMatchObject({ jsonrpc: "2.0", id: 81, error: { code: "INVALID_PARAMS" } });
+  });
+});
+
+describe("Generate failure messages", () => {
+  it("keeps a safe platform failure detail instead of blaming the connection", () => {
+    expect(classifyGenerateAdapterError(
+      new PlatformError("Failed to create task: TF401320: Rule validation error.", "azure-devops"),
+      "GENERATE_TOKEN_EXPIRED",
+      "GENERATE_AUTH_FAILED",
+      "GENERATE_RUN_FAILED",
+      "Atomize could not complete this Generate run. Check the connection and try again.",
+    )).toEqual({
+      code: "GENERATE_RUN_FAILED",
+      message: "Atomize could not complete this Generate run: Failed to create task: TF401320: Rule validation error.",
+    });
   });
 });
 

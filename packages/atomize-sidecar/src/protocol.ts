@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
 import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
 import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
@@ -11,7 +12,7 @@ import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
 import { verifyTemplate, type TemplateVerificationResult } from "@sppg2001/atomize-core/templates/template-verification";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
-import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
+import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
 
@@ -44,12 +45,18 @@ export type SidecarServices = {
   notify: (notification: RpcNotification) => void;
 };
 
-export function createTemplateLibrary(): TemplateLibrary {
+export function createTemplateLibrary(workspaceRoot?: string): TemplateLibrary {
   // The CI bundle copies atomize-core's catalog beside the sidecar binary.
   const packageRoot = process.env.ATOMIZE_CATALOG_ROOT;
   // Catalog listing and catalog-reference resolution must use the same root. The
   // bundled Studio catalog is not at atomize-core's default package location.
-  const catalog = new TemplateCatalog(packageRoot ? { packageRoot } : undefined);
+  const catalog = new TemplateCatalog({
+    ...(packageRoot ? { packageRoot } : {}),
+    ...(workspaceRoot ? {
+      projectRoot: resolve(workspaceRoot, ".atomize", "catalog"),
+      legacyProjectRoot: resolve(workspaceRoot, ".atomize", "templates"),
+    } : {}),
+  });
   return new TemplateLibrary(new TemplateSourceResolver(undefined, catalog), catalog);
 }
 
@@ -223,12 +230,20 @@ async function resolveGenerateTemplate(source: string, library: SidecarTemplateL
   }
 }
 
-function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: string, authFailedCode: string, defaultCode: string, defaultMessage: string): { code: string; message: string } {
+export function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: string, authFailedCode: string, defaultCode: string, defaultMessage: string): { code: string; message: string } {
   const message = getErrorMessage(error);
   if (error instanceof AuthError || /authentication failed|access denied/i.test(message)) {
     return /token.*expired|personal access token.*expired/i.test(message)
       ? { code: tokenExpiredCode, message: "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again." }
       : { code: authFailedCode, message: "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again." };
+  }
+  // AzureDevOpsAdapter constructs PlatformError messages from its sanitised REST response. They
+  // identify template rules, missing fields, and permission failures without exposing the PAT.
+  if (error instanceof PlatformError || error instanceof ConfigurationError) {
+    return {
+      code: defaultCode,
+      message: `${defaultMessage.replace(/\. Check the connection and try again\.$/, "")}: ${message}`,
+    };
   }
   return { code: defaultCode, message: defaultMessage };
 }
@@ -336,12 +351,13 @@ type InstallCatalogItemParams = {
   name: string;
   scope: Extract<TemplateCatalogScope, "user" | "project">;
   overwrite: boolean;
+  workspaceRoot?: string;
 };
 
 function installCatalogItemParams(params: unknown): InstallCatalogItemParams {
   const invalid = () => Object.assign(new Error("Installing a Catalog item requires its content, name, and scope."), { code: "INVALID_PARAMS" });
   if (typeof params !== "object" || params === null) throw invalid();
-  const value = params as Partial<{ content: unknown; name: unknown; scope: unknown; overwrite: unknown }>;
+  const value = params as Partial<{ content: unknown; name: unknown; scope: unknown; overwrite: unknown; workspaceRoot: unknown }>;
   if (
     typeof value.content !== "string" || !value.content.trim()
     || typeof value.name !== "string" || !value.name.trim()
@@ -349,7 +365,10 @@ function installCatalogItemParams(params: unknown): InstallCatalogItemParams {
   ) {
     throw invalid();
   }
-  return { content: value.content, name: value.name, scope: value.scope, overwrite: value.overwrite === true };
+  if (value.scope === "project" && (typeof value.workspaceRoot !== "string" || !value.workspaceRoot.trim() || !isAbsolute(value.workspaceRoot) || resolve(value.workspaceRoot) === "/")) {
+    throw Object.assign(new Error("Choose a project folder before installing to the project Catalog."), { code: "PROJECT_WORKSPACE_REQUIRED" });
+  }
+  return { content: value.content, name: value.name, scope: value.scope, overwrite: value.overwrite === true, workspaceRoot: typeof value.workspaceRoot === "string" ? value.workspaceRoot : undefined };
 }
 
 function groundingConnection(params: unknown): GroundingConnection {
@@ -417,8 +436,9 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
       return { removed: true };
     })
     .with("catalog.install", async () => {
-      const { content, name, scope, overwrite } = installCatalogItemParams(request.params);
-      return await services.library.installTemplate({ source: { content, name }, scope, overwrite });
+      const { content, name, scope, overwrite, workspaceRoot } = installCatalogItemParams(request.params);
+      const library = scope === "project" ? createTemplateLibrary(workspaceRoot) : services.library;
+      return await library.installTemplate({ source: { content, name }, scope, overwrite });
     })
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
     .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))

@@ -132,10 +132,30 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test && bun run typecheck && bun run lint
         working-directory: packages/atomize-studio
-      - run: bun run build -- ${{ matrix.args }}
+      - run: bun run build -- ${{ matrix.args }} --bundles app
         working-directory: packages/atomize-studio
         env:
           APPLE_SIGNING_IDENTITY: "-"
+      - name: Sign bundled Copilot runtime
+        shell: bash
+        run: |
+          app=$(find packages/atomize-studio/src-tauri/target -type d -name 'Atomize Studio.app' -print -quit)
+          test -n "$app"
+          codesign --force --sign - --options runtime \
+            --entitlements packages/atomize-studio/src-tauri/Entitlements.plist \
+            "$app/Contents/MacOS/atomize-copilot"
+          codesign --force --sign - --options runtime "$app"
+      - name: Verify Copilot runtime entitlements
+        shell: bash
+        run: |
+          app=$(find packages/atomize-studio/src-tauri/target -type d -name 'Atomize Studio.app' -print -quit)
+          test -n "$app"
+          entitlements=$(codesign -d --entitlements :- "$app/Contents/MacOS/atomize-copilot" 2>/dev/null)
+          printf '%s' "$entitlements" | plutil -p - | grep -E '"com\.apple\.security\.cs\.allow-jit" => true'
+          printf '%s' "$entitlements" | plutil -p - | grep -E '"com\.apple\.security\.cs\.disable-library-validation" => true'
+      - name: Create signed macOS installer
+        run: bunx tauri bundle --bundles dmg ${{ matrix.args }}
+        working-directory: packages/atomize-studio
       - uses: actions/upload-artifact@v4
         with:
           name: studio-macos-${{ matrix.name }}

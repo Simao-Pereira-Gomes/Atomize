@@ -46,9 +46,9 @@ describe('installCatalogItem', () => {
 			return undefined as T;
 		};
 
-		await installCatalogItem('name: Delivery\n', 'delivery', 'project', undefined, call);
+		await installCatalogItem('name: Delivery\n', 'delivery', 'project', undefined, call, '/projects/atomize');
 
-		expect(calls).toEqual([{ content: 'name: Delivery\n', name: 'delivery', scope: 'project', overwrite: false }]);
+		expect(calls).toEqual([{ content: 'name: Delivery\n', name: 'delivery', scope: 'project', overwrite: false, workspaceRoot: '/projects/atomize' }]);
 	});
 
 	it('wraps a structured sidecar error, preserving its code', async () => {
@@ -235,4 +235,3 @@ describe('checkCopilotAuthStatus', () => {
 		expect(result).toEqual({ authenticated: false });
 	});
 });
-

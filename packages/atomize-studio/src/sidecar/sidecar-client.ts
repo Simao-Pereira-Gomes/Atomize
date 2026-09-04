@@ -57,8 +57,9 @@ export async function installCatalogItem(
   scope: CatalogInstallScope,
   overwrite = false,
   call: SidecarInvoker = tauriInvoke,
+  workspaceRoot?: string,
 ): Promise<unknown> {
-  try { return await call("catalog_install_item", { content, name, scope, overwrite }); }
+  try { return await call("catalog_install_item", { content, name, scope, overwrite, ...(workspaceRoot ? { workspaceRoot } : {}) }); }
   catch (error) { throw sidecarError(error); }
 }
 

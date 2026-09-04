@@ -209,7 +209,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "atomize-studio"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "keyring",
  "security-framework",
@@ -1979,7 +1979,9 @@ version = "3.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eebcc3aff044e5944a8fbaf69eb277d11986064cba30c468730e8b9909fb551c"
 dependencies = [
+ "byteorder",
  "log",
+ "windows-sys 0.60.2",
  "zeroize",
 ]
 
