@@ -6,6 +6,7 @@ on:
     paths:
       - packages/vscode-extension/**
       - packages/atomize-core/**
+      - packages/atomize-schema/**
 
 permissions: {}
 
