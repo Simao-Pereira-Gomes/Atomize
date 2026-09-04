@@ -1,0 +1,11 @@
+# Atomize Studio: expanded scope stays CLI-subprocess, not embedded
+
+> Superseded by [ADR-0038](0038-atomize-core-shared-library-replaces-cli-subprocess.md): the "real, separately-scoped work" of giving the CLI a stable library API was undertaken, and Studio moved off per-call CLI subprocess onto a long-lived sidecar embedding that library.
+
+Atomize Studio (formerly Template Builder) is expanding beyond authoring to cover task generation (mock/live preview, execute), validation, Catalog install/remove, and Connection Profile management — effectively parity with the VS Code extension's command surface. Two approaches were considered for how the app reaches this expanded functionality: continue extending the existing CLI Bridge (`packages/template-builder/src/cli/cli-bridge.ts`), which already shells out to the installed `atomize` executable via `tauri-plugin-shell` for `template list --json` and `auth add/rotate/remove` (see ADR-0034); or add `@sppg2001/atomize` as a direct dependency and call its internal modules (`Atomizer`, `TemplateLibrary`, `PlatformFactory`) in-process.
+
+The CLI package exposes only a `bin` entry (`main: ./dist/cli/index.js`) — no `exports` map or stable library API. Embedding would mean depending on internal, CLI-shaped modules never designed to be called outside a terminal process (TTY prompts, `process.exit`, stdout-oriented output), and would require the CLI package to grow and maintain a genuine library surface as a first step.
+
+**Decision:** the expanded scope stays entirely on the subprocess pattern. `generate`, `preview`, `validate`, and `template install`/`remove` are invoked the same way `template list` and `auth` already are — CLI Bridge functions that shell out with `--json` and parse structured output. The Atomize Studio CLI Gate's version check continues to guard all of it. This keeps Atomize Studio's only coupling to the CLI at the process boundary: every new CLI command it wants to expose only needs a `--json`-capable flag, not a library API.
+
+**Considered:** embedding CLI internals — rejected because it requires the CLI package to expose a stable library API it doesn't have today, which is real, separately-scoped work rather than something to bundle into this expansion.

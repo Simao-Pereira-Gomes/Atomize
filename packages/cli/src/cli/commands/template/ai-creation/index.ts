@@ -1,14 +1,14 @@
 import { select, text } from "@clack/prompts";
 import { resolveAIProvider } from "@config/ai.config";
-import { parseAndValidate } from "@services/template/llm-template-generator";
+import { parseAndValidate } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { CancellationError, ConfigurationError } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
-import type { TaskTemplate } from "@/templates/schema";
-import { CancellationError, ConfigurationError } from "@/utils/errors";
 import { customizeTemplate } from "../template-customize";
 import { buildMinimalTemplate, runGeneration } from "./generation";
 import { resolveGrounding } from "./grounding";
@@ -19,7 +19,6 @@ const output = createCommandOutput(resolveCommandOutputPolicy({}));
 export interface AICreationOptions {
   ai?: boolean;
   ground?: boolean;
-  aiProfile?: string;
   profile?: string;
 }
 
@@ -28,10 +27,11 @@ export async function createWithAI(options: AICreationOptions): Promise<TaskTemp
 
   const providerSpinner = createManagedSpinner();
   providerSpinner.start("Resolving AI provider…");
-  let provider: Awaited<ReturnType<typeof resolveAIProvider>>;
+  let provider: ReturnType<typeof resolveAIProvider>;
   try {
-    provider = await resolveAIProvider(options.aiProfile);
-    providerSpinner.stop(`Using provider: ${provider.id}`);
+    provider = resolveAIProvider();
+    await provider.authenticate();
+    providerSpinner.stop("Using GitHub Copilot");
   } catch (err) {
     providerSpinner.stop("Failed to resolve AI provider");
     throw new ConfigurationError(err instanceof Error ? err.message : String(err));

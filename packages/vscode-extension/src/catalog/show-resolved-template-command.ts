@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
+import { stringify as stringifyYaml } from 'yaml';
 import { resolveCommandDocument } from '../authoring/command-document-resolution.js';
-import { isAtomizeDocument } from '../authoring/language-detection.js';
-import { buildResolveArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
-import { getConfiguredCliPath } from '../config/atomize-configuration.js';
+import { isAtomizeDocument, isMixinDocument } from '../authoring/language-detection.js';
+import { createTemplateLibrary } from '../core-library.js';
+import { resolveDocumentPath } from './catalog-document-path.js';
 
 export const RESOLVED_TEMPLATE_SCHEME = 'atomize-resolved';
 
@@ -38,28 +39,17 @@ function virtualUri(sourceUri: vscode.Uri): vscode.Uri {
 	});
 }
 
-function runResolve(cliPath: string, filePath: string): Promise<{ yaml: string } | { error: string }> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, buildResolveArgs(filePath));
-		let stdout = '';
-		let stderr = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', code => {
-			if (code === 0) {
-				resolve({ yaml: stdout });
-				return;
-			}
-
-			resolve({ error: stderr.trim() || stdout.trim() || 'Template resolution failed.' });
-		});
-		proc.on('error', () => resolve({ error: 'Could not start the Atomize CLI.' }));
-	});
+async function runResolve(filePath: string): Promise<{ yaml: string } | { error: string }> {
+	try {
+		const { template } = await createTemplateLibrary().loadSource(filePath);
+		return { yaml: stringifyYaml(template, { lineWidth: 120 }) };
+	} catch (err) {
+		return { error: err instanceof Error ? err.message : String(err) };
+	}
 }
 
 export interface ShowResolvedTemplateCommandDeps {
 	provider: ResolvedTemplateProvider;
-	showCliUnavailable: (cliPath: string, message: string) => Promise<void>;
 	checkDirtyDocument: (doc: vscode.TextDocument, verb: string) => Promise<boolean>;
 }
 
@@ -80,18 +70,15 @@ export function registerShowResolvedTemplateCommand(deps: ShowResolvedTemplateCo
 				await vscode.window.showErrorMessage('Atomize: The selected file is not recognized as an Atomize YAML file.');
 				return;
 			}
-			if (!await deps.checkDirtyDocument(doc, 'resolve')) return;
-
-			const cliPath = getConfiguredCliPath();
-			const probe = await probeCli(cliPath);
-			if (!probe.available) {
-				await deps.showCliUnavailable(cliPath, 'Atomize CLI not found. Install it to resolve templates.');
+			if (isMixinDocument(doc)) {
+				await vscode.window.showInformationMessage('Atomize: Mixins are reusable partial Templates and do not have an effective Template view.');
 				return;
 			}
+			if (!await deps.checkDirtyDocument(doc, 'resolve')) return;
 
 			const result = await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Window, title: 'Resolving effective template…' },
-				() => runResolve(cliPath, doc.uri.fsPath),
+				() => runResolve(resolveDocumentPath(doc.uri)),
 			);
 
 			if ('error' in result) {

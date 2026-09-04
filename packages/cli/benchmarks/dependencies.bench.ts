@@ -1,6 +1,6 @@
+import { DependencyResolver } from "@sppg2001/atomize-core/core/dependency-resolver";
+import type { TaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 import { bench, group } from "mitata";
-import { DependencyResolver } from "../src/core/dependency-resolver";
-import type { TaskDefinition } from "../src/templates/schema";
 import { generateLargeTemplate } from "../tests/fixtures/generators";
 
 export function registerDependencyBenchmarks() {

@@ -1,5 +1,7 @@
 # VS Code extension profile management surface
 
+> Superseded by [ADR-0040](0040-vscode-extension-profile-storage.md) for profile discovery/storage: once the CLI subprocess is gone, `auth list --json` no longer exists, so the extension can no longer treat the CLI as the source of truth for profile state.
+
 A dedicated `atomize.manageProfiles` command (`Atomize: Manage Profiles`) owns all Connection Profile operations — add, remove, test, rotate, set default. Management is kept out of the Validation Profile Selection picker (ADR-0011) because coupling a management concern into a selection flow creates a confusing boundary; a dedicated command is a cleaner separation.
 
 **Azure DevOps only.** GitHub Models profiles are excluded because the extension has no surface that exercises them (`template create --ai` is CLI-only). GitHub Models profile management remains CLI-only until a `template create` extension surface exists.

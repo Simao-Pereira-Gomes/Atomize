@@ -1,6 +1,6 @@
 import { select, text } from "@clack/prompts";
-import { PlatformFactory } from "@platforms/platform-factory";
-import { GroundingService } from "@services/template/grounding.service";
+import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
+import { GroundingService } from "@sppg2001/atomize-core/services/template/grounding.service";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
 
 export interface GroundingInput {

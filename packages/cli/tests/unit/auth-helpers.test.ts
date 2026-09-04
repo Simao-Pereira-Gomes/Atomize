@@ -16,19 +16,18 @@ import {
 } from "@config/connections.config";
 import type { AzureDevOpsProfile, ConnectionProfile } from "@config/connections.interface";
 import { encryptWithKeyfile } from "@config/keyfile.service";
-import type { AIProvider } from "@/ai/providers/provider.interface";
+import { validateOrganizationUrl } from "@sppg2001/atomize-core";
+import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import {
   applyDefault,
   persistProfile,
   resolveDefaultBehaviour,
-  validateOrganizationUrl,
   validateProfileName,
 } from "@/cli/commands/auth/helpers/auth-add.helper";
 import { deleteProfile } from "@/cli/commands/auth/helpers/auth-remove.helper";
 import { rotateToken, validateNewPat } from "@/cli/commands/auth/helpers/auth-rotate.helper";
 import { readPatFromStdin } from "@/cli/commands/auth/helpers/auth-stdin";
-import { testAIProviderConnection, testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
-import type { IPlatformAdapter } from "@/platforms";
+import { testPlatformConnection } from "@/cli/commands/auth/helpers/auth-test.helper";
 
 beforeAll(async () => {
   await rm(ATOMIZE_DIR, { recursive: true, force: true });
@@ -384,61 +383,5 @@ describe("testPlatformConnection", () => {
 
     await testPlatformConnection(platform);
     expect(authMock).toHaveBeenCalledTimes(1);
-  });
-});
-
-// ─── testAIProviderConnection ─────────────────────────────────────────────────
-
-function makeAIProvider(overrides: Partial<AIProvider> = {}): AIProvider {
-  return {
-    id: "github-models",
-    generate: mock(() => Promise.resolve("")),
-    stream: mock(async function* () {}),
-    ...overrides,
-  };
-}
-
-describe("testAIProviderConnection", () => {
-  test("returns ok:true with model label when testConnection resolves true", async () => {
-    const provider = makeAIProvider({
-      testConnection: mock(() => Promise.resolve(true)),
-    });
-
-    const result = await testAIProviderConnection(provider, "gpt-4o-mini");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.label).toContain("gpt-4o-mini");
-    }
-  });
-
-  test("returns ok:true with 'default' when no model is provided", async () => {
-    const provider = makeAIProvider({
-      testConnection: mock(() => Promise.resolve(true)),
-    });
-
-    const result = await testAIProviderConnection(provider);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.label).toContain("default");
-    }
-  });
-
-  test("returns ok:false when testConnection resolves false", async () => {
-    const provider = makeAIProvider({
-      testConnection: mock(() => Promise.resolve(false)),
-    });
-
-    const result = await testAIProviderConnection(provider, "gpt-4o");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBeTruthy();
-    }
-  });
-
-  test("returns ok:true with fallback label when testConnection is not defined", async () => {
-    const provider = makeAIProvider();
-
-    const result = await testAIProviderConnection(provider);
-    expect(result.ok).toBe(true);
   });
 });

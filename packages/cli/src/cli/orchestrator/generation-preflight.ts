@@ -1,10 +1,10 @@
 import { logger } from "@config/logger";
-import type { ProjectMetadataReader } from "@platforms/interfaces/platform-capabilities";
+import type { ProjectMetadataReader } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import {
   analyzeTemplateProjectVerification,
   verifyTemplateProject,
-} from "@templates/project-verifier";
-import type { TaskTemplate } from "@templates/schema";
+} from "@sppg2001/atomize-core/templates/project-verifier";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import {
   createCommandOutput,

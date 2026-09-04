@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { TaskDefinition } from "@templates/schema";
+import type { TaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 import {
   normalizeEstimations,
   showStepHint,

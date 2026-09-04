@@ -1,18 +1,29 @@
 import { select } from "@clack/prompts";
 import { type LogLevel, logger } from "@config/logger";
+import { totalUnconditionalEstimationPercent } from "@sppg2001/atomize-core/core/estimation-distribution";
+import {
+  requireProjectMetadataReader,
+  requireSavedQueryReader,
+} from "@sppg2001/atomize-core/platforms/capabilities";
 import {
   appendOfflineVerificationWarning,
   type CustomFieldVerificationSummary,
   checkValueType,
   getCustomFieldVerificationSummary,
   verifyTemplateCustomFields as validateCustomFieldsAgainstSchemas,
-} from "@templates/custom-field-verifier";
-import type { CompositionMeta } from "@templates/loader";
+} from "@sppg2001/atomize-core/templates/custom-field-verifier";
+import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
+import type {
+  TaskTemplate,
+  ValidationMode,
+} from "@sppg2001/atomize-core/templates/schema";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import type {
   ValidationError,
   ValidationResult,
   ValidationWarning,
-} from "@templates/validator";
+} from "@sppg2001/atomize-core/templates/validator";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
@@ -28,17 +39,6 @@ import {
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
-import { totalUnconditionalEstimationPercent } from "@/core/estimation-distribution";
-import {
-  requireProjectMetadataReader,
-  requireSavedQueryReader,
-} from "@/platforms/capabilities";
-import type {
-  TaskTemplate,
-  ValidationMode,
-} from "@/templates/schema";
-import { TemplateLibrary } from "@/templates/template-library";
-import { getErrorMessage } from "@/utils/errors";
 import {
   type ConnectionMode,
   runValidateCommandApplication,

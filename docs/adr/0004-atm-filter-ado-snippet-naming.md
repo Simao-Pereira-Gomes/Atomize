@@ -1,3 +1,0 @@
-# atm-filter-ado: platform-explicit name for the advanced filter snippet
-
-The VS Code snippet set includes two filter snippets: `atm-filter` (minimal — workItemTypes, states, tags, excludeIfHasTasks) and a second snippet covering fields that are specific to the Azure DevOps platform adapter (`areaPaths`, `areaPathsUnder`, `iterations`, `team`, `statesExclude`, `statesWereEver`). We named the second snippet `atm-filter-ado` rather than `atm-filter-advanced` or `atm-filter-full` to make the platform dependency explicit in the prefix. A user on a non-ADO platform should immediately understand that these fields do not apply to them; `advanced` or `full` would imply universal applicability and cause confusion when the fields are ignored or rejected by a future adapter.

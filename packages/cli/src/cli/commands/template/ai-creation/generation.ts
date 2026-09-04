@@ -1,17 +1,17 @@
+import type { AIProvider } from "@sppg2001/atomize-ai";
 import {
   buildSystemPrompt,
   buildUserPrompt,
   MAX_ATTEMPTS,
   parseAndValidate,
-} from "@services/template/llm-template-generator";
+} from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
-import type { AIProvider } from "@/ai/providers/provider.interface";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
-import type { TaskTemplate } from "@/templates/schema";
 
 const output = createCommandOutput(resolveCommandOutputPolicy({}));
 

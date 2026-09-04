@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import { shouldOfferStoryValueInterpolation } from "@/cli/commands/template/custom-fields-wizard";
-import type { ADoFieldSchema } from "@/platforms/interfaces/field-schema.interface";
 
 describe("shouldOfferStoryValueInterpolation", () => {
   function makeSchema(referenceName: string): ADoFieldSchema {

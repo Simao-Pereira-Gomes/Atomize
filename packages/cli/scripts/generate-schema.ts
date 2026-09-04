@@ -1,11 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { z } from "zod";
 import {
   ExtendingTaskTemplateSchema,
   MixinTemplateSchema,
   TaskTemplateSchema,
-} from "../src/templates/schema.js";
+} from "@sppg2001/atomize-core/templates/schema";
+import { z } from "zod";
 
 const outDir = join(import.meta.dir, "../../vscode-extension/schemas");
 const outFile = join(outDir, "atomize-template.schema.json");

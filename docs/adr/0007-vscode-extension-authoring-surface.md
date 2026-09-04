@@ -13,4 +13,4 @@ The extension scopes Atomize behavior with two tiers of opt-in, matching the fil
 
 **Snippets are registered for the `yaml` language**, not a custom language ID, so they remain available while Atomize files stay on the YAML language service. This exposes `atm-` prefixes in generic YAML files, which is less harmful than moving Atomize files off Red Hat YAML's schema service.
 
-**Refined by:** ADR-0011 (Validation Profile Selection), ADR-0013 (Mock Preview Panel), ADR-0014 (Live Preview Panel), ADR-0015 (command titles and scope).
+**Refined by:** ADR-0011 (Validation Profile Selection), ADR-0013 (Mock Preview Panel), ADR-0014 (Live Preview Panel).

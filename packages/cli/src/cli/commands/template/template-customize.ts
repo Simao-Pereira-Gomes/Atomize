@@ -1,6 +1,11 @@
 import { confirm, multiselect } from "@clack/prompts";
-import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
-import type { TaskTemplate } from "@templates/schema";
+import {
+  requireProjectMetadataReader,
+  requireSavedQueryReader,
+} from "@sppg2001/atomize-core/platforms/capabilities";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { CancellationError, ConfigurationError } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import {
@@ -8,11 +13,6 @@ import {
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
-import {
-  requireProjectMetadataReader,
-  requireSavedQueryReader,
-} from "@/platforms/capabilities";
-import { CancellationError, ConfigurationError } from "@/utils/errors";
 import {
   configureBasicInfo,
   configureEstimation,

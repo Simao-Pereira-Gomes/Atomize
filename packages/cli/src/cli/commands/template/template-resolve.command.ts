@@ -1,4 +1,6 @@
 import { log } from "@clack/prompts";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
+import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import { stringify as stringifyYaml } from "yaml";
@@ -8,8 +10,6 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
-import { TemplateLibrary } from "@/templates/template-library";
-import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@/utils/errors";
 
 type ResolveOptions = {
   validate?: boolean;

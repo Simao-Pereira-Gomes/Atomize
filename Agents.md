@@ -11,4 +11,4 @@ Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 ### Domain docs
 
-Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+A shared `CONTEXT.md` + `docs/adr/` at the repo root, plus a `CONTEXT.md` per product-surface package (`packages/vscode-extension/`, `packages/atomize-studio/`). See `docs/agents/domain.md`.

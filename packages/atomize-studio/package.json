@@ -1,0 +1,39 @@
+{
+  "name": "@sppg2001/atomize-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run sidecar:stage && tauri dev",
+    "build": "bun run sidecar:stage && tauri build",
+    "sidecar:stage": "bun run ../atomize-sidecar/src/stage-for-tauri.ts",
+    "vite:dev": "vite",
+    "vite:build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "bunx biome check --max-diagnostics 100",
+    "lint:fix": "bunx biome check --fix --max-diagnostics 100"
+  },
+  "dependencies": {
+    "@kobalte/core": "^0.13.11",
+    "@sppg2001/atomize-schema": "workspace:*",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "~2",
+    "@tauri-apps/plugin-fs": "~2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-shell": "^2",
+    "@thisbeyond/solid-dnd": "^0.7.5",
+    "solid-js": "^1.9.3",
+    "yaml": "^2.8.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^25.6.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^3.2.4"
+  }
+}

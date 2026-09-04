@@ -1,27 +1,25 @@
-import type { AzureDevOpsConfig } from "@platforms/adapters/azure-devops/azure-devops.adapter";
-import { validateOrganizationUrl } from "@/cli/commands/auth/helpers/auth-add.helper";
+import {
+  type AzureDevOpsConnectionFields,
+  buildAzureDevOpsConfig,
+} from "@sppg2001/atomize-core";
+import type { AzureDevOpsConfig } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/azure-devops.adapter";
 import { getDefaultProfile, getProfile } from "./connections.config";
-import type { AzureDevOpsProfile } from "./connections.interface";
 import { retrieveToken } from "./keychain.service";
 
-function assertValidUrl(url: string, profileName: string): void {
-  const error = validateOrganizationUrl(url);
-  if (error) {
+function buildConfigOrThrow(
+  fields: AzureDevOpsConnectionFields,
+  resolvedToken: string,
+  profileName: string,
+): AzureDevOpsConfig {
+  try {
+    return buildAzureDevOpsConfig(fields, resolvedToken);
+  } catch (err) {
     throw new Error(
-      `Profile "${profileName}" has an invalid organizationUrl: ${error}. ` +
-        `Edit ~/.atomize/connections.json or re-create the profile.`,
+      `Profile "${profileName}" has an invalid organizationUrl: ${
+        err instanceof Error ? err.message : String(err)
+      }. Edit ~/.atomize/connections.json or re-create the profile.`,
     );
   }
-}
-
-function buildAzureConfig(profile: AzureDevOpsProfile, token: string): AzureDevOpsConfig {
-  return {
-    type: "azure-devops",
-    organizationUrl: profile.organizationUrl,
-    project: profile.project,
-    team: profile.team,
-    token,
-  };
 }
 
 export async function resolveAzureConfig(
@@ -38,16 +36,14 @@ export async function resolveAzureConfig(
         `Profile "${name}" is a ${profile.platform} profile, not Azure DevOps. ` +
           `Use an Azure DevOps profile or run: atomize auth add`,
       );
-    assertValidUrl(profile.organizationUrl, profile.name);
     const token = await retrieveToken(profile.name, profile.token);
-    return buildAzureConfig(profile, token);
+    return buildConfigOrThrow(profile, token, profile.name);
   }
 
   const defaultProfile = await getDefaultProfile("azure-devops");
   if (defaultProfile) {
-    assertValidUrl(defaultProfile.organizationUrl, defaultProfile.name);
     const token = await retrieveToken(defaultProfile.name, defaultProfile.token);
-    return buildAzureConfig(defaultProfile, token);
+    return buildConfigOrThrow(defaultProfile, token, defaultProfile.name);
   }
 
   throw new Error(

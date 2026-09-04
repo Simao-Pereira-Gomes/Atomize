@@ -1,8 +1,8 @@
-import { TemplateLibrary } from "@templates/template-library";
+import { inspectTemplate, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { Command } from "commander";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
-import { inspectTemplate, runPreview } from "./preview-application";
 
 type PreviewOptions = {
   inspect?: boolean;

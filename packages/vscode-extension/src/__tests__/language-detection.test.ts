@@ -6,6 +6,7 @@ import {
 	isAtomizeSchemaDocument,
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
+	isMixinDocument,
 } from '../authoring/language-detection.js';
 
 // --- detectAtomizeLanguage ---
@@ -145,6 +146,38 @@ describe('detectAtomizeLanguage', () => {
 			const lines = ['version  :  "1.0"', 'filter  :', 'tasks  :', '  - id  : "x"'];
 			expect(detectAtomizeLanguage(lines)).toBe('atomize-yaml');
 		});
+	});
+});
+
+describe('isMixinDocument', () => {
+	it('identifies a Mixin even when its filename has a durable Atomize extension', () => {
+		const doc = {
+			languageId: 'yaml',
+			fileName: '/catalog/mixins/documentation.atomize.yaml',
+			getText: () => 'name: Documentation\ntasks:\n  - id: update-docs\n    title: Update docs',
+		};
+
+		expect(isMixinDocument(doc)).toBe(true);
+	});
+
+	it('does not classify a full Template as a Mixin', () => {
+		const doc = {
+			languageId: 'yaml',
+			fileName: '/catalog/templates/backend-api.atomize.yaml',
+			getText: () => 'version: "1.0"\nfilter:\n  workItemTypes: [User Story]\ntasks:\n  - id: api',
+		};
+
+		expect(isMixinDocument(doc)).toBe(false);
+	});
+
+	it('does not classify an extending Template without a local version as a Mixin', () => {
+		const doc = {
+			languageId: 'yaml',
+			fileName: '/workspace/child-template.atomize.yaml',
+			getText: () => 'extends: "./base-template.yaml"\nname: Child\ntasks:\n  - id: implementation\n    title: Implement child behavior',
+		};
+
+		expect(isMixinDocument(doc)).toBe(false);
 	});
 });
 

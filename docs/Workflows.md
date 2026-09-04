@@ -1,6 +1,6 @@
 # Atomize Workflows
 
-This guide is organized by the work users are trying to do. Each workflow starts with the VS Code path and gives the CLI equivalent where useful.
+This guide is organized by the work users are trying to do. Each workflow starts with the VS Code path and gives the CLI equivalent where useful. For the same workflows in Atomize Studio's desktop authoring surfaces, see [Atomize Studio](./Atomize-Studio.md).
 
 Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
@@ -76,8 +76,8 @@ Validation catches template errors before preview or generation.
 In VS Code:
 
 1. Run **Atomize: Validate**.
-2. Choose offline validation for structure-only checks.
-3. Choose online validation when you need Azure DevOps field and saved-query verification.
+2. Choose Offline Validation for structure-only checks.
+3. Choose Online Validation when you need Azure DevOps field and saved-query verification.
 
 From the CLI:
 
@@ -118,7 +118,7 @@ Dry runs do not create tasks.
 
 ## Connect Azure DevOps
 
-Connected validation, live preview, and generation use Azure DevOps connection profiles.
+Connected validation, live preview, and generation use Azure DevOps Connection Profiles.
 
 In VS Code:
 
@@ -175,7 +175,7 @@ Choose the creation path based on what you already have.
 
 | Goal | Recommended path |
 |---|---|
-| Start from a known pattern | Browse the catalog or run `atomize template create --from <name>` |
+| Start from a known pattern | Browse the Catalog or run `atomize template create --from <name>` |
 | Build manually | Use the template wizard or edit YAML directly |
 | Capture team practice | Use Story Learner with existing stories that already have tasks |
 | Draft from prose | Use AI-assisted template creation |
@@ -199,7 +199,7 @@ atomize auth rotate work-ado
 atomize auth remove old-profile
 ```
 
-Azure DevOps and GitHub Models profiles have independent defaults. GitHub Models profiles are only needed for AI-assisted template creation.
+Azure DevOps profiles have their own default, set with `atomize auth use`. AI-assisted template creation does not use a Connection Profile at all — it authenticates through a separate Copilot Session; see [Auth Guide](./Auth-Guide.md).
 
 ## Automate With The CLI
 
@@ -247,15 +247,13 @@ Use `--auto-approve` only in jobs where task creation is intentional. See [CLI R
 
 ## Troubleshooting
 
-### Atomize CLI Not Found
+### Atomize Command Not Found
 
-Install the CLI:
+This applies to terminal/CI use of the CLI only — the VS Code extension runs Atomize directly and does not need the CLI installed. Install the CLI:
 
 ```bash
 npm install -g @sppg2001/atomize
 ```
-
-If VS Code still cannot find it, set `atomize.cliPath`.
 
 ### No Stories Found
 

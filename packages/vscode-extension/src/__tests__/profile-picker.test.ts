@@ -1,23 +1,28 @@
 import { describe, expect, it } from 'bun:test';
 
-import { type AdoProfileJson, resolveDefaultProfile } from '../profiles/profile-management-model.js';
+import { resolveDefaultProfile } from '../profiles/profile-helpers.js';
+import type { AzureDevOpsProfileMeta } from '../profiles/profile-store.js';
 
-const profiles: AdoProfileJson[] = [
+const profiles: AzureDevOpsProfileMeta[] = [
 	{
+		id: '1',
 		name: 'acme-prod',
-		platform: 'azure-devops',
 		isDefault: false,
 		organizationUrl: 'https://dev.azure.com/acme',
 		project: 'Product',
 		team: 'Core',
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
 	},
 	{
+		id: '2',
 		name: 'acme-staging',
-		platform: 'azure-devops',
 		isDefault: true,
 		organizationUrl: 'https://dev.azure.com/acme',
 		project: 'Staging',
 		team: 'Core',
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
 	},
 ];
 

@@ -1,5 +1,6 @@
 import { select } from "@clack/prompts";
 import { readConnectionsFile, setDefaultProfile } from "@config/connections.config";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
 import {
   createCommandOutput,
@@ -7,7 +8,6 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, sanitizeTty } from "@/cli/utilities/prompt-utilities";
-import { getErrorMessage } from "@/utils/errors";
 
 export function makeAuthUseCommand(): Command {
   return new Command("use")
@@ -19,14 +19,15 @@ export function makeAuthUseCommand(): Command {
       output.intro(" Atomize — Set Default Profile");
 
       const file = await readConnectionsFile();
-      if (file.profiles.length === 0) {
-        output.outro("No profiles found. Run: atomize auth add");
+      const profiles = file.profiles.filter((profile) => profile.platform === "azure-devops");
+      if (profiles.length === 0) {
+        output.outro("No Azure DevOps profiles found. Run: atomize auth add");
         return;
       }
 
       let name: string;
       if (nameArg) {
-        if (!file.profiles.find((p) => p.name === nameArg)) {
+        if (!profiles.find((p) => p.name === nameArg)) {
           output.cancel(`Profile "${nameArg}" not found. Run: atomize auth list`);
           throw new ExitError(ExitCode.Failure);
         }
@@ -35,7 +36,7 @@ export function makeAuthUseCommand(): Command {
         name = assertNotCancelled(
           await select({
             message: "Select default profile:",
-            options: file.profiles.map((p) => ({
+            options: profiles.map((p) => ({
               label: file.defaultProfiles[p.platform] === p.name
                 ? `${sanitizeTty(p.name)} (current default)`
                 : sanitizeTty(p.name),

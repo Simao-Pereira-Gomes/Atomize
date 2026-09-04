@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { isAtomizeToolingDocument } from './language-detection.js';
+import { isAtomizeToolingDocument, isMixinDocument } from './language-detection.js';
 
 export class AtomizeCodeLensProvider implements vscode.CodeLensProvider {
 	provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
-		if (!isAtomizeToolingDocument(document)) return [];
+		if (!isAtomizeToolingDocument(document) || isMixinDocument(document)) return [];
 
 		const range = new vscode.Range(0, 0, 0, 0);
 		return [

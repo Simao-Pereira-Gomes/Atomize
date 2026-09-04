@@ -1,5 +1,6 @@
 import { confirm } from "@clack/prompts";
 import { keychainAvailable } from "@config/keychain.service";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
 import {
   createCommandOutput,
@@ -11,7 +12,6 @@ import {
   createManagedSpinner,
 } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
-import { getErrorMessage } from "@/utils/errors";
 import {
   hasProfiles,
   loadProfileOrFail,
@@ -79,6 +79,13 @@ export function makeAuthRotateCommand(): Command {
 
       if (!profile) {
         output.cancel(`Profile "${name}" not found.`);
+        throw new ExitError(ExitCode.Failure);
+      }
+
+      if (profile.platform !== "azure-devops") {
+        const message = `GitHub Models was retired. Remove this legacy profile with: atomize auth remove ${name}`;
+        if (usePatStdin) writeManagedOutput("stderr", `Error: ${message}`);
+        else output.cancel(message);
         throw new ExitError(ExitCode.Failure);
       }
 

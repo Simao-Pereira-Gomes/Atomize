@@ -12,6 +12,7 @@ Real-world Atomize template examples. Each file is a working template you can va
 | [`conditional-dependencies-template.atomize.yaml`](#conditional-dependencies-templateatomizeyaml) | Conditional tasks — tasks that only appear when a story meets specific criteria |
 | [`conditional-percentage-template.atomize.yaml`](#conditional-percentage-templateatomizeyaml) | Conditional estimation — task weights that adapt to story size and tags |
 | [`advanced-filtering.atomize.yaml`](#advanced-filteringatomizeyaml) | Full filter criteria showcase: state exclusion, historical states, area/iteration hierarchy, date filters, team override |
+| [`custom-location.atomize.yaml`](#custom-locationatomizeyaml) | A template stored outside a standard `templates/`/`atomize/` directory — the `.atomize.yaml` extension alone is a durable VS Code opt-in regardless of file location |
 
 ---
 
@@ -186,6 +187,24 @@ A reference template that demonstrates every available filter option. Use it as 
 ```bash
 atomize validate examples/advanced-filtering.atomize.yaml
 atomize generate examples/advanced-filtering.atomize.yaml --platform mock --story STORY-001
+```
+
+---
+
+## custom-location.atomize.yaml
+
+Demonstrates that the `.atomize.yaml` file extension alone is a durable Atomize YAML opt-in in VS Code — schema hovers, completions, and diagnostics work regardless of where the file lives, not just inside a `templates/` or `atomize/` directory.
+
+**Matches:** User Stories in states `New` or `Active`, without existing tasks.
+
+**Tasks (2):**
+1. Implement — 70%
+2. Test — 30% *(depends on implementation)*
+
+**Try it:**
+```bash
+atomize validate examples/custom-location.atomize.yaml
+atomize generate examples/custom-location.atomize.yaml --platform mock
 ```
 
 ---

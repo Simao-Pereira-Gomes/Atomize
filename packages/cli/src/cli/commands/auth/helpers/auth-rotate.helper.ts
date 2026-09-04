@@ -11,10 +11,11 @@ export async function promptProfileToRotate(nameArg?: string): Promise<string> {
   if (nameArg) return nameArg;
 
   const file = await readConnectionsFile();
+  const profiles = file.profiles.filter((profile) => profile.platform === "azure-devops");
   return assertNotCancelled(
     await select({
       message: "Select profile to rotate:",
-      options: file.profiles.map((p) => ({
+      options: profiles.map((p) => ({
         label: file.defaultProfiles[p.platform] === p.name ? `${p.name} (default)` : p.name,
         value: p.name,
       })),

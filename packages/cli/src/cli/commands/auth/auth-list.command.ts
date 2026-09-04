@@ -1,5 +1,6 @@
 import { readConnectionsFile } from "@config/connections.config";
 import type { ConnectionProfile } from "@config/connections.interface";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
@@ -9,7 +10,6 @@ import {
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
-import { getErrorMessage } from "@/utils/errors";
 
 type AzureDevOpsProfileJson = {
   name: string;
@@ -101,7 +101,7 @@ export function makeAuthListCommand(): Command {
             output.print(`    Project:  ${sanitizeTty(profile.project)}`);
             output.print(`    Team:     ${sanitizeTty(profile.team)}`);
           } else {
-            output.print(`    Model:    ${sanitizeTty(profile.model ?? "gpt-4o-mini (default)")}`);
+            output.print(chalk.yellow("    Status:   retired — remove this legacy record when convenient"));
           }
           output.print(`    Token:    ${tokenDisplay}`);
           output.print(`    Created:  ${sanitizeTty(profile.createdAt).slice(0, 16).replace("T", " ")}`);

@@ -1,35 +1,44 @@
 # Domain Docs
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
+How engineering skills should consume this repository's domain documentation.
 
-## Before exploring, read these
+## Before exploring
 
-- **`CONTEXT.md`** at the repo root
-- **`docs/adr/`** — read ADRs that touch the area you're about to work in.
+Read these in order:
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
+1. **`CONTEXT-MAP.md`** at the repository root.
+2. The shared **`CONTEXT.md`** and the context document that owns the area being changed.
+3. **`docs/adr/`** entries that touch the area.
+
+If a referenced document does not exist, proceed silently. The producer skill (`/grill-with-docs`) creates glossary and decision documents only when a term or decision is resolved.
 
 ## File structure
 
-Single-context repo:
+This repository has a shared domain and product-surface contexts:
 
 ```
 /
+├── CONTEXT-MAP.md
 ├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-*.md
-│   └── ...
-└── src/
+├── docs/
+│   └── adr/
+│       ├── 0001-*.md
+│       └── ...
+└── packages/
+    ├── vscode-extension/
+    │   └── CONTEXT.md
+    └── atomize-studio/
+        └── CONTEXT.md
 ```
 
 ## Use the glossary's vocabulary
 
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
+When output names a domain concept (in an issue title, refactor proposal, hypothesis, or test name), use the term defined in the shared or owning context glossary. Do not drift to synonyms the glossary explicitly avoids.
 
-If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/grill-with-docs`).
+If a needed concept is not in either glossary, reconsider whether it belongs to an existing term or note the gap for `/grill-with-docs`.
 
 ## Flag ADR conflicts
 
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
+If output contradicts an existing ADR, surface it explicitly rather than silently overriding it:
 
 > _Contradicts ADR-0007 — but worth reopening because…_

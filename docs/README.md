@@ -1,12 +1,13 @@
 # Atomize Documentation
 
-Start with the repository [README](../README.md) if you are new to Atomize. It is the canonical onboarding path and is intentionally VS Code-first.
+Start with the repository [README](../README.md) if you are new to Atomize. It is the canonical onboarding path, with parallel quickstarts for VS Code, Atomize Studio, and the CLI.
 
 ## Start Here
 
-- [README](../README.md) - What Atomize does, install, first VS Code workflow, safety model, and key links
-- [Workflows](./Workflows.md) - Task-oriented guide across VS Code and CLI
+- [README](../README.md) - What Atomize does, install, first workflow per surface, safety model, and key links
+- [Workflows](./Workflows.md) - Task-oriented guide across VS Code, Atomize Studio, and CLI
 - [VS Code Extension](./VS-Code-Extension.md) - Editor command, setting, and behavior reference
+- [Atomize Studio](./Atomize-Studio.md) - Desktop app Studio Area, setting, and behavior reference
 
 ## References
 
@@ -15,7 +16,7 @@ Start with the repository [README](../README.md) if you are new to Atomize. It i
 - [Auth Guide](./Auth-Guide.md) - Connection profiles, credential storage, token rotation, and CI setup
 - [Validation Modes](./Validation-Modes.md) - Lenient vs strict validation
 - [Common Validation Errors](./Common-Validation-Errors.md) - How to fix common template failures
-- [Platform Guide](./Platform-Guide.md) - Azure DevOps, Mock, GitHub Models, and platform concepts
+- [Platform Guide](./Platform-Guide.md) - Azure DevOps, Mock, and platform concepts
 
 ## Advanced Features
 
@@ -31,7 +32,7 @@ These paths are kept for older links and should stay short:
 
 ## Architecture And Contributor Notes
 
-- [Architecture Decision Records](./adr/) - Design decisions for CLI, templates, and VS Code extension behavior
+- [Architecture Decision Records](./adr/README.md) - Indexed by theme: design decisions for CLI, templates, Atomize Studio, and VS Code extension behavior
 - [Agent Docs](./agents/) - Issue tracker, labels, and domain-doc conventions for repo automation
 
 ## Documentation Ownership
@@ -40,6 +41,7 @@ These paths are kept for older links and should stay short:
 - `docs/Workflows.md` is the canonical workflow guide.
 - `docs/Cli-Reference.md` is the command and flag reference.
 - `docs/VS-Code-Extension.md` is the VS Code behavior reference.
+- `docs/Atomize-Studio.md` is the Atomize Studio behavior reference.
 - `docs/Template-Reference.md` is the YAML schema and semantics reference.
 - `docs/Template-Creation.md` owns template creation workflows.
 - `docs/Auth-Guide.md` owns credential storage and profile behavior.

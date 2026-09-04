@@ -1,4 +1,5 @@
-import { AzureDevOpsAdapter } from "@platforms/adapters/azure-devops/azure-devops.adapter";
+import { AzureDevOpsAdapter } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/azure-devops.adapter";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
@@ -8,7 +9,6 @@ import {
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
-import { getErrorMessage } from "@/utils/errors";
 
 export const queriesListCommand = new Command("list")
   .alias("ls")

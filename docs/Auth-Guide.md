@@ -6,7 +6,10 @@ Atomize manages credentials as named profiles. Instead of passing a token on eve
 
 - [Profile Types](#profile-types)
 - [Credential Storage](#credential-storage)
+- [Shared Between the CLI and Atomize Studio](#shared-between-the-cli-and-atomize-studio)
 - [Quick Setup](#quick-setup)
+- [AI Drafting: Copilot Session](#ai-drafting-copilot-session)
+- [GitHub Models Retirement](#github-models-retirement)
 - [Profile Resolution Order](#profile-resolution-order)
 - [Managing Multiple Profiles](#managing-multiple-profiles)
 - [CI/CD Setup](#cicd-setup)
@@ -19,10 +22,9 @@ Atomize manages credentials as named profiles. Instead of passing a token on eve
 
 | Type | Used for | Set up with |
 |------|----------|-------------|
-| **Azure DevOps** | `generate`, `validate`, `fields list`, `queries list` | `atomize auth add` → select Azure DevOps |
-| **GitHub Models** | AI-assisted template generation (`template create --ai`) | `atomize auth add` → select GitHub Models |
+| **Azure DevOps** | `generate`, `validate`, `fields list`, `queries list` | `atomize auth add` |
 
-Each type has its own independent default. You can have a default ADO profile and a default GitHub Models profile at the same time — they do not conflict.
+Azure DevOps is currently the only Connection Profile type `atomize auth add` creates. AI-assisted template drafting does not use a Connection Profile at all — see [AI Drafting: Copilot Session](#ai-drafting-copilot-session).
 
 ---
 
@@ -59,6 +61,16 @@ In CI, prefer injecting the token from your secrets store and creating the profi
 
 ---
 
+## Shared Between the CLI and Atomize Studio
+
+Connection Profiles are shared state: the CLI and Atomize Studio both read and write the same `~/.atomize/connections.json` for profile metadata and per-platform defaults, and each resolves the profile's token through its own native OS credential API against the same keychain service/account convention — there is no shared keychain implementation between the two, just a compatible convention.
+
+Atomize Studio supports only **OS-keyring-backed** tokens (storage tier 1 above). A profile created by the CLI using the encrypted-local-file fallback (tier 2, `--insecure-storage`) is not usable from Studio until it is rotated. Rotating a profile — from either the CLI (`atomize auth rotate`) or Studio's own Connection Profile management — always stores the new token in the keyring, so a single rotation converts it to Studio-compatible storage.
+
+The first Azure DevOps profile you create becomes the default; later default changes are explicit. Legacy GitHub Models profile records are visible from both surfaces only for cleanup — see [GitHub Models Retirement](#github-models-retirement) — they are never usable as a Connection Profile from either the CLI or Studio.
+
+---
+
 ## Quick Setup
 
 ### Local development
@@ -72,15 +84,13 @@ atomize auth add work-ado
 # Verify it works
 atomize auth test work-ado
 
-# GitHub Models profile (only needed for template create --ai)
-atomize auth add my-ai
-# → prompted for a GitHub PAT with models:read scope
-atomize auth test my-ai
+# AI drafting starts the bundled Copilot sign-in flow when needed
+atomize template create --ai
 ```
 
 **Getting a PAT:**
 - Azure DevOps: `https://dev.azure.com/{org}/_usersSettings/tokens` — scopes: Work Items (Read, Write)
-- GitHub Models: `https://github.com/settings/tokens` — scope: `models:read` (under Models)
+- GitHub Copilot: an active Copilot subscription; Atomize uses its bundled Copilot runtime and your local sign-in.
 
 ### Verify your profiles
 
@@ -95,19 +105,40 @@ atomize auth list
     Team:     MyTeam
     Token:    [keychain]
     Created:  1/3/2026, 10:00:00 AM
-
-  my-ai (GitHub Models (AI) · default)
-    Token:    [keychain]
-    Created:  1/3/2026, 10:05:00 AM
 ```
+
+AI drafting has no profile to list — it authenticates through a Copilot Session instead, described next. A retired `github-models` record, if you still have one, appears in this list only so you can remove it; see [GitHub Models Retirement](#github-models-retirement).
+
+---
+
+## AI Drafting: Copilot Session
+
+`atomize template create --ai` and Atomize Studio's AI draft Starting Path both draft a Template using an ephemeral, tool-free **Copilot Session** — a GitHub Copilot SDK session running with your locally signed-in Copilot account.
+
+- Atomize stores neither a Copilot token nor a Copilot Connection Profile. There is nothing to add, list, rotate, or remove with `atomize auth`.
+- Sign-in is interactive: Atomize initiates it when needed for an interactive run. A non-interactive run (a script, a CI job) requires Copilot to already be signed in on that machine — Atomize cannot complete an interactive sign-in there.
+- Each session uses automatic model selection and is discarded after the draft completes; nothing persists between drafts.
+- An active GitHub Copilot subscription is required.
+
+A Copilot Session is not a Connection Profile: it never appears in `atomize auth list`, has no default, and is unrelated to the Azure DevOps profile resolution below.
+
+---
+
+## GitHub Models Retirement
+
+GitHub fully retired GitHub Models — including its inference API and BYOK endpoints — on 30 July 2026. Atomize no longer treats GitHub Models as an AI Connection Profile:
+
+- `atomize auth add` no longer offers a GitHub Models platform choice — only Azure DevOps profiles can be created.
+- `atomize auth rotate` refuses a `github-models` profile and points you to remove it instead.
+- Existing `github-models` records remain visible in `atomize auth list` only so you can clean them up with `atomize auth remove <name>`. They cannot be used for anything.
+
+AI template drafting now authenticates through a [Copilot Session](#ai-drafting-copilot-session) instead.
 
 ---
 
 ## Profile Resolution Order
 
-When a command needs credentials, Atomize resolves them in this order:
-
-**For ADO commands** (`generate`, `validate`, `fields list`, `queries list`):
+When an Azure DevOps command needs credentials, Atomize resolves them in this order:
 
 1. `--profile <name>` flag on the command
 2. `ATOMIZE_PROFILE` environment variable
@@ -115,11 +146,7 @@ When a command needs credentials, Atomize resolves them in this order:
 4. `ATOMIZE_PAT` environment variable (legacy, no profile needed)
 5. Interactive prompt
 
-**For AI commands** (`template create --ai`):
-
-1. `--ai-profile <name>` flag
-2. `ATOMIZE_AI_PROFILE` environment variable
-3. Default GitHub Models profile (set via `atomize auth use`)
+This order applies to `generate`, `validate`, `fields list`, and `queries list`. AI drafting does not use profile resolution — see [AI Drafting: Copilot Session](#ai-drafting-copilot-session).
 
 If resolution fails and the session is interactive, Atomize prompts for credentials and offers to save a new profile.
 
@@ -149,7 +176,7 @@ atomize auth use              # pick interactively
 atomize auth use work-ado     # set by name
 ```
 
-Each platform type has its own default. Changing the ADO default does not affect the GitHub Models default.
+Azure DevOps is currently the only profile type with a default to set.
 
 ### Removing a profile
 
@@ -245,7 +272,7 @@ atomize auth use
 ### "Authentication failed: 401 Unauthorized"
 
 - The PAT has expired — rotate it: `atomize auth rotate <name>`
-- The PAT does not have the required scopes (Work Items Read/Write for ADO, `models:read` for GitHub Models)
+- The PAT does not have the required scopes (Work Items Read/Write)
 - The org URL, project, or team name is wrong — remove the profile and re-add it
 
 ### "Keychain unavailable"
@@ -261,3 +288,11 @@ The profile name does not match any saved profile. Run `atomize auth list` to se
 ### Token visible in process list
 
 Always use `--pat-stdin` or environment variables in CI — never pass the token as a flag argument.
+
+### "AI drafting requires Copilot sign-in" / a non-interactive AI draft fails
+
+Non-interactive runs (scripts, CI) need GitHub Copilot already signed in on that machine — Atomize cannot complete an interactive sign-in flow there. Sign in once interactively (e.g. `atomize template create --ai`), then re-run. See [AI Drafting: Copilot Session](#ai-drafting-copilot-session).
+
+### `atomize auth rotate` refuses my GitHub Models profile
+
+GitHub Models is retired and the profile is inert — it can no longer be used for anything. Remove it with `atomize auth remove <name>`. AI drafting no longer uses Connection Profiles; see [GitHub Models Retirement](#github-models-retirement).

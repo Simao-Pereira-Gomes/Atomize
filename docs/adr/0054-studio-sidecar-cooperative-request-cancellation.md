@@ -1,0 +1,3 @@
+# Studio sidecar uses cooperative request cancellation
+
+Studio sends a JSON-RPC-style `$/cancelRequest` notification for an in-flight request when its owning authoring session is discarded or replaced. The sidecar tracks the original request by correlation id, aborts cancellable work through an `AbortController`, and suppresses any cancelled response; Rust also removes its pending receiver immediately. Cancellation is deliberately best-effort: dependencies that cannot abort may finish in the background, but their result is ignored. This extends ADR-0042's concurrent, correlated protocol without promising network-level cancellation that the underlying Azure DevOps calls cannot guarantee.

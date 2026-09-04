@@ -30,12 +30,7 @@
 		// Path Mapping
 		"paths": {
 			"@/*": ["./src/*"],
-			"@core/*": ["./src/core/*"],
-			"@platforms/*": ["./src/platforms/*"],
-			"@templates/*": ["./src/templates/*"],
-			"@config/*": ["./src/config/*"],
-			"@utils/*": ["./src/utils/*"],
-			"@services/*": ["./src/services/*"]
+			"@config/*": ["./src/config/*"]
 		},
 
 		// Bun Specific

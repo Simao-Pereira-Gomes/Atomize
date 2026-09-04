@@ -1,5 +1,5 @@
+import { TemplateValidator } from "@sppg2001/atomize-core/templates/validator";
 import { bench, group } from "mitata";
-import { TemplateValidator } from "../src/templates/validator";
 import { generateLargeTemplate } from "../tests/fixtures/generators";
 
 export function registerValidationBenchmarks() {

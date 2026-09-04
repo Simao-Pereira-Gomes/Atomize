@@ -1,5 +1,7 @@
 # Generate JSON stream protocol
 
+> No longer applicable per ADR-0038/#142: the Generate panel now calls `Atomizer.atomize()` in-process and passes its `onProgress` callback straight to `panel.webview.postMessage`. There is no CLI subprocess and no stdout to frame NDJSON over, so the envelope this ADR describes doesn't exist anymore — nothing replaced it, the process boundary that motivated it is simply gone.
+
 The VS Code Generate panel shows no progress during live task creation — the webview stays frozen on a spinner until the CLI exits and emits its final JSON blob. To show live counters (stories completed, tasks created), the CLI gains a `--json-stream` flag that emits NDJSON to stdout during execution.
 
 ## Decision

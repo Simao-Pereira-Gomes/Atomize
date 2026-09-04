@@ -1,0 +1,809 @@
+import {
+  type EstimationConfig,
+  type FilterCriteria,
+  type Metadata,
+  normalizeEstimationPercentages,
+  type TaskDefinition,
+  type TaskTemplate,
+  TaskTemplateSchema,
+  type ValidationConfig,
+} from "@sppg2001/atomize-schema";
+import { createStore, reconcile } from "solid-js/store";
+import { stringify } from "yaml";
+
+export type SectionId = "basic-info" | "filter" | "tasks" | "estimation" | "validation" | "metadata" | "review";
+export type AuthoringSectionId = Exclude<SectionId, "review">;
+export type Errors = Partial<Record<string, string>>;
+
+export const SECTION_META: { id: SectionId; label: string; description: string }[] = [
+  { id: "basic-info", label: "Basic Info", description: "Name the template and add the metadata people need before using it." },
+  { id: "filter", label: "Filter", description: "Define which Azure DevOps work items this template can apply to." },
+  { id: "tasks", label: "Tasks", description: "Define the child work items this template generates." },
+  { id: "estimation", label: "Estimation", description: "Map story estimates into generated task estimates." },
+  { id: "validation", label: "Validation", description: "Set the guardrails that keep generated tasks within expected bounds." },
+  { id: "metadata", label: "Metadata", description: "Add classification and guidance for template discovery and review." },
+  { id: "review", label: "Review", description: "Review the completed Template and its Atomize YAML before saving." },
+];
+
+type BasicInfoFields = {
+  name: string;
+  description: string;
+  category: string;
+  author: string;
+  tags: string[];
+  version: string;
+};
+
+type BasicInfoAdvanced = Pick<TaskTemplate, "created" | "lastModified" | "extends" | "mixins" | "origin">;
+
+type FilterFields = {
+  filterMode: "build" | "query";
+  workItemTypes: string[];
+  states: string[];
+  statesExclude: string[];
+  team: string;
+  areaPaths: string[];
+  iterations: string[];
+  tagsInclude: string[];
+  tagsExclude: string[];
+  excludeIfHasTasks: boolean;
+  assignedTo: string[];
+  savedQueryIds: string[];
+};
+
+type FilterAdvanced = Omit<
+  FilterCriteria,
+  | "workItemTypes"
+  | "states"
+  | "statesExclude"
+  | "team"
+  | "areaPaths"
+  | "iterations"
+  | "tags"
+  | "excludeIfHasTasks"
+  | "assignedTo"
+  | "savedQuery"
+>;
+
+type TaskFields = {
+  id: string;
+  title: string;
+  description: string;
+  estimationPercent: string;
+  tags: string[];
+};
+
+export type EditableTask = {
+  /** UI-only identity: never serialised as the Atomize task id. */
+  key: string;
+  fields: TaskFields;
+  advanced: Omit<TaskDefinition, keyof TaskFields | "estimationPercent">;
+};
+
+type TasksFields = {
+  items: EditableTask[];
+};
+
+type EstimationFields = {
+  strategy: "percentage";
+  source: string;
+  rounding: "none" | "nearest" | "up" | "down";
+  minimumTaskPoints: string;
+  ifParentHasNoEstimation: "" | "skip" | "warn" | "use-default";
+  defaultParentEstimation: string;
+};
+
+type EstimationAdvanced = Omit<EstimationConfig, keyof EstimationFields | "strategy">;
+
+type RequiredTaskFields = { title: string; id: string };
+
+type ValidationFields = {
+  mode: "" | "strict" | "lenient";
+  totalEstimationMustBe: string;
+  totalEstimationRangeMin: string;
+  totalEstimationRangeMax: string;
+  minTasks: string;
+  maxTasks: string;
+  taskEstimationRangeMin: string;
+  taskEstimationRangeMax: string;
+  requiredTasks: RequiredTaskFields[];
+};
+
+type ValidationAdvanced = Omit<
+  ValidationConfig,
+  | "mode"
+  | "totalEstimationMustBe"
+  | "totalEstimationRange"
+  | "minTasks"
+  | "maxTasks"
+  | "taskEstimationRange"
+  | "requiredTasks"
+>;
+
+type MetadataFields = {
+  difficulty: "" | "beginner" | "intermediate" | "advanced";
+  estimationGuidelines: string;
+  notes: string;
+};
+
+type MetadataAdvanced = Omit<Metadata, keyof MetadataFields>;
+
+const defaultBasicInfo = (): BasicInfoFields => ({
+  name: "",
+  description: "",
+  category: "",
+  author: "",
+  tags: [],
+  version: "1.0",
+});
+
+const defaultFilter = (): FilterFields => ({
+  filterMode: "build",
+  workItemTypes: [],
+  states: [],
+  statesExclude: [],
+  team: "",
+  areaPaths: [],
+  iterations: [],
+  tagsInclude: [],
+  tagsExclude: [],
+  excludeIfHasTasks: true,
+  assignedTo: [],
+  savedQueryIds: [],
+});
+
+const defaultTask = (): EditableTask => ({
+  key: crypto.randomUUID(),
+  fields: {
+    id: "",
+    title: "",
+    description: "",
+    estimationPercent: "",
+    tags: [],
+  },
+  advanced: {},
+});
+
+const defaultTasks = (): TasksFields => ({
+  items: [defaultTask()],
+});
+
+const defaultEstimation = (): EstimationFields => ({
+  strategy: "percentage",
+  source: "",
+  rounding: "none",
+  minimumTaskPoints: "",
+  ifParentHasNoEstimation: "",
+  defaultParentEstimation: "",
+});
+
+const defaultValidation = (): ValidationFields => ({
+  mode: "",
+  totalEstimationMustBe: "",
+  totalEstimationRangeMin: "",
+  totalEstimationRangeMax: "",
+  minTasks: "",
+  maxTasks: "",
+  taskEstimationRangeMin: "",
+  taskEstimationRangeMax: "",
+  requiredTasks: [],
+});
+
+const defaultMetadata = (): MetadataFields => ({
+  difficulty: "",
+  estimationGuidelines: "",
+  notes: "",
+});
+
+function nonEmpty(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+function nonEmptyArray<T>(value: T[]): T[] | undefined {
+  return value.length > 0 ? value : undefined;
+}
+
+function optionalNumber(value: string): number | undefined {
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : Number(trimmed);
+}
+
+function isNonNegativeNumber(value: string): boolean {
+  const numeric = optionalNumber(value);
+  return numeric === undefined || (!Number.isNaN(numeric) && numeric >= 0);
+}
+
+function isPercentage(value: string): boolean {
+  const numeric = optionalNumber(value);
+  return numeric === undefined || (!Number.isNaN(numeric) && numeric >= 0 && numeric <= 100);
+}
+
+function isNonNegativeEstimationTotal(value: string): boolean {
+  const numeric = optionalNumber(value);
+  return numeric === undefined || (!Number.isNaN(numeric) && numeric >= 0);
+}
+
+function isOrderedRange(min: string, max: string): boolean {
+  const minValue = optionalNumber(min);
+  const maxValue = optionalNumber(max);
+  return minValue === undefined || maxValue === undefined || minValue <= maxValue;
+}
+
+function isNonNegativeInteger(value: string): boolean {
+  const numeric = optionalNumber(value);
+  return numeric === undefined || (Number.isInteger(numeric) && numeric >= 0);
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function clearErrors(errors: Errors, setErrors: (value: Errors) => void) {
+  if (Object.keys(errors).length > 0) setErrors({});
+}
+
+function makeBasicInfo() {
+  const [fields, set] = createStore(defaultBasicInfo());
+  const [advanced, setAdvanced] = createStore<BasicInfoAdvanced>({});
+  const [errors, setErrors] = createStore<Errors>({});
+  const replace = (next: BasicInfoFields, nextAdvanced: BasicInfoAdvanced = {}) => {
+    set(reconcile(next));
+    setAdvanced(reconcile(nextAdvanced));
+    clearErrors(errors, (value) => setErrors(reconcile(value)));
+  };
+  const validate = () => setErrors("name", fields.name.trim() === "" ? "Name is required" : undefined);
+  const isValid = () => !errors.name && fields.name.trim() !== "";
+  return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
+}
+
+function makeFilter() {
+  const [fields, set] = createStore(defaultFilter());
+  const [advanced, setAdvanced] = createStore<FilterAdvanced>({});
+  const [errors, setErrors] = createStore<Errors>({});
+  const replace = (next: FilterFields, nextAdvanced: FilterAdvanced = {}) => {
+    set(reconcile(next));
+    setAdvanced(reconcile(nextAdvanced));
+    clearErrors(errors, (value) => setErrors(reconcile(value)));
+  };
+  const validate = () => {
+    setErrors(
+      "savedQueryIds",
+      fields.filterMode === "query" && fields.savedQueryIds.length !== 1 ? "Select exactly one saved query" : undefined,
+    );
+  };
+  const isValid = () => fields.filterMode === "build" || fields.savedQueryIds.length === 1;
+  return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
+}
+
+function makeTasks() {
+  const [fields, set] = createStore(defaultTasks());
+  const [errors, setErrors] = createStore<Errors>({});
+  const replace = (next: TasksFields) => {
+    set(reconcile(next));
+    clearErrors(errors, (value) => setErrors(reconcile(value)));
+  };
+  const addTask = () => set("items", fields.items.length, defaultTask());
+  const removeTask = (index: number) => {
+    const removedId = fields.items[index]?.fields.id.trim();
+    set("items", (items) =>
+      items
+        .filter((_, itemIndex) => itemIndex !== index)
+        .map((task) => ({
+          ...task,
+          advanced: {
+            ...task.advanced,
+            dependsOn: removedId
+              ? task.advanced.dependsOn?.filter((dependency) => dependency !== removedId)
+              : task.advanced.dependsOn,
+          },
+        })),
+    );
+  };
+  const updateTaskId = (index: number, value: string) => {
+    const previous = fields.items[index]?.fields.id.trim();
+    const next = value.trim();
+    set("items", index, "fields", "id", value);
+    if (!previous || previous === next) return;
+    set("items", (items) =>
+      items.map((task) => ({
+        ...task,
+        advanced: {
+          ...task.advanced,
+          dependsOn: task.advanced.dependsOn?.map((dependency) => dependency === previous ? next : dependency),
+        },
+      })),
+    );
+  };
+  const moveTask = (from: number, to: number) => {
+    if (to < 0 || to >= fields.items.length || from === to) return;
+    set("items", (items) => { const next = [...items]; const [task] = next.splice(from, 1); if (task) next.splice(to, 0, task); return next; });
+    validate();
+  };
+  const updatePercentage = (index: number, value: string, autoNormalize = false) => {
+    set("items", index, "fields", "estimationPercent", value);
+    const parsed = optionalNumber(value);
+    if (!autoNormalize || parsed === undefined || Number.isNaN(parsed) || parsed < 0 || parsed > 100 || fields.items.length <= 1) return;
+    const siblings = fields.items
+      .filter((_, itemIndex) => itemIndex !== index)
+      .filter((task) => {
+        const percentage = optionalNumber(task.fields.estimationPercent);
+        return percentage !== undefined && !Number.isNaN(percentage) && percentage >= 0 && percentage <= 100;
+      });
+    if (siblings.length === 0) return;
+    const normalized = siblings.map((task) => ({ task, estimationPercent: optionalNumber(task.fields.estimationPercent) ?? 0 }));
+    normalizeEstimationPercentages(normalized, { skipIfAlreadyNormalized: false, targetTotal: 100 - parsed });
+    normalized.forEach(({ task, estimationPercent }) => {
+      set("items", fields.items.findIndex((item) => item.key === task.key), "fields", "estimationPercent", String(estimationPercent));
+    });
+  };
+  const validate = () => {
+    const nextErrors: Errors = {};
+    fields.items.forEach((task, index) => {
+      if (task.fields.title.trim() === "") nextErrors[`tasks.${index}.title`] = "Title is required";
+      if (!isPercentage(task.fields.estimationPercent)) {
+        nextErrors[`tasks.${index}.estimationPercent`] = "Must be 0-100";
+      }
+    });
+    setErrors(reconcile(nextErrors));
+  };
+  const isValid = () =>
+    fields.items.length > 0 &&
+    fields.items.every(
+      (task) => task.fields.title.trim() !== "" && isPercentage(task.fields.estimationPercent),
+    );
+  return { fields, set, replace, errors, addTask, removeTask, updateTaskId, moveTask, updatePercentage, validate, isValid };
+}
+
+function makeEstimation() {
+  const [fields, set] = createStore(defaultEstimation());
+  const [advanced, setAdvanced] = createStore<EstimationAdvanced>({});
+  const [errors, setErrors] = createStore<Errors>({});
+  const replace = (next: EstimationFields, nextAdvanced: EstimationAdvanced = {}) => {
+    set(reconcile(next));
+    setAdvanced(reconcile(nextAdvanced));
+    clearErrors(errors, (value) => setErrors(reconcile(value)));
+  };
+  const validate = () => {
+    setErrors(reconcile({
+      minimumTaskPoints: !isNonNegativeNumber(fields.minimumTaskPoints) ? "Must be 0 or greater" : undefined,
+      defaultParentEstimation:
+        !isNonNegativeNumber(fields.defaultParentEstimation)
+          ? "Must be 0 or greater"
+          : fields.ifParentHasNoEstimation === "use-default" && fields.defaultParentEstimation.trim() === ""
+            ? "A default estimate is required"
+            : undefined,
+    }));
+  };
+  const isValid = () =>
+    isNonNegativeNumber(fields.minimumTaskPoints) &&
+    isNonNegativeNumber(fields.defaultParentEstimation) &&
+    (fields.ifParentHasNoEstimation !== "use-default" || fields.defaultParentEstimation.trim() !== "");
+  return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
+}
+
+function makeValidation() {
+  const [fields, set] = createStore(defaultValidation());
+  const [advanced, setAdvanced] = createStore<ValidationAdvanced>({});
+  const [errors, setErrors] = createStore<Errors>({});
+  const replace = (next: ValidationFields, nextAdvanced: ValidationAdvanced = {}) => {
+    set(reconcile(next));
+    setAdvanced(reconcile(nextAdvanced));
+    clearErrors(errors, (value) => setErrors(reconcile(value)));
+  };
+  const validate = () => {
+    const nextErrors: Errors = {};
+    if (!isNonNegativeEstimationTotal(fields.totalEstimationMustBe)) {
+      nextErrors.totalEstimationMustBe = "Must be 0 or greater";
+    }
+    if (!isNonNegativeInteger(fields.minTasks)) {
+      nextErrors.minTasks = "Must be a whole number 0 or greater";
+    }
+    if (!isNonNegativeInteger(fields.maxTasks)) {
+      nextErrors.maxTasks = "Must be a whole number 0 or greater";
+    }
+    const validateRange = (min: string, max: string, prefix: string) => {
+      if (!isPercentage(min)) nextErrors[`${prefix}Min`] = "Must be 0-100";
+      if (!isPercentage(max)) nextErrors[`${prefix}Max`] = "Must be 0-100";
+      const minValue = optionalNumber(min);
+      const maxValue = optionalNumber(max);
+      if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
+        nextErrors[`${prefix}Max`] = "Must be greater than or equal to the minimum";
+      }
+    };
+    const validateTotalRange = (min: string, max: string) => {
+      if (!isNonNegativeEstimationTotal(min)) nextErrors.totalEstimationRangeMin = "Must be 0 or greater";
+      if (!isNonNegativeEstimationTotal(max)) nextErrors.totalEstimationRangeMax = "Must be 0 or greater";
+      const minValue = optionalNumber(min);
+      const maxValue = optionalNumber(max);
+      if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
+        nextErrors.totalEstimationRangeMax = "Must be greater than or equal to the minimum";
+      }
+    };
+    validateTotalRange(fields.totalEstimationRangeMin, fields.totalEstimationRangeMax);
+    validateRange(fields.taskEstimationRangeMin, fields.taskEstimationRangeMax, "taskEstimationRange");
+    fields.requiredTasks.forEach((task, index) => {
+      if (task.title.trim() === "") nextErrors[`requiredTasks.${index}.title`] = "Title is required";
+    });
+    const minTasks = optionalNumber(fields.minTasks);
+    const maxTasks = optionalNumber(fields.maxTasks);
+    if (
+      minTasks !== undefined &&
+      maxTasks !== undefined &&
+      Number.isInteger(minTasks) &&
+      Number.isInteger(maxTasks) &&
+      minTasks > maxTasks
+    ) {
+      nextErrors.maxTasks = "Must be greater than or equal to min tasks";
+    }
+    setErrors(reconcile(nextErrors));
+  };
+  const isValid = () => {
+    const minTasks = optionalNumber(fields.minTasks);
+    const maxTasks = optionalNumber(fields.maxTasks);
+    return (
+      isNonNegativeEstimationTotal(fields.totalEstimationMustBe) &&
+      isNonNegativeInteger(fields.minTasks) &&
+      isNonNegativeInteger(fields.maxTasks) &&
+      (minTasks === undefined || maxTasks === undefined || minTasks <= maxTasks) &&
+      isNonNegativeEstimationTotal(fields.totalEstimationRangeMin) &&
+      isNonNegativeEstimationTotal(fields.totalEstimationRangeMax) &&
+      isPercentage(fields.taskEstimationRangeMin) &&
+      isPercentage(fields.taskEstimationRangeMax) &&
+      isOrderedRange(fields.totalEstimationRangeMin, fields.totalEstimationRangeMax) &&
+      isOrderedRange(fields.taskEstimationRangeMin, fields.taskEstimationRangeMax) &&
+      fields.requiredTasks.every((task) => task.title.trim() !== "")
+    );
+  };
+  const addRequiredTask = () => set("requiredTasks", fields.requiredTasks.length, { title: "", id: "" });
+  const removeRequiredTask = (index: number) => set("requiredTasks", (tasks) => tasks.filter((_, i) => i !== index));
+  return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid, addRequiredTask, removeRequiredTask };
+}
+
+function makeMetadata() {
+  const [fields, set] = createStore(defaultMetadata());
+  const [advanced, setAdvanced] = createStore<MetadataAdvanced>({});
+  const [errors, setErrors] = createStore<Errors>({});
+  const replace = (next: MetadataFields, nextAdvanced: MetadataAdvanced = {}) => {
+    set(reconcile(next));
+    setAdvanced(reconcile(nextAdvanced));
+    clearErrors(errors, (value) => setErrors(reconcile(value)));
+  };
+  const validate = () => {};
+  const isValid = () =>
+    fields.difficulty === "" || ["beginner", "intermediate", "advanced"].includes(fields.difficulty);
+  return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
+}
+
+export type BasicInfoStore = ReturnType<typeof makeBasicInfo>;
+export type FilterStore = ReturnType<typeof makeFilter>;
+export type TasksStore = ReturnType<typeof makeTasks>;
+export type EstimationStore = ReturnType<typeof makeEstimation>;
+export type ValidationStore = ReturnType<typeof makeValidation>;
+export type MetadataStore = ReturnType<typeof makeMetadata>;
+
+export type AuthoringSectionStores = {
+  "basic-info": BasicInfoStore;
+  filter: FilterStore;
+  tasks: TasksStore;
+  estimation: EstimationStore;
+  validation: ValidationStore;
+  metadata: MetadataStore;
+};
+
+export type AuthoringStore = AuthoringSectionStores & {
+  reset: () => void;
+  loadTemplate: (template: TaskTemplate) => void;
+  toTemplate: () => TaskTemplate;
+  serialise: () => string;
+};
+
+export function isAuthoringStoreReadyForReview(store: AuthoringSectionStores): boolean {
+  return [
+    store["basic-info"],
+    store.filter,
+    store.tasks,
+    store.estimation,
+    store.validation,
+    store.metadata,
+  ].every((section) => section.isValid());
+}
+
+function buildFilter(store: FilterStore): FilterCriteria {
+  if (store.fields.filterMode === "query") {
+    const savedQueryRef = store.fields.savedQueryIds[0] ?? "";
+
+    return {
+      ...store.advanced,
+      savedQuery: isUuid(savedQueryRef) ? { id: savedQueryRef } : { path: savedQueryRef },
+      excludeIfHasTasks: store.fields.excludeIfHasTasks,
+    };
+  }
+
+  const tags =
+    store.fields.tagsInclude.length > 0 || store.fields.tagsExclude.length > 0
+      ? {
+          include: nonEmptyArray(store.fields.tagsInclude),
+          exclude: nonEmptyArray(store.fields.tagsExclude),
+        }
+      : undefined;
+
+  return {
+    ...store.advanced,
+    workItemTypes: nonEmptyArray(store.fields.workItemTypes),
+    states: nonEmptyArray(store.fields.states),
+    statesExclude: nonEmptyArray(store.fields.statesExclude),
+    team: nonEmpty(store.fields.team),
+    areaPaths: nonEmptyArray(store.fields.areaPaths),
+    iterations: nonEmptyArray(store.fields.iterations),
+    tags,
+    excludeIfHasTasks: store.fields.excludeIfHasTasks,
+    assignedTo: nonEmptyArray(store.fields.assignedTo),
+  };
+}
+
+function buildTasks(store: TasksStore): TaskDefinition[] {
+  return store.fields.items.map((task) => ({
+    ...task.advanced,
+    id: nonEmpty(task.fields.id),
+    title: task.fields.title.trim(),
+    description: nonEmpty(task.fields.description),
+    estimationPercent: optionalNumber(task.fields.estimationPercent),
+    tags: nonEmptyArray(task.fields.tags),
+  }));
+}
+
+function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
+  const estimation: EstimationConfig = {
+    ...store.advanced,
+    strategy: "percentage",
+    source: nonEmpty(store.fields.source),
+    rounding: store.fields.rounding,
+    minimumTaskPoints: optionalNumber(store.fields.minimumTaskPoints),
+    ifParentHasNoEstimation: store.fields.ifParentHasNoEstimation || undefined,
+    defaultParentEstimation: optionalNumber(store.fields.defaultParentEstimation),
+  };
+
+  const hasMeaningfulValue =
+    estimation.source !== undefined ||
+    estimation.minimumTaskPoints !== undefined ||
+    estimation.ifParentHasNoEstimation !== undefined ||
+    estimation.defaultParentEstimation !== undefined ||
+    store.fields.rounding !== "none" ||
+    Object.keys(store.advanced).length > 0;
+
+  return hasMeaningfulValue ? estimation : undefined;
+}
+
+function buildValidation(store: ValidationStore): ValidationConfig | undefined {
+  const validation: ValidationConfig = {
+    ...store.advanced,
+    mode: store.fields.mode === "" ? undefined : store.fields.mode,
+    totalEstimationMustBe: optionalNumber(store.fields.totalEstimationMustBe),
+    totalEstimationRange:
+      store.fields.totalEstimationRangeMin !== "" || store.fields.totalEstimationRangeMax !== ""
+        ? { min: optionalNumber(store.fields.totalEstimationRangeMin) ?? 0, max: optionalNumber(store.fields.totalEstimationRangeMax) ?? 100 }
+        : undefined,
+    minTasks: optionalNumber(store.fields.minTasks),
+    maxTasks: optionalNumber(store.fields.maxTasks),
+    taskEstimationRange:
+      store.fields.taskEstimationRangeMin !== "" || store.fields.taskEstimationRangeMax !== ""
+        ? { min: optionalNumber(store.fields.taskEstimationRangeMin) ?? 0, max: optionalNumber(store.fields.taskEstimationRangeMax) ?? 100 }
+        : undefined,
+    requiredTasks: nonEmptyArray(store.fields.requiredTasks.map((task) => ({
+      title: task.title.trim(),
+      id: nonEmpty(task.id),
+    }))),
+  };
+  return Object.values(validation).some((value) => value !== undefined) ? validation : undefined;
+}
+
+function buildMetadata(store: MetadataStore, category: string): Metadata | undefined {
+  const metadata: Metadata = {
+    ...store.advanced,
+    category: nonEmpty(category),
+    difficulty: store.fields.difficulty === "" ? undefined : store.fields.difficulty,
+    estimationGuidelines: nonEmpty(store.fields.estimationGuidelines),
+    notes: nonEmpty(store.fields.notes),
+  };
+  return Object.values(metadata).some((value) => value !== undefined) ? metadata : undefined;
+}
+
+function omitUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+}
+
+function toTaskFields(task: TaskDefinition): EditableTask {
+  const { id, title, description, estimationPercent, tags, ...advanced } = task;
+  return {
+    key: crypto.randomUUID(),
+    fields: {
+      id: id ?? "",
+      title,
+      description: description ?? "",
+      estimationPercent: estimationPercent === undefined ? "" : String(estimationPercent),
+      tags: tags ?? [],
+    },
+    advanced,
+  };
+}
+
+export function createAuthoringStore(): AuthoringStore {
+  const basicInfo = makeBasicInfo();
+  const filter = makeFilter();
+  const tasks = makeTasks();
+  const estimation = makeEstimation();
+  const validation = makeValidation();
+  const metadata = makeMetadata();
+
+  const stores: AuthoringSectionStores = {
+    "basic-info": basicInfo,
+    filter,
+    tasks,
+    estimation,
+    validation,
+    metadata,
+  };
+
+  const reset = () => {
+    basicInfo.replace(defaultBasicInfo());
+    filter.replace(defaultFilter());
+    tasks.replace(defaultTasks());
+    estimation.replace(defaultEstimation());
+    validation.replace(defaultValidation());
+    metadata.replace(defaultMetadata());
+  };
+
+  const loadTemplate = (template: TaskTemplate) => {
+    const { created, lastModified, extends: parent, mixins, origin } = template;
+    basicInfo.replace(
+      {
+        version: template.version,
+        name: template.name,
+        description: template.description ?? "",
+        category: template.metadata?.category ?? "",
+        author: template.author ?? "",
+        tags: template.tags ?? [],
+      },
+      omitUndefined({ created, lastModified, extends: parent, mixins, origin }),
+    );
+
+    const {
+      workItemTypes,
+      states,
+      statesExclude,
+      team,
+      areaPaths,
+      iterations,
+      tags: filterTags,
+      excludeIfHasTasks,
+      assignedTo,
+      savedQuery,
+      ...advancedFilter
+    } = template.filter;
+    filter.replace(
+      {
+        filterMode: savedQuery ? "query" : "build",
+        workItemTypes: workItemTypes ?? [],
+        states: states ?? [],
+        statesExclude: statesExclude ?? [],
+        team: team ?? "",
+        areaPaths: areaPaths ?? [],
+        iterations: iterations ?? [],
+        tagsInclude: filterTags?.include ?? [],
+        tagsExclude: filterTags?.exclude ?? [],
+        excludeIfHasTasks: excludeIfHasTasks ?? true,
+        assignedTo: assignedTo ?? [],
+        savedQueryIds: savedQuery?.id || savedQuery?.path ? [savedQuery.id ?? savedQuery.path ?? ""] : [],
+      },
+      advancedFilter,
+    );
+
+    tasks.replace({ items: template.tasks.map(toTaskFields) });
+
+    const {
+      strategy,
+      source,
+      rounding,
+      minimumTaskPoints,
+      ifParentHasNoEstimation,
+      defaultParentEstimation,
+      ...advancedEstimation
+    } = template.estimation ?? {};
+    estimation.replace(
+      {
+        strategy: strategy ?? "percentage",
+        source: source ?? "",
+        rounding: rounding ?? "none",
+        minimumTaskPoints: minimumTaskPoints === undefined ? "" : String(minimumTaskPoints),
+        ifParentHasNoEstimation: ifParentHasNoEstimation ?? "",
+        defaultParentEstimation: defaultParentEstimation === undefined ? "" : String(defaultParentEstimation),
+      },
+      advancedEstimation,
+    );
+
+    const {
+      mode,
+      totalEstimationMustBe,
+      totalEstimationRange,
+      minTasks,
+      maxTasks,
+      taskEstimationRange,
+      requiredTasks,
+      ...advancedValidation
+    } = template.validation ?? {};
+    validation.replace(
+      {
+        mode: mode ?? "",
+        totalEstimationMustBe: totalEstimationMustBe === undefined ? "" : String(totalEstimationMustBe),
+        totalEstimationRangeMin: totalEstimationRange?.min === undefined ? "" : String(totalEstimationRange.min),
+        totalEstimationRangeMax: totalEstimationRange?.max === undefined ? "" : String(totalEstimationRange.max),
+        minTasks: minTasks === undefined ? "" : String(minTasks),
+        maxTasks: maxTasks === undefined ? "" : String(maxTasks),
+        taskEstimationRangeMin: taskEstimationRange?.min === undefined ? "" : String(taskEstimationRange.min),
+        taskEstimationRangeMax: taskEstimationRange?.max === undefined ? "" : String(taskEstimationRange.max),
+        requiredTasks: requiredTasks?.map((task) => ({ title: task.title, id: task.id ?? "" })) ?? [],
+      },
+      advancedValidation,
+    );
+
+    const {
+      difficulty,
+      estimationGuidelines,
+      notes,
+      ...advancedMetadata
+    } = template.metadata ?? {};
+    metadata.replace(
+      {
+        difficulty: difficulty ?? "",
+        estimationGuidelines: estimationGuidelines ?? "",
+        notes: notes ?? "",
+      },
+      advancedMetadata,
+    );
+    for (const store of Object.values(stores)) store.validate();
+  };
+
+  const toTemplate = () => {
+    for (const store of Object.values(stores)) store.validate();
+    if (!isAuthoringStoreReadyForReview(stores)) {
+      throw new Error("Template contains invalid section data");
+    }
+
+    const template = {
+      version: nonEmpty(basicInfo.fields.version) ?? "1.0",
+      name: basicInfo.fields.name.trim(),
+      description: nonEmpty(basicInfo.fields.description),
+      metadata: buildMetadata(metadata, basicInfo.fields.category),
+      author: nonEmpty(basicInfo.fields.author),
+      tags: nonEmptyArray(basicInfo.fields.tags),
+      created: basicInfo.advanced.created,
+      lastModified: basicInfo.advanced.lastModified,
+      filter: buildFilter(filter),
+      tasks: buildTasks(tasks),
+      estimation: buildEstimation(estimation),
+      validation: buildValidation(validation),
+      extends: basicInfo.advanced.extends,
+      mixins: basicInfo.advanced.mixins,
+      origin: basicInfo.advanced.origin,
+    };
+
+    return TaskTemplateSchema.parse(omitUndefined(template));
+  };
+
+  const serialise = () =>
+    stringify(toTemplate(), {
+      lineWidth: 0,
+    });
+
+  return {
+    ...stores,
+    reset,
+    loadTemplate,
+    toTemplate,
+    serialise,
+  };
+}
+
+export const useSectionStores = createAuthoringStore;
+export type SectionStores = AuthoringStore;

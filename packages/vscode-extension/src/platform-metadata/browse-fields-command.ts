@@ -1,39 +1,28 @@
+import { requireProjectMetadataReader } from '@sppg2001/atomize-core/platforms/capabilities';
+import type { ADoFieldSchema } from '@sppg2001/atomize-core/platforms/interfaces/field-schema.interface';
 import * as vscode from 'vscode';
-import { buildFieldsListArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
-import { getConfiguredCliPath, getDefaultProfile } from '../config/atomize-configuration.js';
+import { getDefaultProfile } from '../config/atomize-configuration.js';
+import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
-
-interface FieldJson {
-	referenceName: string;
-	name: string;
-	type: string;
-	isReadOnly: boolean;
-	isPicklist: boolean;
-	allowedValues?: string[];
-}
+import type { ProfileStore } from '../profiles/profile-store.js';
 
 type FieldItem = vscode.QuickPickItem & { referenceName: string };
 
-function parseFieldsJson(stdout: string): FieldJson[] | null {
+async function fetchFields(
+	credentialResolver: CredentialResolver,
+	profile: string,
+	type: string | undefined,
+): Promise<ADoFieldSchema[] | null> {
 	try {
-		const parsed = JSON.parse(stdout);
-		return Array.isArray(parsed) ? parsed : null;
+		const adapter = await credentialResolver.resolveByName(profile);
+		const metadataReader = requireProjectMetadataReader(adapter);
+		return await metadataReader.getFieldSchemas(type);
 	} catch {
 		return null;
 	}
 }
 
-function fetchFields(cliPath: string, profile: string, type?: string): Promise<FieldJson[] | null> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, buildFieldsListArgs(profile, type));
-		let stdout = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.on('close', () => { resolve(parseFieldsJson(stdout)); });
-		proc.on('error', () => resolve(null));
-	});
-}
-
-function buildFieldItems(fields: FieldJson[]): FieldItem[] {
+function buildFieldItems(fields: ADoFieldSchema[]): FieldItem[] {
 	return fields.map(f => {
 		const descParts = [f.name];
 		if (f.isReadOnly) descParts.push('read-only');
@@ -55,20 +44,14 @@ function buildFieldItems(fields: FieldJson[]): FieldItem[] {
 }
 
 export interface BrowseFieldsCommandDeps {
-	showCliUnavailable: (cliPath: string, message: string) => Promise<void>;
+	store: ProfileStore;
+	credentialResolver: CredentialResolver;
 }
 
 export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vscode.Disposable {
 	return vscode.commands.registerCommand('atomize.browseFields', async () => {
-		const cliPath = getConfiguredCliPath();
-		const probe = await probeCli(cliPath);
-		if (!probe.available) {
-			await deps.showCliUnavailable(cliPath, 'Atomize CLI not found. Install it to browse fields.');
-			return;
-		}
-
 		const defaultProfile = getDefaultProfile(vscode.window.activeTextEditor?.document.uri);
-		const profile = await pickProfile(cliPath, { title: 'Atomize: Browse Fields', allowOffline: false, defaultProfile });
+		const profile = await pickProfile(deps.store, deps.credentialResolver, { title: 'Atomize: Browse Fields', allowOffline: false, defaultProfile });
 		if (!profile) return;
 
 		const typeFilter = await vscode.window.showInputBox({
@@ -80,11 +63,11 @@ export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vsco
 
 		const fields = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Fetching fields…', cancellable: false },
-			() => fetchFields(cliPath, profile, typeFilter || undefined),
+			() => fetchFields(deps.credentialResolver, profile, typeFilter || undefined),
 		);
 
 		if (fields === null) {
-			void vscode.window.showErrorMessage('Could not fetch fields. Check the CLI and your connection profile.');
+			void vscode.window.showErrorMessage('Could not fetch fields. Check your connection profile.');
 			return;
 		}
 

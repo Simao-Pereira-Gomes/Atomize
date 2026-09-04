@@ -23,7 +23,7 @@ type HandoffCall = {
   interactive: boolean;
 };
 
-mock.module("@/templates/template-library", () => ({
+mock.module("@sppg2001/atomize-core/templates/template-library", () => ({
   TemplateLibrary: class {
     parseInstallScope(value: string) {
       return value;

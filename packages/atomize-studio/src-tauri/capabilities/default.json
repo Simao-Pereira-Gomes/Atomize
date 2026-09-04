@@ -1,0 +1,64 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "atomize",
+          "cmd": "atomize",
+          "sidecar": false,
+          "args": true
+        },
+        {
+          "name": "npm",
+          "cmd": "npm",
+          "sidecar": false,
+          "args": [
+            "install",
+            "-g",
+            "@sppg2001/atomize"
+          ]
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "atomize",
+          "cmd": "atomize",
+          "sidecar": false,
+          "args": true
+        },
+        {
+          "name": "npm",
+          "cmd": "npm",
+          "sidecar": false,
+          "args": [
+            "install",
+            "-g",
+            "@sppg2001/atomize"
+          ]
+        },
+        {
+          "name": "atomize-sidecar",
+          "cmd": "binaries/atomize-sidecar",
+          "sidecar": true,
+          "args": false
+        }
+      ]
+    },
+    "shell:allow-stdin-write",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-write-text-file"
+  ]
+}

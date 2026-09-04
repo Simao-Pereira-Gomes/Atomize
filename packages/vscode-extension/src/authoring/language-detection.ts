@@ -32,6 +32,25 @@ export function isAtomizeDocument(doc: { languageId: string; fileName: string; g
 	return detectAtomizeLanguage(lines) !== null;
 }
 
+/** A Mixin contributes tasks to a Template and cannot run on its own. */
+export function isMixinDocument(doc: { getText(): string }): boolean {
+	const lines = doc.getText().split('\n').slice(0, 50);
+	let hasVersion = false;
+	let hasRootTasks = false;
+	let hasNestedId = false;
+	let hasTemplateComposition = false;
+
+	for (const raw of lines) {
+		const line = raw.replace(/\r$/, '');
+		if (/^version\s*:/.test(line)) hasVersion = true;
+		if (/^tasks\s*:/.test(line)) hasRootTasks = true;
+		if (/^\s+(?:-\s+)?id\s*:/.test(line)) hasNestedId = true;
+		if (/^(?:extends|mixins|filter)\s*:/.test(line)) hasTemplateComposition = true;
+	}
+
+	return hasRootTasks && hasNestedId && !hasVersion && !hasTemplateComposition;
+}
+
 /**
  * Schema support is broader than full tooling: content-only matches get hovers
  * and autocomplete, but not CodeLens actions or save-time CLI validation.

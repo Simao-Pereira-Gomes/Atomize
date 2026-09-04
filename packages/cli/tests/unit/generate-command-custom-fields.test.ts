@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
-
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
+import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { validateCustomFieldsPreFlight } from "@/cli/commands/generate.command";
 import { ExitError } from "@/cli/utilities/exit-codes";
-import type { ADoFieldSchema } from "@/platforms/interfaces/field-schema.interface";
-import type { IPlatformAdapter } from "@/platforms/interfaces/platform.interface";
-import type { TaskTemplate } from "@/templates/schema";
 
 describe("validateCustomFieldsPreFlight", () => {
   test("fails fast for invalid boolean custom field values", async () => {

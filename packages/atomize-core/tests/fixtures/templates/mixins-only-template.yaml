@@ -1,0 +1,16 @@
+name: "Mixins Only Template"
+description: "Has mixins but no extends"
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New"]
+
+mixins:
+  - "./mixins/security.yaml"
+
+tasks:
+  - id: "security-review"
+    title: "Child Security Review (overrides mixin)"
+    estimationPercent: 15
+  - id: "my-task"
+    title: "My Own Task"
+    estimationPercent: 85

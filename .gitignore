@@ -83,6 +83,10 @@ out
 dist
 *.vsix
 
+# packages/cli/catalog is a build-time copy of packages/atomize-core/catalog
+# (the single authored source) — see packages/cli/scripts/prepare-dist.mjs
+packages/cli/catalog
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
@@ -146,3 +150,11 @@ nul
 
 # generated
 packages/vscode-extension/src/webview/styles.generated.css
+
+# Locally compiled Tauri sidecar binaries and Bun's temporary build files.
+packages/atomize-sidecar/*.bun-build
+packages/atomize-sidecar/atomize-sidecar
+packages/atomize-sidecar/atomize-sidecar.exe
+packages/atomize-studio/*.bun-build
+packages/atomize-studio/src-tauri/binaries/atomize-sidecar-*
+packages/atomize-studio/src-tauri/binaries/atomize-copilot-*

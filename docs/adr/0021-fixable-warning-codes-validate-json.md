@@ -2,10 +2,7 @@
 
 `ValidationWarning` gains an optional `code?: FixableWarningCode` field in the `validate --output json` output. The field is absent (not `null`) on non-fixable warnings — JSON serialisation of `undefined` drops the key, so consumers test `if (diag.code)` rather than `diag.code !== null`. Only warnings with a single unambiguous mechanical fix carry a code; warnings that require human judgment (e.g. which task to adjust for an estimation overage, which duplicate id to keep) are not assigned codes.
 
-`FixableWarningCode` is a `const` object exported from `validator.ts`, typed as its own value union. Each entry carries a JSDoc comment describing the exact YAML edit the extension should apply. Initial entries:
-
-- `MISSING_TASK_ID` — covers both "task has `dependsOn` but no `id`" and "task is referenced by others but has no `id`". Fix: insert an `id` field with a slug derived from the task title. Both warnings share the code because the extension action is identical.
-- `SAVED_QUERY_WITH_STRUCTURED_FILTER` — `savedQuery` and structured filter fields (e.g. `workItemTypes`, `states`, `tags`) are both set. Fix: remove the conflicting structured filter fields, since `savedQuery` controls which items are returned and the structured fields are silently ignored.
+`FixableWarningCode` is a `const` object exported from `validator.ts`, typed as its own value union — each entry documents the exact YAML edit the extension should apply, and a code is shared across warnings only when the extension's fix action is identical. Entries live in code, not here.
 
 `ValidationError.code` — already present in the JSON output — is **not** part of this stability contract. Error codes include raw Zod enum strings (`too_small`, `invalid_type`) that are framework internals; committing to their stability would couple a major version bump to any Zod upgrade. No current error has a single unambiguous mechanical fix that a Code Action could apply without user judgment. If a future error gains one, it should be added to a `FixableErrorCode` constant under the same rules rather than being assumed stable by default.
 

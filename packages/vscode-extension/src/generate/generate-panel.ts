@@ -1,8 +1,13 @@
-import { createInterface } from 'node:readline';
+import { Atomizer } from '@sppg2001/atomize-core';
+import type { AtomizationReport, ProgressEvent } from '@sppg2001/atomize-core/core/atomizer';
+import { AuthError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
-import { buildGenDryRunJsonArgs, buildGenExecuteJsonArgs, CLI_EXIT_CODES, spawnCli } from '../cli/cli-provider.js';
+import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
+import { createTemplateLibrary } from '../core-library.js';
+import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
+import type { ProfileStore } from '../profiles/profile-store.js';
 import type { GenerateReport } from './generate-html.js';
 import {
 	renderGenerateBlocked,
@@ -13,7 +18,6 @@ import {
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
-import { createStreamResultCoordinator, recoverReportFromProgress, type SpawnResult } from './generate-ndjson.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
@@ -21,69 +25,32 @@ interface ManageProfilesMessage { type: 'manageProfiles'; }
 interface OpenLinkMessage { type: 'openLink'; url: string; }
 type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage;
 
-function spawnJson(cliPath: string, args: string[]): Promise<SpawnResult> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, args);
-		let stdout = '';
-		let stderr = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', code => {
-			try {
-				resolve({ report: JSON.parse(stdout.trim()) as GenerateReport });
-			} catch {
-				if (code !== 0) {
-					const kind = code === CLI_EXIT_CODES.AuthFailure ? 'auth' as const : 'cli' as const;
-					const cleanStderr = stderr.split('\n').filter(l => !/^\(node:\d+\)/.test(l) && !/^\(Use `node /.test(l)).join('\n').trim();
-					resolve({ error: kind, stderr: (cleanStderr || stdout).trim() });
-					return;
-				}
-				resolve({ error: 'cli', stderr: stderr.trim() || 'Failed to parse CLI output' });
-			}
-		});
-		proc.on('error', err => resolve({ error: 'cli', stderr: err.message }));
-	});
+type GenerateOutcome = { report: AtomizationReport } | { error: 'auth' | 'blocked'; detail: string };
+
+function authDetail(err: AuthError): string {
+	return err.message.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.';
 }
 
-type ProgressMessage = { completedStories: number; totalStories: number; tasksCreated: number };
+function errorDetail(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
+}
 
-function spawnJsonStream(
-	cliPath: string,
-	args: string[],
-	dryReport: GenerateReport,
-	onProgress: (data: ProgressMessage) => void,
-): Promise<SpawnResult> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, args);
-		let stderr = '';
-		const coordinator = createStreamResultCoordinator(
-			resolve,
-			() => stderr,
-			(lines, rawStderr) => recoverReportFromProgress(lines, dryReport, rawStderr),
-		);
-		const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
-		rl.on('line', line => {
-			coordinator.addLine(line);
-			// Parse incrementally so onProgress fires as lines arrive
-			const trimmed = line.trim();
-			if (!trimmed) return;
-			let parsed: unknown;
-			try { parsed = JSON.parse(trimmed); } catch { return; }
-			if (typeof parsed !== 'object' || parsed === null) return;
-			const obj = parsed as Record<string, unknown>;
-			if (obj.event === 'progress' && typeof obj.data === 'object' && obj.data !== null) {
-				const ev = obj.data as Record<string, unknown>;
-				// Only forward events that carry both counters needed by the progress display
-				if (ev.type === 'story_complete' || ev.type === 'story_error') {
-					onProgress(ev as unknown as ProgressMessage);
-				}
-			}
-		});
-		rl.on('close', () => { coordinator.markStdoutClosed(); });
-		proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-		proc.on('close', code => { coordinator.markProcessClosed(code); });
-		proc.on('error', err => resolve({ error: 'cli', stderr: err.message }));
-	});
+async function runAtomize(
+	credentialResolver: CredentialResolver,
+	profile: string,
+	fileUri: vscode.Uri,
+	options: { dryRun: boolean; continueOnError?: boolean; storyIds?: string[]; onProgress?: (event: ProgressEvent) => void },
+): Promise<GenerateOutcome> {
+	try {
+		const adapter = await credentialResolver.resolveByName(profile);
+		const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
+		const atomizer = new Atomizer(adapter);
+		const report = await atomizer.atomize(template, options);
+		return { report };
+	} catch (err) {
+		if (err instanceof AuthError) return { error: 'auth', detail: authDetail(err) };
+		return { error: 'blocked', detail: errorDetail(err) };
+	}
 }
 
 export class GeneratePanel {
@@ -91,7 +58,6 @@ export class GeneratePanel {
 
 	private _panel: vscode.WebviewPanel;
 	private _fileUri: vscode.Uri;
-	private _cliPath: string;
 	private _mode: 'default' | 'compact';
 	private _profile: string;
 	private _storyIds: string[] | undefined;
@@ -103,14 +69,13 @@ export class GeneratePanel {
 	private constructor(
 		panel: vscode.WebviewPanel,
 		fileUri: vscode.Uri,
-		cliPath: string,
+		private readonly _credentialResolver: CredentialResolver,
 		mode: 'default' | 'compact',
 		profile: string,
 		storyIds: string[] | undefined,
 	) {
 		this._panel = panel;
 		this._fileUri = fileUri;
-		this._cliPath = cliPath;
 		this._mode = mode;
 		this._profile = profile;
 		this._storyIds = storyIds;
@@ -119,7 +84,7 @@ export class GeneratePanel {
 		panel.webview.onDidReceiveMessage((msg: unknown) => { void this._handleMessage(msg); });
 	}
 
-	static async open(fileUri: vscode.Uri, cliPath: string): Promise<void> {
+	static async open(fileUri: vscode.Uri, store: ProfileStore, credentialResolver: CredentialResolver): Promise<void> {
 		const mode = getPreviewLayout(fileUri);
 		const defaultProfile = getDefaultProfile(fileUri);
 
@@ -128,7 +93,7 @@ export class GeneratePanel {
 			return;
 		}
 
-		const profile = await pickProfile(cliPath, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
+		const profile = await pickProfile(store, credentialResolver, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
 		if (profile == null) return;
 
 		const storyIdsInput = await vscode.window.showInputBox({
@@ -155,7 +120,6 @@ export class GeneratePanel {
 		if (GeneratePanel._instance) {
 			const inst = GeneratePanel._instance;
 			inst._fileUri = fileUri;
-			inst._cliPath = cliPath;
 			inst._mode = mode;
 			inst._profile = profile;
 			inst._storyIds = storyIds;
@@ -172,7 +136,7 @@ export class GeneratePanel {
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);
-			panel = new GeneratePanel(webviewPanel, fileUri, cliPath, mode, profile, storyIds);
+			panel = new GeneratePanel(webviewPanel, fileUri, credentialResolver, mode, profile, storyIds);
 			GeneratePanel._instance = panel;
 		}
 
@@ -185,28 +149,23 @@ export class GeneratePanel {
 			const fileName = vscode.workspace.asRelativePath(this._fileUri);
 			this._panel.webview.html = renderGenerateLoading(fileName, this._profile, this._storyIds);
 
-			const outcome = await spawnJson(
-				this._cliPath,
-				buildGenDryRunJsonArgs(this._fileUri.fsPath, this._profile, this._storyIds),
-			);
+			const outcome = await runAtomize(this._credentialResolver, this._profile, this._fileUri, {
+				dryRun: true,
+				storyIds: this._storyIds,
+			});
 
 			if ('error' in outcome) {
-				if (outcome.error === 'auth') {
-					const detail = outcome.stderr.replace(/^authentication failed[:\s]*/i, '').trim();
-					this._panel.webview.html = renderGenerateBlocked('auth', detail || 'Personal access token may be expired or revoked.', fileName, this._profile, this._storyIds);
-				} else {
-					this._panel.webview.html = renderGenerateBlocked(
-						'no-matches',
-						outcome.stderr || 'CLI error — check that the template file is valid.',
-						fileName,
-						this._profile,
-						this._storyIds,
-					);
-				}
+				this._panel.webview.html = renderGenerateBlocked(
+					outcome.error === 'auth' ? 'auth' : 'no-matches',
+					outcome.error === 'auth' ? outcome.detail : (outcome.detail || 'Check that the template file is valid.'),
+					fileName,
+					this._profile,
+					this._storyIds,
+				);
 				return;
 			}
 
-			const report = outcome.report;
+			const report = outcome.report as GenerateReport;
 			this._dryRunReport = report;
 			this._panel.title = `Atomize: ${fileName} (Generate)`;
 
@@ -250,29 +209,27 @@ export class GeneratePanel {
 			this._panel.title = `Atomize: ${fileName} (Generate — Creating…)`;
 			this._panel.webview.html = renderGenerateLiveRunning(dryReport, fileName, this._profile, this._storyIds);
 
-			const outcome = await spawnJsonStream(
-				this._cliPath,
-				buildGenExecuteJsonArgs(this._fileUri.fsPath, this._profile, this._continueOnError, this._storyIds),
-				dryReport,
-				data => {
+			const outcome = await runAtomize(this._credentialResolver, this._profile, this._fileUri, {
+				dryRun: false,
+				continueOnError: this._continueOnError,
+				storyIds: this._storyIds,
+				onProgress: event => {
+					if (event.type !== 'story_complete' && event.type !== 'story_error') return;
 					this._panel.webview.postMessage({
 						type: 'liveProgress',
-						storiesCompleted: data.completedStories,
-						totalStories: data.totalStories,
-						tasksCreated: data.tasksCreated,
+						storiesCompleted: event.completedStories,
+						totalStories: event.totalStories,
+						tasksCreated: event.tasksCreated,
 					});
 				},
-			);
+			});
 
 			this._panel.title = `Atomize: ${fileName} (Generate — Done)`;
 
 			if ('error' in outcome) {
-				const detail = outcome.error === 'auth'
-					? outcome.stderr.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.'
-					: outcome.stderr || 'CLI error during task creation.';
 				this._panel.webview.html = renderGenerateBlocked(
 					outcome.error === 'auth' ? 'auth' : 'exec-error',
-					detail,
+					outcome.error === 'auth' ? outcome.detail : (outcome.detail || 'Error during task creation.'),
 					fileName,
 					this._profile,
 					this._storyIds,
@@ -280,7 +237,7 @@ export class GeneratePanel {
 				return;
 			}
 
-			const execReport = outcome.report;
+			const execReport = outcome.report as GenerateReport;
 			this._execReport = execReport;
 
 			if (execReport.storiesFailed > 0) {

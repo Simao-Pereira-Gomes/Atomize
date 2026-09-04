@@ -1,0 +1,29 @@
+version: "1.0"
+name: "Base Template"
+description: "Reusable base template for inheritance"
+author: "Atomize"
+tags: ["base", "shared"]
+
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active"]
+
+tasks:
+  - id: "design"
+    title: "Design: ${story.title}"
+    description: "Design phase"
+    estimationPercent: 20
+
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    description: "Implementation phase"
+    estimationPercent: 50
+
+  - id: "test"
+    title: "Test: ${story.title}"
+    description: "Testing phase"
+    estimationPercent: 30
+
+estimation:
+  strategy: "percentage"
+  rounding: "none"

@@ -1,13 +1,25 @@
 {
 	"name": "atomize-workspace",
 	"private": true,
+	"packageManager": "bun@1.3.13",
 	"workspaces": ["packages/*"],
+	"scripts": {
+		"typecheck": "bun run --cwd packages/atomize-ai typecheck && bun run --cwd packages/atomize-core typecheck && bun run --cwd packages/cli typecheck && bun run --cwd packages/vscode-extension typecheck && bun run --cwd packages/atomize-studio typecheck && bunx tsc --noEmit -p packages/atomize-sidecar/tsconfig.json"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.12"
 	},
 	"overrides": {
-		"qs": "6.15.2",
+		"brace-expansion": "5.0.9",
+		"fast-uri": "3.1.6",
+		"browserslist": "4.28.8",
+		"form-data": "4.0.6",
+		"js-yaml": "4.3.1",
+		"nanoid": "3.3.18",
+		"postcss": "8.5.26",
+		"qs": "6.16.0",
 		"tmp": "0.2.7",
+		"undici": "8.10.0",
 		"underscore": "1.13.8"
 	}
 }

@@ -1,4 +1,4 @@
-import type { TaskDefinition } from "../../src/templates/schema";
+import type { TaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 
 interface GeneratorOptions {
   withDependencies?: boolean;

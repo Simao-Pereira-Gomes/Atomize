@@ -16,6 +16,8 @@ For YAML field semantics, see [Template Reference](./Template-Reference.md). For
 
 Running `atomize template create` without flags opens an interactive mode selector.
 
+Every path in this table is also available visually in **Atomize Studio**, Atomize's desktop app — see [Create In Atomize Studio](#create-in-atomize-studio) below.
+
 ## Start From The Catalog
 
 This is usually the fastest path for a first team-specific template.
@@ -84,18 +86,28 @@ atomize validate my-template.atomize.yaml --strict
 atomize generate my-template.atomize.yaml --platform mock
 ```
 
+## Create In Atomize Studio
+
+[Atomize Studio](./Atomize-Studio.md) is Atomize's standalone desktop app — the visual counterpart to the CLI wizard and VS Code authoring. Its Templates Area offers four **Starting Paths** into the same authoring surface:
+
+| Starting Path | Equivalent to | Detaches into a new template? |
+|---|---|---|
+| Scratch | `atomize template create --scratch` | Yes |
+| Catalog Clone | `atomize template create --from <name>` | Yes |
+| Open | Authoring a local Atomize YAML File directly | No — see below |
+| AI draft | `atomize template create --ai` | Yes |
+
+**Scratch**, **Catalog Clone**, and **AI draft** always produce a detached, new template — same as their CLI equivalents. **Catalog Clone** materializes the selected catalog template's fully resolved form (inheritance and mixins already applied, so the clone no longer declares `extends`/`mixins`) into the authoring surface, and records where it came from for later comparison (see Template Diff in the [Atomize Studio reference](./Atomize-Studio.md)).
+
+**Open** is the one exception: it loads an existing local Atomize YAML File, and saving continues that same file's identity rather than detaching into a new template — closer to editing a file directly in VS Code than to the other three Starting Paths. A file that declares `extends` or `mixins` is resolved into its composed form before loading, and those fields are stripped once resolved (re-declaring them after Studio's already-flattened composition would duplicate the contributed tasks the next time the file is opened).
+
+For the full breakdown of Studio's authoring surface, Grounded Field Options, and how it authenticates AI drafts, see the [Atomize Studio reference](./Atomize-Studio.md).
+
 ## AI-Assisted Drafts
 
-Use AI-assisted creation when you can describe the desired workflow but do not want to write the initial YAML.
+Use AI-assisted creation when you can describe the desired workflow but do not want to write the initial YAML. This is available both from the CLI and as the **AI draft** Starting Path in [Atomize Studio](./Atomize-Studio.md).
 
-First configure a GitHub Models profile:
-
-```bash
-atomize auth add my-ai
-atomize auth test my-ai
-```
-
-Then create a draft:
+Create a draft. Atomize starts GitHub Copilot sign-in when needed and uses your active Copilot subscription — see [Auth Guide](./Auth-Guide.md) for how this Copilot sign-in works and how it differs from a saved connection profile:
 
 ```bash
 atomize template create --ai
@@ -107,7 +119,7 @@ For better project-specific output, ground the generation with Azure DevOps meta
 atomize template create --ai --ground --profile work-ado
 ```
 
-Use `--ground` when your project has custom fields, non-standard work item types, or team-specific task naming conventions.
+Use `--ground` when your project has custom fields, non-standard work item types, or team-specific task naming conventions. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
 
 Always review AI-generated templates before use:
 

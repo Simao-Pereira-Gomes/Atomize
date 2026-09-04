@@ -1,0 +1,77 @@
+# Architecture Decision Records
+
+An ADR here captures one architectural decision — the context that forced it, what was decided, and (usually) what alternatives were rejected and why. They're written when the decision itself needs to survive past the PR that made it: later contributors should be able to tell "this is intentional" from "this is an accident nobody's fixed yet."
+
+53 ADRs exist today (0001-0059; a handful of numbers were retired). Browse by theme below to find decisions relevant to the surface you're touching, or open them numerically in `docs/adr/` for the full chronological history. A `>` blockquote at the top of an ADR means it's been superseded or is no longer applicable — the note says which ADR replaced it or what removed the need for it; read the newer one first.
+
+## Shared Domain / Cross-Cutting
+
+Decisions affecting the Template Library, Catalog, or shared packages consumed by more than one surface.
+
+- [0010 - Origin-based template lineage](./0010-origin-based-template-lineage.md) — adds an informational `origin` field recording what a Template/Mixin was derived from, shown as `↖ based on:` in `template list`.
+- [0019 - Catalog storage root and project discovery](./0019-catalog-storage-root-and-project-discovery.md) — Catalog items live under `catalog/{templates,mixins}` per scope; project scope resolves from a discovered workspace root, not raw `cwd()`.
+- [0020 - `template list --json` contract and cross-kind lineage resolution](./0020-template-list-json-contract.md) — defines the JSON contract Catalog-browsing UIs depend on, and fixes lineage resolution across template/mixin kinds.
+- [0021 - Stable fixable warning codes in `validate --output json`](./0021-fixable-warning-codes-validate-json.md) — adds a stable `code` field to warnings with a single unambiguous mechanical fix, for editor Code Actions.
+- [0026 - Catalog migration command semantics](./0026-catalog-migration-command-semantics.md) — `template migrate` is opt-in and conservative: user-scope by default, never overwrites, never auto-validates.
+- [0035 - `atomize-schema`: shared Zod schema and graph utilities](./0035-atomize-schema-shared-package.md) — extracts the Zod schema/types into their own package so the CLI and Studio don't duplicate or drift; still the base of the dependency graph post-0038.
+- [0038 - Atomize-core extracted into a shared library, replacing CLI subprocess across the extension and Studio](./0038-atomize-core-shared-library-replaces-cli-subprocess.md) — the big one: carves `atomize-core` out of the CLI so the extension embeds it in-process and Studio talks to it through a long-lived sidecar, instead of both shelling out to the CLI binary per call.
+- [0041 - Bundled `atomize-core` consumers must supply `TemplateCatalog`'s `packageRoot` explicitly](./0041-bundled-consumers-supply-catalog-package-root.md) — bundling erases the module's on-disk location, so every bundled consumer (CLI, extension, Studio's sidecar) copies the catalog and passes its root explicitly rather than relying on auto-detection.
+- [0043 - Studio and CLI share Connection Profile records](./0043-studio-cli-shared-connection-profiles.md) — both read/write the same `~/.atomize/connections.json`, each resolving secrets through its own native OS-keyring API; Studio supports keyring-only tokens.
+- [0044 - GitHub Copilot SDK for AI Template drafting](./0044-copilot-sdk-for-ai-template-drafting.md) — replaces the retired GitHub Models provider; AI drafting now uses an ephemeral Copilot SDK session tied to the user's local Copilot sign-in, no token stored.
+- [0049 - Catalog remove logic moves from the CLI into `atomize-core`, shared with Studio's sidecar](./0049-catalog-remove-lives-in-atomize-core.md) — one shared `TemplateCatalog.removeUserItem` implementation instead of the CLI and sidecar independently deciding what's removable.
+- [0057 - `atomize-core`'s `Atomizer.atomize` gains a batch-level `AbortSignal`](./0057-atomize-core-gains-batch-level-cancellation.md) — cancellation stops at batch boundaries (in-flight stories complete); added for Studio's live Execute, usable by any consumer.
+
+## CLI
+
+- [0005 - `--output json` flag on `atomize validate`](./0005-validate-json-output-flag.md) — machine-readable validation output for the extension to consume via subprocess, instead of a full LSP daemon.
+
+## VS Code Extension
+
+- [0001 - Monorepo structure for the VS Code extension](./0001-monorepo-for-vscode-extension.md) — adds Bun workspaces so the CLI and extension can coexist with different build pipelines.
+- [0002 - YAML language service for Atomize YAML files](./0002-custom-language-id-for-atomize-yaml.md) — Atomize files stay on VS Code's built-in `yaml` language ID (for Red Hat YAML's hovers/completions) rather than a custom language ID.
+- [0003 - YAML schema wiring via `redhat.vscode-yaml` contributor API](./0003-yaml-schema-wiring-via-redhat-contributor-api.md) — schema association happens through the programmatic contributor API, not static `contributes.yamlValidation`, so it can honor durable/session opt-in rules.
+- [0006 - `.atomize.yaml` as the canonical file extension](./0006-atomize-yaml-file-extension-convention.md) — the durable opt-in signal for Atomize tooling in the editor.
+- [0007 - VS Code extension authoring surface](./0007-vscode-extension-authoring-surface.md) — durable vs. session opt-in tiers; save-time validation is passive (diagnostics only, never steals focus).
+- [0011 - Explicit VS Code validation profile picker](./0011-smart-validate-command-with-profile-picker.md) — *(Superseded by 0022)* — established that the system never silently chooses a validation profile.
+- [0012 - VS Code extension profile management surface](./0012-profile-management-surface-in-vscode-extension.md) — *(Superseded by 0040)* — a dedicated `Atomize: Manage Profiles` command, Azure DevOps only.
+- [0013 - Mock Preview Panel as a separate panel with re-inspect-on-reopen](./0013-mock-preview-panel-architecture.md) — a dedicated scripted webview, independent of the script-free validation panel, that re-runs `--inspect` on reopen so edits aren't stale.
+- [0014 - Live Preview architecture](./0014-live-preview-architecture.md) — a dedicated `--json` stdout flag on `atomize gen`, and its own panel singleton independent of Mock Preview.
+- [0016 - VS Code Generate panel confirmation flow](./0016-generate-panel-confirmation-flow.md) — dry run first, then explicit panel action plus a modal confirmation before `--execute --auto-approve`.
+- [0018 - CLI Feature Requirement check](./0018-cli-feature-requirement-check.md) — activation-time, hard-coded minimum CLI version check (pre-dates 0038's embedding; the extension no longer shells out to a CLI at all).
+- [0022 - Workspace Default Profile pre-selection across all pickers](./0022-workspace-default-profile.md) — distinguishes pre-selection (focuses a picker item, user still confirms) from silent auto-selection, which 0011 had ruled out.
+- [0023 - Resolved Template view: `TextDocumentContentProvider` over webview panel](./0023-resolved-template-view-content-provider.md) — a virtual read-only text document gives native YAML highlighting for free; no custom HTML needed for a static dump.
+- [0024 - Catalog Browser: virtual scheme for built-in Catalog item files](./0024-catalog-browser-builtin-readonly-virtual-scheme.md) — built-in items open as structurally read-only virtual documents; user/project items open as normal editable files.
+- [0025 - Validation Code Action factories use the `yaml` package to locate edit targets](./0025-yaml-parser-for-validation-code-action-factories.md) — real YAML parsing instead of line-scanning, to avoid silent corruption on quoted/block scalars and flow-style sequences.
+- [0028 - Generate JSON stream protocol](./0028-generate-json-stream-protocol.md) — *(No longer applicable per 0038)* — an NDJSON progress protocol over a CLI subprocess's stdout; the subprocess boundary it needed no longer exists.
+- [0029 - Generate Panel restarts on re-open](./0029-generate-panel-restart-on-reopen.md) — re-triggering Generate while idle discards state and restarts, so a previously entered Story filter can't remain silently active.
+- [0030 - Extension release pipeline: git tag sentinel + version-change detection](./0030-extension-release-pipeline.md) — merging a version bump to `main` publishes automatically; see also Release & CI Pipelines below.
+- [0040 - VS Code extension owns independent profile storage, with one-time CLI import](./0040-vscode-extension-profile-storage.md) — reverses 0012's CLI-as-source-of-truth premise once `auth list --json` (a subprocess call) no longer exists; profiles live in `globalState`/`SecretStorage`, with a read-only one-time CLI import.
+
+## Atomize Studio
+
+- [0032 - Template Builder: Tauri desktop app over hosted web app or VS Code extension](./0032-template-builder-tauri-desktop-app.md) — the founding decision: a visual authoring surface for users who find the CLI intimidating, built as a Tauri app.
+- [0033 - Template Builder: Tauri bundle identifier as GitHub namespace](./0033-template-builder-bundle-identifier.md) — `io.github.<owner>.template-builder`, avoiding a brand domain that isn't owned.
+- [0034 - Template Builder: CLI bridge via `tauri-plugin-shell` over custom Rust command](./0034-template-builder-cli-bridge-via-tauri-plugin-shell.md) — the original CLI-subprocess bridge, all in TypeScript, no custom Rust.
+- [0036 - Atomize Studio: expanded scope stays CLI-subprocess, not embedded](./0036-atomize-studio-expanded-scope-remains-cli-subprocess.md) — *(Superseded by 0038)* — decided embedding required a library API the CLI didn't have yet; that work was then undertaken.
+- [0037 - Atomize Studio: Local File Clone omits origin / Template Lineage](./0037-local-file-clone-omits-origin.md) — *(Superseded by 0048)* — established that `origin` is stripped only on export-as-copy, which 0048 carries forward.
+- [0039 - Atomize Studio: bundle identifier renamed pre-release](./0039-atomize-studio-bundle-identifier-rename.md) — `template-builder` → `atomize-studio` in the bundle ID, safe pre-release.
+- [0042 - Studio sidecar wire protocol, correlation, and lifecycle](./0042-studio-sidecar-wire-protocol.md) — concretizes 0038: a JSON-RPC-flavored envelope, concurrent dispatch with correlation ids, and a full CI build matrix from day one.
+- [0045 - AI draft grounding uses curated metadata, never credentials](./0045-ai-draft-grounding-boundary.md) — grounding sends Azure DevOps metadata to the AI provider, never the Connection Profile's PAT.
+- [0046 - Studio AI drafts are cancellable through the sidecar](./0046-studio-ai-draft-cancellation.md) — a dedicated `ai.cancel` operation aborts the matching Copilot session so a dismissed draft stops consuming usage.
+- [0047 - Connection Profile management lives in Global Settings, not a Connections Studio Area](./0047-studio-connection-management-lives-in-global-settings.md) — profiles are cross-cutting infrastructure, not a fourth sidebar area.
+- [0048 - Studio's Open flattens extends/mixins at load time; origin persists across Save, stripped only on Export as copy](./0048-studio-open-flattens-extends-mixins-at-load.md) — fixes a cumulative-corruption bug in 0037's approach once Local File Clone merged with Open.
+- [0050 - Catalog Clone's picker moves into the Catalog Area instead of a separate inline list](./0050-catalog-clone-picker-moves-into-catalog-area.md) — one place to browse the Catalog, not two visually different screens with different capabilities.
+- [0051 - Studio Back moves to a global navigation history stack, decoupled from discarding the Authoring Store](./0051-studio-navigation-history-stack.md) — Back becomes purely navigational; Discard becomes its own explicit action.
+- [0052 - Studio's Catalog install (Review step) follows the sidecar pattern, not a new CLI Bridge](./0052-studio-catalog-install-follows-sidecar-pattern.md) — reuses the CLI's own `installTemplate`/`previewInstall` with a new in-memory-content source, instead of resurrecting a CLI Bridge.
+- [0053 - Studio Starting Paths gets a "Continue editing" banner for a draft parked by Back](./0053-studio-resume-parked-draft.md) — closes a dead end where a live in-memory draft became unreachable once the history stack was exhausted.
+- [0054 - Studio sidecar uses cooperative request cancellation](./0054-studio-sidecar-cooperative-request-cancellation.md) — `$/cancelRequest` plus `AbortController`; best-effort, since the underlying Azure DevOps calls can't guarantee network-level cancellation.
+- [0055 - Studio's Generate action has no separate Live Preview step](./0055-studio-generate-dry-run-is-the-live-preview.md) — one `atomize()` call gated by a `dryRun` flag; the dry run's report is what Live Execution Confirmation renders.
+- [0056 - Generate Scope is chosen by browsing real Stories, not a blind ID list](./0056-studio-generate-scope-via-story-browser.md) — a new sidecar RPC lets users pick from real matching Stories, unlike the CLI's/extension's blind ID input.
+- [0058 - Studio's Template Diff compares against the cloned raw origin, not the resolved origin](./0058-studio-template-diff-baseline-is-cloned-raw-origin.md) — Catalog Clone never composes `extends`/`mixins`, so the diff baseline can't be the resolved form without spuriously reporting every inherited task as removed.
+- [0059 - Studio release pipeline and no-cost distribution](./0059-studio-release-tags-gate-publishing.md) — see Release & CI Pipelines below.
+
+## Release & CI Pipelines
+
+- [0030 - Extension release pipeline: git tag sentinel + version-change detection](./0030-extension-release-pipeline.md) — merging a version bump to `main` publishes automatically, gated by a `vscode-v<version>` tag check.
+- [0031 - CLI release pipeline: git tag sentinel replacing manual release + publish](./0031-cli-release-pipeline.md) — adopts the same tag-sentinel pattern as the extension, replacing a two-step manual `workflow_dispatch` release.
+- [0059 - Studio release pipeline and no-cost distribution](./0059-studio-release-tags-gate-publishing.md) — continuous builds on every push, but only a `studio-v<version>` tag publishes a GitHub Release; installers are unsigned/un-notarized since the project can't fund code-signing.

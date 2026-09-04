@@ -1,5 +1,5 @@
 import { log } from "@clack/prompts";
-import { TemplateCatalog } from "@services/template/template-catalog";
+import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
 
 /**
  * Resolves a template argument to an absolute file path.

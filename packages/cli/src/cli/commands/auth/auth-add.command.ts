@@ -1,6 +1,8 @@
 import { confirm } from "@clack/prompts";
 import type { Config } from "@config/config";
 import { keychainAvailable } from "@config/keychain.service";
+import { validateOrganizationUrl } from "@sppg2001/atomize-core";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
 import {
   createCommandOutput,
@@ -13,13 +15,11 @@ import {
   isInteractiveTerminal,
 } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
-import { getErrorMessage } from "@/utils/errors";
 import {
   checkProfileNameAvailable,
   promptProfileName,
   promptRemainingInputs,
   promptSetAsDefault,
-  validateOrganizationUrl,
   validateProfileName,
 } from "./helpers/auth-add.helper";
 import { saveAuthProfileWorkflow } from "./helpers/auth-profile-workflow";

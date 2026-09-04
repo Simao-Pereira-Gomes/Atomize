@@ -1,5 +1,5 @@
 import { confirm, log, select, text } from "@clack/prompts";
-import type { ADoFieldSchema } from "@platforms/interfaces/field-schema.interface";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import { assertNotCancelled, selectOrAutocomplete } from "@/cli/utilities/prompt-utilities";
 
 /**

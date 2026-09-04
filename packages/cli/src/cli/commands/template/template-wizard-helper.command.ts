@@ -1,12 +1,12 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
-import type { SavedQueryInfo } from "@platforms/interfaces/platform.interface";
-import type { TemplateCatalogItem } from "@services/template/template-catalog";
+import type { SavedQueryInfo } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
+import type { TemplateCatalogItem } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type {
   EstimationConfig,
   FilterCriteria,
   Metadata,
   ValidationConfig,
-} from "@templates/schema";
+} from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import {
   createCommandOutput,
@@ -763,8 +763,8 @@ export async function configureValidation(defaults?: ValidationConfig): Promise<
     await select({
       message: "Estimation validation type:",
       options: [
-        { label: "Must equal 100%", value: "exact" },
-        { label: "Range (e.g., 95-105%)", value: "range" },
+        { label: "Must equal a total (%)", value: "exact" },
+        { label: "Range (e.g., 95-105% or 110-130%)", value: "range" },
         { label: "No validation", value: "none" },
       ],
       initialValue: initialValidationType,
@@ -772,13 +772,22 @@ export async function configureValidation(defaults?: ValidationConfig): Promise<
   );
 
   if (validationType === "exact") {
-    validation.totalEstimationMustBe = 100;
+    const exactRaw = assertNotCancelled(
+      await text({
+        message: "Required total estimation %:",
+        initialValue: String(defaults?.totalEstimationMustBe ?? 100),
+        placeholder: "e.g. 100 or 120",
+        validate: Validators.nonNegative("Required total estimation"),
+      }),
+    );
+    validation.totalEstimationMustBe = Number(exactRaw);
   } else if (validationType === "range") {
     const minRaw = assertNotCancelled(
       await text({
         message: "Minimum total estimation %:",
         initialValue: String(defaults?.totalEstimationRange?.min ?? 95),
         placeholder: "e.g. 95",
+        validate: Validators.nonNegative("Minimum total estimation"),
       }),
     );
     const maxRaw = assertNotCancelled(
@@ -790,6 +799,7 @@ export async function configureValidation(defaults?: ValidationConfig): Promise<
           if (!input || input.trim() === "") return undefined;
           const n = Number(input);
           if (Number.isNaN(n)) return "Must be a valid number";
+          if (n < 0) return "Maximum cannot be negative";
           if (n < Number(minRaw))
             return `Maximum must be ≥ minimum (${minRaw}%)`;
           return undefined;
@@ -878,11 +888,20 @@ export async function configureMetadata(defaults?: Metadata): Promise<Metadata |
     }),
   );
 
+  const notes = assertNotCancelled(
+    await text({
+      message: "Template notes:",
+      placeholder: "Optional context for template authors and maintainers",
+      initialValue: defaults?.notes ?? "",
+    }),
+  );
+
   if (category) metadata.category = category;
   if (difficulty) metadata.difficulty = difficulty as Metadata["difficulty"];
   if (recommendedFor.length > 0) metadata.recommendedFor = recommendedFor;
   if (estimationGuidelines)
     metadata.estimationGuidelines = estimationGuidelines;
+  if (notes) metadata.notes = notes;
 
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }

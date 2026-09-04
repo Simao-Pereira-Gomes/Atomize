@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This release splits Atomize into a shared architecture (`atomize-core`, `atomize-schema`, `atomize-ai`) consumed by three independent surfaces — the CLI, the VS Code extension, and the new Atomize Studio desktop app — and retires GitHub Models in favor of GitHub Copilot for AI-assisted drafting. See [Contributing.md#monorepo-architecture](./Contributing.md#monorepo-architecture) for the package layout.
+
 ### Added
+- **Atomize Studio** — new standalone desktop app (macOS, Windows, experimental Linux), the visual counterpart to the CLI and VS Code extension. Templates Area (four Starting Paths: scratch, Catalog Clone, Open, AI draft), Generate Area (Mock Preview, Live Preview, execution with confirmation), Catalog Area (install/remove), and Global Settings (Connection Profiles, Theme). See [docs/Atomize-Studio.md](./docs/Atomize-Studio.md).
+- `atomize template metadata` — reads Azure DevOps project metadata (work item types, states, fields, saved queries) as JSON, for visual template-authoring surfaces.
 - `auth rotate --pat-stdin` for non-interactive PAT rotation.
+- Connection Profiles are now shared between the CLI and Atomize Studio through the same `~/.atomize/connections.json`, each surface resolving tokens through its own native OS credential manager. See [docs/Auth-Guide.md](./docs/Auth-Guide.md#shared-between-the-cli-and-atomize-studio).
+
+### Changed
+- The VS Code extension no longer shells out to a separately-installed CLI — it embeds `atomize-core` directly and runs in-process. No CLI install is required for validation, preview, or generation.
+- AI-assisted template drafting (`template create --ai` in the CLI; the AI draft Starting Path in Studio) now authenticates through an ephemeral GitHub Copilot SDK sign-in (a Copilot Session) instead of a stored AI Connection Profile.
+
+### Deprecated
+- VS Code settings `atomize.cliPath`, `atomize.cli.installCommand`, and `atomize.cli.autoCheckUpdates` are no-ops — the extension no longer runs an external CLI. A one-time notice points affected users here.
+
+### Removed
+- **GitHub Models AI provider support**, following [GitHub's retirement of GitHub Models on 30 July 2026](https://github.blog/changelog/2026-07-01-github-models-is-being-fully-retired-on-july-30-2026/): the `github-models` Connection Profile type (`auth add`/`auth test`/`auth rotate` all reject it; existing profiles remain listed only for `auth remove`), the `--ai-profile` flag, and the `ATOMIZE_AI_PROFILE` environment variable. See [docs/github-models-retirement-assessment.md](./docs/github-models-retirement-assessment.md) for the background.
 
 ---
 

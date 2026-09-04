@@ -6,18 +6,19 @@ import {
 } from "@clack/prompts";
 import type { Config } from "@config/config";
 import { logger } from "@config/logger";
-import type { AtomizationReport, Atomizer } from "@core/atomizer";
+import type { AtomizationReport, Atomizer } from "@sppg2001/atomize-core/core/atomizer";
+import { shouldOfferOverageNormalization } from "@sppg2001/atomize-core/core/estimation-distribution";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
   ProjectMetadataReader,
-} from "@platforms/interfaces/platform-capabilities";
-import { PlatformFactory } from "@platforms/platform-factory";
-import type { CompositionMeta } from "@templates/loader";
-import type { TaskTemplate } from "@templates/schema";
-import { TemplateLibrary } from "@templates/template-library";
-import { AuthError } from "@utils/errors";
-import { clampConcurrency } from "@utils/math";
+} from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
+import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
+import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
+import { AuthError } from "@sppg2001/atomize-core/utils/errors";
+import { clampConcurrency } from "@sppg2001/atomize-core/utils/math";
 import chalk from "chalk";
 import { Command, Option } from "commander";
 import { match } from "ts-pattern";
@@ -39,7 +40,6 @@ import {
   sanitizeTty,
   selectOrAutocomplete,
 } from "@/cli/utilities/prompt-utilities";
-import { shouldOfferOverageNormalization } from "@/core/estimation-distribution";
 
 
 export function getNonInteractiveLiveExecutionError(options: {
@@ -273,7 +273,7 @@ async function initPlatform(
           maxConcurrency: taskConcurrency,
         });
       })
-      .otherwise(() => PlatformFactory.create(options.platform as import("@platforms/interfaces/platform.interface").PlatformType));
+      .otherwise(() => PlatformFactory.create(options.platform as import("@sppg2001/atomize-core/platforms/interfaces/platform.interface").PlatformType));
   } catch (error) {
     if (error instanceof Error) {
       output.cancel(sanitizeTty(error.message));

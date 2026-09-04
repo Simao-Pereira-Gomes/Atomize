@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize — generate tasks from YAML templates",
-	"version": "0.0.7",
+	"version": "0.1.0",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -33,21 +33,6 @@
 		"configuration": {
 			"title": "Atomize",
 			"properties": {
-				"atomize.cliPath": {
-					"type": "string",
-					"default": "atomize",
-					"description": "Path to the Atomize CLI executable used for validation and preview."
-				},
-				"atomize.cli.installCommand": {
-					"type": "string",
-					"default": "npm install -g @sppg2001/atomize",
-					"description": "Command run in a visible terminal to install or update the default Atomize CLI."
-				},
-				"atomize.cli.autoCheckUpdates": {
-					"type": "boolean",
-					"default": true,
-					"description": "Automatically check npm for stable Atomize CLI updates when using the default CLI executable."
-				},
 				"atomize.defaultProfile": {
 					"type": "string",
 					"default": "",
@@ -148,15 +133,14 @@
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100"
 	},
 	"dependencies": {
-		"semver": "^7.7.4",
+		"@sppg2001/atomize-core": "workspace:*",
 		"yaml": "^2.8.3"
 	},
 	"devDependencies": {
 		"@tailwindcss/cli": "^4.3.0",
 		"@types/node": "^20.0.0",
-		"@types/semver": "^7.7.1",
 		"@types/vscode": "^1.85.0",
-		"@vscode/vsce": "^2.24.0",
+		"@vscode/vsce": "^3.9.2",
 		"bun-types": "^1.3.13",
 		"esbuild": "^0.25.0",
 		"tailwindcss": "^4.3.0",

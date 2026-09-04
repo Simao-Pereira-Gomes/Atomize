@@ -1,0 +1,49 @@
+name: Build Studio sidecar
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/atomize-sidecar/**
+      - packages/atomize-ai/**
+      - packages/atomize-core/**
+      - packages/atomize-schema/**
+      - .github/workflows/build-studio-sidecar.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - packages/atomize-sidecar/**
+      - packages/atomize-ai/**
+      - packages/atomize-core/**
+      - packages/atomize-schema/**
+      - .github/workflows/build-studio-sidecar.yml
+
+permissions: {}
+
+jobs:
+  sidecar:
+    name: Sidecar (${{ matrix.triple }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            triple: x86_64-pc-windows-msvc
+          - os: macos-14
+            triple: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+        working-directory: packages/atomize-ai
+      - run: bun test
+        working-directory: packages/atomize-sidecar
+      - run: bun run build:standalone
+        working-directory: packages/atomize-sidecar

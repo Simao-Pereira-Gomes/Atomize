@@ -6,7 +6,7 @@ Setup and configuration guide for different work item management platforms.
 
 - [Overview](#overview)
 - [Azure DevOps](#azure-devops)
-- [GitHub Models (AI)](#github-models-ai)
+- [GitHub Copilot (AI)](#github-copilot-ai)
 - [Mock Platform](#mock-platform)
 - [Adding New Platforms](#adding-new-platforms)
 
@@ -31,7 +31,9 @@ Atomize is designed around platform adapters. Today, connected generation suppor
 
 | Provider | Status | Used for |
 |----------|--------|----------|
-| GitHub Models | ✅ Production | `template create --ai` |
+| GitHub Copilot | ✅ Production | `template create --ai` |
+
+GitHub Copilot drafts Templates through an ephemeral Copilot Session with your locally signed-in Copilot account — it does not use a Connection Profile. GitHub Models, the previous AI provider, was fully retired by GitHub on 30 July 2026; see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
 
 ---
 
@@ -343,36 +345,16 @@ Maps to Azure DevOps fields:
 
 ---
 
-## GitHub Models (AI)
+## GitHub Copilot (AI)
 
-GitHub Models is the AI provider used by `template create --ai`. It is not a work item platform — no tasks are created through it — but it requires its own connection profile.
-
-### Prerequisites
-
-- A GitHub personal access token with the `models:read` scope
-  - Create one at `https://github.com/settings/tokens`
-
-### Setup
-
-```bash
-atomize auth add my-ai
-# → select "GitHub Models (AI template generation)" when prompted for platform type
-# → enter your GitHub PAT
-
-atomize auth test my-ai
-```
+GitHub Copilot drafts Templates for `template create --ai`. It is not a work item platform and does not use a Connection Profile: Atomize runs the Copilot SDK's bundled runtime with the locally signed-in user's subscription.
 
 ### Usage
 
-Once the profile is saved, pass it when generating AI templates:
-
 ```bash
-atomize template create --ai                        # uses default GitHub Models profile
-atomize template create --ai --ai-profile my-ai     # explicit profile
+atomize template create --ai
 atomize template create --ai --ground --profile work-ado  # grounded with ADO context
 ```
-
-`ATOMIZE_AI_PROFILE` can be set as an alternative to `--ai-profile`.
 
 See [Template Creation - AI-Assisted Drafts](./Template-Creation.md#ai-assisted-drafts) for the full workflow.
 

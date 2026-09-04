@@ -1,14 +1,14 @@
 import { logger } from "@config/logger";
-import type { AtomizationReport } from "@core/atomizer";
+import type { AtomizationReport } from "@sppg2001/atomize-core/core/atomizer";
+import { writeReportFile } from "@sppg2001/atomize-core/core/report-formatter";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
   ProjectMetadataReader,
-} from "@platforms/interfaces/platform-capabilities";
-import type { TaskTemplate } from "@templates/schema";
+} from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import type { Config } from "@/config/config";
-import { writeReportFile } from "@/core/report-formatter";
 import type { CommandOutputPolicy } from "../utilities/command-output";
 import { ExitCode, ExitError } from "../utilities/exit-codes";
 import type { OutputSink } from "../utilities/output-sink";

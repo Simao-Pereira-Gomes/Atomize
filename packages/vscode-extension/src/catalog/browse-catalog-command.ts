@@ -1,8 +1,9 @@
 import * as fs from 'node:fs/promises';
+import type { TemplateCatalogItem } from '@sppg2001/atomize-core/services/template/template-catalog';
 import * as vscode from 'vscode';
 import { isAtomizeDocument } from '../authoring/language-detection.js';
-import { buildTemplateCatalogListArgs, probeCli, spawnCli } from '../cli/cli-provider.js';
-import { getConfiguredCliPath } from '../config/atomize-configuration.js';
+import { createTemplateLibrary } from '../core-library.js';
+import { forgetCatalogDocumentPath, rememberCatalogDocumentPath } from './catalog-document-path.js';
 
 export const CATALOG_ITEM_SCHEME = 'atomize-catalog';
 
@@ -18,6 +19,7 @@ export class CatalogItemProvider implements vscode.TextDocumentContentProvider, 
 
 	delete(uri: vscode.Uri): void {
 		this._content.delete(uri.toString());
+		forgetCatalogDocumentPath(uri);
 	}
 
 	provideTextDocumentContent(uri: vscode.Uri): string {
@@ -29,51 +31,51 @@ export class CatalogItemProvider implements vscode.TextDocumentContentProvider, 
 	}
 }
 
-interface CatalogJsonItem {
-	name: string;
-	displayName: string;
-	description: string;
-	ref: string;
-	scope: 'builtin' | 'user' | 'project';
-	kind: 'template' | 'mixin';
-	path: string;
+interface CatalogPickEntry extends TemplateCatalogItem {
 	overrides?: { name: string; ref: string; scope: string; path: string };
-	origin?: { ref: string; scope: string };
+	lineageOrigin?: { ref: string; scope: string };
 }
 
-type CatalogPickItem = vscode.QuickPickItem & { catalogItem: CatalogJsonItem };
+type CatalogPickItem = vscode.QuickPickItem & { catalogItem: CatalogPickEntry };
 
 type PickAction =
 	| { type: 'select'; ref: string }
-	| { type: 'open'; item: CatalogJsonItem };
+	| { type: 'open'; item: CatalogPickEntry };
 
 const OPEN_FILE_BUTTON: vscode.QuickInputButton = {
 	iconPath: new vscode.ThemeIcon('go-to-file'),
 	tooltip: 'Open backing file',
 };
 
-function fetchCatalog(cliPath: string): Promise<CatalogJsonItem[] | null> {
-	return new Promise(resolve => {
-		const proc = spawnCli(cliPath, buildTemplateCatalogListArgs());
-		let stdout = '';
-		proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-		proc.on('close', () => {
-			try {
-				const parsed = JSON.parse(stdout);
-				resolve(Array.isArray(parsed) ? parsed : null);
-			} catch {
-				resolve(null);
-			}
-		});
-		proc.on('error', () => resolve(null));
-	});
+async function fetchCatalog(): Promise<CatalogPickEntry[] | null> {
+	try {
+		const { items, overrides, lineage } = await createTemplateLibrary().getCatalogAll();
+		const overrideMap = new Map(overrides.map(({ active, overridden }) => [active.ref, overridden]));
+		const lineageMap = new Map(lineage.map(({ item, originItem }) => [item.ref, originItem]));
+
+		return [...items]
+			.sort((a, b) => a.kind !== b.kind ? (a.kind === 'template' ? -1 : 1) : a.ref.localeCompare(b.ref))
+			.map((item): CatalogPickEntry => {
+				const overriddenItem = overrideMap.get(item.ref);
+				const originItem = lineageMap.get(item.ref);
+				return {
+					...item,
+					...(overriddenItem !== undefined ? {
+						overrides: { name: overriddenItem.name, ref: overriddenItem.ref, scope: overriddenItem.scope, path: overriddenItem.path },
+					} : {}),
+					...(originItem !== undefined ? { lineageOrigin: { ref: originItem.ref, scope: originItem.scope } } : {}),
+				};
+			});
+	} catch {
+		return null;
+	}
 }
 
-function toCatalogPickItem(item: CatalogJsonItem): CatalogPickItem {
+function toCatalogPickItem(item: CatalogPickEntry): CatalogPickItem {
 	const detailParts = [item.ref];
 	if (item.description) detailParts.push(item.description);
 	if (item.overrides) detailParts.push(`⚠ overrides ${item.overrides.scope} at ${item.overrides.path}`);
-	if (item.origin) detailParts.push(`↖ based on ${item.origin.scope} ${item.origin.ref}`);
+	if (item.lineageOrigin) detailParts.push(`↖ based on ${item.lineageOrigin.scope} ${item.lineageOrigin.ref}`);
 
 	return {
 		label: item.displayName,
@@ -84,7 +86,7 @@ function toCatalogPickItem(item: CatalogJsonItem): CatalogPickItem {
 	};
 }
 
-function buildQuickPickItems(items: CatalogJsonItem[]): (CatalogPickItem | vscode.QuickPickItem)[] {
+function buildQuickPickItems(items: CatalogPickEntry[]): (CatalogPickItem | vscode.QuickPickItem)[] {
 	const result: (CatalogPickItem | vscode.QuickPickItem)[] = [];
 	const templates = items.filter(i => i.kind === 'template');
 	const mixins = items.filter(i => i.kind === 'mixin');
@@ -100,7 +102,7 @@ function buildQuickPickItems(items: CatalogJsonItem[]): (CatalogPickItem | vscod
 	return result;
 }
 
-async function openCatalogItemFile(item: CatalogJsonItem, provider: CatalogItemProvider): Promise<void> {
+async function openCatalogItemFile(item: CatalogPickEntry, provider: CatalogItemProvider): Promise<void> {
 	if (item.scope === 'builtin') {
 		let content: string;
 		try {
@@ -115,6 +117,7 @@ async function openCatalogItemFile(item: CatalogJsonItem, provider: CatalogItemP
 			path: `/${item.kind}/${item.name}.atomize.yaml`,
 		});
 		provider.set(uri, content);
+		rememberCatalogDocumentPath(uri, item.path);
 		const doc = await vscode.workspace.openTextDocument(uri);
 		await vscode.languages.setTextDocumentLanguage(doc, 'yaml');
 		await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false });
@@ -126,7 +129,6 @@ async function openCatalogItemFile(item: CatalogJsonItem, provider: CatalogItemP
 
 export interface BrowseCatalogCommandDeps {
 	provider: CatalogItemProvider;
-	showCliUnavailable: (cliPath: string, message: string) => Promise<void>;
 }
 
 export function registerBrowseCatalogCommand(deps: BrowseCatalogCommandDeps): vscode.Disposable {
@@ -134,20 +136,13 @@ export function registerBrowseCatalogCommand(deps: BrowseCatalogCommandDeps): vs
 		const activeDoc = vscode.window.activeTextEditor?.document;
 		const targetDoc = activeDoc && isAtomizeDocument(activeDoc) ? activeDoc : undefined;
 
-		const cliPath = getConfiguredCliPath();
-		const probe = await probeCli(cliPath);
-		if (!probe.available) {
-			await deps.showCliUnavailable(cliPath, 'Atomize CLI not found. Install it to browse the catalog.');
-			return;
-		}
-
 		const items = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Loading catalog…', cancellable: false },
-			() => fetchCatalog(cliPath),
+			() => fetchCatalog(),
 		);
 
 		if (items === null) {
-			void vscode.window.showErrorMessage('Atomize: Could not load the catalog. Check that the Atomize CLI is working.');
+			void vscode.window.showErrorMessage('Atomize: Could not load the catalog.');
 			return;
 		}
 

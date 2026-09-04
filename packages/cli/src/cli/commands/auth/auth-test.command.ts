@@ -1,4 +1,5 @@
 import { readConnectionsFile } from "@config/connections.config";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
@@ -7,11 +8,9 @@ import {
 } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
-import { getErrorMessage } from "@/utils/errors";
 import {
   promptProfileToTest,
   resolveTestTarget,
-  testAIProviderConnection,
   testPlatformConnection,
 } from "./helpers/auth-test.helper";
 
@@ -25,8 +24,8 @@ export function makeAuthTestCommand(): Command {
       output.intro(" Atomize — Test Connection");
 
       const file = await readConnectionsFile();
-      if (file.profiles.length === 0) {
-        output.outro("No profiles found. Run: atomize auth add");
+      if (!file.profiles.some((profile) => profile.platform === "azure-devops")) {
+        output.outro("No Azure DevOps profiles found. Run: atomize auth add");
         return;
       }
 
@@ -44,32 +43,17 @@ export function makeAuthTestCommand(): Command {
       try {
         const target = await resolveTestTarget(profileName);
 
-        if (target.kind === "ado") {
-          s.message("Testing Azure DevOps connectivity...");
-          const result = await testPlatformConnection(target.platform);
-          if (result.ok) {
-            s.stop(chalk.green(result.label));
-            spinnerStopped = true;
-            output.outro("Azure DevOps profile is working correctly.");
-          } else {
-            s.stop(chalk.red("Connection failed"));
-            spinnerStopped = true;
-            output.cancel(result.reason);
-            throw new ExitError(ExitCode.Failure);
-          }
+        s.message("Testing Azure DevOps connectivity...");
+        const result = await testPlatformConnection(target.platform);
+        if (result.ok) {
+          s.stop(chalk.green(result.label));
+          spinnerStopped = true;
+          output.outro("Azure DevOps profile is working correctly.");
         } else {
-          s.message("Testing GitHub Models AI provider...");
-          const result = await testAIProviderConnection(target.provider, target.model);
-          if (result.ok) {
-            s.stop(chalk.green(result.label));
-            spinnerStopped = true;
-            output.outro("AI provider profile is working correctly.");
-          } else {
-            s.stop(chalk.red("Connection failed"));
-            spinnerStopped = true;
-            output.cancel(result.reason);
-            throw new ExitError(ExitCode.Failure);
-          }
+          s.stop(chalk.red("Connection failed"));
+          spinnerStopped = true;
+          output.cancel(result.reason);
+          throw new ExitError(ExitCode.Failure);
         }
       } catch (error) {
         if (!spinnerStopped) s.stop("Test failed");

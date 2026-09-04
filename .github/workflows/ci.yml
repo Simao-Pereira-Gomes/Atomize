@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - "release/**"
   pull_request:
     branches:
       - main
@@ -12,16 +11,16 @@ permissions: {}
 
 jobs:
   test:
-    name: Test & Lint (${{ matrix.os }}, node ${{ matrix.node-version }})
+    name: Test & Lint (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [18.x, 20.x, 22.x]
 
     steps:
       - name: Checkout code
@@ -30,18 +29,21 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
+          bun-version: 1.3.13
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build AI workspace dependency
+        run: bun run build
+        working-directory: packages/atomize-ai
+
       - name: Type check
         run: bun run typecheck
+        working-directory: packages/cli
+
+      - name: Lint
+        run: bun run lint
         working-directory: packages/cli
 
       - name: Run tests
@@ -53,19 +55,19 @@ jobs:
         working-directory: packages/cli
 
       - name: Upload build artifacts
-        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x'
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: packages/cli/dist/
           retention-days: 7
 
-  integration-test:
-    name: Integration Tests
+  atomize-core:
+    name: Atomize Core
     runs-on: ubuntu-latest
-    needs: test
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -73,18 +75,80 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run typecheck
+        working-directory: packages/atomize-core
+
+      - name: Run tests
+        run: bun run test
+        working-directory: packages/atomize-core
+
+  vscode-extension-validation:
+    name: VS Code Extension validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run typecheck
+        working-directory: packages/vscode-extension
+
+      - name: Lint
+        run: bun run lint
+        working-directory: packages/vscode-extension
+
+      - name: Build
+        run: bun run build
+        working-directory: packages/vscode-extension
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test, atomize-core]
+    permissions:
+      contents: read
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.13
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Run integration tests
         run: bun run test:integration
-        working-directory: packages/cli
+        working-directory: packages/atomize-core
   validate-templates:
     name: Validate Templates
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -92,6 +156,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.13
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -137,6 +203,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -145,7 +212,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.13
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -161,6 +228,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -169,7 +237,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.3.13
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -181,6 +249,18 @@ jobs:
       - name: Package extension
         run: bun run package
         working-directory: packages/vscode-extension
+
+      - name: Check packaged extension size
+        working-directory: packages/vscode-extension
+        run: |
+          VSIX=$(ls *.vsix)
+          SIZE=$(stat -c%s "$VSIX")
+          MAX=$((5 * 1024 * 1024))
+          echo "Packaged extension: $VSIX ($SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "::error::Packaged extension is ${SIZE} bytes, exceeding the 5MB budget (${MAX} bytes)."
+            exit 1
+          fi
 
       - name: Verify packaged README images
         run: bun run verify:readme-images

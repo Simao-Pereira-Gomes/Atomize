@@ -1,4 +1,4 @@
-import { getErrorMessage } from "@/utils/errors";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 
 const MAX_TEMPLATE_BYTES = 512 * 1024; // 512 KB
 const MAX_FETCH_ATTEMPTS = 3;

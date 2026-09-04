@@ -4,33 +4,15 @@
 
 `atomize template migrate` moves items from Legacy Catalog Storage to the current catalog storage root. The command is opt-in and conservative by default.
 
-## Scope default
+## Scope, validation, and overwrite are all conservative by default
 
-The default scope is `user`. Migrating project-scoped items requires `--scope project` or `--scope all`. Project catalog items may be tracked in version control and affect teammates; silent project-state mutation on an unqualified invocation would be surprising.
+The default scope is `user` — migrating project-scoped items (version-controlled, affects teammates) requires an explicit `--scope project`/`--scope all`, so an unqualified invocation can't silently mutate project state.
 
-## No schema validation during migration
+`migrate` copies legacy files without validating them against the current schema, unlike `template install`. The purpose of `migrate` is to preserve every legacy item regardless of schema drift since it was saved — a file failing current validation is still the user's file and should still land at the new location; validation is `template validate`'s job, not migration's.
 
-`migrate` copies legacy files unconditionally without validating their YAML content against the current schema. This differs from `template install`, which validates before writing.
+`migrate` never replaces an item already present at the new catalog path, with no `--overwrite` escape hatch — such items are reported "already migrated" and skipped unconditionally. Anything at the new path got there through a deliberate write (`install`, `create --save-as`, or a prior migration), so overwriting it with the legacy version would silently undo that intent; a user who wants the legacy version to win must delete the new-path item first, then re-run `migrate`.
 
-Rationale: the purpose of `migrate` is to preserve all legacy items regardless of schema drift that may have occurred since they were saved. A legacy item that fails current schema validation is still the user's file and should reach the new location intact. Validation is `template validate`'s job, not the migration path's job.
-
-## No `--overwrite` flag
-
-`migrate` never replaces an item that already exists in the new catalog path, even when `--overwrite` is absent from the command. Items found in both the Legacy Catalog Storage and the new catalog path are reported as "already migrated" and skipped unconditionally.
-
-Rationale: any item in the new catalog path was put there by a deliberate CLI write (`install`, `create --save-as`) or a previous migration run. All three write paths call `cleanupLegacyDestinationFiles` on success, so the both-paths case is rare and indicates something the user intentionally placed in the new location. Overwriting it with the legacy version would silently undo that intent.
-
-Users who want the legacy version to win should delete the new-path item first, then run `migrate`.
-
-## Source cleanup after each move
-
-After copying the active legacy file to the new catalog path, `migrate` deletes all same-stem extension variants (`.atomize.yaml`, `.atomize.yml`, `.yaml`, `.yml`) from the legacy kind subdirectory for that item name. This is the same cleanup applied by `install` and `create --save-as` and ensures no ghost items re-surface in the catalog from the legacy directory.
-
-## `--cleanup-dirs` flag
-
-By default, empty legacy directories are left in place after migration. The `--cleanup-dirs` flag enables removal of empty kind subdirectories (`templates/`, `mixins/`) and, if both are empty after migration, the legacy root itself (`~/.atomize/templates/` or `<workspace>/.atomize/templates/`). Directories containing unrelated files are never removed.
-
-`--dry-run --cleanup-dirs` reports which directories would be removed without touching the filesystem.
+Source cleanup (deleting the migrated item's legacy-path variants) and the opt-in `--cleanup-dirs` flag for removing emptied legacy directories mirror the same cleanup `install` and `create --save-as` already perform, so no migration path leaves ghost items behind.
 
 ## Consequences
 

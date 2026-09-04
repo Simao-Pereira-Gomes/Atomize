@@ -1,34 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test';
-
-describe('parseValidationOutput', async () => {
-	const { parseValidationOutput } = await import('../validation/validation-output.js');
-
-	it('parses JSON validation output prefixed by spinner control bytes', () => {
-		const result = parseValidationOutput(
-			'\u001b[?25l\u001b[90m│\u001b[39m\n\u001b[32m◇\u001b[39m  Project reference validation failed\n\u001b[?25h{"valid":true,"errors":[],"warnings":[{"path":"template","message":"Could not validate project references against ADO"}],"mode":"lenient"}',
-		);
-
-		expect(result?.valid).toBe(true);
-		expect(result?.warnings[0]?.path).toBe('template');
-	});
-
-	it('returns undefined when no JSON object is present', () => {
-		expect(parseValidationOutput('Project reference validation failed')).toBeUndefined();
-	});
-});
+import { baseVscodeMock } from './vscode-test-helpers.js';
 
 describe('resolvePathToRange', () => {
 	it('ignores comments and values that mention the target path before the real key', async () => {
-		mock.module('vscode', () => ({
-			Range: class Range {
-				start: { line: number; character: number };
-				end: { line: number; character: number };
-				constructor(sl: number, sc: number, el: number, ec: number) {
-					this.start = { line: sl, character: sc };
-					this.end = { line: el, character: ec };
-				}
-			},
-		}));
+		mock.module('vscode', () => baseVscodeMock());
 
 		// We must re-import the module in EVERY test case where we want a fresh mock
 		const { resolvePathToRange } = await import(`../validation/diagnostics.js?t=${Date.now()}-1`);
@@ -55,16 +30,7 @@ describe('resolvePathToRange', () => {
 	});
 
 	it('resolves ["quoted.key"] notation to the field key line, not the parent', async () => {
-		mock.module('vscode', () => ({
-			Range: class Range {
-				start: { line: number; character: number };
-				end: { line: number; character: number };
-				constructor(sl: number, sc: number, el: number, ec: number) {
-					this.start = { line: sl, character: sc };
-					this.end = { line: el, character: ec };
-				}
-			},
-		}));
+		mock.module('vscode', () => baseVscodeMock());
 
 		const { resolvePathToRange } = await import(`../validation/diagnostics.js?t=${Date.now()}-2`);
 

@@ -4,11 +4,7 @@
 
 ## Contract shape
 
-Each item in the array carries: `name`, `displayName`, `description`, `ref`, `scope`, `kind`, and `path`. Items that participate in a Catalog Override include an `overrides` object — `{ name, ref, scope, path }` — for the shadowed entry. The `ref` field is included in `overrides` (beyond what the spec strictly required) because the extension uses catalog refs as canonical identifiers everywhere; reconstructing `ref` from `kind` + `name` at every call site is unnecessary friction.
-
-Items with a resolved Template Lineage include an `origin` object — `{ ref, scope }`. Unresolvable lineage (the `origin` field is declared in the YAML but the referenced item is absent from the catalog) is **silently omitted**, consistent with ADR-0010's treatment in the human output. Partial objects with a missing `scope` are never emitted.
-
-Items are sorted alphabetically by `ref` within each kind, with all templates before all mixins.
+Each item carries identifying fields (`name`, `ref`, `scope`, `kind`, `path`, etc.); shadowed items add an `overrides` object. Resolvable Template items additionally carry the full Resolved Template payload — the key decision being that this lets Template Builder's Catalog clone Starting Path load a source Template through the CLI's JSON interface rather than reading a Catalog path from the WebView, and that composition failures degrade to metadata-only rather than dropping the item from the Catalog. Unresolvable Template Lineage (`origin` declared but its target absent from the catalog) is silently omitted, consistent with ADR-0010's treatment in human output. Exact field shapes live in the `TemplateCatalogItem` type, not here.
 
 ## Cross-kind lineage resolution
 

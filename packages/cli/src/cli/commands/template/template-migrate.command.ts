@@ -1,10 +1,10 @@
-import { TemplateCatalog, type TemplateCatalogScope } from "@services/template/template-catalog";
+import { TemplateCatalog, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
-import { getErrorMessage } from "@/utils/errors";
 
 type MigrateOptions = {
   scope?: string;

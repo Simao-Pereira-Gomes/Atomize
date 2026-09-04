@@ -1,0 +1,391 @@
+import { logger } from "../../../logger";
+import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
+import type {
+  FilterCriteria,
+  QueryResult,
+} from "../../interfaces/filter.interface";
+import type {
+  AuthConfig,
+  IPlatformAdapter,
+  PlatformMetadata,
+  SavedQueryInfo,
+} from "../../interfaces/platform.interface";
+import type {
+  TaskDefinition,
+  WorkItem,
+} from "../../interfaces/work-item.interface";
+import { getMockStoryById, mockUserStories } from "./mock-data";
+
+/**
+ * Mock platform adapter for testing
+ * Simulates platform behavior without making real API calls
+ */
+export class MockPlatformAdapter implements IPlatformAdapter {
+  async getConnectUserEmail(): Promise<string> {
+    await this.delay(50);
+    return "";
+  }
+  queryWorkItemsPaged?(
+    _filter: FilterCriteria,
+    _skip: number,
+    _take: number
+  ): Promise<QueryResult<WorkItem>> {
+    throw new Error("Method not implemented.");
+  }
+  private authenticated = false;
+  private createdTasks: WorkItem[] = [];
+  private taskIdCounter = 1000;
+
+  /**
+   * Simulate authentication
+   */
+  async authenticate(_config?: AuthConfig): Promise<void> {
+    logger.debug("MockPlatform: Authenticating...");
+
+    // Simulate network delay
+    await this.delay(100);
+
+    this.authenticated = true;
+    logger.info("MockPlatform: Authentication successful");
+  }
+
+  /**
+   * Query work items based on filter criteria
+   */
+  async queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]> {
+    this.ensureAuthenticated();
+    logger.debug("MockPlatform: Querying work items with filter:", filter);
+    // Simulate network delay
+    await this.delay(200);
+
+    if (filter.workItemIds && filter.workItemIds.length > 0) {
+      let results = mockUserStories.filter((item) =>
+        filter.workItemIds?.includes(item.id)
+      );
+      if (filter.excludeIfHasTasks) {
+        results = results.filter(
+          (item) => !item.children || item.children.length === 0
+        );
+      }
+      logger.info(`MockPlatform: Found ${results.length} work item(s) by ID`);
+      return results;
+    }
+
+    let results = [...mockUserStories];
+
+    // Filter by work item types
+    if (filter.workItemTypes && filter.workItemTypes.length > 0) {
+      results = results.filter((item) =>
+        filter.workItemTypes?.includes(item.type)
+      );
+    }
+
+    // Filter by states
+    if (filter.states && filter.states.length > 0) {
+      results = results.filter((item) => filter.states?.includes(item.state));
+    }
+
+    // Filter by tags (include)
+    if (filter.tags?.include && filter.tags.include.length > 0) {
+      results = results.filter((item) => {
+        return filter.tags?.include?.some((tag) => item.tags?.includes(tag));
+      });
+    }
+
+    // Filter by tags (exclude)
+    if (filter.tags?.exclude && filter.tags.exclude.length > 0) {
+      results = results.filter((item) => {
+        return !filter.tags?.exclude?.some((tag) => item.tags?.includes(tag));
+      });
+    }
+
+    // Exclude if has tasks
+    if (filter.excludeIfHasTasks) {
+      results = results.filter(
+        (item) => !item.children || item.children.length === 0
+      );
+    }
+
+    // Filter by assigned to
+    if (filter.assignedTo && filter.assignedTo.length > 0) {
+      results = results.filter((item) => {
+        return filter.assignedTo?.includes(item.assignedTo || "");
+      });
+    }
+
+    // Filter by area paths
+    if (filter.areaPaths && filter.areaPaths.length > 0) {
+      results = results.filter((item) => {
+        return filter.areaPaths?.includes(item.areaPath || "");
+      });
+    }
+
+    // Filter by priority
+    if (filter.priority) {
+      if (filter.priority.min !== undefined) {
+        results = results.filter(
+          (item) => (item.priority || 999) >= (filter.priority?.min || 0)
+        );
+      }
+      if (filter.priority.max !== undefined) {
+        results = results.filter(
+          (item) => (item.priority || 0) <= (filter.priority?.max || 999)
+        );
+      }
+    }
+
+    // Apply limit
+    if (filter.limit) {
+      results = results.slice(0, filter.limit);
+    }
+
+    logger.info(`MockPlatform: Found ${results.length} work items`);
+
+    return results;
+  }
+
+  /**
+   * Get a single work item by ID
+   */
+  async getWorkItem(id: string): Promise<WorkItem | null> {
+    this.ensureAuthenticated();
+
+    logger.debug(`MockPlatform: Getting work item ${id}`);
+
+    // Simulate network delay
+    await this.delay(100);
+
+    const item = getMockStoryById(id);
+
+    if (!item) {
+      logger.warn(`MockPlatform: Work item ${id} not found`);
+      return null;
+    }
+
+    return item;
+  }
+
+  /**
+   * Create a single task
+   */
+  async createTask(parentId: string, task: TaskDefinition): Promise<WorkItem> {
+    this.ensureAuthenticated();
+
+    logger.debug(`MockPlatform: Creating task for parent ${parentId}:`, task);
+
+    // Simulate network delay
+    await this.delay(150);
+
+    const createdTask: WorkItem = {
+      id: `TASK-${this.taskIdCounter++}`,
+      title: task.title,
+      type: "Task",
+      state: "New",
+      assignedTo: task.assignTo,
+      estimation: task.estimation,
+      tags: task.tags,
+      description: task.description,
+      priority: task.priority,
+      parentId: parentId,
+      createdDate: new Date(),
+      updatedDate: new Date(),
+    };
+
+    this.createdTasks.push(createdTask);
+
+    logger.info(
+      `MockPlatform: Created task ${createdTask.id}: ${createdTask.title}`
+    );
+
+    return createdTask;
+  }
+
+  /**
+   * Create multiple tasks in bulk with parallel execution
+   * Uses concurrency limit to simulate realistic API behavior
+   */
+  async createTasksBulk(
+    parentId: string,
+    tasks: TaskDefinition[],
+    onTaskCreated?: (task: WorkItem) => void,
+    concurrency = 5
+  ): Promise<WorkItem[]> {
+    this.ensureAuthenticated();
+
+    logger.debug(
+      `MockPlatform: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
+    );
+
+    const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
+
+    // Process tasks in parallel batches
+    for (let i = 0; i < tasks.length; i += concurrency) {
+      const batch = tasks.slice(i, i + concurrency);
+      const batchPromises = batch.map(async (task, batchIndex) => {
+        const taskIndex = i + batchIndex;
+        try {
+          const created = await this.createTask(parentId, task);
+          results[taskIndex] = created;
+          onTaskCreated?.(created);
+          return created;
+        } catch (error) {
+          logger.error(`MockPlatform: Failed to create task: ${task.title}`, {
+            error,
+          });
+          results[taskIndex] = null;
+          return null;
+        }
+      });
+
+      await Promise.all(batchPromises);
+    }
+
+    const createdTasks = results.filter((r): r is WorkItem => r !== null);
+
+    logger.info(`MockPlatform: Created ${createdTasks.length} tasks`);
+
+    return createdTasks;
+  }
+
+  /**
+   * Update a work item
+   */
+  async updateWorkItem(
+    id: string,
+    updates: Partial<WorkItem>
+  ): Promise<WorkItem> {
+    this.ensureAuthenticated();
+
+    logger.debug(`MockPlatform: Updating work item ${id}`);
+
+    // Simulate network delay
+    await this.delay(150);
+
+    const existingTask = this.createdTasks.find((t) => t.id === id);
+
+    if (!existingTask) {
+      throw new Error(`Work item ${id} not found`);
+    }
+
+    Object.assign(existingTask, updates);
+    existingTask.updatedDate = new Date();
+
+    logger.info(`MockPlatform: Updated work item ${id}`);
+
+    return existingTask;
+  }
+
+  /**
+   * Delete a work item
+   */
+  async deleteWorkItem(id: string): Promise<boolean> {
+    this.ensureAuthenticated();
+
+    logger.debug(`MockPlatform: Deleting work item ${id}`);
+
+    // Simulate network delay
+    await this.delay(100);
+
+    const index = this.createdTasks.findIndex((t) => t.id === id);
+
+    if (index === -1) {
+      logger.warn(`MockPlatform: Work item ${id} not found`);
+      return false;
+    }
+
+    this.createdTasks.splice(index, 1);
+
+    logger.info(`MockPlatform: Deleted work item ${id}`);
+
+    return true;
+  }
+
+  /**
+   * Get platform metadata
+   */
+  getPlatformMetadata(): PlatformMetadata {
+    return {
+      name: "Mock Platform",
+      version: "1.0.0",
+      features: ["query", "create", "update", "delete"],
+      connected: this.authenticated,
+    };
+  }
+
+  /**
+   * Test connection
+   */
+  async testConnection(): Promise<boolean> {
+    logger.debug("MockPlatform: Testing connection...");
+
+    // Simulate network delay
+    await this.delay(50);
+
+    logger.info("MockPlatform: Connection test successful");
+
+    return true;
+  }
+
+  /**
+   * Get child work items
+   */
+  async getChildren(parentId: string): Promise<WorkItem[]> {
+    this.ensureAuthenticated();
+
+    logger.debug(`MockPlatform: Getting children for ${parentId}`);
+
+    // Simulate network delay
+    await this.delay(100);
+
+    const children = this.createdTasks.filter(
+      (task) => task.parentId === parentId
+    );
+
+    logger.info(
+      `MockPlatform: Found ${children.length} children for ${parentId}`
+    );
+
+    return children;
+  }
+
+  async listSavedQueries(_folder?: string): Promise<SavedQueryInfo[]> {
+    return [];
+  }
+
+  async getFieldSchemas(_workItemType?: string): Promise<ADoFieldSchema[]> {
+    return [];
+  }
+
+  /**
+   * Get all created tasks (for testing)
+   */
+  getCreatedTasks(): WorkItem[] {
+    return [...this.createdTasks];
+  }
+
+  /**
+   * Reset the mock adapter (for testing)
+   */
+  reset(): void {
+    this.authenticated = false;
+    this.createdTasks = [];
+    this.taskIdCounter = 1000;
+    logger.debug("MockPlatform: Reset");
+  }
+
+  /**
+   * Ensure authenticated before operations
+   */
+  private ensureAuthenticated(): void {
+    if (!this.authenticated) {
+      throw new Error("Not authenticated. Call authenticate() first.");
+    }
+  }
+
+  /**
+   * Simulate network delay
+   */
+  private async delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}

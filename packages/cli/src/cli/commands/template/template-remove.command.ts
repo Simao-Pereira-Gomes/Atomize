@@ -1,6 +1,7 @@
-import { rm } from "node:fs/promises";
 import { confirm } from "@clack/prompts";
-import type { TemplateCatalogKind } from "@services/template/template-catalog";
+import type { TemplateCatalogKind } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
+import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
 import {
@@ -13,8 +14,6 @@ import {
   isInteractiveTerminal,
   sanitizeTty,
 } from "@/cli/utilities/prompt-utilities";
-import { TemplateLibrary } from "@/templates/template-library";
-import { CancellationError, getErrorMessage } from "@/utils/errors";
 
 type RemoveOptions = {
   type?: TemplateCatalogKind;
@@ -69,7 +68,7 @@ export const templateRemoveCommand = new Command("remove")
         }
       }
 
-      await rm(item.path);
+      await library.removeCatalogItem(kind, name);
       output.print(chalk.green(`Removed ${kind}: ${sanitizeTty(name)}`));
       output.outro("Done.");
     } catch (error) {

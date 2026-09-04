@@ -1,3 +1,4 @@
+import { logger as coreLogger } from "@sppg2001/atomize-core";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
 export const LOG_LEVEL_VALUES = ["error", "warn", "info", "debug"] as const;
@@ -86,6 +87,7 @@ export const logger = {
   },
   set level(value: LogLevel) {
     overrideLevel = value;
+    coreLogger.level = value;
   },
   error: (message: string, meta?: unknown) => write("error", message, meta),
   warn: (message: string, meta?: unknown) => write("warn", message, meta),
@@ -94,11 +96,15 @@ export const logger = {
 };
 
 export function configureLogger(opts: { logLevel?: LogLevel }): void {
-  if (opts.logLevel) overrideLevel = opts.logLevel;
+  if (opts.logLevel) {
+    overrideLevel = opts.logLevel;
+    coreLogger.level = opts.logLevel;
+  }
 }
 
 export function resetLoggerForTests(): void {
   overrideLevel = undefined;
+  coreLogger.level = "warn";
 }
 
 export default logger;

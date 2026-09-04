@@ -6,13 +6,13 @@
  * always shown.
  */
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { createPrinter } from "@/cli/commands/generate.command";
 import { printValidSummary } from "@/cli/commands/validate.command";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import type { TaskTemplate } from "@/templates/schema";
 
 // ---------------------------------------------------------------------------
 // Helpers

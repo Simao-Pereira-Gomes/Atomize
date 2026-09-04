@@ -8,7 +8,7 @@ import {
   select,
   text,
 } from "@clack/prompts";
-import type { TemplateCatalogScope } from "@services/template/template-catalog";
+import type { TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import z from "zod";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
