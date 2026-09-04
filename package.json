@@ -7,7 +7,7 @@
 		"typecheck": "bun run --cwd packages/atomize-ai typecheck && bun run --cwd packages/atomize-core typecheck && bun run --cwd packages/cli typecheck && bun run --cwd packages/vscode-extension typecheck && bun run --cwd packages/atomize-studio typecheck && bunx tsc --noEmit -p packages/atomize-sidecar/tsconfig.json"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.12"
+		"@biomejs/biome": "2.5.11"
 	},
 	"overrides": {
 		"brace-expansion": "5.0.9",
