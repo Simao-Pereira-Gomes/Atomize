@@ -34,6 +34,10 @@
     "externalBin": ["binaries/atomize-sidecar", "binaries/atomize-copilot"],
     "resources": {
       "../../atomize-core/catalog": "catalog"
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "Entitlements.plist"
     }
   }
 }

@@ -134,17 +134,6 @@ jobs:
         working-directory: packages/atomize-studio
       - run: bun run build -- ${{ matrix.args }} --bundles app
         working-directory: packages/atomize-studio
-        env:
-          APPLE_SIGNING_IDENTITY: "-"
-      - name: Sign bundled Copilot runtime
-        shell: bash
-        run: |
-          app=$(find packages/atomize-studio/src-tauri/target -type d -name 'Atomize Studio.app' -print -quit)
-          test -n "$app"
-          codesign --force --sign - --options runtime \
-            --entitlements packages/atomize-studio/src-tauri/Entitlements.plist \
-            "$app/Contents/MacOS/atomize-copilot"
-          codesign --force --sign - --options runtime "$app"
       - name: Verify Copilot runtime entitlements
         shell: bash
         run: |
