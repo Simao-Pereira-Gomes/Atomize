@@ -3,6 +3,9 @@ name: Publish VS Code Extension
 on:
   push:
     branches: [main]
+    paths:
+      - packages/vscode-extension/**
+      - packages/atomize-core/**
 
 permissions: {}
 
