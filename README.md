@@ -8,13 +8,13 @@
 
 **Break down stories, build up velocity.**
 
-Atomize turns stories into consistent child tasks using reusable YAML templates. Use it from VS Code for guided authoring, validation, preview, and confirmed generation, or use the CLI for automation and scripting.
+Atomize turns stories into consistent child tasks using reusable YAML templates. Use it from VS Code for guided authoring, Atomize Studio for a standalone visual workflow, or the CLI for automation and scripting — pick the surface that fits, or mix them.
 
 Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
 ## What You Can Do
 
-- Author Atomize YAML with schema hovers, completions, snippets, diagnostics, and CodeLens actions in VS Code.
+- Author Atomize YAML with schema hovers, completions, snippets, diagnostics, and CodeLens actions in VS Code, or visually in Atomize Studio.
 - Preview task breakdowns with mock story data before connecting to a real platform.
 - Run live dry-runs against Azure DevOps stories before creating anything.
 - Generate child tasks only after reviewing the plan and confirming execution.
@@ -22,32 +22,42 @@ Atomize is designed around platform adapters. Today, connected generation suppor
 - Create templates from the catalog, from scratch, from existing stories, or from an AI-assisted draft.
 - Automate validation and generation from the CLI in CI/CD.
 
-## Install
+## Start With VS Code
 
-Install the VS Code extension, then install the Atomize CLI:
+1. Install the [Atomize extension](./docs/VS-Code-Extension.md) from the Marketplace or a packaged release. It runs directly in the editor — no separate CLI install needed.
+2. Open or create an `.atomize.yaml` file.
+3. Run **Atomize: Validate**.
+4. Run **Atomize: Preview (Mock)** to test the template offline.
+5. Run **Atomize: Manage Profiles** when you are ready to connect Azure DevOps.
+6. Run **Atomize: Preview (Live)** to dry-run against a real story.
+7. Run **Atomize: Generate** to review the task plan and create tasks after confirmation.
+
+Use `.atomize.yaml`, `.atomize.yml`, or a first-line `# atomize-yaml` marker for the full editor experience. Full reference: [VS Code Extension](./docs/VS-Code-Extension.md).
+
+## Start With Atomize Studio
+
+1. Download the installer for your OS from the latest [Studio release](./docs/Studio-Releases.md) (macOS, Windows, or experimental Linux) and launch Atomize Studio.
+2. In the **Templates** area, start from scratch, clone a Catalog template, open a local Atomize YAML file, or draft one with AI.
+3. Add a Connection Profile in **Global Settings** when you are ready to connect Azure DevOps.
+4. Use the **Generate** area to dry-run and, after confirmation, execute against a real story.
+5. Use the **Catalog** area to install or remove templates for reuse.
+
+Full reference: [Atomize Studio](./docs/Atomize-Studio.md).
+
+## Start With The CLI
 
 ```bash
 npm install -g @sppg2001/atomize
 ```
 
-The extension uses the CLI for validation, preview, profile management, and generation. By default it runs the `atomize` executable on your `PATH`; set `atomize.cliPath` if your CLI lives somewhere else.
-
-For CLI-only use:
-
 ```bash
-npx @sppg2001/atomize --help
+atomize template create --from backend-api
+atomize validate template:backend-api
+atomize generate template:backend-api            # dry run
+atomize generate template:backend-api --execute   # create tasks after confirmation
 ```
 
-## Start In VS Code
-
-1. Open or create an `.atomize.yaml` file.
-2. Run **Atomize: Validate**.
-3. Run **Atomize: Preview (Mock)** to test the template offline.
-4. Run **Atomize: Manage Profiles** when you are ready to connect Azure DevOps.
-5. Run **Atomize: Preview (Live)** to dry-run against a real story.
-6. Run **Atomize: Generate** to review the task plan and create tasks after confirmation.
-
-Use `.atomize.yaml`, `.atomize.yml`, or a first-line `# atomize-yaml` marker for the full editor experience.
+Full reference: [CLI Reference](./docs/Cli-Reference.md).
 
 ## Safety Model
 
@@ -112,14 +122,14 @@ See [Template Creation](./docs/Template-Creation.md) for creation workflows and 
 
 ## Connect Azure DevOps
 
-Run **Atomize: Manage Profiles** in VS Code, or use the CLI:
+Run **Atomize: Manage Profiles** in VS Code, add a profile in Atomize Studio's Global Settings, or use the CLI:
 
 ```bash
 atomize auth add work-ado
 atomize auth test work-ado
 ```
 
-The Azure DevOps PAT needs Work Items read/write access. Profiles are stored through the Atomize CLI, using the OS keychain when available.
+The Azure DevOps PAT needs Work Items read/write access. Connection Profiles are shared between the CLI and Atomize Studio through the same connections file; each resolves the token through its own OS credential manager when available.
 
 See [Auth Guide](./docs/Auth-Guide.md) and [Platform Guide](./docs/Platform-Guide.md) for details.
 
@@ -150,8 +160,9 @@ See [CLI Reference](./docs/Cli-Reference.md) for complete command and flag docum
 ## Documentation
 
 - [Documentation Index](./docs/README.md) - Start here for the full docs map
-- [Workflows](./docs/Workflows.md) - Task-oriented guide across VS Code and CLI
+- [Workflows](./docs/Workflows.md) - Task-oriented guide across VS Code, Atomize Studio, and CLI
 - [VS Code Extension](./docs/VS-Code-Extension.md) - Editor behavior, commands, settings, and troubleshooting
+- [Atomize Studio](./docs/Atomize-Studio.md) - Desktop app behavior reference
 - [CLI Reference](./docs/Cli-Reference.md) - Complete command and flag reference
 - [Template Creation](./docs/Template-Creation.md) - Create templates from catalog, wizard, AI, or existing stories
 - [Template Reference](./docs/Template-Reference.md) - Full template schema and semantics
@@ -174,10 +185,15 @@ Repository layout:
 
 ```text
 packages/
-  cli/                Atomize CLI and template engine
-  vscode-extension/   VS Code extension
-docs/                 User docs, reference docs, and ADRs
-examples/             Example Atomize YAML templates
+  cli/               Atomize CLI
+  vscode-extension/  VS Code extension
+  atomize-studio/    Atomize Studio desktop app (Tauri)
+  atomize-core/      Shared template/platform/composition library
+  atomize-schema/    Shared Atomize YAML schema and validation
+  atomize-ai/        Shared AI template-drafting client
+  atomize-sidecar/   Companion process bundled with Atomize Studio
+docs/                User docs, reference docs, and ADRs
+examples/            Example Atomize YAML templates
 ```
 
 ## License

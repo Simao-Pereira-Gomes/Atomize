@@ -1,6 +1,6 @@
 # Atomize Studio
 
-Standalone desktop application for visually authoring Atomize Templates. Supports three starting paths — scratch, catalog clone, and AI draft from prose — all converging on the same visual authoring surface. Produces a downloadable Atomize YAML File for manual installation via `atomize template install`.
+Standalone desktop application for visually authoring Atomize Templates, generating Tasks, and managing the Catalog and Connection Profiles. Templates start from one of four Starting Paths — scratch, Catalog Clone, Open (a local Atomize YAML File), or AI draft from prose — all converging on the same visual authoring surface. Produces a downloadable Atomize YAML File, or installs directly into the Catalog. See [docs/Atomize-Studio.md](../../docs/Atomize-Studio.md) for the full behavior reference.
 
 ## Prerequisites
 
