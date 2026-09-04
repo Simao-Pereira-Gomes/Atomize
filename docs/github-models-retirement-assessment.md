@@ -1,6 +1,6 @@
 # GitHub Models retirement assessment
 
-**Status:** decision input for issue #147
+**Status:** resolved — implemented via [ADR-0044](./adr/0044-copilot-sdk-for-ai-template-drafting.md). AI-assisted template drafting now authenticates through a GitHub Copilot SDK sign-in (a Copilot Session, see [Auth Guide](./Auth-Guide.md#ai-drafting-copilot-session)) instead of a GitHub Models Connection Profile. Kept below as the original decision input for issue #147.
 **Assessed:** 2026-08-13
 **Scope:** Atomize's current AI-template-generation provider only. No production changes are made by this assessment.
 
