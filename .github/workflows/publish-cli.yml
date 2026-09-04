@@ -3,6 +3,11 @@ name: Publish CLI
 on:
   push:
     branches: [main]
+    paths:
+      - packages/cli/**
+      - packages/atomize-ai/**
+      - packages/atomize-core/**
+      - packages/atomize-schema/**
 
 permissions: {}
 
