@@ -15,18 +15,18 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@github/copilot": "^1.0.79",
-    "@github/copilot-sdk": "^1.0.9"
+    "@github/copilot": "^1.0.83",
+    "@github/copilot-sdk": "^1.0.11"
   },
   "optionalDependencies": {
-    "@github/copilot-darwin-arm64": "1.0.79",
-    "@github/copilot-darwin-x64": "1.0.79",
-    "@github/copilot-linux-arm64": "1.0.79",
-    "@github/copilot-linux-x64": "1.0.79",
-    "@github/copilot-linuxmusl-arm64": "1.0.82",
-    "@github/copilot-linuxmusl-x64": "1.0.82",
-    "@github/copilot-win32-arm64": "1.0.79",
-    "@github/copilot-win32-x64": "1.0.79"
+    "@github/copilot-darwin-arm64": "1.0.83",
+    "@github/copilot-darwin-x64": "1.0.83",
+    "@github/copilot-linux-arm64": "1.0.83",
+    "@github/copilot-linux-x64": "1.0.83",
+    "@github/copilot-linuxmusl-arm64": "1.0.83",
+    "@github/copilot-linuxmusl-x64": "1.0.83",
+    "@github/copilot-win32-arm64": "1.0.83",
+    "@github/copilot-win32-x64": "1.0.83"
   },
   "devDependencies": {
     "@types/bun": "1.4.0",
