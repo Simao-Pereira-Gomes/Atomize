@@ -6,6 +6,15 @@ import type {
 } from "../grounding/grounding-service";
 import { dismissOverlay } from "./dismiss-overlay";
 
+// Tauri command errors (e.g. `connection_add_profile`, `connection_rotate_token`) reject
+// with the plain `String` the Rust side returned, not an `Error` instance, so checking
+// `instanceof Error` alone would always miss the actual backend message.
+function errorMessage(error: unknown, fallback: string): string {
+	if (typeof error === "string") return error;
+	if (error instanceof Error) return error.message;
+	return fallback;
+}
+
 export type GroundingSession = {
 	profiles: () => AzureDevOpsProfile[];
 	selectedProfile: () => string;
@@ -105,11 +114,7 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 			setAdding(false);
 		} catch (error) {
 			setPat("");
-			setFormError(
-				error instanceof Error
-					? error.message
-					: "We could not add that project.",
-			);
+			setFormError(errorMessage(error, "We could not add that project."));
 		}
 	};
 	const rotateToken = async (event: SubmitEvent) => {
@@ -124,11 +129,7 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 			if (profile.name === props.session.selectedProfile())
 				void props.session.refresh();
 		} catch (error) {
-			setFormError(
-				error instanceof Error
-					? error.message
-					: "We could not update that token.",
-			);
+			setFormError(errorMessage(error, "We could not update that token."));
 		}
 	};
 	const setDefault = async () => {
@@ -136,7 +137,7 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 		if (!profile) return;
 		setFormError("");
 		try { await props.session.setDefault(profile.name); }
-		catch (error) { setFormError(error instanceof Error ? error.message : "We could not set that default project."); }
+		catch (error) { setFormError(errorMessage(error, "We could not set that default project.")); }
 	};
 	const removeManagedProject = async () => {
 		const profile = managedProfile();
