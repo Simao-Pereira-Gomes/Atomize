@@ -34,7 +34,7 @@ jobs:
             args: --target aarch64-apple-darwin
             experimental: false
           - name: macOS Intel
-            runner: macos-13
+            runner: macos-15-intel
             args: --target x86_64-apple-darwin
             experimental: false
           - name: Windows
@@ -113,7 +113,7 @@ jobs:
             runner: macos-14
             args: --target aarch64-apple-darwin
           - name: Intel
-            runner: macos-13
+            runner: macos-15-intel
             args: --target x86_64-apple-darwin
     steps:
       - uses: actions/checkout@v4
