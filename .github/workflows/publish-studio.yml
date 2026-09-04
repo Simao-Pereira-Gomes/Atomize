@@ -34,7 +34,7 @@ jobs:
             args: --target aarch64-apple-darwin
             experimental: false
           - name: macOS Intel
-            runner: macos-13
+            runner: macos-15-intel
             args: --target x86_64-apple-darwin
             experimental: false
           - name: Windows
@@ -62,7 +62,15 @@ jobs:
         working-directory: packages/atomize-studio
       - run: bun run lint
         working-directory: packages/atomize-studio
-      - run: bun run build -- ${{ matrix.args }}
+      - name: Build experimental Linux installer
+        if: runner.os == 'Linux'
+        # Bun's compiled standalone sidecar cannot be inspected by linuxdeploy,
+        # so AppImage packaging aborts before a usable Studio bundle exists.
+        run: bun run build -- --bundles deb
+        working-directory: packages/atomize-studio
+      - name: Build other platform installers
+        if: runner.os != 'Linux'
+        run: bun run build -- ${{ matrix.args }}
         working-directory: packages/atomize-studio
       - uses: actions/upload-artifact@v4
         with:
@@ -113,7 +121,7 @@ jobs:
             runner: macos-14
             args: --target aarch64-apple-darwin
           - name: Intel
-            runner: macos-13
+            runner: macos-15-intel
             args: --target x86_64-apple-darwin
     steps:
       - uses: actions/checkout@v4
@@ -166,6 +174,8 @@ jobs:
     if: needs.check-version.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
     permissions:
       contents: read
     steps:
@@ -176,7 +186,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
       - run: bun install --frozen-lockfile
-      - run: bun run build
+      - name: Build experimental Linux installer
+        # Bun's compiled standalone sidecar cannot be inspected by linuxdeploy,
+        # so AppImage packaging aborts before a usable Studio bundle exists.
+        run: bun run build -- --bundles deb
         working-directory: packages/atomize-studio
       - name: Label experimental installers
         shell: bash
@@ -189,6 +202,7 @@ jobs:
             mv "$asset" "${asset%.*}-experimental.${asset##*.}"
           done
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
           name: studio-linux-experimental
           path: release-assets/
@@ -216,17 +230,24 @@ jobs:
           name: studio-windows
           path: release-assets
       - uses: actions/download-artifact@v4
-        if: needs.build-linux-release.result == 'success'
+        if: needs.build-linux-release.outputs.artifact_id != ''
         with:
           name: studio-linux-experimental
           path: release-assets
-      - name: Generate checksums
-        working-directory: release-assets
-        run: sha256sum * > SHA256SUMS.txt
+      - name: Collect release assets
+        run: |
+          mkdir release-files
+          while IFS= read -r -d '' asset; do
+            filename=$(basename "$asset")
+            test ! -e "release-files/$filename" || { echo "Duplicate release asset: $filename" >&2; exit 1; }
+            cp "$asset" "release-files/$filename"
+          done < <(find release-assets -type f -print0)
+          cd release-files
+          sha256sum * > SHA256SUMS.txt
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "studio-v${{ needs.check-version.outputs.version }}" release-assets/* \
+          gh release create "studio-v${{ needs.check-version.outputs.version }}" release-files/* \
             --title "Atomize Studio ${{ needs.check-version.outputs.version }}" \
             --notes $'## Installer verification\n\nVerify every download with `SHA256SUMS.txt`. macOS installers are ad-hoc signed but not notarised; Windows installers are unsigned. Your operating system may show a security warning before installation.'
