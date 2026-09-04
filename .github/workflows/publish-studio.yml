@@ -150,11 +150,10 @@ jobs:
         run: |
           app=$(find packages/atomize-studio/src-tauri/target -type d -name 'Atomize Studio.app' -print -quit)
           test -n "$app"
-          # `codesign -d` writes display data before the entitlement plist on
-          # stderr, so retain only the XML document before feeding it to plutil.
-          entitlements=$(codesign -d --entitlements :- "$app/Contents/MacOS/atomize-copilot" 2>&1 | sed -n '/^<?xml/,/<\/plist>$/p')
-          printf '%s' "$entitlements" | plutil -p - | grep -E '"com\.apple\.security\.cs\.allow-jit" => true'
-          printf '%s' "$entitlements" | plutil -p - | grep -E '"com\.apple\.security\.cs\.disable-library-validation" => true'
+          entitlements=$(mktemp)
+          codesign -d --xml --entitlements "$entitlements" "$app/Contents/MacOS/atomize-copilot"
+          plutil -p "$entitlements" | grep -F '"com.apple.security.cs.allow-jit" => true'
+          plutil -p "$entitlements" | grep -F '"com.apple.security.cs.disable-library-validation" => true'
       - name: Create signed macOS installer
         run: bunx tauri bundle --bundles dmg ${{ matrix.args }}
         working-directory: packages/atomize-studio
