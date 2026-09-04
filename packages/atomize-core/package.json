@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@sppg2001/atomize-schema": "workspace:*",
-    "azure-devops-node-api": "^15.1.2",
+    "azure-devops-node-api": "^17.0.0",
     "ts-pattern": "^5.9.0",
     "yaml": "^2.8.3",
     "zod": "^4.3.6"
