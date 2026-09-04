@@ -91,7 +91,7 @@ These issues always block template use:
 | Invalid email format | `Invalid email: bad-email` |
 | Wrong field type | `Expected number but received string` |
 | Negative estimation | `Estimation percentage cannot be negative` |
-| Invalid custom field in connected validation | `Field "Custom.ClientTier" not found for work item type "Task"` |
+| Invalid custom field in Online Validation | `Field "Custom.ClientTier" not found for work item type "Task"` |
 
 ### Warnings (Errors in Strict Mode)
 
@@ -140,10 +140,10 @@ CLI flags override the template's `validation.mode` setting:
 CLI --strict  >  template validation.mode  >  lenient (default)
 ```
 
-When ADO-backed validation is needed:
-- `atomize validate` runs offline by default and only checks structure
-- `atomize validate --profile <name>` performs live validation against Azure DevOps
-- In interactive terminals, Atomize may prompt you to choose offline vs online validation
+When Azure DevOps-backed validation is needed:
+- `atomize validate` runs Offline Validation by default and only checks structure
+- `atomize validate --profile <name>` performs Online Validation against Azure DevOps
+- In interactive terminals, Atomize may prompt you to choose Offline Validation or Online Validation
 
 ---
 
@@ -250,3 +250,4 @@ Errors:
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific errors
 - [Template Reference](./Template-Reference.md) - Full template schema
 - [CLI Reference](./Cli-Reference.md) - `validate` command options
+- [Atomize Studio](./Atomize-Studio.md) - Offline and Online Validation in the desktop app

@@ -311,7 +311,7 @@ If all detected patterns have low confidence:
 
 ### "Generated template has estimation ≠ 100%"
 
-- Manually edit the saved catalog template to balance estimations
+- Manually edit the saved Catalog template to balance estimations
 - Run `atomize validate template:<name> --strict` again before using it
 
 ---

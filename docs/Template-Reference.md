@@ -79,7 +79,7 @@ name: "Template Name"   # Required. Human-readable name (max 200 chars)
 description: "..."      # Optional. What this template is for (max 500 chars)
 author: "Your Name"     # Optional. Author name or team
 tags: ["tag1", "tag2"]  # Optional. Categorization tags
-extends: "backend-api"  # Optional. Inherit from a catalog template
+extends: "backend-api"  # Optional. Inherit from a Catalog template
 mixins:                 # Optional. Mix in reusable task groups
   - "security-review-tasks"
   - "release-checklist"
@@ -117,7 +117,7 @@ tasks:
     activity: "Testing"
 ```
 
-The resolved template merges the child's `tasks` list on top of the base's, then re-validates the combined result. Use `atomize template resolve` to see the merged output before using it.
+The Resolved Template combines the child's `tasks` list on top of the base's, then re-validates the combined result. Use `atomize template resolve` to see the Resolved Template before using it.
 
 ### Mixins (`mixins`)
 
