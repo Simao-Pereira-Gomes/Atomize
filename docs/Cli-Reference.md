@@ -18,6 +18,7 @@ Complete command-line interface documentation for Atomize.
   - [template install](#template-install)
   - [template remove](#template-remove)
   - [template resolve](#template-resolve)
+  - [template metadata](#template-metadata)
   - [queries list](#queries-list)
 - [Configuration](#configuration)
 - [Interactive Prompts & Navigation](#interactive-prompts--navigation)
@@ -77,6 +78,7 @@ These options work with any command:
 | `template install` | - | Install a template or mixin from a local file or HTTPS URL |
 | `template remove` | `template rm` | Remove a user-installed template or mixin |
 | `template resolve` | - | Resolve a composed template and print the merged result |
+| `template metadata` | - | Read Azure DevOps project metadata as JSON, for visual template authoring surfaces |
 | `queries` | - | Browse Azure DevOps saved queries |
 | `queries list` | `queries ls` | List saved queries with paths and IDs |
 
@@ -88,13 +90,11 @@ These options work with any command:
 
 Manage named connection profiles. Profiles store your credentials in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
 
-Two profile types are supported:
-- **Azure DevOps** — for `generate`, `validate`, `fields list`, and `queries list`
-- **GitHub Models (AI)** — for AI-assisted template generation (`template create --ai`)
+Azure DevOps is currently the only Connection Profile type — for `generate`, `validate`, `fields list`, `queries list`, and `template metadata`. AI-assisted template generation (`template create --ai`) does not use a Connection Profile; it authenticates through a separate Copilot Session (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)). GitHub Models profiles are retired — see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
 
 #### auth add
 
-Add a new connection profile.
+Add a new Azure DevOps connection profile.
 
 ```bash
 atomize auth add [name] [options]
@@ -102,34 +102,19 @@ atomize auth add [name] [options]
 
 | Option | Description |
 |--------|-------------|
-| `--org-url <url>` | Organization URL (e.g. `https://dev.azure.com/myorg`) — Azure DevOps only |
-| `--project <name>` | Project name — Azure DevOps only |
-| `--team <name>` | Team name — Azure DevOps only |
-| `--default` | Set this profile as the default for its platform |
+| `--org-url <url>` | Organization URL (e.g. `https://dev.azure.com/myorg`) |
+| `--project <name>` | Project name |
+| `--team <name>` | Team name |
+| `--default` | Set this profile as the default |
 | `--pat-stdin` | Read the PAT from stdin instead of `ATOMIZE_PAT` (preferred in CI) |
 | `--insecure-storage` | Allow storing the token in an insecure local file fallback when the OS keychain is unavailable |
 
-When run interactively, `auth add` first asks which platform to configure:
-
-```
-? Platform:
-  ● Azure DevOps
-  ○ GitHub Models (AI template generation)
-```
-
-**Adding an Azure DevOps profile:**
 ```bash
 atomize auth add work-ado
 # Prompts for org URL, project, team, and PAT
 ```
 
-**Adding a GitHub Models (AI) profile:**
-```bash
-atomize auth add my-ai
-# Prompts for a GitHub personal access token with Models access
-```
-
-**Non-interactive (Azure DevOps, CI/CD):**
+**Non-interactive (CI/CD):**
 ```bash
 echo "$AZURE_DEVOPS_PAT" | atomize auth add work-ado \
   --org-url https://dev.azure.com/myorg \
@@ -160,25 +145,22 @@ atomize auth ls   # alias
     Team:     MyTeam
     Token:    [keychain]
     Created:  1/3/2026, 10:00:00 AM
-
-  my-ai (GitHub Models (AI) · default)
-    Token:    [keychain]
-    Created:  1/3/2026, 10:05:00 AM
 ```
+
+A retired `github-models` profile, if one still exists from before the retirement, is listed too — only so you can remove it with `auth remove`; it can no longer be used for anything.
 
 ---
 
 #### auth use
 
-Set a profile as the default for its platform. Each platform (`azure-devops`, `github-models`) can have its own independent default.
+Set a profile as the default Azure DevOps profile.
 
 ```bash
 atomize auth use [name]
 ```
 
 ```bash
-atomize auth use work-ado   # sets default Azure DevOps profile
-atomize auth use my-ai      # sets default GitHub Models (AI) profile
+atomize auth use work-ado   # sets default profile
 atomize auth use            # pick interactively
 ```
 
@@ -197,10 +179,7 @@ atomize auth rm [name]   # alias
 
 #### auth test
 
-Test connectivity for a profile. Automatically detects whether the profile is an Azure DevOps or GitHub Models (AI) profile and runs the appropriate check.
-
-- **Azure DevOps** — executes a WIQL query against your project to verify credentials and project access
-- **GitHub Models (AI)** — calls the models listing endpoint to verify the token
+Test connectivity for a profile by executing a WIQL query against your project to verify credentials and project access. Testing a retired `github-models` profile fails with a message pointing you to remove it.
 
 ```bash
 atomize auth test [name]
@@ -208,15 +187,14 @@ atomize auth test [name]
 
 ```bash
 atomize auth test work-ado   # test a specific profile
-atomize auth test my-ai      # test an AI provider profile
-atomize auth test            # pick interactively (shows profile type next to each name)
+atomize auth test            # pick interactively
 ```
 
 ---
 
 #### auth rotate
 
-Replace the stored PAT for a profile (e.g. after a token expires).
+Replace the stored PAT for a profile (e.g. after a token expires). Refuses a retired `github-models` profile and points you to `auth remove` instead.
 
 ```bash
 atomize auth rotate <name> [options]
@@ -740,6 +718,60 @@ atomize template resolve template:my-api --validate
 
 ---
 
+### template metadata
+
+Read Azure DevOps project metadata as a single JSON document — work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. This is the same data source that grounds visual template-authoring surfaces such as Atomize Studio's [Grounded Field Options](./Atomize-Studio.md), but it is a normal CLI command: any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
+
+#### Usage
+
+```bash
+atomize template metadata [options]
+atomize tpl metadata [options]  # alias
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--profile <name>` | Named Azure DevOps connection profile (uses the default if omitted) |
+| `--json` | Suppress non-JSON status output, for piping to another tool |
+
+The command always prints indented JSON to stdout, whether or not `--json` is passed; `--json` only silences surrounding log/status output, matching the convention used by `fields list --json` and `queries list --json`.
+
+#### Output
+
+A single JSON object:
+
+```json
+{
+  "workItemTypes": ["User Story", "Bug", "Task"],
+  "statesByWorkItemType": {
+    "User Story": ["New", "Active", "Resolved", "Closed"],
+    "Bug": ["New", "Active", "Resolved", "Closed"]
+  },
+  "areaPaths": ["MyProject", "MyProject\\Backend"],
+  "iterationPaths": ["MyProject\\Sprint 1", "MyProject\\Sprint 2"],
+  "teams": ["Backend Team", "Frontend Team"],
+  "savedQueries": [{ "id": "...", "path": "Shared Queries/Teams/Backend/Active Bugs" }],
+  "taskFields": [],
+  "fieldsByWorkItemType": {}
+}
+```
+
+`taskFields` holds the field schema for the `Task` work item type; `fieldsByWorkItemType` holds field schemas keyed by every work item type returned in `workItemTypes`. Both use Azure DevOps's field-schema shape (reference name, type, allowed values).
+
+#### Examples
+
+```bash
+atomize template metadata --profile work-ado
+
+atomize template metadata --profile work-ado --json > project-metadata.json
+```
+
+Requires a Connection Profile (see [Auth Guide](./Auth-Guide.md)) — there is no offline mode, since the output is Azure DevOps project data.
+
+---
+
 ### queries
 
 Browse Azure DevOps saved queries — discover query paths and IDs without leaving the terminal.
@@ -771,21 +803,15 @@ atomize queries list --json | jq '.[] | select(.isPublic) | .path'
 
 ### Connection Profiles
 
-Credentials are managed as named profiles. Each platform has its own independent default profile.
+Credentials are managed as named Azure DevOps profiles, with one independent default.
 
 ```bash
-# Add an Azure DevOps profile
 atomize auth add work-ado
-atomize auth use work-ado   # set as default ADO profile
-
-# Add a GitHub Models (AI) profile
-atomize auth add my-ai
-atomize auth use my-ai      # set as default AI profile
-
-# Test both
+atomize auth use work-ado   # set as default profile
 atomize auth test work-ado
-atomize auth test my-ai
 ```
+
+AI-assisted template drafting (`template create --ai`) does not use a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
 
 ### Environment Variables
 
@@ -799,18 +825,12 @@ export ATOMIZE_PAT="your-personal-access-token"          # Used by auth add
 
 ```bash
 export ATOMIZE_PROFILE="work-ado"       # Azure DevOps profile
-export ATOMIZE_AI_PROFILE="my-ai"       # GitHub Models (AI) profile
 ```
 
-Profile resolution order for ADO commands (`generate`, `fields list`, `queries list`, `validate --profile`):
+Profile resolution order for ADO commands (`generate`, `fields list`, `queries list`, `validate --profile`, `template metadata`):
 1. `--profile <name>` flag
 2. `ATOMIZE_PROFILE` environment variable
-3. Default ADO profile (set via `atomize auth use`)
-
-Profile resolution order for AI commands (`template create --ai`):
-1. `--ai-profile <name>` flag
-2. `ATOMIZE_AI_PROFILE` environment variable
-3. Default GitHub Models profile (set via `atomize auth use`)
+3. Default profile (set via `atomize auth use`)
 
 **Logging:**
 
@@ -879,14 +899,10 @@ atomize generate my-backend.yaml --execute
 ### AI-Assisted Template Creation
 
 ```bash
-# 1. Add a GitHub Models profile
-atomize auth add my-ai
-atomize auth use my-ai
-
-# 2. Describe your template to the AI
+# 1. Describe your template to the AI (signs in to GitHub Copilot when needed)
 atomize template create --ai
 
-# 3. Optionally ground it with real ADO patterns
+# 2. Optionally ground it with real ADO patterns
 atomize template create --ai --ground --profile work-ado
 ```
 
@@ -984,15 +1000,12 @@ atomize generate templates/my-template.yaml --platform mock
 
 ### AI template generation fails
 
+AI drafting authenticates through GitHub Copilot, not a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+
 ```bash
-# Verify the AI profile is working
-atomize auth test my-ai
-
-# Make sure a GitHub Models profile exists
-atomize auth list
-
-# Specify it explicitly
-atomize template create --ai --ai-profile my-ai
+# Non-interactive runs need Copilot already signed in on that machine —
+# sign in once interactively, then retry:
+atomize template create --ai
 ```
 
 ### Enable debug logging

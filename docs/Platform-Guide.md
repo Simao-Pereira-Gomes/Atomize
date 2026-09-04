@@ -6,7 +6,7 @@ Setup and configuration guide for different work item management platforms.
 
 - [Overview](#overview)
 - [Azure DevOps](#azure-devops)
-- [GitHub Models (AI)](#github-models-ai)
+- [GitHub Copilot (AI)](#github-copilot-ai)
 - [Mock Platform](#mock-platform)
 - [Adding New Platforms](#adding-new-platforms)
 
@@ -31,7 +31,9 @@ Atomize is designed around platform adapters. Today, connected generation suppor
 
 | Provider | Status | Used for |
 |----------|--------|----------|
-| GitHub Models | ✅ Production | `template create --ai` |
+| GitHub Copilot | ✅ Production | `template create --ai` |
+
+GitHub Copilot drafts Templates through an ephemeral Copilot Session with your locally signed-in Copilot account — it does not use a Connection Profile. GitHub Models, the previous AI provider, was fully retired by GitHub on 30 July 2026; see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
 
 ---
 
