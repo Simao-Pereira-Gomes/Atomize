@@ -9,6 +9,7 @@ We welcome contributions of all kinds: bug reports, feature requests, documentat
 - [Code of Conduct](#code-of-conduct)
 - [How Can I Contribute?](#how-can-i-contribute)
 - [Development Setup](#development-setup)
+- [Monorepo Architecture](#monorepo-architecture)
 - [Project Structure](#project-structure)
 - [Making Changes](#making-changes)
 - [Testing](#testing)
@@ -143,7 +144,7 @@ Want to add support for Jira, GitHub, or another platform?
 - **Bun** v1.0+ (recommended) or Node.js 18+
 - **Git**
 - **Azure DevOps account** (optional, for testing)
-- **GitHub Models access** (optional, for AI-assisted template generation)
+- **A GitHub Copilot account** (optional, for testing AI-assisted template generation — see [docs/Auth-Guide.md](docs/Auth-Guide.md#ai-drafting-copilot-session))
 
 ### Initial Setup
 
@@ -161,14 +162,10 @@ git remote add upstream https://github.com/Simao-Pereira-Gomes/atomize.git
 # 4. Install dependencies
 bun install
 
-# 5. Create .env file (optional)
-cp .env.example .env
-# Edit .env with your configuration
-
-# 6. Run tests
+# 5. Run tests
 bun test
 
-# 7. Build
+# 6. Build
 bun run build
 ```
 
@@ -193,49 +190,85 @@ bun run check
 
 ---
 
+## Monorepo Architecture
+
+Atomize is a Bun workspace monorepo. `packages/` holds seven packages, split between three release surfaces and four internal shared libraries.
+
+**Release surfaces** — each ships independently with its own release pipeline:
+- `packages/cli` — the Atomize CLI, published to npm as `@sppg2001/atomize`. See [docs/adr/0031](docs/adr/0031-cli-release-pipeline.md).
+- `packages/vscode-extension` — the VS Code extension, published to the Marketplace. See [docs/adr/0030](docs/adr/0030-extension-release-pipeline.md).
+- `packages/atomize-studio` — the desktop app (Tauri), published as platform installers via GitHub Releases. See [docs/adr/0059](docs/adr/0059-studio-release-tags-gate-publishing.md).
+
+**Shared internal libraries** — all `private: true`, workspace-linked, never published on their own:
+- `packages/atomize-schema` — Zod-based Atomize YAML schema and validation. No internal dependencies; the base of the graph.
+- `packages/atomize-core` — the shared Template Library: composition, platform adapters, services. Depends on `atomize-schema`.
+- `packages/atomize-ai` — shared AI template-drafting client, wrapping `@github/copilot-sdk`. No internal atomize dependencies.
+- `packages/atomize-sidecar` — a companion process bundled with Atomize Studio, compiled to a standalone binary (`bun build --compile`). Depends on `atomize-core` and `atomize-ai`.
+
+There are two distinct ways a release surface consumes the shared libraries:
+
+1. **Direct embedding.** `cli` and `vscode-extension` both import `atomize-core` as an in-process TypeScript library (`cli` also imports `atomize-ai` directly, for its AI-assisted drafting command). `vscode-extension` moved to this pattern from shelling out to a separately-installed CLI binary — see [docs/adr/0038](docs/adr/0038-atomize-core-shared-library-replaces-cli-subprocess.md) for why.
+2. **Companion process.** `atomize-studio`'s frontend is a Tauri webview, not a Node/Bun process, so it can't import `atomize-core`/`atomize-ai` directly. Instead it stages and bundles the `atomize-sidecar` binary and talks to it as a separate OS process over a wire protocol. See [docs/adr/0042](docs/adr/0042-studio-sidecar-wire-protocol.md) and [docs/adr/0034](docs/adr/0034-template-builder-cli-bridge-via-tauri-plugin-shell.md). `atomize-studio` also depends on `atomize-schema` directly in its frontend for client-side validation — that dependency is separate from its sidecar relationship with `atomize-core`/`atomize-ai`.
+
+```
+atomize-schema
+  └─ atomize-core ─┬─ embedded directly by: cli, vscode-extension
+                    └─ embedded (with atomize-ai) inside: atomize-sidecar
+                                                              ▲
+                                        bundled + spoken to as a
+                                        separate process by: atomize-studio
+atomize-ai
+  ├─ embedded directly by: cli
+  └─ embedded inside: atomize-sidecar
+```
+
+For the full package-by-package purpose and exports, see each package's own README (`packages/<name>/README.md`).
+
+---
+
 ## Project Structure
+
+Each package under `packages/` has its own `src/`, `tests/` (or `__tests__/`), and `dist/`. The two packages most contributors touch day-to-day:
 
 ```
 atomize/
-├── src/
-│   ├── cli/              # CLI entry points and commands
-│   │   ├── index.ts      # Main CLI entry
-│   │   └── commands/     # Command implementations
-│   ├── core/             # Core business logic
-│   │   ├── atomizer.ts   # Main orchestration
-│   │   ├── estimation-calculator.ts
-│   │   └── filter-engine.ts
-│   ├── platforms/        # Platform adapters
-│   │   ├── interfaces/   # Common interfaces
-│   │   ├── adapters/     # Platform implementations
-│   │   └── platform-factory.ts
-│   ├── templates/        # Template system
-│   │   ├── schema.ts     # Zod schemas
-│   │   ├── loader.ts     # Template loading
-│   │   └── validator.ts  # Template validation
-│   ├── services/         # Services (AI, template catalog, etc.)
-│   │   └── template/     # Template services
-│   ├── config/           # Configuration
-│   └── utils/            # Utilities
-├── templates/            # Bundled template catalog
-│   ├── templates/        # Bundled templates
-│   └── mixins/           # Bundled mixins
-├── tests/                # Test files
-│   ├── unit/             # Unit tests
-│   ├── integration/      # Integration tests
-│   └── fixtures/         # Test data
-├── docs/                 # Documentation
-└── dist/                 # Build output
+├── packages/
+│   ├── cli/
+│   │   ├── src/cli/
+│   │   │   ├── index.ts        # Main CLI entry
+│   │   │   ├── commands/       # Command implementations
+│   │   │   ├── orchestrator/   # Generate workflow orchestration
+│   │   │   └── utilities/
+│   │   ├── src/config/         # CLI configuration, connection profiles
+│   │   └── tests/               # unit/, fixtures/, utils/
+│   ├── atomize-core/
+│   │   ├── src/core/            # Main orchestration (composition, estimation)
+│   │   ├── src/platforms/       # Platform adapters
+│   │   │   ├── interfaces/      # Common interfaces (IPlatformAdapter, WorkItem, ...)
+│   │   │   ├── adapters/        # Platform implementations (azure-devops/, mock/)
+│   │   │   └── platform-factory.ts
+│   │   ├── src/templates/       # Template loading, composition, validation
+│   │   ├── src/services/        # Services (template catalog, etc.)
+│   │   ├── src/utils/
+│   │   └── catalog/             # Bundled template catalog (templates/, mixins/)
+│   ├── atomize-schema/src/      # Zod schemas
+│   ├── atomize-ai/src/          # Copilot SDK client
+│   ├── atomize-sidecar/src/     # Studio's companion process
+│   ├── vscode-extension/src/
+│   └── atomize-studio/src/, src-tauri/
+├── docs/                        # Documentation, ADRs
+└── examples/                    # Example Atomize YAML templates
 ```
+
+See [Monorepo Architecture](#monorepo-architecture) above for how these packages relate, and each package's own `README.md` for its specific layout.
 
 ### Key Files
 
-- `src/cli/index.ts` - CLI entry point
-- `src/core/atomizer.ts` - Main task generation logic
-- `src/platforms/platform-factory.ts` - Platform abstraction
-- `src/templates/schema.ts` - Template schema definitions
-- `package.json` - Dependencies and scripts
-- `tsconfig.json` - TypeScript configuration
+- `packages/cli/src/cli/index.ts` - CLI entry point
+- `packages/atomize-core/src/core/` - Main task generation and composition logic
+- `packages/atomize-core/src/platforms/platform-factory.ts` - Platform abstraction
+- `packages/atomize-schema/src/` - Template schema definitions
+- `package.json` (root) - Workspace scripts; each package also has its own
 
 ---
 
@@ -417,19 +450,31 @@ Related to #456
 
 ---
 
+## Style Guidelines
+
+Formatting and lint rules are enforced by [Biome](https://biomejs.dev/) (`biome.json` at the repo root): tab indentation, double quotes in JavaScript/TypeScript, and `organizeImports` on save. Run it per-package:
+
+```bash
+bun run --cwd packages/<name> lint       # check
+bun run --cwd packages/<name> lint:fix   # auto-fix
+```
+
+Beyond what Biome enforces automatically, see [Code Changes](#code-changes) above for code-quality expectations (naming, comments, tests, type safety).
+
+---
 
 ## Adding Features
 
 ### New CLI Command
 
-1. Create command file in `src/cli/commands/`
+1. Create command file in `packages/cli/src/cli/commands/`
 2. Implement using Commander.js
-3. Add to main CLI in `src/cli/index.ts`
-4. Add tests
-5. Update documentation
+3. Add to main CLI in `packages/cli/src/cli/index.ts`
+4. Add tests under `packages/cli/tests/`
+5. Update `docs/Cli-Reference.md`
 
 ```typescript
-// src/cli/commands/export.command.ts
+// packages/cli/src/cli/commands/export.command.ts
 import { Command } from "commander";
 
 export const exportCommand = new Command("export")
@@ -443,12 +488,14 @@ export const exportCommand = new Command("export")
 
 ### New Platform Adapter
 
-1. Create adapter in `src/platforms/adapters/[platform]/`
-2. Implement `IPlatformAdapter` interface
-3. Add to platform factory
+1. Create adapter in `packages/atomize-core/src/platforms/adapters/[platform]/`
+2. Implement `IPlatformAdapter` interface (`packages/atomize-core/src/platforms/interfaces/`)
+3. Add to `platform-factory.ts`
 4. Add configuration helper
-5. Add tests
+5. Add tests under `packages/atomize-core/tests/`
 6. Document in Platform Guide
+
+`cli` and `vscode-extension` both consume `atomize-core` directly, so a new adapter becomes available to both once it's added there — no per-surface wiring needed. `atomize-studio` picks it up transitively through `atomize-sidecar`, which also depends on `atomize-core` (see [Monorepo Architecture](#monorepo-architecture)).
 
 See [Platform Guide - Adding New Platforms](docs/Platform-Guide.md#adding-new-platforms)
 
