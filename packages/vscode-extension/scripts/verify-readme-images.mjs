@@ -13,7 +13,7 @@ if (!existsSync(vsixPath)) {
 	process.exit(1);
 }
 
-const readme = execFileSync("unzip", ["-p", vsixPath, "extension/README.md"], {
+const readme = execFileSync("unzip", ["-p", vsixPath, "extension/readme.md"], {
 	encoding: "utf8",
 });
 const imageUrls = [...readme.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map(
