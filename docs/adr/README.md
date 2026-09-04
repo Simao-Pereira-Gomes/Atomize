@@ -2,7 +2,7 @@
 
 An ADR here captures one architectural decision — the context that forced it, what was decided, and (usually) what alternatives were rejected and why. They're written when the decision itself needs to survive past the PR that made it: later contributors should be able to tell "this is intentional" from "this is an accident nobody's fixed yet."
 
-54 ADRs exist today (0001-0060; a handful of numbers were retired). Browse by theme below to find decisions relevant to the surface you're touching, or open them numerically in `docs/adr/` for the full chronological history. A `>` blockquote at the top of an ADR means it's been superseded or is no longer applicable — the note says which ADR replaced it or what removed the need for it; read the newer one first.
+55 ADRs exist today (0001-0061; a handful of numbers were retired). Browse by theme below to find decisions relevant to the surface you're touching, or open them numerically in `docs/adr/` for the full chronological history. A `>` blockquote at the top of an ADR means it's been superseded or is no longer applicable — the note says which ADR replaced it or what removed the need for it; read the newer one first.
 
 ## Shared Domain / Cross-Cutting
 
@@ -21,6 +21,7 @@ Decisions affecting the Template Library, Catalog, or shared packages consumed b
 - [0049 - Catalog remove logic moves from the CLI into `atomize-core`, shared with Studio's sidecar](./0049-catalog-remove-lives-in-atomize-core.md) — one shared `TemplateCatalog.removeUserItem` implementation instead of the CLI and sidecar independently deciding what's removable.
 - [0057 - `atomize-core`'s `Atomizer.atomize` gains a batch-level `AbortSignal`](./0057-atomize-core-gains-batch-level-cancellation.md) — cancellation stops at batch boundaries (in-flight stories complete); added for Studio's live Execute, usable by any consumer.
 - [0060 - Telemetry is opt-in, shared across all three surfaces, and backed by PostHog](./0060-telemetry-opt-in-shared-across-surfaces-posthog.md) — opt-in (not opt-out) via one shared `~/.atomize/telemetry.json` consent/anonymous-ID file across the CLI, Studio, *and* the VS Code extension (unlike Connection Profiles, ADR-0040 — no native-module bundling cost to avoid here); the extension layers `vscode.env.isTelemetryEnabled` as an additional required gate. PostHog-hosted, fire-and-forget, owned by a new `atomize-telemetry` package.
+- [0061 - Jira/Linear adapters: no canonical vocabulary, OAuth over long-lived tokens, per-surface redirect capture](./0061-jira-linear-adapters-scope-and-auth.md) — Templates stay platform-specific (no cross-platform taxonomy, no automated conversion); `getFieldSchemas` is renamed/regeneralized away from `ADoFieldSchema`; Jira uses OAuth 2.0, not a long-lived token, with redirect capture split by surface.
 
 ## CLI
 
@@ -48,6 +49,7 @@ Decisions affecting the Template Library, Catalog, or shared packages consumed b
 - [0030 - Extension release pipeline: git tag sentinel + version-change detection](./0030-extension-release-pipeline.md) — merging a version bump to `main` publishes automatically; see also Release & CI Pipelines below.
 - [0040 - VS Code extension owns independent profile storage, with one-time CLI import](./0040-vscode-extension-profile-storage.md) — reverses 0012's CLI-as-source-of-truth premise once `auth list --json` (a subprocess call) no longer exists; profiles live in `globalState`/`SecretStorage`, with a read-only one-time CLI import.
 - [0060 - Telemetry is opt-in, shared across all three surfaces, and backed by PostHog](./0060-telemetry-opt-in-shared-across-surfaces-posthog.md) — unlike 0040's independent profile storage, telemetry consent *is* shared continuously with the CLI and Studio; see also Shared Domain / Cross-Cutting above.
+- [0061 - Jira/Linear adapters: no canonical vocabulary, OAuth over long-lived tokens, per-surface redirect capture](./0061-jira-linear-adapters-scope-and-auth.md) — OAuth's redirect capture differs by surface: a shared loopback server for the CLI and Studio, `vscode.authentication`/`UriHandler` for the extension (the only approach that survives SSH Remote/Codespaces); see also Shared Domain / Cross-Cutting above.
 
 ## Atomize Studio
 
