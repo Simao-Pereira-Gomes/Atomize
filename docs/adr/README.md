@@ -2,7 +2,7 @@
 
 An ADR here captures one architectural decision — the context that forced it, what was decided, and (usually) what alternatives were rejected and why. They're written when the decision itself needs to survive past the PR that made it: later contributors should be able to tell "this is intentional" from "this is an accident nobody's fixed yet."
 
-55 ADRs exist today (0001-0061; a handful of numbers were retired). Browse by theme below to find decisions relevant to the surface you're touching, or open them numerically in `docs/adr/` for the full chronological history. A `>` blockquote at the top of an ADR means it's been superseded or is no longer applicable — the note says which ADR replaced it or what removed the need for it; read the newer one first.
+56 ADRs exist today (0001-0062; a handful of numbers were retired). Browse by theme below to find decisions relevant to the surface you're touching, or open them numerically in `docs/adr/` for the full chronological history. A `>` blockquote at the top of an ADR means it's been superseded or is no longer applicable — the note says which ADR replaced it or what removed the need for it; read the newer one first.
 
 ## Shared Domain / Cross-Cutting
 
@@ -22,6 +22,7 @@ Decisions affecting the Template Library, Catalog, or shared packages consumed b
 - [0057 - `atomize-core`'s `Atomizer.atomize` gains a batch-level `AbortSignal`](./0057-atomize-core-gains-batch-level-cancellation.md) — cancellation stops at batch boundaries (in-flight stories complete); added for Studio's live Execute, usable by any consumer.
 - [0060 - Telemetry is opt-in, shared across all three surfaces, and backed by PostHog](./0060-telemetry-opt-in-shared-across-surfaces-posthog.md) — opt-in (not opt-out) via one shared `~/.atomize/telemetry.json` consent/anonymous-ID file across the CLI, Studio, *and* the VS Code extension (unlike Connection Profiles, ADR-0040 — no native-module bundling cost to avoid here); the extension layers `vscode.env.isTelemetryEnabled` as an additional required gate. PostHog-hosted, fire-and-forget, owned by a new `atomize-telemetry` package.
 - [0061 - Jira/Linear adapters: no canonical vocabulary, OAuth over long-lived tokens, per-surface redirect capture](./0061-jira-linear-adapters-scope-and-auth.md) — Templates stay platform-specific (no cross-platform taxonomy, no automated conversion); `getFieldSchemas` is renamed/regeneralized away from `ADoFieldSchema`; Jira uses OAuth 2.0, not a long-lived token, with redirect capture split by surface.
+- [0062 - `template improve` reuses the Copilot Session, grounding, and Template Diff infrastructure already built for AI drafting and Studio](./0062-template-improve-reuses-existing-ai-and-diff-infrastructure.md) — ships on both the CLI and Studio from the start, since the expensive parts (`diffTemplates`, ADR-0058; grounding, ADR-0045) already exist and are explicitly designed for this reuse.
 
 ## CLI
 
@@ -73,6 +74,7 @@ Decisions affecting the Template Library, Catalog, or shared packages consumed b
 - [0056 - Generate Scope is chosen by browsing real Stories, not a blind ID list](./0056-studio-generate-scope-via-story-browser.md) — a new sidecar RPC lets users pick from real matching Stories, unlike the CLI's/extension's blind ID input.
 - [0058 - Studio's Template Diff compares against the cloned raw origin, not the resolved origin](./0058-studio-template-diff-baseline-is-cloned-raw-origin.md) — Catalog Clone never composes `extends`/`mixins`, so the diff baseline can't be the resolved form without spuriously reporting every inherited task as removed.
 - [0059 - Studio release pipeline and no-cost distribution](./0059-studio-release-tags-gate-publishing.md) — see Release & CI Pipelines below.
+- [0062 - `template improve` reuses the Copilot Session, grounding, and Template Diff infrastructure already built for AI drafting and Studio](./0062-template-improve-reuses-existing-ai-and-diff-infrastructure.md) — a new "Improve with AI" action, available whenever a Template is loaded in the authoring surface, reuses `diffTemplates` (0058) as its proposed-changes view; see also Shared Domain / Cross-Cutting above.
 
 ## Release & CI Pipelines
 
