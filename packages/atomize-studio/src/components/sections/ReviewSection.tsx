@@ -244,6 +244,17 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
   };
 
   const runInstall = async (overwrite: boolean) => {
+    const scope = installScope();
+    let workspaceRoot: string | undefined;
+    if (scope === "project") {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true, multiple: false, title: "Choose project folder" });
+      if (typeof selected !== "string") {
+        setInstallError("Choose a project folder to install to its Catalog.");
+        return;
+      }
+      workspaceRoot = selected;
+    }
     const name = slugifyTemplateName(props.store["basic-info"].fields.name);
     // A Catalog item is a new canonical copy, not tied to whatever it was cloned or opened
     // from — strip origin the same way "Export as copy…" detaches (ADR-0037/0048, ADR-0052).
@@ -253,10 +264,10 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
     setInstalling(true);
     setInstallError("");
     try {
-      await installCatalogItem(content, name, installScope(), overwrite);
+      await installCatalogItem(content, name, scope, overwrite, undefined, workspaceRoot);
       setInstallCollision(false);
       setInstallOpen(false);
-      setInstalled({ name, scope: installScope() });
+      setInstalled({ name, scope });
       setTimeout(() => setInstalled(undefined), 6000);
     } catch (error) {
       if (error instanceof SidecarRequestError && error.code === "CATALOG_ITEM_ALREADY_EXISTS") {
@@ -526,6 +537,9 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
                         Project Catalog
                       </button>
                     </div>
+                    <Show when={installScope() === "project"}>
+                      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">You’ll choose the project folder before installing.</p>
+                    </Show>
                   </div>
                   <Show when={installError()}>
                     <p class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{installError()}</p>

@@ -16,8 +16,8 @@ async fn catalog_remove_item(kind: String, name: String, relay: tauri::State<'_,
 }
 
 #[tauri::command]
-async fn catalog_install_item(content: String, name: String, scope: String, overwrite: bool, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    relay.request("catalog.install", json!({ "content": content, "name": name, "scope": scope, "overwrite": overwrite })).await
+async fn catalog_install_item(content: String, name: String, scope: String, overwrite: bool, workspace_root: Option<String>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("catalog.install", json!({ "content": content, "name": name, "scope": scope, "overwrite": overwrite, "workspaceRoot": workspace_root })).await
 }
 
 #[tauri::command]
