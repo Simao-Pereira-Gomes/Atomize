@@ -62,7 +62,16 @@ jobs:
         working-directory: packages/atomize-studio
       - run: bun run lint
         working-directory: packages/atomize-studio
-      - run: bun run build -- ${{ matrix.args }}
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux'
+        run: bun run build -- --verbose
+        working-directory: packages/atomize-studio
+        env:
+          # linuxdeploy cannot reliably infer this from a Tauri/WebKitGTK binary.
+          DEPLOY_GTK_VERSION: "3"
+      - name: Build other platform installers
+        if: runner.os != 'Linux'
+        run: bun run build -- ${{ matrix.args }}
         working-directory: packages/atomize-studio
       - uses: actions/upload-artifact@v4
         with:
@@ -166,6 +175,8 @@ jobs:
     if: needs.check-version.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
     permissions:
       contents: read
     steps:
@@ -176,8 +187,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
       - run: bun install --frozen-lockfile
-      - run: bun run build
+      - name: Build Linux installers
+        run: bun run build -- --verbose
         working-directory: packages/atomize-studio
+        env:
+          # linuxdeploy cannot reliably infer this from a Tauri/WebKitGTK binary.
+          DEPLOY_GTK_VERSION: "3"
       - name: Label experimental installers
         shell: bash
         run: |
@@ -189,6 +204,7 @@ jobs:
             mv "$asset" "${asset%.*}-experimental.${asset##*.}"
           done
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
           name: studio-linux-experimental
           path: release-assets/
@@ -216,7 +232,7 @@ jobs:
           name: studio-windows
           path: release-assets
       - uses: actions/download-artifact@v4
-        if: needs.build-linux-release.result == 'success'
+        if: needs.build-linux-release.outputs.artifact_id != ''
         with:
           name: studio-linux-experimental
           path: release-assets
