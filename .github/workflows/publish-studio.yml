@@ -152,8 +152,10 @@ jobs:
           test -n "$app"
           entitlements=$(mktemp)
           codesign -d --xml --entitlements "$entitlements" "$app/Contents/MacOS/atomize-copilot"
-          plutil -p "$entitlements" | grep -F '"com.apple.security.cs.allow-jit" => true'
-          plutil -p "$entitlements" | grep -F '"com.apple.security.cs.disable-library-validation" => true'
+          echo "--- embedded entitlements ---"
+          plutil -p "$entitlements"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.cs.allow-jit' "$entitlements")" = "true"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.cs.disable-library-validation' "$entitlements")" = "true"
       - name: Create signed macOS installer
         run: bunx tauri bundle --bundles dmg ${{ matrix.args }}
         working-directory: packages/atomize-studio
