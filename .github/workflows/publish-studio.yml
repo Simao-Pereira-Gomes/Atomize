@@ -62,13 +62,12 @@ jobs:
         working-directory: packages/atomize-studio
       - run: bun run lint
         working-directory: packages/atomize-studio
-      - name: Build Linux AppImage
+      - name: Build experimental Linux installer
         if: runner.os == 'Linux'
-        run: bun run build -- --verbose
+        # Bun's compiled standalone sidecar cannot be inspected by linuxdeploy,
+        # so AppImage packaging aborts before a usable Studio bundle exists.
+        run: bun run build -- --bundles deb
         working-directory: packages/atomize-studio
-        env:
-          # linuxdeploy cannot reliably infer this from a Tauri/WebKitGTK binary.
-          DEPLOY_GTK_VERSION: "3"
       - name: Build other platform installers
         if: runner.os != 'Linux'
         run: bun run build -- ${{ matrix.args }}
@@ -187,12 +186,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
       - run: bun install --frozen-lockfile
-      - name: Build Linux installers
-        run: bun run build -- --verbose
+      - name: Build experimental Linux installer
+        # Bun's compiled standalone sidecar cannot be inspected by linuxdeploy,
+        # so AppImage packaging aborts before a usable Studio bundle exists.
+        run: bun run build -- --bundles deb
         working-directory: packages/atomize-studio
-        env:
-          # linuxdeploy cannot reliably infer this from a Tauri/WebKitGTK binary.
-          DEPLOY_GTK_VERSION: "3"
       - name: Label experimental installers
         shell: bash
         run: |
@@ -236,13 +234,20 @@ jobs:
         with:
           name: studio-linux-experimental
           path: release-assets
-      - name: Generate checksums
-        working-directory: release-assets
-        run: sha256sum * > SHA256SUMS.txt
+      - name: Collect release assets
+        run: |
+          mkdir release-files
+          while IFS= read -r -d '' asset; do
+            filename=$(basename "$asset")
+            test ! -e "release-files/$filename" || { echo "Duplicate release asset: $filename" >&2; exit 1; }
+            cp "$asset" "release-files/$filename"
+          done < <(find release-assets -type f -print0)
+          cd release-files
+          sha256sum * > SHA256SUMS.txt
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "studio-v${{ needs.check-version.outputs.version }}" release-assets/* \
+          gh release create "studio-v${{ needs.check-version.outputs.version }}" release-files/* \
             --title "Atomize Studio ${{ needs.check-version.outputs.version }}" \
             --notes $'## Installer verification\n\nVerify every download with `SHA256SUMS.txt`. macOS installers are ad-hoc signed but not notarised; Windows installers are unsigned. Your operating system may show a security warning before installation.'
