@@ -118,9 +118,51 @@ fn fix_path_env() {
     if !path.is_empty() { std::env::set_var("PATH", path); }
 }
 
+// A Start Menu/desktop-icon launch spawns Studio from explorer.exe, which only reloads its own
+// environment block when it (re)starts — not when something later modifies PATH, e.g. installing
+// `gh` or the GitHub CLI. A terminal opened afterwards always sees the current value because it
+// reads it fresh at launch, so this only shows up for GUI launches, and only once something has
+// been added to PATH since the user's last logon/Explorer restart. The bundled `atomize-copilot`
+// shells out to `gh` to check sign-in state, so a stale PATH here reads as "not authenticated"
+// even after a successful `gh auth login`. The registry keys below are PATH's actual persisted
+// source of truth — read the current machine + user values from there instead of trusting the
+// inherited (possibly stale) process environment.
+#[cfg(target_os = "windows")]
+fn fix_path_env() {
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+    use winreg::RegKey;
+
+    fn read_path(hive: winreg::HKEY, subkey: &str) -> Option<String> {
+        RegKey::predef(hive).open_subkey(subkey).ok()?.get_value::<String, _>("Path").ok()
+    }
+
+    fn expand(value: &str) -> String {
+        let mut result = String::with_capacity(value.len());
+        let mut rest = value;
+        while let Some(start) = rest.find('%') {
+            let Some(end) = rest[start + 1..].find('%') else { break };
+            let end = start + 1 + end;
+            result.push_str(&rest[..start]);
+            let name = &rest[start + 1..end];
+            match std::env::var(name) {
+                Ok(value) => result.push_str(&value),
+                Err(_) => result.push_str(&rest[start..=end]),
+            }
+            rest = &rest[end + 1..];
+        }
+        result.push_str(rest);
+        result
+    }
+
+    let machine = read_path(HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment");
+    let user = read_path(HKEY_CURRENT_USER, "Environment");
+    let combined = [machine, user].into_iter().flatten().map(|value| expand(&value)).collect::<Vec<_>>().join(";");
+    if !combined.is_empty() { std::env::set_var("PATH", combined); }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     fix_path_env();
 
     tauri::Builder::default()
