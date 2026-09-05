@@ -49,15 +49,19 @@ export function StartingPathPicker(props: {
       setOpening(false);
     }
   };
-  const openAI = async () => {
+  const openAI = () => {
     if (props.catalogAvailable?.() === false) return;
-    setProfiles(await listAzureDevOpsProfiles().catch(() => []));
     setAiError("");
-    // Checked upfront so a missing Copilot sign-in is shown immediately, not only after a
-    // failed Create draft. If the check itself fails (e.g. sidecar unreachable), fall through to
-    // the form and let generate() surface the real error instead of blocking AI draft entirely.
-    const authenticated = await checkCopilotAuthStatus().then((status) => status.authenticated).catch(() => true);
-    setAiState(authenticated ? "form" : "auth-error");
+    // Opens the form immediately: checkCopilotAuthStatus spawns a fresh Copilot CLI process
+    // to answer, which measured 0.9-5.5s on Windows — awaiting it here before showing anything
+    // read as AI draft hanging, with no feedback. It still nudges toward sign-in, but from the
+    // background so a slow or unreachable check never blocks getting to the form; a stale result
+    // (e.g. the user already left this state) is ignored via the aiState() re-check.
+    setAiState("form");
+    void listAzureDevOpsProfiles().then(setProfiles).catch(() => setProfiles([]));
+    void checkCopilotAuthStatus().then((status) => {
+      if (!status.authenticated && aiState() === "form") setAiState("auth-error");
+    }).catch(() => {});
   };
   const generate = async (withoutProject = false) => {
     if (!prose().trim()) { setAiError("Describe the Template you want to draft."); return; }
