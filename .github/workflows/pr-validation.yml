@@ -5,6 +5,7 @@ on:
     branches:
       - main
     types: [opened, synchronize, reopened]
+  merge_group:
 
 permissions: {}
 
@@ -51,6 +52,8 @@ jobs:
 
   dependency-review:
     name: Dependency Review
+    # actions/dependency-review-action only runs in pull_request context; skipped in the merge queue.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read

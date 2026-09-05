@@ -1,14 +1,6 @@
 name: Build Studio sidecar
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - packages/atomize-sidecar/**
-      - packages/atomize-ai/**
-      - packages/atomize-core/**
-      - packages/atomize-schema/**
-      - .github/workflows/build-studio-sidecar.yml
   pull_request:
     branches: [main]
     paths:

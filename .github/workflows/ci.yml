@@ -1,12 +1,10 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
+  merge_group:
 permissions: {}
 
 jobs:
@@ -120,6 +118,33 @@ jobs:
         run: bun run build
         working-directory: packages/vscode-extension
 
+      - name: Package extension
+        run: bun run package
+        working-directory: packages/vscode-extension
+
+      - name: Check packaged extension size
+        working-directory: packages/vscode-extension
+        run: |
+          VSIX=$(ls *.vsix)
+          SIZE=$(stat -c%s "$VSIX")
+          MAX=$((5 * 1024 * 1024))
+          echo "Packaged extension: $VSIX ($SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "::error::Packaged extension is ${SIZE} bytes, exceeding the 5MB budget (${MAX} bytes)."
+            exit 1
+          fi
+
+      - name: Verify packaged README images
+        run: bun run verify:readme-images
+        working-directory: packages/vscode-extension
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomize-vscode.vsix
+          path: packages/vscode-extension/*.vsix
+          retention-days: 30
+
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -220,55 +245,3 @@ jobs:
       - name: Check schema is up to date
         run: bun run check-schema
         working-directory: packages/cli
-
-  vscode-extension:
-    name: VSCode Extension
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.3.13
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build extension
-        run: bun run build
-        working-directory: packages/vscode-extension
-
-      - name: Package extension
-        run: bun run package
-        working-directory: packages/vscode-extension
-
-      - name: Check packaged extension size
-        working-directory: packages/vscode-extension
-        run: |
-          VSIX=$(ls *.vsix)
-          SIZE=$(stat -c%s "$VSIX")
-          MAX=$((5 * 1024 * 1024))
-          echo "Packaged extension: $VSIX ($SIZE bytes)"
-          if [ "$SIZE" -gt "$MAX" ]; then
-            echo "::error::Packaged extension is ${SIZE} bytes, exceeding the 5MB budget (${MAX} bytes)."
-            exit 1
-          fi
-
-      - name: Verify packaged README images
-        run: bun run verify:readme-images
-        working-directory: packages/vscode-extension
-
-      - name: Upload .vsix artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: atomize-vscode.vsix
-          path: packages/vscode-extension/*.vsix
-          retention-days: 30
