@@ -1,12 +1,6 @@
 name: Validate Studio frontend
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - packages/atomize-studio/**
-      - packages/atomize-sidecar/**
-      - .github/workflows/validate-studio-frontend.yml
   pull_request:
     branches: [main]
     paths:
