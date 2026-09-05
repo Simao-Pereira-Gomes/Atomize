@@ -161,7 +161,7 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 				</span>
 				<span class="hidden max-w-40 truncate sm:inline">
 					{props.session.state() === "ready"
-						? (activeProfile()?.project ?? "Work project")
+						? (activeProfile()?.name ?? "Work project")
 						: "Work project"}
 				</span>
 				<span class="text-slate-400">⌄</span>
@@ -218,10 +218,10 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 									/>
 									<span class="min-w-0 flex-1">
 										<span class="block truncate font-semibold text-slate-950 dark:text-white">
-											{profile.project}
+											{profile.name}
 										</span>
 										<span class="block truncate text-sm text-slate-500 dark:text-slate-400">
-											{profile.team} · Azure DevOps
+											{profile.project} · {profile.team}
 										</span>
 									</span>
 									<Show
@@ -353,10 +353,10 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 												/>
 												<span class="min-w-0">
 													<span class="block truncate text-sm font-semibold">
-														{profile.project}
+														{profile.name}
 													</span>
 													<span class="block truncate text-xs text-slate-500 dark:text-slate-400">
-														{profile.team}
+														{profile.project} · {profile.team}
 													</span>
 												</span>
 											</button>
@@ -394,9 +394,17 @@ export function GroundingSettings(props: { session: GroundingSession; sidecarAva
 														Azure DevOps connection
 													</p>
 													<h3 class="mt-1 text-2xl font-bold text-slate-950 dark:text-white">
-														{profile().project}
+														{profile().name}
 													</h3>
 													<dl class="mt-6 space-y-4 text-sm">
+														<div>
+															<dt class="font-semibold text-slate-500 dark:text-slate-400">
+																Project
+															</dt>
+															<dd class="mt-1 text-slate-950 dark:text-white">
+																{profile().project}
+															</dd>
+														</div>
 														<div>
 															<dt class="font-semibold text-slate-500 dark:text-slate-400">
 																Organization
