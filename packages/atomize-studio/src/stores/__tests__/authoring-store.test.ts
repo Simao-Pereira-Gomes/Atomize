@@ -454,4 +454,27 @@ describe("createAuthoringStore", () => {
     expect(store.tasks.errors["tasks.0.title"]).toBeUndefined();
     expect(store.tasks.errors["tasks.1.title"]).toBe("Title is required");
   });
+
+  it("serialises a multi-archetype template whose baseline total is below 100% but reaches it when conditional tasks fire", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { title: "Always 1", estimationPercent: 10 },
+        { title: "Always 2", estimationPercent: 10 },
+        { title: "Always 3", estimationPercent: 10 },
+        { title: "Always 4", estimationPercent: 10 },
+        { title: "Always 5", estimationPercent: 10 },
+        { title: "Always 6", estimationPercent: 10 },
+        { title: "Always 7", estimationPercent: 10 },
+        { title: "Always 8", estimationPercent: 10 },
+        { title: "Only if large 1", estimationPercent: 10, condition: { field: "estimation", operator: "gt", value: 12 } },
+        { title: "Only if large 2", estimationPercent: 10, condition: { field: "estimation", operator: "gt", value: 12 } },
+      ],
+      validation: { totalEstimationMustBe: 100 },
+    });
+
+    expect(isAuthoringStoreReadyForReview(store)).toBe(true);
+    expect(() => store.serialise()).not.toThrow();
+  });
 });

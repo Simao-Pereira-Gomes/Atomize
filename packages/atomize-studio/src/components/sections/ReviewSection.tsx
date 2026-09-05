@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, For, type JSX, Show } from "solid-js";
+import { type Accessor, createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js";
 import { stringify } from "yaml";
 import { catalogTemplateOrigin, type OriginBaselineSession } from "../../diff/origin-baseline";
 import { downloadTemplate, saveTemplateToPath, slugifyTemplateName } from "../../download/download-service";
@@ -170,8 +170,26 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
   const decreaseZoom = () => setYamlZoom((zoom) => Math.max(70, zoom - 10));
   const increaseZoom = () => setYamlZoom((zoom) => Math.min(160, zoom + 10));
   const yamlFontSize = () => `${(14 * yamlZoom()) / 100}px`;
-  const copyYaml = () => navigator.clipboard.writeText(props.store.serialise());
-  const currentYaml = () => props.store.serialise();
+  const yamlPreview = createMemo<{ ok: true; yaml: string } | { ok: false; message: string }>(() => {
+    try {
+      return { ok: true, yaml: props.store.serialise() };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error
+          ? error.message
+          : "This Template doesn't validate as a whole, even though every section above checks out.",
+      };
+    }
+  });
+  const copyYaml = () => {
+    const preview = yamlPreview();
+    if (preview.ok) void navigator.clipboard.writeText(preview.yaml);
+  };
+  const currentYaml = () => {
+    const preview = yamlPreview();
+    return preview.ok ? preview.yaml : "";
+  };
   const resultIsOutdated = () => {
     const value = props.onlineValidation.result();
     return !!value && (value.stale === true || value.template !== currentYaml() || value.workProject !== props.grounding.selectedProfile());
@@ -256,14 +274,11 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
       workspaceRoot = selected;
     }
     const name = slugifyTemplateName(props.store["basic-info"].fields.name);
-    // A Catalog item is a new canonical copy, not tied to whatever it was cloned or opened
-    // from — strip origin the same way "Export as copy…" detaches (ADR-0037/0048, ADR-0052).
-    const { origin: _origin, ...template } = props.store.toTemplate();
-    const content = stringify(template, { lineWidth: 0 });
-
     setInstalling(true);
     setInstallError("");
     try {
+      const { origin: _origin, ...template } = props.store.toTemplate();
+      const content = stringify(template, { lineWidth: 0 });
       await installCatalogItem(content, name, scope, overwrite, undefined, workspaceRoot);
       setInstallCollision(false);
       setInstallOpen(false);
@@ -307,7 +322,10 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
           <Show when={hasOrigin() && reviewTab() === "diff"}>
             <TemplateDiffView
               state={props.originBaseline.state()}
-              current={() => props.store.toTemplate()}
+              current={() => {
+                try { return props.store.toTemplate(); }
+                catch { return undefined; }
+              }}
               onRefresh={() => {
                 const ref = originRef();
                 if (ref) props.originBaseline.refresh(ref);
@@ -371,9 +389,14 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
               </section>
             )}
           </Show>
-          <pre class="overflow-x-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}>
-            <YamlCode value={props.store.serialise()} />
-          </pre>
+          <Show
+            when={yamlPreview().ok}
+            fallback={<p class="ui-error mt-3">{(yamlPreview() as { ok: false; message: string }).message}</p>}
+          >
+            <pre class="overflow-x-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}>
+              <YamlCode value={(yamlPreview() as { ok: true; yaml: string }).yaml} />
+            </pre>
+          </Show>
           <Show when={yamlMaximized()}>
             <div class="fixed inset-0 z-[850] flex flex-col bg-slate-950/90 p-4 sm:p-7" role="dialog" aria-modal="true" aria-label="Maximized YAML preview">
               <div class="mx-auto w-full max-w-7xl">
@@ -432,7 +455,12 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
                   )}
                 </Show>
               </div>
-              <pre class="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}><YamlCode value={props.store.serialise()} /></pre>
+              <Show
+                when={yamlPreview().ok}
+                fallback={<p class="ui-error mt-3">{(yamlPreview() as { ok: false; message: string }).message}</p>}
+              >
+                <pre class="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}><YamlCode value={(yamlPreview() as { ok: true; yaml: string }).yaml} /></pre>
+              </Show>
             </div>
           </Show>
           <Show when={downloadError()}>

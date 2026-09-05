@@ -579,18 +579,31 @@ export const ExtendingTaskTemplateSchema = TaskTemplateBaseSchema
       ),
   });
 
+/**
+ * A task's own reachable percent range, ignoring whether the task itself is conditional.
+ * `estimationPercentCondition` means the task's percent varies by which of its rules matches
+ * at generate time — the base `estimationPercent` and every rule's `percent` are each a
+ * possible outcome, so the reachable range spans their min and max.
+ */
+function ownPercentRange(task: TaskTemplate["tasks"][number]): [min: number, max: number] {
+  const candidates = [task.estimationPercent ?? 0, ...(task.estimationPercentCondition?.map((rule) => rule.percent) ?? [])];
+  return [Math.min(...candidates), Math.max(...candidates)];
+}
+
 export const TaskTemplateSchema = TaskTemplateBaseSchema
   .superRefine((data, ctx) => {
     const { tasks, validation: v } = data;
-    const nonConditionalTasks = tasks.filter((t) => !t.condition);
-    const totalPercent = nonConditionalTasks.reduce(
-      (sum, t) => sum + (t.estimationPercent ?? 0),
-      0,
-    );
+    let totalPercent = 0;
+    let maxTotalPercent = 0;
+    for (const task of tasks) {
+      const [ownMin, ownMax] = ownPercentRange(task);
+      totalPercent += task.condition ? 0 : ownMin;
+      maxTotalPercent += ownMax;
+    }
     const taskIds = new Set(tasks.map((t) => t.id).filter(Boolean));
 
     validateUniqueTaskIds(tasks, ctx);
-    validateEstimationConstraints(v, totalPercent, ctx);
+    validateEstimationConstraints(v, totalPercent, maxTotalPercent, ctx);
 
     validateTaskConstraints(v, tasks, ctx);
     validateRequiredTasks(v, tasks, ctx);
@@ -672,10 +685,11 @@ function validateUniqueTaskIds(
 function validateEstimationConstraints(
   v: TaskTemplate["validation"] | undefined,
   totalPercent: number,
+  maxTotalPercent: number,
   ctx: z.RefinementCtx,
 ) {
   if (v?.totalEstimationMustBe !== undefined) {
-    if (totalPercent !== v.totalEstimationMustBe) {
+    if (v.totalEstimationMustBe < totalPercent || v.totalEstimationMustBe > maxTotalPercent) {
       ctx.addIssue({
         code: "custom",
         path: ["tasks"],
@@ -685,7 +699,7 @@ function validateEstimationConstraints(
     }
   } else if (v?.totalEstimationRange) {
     const { min, max } = v.totalEstimationRange;
-    if (totalPercent < min || totalPercent > max) {
+    if (maxTotalPercent < min || totalPercent > max) {
       ctx.addIssue({
         code: "custom",
         path: ["tasks"],
