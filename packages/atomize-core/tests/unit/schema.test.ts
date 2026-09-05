@@ -711,5 +711,105 @@ describe("Schema Validation", () => {
 
       expect(result.success).toBe(false);
     });
+
+    describe("total estimation with conditional tasks", () => {
+      // A task with `condition` only sometimes runs — its percent shouldn't be required to
+      // always be there, and shouldn't be required to always be absent either. The template
+      // is valid as long as totalEstimationMustBe is reachable somewhere between "no
+      // conditional task fires" and "every conditional task fires".
+      test("accepts a target reachable only when conditional tasks fire", () => {
+        const template = {
+          version: "1.0",
+          name: "Multi-archetype",
+          filter: {},
+          tasks: [
+            { title: "Always 1", estimationPercent: 10 },
+            { title: "Always 2", estimationPercent: 10 },
+            { title: "Always 3", estimationPercent: 10 },
+            { title: "Always 4", estimationPercent: 10 },
+            { title: "Always 5", estimationPercent: 10 },
+            { title: "Always 6", estimationPercent: 10 },
+            { title: "Always 7", estimationPercent: 10 },
+            { title: "Always 8", estimationPercent: 10 },
+            { title: "Only if large 1", estimationPercent: 10, condition: { field: "estimation", operator: "gt", value: 12 } },
+            { title: "Only if large 2", estimationPercent: 10, condition: { field: "estimation", operator: "gt", value: 12 } },
+          ],
+          validation: { totalEstimationMustBe: 100 },
+        };
+
+        const result = TaskTemplateSchema.safeParse(template);
+        expect(result.success).toBe(true);
+      });
+
+      test("rejects a target unreachable even with every conditional task firing", () => {
+        const template = {
+          version: "1.0",
+          name: "Still broken",
+          filter: {},
+          tasks: [
+            { title: "Always", estimationPercent: 50 },
+            { title: "Conditional", estimationPercent: 10, condition: { field: "tags", operator: "contains", value: "x" } },
+          ],
+          validation: { totalEstimationMustBe: 100 },
+        };
+
+        const result = TaskTemplateSchema.safeParse(template);
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const issue = result.error.issues.find((i) => i.path.join(".") === "tasks");
+          expect(issue?.message).toContain("50%");
+        }
+      });
+
+      test("accepts a totalEstimationRange overlapped by the reachable range", () => {
+        const template = {
+          version: "1.0",
+          name: "Range with conditions",
+          filter: {},
+          tasks: [
+            { title: "Always", estimationPercent: 80 },
+            { title: "Conditional", estimationPercent: 30, condition: { field: "tags", operator: "contains", value: "x" } },
+          ],
+          validation: { totalEstimationRange: { min: 95, max: 105 } },
+        };
+
+        // Reachable range is [80, 110] — overlaps [95, 105], so this is achievable depending
+        // on whether the conditional task's condition holds at generate time.
+        const result = TaskTemplateSchema.safeParse(template);
+        expect(result.success).toBe(true);
+      });
+
+      // estimationPercentCondition varies an always-present task's own percent rather than
+      // gating its presence — the reachable range must account for that too.
+      test("accounts for estimationPercentCondition overrides in the reachable range", () => {
+        const template = {
+          version: "1.0",
+          name: "Conditional percentage",
+          filter: {},
+          tasks: [
+            {
+              title: "Variable",
+              estimationPercent: 20,
+              estimationPercentCondition: [
+                { condition: { field: "priority", operator: "lte", value: 2 }, percent: 60 },
+              ],
+            },
+            { title: "Rest", estimationPercent: 80 },
+          ],
+          validation: { totalEstimationMustBe: 100 },
+        };
+
+        // Base case sums to 100 already, so this must stay valid.
+        expect(TaskTemplateSchema.safeParse(template).success).toBe(true);
+
+        // Raising the "Rest" task so only the override (not the base) reaches 100 must also
+        // validate, since the override is a reachable outcome for "Variable".
+        const overrideReachesTarget = {
+          ...template,
+          tasks: [template.tasks[0], { title: "Rest", estimationPercent: 40 }],
+        };
+        expect(TaskTemplateSchema.safeParse(overrideReachesTarget).success).toBe(true);
+      });
+    });
   });
 });

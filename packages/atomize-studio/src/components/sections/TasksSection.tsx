@@ -5,6 +5,7 @@ import { reconcile } from "solid-js/store";
 import { Portal } from "solid-js/web";
 import { coerceGroundedTaskValue, editableTaskFields, type GroundedTaskField, activityField as groundedActivityField, conditionFields as groundedConditionFields, statesForTypes } from "../../grounding/grounding-service";
 import type { EditableTask, TasksStore } from "../../stores/sections";
+import { operatorsForCondition } from "./condition-operators";
 import { MultiSelectField, TagChipInput, TextareaField, TextField } from "../fields";
 import type { GroundingSession } from "../GroundingSettings";
 
@@ -114,18 +115,7 @@ function ConditionEditor(props: { condition: Condition; onChange: (condition: Co
     else if (target.startsWith("project:")) props.onChange({ customField: target.slice("project:".length), operator: "equals", value: current.value });
     else props.onChange({ customField: "Custom.", operator: "equals", value: current.value });
   };
-  // Tags is multi-value; the schema only accepts contains/not-contains for it (see
-  // MULTI_VALUE_STANDARD_FIELDS in atomize-schema) since "equals" reads as "the whole list
-  // equals this value" and heavily overlaps with contains in practice.
-  const operators = () => {
-    const current = clause();
-    if ("field" in current && current.field === "tags") return ["contains", "not-contains"] as ConditionOperator[];
-    const field = groundedField();
-    if (!field) return ["equals", "not-equals", "contains", "not-contains"] as ConditionOperator[];
-    if (field.isPicklist || field.type === "boolean") return ["equals", "not-equals"] as ConditionOperator[];
-    if (field.type === "string" || field.type === "identity") return ["equals", "not-equals", "contains", "not-contains"] as ConditionOperator[];
-    return ["equals", "not-equals", "gt", "lt", "gte", "lte"] as ConditionOperator[];
-  };
+  const operators = () => operatorsForCondition(clause(), props.groundedFields);
   const updateItem = (index: number, next: Condition) => {
     if ("all" in props.condition) props.onChange({ all: props.condition.all.map((item, itemIndex) => itemIndex === index ? next : item) });
     if ("any" in props.condition) props.onChange({ any: props.condition.any.map((item, itemIndex) => itemIndex === index ? next : item) });

@@ -114,13 +114,14 @@ function RefreshButton(props: { onRefresh: () => void; disabled?: boolean; label
 
 export function TemplateDiffView(props: {
   state: OriginBaselineState;
-  current: Accessor<TaskTemplate>;
+  current: Accessor<TaskTemplate | undefined>;
   onRefresh: () => void;
   sidecarAvailable: Accessor<boolean>;
 }) {
-  const diff = createMemo(() =>
-    props.state.phase === "resolved" ? diffTemplates(props.state.baseline, props.current()) : undefined,
-  );
+  const diff = createMemo(() => {
+    const current = props.current();
+    return props.state.phase === "resolved" && current ? diffTemplates(props.state.baseline, current) : undefined;
+  });
   const changes = createMemo(() => {
     const d = diff();
     return d && !d.identical ? d : undefined;
@@ -163,7 +164,13 @@ export function TemplateDiffView(props: {
           )}
         </Match>
 
-        <Match when={props.state.phase === "resolved" && props.state}>
+        <Match when={props.state.phase === "resolved" && !props.current()}>
+          <StatusPanel tone="error">
+            This Template doesn't validate as a whole, even though every section above checks out — there's nothing to compare against until that's fixed.
+          </StatusPanel>
+        </Match>
+
+        <Match when={props.state.phase === "resolved" && props.current() && props.state}>
           {(state) => (
             <>
               <div class="flex flex-wrap items-center justify-between gap-2">

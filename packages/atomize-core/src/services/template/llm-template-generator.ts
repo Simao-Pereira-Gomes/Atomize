@@ -58,8 +58,10 @@ tasks:                  # required, minimum 1 item
     id: string          # optional, required if this task is referenced in dependsOn
     dependsOn: string[] # optional, references other task ids
     condition:          # optional — skip this task entirely when condition is false
-      # Standard ADO fields (tags, Priority, State, etc.):
-      field: string     # e.g. "tags", "Priority", "State"
+      # Standard fields (case-sensitive, always lowercase camelCase — NOT the ADO REST field
+      # names like "System.State" or "Microsoft.VSTS.Common.Priority"):
+      #   tags, title, state, estimation, priority, description, assignedTo, type, areaPath, iteration
+      field: string     # e.g. "tags", "priority", "state", "estimation"
       operator: string  # equals | not-equals | contains | not-contains | gt | lt | gte | lte
       value: string | number
       # Custom ADO fields in "Namespace.FieldName" format — use customField, NOT field:
@@ -100,7 +102,7 @@ CONSTRAINTS (you must follow these):
 2. If a task uses dependsOn, all referenced IDs must exist on other tasks in the same template.
 3. workItemTypes values are case-sensitive strings matching ADO work item types.
 4. condition operators must be one of: equals, not-equals, contains, not-contains, gt, lt, gte, lte.
-   Use field for standard ADO fields (tags, Priority, State, AssignedTo, etc.).
+   Use field for the standard fields — tags, title, state, estimation, priority, description, assignedTo, type, areaPath, iteration — spelled exactly as shown (lowercase camelCase); a different casing or an unlisted name will silently never match at runtime.
    Use customField for any field in "Namespace.FieldName" format (e.g. "Custom.DataClassification"). NEVER use field for these — it will silently fail at runtime.
 5. Do not invent fields not listed above.
 6. A task that uses dependsOn MUST also have an id field set.

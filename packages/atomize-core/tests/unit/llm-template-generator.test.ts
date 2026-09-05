@@ -28,6 +28,20 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("sum to exactly 100");
   });
 
+  test("documents every standard condition field Studio's condition editor supports", () => {
+    const prompt = buildSystemPrompt();
+    for (const field of ["tags", "title", "state", "estimation", "priority", "description", "assignedTo", "type", "areaPath", "iteration"]) {
+      expect(prompt).toContain(field);
+    }
+  });
+
+  test("never suggests a capitalized standard field name, which silently never matches at runtime", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).not.toContain('"Priority"');
+    expect(prompt).not.toContain('"State"');
+    expect(prompt).not.toContain('"AssignedTo"');
+  });
+
   test("includes at least one example template", () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain("Example 1");

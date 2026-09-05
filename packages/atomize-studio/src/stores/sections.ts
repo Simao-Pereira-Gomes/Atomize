@@ -764,13 +764,13 @@ export function createAuthoringStore(): AuthoringStore {
     for (const store of Object.values(stores)) store.validate();
   };
 
-  const toTemplate = () => {
+  const buildCandidate = () => {
     for (const store of Object.values(stores)) store.validate();
     if (!isAuthoringStoreReadyForReview(stores)) {
       throw new Error("Template contains invalid section data");
     }
 
-    const template = {
+    return omitUndefined({
       version: nonEmpty(basicInfo.fields.version) ?? "1.0",
       name: basicInfo.fields.name.trim(),
       description: nonEmpty(basicInfo.fields.description),
@@ -786,10 +786,10 @@ export function createAuthoringStore(): AuthoringStore {
       extends: basicInfo.advanced.extends,
       mixins: basicInfo.advanced.mixins,
       origin: basicInfo.advanced.origin,
-    };
-
-    return TaskTemplateSchema.parse(omitUndefined(template));
+    });
   };
+
+  const toTemplate = (): TaskTemplate => TaskTemplateSchema.parse(buildCandidate());
 
   const serialise = () =>
     stringify(toTemplate(), {
