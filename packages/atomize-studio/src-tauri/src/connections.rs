@@ -83,7 +83,17 @@ fn write_file(file: &Value) -> Result<(), String> {
     #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())?; }
     fs::rename(tmp, path).map_err(|e| e.to_string())
 }
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn windows_target_name(name: &str) -> String {
+    format!("{KEYRING_SERVICE}/{name}")
+}
+
+#[cfg(target_os = "windows")]
+fn entry(name: &str) -> Result<Entry, String> {
+    Entry::new_with_target(&windows_target_name(name), KEYRING_SERVICE, name).map_err(|e| e.to_string())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn entry(name: &str) -> Result<Entry, String> { Entry::new(KEYRING_SERVICE, name).map_err(|e| e.to_string()) }
 fn azure_profile(value: &Value, defaults: &serde_json::Map<String, Value>) -> Option<AzureDevOpsProfile> {
     if value.get("platform")?.as_str()? != "azure-devops" { return None; }
@@ -141,7 +151,17 @@ fn store_profile_token(name: &str, token: &str) -> Result<(), String> {
     set_generic_password(KEYRING_SERVICE, name, token.as_bytes()).map_err(|error| error.to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
+// keyring-rs's `set_password`/`get_password` re-encode the Windows Credential Manager
+// blob as UTF-16LE text (the native Windows string convention). keytar (the CLI's Node
+// backend) instead writes the token as raw UTF-8 bytes. Mixing the two either corrupts
+// an odd-length token into a decode error or silently garbles an even-length one into
+// the wrong string, so both stay on the raw-bytes API to agree on the blob's layout.
+#[cfg(target_os = "windows")]
+fn store_profile_token(name: &str, token: &str) -> Result<(), String> {
+    entry(name)?.set_secret(token.as_bytes()).map_err(|error| error.to_string())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn store_profile_token(name: &str, token: &str) -> Result<(), String> {
     entry(name)?.set_password(token).map_err(|error| error.to_string())
 }
@@ -164,7 +184,20 @@ fn delete_profile_token(name: &str) -> Result<(), String> {
     entry(name)?.delete_credential().map_err(|error| error.to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn read_profile_token(name: &str) -> Result<String, ConnectionError> {
+    let key = entry(name).map_err(|_| ConnectionError {
+        code: "CREDENTIAL_UNAVAILABLE",
+        message: "Studio could not access this profile's token in your operating system's credential store. Check that a native credential store is available, then rotate the token in Studio if needed.".into(),
+    })?;
+    let bytes = key.get_secret().map_err(credential_read_error)?;
+    String::from_utf8(bytes).map_err(|_| ConnectionError {
+        code: "CREDENTIAL_UNAVAILABLE",
+        message: "Studio could not read this profile's token from your operating system's credential store.".into(),
+    })
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn read_profile_token(name: &str) -> Result<String, ConnectionError> {
     let key = entry(name).map_err(|_| ConnectionError {
         code: "CREDENTIAL_UNAVAILABLE",
@@ -266,5 +299,14 @@ mod tests {
         let error = missing_credential_error();
         assert_eq!(error.code, "CREDENTIAL_MISSING");
         assert!(error.message.contains("Rotate its token"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_target_name_matches_the_clis_keytar_convention() {
+        // The CLI's keytar backend writes Windows Credential Manager entries under
+        // `service + "/" + account"`. Studio must build the identical TargetName or a
+        // profile token created by one client becomes invisible to the other.
+        assert_eq!(windows_target_name("ado"), "atomize/ado");
     }
 }

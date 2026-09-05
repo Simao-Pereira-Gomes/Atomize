@@ -165,14 +165,14 @@ export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => v
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">
-          <section class="rounded-2xl bg-slate-900 p-5 text-white shadow-sm dark:bg-slate-800">
-            <p class="text-xs font-bold tracking-widest text-slate-400 uppercase">Template health</p>
-            <p class="mt-3 text-3xl font-bold">
+          <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p class="text-xs font-bold tracking-widest text-slate-500 uppercase dark:text-slate-400">Template health</p>
+            <p class="mt-3 text-3xl font-bold text-slate-950 dark:text-white">
               {completedSections()} / {SECTION_META.length}
             </p>
-            <p class="mt-1 text-sm text-slate-300">sections ready to save</p>
-            <div class="mt-5 h-2 overflow-hidden rounded-full bg-slate-700">
-              <div class="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${completion()}%` }} />
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-300">sections ready to save</p>
+            <div class="mt-5 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+              <div class="h-full rounded-full bg-emerald-500 transition-all dark:bg-emerald-400" style={{ width: `${completion()}%` }} />
             </div>
           </section>
           <Show when={nextSections().length > 0}>

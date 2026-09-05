@@ -264,7 +264,10 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
       const available = await listAzureDevOpsProfiles();
       setProfiles(available);
       setSelectedProfile(project.name);
-      await loadGrounding(project.name);
+      // `loadGrounding` reports its own failures through `groundingState`/`groundingError`
+      // instead of throwing, so a credential-store failure right after adding the profile
+      // would otherwise be swallowed here and never reach the Manage Projects form.
+      if (!(await loadGrounding(project.name))) throw new Error(groundingError());
     },
     rotateToken: async (name, pat) => { await rotateAzureDevOpsToken(name, pat); },
     setDefault: async (name) => { await setDefaultConnectionProfile(name); setProfiles(await listAzureDevOpsProfiles()); },

@@ -103,8 +103,26 @@ fn sidecar_fatal(relay: tauri::State<'_, Arc<SidecarRelay>>) -> bool { relay.is_
 #[tauri::command] fn connection_remove_profile(name: String) -> Result<(), String> { connections::remove(name) }
 #[tauri::command] fn connection_set_default(name: String) -> Result<(), String> { connections::set_default(name) }
 
+// Finder/Dock/Spotlight launch GUI apps with the bare system PATH (no `/etc/paths.d` or shell
+// rc/profile entries), unlike a terminal. The bundled `atomize-copilot` shells out to `gh` to
+// check sign-in state, so when `gh` lives under Homebrew (`/opt/homebrew/bin` or `/usr/local/bin`)
+// the check silently reports "not authenticated" even though `gh auth login` succeeded — it simply
+// never finds `gh`. Capture the user's real PATH from a login shell once at startup so it and
+// every process it spawns (the sidecar, then atomize-copilot, then `gh`) inherit it.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn fix_path_env() {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
+    let Ok(output) = std::process::Command::new(&shell).args(["-lc", "echo -n \"$PATH\""]).output() else { return };
+    if !output.status.success() { return; }
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !path.is_empty() { std::env::set_var("PATH", path); }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    fix_path_env();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
