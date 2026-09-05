@@ -68,9 +68,27 @@ jobs:
         # so AppImage packaging aborts before a usable Studio bundle exists.
         run: bun run build -- --bundles deb
         working-directory: packages/atomize-studio
-      - name: Build other platform installers
-        if: runner.os != 'Linux'
+      - name: Build Windows installers
+        if: runner.os == 'Windows'
         run: bun run build -- ${{ matrix.args }}
+        working-directory: packages/atomize-studio
+      - name: Build macOS installers
+        if: runner.os == 'macOS'
+        shell: bash
+        # bundle_dmg.sh's Finder-prettifying AppleScript step fails intermittently
+        # on GitHub-hosted macOS runners (Apple Events aren't authorised for Finder
+        # in that headless session) - see tauri-apps/tauri#13804. Retry with -v so a
+        # persistent failure still surfaces bundle_dmg.sh's actual stdout/stderr,
+        # which tauri-cli otherwise only logs at debug level.
+        run: |
+          for attempt in 1 2 3; do
+            if bun run build -- ${{ matrix.args }} -v; then
+              exit 0
+            fi
+            echo "::warning::macOS bundle attempt $attempt failed, retrying..."
+            sleep 10
+          done
+          exit 1
         working-directory: packages/atomize-studio
       - uses: actions/upload-artifact@v4
         with:
@@ -146,7 +164,19 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.cs.allow-jit' "$entitlements")" = "true"
           test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.cs.disable-library-validation' "$entitlements")" = "true"
       - name: Create signed macOS installer
-        run: bunx tauri bundle --bundles dmg ${{ matrix.args }}
+        shell: bash
+        # See the retry note in the "Build macOS installers" step above -
+        # bundle_dmg.sh's Finder AppleScript step is a known intermittent
+        # failure on GitHub-hosted macOS runners (tauri-apps/tauri#13804).
+        run: |
+          for attempt in 1 2 3; do
+            if bunx tauri bundle --bundles dmg ${{ matrix.args }} -v; then
+              exit 0
+            fi
+            echo "::warning::macOS dmg bundling attempt $attempt failed, retrying..."
+            sleep 10
+          done
+          exit 1
         working-directory: packages/atomize-studio
       - uses: actions/upload-artifact@v4
         with:
