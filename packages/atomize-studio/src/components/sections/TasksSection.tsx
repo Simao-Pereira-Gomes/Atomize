@@ -5,9 +5,9 @@ import { reconcile } from "solid-js/store";
 import { Portal } from "solid-js/web";
 import { coerceGroundedTaskValue, editableTaskFields, type GroundedTaskField, activityField as groundedActivityField, conditionFields as groundedConditionFields, statesForTypes } from "../../grounding/grounding-service";
 import type { EditableTask, TasksStore } from "../../stores/sections";
-import { operatorsForCondition } from "./condition-operators";
 import { MultiSelectField, TagChipInput, TextareaField, TextField } from "../fields";
 import type { GroundingSession } from "../GroundingSettings";
+import { operatorsForCondition } from "./condition-operators";
 
 type Scalar = string | number | boolean;
 type ConditionKind = "clause" | "all" | "any";
