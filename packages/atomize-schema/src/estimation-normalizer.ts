@@ -15,7 +15,11 @@ export function normalizeEstimationPercentages<T extends EstimationPercentage>(
 ): boolean {
   const { skipIfAlreadyNormalized = true, tolerance = 0.01, targetTotal = 100 } = options;
   if (items.length === 0) return false;
-  if (items.length === 1) { items[0]!.estimationPercent = targetTotal; return true; }
+  if (items.length === 1) {
+    const [first] = items;
+    if (first) first.estimationPercent = targetTotal;
+    return true;
+  }
 
   const total = items.reduce((sum, item) => sum + (item.estimationPercent || 0), 0);
   if (skipIfAlreadyNormalized && Math.abs(total - targetTotal) < tolerance) return false;

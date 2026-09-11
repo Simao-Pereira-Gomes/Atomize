@@ -17,10 +17,11 @@ export function resolveDateMacro(value: unknown): unknown {
   const match = DATE_MACRO_RE.exec(value.trim());
   if (!match) return value;
   const [, macro, sign, amountStr] = match;
+  if (!macro) return value;
   const offsetDays = amountStr ? (sign === "-" ? -1 : 1) * Number(amountStr) : 0;
   const now = new Date();
   let base: Date;
-  switch (macro!.toLowerCase()) {
+  switch (macro.toLowerCase()) {
     case "@today":
     case "@startofday":
       base = new Date(now.getFullYear(), now.getMonth(), now.getDate());

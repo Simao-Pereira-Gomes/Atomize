@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import type { TaskTemplate } from "../../src/templates/schema";
 import {
   inspectTemplate,
   parseMockStory,
   runPreview,
 } from "../../src/templates/template-inspector";
-import type { TaskTemplate } from "../../src/templates/schema";
 
 function makeTemplate(overrides: Partial<TaskTemplate> = {}): TaskTemplate {
   return {

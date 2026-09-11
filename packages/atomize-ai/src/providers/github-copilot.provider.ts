@@ -1,8 +1,8 @@
-import { CopilotClient, RuntimeConnection, type CopilotSession } from "@github/copilot-sdk";
-import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { CopilotClient, type CopilotSession, RuntimeConnection } from "@github/copilot-sdk";
 import type { AIDraftSession, AIProvider } from "../provider.interface";
 
 export class CopilotAuthenticationError extends Error {
