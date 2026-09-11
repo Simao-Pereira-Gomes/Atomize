@@ -11,10 +11,10 @@
     "@sppg2001/atomize-ai": "workspace:*",
     "@sppg2001/atomize-core": "workspace:*",
     "ts-pattern": "^5.9.0",
-    "yaml": "^2.8.3"
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/bun": "1.4.0",
+    "@types/bun": "1.4.2",
     "typescript": "^7.0.2"
   }
 }
