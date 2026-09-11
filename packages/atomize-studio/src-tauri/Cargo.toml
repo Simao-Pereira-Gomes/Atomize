@@ -34,8 +34,8 @@ security-framework = "3"
 # feature, a Windows build uses its in-memory mock store and a profile token
 # vanishes as soon as Studio is restarted.
 [target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3", features = ["windows-native"] }
+keyring = { version = "4.2.0", features = ["windows-native-keyring-store"] }
 winreg = "0.55"
 
 [target.'cfg(not(any(target_os = "macos", target_os = "windows")))'.dependencies]
-keyring = "3"
+keyring = "4.2.0"
