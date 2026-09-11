@@ -1,11 +1,17 @@
 # Changelog
 
-All notable changes to Atomize will be documented in this file.
+> **Frozen — historical record only.** Per-release notes now live in GitHub
+> Releases, one set per surface (CLI `v*`, VS Code extension `vscode-v*`, Atomize
+> Studio `studio-v*`), generated from the commit log. See
+> [docs/Releasing.md](docs/Releasing.md). This file covers Atomize through the
+> 3.0.0 monorepo split and is no longer updated per release.
+
+All notable changes to Atomize up to the 3.0.0 monorepo split are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.0.0] - 2026-09-08 - monorepo split
 
 This release splits Atomize into a shared architecture (`atomize-core`, `atomize-schema`, `atomize-ai`) consumed by three independent surfaces — the CLI, the VS Code extension, and the new Atomize Studio desktop app — and retires GitHub Models in favor of GitHub Copilot for AI-assisted drafting. See [Contributing.md#monorepo-architecture](./Contributing.md#monorepo-architecture) for the package layout.
 
@@ -275,6 +281,7 @@ N/A - Initial release
 
 ## Version History
 
+- **[3.0.0]** - 2026-09-08 - Monorepo split: shared `atomize-core`/`atomize-schema`/`atomize-ai`, three independent surfaces (CLI, VS Code extension, Atomize Studio), GitHub Models retired for Copilot
 - **[2.0.0]** - 2026-05-03 - Template catalog, composition, auth profiles, and GitHub Models AI template generation
 - **[1.1.0]** - 2026-03-09 - Conditional estimation, multi-story learning, strict/lenient validation modes
 - **[0.0.1]** - 2024-12-29 - Initial release
@@ -294,7 +301,7 @@ See [Contributing.md](Contributing.md) for information on how to contribute to t
 
 ---
 
-[Unreleased]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v2.0.0...HEAD
+[3.0.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/Simao-Pereira-Gomes/atomize/compare/v0.0.1...v1.1.0
 [0.0.1]: https://github.com/Simao-Pereira-Gomes/atomize/releases/tag/v0.0.1

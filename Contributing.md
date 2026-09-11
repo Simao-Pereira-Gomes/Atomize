@@ -194,7 +194,7 @@ bun run check
 
 Atomize is a Bun workspace monorepo. `packages/` holds seven packages, split between three release surfaces and four internal shared libraries.
 
-**Release surfaces** — each ships independently with its own release pipeline:
+**Release surfaces** — each ships independently with its own release pipeline. How releases are cut and how their notes are generated: [docs/Releasing.md](docs/Releasing.md).
 - `packages/cli` — the Atomize CLI, published to npm as `@sppg2001/atomize`. See [docs/adr/0031](docs/adr/0031-cli-release-pipeline.md).
 - `packages/vscode-extension` — the VS Code extension, published to the Marketplace. See [docs/adr/0030](docs/adr/0030-extension-release-pipeline.md).
 - `packages/atomize-studio` — the desktop app (Tauri), published as platform installers via GitHub Releases. See [docs/adr/0059](docs/adr/0059-studio-release-tags-gate-publishing.md).
@@ -323,6 +323,15 @@ test(atomizer): add tests for estimation distribution
 refactor(filter-engine): simplify WIQL query building
 ```
 
+**Scopes feed release notes.** Releases squash-merge, so the PR title becomes the
+commit subject becomes a release-note bullet — in every surface whose dependency
+closure the changed paths fall inside. Write titles that read well to a user out
+of context, and when a PR changes a shared package (`atomize-schema`,
+`atomize-core`, `atomize-ai`, `atomize-sidecar`), **lead the scope with the shared
+package** (`fix(schema): …`), not a consumer surface. Per-surface wording can be
+overridden with a `Release-Note(<surface>): …` commit trailer. See
+[docs/Releasing.md](docs/Releasing.md).
+
 ### Code Changes
 
 1. **Write clean, readable code**
@@ -431,7 +440,6 @@ Brief description of changes
 ## Documentation
 - [ ] Updated relevant documentation
 - [ ] Added code comments
-- [ ] Updated CHANGELOG.md
 
 ## Screenshots (if applicable)
 [Add screenshots or GIFs]
@@ -513,7 +521,7 @@ See [Platform Guide - Adding New Platforms](docs/Platform-Guide.md#adding-new-pl
 
 Contributors will be recognized in:
 - GitHub contributors page
-- CHANGELOG.md (for significant contributions)
+- Per-surface GitHub Release notes (your PR title appears in the release it ships in)
 - Project README (for major features)
 
 ---

@@ -94,36 +94,24 @@ jobs:
         run: npm publish --provenance --access public
         working-directory: packages/cli
 
-      - name: Generate changelog
-        id: changelog
+      - name: Generate release notes
+        # --paths must stay in sync with on.push.paths above (the CLI's
+        # dependency closure). See docs/Releasing.md.
         run: |
-          VERSION="${{ needs.check-version.outputs.version }}"
-          LAST_TAG=$(git tag -l "v[0-9]*" --sort=-version:refname | head -1)
-
-          if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges -- packages/cli/)
-            COMPARE_URL="https://github.com/${{ github.repository }}/commits/v${VERSION}"
-          else
-            COMMITS=$(git log "${LAST_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges -- packages/cli/)
-            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${VERSION}"
-          fi
-
-          {
-            echo "changelog<<EOF"
-            echo "## What's Changed"
-            echo ""
-            echo "$COMMITS"
-            echo ""
-            echo "**Full Changelog**: $COMPARE_URL"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          bun scripts/release-notes.ts \
+            --tag-glob 'v[0-9]*' \
+            --new-tag "v${{ needs.check-version.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --surface cli \
+            --paths packages/cli,packages/atomize-core,packages/atomize-schema,packages/atomize-ai \
+            > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.check-version.outputs.version }}
           name: v${{ needs.check-version.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
+          body_path: ${{ runner.temp }}/release-notes.md
           draft: false
           prerelease: false
           make_latest: true

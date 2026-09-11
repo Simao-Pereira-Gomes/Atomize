@@ -2,7 +2,7 @@
 
 An ADR here captures one architectural decision — the context that forced it, what was decided, and (usually) what alternatives were rejected and why. They're written when the decision itself needs to survive past the PR that made it: later contributors should be able to tell "this is intentional" from "this is an accident nobody's fixed yet."
 
-56 ADRs exist today (0001-0062; a handful of numbers were retired). Browse by theme below to find decisions relevant to the surface you're touching, or open them numerically in `docs/adr/` for the full chronological history. A `>` blockquote at the top of an ADR means it's been superseded or is no longer applicable — the note says which ADR replaced it or what removed the need for it; read the newer one first.
+57 ADRs exist today (0001-0063; a handful of numbers were retired). Browse by theme below to find decisions relevant to the surface you're touching, or open them numerically in `docs/adr/` for the full chronological history. A `>` blockquote at the top of an ADR means it's been superseded or is no longer applicable — the note says which ADR replaced it or what removed the need for it; read the newer one first.
 
 ## Shared Domain / Cross-Cutting
 
@@ -81,3 +81,4 @@ Decisions affecting the Template Library, Catalog, or shared packages consumed b
 - [0030 - Extension release pipeline: git tag sentinel + version-change detection](./0030-extension-release-pipeline.md) — merging a version bump to `main` publishes automatically, gated by a `vscode-v<version>` tag check.
 - [0031 - CLI release pipeline: git tag sentinel replacing manual release + publish](./0031-cli-release-pipeline.md) — adopts the same tag-sentinel pattern as the extension, replacing a two-step manual `workflow_dispatch` release.
 - [0059 - Studio release pipeline and no-cost distribution](./0059-studio-release-tags-gate-publishing.md) — continuous builds on every push, but only a `studio-v<version>` tag publishes a GitHub Release; installers are unsigned/un-notarized since the project can't fund code-signing.
+- [0063 - Release notes from a path-filtered commit log over each surface's dependency closure](./0063-release-notes-from-dependency-closure-commit-log.md) — one shared `scripts/release-notes.ts` scopes each release's notes to its surface's dependency-closure paths; shared-package changes fan out to every dependent surface, with a `Release-Note(<surface>):` trailer override; rejects PR-labels + GitHub native notes.

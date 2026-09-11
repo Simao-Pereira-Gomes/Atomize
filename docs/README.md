@@ -33,7 +33,9 @@ These paths are kept for older links and should stay short:
 ## Architecture And Contributor Notes
 
 - [Architecture Decision Records](./adr/README.md) - Indexed by theme: design decisions for CLI, templates, Atomize Studio, and VS Code extension behavior
-- [Agent Docs](./agents/) - Issue tracker, labels, and domain-doc conventions for repo automation
+- [Releasing](./Releasing.md) - How each surface is released and how its GitHub Release notes are generated
+- [Studio Releases](./Studio-Releases.md) - Studio-specific installer matrix, code-signing posture, and security model
+- [Agent Docs](./agents/) - Issue tracker, labels, domain-doc, and release-notes conventions for repo automation
 
 ## Documentation Ownership
 
@@ -45,6 +47,7 @@ These paths are kept for older links and should stay short:
 - `docs/Template-Reference.md` is the YAML schema and semantics reference.
 - `docs/Template-Creation.md` owns template creation workflows.
 - `docs/Auth-Guide.md` owns credential storage and profile behavior.
+- `docs/Releasing.md` owns the release process and release-notes generation for all three surfaces.
 - Compatibility stubs should not grow new content.
 
 When adding docs, prefer linking to the canonical owner instead of repeating the same workflow in multiple files.
