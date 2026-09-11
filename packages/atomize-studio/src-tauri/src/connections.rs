@@ -1,5 +1,7 @@
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use keyring::Entry;
+#[cfg(target_os = "windows")]
+use keyring_core::Entry;
 #[cfg(not(target_os = "macos"))]
 use keyring::Error as KeyringError;
 #[cfg(target_os = "macos")]
@@ -90,7 +92,10 @@ fn windows_target_name(name: &str) -> String {
 
 #[cfg(target_os = "windows")]
 fn entry(name: &str) -> Result<Entry, String> {
-    Entry::new_with_target(&windows_target_name(name), KEYRING_SERVICE, name).map_err(|e| e.to_string())
+    keyring::Entry::store_status().as_ref().map_err(|error| error.to_string())?;
+    let target = windows_target_name(name);
+    let modifiers = std::collections::HashMap::from([("target", target.as_str())]);
+    Entry::new_with_modifiers(KEYRING_SERVICE, name, &modifiers).map_err(|error| error.to_string())
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]

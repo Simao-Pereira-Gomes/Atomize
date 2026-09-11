@@ -234,6 +234,7 @@ name = "atomize-studio"
 version = "0.1.6"
 dependencies = [
  "keyring",
+ "keyring-core",
  "security-framework",
  "serde",
  "serde_json",

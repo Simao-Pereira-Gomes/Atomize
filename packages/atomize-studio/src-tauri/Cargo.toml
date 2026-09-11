@@ -35,6 +35,7 @@ security-framework = "3"
 # vanishes as soon as Studio is restarted.
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "4.2.0", features = ["windows-native-keyring-store"] }
+keyring-core = "1"
 winreg = "0.55"
 
 [target.'cfg(not(any(target_os = "macos", target_os = "windows")))'.dependencies]
