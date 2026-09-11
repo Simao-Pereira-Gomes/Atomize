@@ -47,8 +47,8 @@ jobs:
             experimental: true
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
@@ -100,7 +100,7 @@ jobs:
           done
           exit 1
         working-directory: packages/atomize-studio
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: studio-build-${{ runner.os }}-${{ runner.arch }}
           path: packages/atomize-studio/src-tauri/target/**/release/bundle/
@@ -116,7 +116,7 @@ jobs:
       should_publish: ${{ steps.check.outputs.should_publish }}
       version: ${{ steps.check.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: check
@@ -152,8 +152,8 @@ jobs:
             runner: macos-15-intel
             args: --target x86_64-apple-darwin
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
@@ -198,7 +198,7 @@ jobs:
           done
           exit 1
         working-directory: packages/atomize-studio
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: studio-macos-${{ matrix.name }}
           path: packages/atomize-studio/src-tauri/target/**/release/bundle/dmg/*.dmg
@@ -212,8 +212,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
@@ -232,7 +232,7 @@ jobs:
         working-directory: packages/atomize-studio/src-tauri
       - run: bun run build
         working-directory: packages/atomize-studio
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: studio-windows
           path: |
@@ -251,8 +251,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
@@ -283,7 +283,7 @@ jobs:
           for asset in release-assets/*; do
             mv "$asset" "${asset%.*}-experimental.${asset##*.}"
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         id: upload
         with:
           name: studio-linux-experimental
@@ -302,22 +302,22 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v1
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: studio-macos-*
           merge-multiple: true
           path: release-assets
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: studio-windows
           path: release-assets
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: needs.build-linux-release.outputs.artifact_id != ''
         with:
           name: studio-linux-experimental
