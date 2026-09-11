@@ -74,7 +74,7 @@
     },
     "packages/atomize-studio": {
       "name": "@sppg2001/atomize-studio",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@kobalte/core": "^0.13.14",
         "@sppg2001/atomize-schema": "workspace:*",
