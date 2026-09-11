@@ -14,6 +14,12 @@ on:
 
 permissions: {}
 
+# Code scanning should follow the latest PR head only. Scheduled and main
+# branch scans have distinct refs, so they remain independent.
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze TypeScript

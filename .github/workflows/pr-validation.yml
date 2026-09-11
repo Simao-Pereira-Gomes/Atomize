@@ -9,9 +9,56 @@ on:
 
 permissions: {}
 
+# Cancel stale runs after a force-push or follow-up commit. Publishing
+# workflows deliberately do not use this policy, but validation does.
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: Detect relevant changes
+    # paths-filter uses the pull request file list. Merge-queue jobs run the
+    # full gate below, so they do not need a PR comparison.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      cli-package: ${{ steps.filter.outputs.cli-package }}
+      review-dependencies: ${{ steps.filter.outputs.review-dependencies }}
+      bun-dependencies: ${{ steps.filter.outputs.bun-dependencies }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cli-package:
+              - 'packages/cli/**'
+              - 'packages/atomize-ai/**'
+              - 'packages/atomize-core/**'
+              - 'packages/atomize-schema/**'
+            review-dependencies:
+              - 'package.json'
+              - 'bun.lock'
+              - '**/package.json'
+              - '**/Cargo.toml'
+              - '**/Cargo.lock'
+              - '.github/workflows/**'
+            bun-dependencies:
+              - 'package.json'
+              - 'bun.lock'
+              - '**/package.json'
+
   package-smoke-test:
     name: Package Smoke Test
+    needs: changes
+    # Keep the merge queue comprehensive; for ordinary PR updates only pack
+    # the CLI when its release dependency closure changed.
+    if: >-
+      always() &&
+      (github.event_name == 'merge_group' || needs.changes.outputs.cli-package == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,8 +99,12 @@ jobs:
 
   dependency-review:
     name: Dependency Review
+    needs: changes
     # actions/dependency-review-action only runs in pull_request context; skipped in the merge queue.
-    if: github.event_name == 'pull_request'
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.review-dependencies == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -74,6 +125,10 @@ jobs:
 
   security-audit:
     name: Security Audit
+    needs: changes
+    if: >-
+      always() &&
+      (github.event_name == 'merge_group' || needs.changes.outputs.bun-dependencies == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read

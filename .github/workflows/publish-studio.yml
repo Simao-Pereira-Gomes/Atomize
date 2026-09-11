@@ -20,7 +20,13 @@ concurrency:
 jobs:
   build:
     name: Build unsigned (${{ matrix.name }})
-    if: github.ref == 'refs/heads/main'
+    needs: check-version
+    # Continuous unsigned builds remain available for ordinary Studio changes.
+    # A release-version push instead uses the release build jobs below, so it
+    # does not also compile the same desktop matrix as disposable artifacts.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.check-version.outputs.should_publish != 'true'
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.experimental }}
     permissions:

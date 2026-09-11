@@ -5,10 +5,17 @@ on:
     branches: [main]
     paths:
       - packages/atomize-studio/**
+      # Rust has its own cross-platform validation workflow. The frontend job
+      # neither builds nor tests src-tauri, so do not duplicate it there.
+      - '!packages/atomize-studio/src-tauri/**'
       - packages/atomize-sidecar/**
       - .github/workflows/validate-studio-frontend.yml
 
 permissions: {}
+
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   studio-frontend:
