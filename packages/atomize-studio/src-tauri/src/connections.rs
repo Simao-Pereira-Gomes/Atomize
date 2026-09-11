@@ -107,9 +107,11 @@ fn azure_profile(value: &Value, defaults: &serde_json::Map<String, Value>) -> Op
     })
 }
 
-pub fn list() -> Result<Vec<AzureDevOpsProfile>, String> {
-    let file = read_file()?; let defaults = file.get("defaultProfiles").and_then(Value::as_object).ok_or("Connections file has an invalid defaultProfiles record.")?;
-    Ok(profiles(&file)?.iter().filter_map(|profile| azure_profile(profile, defaults)).collect())
+pub fn list() -> Result<Vec<AzureDevOpsProfile>, String> { list_from_file(&read_file()?) }
+
+fn list_from_file(file: &Value) -> Result<Vec<AzureDevOpsProfile>, String> {
+    let defaults = file.get("defaultProfiles").and_then(Value::as_object).ok_or("Connections file has an invalid defaultProfiles record.")?;
+    Ok(profiles(file)?.iter().filter_map(|profile| azure_profile(profile, defaults)).collect())
 }
 
 /// Resolves a Connection Profile immediately before a sidecar call. The token is
@@ -222,7 +224,7 @@ fn resolve_grounding_from_file(
     name: &str,
     credential: impl FnOnce(&str) -> Result<String, ConnectionError>,
 ) -> Result<ResolvedAzureDevOpsConnection, ConnectionError> {
-    let profile = profiles(&file).map_err(|message| ConnectionError { code: "PROFILE_UNAVAILABLE", message })?.iter()
+    let profile = profiles(file).map_err(|message| ConnectionError { code: "PROFILE_UNAVAILABLE", message })?.iter()
         .find(|profile| profile.get("name").and_then(Value::as_str) == Some(name) && profile.get("platform").and_then(Value::as_str) == Some("azure-devops"))
         .ok_or_else(|| ConnectionError { code: "PROFILE_NOT_FOUND", message: format!("Azure DevOps profile \"{name}\" not found.") })?;
     if profile.get("token").and_then(Value::as_object).and_then(|token| token.get("strategy")).and_then(Value::as_str) != Some("keychain") {
@@ -237,29 +239,52 @@ fn resolve_grounding_from_file(
     })
 }
 pub fn add(input: NewAzureDevOpsProfile) -> Result<(), String> {
-    if [input.name.as_str(), input.organization_url.as_str(), input.project.as_str(), input.team.as_str(), input.pat.as_str()].iter().any(|v| v.trim().is_empty()) { return Err("Profile name, organization URL, project, team, and PAT are required.".into()); }
     let _lock = acquire_lock()?; let mut file = read_file()?;
-    if profiles(&file)?.iter().any(|p| p.get("name").and_then(Value::as_str) == Some(input.name.as_str())) { return Err(format!("Profile \"{}\" already exists.", input.name)); }
+    apply_add(&mut file, &input, &chrono_like_now())?;
     store_profile_token(&input.name, &input.pat)?;
-    let now = chrono_like_now(); let is_first = !file.get("defaultProfiles").and_then(Value::as_object).is_some_and(|defaults| defaults.contains_key("azure-devops"));
-    profiles_mut(&mut file)?.push(json!({"name":input.name,"platform":"azure-devops","organizationUrl":input.organization_url,"project":input.project,"team":input.team,"token":{"strategy":"keychain"},"createdAt":now,"updatedAt":now}));
-    if is_first { defaults_mut(&mut file)?.insert("azure-devops".into(), Value::String(input.name.clone())); }
     if let Err(error) = write_file(&file) { let _ = delete_profile_token(&input.name); return Err(error); } Ok(())
+}
+// The in-memory half of `add`: validate, reject a duplicate name, append the profile with a
+// `keychain` token marker, and adopt it as the Azure DevOps default when it is the first one.
+// Pulled out so it is testable without a real OS credential store or `~/.atomize` write.
+fn apply_add(file: &mut Value, input: &NewAzureDevOpsProfile, now: &str) -> Result<(), String> {
+    if [input.name.as_str(), input.organization_url.as_str(), input.project.as_str(), input.team.as_str(), input.pat.as_str()].iter().any(|v| v.trim().is_empty()) { return Err("Profile name, organization URL, project, team, and PAT are required.".into()); }
+    if profiles(file)?.iter().any(|p| p.get("name").and_then(Value::as_str) == Some(input.name.as_str())) { return Err(format!("Profile \"{}\" already exists.", input.name)); }
+    let is_first = !file.get("defaultProfiles").and_then(Value::as_object).is_some_and(|defaults| defaults.contains_key("azure-devops"));
+    profiles_mut(file)?.push(json!({"name":input.name,"platform":"azure-devops","organizationUrl":input.organization_url,"project":input.project,"team":input.team,"token":{"strategy":"keychain"},"createdAt":now,"updatedAt":now}));
+    if is_first { defaults_mut(file)?.insert("azure-devops".into(), Value::String(input.name.clone())); }
+    Ok(())
 }
 pub fn rotate(name: String, pat: String) -> Result<(), String> {
     if pat.trim().is_empty() { return Err("PAT is required.".into()); }
-    let _lock = acquire_lock()?; let mut file = read_file()?; let profile = profiles_mut(&mut file)?.iter_mut().find(|p| p.get("name").and_then(Value::as_str) == Some(name.as_str()) && p.get("platform").and_then(Value::as_str) == Some("azure-devops")).ok_or_else(|| format!("Azure DevOps profile \"{name}\" not found."))?;
+    let _lock = acquire_lock()?; let mut file = read_file()?;
+    apply_rotate(&mut file, &name, &chrono_like_now())?;
     let old = read_profile_token(&name).ok(); store_profile_token(&name, &pat)?;
-    profile["token"] = json!({"strategy":"keychain"}); profile["updatedAt"] = Value::String(chrono_like_now());
     if let Err(error) = write_file(&file) { if let Some(previous) = old { let _ = store_profile_token(&name, &previous); } return Err(error); } Ok(())
 }
+fn apply_rotate(file: &mut Value, name: &str, now: &str) -> Result<(), String> {
+    let profile = profiles_mut(file)?.iter_mut().find(|p| p.get("name").and_then(Value::as_str) == Some(name) && p.get("platform").and_then(Value::as_str) == Some("azure-devops")).ok_or_else(|| format!("Azure DevOps profile \"{name}\" not found."))?;
+    profile["token"] = json!({"strategy":"keychain"}); profile["updatedAt"] = Value::String(now.to_owned());
+    Ok(())
+}
 pub fn remove(name: String) -> Result<(), String> {
-    let _lock = acquire_lock()?; let mut file = read_file()?; let list = profiles_mut(&mut file)?; let index = list.iter().position(|p| p.get("name").and_then(Value::as_str) == Some(name.as_str()) && p.get("platform").and_then(Value::as_str) == Some("azure-devops")).ok_or_else(|| format!("Azure DevOps profile \"{name}\" not found."))?;
-    let keyring_backed = list[index].get("token").and_then(Value::as_object).and_then(|token| token.get("strategy")).and_then(Value::as_str) == Some("keychain");
-    list.remove(index); if file.get("defaultProfiles").and_then(Value::as_object).and_then(|d| d.get("azure-devops")).and_then(Value::as_str) == Some(name.as_str()) { defaults_mut(&mut file)?.remove("azure-devops"); }
+    let _lock = acquire_lock()?; let mut file = read_file()?;
+    let keyring_backed = apply_remove(&mut file, &name)?;
     write_file(&file)?; if !keyring_backed { return Ok(()); } delete_profile_token(&name).map_err(|_| "Profile was removed, but its credential could not be deleted. Retry credential cleanup from a system keychain manager.".to_owned())
 }
-pub fn set_default(name: String) -> Result<(), String> { let _lock = acquire_lock()?; let mut file = read_file()?; if !profiles(&file)?.iter().any(|p| p.get("name").and_then(Value::as_str) == Some(name.as_str()) && p.get("platform").and_then(Value::as_str) == Some("azure-devops")) { return Err(format!("Azure DevOps profile \"{name}\" not found.")); } defaults_mut(&mut file)?.insert("azure-devops".into(), Value::String(name)); write_file(&file) }
+// Returns whether the removed profile's token lived in the OS credential store, so the caller
+// knows whether a `delete_profile_token` follow-up is owed.
+fn apply_remove(file: &mut Value, name: &str) -> Result<bool, String> {
+    let list = profiles_mut(file)?; let index = list.iter().position(|p| p.get("name").and_then(Value::as_str) == Some(name) && p.get("platform").and_then(Value::as_str) == Some("azure-devops")).ok_or_else(|| format!("Azure DevOps profile \"{name}\" not found."))?;
+    let keyring_backed = list[index].get("token").and_then(Value::as_object).and_then(|token| token.get("strategy")).and_then(Value::as_str) == Some("keychain");
+    list.remove(index); if file.get("defaultProfiles").and_then(Value::as_object).and_then(|d| d.get("azure-devops")).and_then(Value::as_str) == Some(name) { defaults_mut(file)?.remove("azure-devops"); }
+    Ok(keyring_backed)
+}
+pub fn set_default(name: String) -> Result<(), String> { let _lock = acquire_lock()?; let mut file = read_file()?; apply_set_default(&mut file, &name)?; write_file(&file) }
+fn apply_set_default(file: &mut Value, name: &str) -> Result<(), String> {
+    if !profiles(file)?.iter().any(|p| p.get("name").and_then(Value::as_str) == Some(name) && p.get("platform").and_then(Value::as_str) == Some("azure-devops")) { return Err(format!("Azure DevOps profile \"{name}\" not found.")); }
+    defaults_mut(file)?.insert("azure-devops".into(), Value::String(name.to_owned())); Ok(())
+}
 fn chrono_like_now() -> String { format!("{:?}", SystemTime::now()) }
 
 #[cfg(test)]
@@ -308,5 +333,155 @@ mod tests {
         // `service + "/" + account"`. Studio must build the identical TargetName or a
         // profile token created by one client becomes invisible to the other.
         assert_eq!(windows_target_name("ado"), "atomize/ado");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_maps_item_not_found_to_a_missing_credential() {
+        let error = security_read_error(security_framework::base::Error::from_code(-25300));
+        assert_eq!(error.code, "CREDENTIAL_MISSING");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_maps_any_other_keychain_status_to_an_unavailable_credential() {
+        let error = security_read_error(security_framework::base::Error::from_code(-25293));
+        assert_eq!(error.code, "CREDENTIAL_UNAVAILABLE");
+        assert!(error.message.contains("credential store"));
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn non_macos_maps_a_missing_keyring_entry_to_a_missing_credential() {
+        assert_eq!(credential_read_error(KeyringError::NoEntry).code, "CREDENTIAL_MISSING");
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn non_macos_maps_any_other_keyring_error_to_an_unavailable_credential() {
+        let error = credential_read_error(KeyringError::Invalid("token".into(), "corrupt".into()));
+        assert_eq!(error.code, "CREDENTIAL_UNAVAILABLE");
+    }
+
+    fn new_input(name: &str) -> NewAzureDevOpsProfile {
+        NewAzureDevOpsProfile { name: name.into(), organization_url: "https://dev.azure.com/org".into(), project: "Project".into(), team: "Team".into(), pat: "pat-123".into() }
+    }
+
+    #[test]
+    fn apply_add_makes_the_first_profile_the_default_and_marks_it_keychain_backed() {
+        let mut file = json!({"version":"2","defaultProfiles":{},"profiles":[]});
+        apply_add(&mut file, &new_input("ado"), "now").unwrap();
+        assert_eq!(file["defaultProfiles"]["azure-devops"], json!("ado"));
+        assert_eq!(file["profiles"][0]["token"]["strategy"], json!("keychain"));
+        assert_eq!(file["profiles"][0]["createdAt"], json!("now"));
+    }
+
+    #[test]
+    fn apply_add_leaves_an_existing_default_untouched_for_a_second_profile() {
+        let mut file = json!({"version":"2","defaultProfiles":{"azure-devops":"ado"},"profiles":[{"name":"ado","platform":"azure-devops","token":{"strategy":"keychain"}}]});
+        apply_add(&mut file, &new_input("ado-2"), "now").unwrap();
+        assert_eq!(file["defaultProfiles"]["azure-devops"], json!("ado"));
+        assert_eq!(file["profiles"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn apply_add_rejects_a_duplicate_name() {
+        let mut file = json!({"version":"2","defaultProfiles":{},"profiles":[{"name":"ado","platform":"azure-devops","token":{"strategy":"keychain"}}]});
+        assert!(apply_add(&mut file, &new_input("ado"), "now").unwrap_err().contains("already exists"));
+    }
+
+    #[test]
+    fn apply_add_rejects_a_blank_field() {
+        let mut file = json!({"version":"2","defaultProfiles":{},"profiles":[]});
+        let mut input = new_input("ado");
+        input.team = "   ".into();
+        assert!(apply_add(&mut file, &input, "now").unwrap_err().contains("required"));
+    }
+
+    #[test]
+    fn apply_rotate_refreshes_the_marker_and_timestamp() {
+        let mut file = profile("keychain");
+        file["profiles"][0]["updatedAt"] = json!("old");
+        apply_rotate(&mut file, "ado", "fresh").unwrap();
+        assert_eq!(file["profiles"][0]["token"]["strategy"], json!("keychain"));
+        assert_eq!(file["profiles"][0]["updatedAt"], json!("fresh"));
+    }
+
+    #[test]
+    fn apply_rotate_reports_an_unknown_profile() {
+        assert!(apply_rotate(&mut profile("keychain"), "missing", "fresh").unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn apply_remove_reports_whether_the_token_lived_in_the_credential_store() {
+        assert!(apply_remove(&mut profile("keychain"), "ado").unwrap());
+        assert!(!apply_remove(&mut profile("keyfile"), "ado").unwrap());
+    }
+
+    #[test]
+    fn apply_remove_clears_a_default_that_pointed_at_the_removed_profile() {
+        let mut file = profile("keychain");
+        file["defaultProfiles"]["azure-devops"] = json!("ado");
+        apply_remove(&mut file, "ado").unwrap();
+        assert!(file["defaultProfiles"].get("azure-devops").is_none());
+        assert!(file["profiles"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn apply_remove_reports_an_unknown_profile() {
+        assert!(apply_remove(&mut profile("keychain"), "missing").unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn apply_set_default_requires_an_existing_profile() {
+        let mut file = profile("keychain");
+        assert!(apply_set_default(&mut file, "missing").unwrap_err().contains("not found"));
+        apply_set_default(&mut file, "ado").unwrap();
+        assert_eq!(file["defaultProfiles"]["azure-devops"], json!("ado"));
+    }
+
+    #[test]
+    fn list_from_file_keeps_only_azure_devops_profiles_and_flags_the_default() {
+        let file = json!({"version":"2","defaultProfiles":{"azure-devops":"ado"},"profiles":[
+            {"name":"ado","platform":"azure-devops","organizationUrl":"https://dev.azure.com/org","project":"P","team":"T","token":{"strategy":"keychain"}},
+            {"name":"other","platform":"github","token":{"strategy":"keychain"}}
+        ]});
+        let listed = list_from_file(&file).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].name, "ado");
+        assert!(listed[0].is_default);
+    }
+
+    #[test]
+    fn normalize_file_migrates_a_v1_default_profile_to_the_v2_map() {
+        let migrated = normalize_file(json!({"defaultProfile":"ado","profiles":[{"name":"ado","platform":"azure-devops"}]}));
+        assert_eq!(migrated["version"], json!("2"));
+        assert_eq!(migrated["defaultProfiles"]["azure-devops"], json!("ado"));
+        assert!(migrated.get("defaultProfile").is_none());
+    }
+
+    #[test]
+    fn normalize_file_leaves_a_v2_file_untouched() {
+        let original = profile("keychain");
+        assert_eq!(normalize_file(original.clone()), original);
+    }
+
+    #[test]
+    fn normalize_file_drops_a_v1_default_that_names_no_known_profile() {
+        assert_eq!(normalize_file(json!({"defaultProfile":"ghost","profiles":[]}))["defaultProfiles"], json!({}));
+    }
+
+    #[test]
+    fn resolve_grounding_reports_a_missing_profile() {
+        let error = resolve_grounding_from_file(&profile("keychain"), "missing", |_| Ok("t".into())).unwrap_err();
+        assert_eq!(error.code, "PROFILE_NOT_FOUND");
+    }
+
+    #[test]
+    fn resolve_grounding_rejects_a_keychain_profile_with_no_organization_url() {
+        let mut file = profile("keychain");
+        file["profiles"][0].as_object_mut().unwrap().remove("organizationUrl");
+        let error = resolve_grounding_from_file(&file, "ado", |_| Ok("t".into())).unwrap_err();
+        assert_eq!(error.code, "PROFILE_UNAVAILABLE");
     }
 }
