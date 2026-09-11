@@ -52,6 +52,8 @@ jobs:
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
@@ -62,6 +64,14 @@ jobs:
         working-directory: packages/atomize-studio
       - run: bun run lint
         working-directory: packages/atomize-studio
+      - name: Stage sidecar binaries
+        # cargo test/clippy compiles src-tauri's build.rs, which validates that
+        # tauri.conf.json's externalBin resources exist even for a non-bundling run.
+        run: bun run sidecar:stage
+        working-directory: packages/atomize-studio
+      - name: Rust checks (src-tauri)
+        run: cargo clippy --all-targets -- -D warnings && cargo test
+        working-directory: packages/atomize-studio/src-tauri
       - name: Build experimental Linux installer
         if: runner.os == 'Linux'
         # Bun's compiled standalone sidecar cannot be inspected by linuxdeploy,
@@ -147,9 +157,19 @@ jobs:
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - run: bun install --frozen-lockfile
       - run: bun run test && bun run typecheck && bun run lint
         working-directory: packages/atomize-studio
+      - name: Stage sidecar binaries
+        # cargo test/clippy compiles src-tauri's build.rs, which validates that
+        # tauri.conf.json's externalBin resources exist even for a non-bundling run.
+        run: bun run sidecar:stage
+        working-directory: packages/atomize-studio
+      - name: Rust checks (src-tauri)
+        run: cargo clippy --all-targets -- -D warnings && cargo test
+        working-directory: packages/atomize-studio/src-tauri
       - run: bun run build -- ${{ matrix.args }} --bundles app
         working-directory: packages/atomize-studio
       - name: Verify Copilot runtime entitlements
@@ -197,9 +217,19 @@ jobs:
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - run: bun install --frozen-lockfile
       - run: bun run test && bun run typecheck && bun run lint
         working-directory: packages/atomize-studio
+      - name: Stage sidecar binaries
+        # cargo test/clippy compiles src-tauri's build.rs, which validates that
+        # tauri.conf.json's externalBin resources exist even for a non-bundling run.
+        run: bun run sidecar:stage
+        working-directory: packages/atomize-studio
+      - name: Rust checks (src-tauri)
+        run: cargo clippy --all-targets -- -D warnings && cargo test
+        working-directory: packages/atomize-studio/src-tauri
       - run: bun run build
         working-directory: packages/atomize-studio
       - uses: actions/upload-artifact@v4
@@ -226,8 +256,18 @@ jobs:
         with:
           bun-version: 1.3.13
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
       - run: bun install --frozen-lockfile
+      - name: Stage sidecar binaries
+        # cargo test/clippy compiles src-tauri's build.rs, which validates that
+        # tauri.conf.json's externalBin resources exist even for a non-bundling run.
+        run: bun run sidecar:stage
+        working-directory: packages/atomize-studio
+      - name: Rust checks (src-tauri)
+        run: cargo clippy --all-targets -- -D warnings && cargo test
+        working-directory: packages/atomize-studio/src-tauri
       - name: Build experimental Linux installer
         # Bun's compiled standalone sidecar cannot be inspected by linuxdeploy,
         # so AppImage packaging aborts before a usable Studio bundle exists.
@@ -263,6 +303,11 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.13
       - uses: actions/download-artifact@v4
         with:
           pattern: studio-macos-*
@@ -287,10 +332,22 @@ jobs:
           done < <(find release-assets -type f -print0)
           cd release-files
           sha256sum * > SHA256SUMS.txt
+      - name: Generate release notes
+        # --paths must stay in sync with on.push.paths above (Studio's
+        # dependency closure). See docs/Releasing.md.
+        run: |
+          bun scripts/release-notes.ts \
+            --tag-glob 'studio-v*' \
+            --new-tag "studio-v${{ needs.check-version.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --surface studio \
+            --paths packages/atomize-studio,packages/atomize-sidecar,packages/atomize-core,packages/atomize-schema,packages/atomize-ai \
+            --studio-boilerplate \
+            > "$RUNNER_TEMP/release-notes.md"
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "studio-v${{ needs.check-version.outputs.version }}" release-files/* \
             --title "Atomize Studio ${{ needs.check-version.outputs.version }}" \
-            --notes $'## Installer verification\n\nVerify every download with `SHA256SUMS.txt`. macOS installers are ad-hoc signed but not notarised; Windows installers are unsigned. Your operating system may show a security warning before installation.'
+            --notes-file "$RUNNER_TEMP/release-notes.md"

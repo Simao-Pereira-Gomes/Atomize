@@ -6,29 +6,14 @@ Atomize helps teams turn stories into consistent child tasks. Author Atomize YAM
 
 > Compatibility: Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
-## Requirements
-
-Atomize for VS Code uses the Atomize CLI for validation, preview, profile management, and generation.
-
-Install the CLI:
-
-```bash
-npm install -g @sppg2001/atomize
-```
-
-By default, the extension runs the `atomize` executable on your `PATH`. You can change this with the `atomize.cliPath` setting. If the CLI is missing or outdated, the extension can run its configured install/update command in a visible terminal.
-
-The extension also recommends the Red Hat YAML extension for schema-backed hovers and completions.
-
 ## First Workflow
 
-1. Install the Atomize CLI.
-2. Open or create an Atomize YAML file.
-3. Run **Atomize: Validate** to check the template.
-4. Run **Atomize: Preview (Mock)** to simulate generated tasks without connecting to a platform.
-5. Configure a Connection Profile with **Atomize: Manage Profiles** when you are ready to use connected workflows.
-6. Run **Atomize: Preview (Live)** to preview against a real Story.
-7. Run **Atomize: Generate** to review the plan and create Tasks only after confirmation.
+1. Open or create an Atomize YAML file.
+2. Run **Atomize: Validate** to check the template.
+3. Run **Atomize: Preview (Mock)** to simulate generated tasks without connecting to a platform.
+4. Configure a Connection Profile with **Atomize: Manage Profiles** when you are ready to use connected workflows.
+5. Run **Atomize: Preview (Live)** to preview against a real Story.
+6. Run **Atomize: Generate** to review the plan and create Tasks only after confirmation.
 
 Atomize previews by default. Creating Tasks requires the Generate flow and an explicit confirmation.
 
@@ -37,6 +22,8 @@ Atomize previews by default. Creating Tasks requires the Generate flow and an ex
 Use `.atomize.yaml` or `.atomize.yml` for the full editor experience: CodeLens actions, save-time diagnostics, schema hovers, completions, and snippets.
 
 You can also add `# atomize-yaml` on the first line of a regular YAML file. The extension may identify matching YAML content during a session, but a durable marker is recommended for team templates.
+
+Atomize YAML files stay on VS Code's YAML language service for schema-backed hovers and completions. The extension pack installs the Red Hat YAML extension for this.
 
 ```yaml
 version: "1.0"
@@ -83,17 +70,18 @@ For durable Atomize YAML files, the main file actions also appear as CodeLens co
 
 Run **Atomize: Manage Profiles** to add, test, rotate, remove, or set a default Connection Profile.
 
-Profiles are owned by the Atomize CLI. The extension asks the CLI for profile state and does not store credentials itself.
+The extension owns profile storage: non-secret fields (name, organization URL, project, team) live in VS Code's extension state and tokens live in VS Code Secret Storage. Nothing is shared with the Atomize CLI.
+
+If you used the Atomize CLI before adopting the extension, the profile picker's empty state offers a one-time **Import from CLI** action that pre-fills the Add Profile form from `~/.atomize/connections.json` (read-only, never written to). You re-enter each token once during import.
 
 For credential scopes and platform-specific setup, see the [Auth Guide](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Auth-Guide.md).
 
 ## Settings
 
-- `atomize.cliPath`: path to the Atomize CLI executable.
-- `atomize.cli.installCommand`: command run in a visible terminal to install or update the default CLI.
-- `atomize.cli.autoCheckUpdates`: check for stable CLI updates when using the default CLI executable.
-- `atomize.defaultProfile`: workspace-scoped profile name to preselect in Validate, Live Preview, and Generate pickers.
+- `atomize.defaultProfile`: workspace-scoped profile name to preselect in the Validate, Live Preview, and Generate pickers.
 - `atomize.previewLayout`: preview panel layout, either `default` or `compact`.
+
+> Upgrading from an earlier version? The `atomize.cliPath`, `atomize.cli.installCommand`, and `atomize.cli.autoCheckUpdates` settings are deprecated no-ops. The extension shows a one-time notice if any are still set, and you can safely remove them.
 
 ## Documentation
 

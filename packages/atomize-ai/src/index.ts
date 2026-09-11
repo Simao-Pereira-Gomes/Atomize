@@ -1,6 +1,6 @@
+import type { AIProvider } from "./provider.interface";
 import { GitHubCopilotProvider } from "./providers/github-copilot.provider";
 import { MockAIProvider } from "./providers/mock.provider";
-import type { AIProvider } from "./provider.interface";
 
 export type AIProviderConfig =
   | { type: "github-copilot" }

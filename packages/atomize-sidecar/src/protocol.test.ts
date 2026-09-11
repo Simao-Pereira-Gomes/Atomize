@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { classifyGenerateAdapterError, handleLine, type SidecarServices } from "./protocol";
 import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
+import { classifyGenerateAdapterError, handleLine, type SidecarServices } from "./protocol";
 
 const services: SidecarServices = {
   library: {
@@ -453,7 +453,7 @@ describe("AI draft protocol", () => {
   it("streams the first attempt through session.stream and notifies progress by accumulated length", async () => {
     const notifications: unknown[] = [];
     const template = "version: '1.0'\nname: Draft\nfilter: {}\ntasks: []";
-    const chunks = [template.slice(0, 10), template.slice(10)];
+    const chunks: [string, string] = [template.slice(0, 10), template.slice(10)];
     const ai: SidecarServices = {
       ...services,
       drafts: new Map(),
@@ -468,7 +468,7 @@ describe("AI draft protocol", () => {
     await expect(handleLine('{"jsonrpc":"2.0","id":14,"method":"ai.generate","params":{"draftId":"draft-stream","prose":"Build something"}}', ai))
       .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [] } } });
     expect(notifications).toEqual([
-      { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: chunks[0]!.length } },
+      { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: chunks[0].length } },
       { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: template.length } },
     ]);
   });

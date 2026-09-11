@@ -28,18 +28,12 @@
               "description": "Comparison operator. equals/not-equals: exact match. contains/not-contains: substring or array membership. gt/lt/gte/lte: numeric comparison."
             },
             "value": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                }
-              ],
-              "description": "Value to compare against. Can be a string, number, or boolean."
+              "description": "Value to compare against. Can be a string, number, or boolean.",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
             }
           },
           "required": [
@@ -72,18 +66,12 @@
               "description": "Comparison operator. equals/not-equals: exact match. contains/not-contains: substring or array membership. gt/lt/gte/lte: numeric comparison."
             },
             "value": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                }
-              ],
-              "description": "Value to compare against. Can be a string, number, or boolean."
+              "description": "Value to compare against. Can be a string, number, or boolean.",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
             }
           },
           "required": [
@@ -274,7 +262,7 @@
                   {
                     "type": "string",
                     "format": "email",
-                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   {
                     "type": "string",
@@ -438,16 +426,10 @@
                   "type": "string"
                 },
                 "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    }
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
                   ]
                 },
                 "description": "Azure DevOps custom fields to set on the task. Keys must be in 'Namespace.FieldName' format (e.g. 'Custom.ClientTier')."
@@ -828,7 +810,7 @@
                   {
                     "type": "string",
                     "format": "email",
-                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   {
                     "type": "string",
@@ -992,16 +974,10 @@
                   "type": "string"
                 },
                 "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    }
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
                   ]
                 },
                 "description": "Azure DevOps custom fields to set on the task. Keys must be in 'Namespace.FieldName' format (e.g. 'Custom.ClientTier')."
@@ -1355,16 +1331,10 @@
                   "type": "string"
                 },
                 "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    }
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
                   ]
                 },
                 "description": "Azure DevOps custom fields to set on the task. Keys must be in 'Namespace.FieldName' format (e.g. 'Custom.ClientTier')."

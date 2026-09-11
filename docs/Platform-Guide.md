@@ -45,7 +45,7 @@ Complete setup guide for Azure DevOps Services.
 
 - Azure DevOps organization and project
 - Personal Access Token (PAT) with Work Items permissions
-- Node.js 18+ or Bun runtime
+- Node.js 22+ or Bun runtime
 
 ### Quick Start
 

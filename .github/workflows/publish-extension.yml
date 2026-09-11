@@ -97,36 +97,24 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
-      - name: Generate changelog
-        id: changelog
+      - name: Generate release notes
+        # --paths must stay in sync with on.push.paths above (the extension's
+        # dependency closure). See docs/Releasing.md.
         run: |
-          VERSION="${{ needs.check-version.outputs.version }}"
-          LAST_TAG=$(git tag -l "vscode-v*" --sort=-version:refname | head -1)
-
-          if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges -- packages/vscode-extension/)
-            COMPARE_URL="https://github.com/${{ github.repository }}/commits/vscode-v${VERSION}"
-          else
-            COMMITS=$(git log "${LAST_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges -- packages/vscode-extension/)
-            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${LAST_TAG}...vscode-v${VERSION}"
-          fi
-
-          {
-            echo "changelog<<EOF"
-            echo "## What's Changed"
-            echo ""
-            echo "$COMMITS"
-            echo ""
-            echo "**Full Changelog**: $COMPARE_URL"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          bun scripts/release-notes.ts \
+            --tag-glob 'vscode-v*' \
+            --new-tag "vscode-v${{ needs.check-version.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --surface extension \
+            --paths packages/vscode-extension,packages/atomize-core,packages/atomize-schema \
+            > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: vscode-v${{ needs.check-version.outputs.version }}
           name: Extension v${{ needs.check-version.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
+          body_path: ${{ runner.temp }}/release-notes.md
           draft: false
           prerelease: false
           make_latest: false

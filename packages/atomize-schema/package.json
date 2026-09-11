@@ -6,10 +6,15 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
+    "bun-types": "^1.4.2",
     "typescript": "^7.0.2"
   }
 }

@@ -8,10 +8,10 @@ import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
-import { verifyTemplate, type TemplateVerificationResult } from "@sppg2001/atomize-core/templates/template-verification";
-import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 import { parse as parseYaml } from "yaml";
