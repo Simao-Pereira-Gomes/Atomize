@@ -18,6 +18,22 @@ A child Work Item produced from a Template task definition.
 **Template**:
 A YAML-defined task breakdown recipe for matching Stories.
 
+**Story Estimate**:
+The size recorded on a Story, in the Story's own unit — points, a t-shirt size, hours, or any other scale the platform process uses.
+_Avoid_: "story points" when referring to the Story Estimate generically; points are only one possible unit.
+
+**Task Estimate**:
+The effort assigned to a generated Task, in the Task's own unit (typically hours). Derived by converting the Story Estimate and distributing it across Tasks by percentage.
+
+**Estimation Conversion**:
+The rule that translates a Story Estimate into the Task's unit before distribution. Either a factor (a numeric multiplier, e.g. 1 point = 4 hours) or a table (a value-by-value mapping, e.g. L = 5 hours, also used for non-linear numeric scales). With no Estimation Conversion the Story Estimate is used one-to-one. A Story Estimate a table does not cover is never guessed.
+
+**Unresolvable Story Estimate**:
+A Story Estimate that is missing or that the Estimation Conversion cannot translate. By default the Story's Tasks are still generated with their Task Estimates left blank (never zero) and a warning is reported; a Template may instead opt to skip the Story entirely or fall back to a default Story Estimate.
+
+**Estimation Field Mapping**:
+Which Story field supplies the Story Estimate, which child Work Item type the Tasks are created as, and which Task fields receive the Task Estimate. Each Platform Adapter supplies a default for its platform; a Template may override it using that platform's own field names.
+
 **Template Notes**:
 Optional free-form context attached to a Template for its authors and maintainers. Template Notes are distinct from estimation guidelines and from a Task's description.
 _Avoid_: using "notes" to refer to Task details.
