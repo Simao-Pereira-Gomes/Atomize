@@ -8,7 +8,7 @@
 		"test:scripts": "bun test ./scripts"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.13"
+		"@biomejs/biome": "2.5.14"
 	},
 	"overrides": {
 		"qs": "6.16.0"
