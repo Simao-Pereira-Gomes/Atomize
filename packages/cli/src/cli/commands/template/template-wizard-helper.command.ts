@@ -1,11 +1,15 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
+import type { EstimationDefaults } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import type { SavedQueryInfo } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
+import { isEstimateCapableField } from "@sppg2001/atomize-core/services/template/estimation-grounding";
 import type { TemplateCatalogItem } from "@sppg2001/atomize-core/services/template/template-catalog";
-import type {
-  EstimationConfig,
-  FilterCriteria,
-  Metadata,
-  ValidationConfig,
+import {
+  type EstimationConfig,
+  type FilterCriteria,
+  isConvertibleStoryEstimate,
+  type Metadata,
+  type ValidationConfig,
 } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import {
@@ -15,6 +19,7 @@ import {
 import {
   assertNotCancelled,
   Filters,
+  parseConversionTable,
   selectOrAutocomplete,
   Validators,
 } from "../../utilities/prompt-utilities";
@@ -698,13 +703,39 @@ async function promptDateFilter(
   return choice;
 }
 
+export interface EstimationWizardContext {
+  /** Fields of the Template's Story type(s); estimate-capable ones are offered as sources. */
+  storyFields?: ADoFieldSchema[];
+  /** Project work item types, offered for taskType. */
+  workItemTypes?: string[];
+  /** The platform's default Estimation Field Mapping. */
+  defaults?: EstimationDefaults;
+  /** Fields of a child work item type, to offer numeric target fields. */
+  getTaskFields?: (workItemType: string) => Promise<ADoFieldSchema[]>;
+}
+
+export interface EstimationWizardResult {
+  estimation: EstimationConfig;
+  taskType?: string;
+}
+
+const CUSTOM_ENTRY = "__custom__";
+
 /**
- * Configure estimation settings.
- * When `defaults` is supplied each prompt is pre-filled with the existing values.
+ * Configure estimation settings: which Story field supplies the Story Estimate, how it converts
+ * into the Task's unit, where Task Estimates are written, rounding and minimum, and what to do when
+ * a Story Estimate cannot be resolved. Keys this step does not manage are kept from `defaults`.
  */
-export async function configureEstimation(defaults?: Partial<EstimationConfig>): Promise<
-  EstimationConfig | undefined
-> {
+export async function configureEstimation(
+  defaults?: Partial<EstimationConfig>,
+  ctx: EstimationWizardContext = {},
+  currentTaskType?: string,
+): Promise<EstimationWizardResult> {
+  const source = await promptEstimationSource(defaults?.source, ctx);
+  const sourceField = source ? ctx.storyFields?.find((field) => field.referenceName === source) : undefined;
+  const conversion = await promptConversion(defaults?.conversion, sourceField);
+  const { taskType, targetFields } = await promptEstimateTarget(currentTaskType, defaults?.targetFields, ctx);
+
   const rounding = assertNotCancelled(
     await select({
       message: "Rounding strategy:",
@@ -722,20 +753,249 @@ export async function configureEstimation(defaults?: Partial<EstimationConfig>):
     await text({
       message: "Minimum Task Estimate, in the Task's unit (0 for no minimum):",
       initialValue: String(defaults?.minimumTaskEstimate ?? defaults?.minimumTaskPoints ?? 0),
-      validate: (input): string | undefined => {
-        const n = Number(input);
-        if (Number.isNaN(n)) return "Must be a valid number";
-        if (n < 0) return "Cannot be negative";
-        return undefined;
-      },
+      validate: Validators.nonNegative("Minimum Task Estimate"),
     }),
   );
 
-  return {
+  const policy = assertNotCancelled(
+    await select({
+      message: "When a Story's estimate is missing or can't be converted:",
+      options: [
+        { label: "Create the tasks with blank estimates and warn", value: "warn" },
+        { label: "Skip the Story", value: "skip" },
+        { label: "Assume a default Story Estimate", value: "use-default" },
+      ],
+      initialValue: defaults?.ifParentHasNoEstimation ?? "warn",
+    }),
+  ) as NonNullable<EstimationConfig["ifParentHasNoEstimation"]>;
+
+  const defaultParentEstimation =
+    policy === "use-default" ? await promptDefaultStoryEstimate(defaults?.defaultParentEstimation, conversion) : undefined;
+
+  const {
+    source: _source,
+    conversion: _conversion,
+    targetFields: _targetFields,
+    minimumTaskPoints: _minimumTaskPoints,
+    defaultParentEstimation: _default,
+    ifParentHasNoEstimation: _policy,
+    ...kept
+  } = defaults ?? {};
+
+  const estimation: EstimationConfig = {
+    ...kept,
     strategy: "percentage",
     rounding: rounding as EstimationConfig["rounding"],
     minimumTaskEstimate: Number(minimumTaskEstimateRaw) || undefined,
+    ...(source ? { source } : {}),
+    ...(conversion ? { conversion } : {}),
+    ...(targetFields?.length ? { targetFields } : {}),
+    ...(policy !== "warn" ? { ifParentHasNoEstimation: policy } : {}),
+    ...(defaultParentEstimation !== undefined ? { defaultParentEstimation } : {}),
   };
+  if (estimation.minimumTaskEstimate === undefined) delete estimation.minimumTaskEstimate;
+
+  return { estimation, ...(taskType ? { taskType } : {}) };
+}
+
+async function promptEstimationSource(current: string | undefined, ctx: EstimationWizardContext): Promise<string | undefined> {
+  const defaults = ctx.defaults;
+  const candidates = defaults
+    ? (ctx.storyFields ?? []).filter((field) => isEstimateCapableField(field, defaults) && !defaults.storyEstimateFields.includes(field.referenceName))
+    : [];
+
+  if (candidates.length > 0) {
+    const choice = assertNotCancelled(
+      await select({
+        message: "Which Story field holds the Story Estimate?",
+        options: [
+          { label: "Platform default (story points, effort or size)", value: "" },
+          ...candidates.map((field) => ({
+            label: `${field.name} (${field.referenceName})`,
+            value: field.referenceName,
+            hint: field.isPicklist ? `values: ${(field.allowedValues ?? []).join(", ")}` : field.type,
+          })),
+          { label: "Another field (enter its reference name)", value: CUSTOM_ENTRY },
+        ],
+        initialValue: current && candidates.some((field) => field.referenceName === current) ? current : current ? CUSTOM_ENTRY : "",
+      }),
+    ) as string;
+    if (choice !== CUSTOM_ENTRY) return choice || undefined;
+  }
+
+  const typed = assertNotCancelled(
+    await text({
+      message: "Story field reference name holding the Story Estimate (leave blank for the platform default):",
+      initialValue: current ?? "",
+      validate: (input): string | undefined => (input && input.trim() !== "" ? Validators.fieldReferenceName(input) : undefined),
+    }),
+  );
+  return typed.trim() || undefined;
+}
+
+async function promptConversion(
+  current: EstimationConfig["conversion"],
+  sourceField: ADoFieldSchema | undefined,
+): Promise<EstimationConfig["conversion"]> {
+  const kind = assertNotCancelled(
+    await select({
+      message: "How does the Story Estimate translate into Task hours?",
+      options: [
+        { label: "One-to-one (use the number as it is)", value: "none" },
+        { label: "A factor (e.g. 1 point = 4 hours)", value: "factor" },
+        { label: "A table (e.g. t-shirt sizes, or points that don't scale linearly)", value: "table" },
+      ],
+      initialValue: current?.table ? "table" : current?.factor !== undefined ? "factor" : sourceField?.isPicklist ? "table" : "none",
+    }),
+  ) as "none" | "factor" | "table";
+
+  if (kind === "none") return undefined;
+
+  if (kind === "factor") {
+    const factor = assertNotCancelled(
+      await text({
+        message: "Task hours per unit of Story Estimate:",
+        initialValue: current?.factor !== undefined ? String(current.factor) : "",
+        validate: Validators.positiveNumber("Factor"),
+      }),
+    );
+    return { factor: Number(factor) };
+  }
+
+  const table = sourceField?.isPicklist && sourceField.allowedValues?.length
+    ? await promptTableForValues(sourceField.allowedValues, current?.table)
+    : await promptTypedTable(current?.table);
+
+  const keysAreCategories = !Object.keys(table).every((key) => /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(key));
+  const multipliers =
+    keysAreCategories &&
+    assertNotCancelled(
+      await confirm({
+        message: "Also accept multiples of a size, e.g. 0.3XL = 0.3 × XL?",
+        initialValue: current?.multipliers === true,
+      }),
+    );
+
+  return { table, ...(multipliers ? { multipliers: true } : {}) };
+}
+
+async function promptTableForValues(values: string[], current: Record<string, number> | undefined): Promise<Record<string, number>> {
+  output.print(chalk.gray("Enter the Task hours for each value. Leave blank to leave a value unconverted."));
+  const table: Record<string, number> = {};
+  for (const value of values) {
+    const amount = assertNotCancelled(
+      await text({
+        message: `Hours for "${value}":`,
+        initialValue: current?.[value] !== undefined ? String(current[value]) : "",
+        validate: (input): string | undefined => (input && input.trim() !== "" ? Validators.nonNegative("Hours")(input) : undefined),
+      }),
+    );
+    if (amount.trim() !== "") table[value] = Number(amount);
+  }
+  if (Object.keys(table).length > 0) return table;
+  output.print(chalk.yellow("No values were converted; enter the table as text instead."));
+  return promptTypedTable(current);
+}
+
+async function promptTypedTable(current: Record<string, number> | undefined): Promise<Record<string, number>> {
+  const typed = assertNotCancelled(
+    await text({
+      message: "Conversion table as value=hours pairs (e.g. S=2, M=4, L=5, XL=13):",
+      initialValue: current ? Object.entries(current).map(([key, value]) => `${key}=${value}`).join(", ") : "",
+      validate: Validators.conversionTable,
+    }),
+  );
+  return parseConversionTable(typed) as Record<string, number>;
+}
+
+async function promptEstimateTarget(
+  currentTaskType: string | undefined,
+  currentTargetFields: string[] | undefined,
+  ctx: EstimationWizardContext,
+): Promise<{ taskType?: string; targetFields?: string[] }> {
+  const customise = assertNotCancelled(
+    await confirm({
+      message: `Create tasks as a different work item type, or write estimates to different fields? (default: ${ctx.defaults?.taskWorkItemType ?? "platform default"})`,
+      initialValue: currentTaskType !== undefined || (currentTargetFields?.length ?? 0) > 0,
+    }),
+  );
+  if (!customise) return {};
+
+  const defaultType = ctx.defaults?.taskWorkItemType;
+  let taskType: string;
+  if (ctx.workItemTypes?.length) {
+    taskType = assertNotCancelled(
+      await select({
+        message: "Work item type to create tasks as:",
+        options: ctx.workItemTypes.map((type) => ({ label: type, value: type, hint: type === defaultType ? "platform default" : undefined })),
+        initialValue: currentTaskType ?? defaultType ?? ctx.workItemTypes[0],
+      }),
+    ) as string;
+  } else {
+    taskType = assertNotCancelled(
+      await text({
+        message: "Work item type to create tasks as:",
+        initialValue: currentTaskType ?? defaultType ?? "",
+        validate: Validators.required("Work item type"),
+      }),
+    ).trim();
+  }
+
+  const numericFields = ctx.getTaskFields
+    ? (await ctx.getTaskFields(taskType)).filter((field) => !field.isReadOnly && (field.type === "integer" || field.type === "decimal"))
+    : [];
+  let targetFields: string[];
+  if (numericFields.length > 0) {
+    targetFields = assertNotCancelled(
+      await multiselect({
+        message: "Task fields that receive the estimate (none selected = platform default fields):",
+        options: numericFields.map((field) => ({ label: `${field.name} (${field.referenceName})`, value: field.referenceName })),
+        initialValues: currentTargetFields ?? [],
+        required: false,
+      }),
+    ) as string[];
+  } else {
+    const typed = assertNotCancelled(
+      await text({
+        message: "Task field reference names that receive the estimate, comma-separated (blank = platform default fields):",
+        initialValue: currentTargetFields?.join(", ") ?? "",
+      }),
+    );
+    targetFields = Filters.commaSeparated(typed).filter(Boolean);
+  }
+
+  const keepTaskType = taskType !== defaultType || currentTaskType !== undefined;
+  return { ...(keepTaskType ? { taskType } : {}), ...(targetFields.length ? { targetFields } : {}) };
+}
+
+async function promptDefaultStoryEstimate(
+  current: EstimationConfig["defaultParentEstimation"],
+  conversion: EstimationConfig["conversion"],
+): Promise<string | number> {
+  if (conversion?.table && !conversion.multipliers) {
+    return assertNotCancelled(
+      await select({
+        message: "Default Story Estimate to assume:",
+        options: Object.keys(conversion.table).map((key) => ({ label: key, value: key })),
+        initialValue: current !== undefined && Object.hasOwn(conversion.table, String(current)) ? String(current) : Object.keys(conversion.table)[0],
+      }),
+    ) as string;
+  }
+  const typed = assertNotCancelled(
+    await text({
+      message: "Default Story Estimate to assume (e.g. 5, or a size like M):",
+      initialValue: current !== undefined ? String(current) : "",
+      validate: (input): string | undefined => {
+        if (!input || input.trim() === "") return "A default Story Estimate is required";
+        return isConvertibleStoryEstimate(input.trim(), conversion)
+          ? undefined
+          : conversion?.table
+            ? "Must be a value of the conversion table, or a multiple of one"
+            : "Must be a number unless a conversion table is set";
+      },
+    }),
+  ).trim();
+  return Number.isFinite(Number(typed)) ? Number(typed) : typed;
 }
 
 /**

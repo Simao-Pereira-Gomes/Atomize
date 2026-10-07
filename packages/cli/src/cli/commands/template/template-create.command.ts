@@ -10,6 +10,7 @@ import {
   requireSavedQueryReader,
   requireStoryLearningPlatform,
 } from "@sppg2001/atomize-core/platforms/capabilities";
+import type { EstimationDefaults } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
 import type { IPlatformAdapter, PlatformType } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
 import { StoryLearner } from "@sppg2001/atomize-core/services/template/story-learner";
@@ -54,6 +55,7 @@ import {
 } from "./template-wizard";
 import {
   configureTemplateComposition,
+  type EstimationWizardContext,
   promptMixinRefs,
 } from "./template-wizard-helper.command";
 
@@ -649,8 +651,9 @@ export async function createFromScratch(
       const adapter = await createAzureDevOpsAdapter(profile);
       const metadataReader = requireProjectMetadataReader(adapter);
       const savedQueryReader = requireSavedQueryReader(adapter);
+      const estimationDefaults = adapter.getEstimationDefaults();
       const [taskSchemas, liveWorkItemTypes, liveAreaPaths, liveIterationPaths, liveTeams, liveSavedQueries] = await Promise.all([
-        metadataReader.getFieldSchemas("Task"),
+        metadataReader.getFieldSchemas(estimationDefaults.taskWorkItemType),
         metadataReader.getWorkItemTypes(),
         metadataReader.getAreaPaths(),
         metadataReader.getIterationPaths(),
@@ -660,6 +663,7 @@ export async function createFromScratch(
 
       return {
         metadataReader,
+        estimationDefaults,
         fieldSchemas: taskSchemas,
         filterCtx: {
           workItemTypes: liveWorkItemTypes,
@@ -690,6 +694,7 @@ export async function createFromScratch(
     let filterCtx: import("./template-wizard-helper.command").FilterWizardContext;
     let fieldSchemas: import("@sppg2001/atomize-core/platforms/interfaces/field-schema.interface").ADoFieldSchema[];
     let adapterForWizard: ReturnType<typeof requireProjectMetadataReader>;
+    let estimationDefaults: EstimationDefaults;
 
     const wasAlreadyConnected = connectionSettled;
     const connectSpinner = createManagedSpinner();
@@ -700,6 +705,7 @@ export async function createFromScratch(
       filterCtx = conn.filterCtx;
       fieldSchemas = conn.fieldSchemas;
       adapterForWizard = conn.metadataReader;
+      estimationDefaults = conn.estimationDefaults;
     } catch (err) {
       if (!wasAlreadyConnected) connectSpinner.stop("Connection failed");
       const message = err instanceof Error ? err.message : String(err);
@@ -791,11 +797,17 @@ export async function createFromScratch(
     printStep(chalk.gray("████░░"));
     printStep(
       chalk.gray(
-        "Tip: Choose how story points will be calculated and rounded\n",
+        "Tip: Choose how Story Estimates turn into Task hours and where they are written\n",
       ),
     );
 
-    const estimation = await configureEstimation();
+    const estimationCtx: EstimationWizardContext = {
+      storyFields: storyFieldSchemas,
+      workItemTypes: filterCtx.workItemTypes,
+      defaults: estimationDefaults,
+      getTaskFields: (type) => adapterForWizard.getFieldSchemas(type),
+    };
+    const { estimation, taskType } = await configureEstimation(undefined, estimationCtx);
 
     currentStep++;
 
@@ -859,6 +871,7 @@ export async function createFromScratch(
       created: new Date().toISOString(),
       filter: filterConfig,
       tasks,
+      ...(taskType ? { taskType } : {}),
       estimation,
       validation,
       metadata,
@@ -875,6 +888,7 @@ export async function createFromScratch(
       fieldSchemas,
       storyFieldSchemas,
       workItemType,
+      estimationCtx,
     };
     const confirmed = await previewTemplate(template, wizardCtx);
 

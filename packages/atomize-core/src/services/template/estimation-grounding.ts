@@ -13,6 +13,15 @@ export interface EstimationGrounding {
   storyEstimateFieldsByWorkItemType: Record<string, Array<Pick<ADoFieldSchema, "referenceName" | "name" | "type" | "isPicklist" | "allowedValues">>>;
 }
 
+/** Whether a Story field could supply a Story Estimate: the default chain, or a writable custom numeric or picklist field. */
+export function isEstimateCapableField(field: ADoFieldSchema, defaults: Pick<EstimationDefaults, "storyEstimateFields">): boolean {
+  return (
+    !field.isReadOnly &&
+    (defaults.storyEstimateFields.includes(field.referenceName) ||
+      (field.isCustom && (field.type === "integer" || field.type === "decimal" || (field.type === "string" && field.isPicklist))))
+  );
+}
+
 /**
  * Curates the metadata an AI draft needs to configure estimation: the platform defaults and
  * the fields that can carry a Story Estimate (the default chain, plus writable custom numeric
@@ -22,11 +31,7 @@ export function buildEstimationGrounding(
   defaults: EstimationDefaults,
   fieldsByWorkItemType: Record<string, ADoFieldSchema[]>,
 ): EstimationGrounding {
-  const defaultChain = new Set(defaults.storyEstimateFields);
-  const isEstimateCapable = (field: ADoFieldSchema) =>
-    !field.isReadOnly &&
-    (defaultChain.has(field.referenceName) ||
-      (field.isCustom && (field.type === "integer" || field.type === "decimal" || (field.type === "string" && field.isPicklist))));
+  const isEstimateCapable = (field: ADoFieldSchema) => isEstimateCapableField(field, defaults);
 
   const storyEntries: Array<[string, EstimationGrounding["storyEstimateFieldsByWorkItemType"][string]]> = [];
   for (const [type, fields] of Object.entries(fieldsByWorkItemType)) {

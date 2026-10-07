@@ -12,7 +12,7 @@ import {
 } from "@/cli/utilities/command-output";
 import { assertNotCancelled } from "../../utilities/prompt-utilities";
 import { buildTaskDefinition } from "./task-configuration";
-import type { FilterWizardContext } from "./template-wizard-helper.command";
+import type { EstimationWizardContext, FilterWizardContext } from "./template-wizard-helper.command";
 
 /** ADO data carried through the whole template-creation session. */
 export interface TemplateWizardContext {
@@ -20,6 +20,8 @@ export interface TemplateWizardContext {
   fieldSchemas: ADoFieldSchema[];
   storyFieldSchemas: ADoFieldSchema[];
   workItemType: string | undefined;
+  /** Connected project data for the estimation step; absent means typed input only. */
+  estimationCtx?: EstimationWizardContext;
 }
 
 const Actions = {
@@ -291,8 +293,13 @@ async function editTemplate(template: TaskTemplate, ctx: TemplateWizardContext):
       const { configureEstimation } = await import(
         "./template-wizard-helper.command"
       );
-      const estimation = await configureEstimation(template.estimation);
+      const { estimation, taskType } = await configureEstimation(
+        template.estimation,
+        ctx.estimationCtx ?? { storyFields: ctx.storyFieldSchemas },
+        template.taskType,
+      );
       template.estimation = estimation;
+      template.taskType = taskType;
     })
     .with("validation", async () => {
       output.print(chalk.cyan("\nEditing Validation Rules\n"));
@@ -385,7 +392,7 @@ export function showStepHint(stepName: string): void {
       "Tip: Use filters to select which work items this template applies to",
     tasks:
       "Tip: Break work into clear, actionable tasks. Estimation percentages will be normalized to 100%. If you plan on set dependencies, please set task IDs.",
-    estimation: "Tip: Choose how story points will be calculated and rounded",
+    estimation: "Tip: Choose how Story Estimates turn into Task hours and where they are written",
     validation: "Tip: Add constraints to ensure templates are used correctly",
     metadata: "Tip: Metadata helps others understand when to use this template",
   };
