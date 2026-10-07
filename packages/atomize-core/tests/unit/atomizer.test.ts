@@ -46,6 +46,30 @@ describe("Atomizer", () => {
   };
 
   describe("atomize", () => {
+    test("skip reports the Story as skipped with a reason and creates nothing for it", async () => {
+      await platform.authenticate();
+      const unestimated = { ...basicTemplate, filter: { workItemTypes: ["User Story"] } };
+      const stories = await platform.queryWorkItems(unestimated.filter);
+      const target = stories[0];
+      if (!target) throw new Error("mock data has no stories");
+      // The Mock adapter hands out its shared Story objects, so restore the estimate afterwards.
+      const originalEstimate = target.estimation;
+      target.estimation = undefined;
+      try {
+        const report = await atomizer.atomize(
+          { ...unestimated, estimation: { strategy: "percentage", rounding: "none", ifParentHasNoEstimation: "skip" } },
+          { dryRun: true, storyIds: [target.id] },
+        );
+
+        const result = report.results.find((r) => r.story.id === target.id);
+        expect(result?.skipReason).toContain("Story has no estimate");
+        expect(result?.tasksCalculated).toHaveLength(0);
+        expect(report.warnings.some((w) => w.startsWith(`${target.id}:`) && w.includes("skipped"))).toBe(true);
+      } finally {
+        target.estimation = originalEstimate;
+      }
+    });
+
     test("creates Tasks as the Template's taskType", async () => {
       await platform.authenticate();
 

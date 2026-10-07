@@ -387,13 +387,13 @@ export const EstimationConfigSchema = z.object({
   ifParentHasNoEstimation: z
     .enum(["skip", "warn", "use-default"])
     .describe(
-      "Behaviour when the parent story has no estimate. 'skip' omits tasks, 'warn' logs a warning, 'use-default' falls back to defaultParentEstimation.",
+      "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead.",
     )
     .optional(),
   defaultParentEstimation: z
     .number()
     .describe(
-      "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'.",
+      "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default'. Goes through the same conversion as a real Story Estimate.",
     )
     .optional(),
 }).strict();

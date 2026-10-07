@@ -583,8 +583,8 @@ estimation:
     factor: 4                 # e.g. 1 point = 4 hours
   rounding: "nearest"         # How to round calculated values
   minimumTaskEstimate: 0.5    # Minimum Task Estimate, in the Task's unit
-  ifParentHasNoEstimation: "skip"   # What to do if parent has no points
-  defaultParentEstimation: 8  # Used when parent has no estimation (if not "skip")
+  ifParentHasNoEstimation: "use-default"   # warn (default) | skip | use-default
+  defaultParentEstimation: 8  # Story Estimate to assume when the real one is missing
 ```
 
 | Field | Type | Default | Options | Description |
@@ -594,8 +594,8 @@ estimation:
 | `conversion.factor` | number | none (one-to-one) | any number greater than 0 | Multiplies the Story Estimate into the Task's unit before it is split across tasks. With `factor: 4`, a 5-point Story becomes 20 hours and a 20% task gets 4 hours. Rounding and the minimum apply afterwards. |
 | `rounding` | string | `"nearest"` | `nearest`, `up`, `down`, `none` | How to round decimal point values |
 | `minimumTaskEstimate` | number | `0` | any non-negative number | Minimum Task Estimate for any task, in the Task's unit (hours on Azure DevOps). Replaces the deprecated `minimumTaskPoints`, which is still honoured when `minimumTaskEstimate` is absent. |
-| `ifParentHasNoEstimation` | string | `"skip"` | `skip`, `warn`, `use-default` | Behavior when parent story has no estimation |
-| `defaultParentEstimation` | number | `8` | any positive number | Fallback estimation when parent has none |
+| `ifParentHasNoEstimation` | string | `"warn"` | `warn`, `skip`, `use-default` | What to do when the Story Estimate is missing or cannot be converted. `warn` creates the tasks with blank estimates (never 0) and reports a warning; `skip` creates no tasks for that Story and reports why; `use-default` uses `defaultParentEstimation` instead. |
+| `defaultParentEstimation` | number | none | any positive number | Story Estimate used with `use-default`. It goes through the same `conversion` as a real Story Estimate. Without it, `use-default` behaves like `warn`. |
 
 **Rounding options:**
 - `nearest` - Round to nearest whole number (0.5 → 1, 0.4 → 0)

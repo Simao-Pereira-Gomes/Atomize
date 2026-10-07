@@ -23,7 +23,8 @@ export interface InspectResult {
 
 export interface PreviewTask {
   title: string;
-  estimation: number;
+  /** Absent when the Story Estimate is unresolvable and the Task Estimate is left blank. */
+  estimation?: number;
   estimationPercent?: number;
   dependsOn?: string[];
   tags?: string[];
@@ -39,6 +40,8 @@ export interface PreviewSkippedTask {
 export interface PreviewResult {
   tasks: PreviewTask[];
   skippedTasks: PreviewSkippedTask[];
+  /** Why the Story Estimate could not be resolved, and whether Tasks were left blank or the Story skipped. */
+  unresolvedEstimate?: { action: "blank" | "skip"; reason: string };
   estimationSummary: {
     storyEstimation: number;
     totalTaskEstimation: number;
@@ -166,7 +169,7 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
   const orderedTasks = new DependencyResolver().resolveDependencies(template.tasks);
   const calc = new EstimationCalculator();
 
-  const { calculatedTasks, skippedTasks } = calc.calculateTasksWithSkipped(
+  const { calculatedTasks, skippedTasks, unresolvedEstimate } = calc.calculateTasksWithSkipped(
     story,
     "",
     orderedTasks,
@@ -176,10 +179,8 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
   const summary = calc.getEstimationSummary(story, calculatedTasks, template.estimation);
 
   const tasks: PreviewTask[] = calculatedTasks.map((task) => {
-    const result: PreviewTask = {
-      title: task.title,
-      estimation: task.estimation ?? 0,
-    };
+    const result: PreviewTask = { title: task.title };
+    if (task.estimation !== undefined) result.estimation = task.estimation;
     if (task.estimationPercent !== undefined) result.estimationPercent = task.estimationPercent;
     if (task.dependsOn?.length) result.dependsOn = task.dependsOn;
     if (task.tags?.length) result.tags = task.tags;
@@ -194,6 +195,7 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
       title: s.templateTask.title,
       reason: s.reason,
     })),
+    ...(unresolvedEstimate ? { unresolvedEstimate } : {}),
     estimationSummary: {
       storyEstimation: summary.storyEstimation,
       totalTaskEstimation: summary.totalTaskEstimation,

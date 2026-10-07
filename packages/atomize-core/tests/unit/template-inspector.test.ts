@@ -280,6 +280,13 @@ describe("parseMockStory", () => {
 // ---------------------------------------------------------------------------
 
 describe("runPreview", () => {
+  test("Mock Preview leaves Task Estimates blank and explains why when the Story has no estimate", () => {
+    const result = runPreview(makeTemplate(), "{}");
+
+    expect(result.tasks.every((t) => t.estimation === undefined)).toBe(true);
+    expect(result.unresolvedEstimate).toEqual({ action: "blank", reason: "Story has no estimate" });
+  });
+
   test("Mock Preview shows the converted Story total and converted Task Estimates", () => {
     const template = makeTemplate({
       tasks: [

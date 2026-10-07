@@ -48,7 +48,7 @@ export class StoryProcessor {
         })
       : undefined;
 
-    const { calculatedTasks, skippedTasks } =
+    const { calculatedTasks, skippedTasks, unresolvedEstimate, defaultEstimateReason } =
       this.estimationCalculator.calculateTasksWithSkipped(
         story,
         connectUserEmail,
@@ -61,6 +61,25 @@ export class StoryProcessor {
     logger.info(
       `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`,
     );
+
+    if (unresolvedEstimate?.action === "skip") {
+      const skipReason = `${unresolvedEstimate.reason}; Story skipped (ifParentHasNoEstimation: skip)`;
+      warnings.push(`${story.id}: ${skipReason}`);
+      return {
+        story,
+        tasksCalculated: [],
+        tasksCreated: [],
+        tasksSkipped: [],
+        success: true,
+        skipReason,
+      };
+    }
+    if (unresolvedEstimate?.action === "blank") {
+      warnings.push(`${story.id}: ${unresolvedEstimate.reason}; Task Estimates left blank`);
+    }
+    if (defaultEstimateReason) {
+      warnings.push(`${story.id}: ${defaultEstimateReason}; used defaultParentEstimation`);
+    }
 
     if (skippedTasks.length > 0) {
       skippedTasks.forEach((skipped) => {

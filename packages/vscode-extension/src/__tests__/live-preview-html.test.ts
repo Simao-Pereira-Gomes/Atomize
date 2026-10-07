@@ -124,3 +124,15 @@ describe('renderLivePreviewError', () => {
 		expect(html).toContain('rgba(241,76,76');
 	});
 });
+
+describe('blank Task Estimates', () => {
+	it('shows an unestimated Task instead of 0h in both layouts', () => {
+		const report = makeReport({ tasksCalculated: [{ title: 'Unsized task', estimationPercent: 50 }] });
+		for (const mode of ['default', 'compact'] as const) {
+			const html = renderLivePreviewResults(report, mode, 'templates/auth.atomize.yaml');
+			expect(html).toContain('unestimated');
+			// Task estimate cells carry inline styles; the budget axis label (<span>0h</span>) does not.
+			expect(html).not.toMatch(/"[^>]*>0h<\/(span|td)>/);
+		}
+	});
+});

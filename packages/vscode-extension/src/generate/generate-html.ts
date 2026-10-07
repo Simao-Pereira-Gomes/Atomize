@@ -59,6 +59,10 @@ export interface GenerateReport {
 }
 
 // Shared utilities
+
+function fmtEstimate(value: number | undefined): string {
+	return value === undefined ? 'unestimated' : `${value}h`;
+}
 function esc(s: unknown): string {
 	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -200,7 +204,7 @@ function storySection(result: GenerateResult): string {
   <span style="font-size:.88em;font-weight:600;flex:1">${esc(t.title)}</span>
   ${(t.tags ?? []).map(tag => `<span class="tag">${esc(tag)}</span>`).join('')}
   ${t.priority != null ? `<span class="tag" style="color:#cca700">P${t.priority}</span>` : ''}
-  <span style="font-size:.88em;font-weight:700;color:var(--vscode-testing-iconPassed)">${t.estimation ?? 0}h</span>
+  <span style="font-size:.88em;font-weight:700;color:var(--vscode-testing-iconPassed)">${fmtEstimate(t.estimation)}</span>
 </div>`).join('');
 
 	return `
@@ -237,7 +241,7 @@ function storySectionCompact(result: GenerateResult): string {
 <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
   <td style="padding:4px 8px 4px 0;color:var(--vscode-descriptionForeground);text-align:right;vertical-align:top">${i + 1}</td>
   <td style="padding:4px 8px;font-weight:600;vertical-align:top">${esc(t.title)}</td>
-  <td style="padding:4px 8px;text-align:right;color:var(--vscode-testing-iconPassed);font-weight:700;vertical-align:top">${t.estimation ?? 0}h</td>
+  <td style="padding:4px 8px;text-align:right;color:var(--vscode-testing-iconPassed);font-weight:700;vertical-align:top">${fmtEstimate(t.estimation)}</td>
   <td style="padding:4px 0;vertical-align:top">${(t.tags ?? []).map(tag => `<span class="tag">${esc(tag)}</span>`).join(' ')}</td>
 </tr>`).join('');
 
@@ -304,7 +308,7 @@ function collapsedDryRun(dryReport: GenerateReport): string {
   <span style="color:var(--vscode-descriptionForeground);min-width:16px;text-align:right;flex-shrink:0">${i + 1}.</span>
   <span style="flex:1;min-width:0">${esc(t.title)}</span>
   ${(t.tags ?? []).map(tag => `<span class="tag">${esc(tag)}</span>`).join('')}
-  <span style="color:var(--vscode-testing-iconPassed);font-weight:600;flex-shrink:0">${t.estimation ?? 0}h</span>
+  <span style="color:var(--vscode-testing-iconPassed);font-weight:600;flex-shrink:0">${fmtEstimate(t.estimation)}</span>
 </div>`).join('');
 
 		return `

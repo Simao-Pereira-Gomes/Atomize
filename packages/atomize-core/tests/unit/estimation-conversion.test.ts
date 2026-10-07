@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { convertStoryEstimate } from "@sppg2001/atomize-core/core/estimation-conversion";
+import { convertStoryEstimate, resolveStoryEstimate } from "@sppg2001/atomize-core/core/estimation-conversion";
 
 describe("convertStoryEstimate", () => {
   test("uses a numeric Story Estimate one-to-one when there is no conversion", () => {
@@ -33,5 +33,43 @@ describe("convertStoryEstimate", () => {
     expect(withoutConversion.kind).toBe("unresolvable");
     expect(withFactor.kind).toBe("unresolvable");
     if (withoutConversion.kind === "unresolvable") expect(withoutConversion.reason).toContain('"L"');
+  });
+});
+
+describe("resolveStoryEstimate", () => {
+  test("a resolvable Story Estimate is converted regardless of policy", () => {
+    expect(resolveStoryEstimate(5, { conversion: { factor: 2 }, ifParentHasNoEstimation: "skip" })).toEqual({
+      kind: "resolved",
+      total: 10,
+    });
+  });
+
+  test("warn is the default and leaves Task Estimates blank", () => {
+    expect(resolveStoryEstimate(undefined).kind).toBe("blank");
+    expect(resolveStoryEstimate(undefined, { ifParentHasNoEstimation: "warn" }).kind).toBe("blank");
+  });
+
+  test("skip skips the Story and carries the reason", () => {
+    const result = resolveStoryEstimate(undefined, { ifParentHasNoEstimation: "skip" });
+    expect(result).toEqual({ kind: "skip", reason: "Story has no estimate" });
+  });
+
+  test("use-default converts defaultParentEstimation through the same conversion", () => {
+    const result = resolveStoryEstimate(undefined, {
+      ifParentHasNoEstimation: "use-default",
+      defaultParentEstimation: 3,
+      conversion: { factor: 4 },
+    });
+    expect(result).toEqual({ kind: "resolved", total: 12, fallbackReason: "Story has no estimate" });
+  });
+
+  test("use-default with no defaultParentEstimation falls back to blank estimates", () => {
+    const result = resolveStoryEstimate(undefined, { ifParentHasNoEstimation: "use-default" });
+    expect(result.kind).toBe("blank");
+    if (result.kind === "blank") expect(result.reason).toContain("no defaultParentEstimation");
+  });
+
+  test("a non-numeric Story Estimate is handled by the policy too", () => {
+    expect(resolveStoryEstimate("L", { ifParentHasNoEstimation: "skip" }).kind).toBe("skip");
   });
 });

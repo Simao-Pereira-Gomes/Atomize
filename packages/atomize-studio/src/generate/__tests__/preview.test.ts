@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMockStoryJson, describeSkippedTaskReason, formatAllocationPercentage, parseInspectResult, parsePreviewResult, previewSourceDetail, previewSourceLabel, previewSourceValue } from "../preview";
+import { buildMockStoryJson, describeSkippedTaskReason, formatAllocationPercentage, formatTaskEstimate, parseInspectResult, parsePreviewResult, previewSourceDetail, previewSourceLabel, previewSourceValue } from "../preview";
 
 describe("parseInspectResult", () => {
   it("accepts a well-formed InspectResult", () => {
@@ -93,5 +93,13 @@ describe("buildMockStoryJson", () => {
   it("drops empty entries from a comma-separated list", () => {
     const json = buildMockStoryJson(fields, { tags: "backend, , urgent," });
     expect(JSON.parse(json)).toEqual({ tags: ["backend", "urgent"] });
+  });
+});
+
+describe("formatTaskEstimate", () => {
+  it("shows a blank Task Estimate as Unestimated, never zero", () => {
+    expect(formatTaskEstimate(undefined)).toBe("Unestimated");
+    expect(formatTaskEstimate(0)).toBe("0");
+    expect(formatTaskEstimate(2.5)).toBe("2.5");
   });
 });

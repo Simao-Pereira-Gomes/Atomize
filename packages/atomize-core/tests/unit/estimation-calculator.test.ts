@@ -912,4 +912,56 @@ describe("EstimationCalculator", () => {
       expect(calculator.validateEstimation(story, calculatedTasks, config).valid).toBe(true);
     });
   });
+
+  describe("Unresolvable Story Estimate", () => {
+    const unestimated: WorkItem = { ...mockStory, estimation: undefined };
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 60 },
+      { title: "Review", estimationPercent: 40 },
+    ];
+
+    test("by default Tasks are generated with blank estimates, never zero", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks);
+      expect(result.calculatedTasks).toHaveLength(2);
+      expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
+      expect(result.unresolvedEstimate).toEqual({ action: "blank", reason: "Story has no estimate" });
+    });
+
+    test("a fixed Task Estimate is kept when the Story Estimate is unresolvable", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", [
+        { title: "Fixed", estimationFixed: 2 },
+        { title: "Share", estimationPercent: 100 },
+      ]);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([2, undefined]);
+    });
+
+    test("skip produces no Tasks and reports the reason", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks, {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "skip",
+      });
+      expect(result.calculatedTasks).toHaveLength(0);
+      expect(result.unresolvedEstimate?.action).toBe("skip");
+    });
+
+    test("use-default splits the converted default Story Estimate", () => {
+      const config: EstimationConfig = {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: 5,
+        conversion: { factor: 2 },
+      };
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks, config);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([6, 4]);
+      expect(result.defaultEstimateReason).toBe("Story has no estimate");
+      expect(calculator.getEstimationSummary(unestimated, result.calculatedTasks, config).storyEstimation).toBe(10);
+    });
+
+    test("blank estimates do not trigger the zero-estimation or difference warnings", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks);
+      expect(calculator.validateEstimation(unestimated, result.calculatedTasks)).toEqual({ valid: true, warnings: [] });
+    });
+  });
 });

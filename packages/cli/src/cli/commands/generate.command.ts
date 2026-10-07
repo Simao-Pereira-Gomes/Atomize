@@ -419,6 +419,11 @@ export function printReport(
     output.print(chalk.cyan(" Details:\n"));
     for (const result of report.results) {
       if (result.success) {
+        if (result.skipReason) {
+          output.print(chalk.yellow(`⊘ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
+          output.print(chalk.gray(`  Skipped: ${sanitizeTty(result.skipReason)}`));
+          continue;
+        }
         output.print(chalk.green(`✓ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
         const rawEstimate = result.story.estimation || 0;
         const converted = result.estimationSummary?.storyEstimation;
@@ -436,7 +441,8 @@ export function printReport(
         if ((options.verbose || dryRun) && result.tasksCalculated.length > 0) {
           output.print(chalk.gray("  Task breakdown:"));
           for (const task of result.tasksCalculated) {
-            output.print(chalk.gray(`    - ${sanitizeTty(task.title)}: ${task.estimation} points (${task.estimationPercent}%)`));
+            const estimate = task.estimation === undefined ? "unestimated" : `${task.estimation} points`;
+            output.print(chalk.gray(`    - ${sanitizeTty(task.title)}: ${estimate} (${task.estimationPercent}%)`));
           }
         }
       } else {

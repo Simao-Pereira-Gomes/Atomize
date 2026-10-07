@@ -101,6 +101,8 @@ export interface StoryAtomizationResult {
   }>;
   success: boolean;
   error?: string;
+  /** Present when the Story was skipped because its Story Estimate could not be resolved. */
+  skipReason?: string;
   estimationSummary?: {
     storyEstimation: number;
     totalTaskEstimation: number;
