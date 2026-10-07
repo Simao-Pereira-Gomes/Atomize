@@ -383,6 +383,7 @@ describe("preview.mockStory", () => {
             { title: "Task B", estimation: 4, estimationPercent: 40 },
           ],
           skippedTasks: [],
+          estimateUnit: "hours",
           estimationSummary: { storyEstimation: 10, totalTaskEstimation: 10, percentageUsed: 100 },
         },
       });
