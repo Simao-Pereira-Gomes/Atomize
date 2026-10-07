@@ -57,6 +57,65 @@ describe("buildSystemPrompt", () => {
 
 // ─── buildUserPrompt ──────────────────────────────────────────────────────────
 
+describe("buildSystemPrompt estimation configuration", () => {
+  test("documents the configurable estimation keys", () => {
+    const prompt = buildSystemPrompt();
+    for (const key of [
+      "taskType:",
+      "minimumTaskEstimate:",
+      "source:",
+      "conversion:",
+      "factor:",
+      "table:",
+      "multipliers:",
+      "targetFields:",
+      "ifParentHasNoEstimation:",
+      "defaultParentEstimation:",
+    ]) {
+      expect(prompt).toContain(key);
+    }
+  });
+
+  test("no longer mentions the deprecated minimumTaskPoints", () => {
+    expect(buildSystemPrompt()).not.toContain("minimumTaskPoints");
+  });
+
+  test("tells the model to use grounded field names and categorical operators", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("ESTIMATION FIELDS");
+    expect(prompt).toContain("never invent them");
+    expect(prompt).toContain("never gt/lt/gte/lte");
+  });
+
+  test("points the model at the estimation grounding section", () => {
+    expect(buildUserPrompt("t-shirt sized stories", '{"estimation":{}}')).toContain('"estimation" section');
+  });
+
+  test("a draft using the new estimation keys passes Offline Validation", () => {
+    const yaml = [
+      'version: "1.0"',
+      "name: T-shirt template",
+      "filter:",
+      '  workItemTypes: ["User Story"]',
+      "tasks:",
+      "  - title: Build",
+      "    estimationPercent: 80",
+      "  - title: Review",
+      "    estimationPercent: 20",
+      "estimation:",
+      "  strategy: percentage",
+      "  source: Custom.TShirtSize",
+      "  conversion:",
+      "    table: { S: 2, M: 4, L: 5, XL: 13 }",
+      "    multipliers: true",
+      "  ifParentHasNoEstimation: use-default",
+      "  defaultParentEstimation: M",
+      "  minimumTaskEstimate: 0.5",
+    ].join("\n");
+    expect(parseAndValidate(yaml)).toMatchObject({ ok: true });
+  });
+});
+
 describe("buildUserPrompt", () => {
   test("wraps description in plain form on first attempt", () => {
     const prompt = buildUserPrompt("backend API stories");
