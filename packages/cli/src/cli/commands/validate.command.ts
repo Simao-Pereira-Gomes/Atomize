@@ -177,6 +177,7 @@ function createValidateCommandDeps(depsOptions: { showStatus: boolean }): Valida
               getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
               listSavedQueries: (folder) => savedQueryReader.listSavedQueries(folder),
               getEstimationDefaults: () => adapter.getEstimationDefaults(),
+              getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
             },
           },
           connectionWarnings: [],

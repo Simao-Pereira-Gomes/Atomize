@@ -99,6 +99,7 @@ export async function validateOnline(params: OnlineValidationParams, signal: Abo
           getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
           listSavedQueries: () => queryReader.listSavedQueries(),
           getEstimationDefaults: () => adapter.getEstimationDefaults(),
+          getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
         },
       },
     }), signal);

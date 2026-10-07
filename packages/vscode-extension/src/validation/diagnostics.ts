@@ -140,6 +140,7 @@ async function runValidationInProcess(
 					getFieldSchemas: workItemType => metadataReader.getFieldSchemas(workItemType),
 					listSavedQueries: folder => savedQueryReader.listSavedQueries(folder),
 					getEstimationDefaults: () => adapter.getEstimationDefaults(),
+					getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
 				},
 			};
 		} catch (err) {

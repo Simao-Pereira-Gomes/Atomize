@@ -602,6 +602,10 @@ estimation:
 | `ifParentHasNoEstimation` | string | `"warn"` | `warn`, `skip`, `use-default` | What to do when the Story Estimate is missing or cannot be converted. `warn` creates the tasks with blank estimates (never 0) and reports a warning; `skip` creates no tasks for that Story and reports why; `use-default` uses `defaultParentEstimation` instead. |
 | `defaultParentEstimation` | number or string | none | a Story Estimate, e.g. `8` or `M` | Story Estimate used with `use-default`, in the Story's unit. It goes through the same `conversion` as a real Story Estimate, so with a table it must be one of the table's keys (Offline Validation checks this). Without it, `use-default` behaves like `warn`. |
 
+**Online Validation** (`atomize validate --profile <name>`, or Online in VS Code and Studio) checks estimation overrides against the project:
+- **Errors:** `source` is missing on a filtered Story type; `taskType` does not exist; a `targetFields` entry is missing on the child type or is not numeric.
+- **Warnings** (errors in strict mode): picklist values of `source` that `conversion.table` does not cover; table keys that are not allowed values (often typos); a `source` field that accepts free text or is a *suggested* picklist, because values outside the table leave Task Estimates blank; numeric operators on `estimation` when `source` holds text.
+
 **Rounding options:**
 - `nearest` - Round to nearest whole number (0.5 → 1, 0.4 → 0)
 - `up` - Always round up (0.1 → 1)

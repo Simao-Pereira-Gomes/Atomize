@@ -15,4 +15,6 @@ export interface ADoFieldSchema {
   isMultiline: boolean;
   isPicklist: boolean;
   allowedValues?: string[];
+  /** True when the field accepts values outside a fixed list: free-text fields and suggested picklists. */
+  allowsCustomValues?: boolean;
 }

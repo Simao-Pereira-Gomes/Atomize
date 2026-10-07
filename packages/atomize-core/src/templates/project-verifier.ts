@@ -8,6 +8,7 @@ import {
   appendOfflineVerificationWarning,
   verifyTemplateCustomFields,
 } from "./custom-field-verifier";
+import { hasEstimationMappingOverrides, verifyEstimationMapping } from "./estimation-verifier";
 import type { TaskTemplate } from "./schema";
 import type { ValidationError, ValidationWarning } from "./validator";
 
@@ -17,6 +18,7 @@ export interface TemplateProjectVerificationRequirements {
   customFieldTaskCount: number;
   conditionFieldRefs: string[];
   hasSavedQuery: boolean;
+  hasEstimationMapping: boolean;
   needsOnlineVerification: boolean;
 }
 
@@ -44,14 +46,18 @@ export function analyzeTemplateProjectVerification(
     template.filter?.savedQuery?.id || template.filter?.savedQuery?.path
   );
 
+  const hasEstimationMapping = hasEstimationMappingOverrides(template);
+
   return {
     customFieldTaskCount,
     conditionFieldRefs,
     hasSavedQuery,
+    hasEstimationMapping,
     needsOnlineVerification:
       customFieldTaskCount > 0 ||
       conditionFieldRefs.length > 0 ||
-      hasSavedQuery,
+      hasSavedQuery ||
+      hasEstimationMapping,
   };
 }
 
@@ -60,7 +66,7 @@ export async function verifyTemplateProject(
   options: {
     mode: ProjectVerificationMode;
     strict?: boolean;
-    platform?: Pick<ProjectMetadataReader, "getFieldSchemas"> &
+    platform?: Pick<ProjectMetadataReader, "getFieldSchemas" | "getWorkItemTypes"> &
       Pick<SavedQueryReader, "listSavedQueries"> &
       Partial<EstimationDefaultsProvider>;
   },
@@ -96,6 +102,24 @@ export async function verifyTemplateProject(
     result.errors.push(...customFields.errors);
     result.warnings.push(...customFields.warnings);
     if (customFields.errors.length > 0) result.valid = false;
+  }
+
+  const platform = options.platform;
+  if (requirements.hasEstimationMapping && platform?.getFieldSchemas) {
+    const estimation = await verifyEstimationMapping(template, {
+      getFieldSchemas: platform.getFieldSchemas.bind(platform),
+      getWorkItemTypes: platform.getWorkItemTypes?.bind(platform),
+      getEstimationDefaults: platform.getEstimationDefaults?.bind(platform),
+    });
+    result.errors.push(...estimation.errors);
+    if (options.strict === true || template.validation?.mode === "strict") {
+      result.errors.push(
+        ...estimation.warnings.map((w) => ({ path: w.path, message: w.message, suggestion: w.suggestion, code: "STRICT_MODE_WARNING" })),
+      );
+    } else {
+      result.warnings.push(...estimation.warnings);
+    }
+    if (result.errors.length > 0) result.valid = false;
   }
 
   if (requirements.hasSavedQuery && options.platform?.listSavedQueries) {

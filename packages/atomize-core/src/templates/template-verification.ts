@@ -17,7 +17,7 @@ export interface TemplateVerificationOptions {
   project?: {
     mode: ProjectVerificationMode;
     strict?: boolean;
-    platform?: Pick<ProjectMetadataReader, "getFieldSchemas"> &
+    platform?: Pick<ProjectMetadataReader, "getFieldSchemas" | "getWorkItemTypes"> &
       Pick<SavedQueryReader, "listSavedQueries"> &
       Partial<EstimationDefaultsProvider>;
   };
