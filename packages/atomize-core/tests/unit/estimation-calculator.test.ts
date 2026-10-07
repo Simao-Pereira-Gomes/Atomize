@@ -885,7 +885,7 @@ describe("EstimationCalculator", () => {
           { title: "Tiny", estimationPercent: 5 },
           { title: "Rest", estimationPercent: 95 },
         ],
-        { strategy: "percentage", rounding: "up", minimumTaskPoints: 1, conversion: { factor: 3 } },
+        { strategy: "percentage", rounding: "up", minimumTaskEstimate: 1, conversion: { factor: 3 } },
       );
       // 1 point × 3 = 3 hours; 5% = 0.15 → rounded up to 0.5 → raised to the minimum of 1; 95% = 2.85 → 3
       expect(calculatedTasks.map((t) => t.estimation)).toEqual([1, 3]);
