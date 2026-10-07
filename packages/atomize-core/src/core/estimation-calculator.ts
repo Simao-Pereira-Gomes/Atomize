@@ -227,7 +227,7 @@ export class EstimationCalculator {
         config?.rounding || "none"
       );
 
-      const minimum = config?.minimumTaskPoints || 0;
+      const minimum = config?.minimumTaskEstimate ?? config?.minimumTaskPoints ?? 0;
       return Math.max(rounded, minimum);
     }
 

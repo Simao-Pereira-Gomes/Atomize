@@ -41,9 +41,9 @@ export function EstimationSection(props: { store: EstimationStore }) {
         }}
       />
       <TextField
-        label="Minimum task points" value={s.fields.minimumTaskPoints}
-        error={s.errors.minimumTaskPoints}
-        onInput={(v) => { s.set("minimumTaskPoints", v); s.validate(); }} onBlur={s.validate} placeholder="0"
+        label="Minimum task estimate" value={s.fields.minimumTaskEstimate}
+        error={s.errors.minimumTaskEstimate}
+        onInput={(v) => { s.set("minimumTaskEstimate", v); s.validate(); }} onBlur={s.validate} placeholder="0"
       />
       <SelectField
         label="When the parent has no estimate" value={s.fields.ifParentHasNoEstimation}

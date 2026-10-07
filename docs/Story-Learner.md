@@ -201,7 +201,7 @@ tasks:
 estimation:
   strategy: "percentage"
   rounding: "nearest"
-  minimumTaskPoints: 0.5
+  minimumTaskEstimate: 0.5
 
 metadata:
   category: "Learned"

@@ -190,16 +190,38 @@ describe("createAuthoringStore", () => {
     store.loadTemplate(baseTemplate);
     store.estimation.set("source", "story-points");
     store.estimation.set("rounding", "nearest");
-    store.estimation.set("minimumTaskPoints", "0.5");
+    store.estimation.set("minimumTaskEstimate", "0.5");
 
     expect(serialisedObject(store)).toMatchObject({
       estimation: {
         strategy: "percentage",
         source: "story-points",
         rounding: "nearest",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
       },
     });
+  });
+
+  it("loads the deprecated minimumTaskPoints and saves it as minimumTaskEstimate", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({ ...baseTemplate, estimation: { strategy: "percentage", rounding: "none", minimumTaskPoints: 0.5 } });
+
+    expect(store.estimation.fields.minimumTaskEstimate).toBe("0.5");
+    const estimation = (serialisedObject(store) as TaskTemplate).estimation;
+    expect(estimation).toMatchObject({ minimumTaskEstimate: 0.5 });
+    expect(estimation).not.toHaveProperty("minimumTaskPoints");
+  });
+
+  it("prefers minimumTaskEstimate when a loaded Template has both keys", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: { strategy: "percentage", rounding: "none", minimumTaskEstimate: 1, minimumTaskPoints: 0.5 },
+    });
+
+    const estimation = (serialisedObject(store) as TaskTemplate).estimation;
+    expect(estimation).toMatchObject({ minimumTaskEstimate: 1 });
+    expect(estimation).not.toHaveProperty("minimumTaskPoints");
   });
 
   it("serialises Validation fields into Atomize YAML", () => {
@@ -335,7 +357,7 @@ describe("createAuthoringStore", () => {
         strategy: "percentage",
         source: "story-points",
         rounding: "none",
-        minimumTaskPoints: 0,
+        minimumTaskEstimate: 0,
       },
       validation: {
         mode: "strict",

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
+	fixDeprecatedMinimumTaskPoints,
+	fixDuplicateMinimumTaskEstimate,
 	fixMissingTaskId,
 	fixSavedQueryWithStructuredFilter,
 	fixSingleLineFieldWithNewlines,
@@ -264,5 +266,48 @@ describe('fixSingleLineFieldWithNewlines', () => {
 		].join('\n');
 
 		expect(fixSingleLineFieldWithNewlines(doc, range(3, 6), undefined)).toBeNull();
+	});
+});
+
+// ─── minimumTaskPoints deprecation ────────────────────────────────────────────
+
+function applyEdits(doc: string, edits: ReturnType<typeof fixDeprecatedMinimumTaskPoints>): string {
+	const lines = doc.split('\n');
+	const offset = (line: number, ch: number) => lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0) + ch;
+	let out = doc;
+	for (const e of [...(edits ?? [])].reverse()) {
+		out = out.slice(0, offset(e.startLine, e.startCharacter)) + e.newText + out.slice(offset(e.endLine, e.endCharacter));
+	}
+	return out;
+}
+
+describe('fixDeprecatedMinimumTaskPoints', () => {
+	it('renames the key and keeps its value', () => {
+		const doc = ['estimation:', '  rounding: nearest', '  minimumTaskPoints: 0.5', 'tasks: []'].join('\n');
+		const edits = fixDeprecatedMinimumTaskPoints(doc, range(2, 2), undefined);
+		expect(applyEdits(doc, edits)).toBe(['estimation:', '  rounding: nearest', '  minimumTaskEstimate: 0.5', 'tasks: []'].join('\n'));
+	});
+
+	it('offers no rename when minimumTaskEstimate is already set', () => {
+		const doc = ['estimation:', '  minimumTaskEstimate: 1', '  minimumTaskPoints: 0.5'].join('\n');
+		expect(fixDeprecatedMinimumTaskPoints(doc, range(2, 2), undefined)).toBeNull();
+	});
+
+	it('ignores minimumTaskPoints outside the estimation block', () => {
+		const doc = ['description: x', 'tasks:', '  - title: minimumTaskPoints'].join('\n');
+		expect(fixDeprecatedMinimumTaskPoints(doc, range(0), undefined)).toBeNull();
+	});
+});
+
+describe('fixDuplicateMinimumTaskEstimate', () => {
+	it('removes only the deprecated key line', () => {
+		const doc = ['estimation:', '  minimumTaskEstimate: 1', '  minimumTaskPoints: 0.5', '  rounding: up', 'tasks: []'].join('\n');
+		const edits = fixDuplicateMinimumTaskEstimate(doc, range(2, 2), undefined);
+		expect(applyEdits(doc, edits)).toBe(['estimation:', '  minimumTaskEstimate: 1', '  rounding: up', 'tasks: []'].join('\n'));
+	});
+
+	it('does nothing when only the deprecated key is present', () => {
+		const doc = ['estimation:', '  minimumTaskPoints: 0.5'].join('\n');
+		expect(fixDuplicateMinimumTaskEstimate(doc, range(1, 2), undefined)).toBeNull();
 	});
 });

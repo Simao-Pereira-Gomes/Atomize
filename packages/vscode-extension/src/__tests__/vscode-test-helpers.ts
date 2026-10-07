@@ -9,6 +9,18 @@ export function baseVscodeMock() {
 		ViewColumn: { Beside: 2, Active: -1 },
 		ProgressLocation: { Notification: 15, Window: 10 },
 		QuickPickItemKind: { Separator: -1 },
+		DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
+		DiagnosticTag: { Unnecessary: 1, Deprecated: 2 },
+		Diagnostic: class Diagnostic {
+			source?: string;
+			code?: string;
+			tags?: number[];
+			constructor(
+				public range: unknown,
+				public message: string,
+				public severity: number,
+			) {}
+		},
 		Range: class Range {
 			start: { line: number; character: number };
 			end: { line: number; character: number };

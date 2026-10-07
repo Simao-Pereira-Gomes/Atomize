@@ -31,7 +31,7 @@ estimation:
   strategy: percentage
   source: "story-points"
   rounding: none
-  minimumTaskPoints: 0
+  minimumTaskEstimate: 0
   ifParentHasNoEstimation: warn
 
 validation:

@@ -125,7 +125,7 @@ describe("EstimationCalculator", () => {
       const configWithMin: EstimationConfig = {
         strategy: "percentage",
         rounding: "nearest",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
       };
       const { calculatedTasks: calculatedWithMin } = calculator.calculateTasksWithSkipped(
         story,
@@ -145,7 +145,7 @@ describe("EstimationCalculator", () => {
 
       const config: EstimationConfig = {
         strategy: "percentage",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
         ifParentHasNoEstimation: "use-default",
         defaultParentEstimation: 10,
         rounding: "nearest",
@@ -159,6 +159,35 @@ describe("EstimationCalculator", () => {
       );
 
       expect(calculated[0]?.estimation).toBe(0.5); // Minimum enforced
+    });
+
+    test("should honour the deprecated minimumTaskPoints when minimumTaskEstimate is absent", () => {
+      const story = { ...mockStory, estimation: 10 };
+      const tasks: TaskDefinition[] = [
+        { title: "Small Task", estimationPercent: 3 },
+        { title: "Filler", estimationPercent: 97 },
+      ];
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+        strategy: "percentage",
+        rounding: "nearest",
+        minimumTaskPoints: 0.5,
+      });
+      expect(calculatedTasks[0]?.estimation).toBe(0.5);
+    });
+
+    test("should prefer minimumTaskEstimate over the deprecated minimumTaskPoints", () => {
+      const story = { ...mockStory, estimation: 10 };
+      const tasks: TaskDefinition[] = [
+        { title: "Small Task", estimationPercent: 3 },
+        { title: "Filler", estimationPercent: 97 },
+      ];
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+        strategy: "percentage",
+        rounding: "nearest",
+        minimumTaskEstimate: 1,
+        minimumTaskPoints: 0.5,
+      });
+      expect(calculatedTasks[0]?.estimation).toBe(1);
     });
 
     test("should skip conditional tasks when condition not met", () => {

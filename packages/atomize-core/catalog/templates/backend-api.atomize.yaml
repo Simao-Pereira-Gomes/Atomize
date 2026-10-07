@@ -51,7 +51,7 @@ tasks:
 estimation:
   strategy: "percentage"
   rounding: "nearest"
-  minimumTaskPoints: 0
+  minimumTaskEstimate: 0
 
 metadata:
   category: "Backend"

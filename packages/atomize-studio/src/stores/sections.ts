@@ -88,7 +88,7 @@ type EstimationFields = {
   strategy: "percentage";
   source: string;
   rounding: "none" | "nearest" | "up" | "down";
-  minimumTaskPoints: string;
+  minimumTaskEstimate: string;
   ifParentHasNoEstimation: "" | "skip" | "warn" | "use-default";
   defaultParentEstimation: string;
 };
@@ -172,7 +172,7 @@ const defaultEstimation = (): EstimationFields => ({
   strategy: "percentage",
   source: "",
   rounding: "none",
-  minimumTaskPoints: "",
+  minimumTaskEstimate: "",
   ifParentHasNoEstimation: "",
   defaultParentEstimation: "",
 });
@@ -366,7 +366,7 @@ function makeEstimation() {
   };
   const validate = () => {
     setErrors(reconcile({
-      minimumTaskPoints: !isNonNegativeNumber(fields.minimumTaskPoints) ? "Must be 0 or greater" : undefined,
+      minimumTaskEstimate: !isNonNegativeNumber(fields.minimumTaskEstimate) ? "Must be 0 or greater" : undefined,
       defaultParentEstimation:
         !isNonNegativeNumber(fields.defaultParentEstimation)
           ? "Must be 0 or greater"
@@ -376,7 +376,7 @@ function makeEstimation() {
     }));
   };
   const isValid = () =>
-    isNonNegativeNumber(fields.minimumTaskPoints) &&
+    isNonNegativeNumber(fields.minimumTaskEstimate) &&
     isNonNegativeNumber(fields.defaultParentEstimation) &&
     (fields.ifParentHasNoEstimation !== "use-default" || fields.defaultParentEstimation.trim() !== "");
   return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
@@ -559,14 +559,14 @@ function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
     strategy: "percentage",
     source: nonEmpty(store.fields.source),
     rounding: store.fields.rounding,
-    minimumTaskPoints: optionalNumber(store.fields.minimumTaskPoints),
+    minimumTaskEstimate: optionalNumber(store.fields.minimumTaskEstimate),
     ifParentHasNoEstimation: store.fields.ifParentHasNoEstimation || undefined,
     defaultParentEstimation: optionalNumber(store.fields.defaultParentEstimation),
   };
 
   const hasMeaningfulValue =
     estimation.source !== undefined ||
-    estimation.minimumTaskPoints !== undefined ||
+    estimation.minimumTaskEstimate !== undefined ||
     estimation.ifParentHasNoEstimation !== undefined ||
     estimation.defaultParentEstimation !== undefined ||
     store.fields.rounding !== "none" ||
@@ -705,6 +705,7 @@ export function createAuthoringStore(): AuthoringStore {
       strategy,
       source,
       rounding,
+      minimumTaskEstimate,
       minimumTaskPoints,
       ifParentHasNoEstimation,
       defaultParentEstimation,
@@ -715,7 +716,7 @@ export function createAuthoringStore(): AuthoringStore {
         strategy: strategy ?? "percentage",
         source: source ?? "",
         rounding: rounding ?? "none",
-        minimumTaskPoints: minimumTaskPoints === undefined ? "" : String(minimumTaskPoints),
+        minimumTaskEstimate: String(minimumTaskEstimate ?? minimumTaskPoints ?? ""),
         ifParentHasNoEstimation: ifParentHasNoEstimation ?? "",
         defaultParentEstimation: defaultParentEstimation === undefined ? "" : String(defaultParentEstimation),
       },

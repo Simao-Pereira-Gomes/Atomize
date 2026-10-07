@@ -483,9 +483,14 @@
                 "none"
               ]
             },
+            "minimumTaskEstimate": {
+              "type": "number",
+              "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
+            },
             "minimumTaskPoints": {
               "type": "number",
-              "description": "Minimum point value any single task can receive after rounding."
+              "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
+              "deprecated": true
             },
             "ifParentHasNoEstimation": {
               "type": "string",
@@ -1046,9 +1051,14 @@
                 "none"
               ]
             },
+            "minimumTaskEstimate": {
+              "type": "number",
+              "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
+            },
             "minimumTaskPoints": {
               "type": "number",
-              "description": "Minimum point value any single task can receive after rounding."
+              "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
+              "deprecated": true
             },
             "ifParentHasNoEstimation": {
               "type": "string",

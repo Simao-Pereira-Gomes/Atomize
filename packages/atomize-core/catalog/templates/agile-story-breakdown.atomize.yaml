@@ -202,7 +202,7 @@ tasks:
 estimation:
   strategy: "percentage"
   rounding: "none"
-  minimumTaskPoints: 0
+  minimumTaskEstimate: 0
 
 metadata:
   category: "Agile Project"

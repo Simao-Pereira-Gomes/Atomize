@@ -64,7 +64,7 @@ export class LearnedTemplateProductBuilder {
       estimation: {
         strategy: "percentage",
         rounding: "none",
-        minimumTaskPoints: 0,
+        minimumTaskEstimate: 0,
         defaultParentEstimation: avgEstimation,
       },
     };
@@ -126,7 +126,7 @@ export class LearnedTemplateProductBuilder {
       estimation: {
         strategy: "percentage",
         rounding: "none",
-        minimumTaskPoints: 0,
+        minimumTaskEstimate: 0,
         defaultParentEstimation: storyEstimation,
       },
     };

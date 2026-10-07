@@ -217,7 +217,9 @@ function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function makeDiagnostic(
+const DEPRECATED_CODES = new Set(['DEPRECATED_MINIMUM_TASK_POINTS', 'DUPLICATE_MINIMUM_TASK_ESTIMATE']);
+
+export function makeDiagnostic(
 	path: string,
 	message: string,
 	severity: vscode.DiagnosticSeverity,
@@ -229,6 +231,7 @@ function makeDiagnostic(
 	d.source = 'atomize';
 	if (code !== undefined) {
 		d.code = code;
+		if (DEPRECATED_CODES.has(code)) d.tags = [vscode.DiagnosticTag.Deprecated];
 	}
 	return d;
 }

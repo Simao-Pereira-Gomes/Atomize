@@ -37,6 +37,10 @@ export const FixableWarningCode = {
   SAVED_QUERY_WITH_STRUCTURED_FILTER: "SAVED_QUERY_WITH_STRUCTURED_FILTER",
   /** Strip newlines from a custom field value that maps to a single-line ADO field. */
   SINGLE_LINE_FIELD_WITH_NEWLINES: "SINGLE_LINE_FIELD_WITH_NEWLINES",
+  /** Rename `estimation.minimumTaskPoints` to `minimumTaskEstimate`, keeping its value. */
+  DEPRECATED_MINIMUM_TASK_POINTS: "DEPRECATED_MINIMUM_TASK_POINTS",
+  /** Delete `estimation.minimumTaskPoints`; `minimumTaskEstimate` is also set and takes precedence. */
+  DUPLICATE_MINIMUM_TASK_ESTIMATE: "DUPLICATE_MINIMUM_TASK_ESTIMATE",
 } as const;
 
 export type FixableWarningCode = (typeof FixableWarningCode)[keyof typeof FixableWarningCode];
@@ -138,8 +142,33 @@ export class TemplateValidator {
     this.validateTaskConditions(template, warnings);
     this.validateTaskDependencies(template, warnings);
     this.validateSavedQueryConflict(template, warnings);
+    this.validateDeprecatedMinimumTaskPoints(template, warnings);
 
     return warnings;
+  }
+
+  private validateDeprecatedMinimumTaskPoints(template: TaskTemplate, warnings: ValidationWarning[]): void {
+    const estimation = template.estimation;
+    if (estimation?.minimumTaskPoints === undefined) return;
+
+    if (estimation.minimumTaskEstimate === undefined) {
+      warnings.push({
+        path: "estimation.minimumTaskPoints",
+        message: "minimumTaskPoints is deprecated; the minimum applies in the Task's unit, which may not be points.",
+        suggestion: `Rename it to minimumTaskEstimate: ${estimation.minimumTaskPoints}.`,
+        code: FixableWarningCode.DEPRECATED_MINIMUM_TASK_POINTS,
+        nonBlocking: true,
+      });
+      return;
+    }
+
+    warnings.push({
+      path: "estimation.minimumTaskPoints",
+      message: `Both minimumTaskEstimate and the deprecated minimumTaskPoints are set; minimumTaskEstimate (${estimation.minimumTaskEstimate}) is used and minimumTaskPoints (${estimation.minimumTaskPoints}) is ignored.`,
+      suggestion: "Remove minimumTaskPoints.",
+      code: FixableWarningCode.DUPLICATE_MINIMUM_TASK_ESTIMATE,
+      nonBlocking: true,
+    });
   }
 
   private collectMixinWarnings(mixin: MixinTemplate): ValidationWarning[] {

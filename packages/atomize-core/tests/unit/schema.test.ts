@@ -438,10 +438,15 @@ describe("Schema Validation", () => {
       const config = {
         strategy: "percentage",
         rounding: "nearest",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
       };
 
       const result = EstimationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
+
+    test("should still accept the deprecated minimumTaskPoints", () => {
+      const result = EstimationConfigSchema.safeParse({ minimumTaskPoints: 0.5 });
       expect(result.success).toBe(true);
     });
 

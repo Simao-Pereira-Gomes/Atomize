@@ -78,7 +78,7 @@ tasks:                  # required, minimum 1 item
 estimation:             # optional
   strategy: "percentage"
   rounding: "nearest" | "up" | "down" | "none"   # default "none" — omit unless the user asks for rounding
-  minimumTaskPoints: number   # optional, default 0
+  minimumTaskEstimate: number   # optional, default 0
 
 validation:             # optional
   minTasks: number

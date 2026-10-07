@@ -51,3 +51,30 @@ describe('resolvePathToRange', () => {
 		expect(range.start.line).toBe(3);
 	});
 });
+
+describe('makeDiagnostic', () => {
+	const text = ['estimation:', '  minimumTaskPoints: 0.5'].join('\n');
+	const doc = {
+		getText: () => text,
+		lineAt: (line: number) => ({ text: text.split('\n')[line] ?? '' }),
+	};
+
+	it('marks minimumTaskPoints diagnostics as deprecated', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const { makeDiagnostic } = await import(`../validation/diagnostics.js?t=${Date.now()}-3`);
+
+		for (const code of ['DEPRECATED_MINIMUM_TASK_POINTS', 'DUPLICATE_MINIMUM_TASK_ESTIMATE']) {
+			const d = makeDiagnostic('estimation.minimumTaskPoints', 'msg', 1, doc as never, code);
+			expect(d.tags).toEqual([2]);
+			expect(d.range.start.line).toBe(1);
+		}
+	});
+
+	it('does not tag other warnings', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const { makeDiagnostic } = await import(`../validation/diagnostics.js?t=${Date.now()}-4`);
+
+		const d = makeDiagnostic('filter.savedQuery', 'msg', 1, doc as never, 'SAVED_QUERY_WITH_STRUCTURED_FILTER');
+		expect(d.tags).toBeUndefined();
+	});
+});

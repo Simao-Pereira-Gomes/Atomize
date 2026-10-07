@@ -90,7 +90,7 @@ estimation:
   strategy: "percentage"
   source: "Microsoft.VSTS.Scheduling.StoryPoints"
   rounding: "nearest"
-  minimumTaskPoints: 0.5
+  minimumTaskEstimate: 0.5
 
 # Validation rules
 validation:

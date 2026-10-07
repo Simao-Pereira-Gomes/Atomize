@@ -368,9 +368,14 @@ export const EstimationConfigSchema = z.object({
     .describe(
       "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
     ),
+  minimumTaskEstimate: z
+    .number()
+    .describe("Minimum Task Estimate any single task can receive after rounding, in the Task's unit.")
+    .optional(),
   minimumTaskPoints: z
     .number()
-    .describe("Minimum point value any single task can receive after rounding.")
+    .describe("Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.")
+    .meta({ deprecated: true })
     .optional(),
   ifParentHasNoEstimation: z
     .enum(["skip", "warn", "use-default"])

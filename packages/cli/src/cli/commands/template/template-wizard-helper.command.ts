@@ -718,10 +718,10 @@ export async function configureEstimation(defaults?: Partial<EstimationConfig>):
     }),
   );
 
-  const minimumTaskPointsRaw = assertNotCancelled(
+  const minimumTaskEstimateRaw = assertNotCancelled(
     await text({
-      message: "Minimum task points (0 for no minimum):",
-      initialValue: String(defaults?.minimumTaskPoints ?? 0),
+      message: "Minimum Task Estimate, in the Task's unit (0 for no minimum):",
+      initialValue: String(defaults?.minimumTaskEstimate ?? defaults?.minimumTaskPoints ?? 0),
       validate: (input): string | undefined => {
         const n = Number(input);
         if (Number.isNaN(n)) return "Must be a valid number";
@@ -734,7 +734,7 @@ export async function configureEstimation(defaults?: Partial<EstimationConfig>):
   return {
     strategy: "percentage",
     rounding: rounding as EstimationConfig["rounding"],
-    minimumTaskPoints: Number(minimumTaskPointsRaw) || undefined,
+    minimumTaskEstimate: Number(minimumTaskEstimateRaw) || undefined,
   };
 }
 

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { isAtomizeToolingDocument } from './language-detection.js';
 import {
+	fixDeprecatedMinimumTaskPoints,
+	fixDuplicateMinimumTaskEstimate,
 	fixMissingTaskId,
 	fixSavedQueryWithStructuredFilter,
 	fixSingleLineFieldWithNewlines,
@@ -12,6 +14,8 @@ const FIXABLE_CODE = {
 	MISSING_TASK_ID: 'MISSING_TASK_ID',
 	SAVED_QUERY_WITH_STRUCTURED_FILTER: 'SAVED_QUERY_WITH_STRUCTURED_FILTER',
 	SINGLE_LINE_FIELD_WITH_NEWLINES: 'SINGLE_LINE_FIELD_WITH_NEWLINES',
+	DEPRECATED_MINIMUM_TASK_POINTS: 'DEPRECATED_MINIMUM_TASK_POINTS',
+	DUPLICATE_MINIMUM_TASK_ESTIMATE: 'DUPLICATE_MINIMUM_TASK_ESTIMATE',
 } as const;
 
 type EditFactory = (docText: string, range: PlainRange, data: unknown) => TextEdit[] | null;
@@ -20,6 +24,8 @@ const FACTORIES = new Map<string, EditFactory>([
 	[FIXABLE_CODE.MISSING_TASK_ID, fixMissingTaskId],
 	[FIXABLE_CODE.SAVED_QUERY_WITH_STRUCTURED_FILTER, fixSavedQueryWithStructuredFilter],
 	[FIXABLE_CODE.SINGLE_LINE_FIELD_WITH_NEWLINES, fixSingleLineFieldWithNewlines],
+	[FIXABLE_CODE.DEPRECATED_MINIMUM_TASK_POINTS, fixDeprecatedMinimumTaskPoints],
+	[FIXABLE_CODE.DUPLICATE_MINIMUM_TASK_ESTIMATE, fixDuplicateMinimumTaskEstimate],
 ]);
 
 function actionLabel(code: string): string {
@@ -30,6 +36,10 @@ function actionLabel(code: string): string {
 			return 'Atomize: Remove conflicting structured filter fields';
 		case FIXABLE_CODE.SINGLE_LINE_FIELD_WITH_NEWLINES:
 			return 'Atomize: Strip newlines from single-line field value';
+		case FIXABLE_CODE.DEPRECATED_MINIMUM_TASK_POINTS:
+			return 'Atomize: Rename minimumTaskPoints to minimumTaskEstimate';
+		case FIXABLE_CODE.DUPLICATE_MINIMUM_TASK_ESTIMATE:
+			return 'Atomize: Remove deprecated minimumTaskPoints';
 		default:
 			return `Atomize: Fix ${code}`;
 	}

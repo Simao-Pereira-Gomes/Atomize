@@ -27,7 +27,7 @@ filter:
 estimation:
   strategy: "percentage"
   rounding: "nearest"
-  minimumTaskPoints: 0.5
+  minimumTaskEstimate: 0.5
 
 tasks:
   - id: "onboarding-setup"

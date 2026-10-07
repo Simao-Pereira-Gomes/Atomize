@@ -951,6 +951,71 @@ describe("TemplateValidator", () => {
 			expect(warning?.code).toBe(FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER);
 		});
 
+		test("DEPRECATED_MINIMUM_TASK_POINTS when only minimumTaskPoints is set", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskPoints: 0.5 },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			const warning = result.warnings.find((w) => w.path === "estimation.minimumTaskPoints");
+			expect(warning?.code).toBe(FixableWarningCode.DEPRECATED_MINIMUM_TASK_POINTS);
+			expect(warning?.nonBlocking).toBe(true);
+		});
+
+		test("DUPLICATE_MINIMUM_TASK_ESTIMATE when both keys are set, naming the value in effect", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskEstimate: 1, minimumTaskPoints: 0.5 },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			const warnings = result.warnings.filter((w) => w.path === "estimation.minimumTaskPoints");
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]?.code).toBe(FixableWarningCode.DUPLICATE_MINIMUM_TASK_ESTIMATE);
+			expect(warnings[0]?.message).toContain("minimumTaskEstimate (1) is used");
+			expect(warnings[0]?.nonBlocking).toBe(true);
+		});
+
+		test("minimumTaskEstimate alone produces no deprecation warning", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskEstimate: 1 },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.warnings.find((w) => w.path.startsWith("estimation."))).toBeUndefined();
+		});
+
+		test("strict mode does not fail a Template that still uses minimumTaskPoints", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskPoints: 0.5 },
+				validation: { mode: "strict" },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+			expect(result.errors).toHaveLength(0);
+			expect(result.warnings.some((w) => w.code === FixableWarningCode.DEPRECATED_MINIMUM_TASK_POINTS)).toBe(true);
+		});
+
 		test("non-fixable warnings have no code", () => {
 			const template = {
 				version: "1.0",
