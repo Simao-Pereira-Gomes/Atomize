@@ -36,6 +36,7 @@ export interface GenerateResult {
 	tasksSkipped?: GenerateSkippedTask[];
 	success: boolean;
 	error?: string;
+	estimateUnit?: string;
 	estimationSummary?: {
 		storyEstimation: number;
 		totalTaskEstimation: number;
@@ -60,8 +61,12 @@ export interface GenerateReport {
 
 // Shared utilities
 
-function fmtEstimate(value: number | undefined): string {
-	return value === undefined ? 'unestimated' : `${value}h`;
+function withUnit(value: number, unit: string | undefined): string {
+	return unit ? `${value} ${unit}` : String(value);
+}
+
+function fmtEstimate(value: number | undefined, unit: string | undefined): string {
+	return value === undefined ? 'unestimated' : withUnit(value, unit);
 }
 function esc(s: unknown): string {
 	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -163,7 +168,7 @@ function dryRunKpis(report: GenerateReport): string {
 	const kpis: [string, string, string][] = [
 		['Stories', String(report.storiesSuccess), 'var(--vscode-editor-foreground)'],
 		['Tasks', String(report.tasksCalculated), 'var(--vscode-editor-foreground)'],
-		['Total', `${totalH}h`, 'var(--vscode-testing-iconPassed)'],
+		['Total', withUnit(totalH, report.results[0]?.estimateUnit), 'var(--vscode-testing-iconPassed)'],
 		['Budget', totalBudget > 0 ? `${fmtPct(pct)}%` : '—', col],
 	];
 
@@ -185,6 +190,7 @@ function dryRunKpis(report: GenerateReport): string {
 
 function storySection(result: GenerateResult): string {
 	const { story, tasksCalculated: tasks, tasksSkipped } = result;
+	const u = result.estimateUnit;
 	const storyH = result.estimationSummary?.totalTaskEstimation ?? tasks.reduce((s, t) => s + (t.estimation ?? 0), 0);
 	const skippedCount = tasksSkipped?.length ?? 0;
 
@@ -204,7 +210,7 @@ function storySection(result: GenerateResult): string {
   <span style="font-size:.88em;font-weight:600;flex:1">${esc(t.title)}</span>
   ${(t.tags ?? []).map(tag => `<span class="tag">${esc(tag)}</span>`).join('')}
   ${t.priority != null ? `<span class="tag" style="color:#cca700">P${t.priority}</span>` : ''}
-  <span style="font-size:.88em;font-weight:700;color:var(--vscode-testing-iconPassed)">${fmtEstimate(t.estimation)}</span>
+  <span style="font-size:.88em;font-weight:700;color:var(--vscode-testing-iconPassed)">${fmtEstimate(t.estimation, u)}</span>
 </div>`).join('');
 
 	return `
@@ -215,7 +221,7 @@ function storySection(result: GenerateResult): string {
     <div style="display:flex;align-items:center;gap:10px;font-size:.78em;color:var(--vscode-descriptionForeground)">
       ${storyLink}
       <span>${tasks.length} task${tasks.length !== 1 ? 's' : ''}</span>
-      <span style="color:var(--vscode-testing-iconPassed);font-weight:700">${storyH}h</span>
+      <span style="color:var(--vscode-testing-iconPassed);font-weight:700">${withUnit(storyH, u)}</span>
     </div>
   </summary>
   ${warningHtml}${taskItems}
@@ -224,6 +230,7 @@ function storySection(result: GenerateResult): string {
 
 function storySectionCompact(result: GenerateResult): string {
 	const { story, tasksCalculated: tasks, tasksSkipped } = result;
+	const u = result.estimateUnit;
 	const storyH = result.estimationSummary?.totalTaskEstimation ?? tasks.reduce((s, t) => s + (t.estimation ?? 0), 0);
 	const skippedCount = tasksSkipped?.length ?? 0;
 
@@ -241,7 +248,7 @@ function storySectionCompact(result: GenerateResult): string {
 <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
   <td style="padding:4px 8px 4px 0;color:var(--vscode-descriptionForeground);text-align:right;vertical-align:top">${i + 1}</td>
   <td style="padding:4px 8px;font-weight:600;vertical-align:top">${esc(t.title)}</td>
-  <td style="padding:4px 8px;text-align:right;color:var(--vscode-testing-iconPassed);font-weight:700;vertical-align:top">${fmtEstimate(t.estimation)}</td>
+  <td style="padding:4px 8px;text-align:right;color:var(--vscode-testing-iconPassed);font-weight:700;vertical-align:top">${fmtEstimate(t.estimation, u)}</td>
   <td style="padding:4px 0;vertical-align:top">${(t.tags ?? []).map(tag => `<span class="tag">${esc(tag)}</span>`).join(' ')}</td>
 </tr>`).join('');
 
@@ -251,7 +258,7 @@ function storySectionCompact(result: GenerateResult): string {
     <span class="chev">›</span>
     <span style="font-size:.85em;font-weight:600;flex:1">${esc(story.title)}</span>
     <span style="font-size:.78em;color:var(--vscode-descriptionForeground)">
-      ${storyLink} · ${tasks.length} tasks · <strong style="color:var(--vscode-testing-iconPassed)">${storyH}h</strong>
+      ${storyLink} · ${tasks.length} tasks · <strong style="color:var(--vscode-testing-iconPassed)">${withUnit(storyH, u)}</strong>
     </span>
   </summary>
   ${warningHtml}<div style="overflow-x:auto">
@@ -297,6 +304,7 @@ function collapsedDryRun(dryReport: GenerateReport): string {
 
 	const storyRows = dryReport.results.map(r => {
 		const { story, tasksCalculated: tasks } = r;
+		const u = r.estimateUnit;
 		const storyH = r.estimationSummary?.totalTaskEstimation ?? tasks.reduce((s, t) => s + (t.estimation ?? 0), 0);
 
 		const storyLink = story.url
@@ -308,7 +316,7 @@ function collapsedDryRun(dryReport: GenerateReport): string {
   <span style="color:var(--vscode-descriptionForeground);min-width:16px;text-align:right;flex-shrink:0">${i + 1}.</span>
   <span style="flex:1;min-width:0">${esc(t.title)}</span>
   ${(t.tags ?? []).map(tag => `<span class="tag">${esc(tag)}</span>`).join('')}
-  <span style="color:var(--vscode-testing-iconPassed);font-weight:600;flex-shrink:0">${fmtEstimate(t.estimation)}</span>
+  <span style="color:var(--vscode-testing-iconPassed);font-weight:600;flex-shrink:0">${fmtEstimate(t.estimation, u)}</span>
 </div>`).join('');
 
 		return `
@@ -318,7 +326,7 @@ function collapsedDryRun(dryReport: GenerateReport): string {
     <span style="color:var(--vscode-testing-iconPassed);flex-shrink:0">✓</span>
     <span style="flex:1;min-width:0">${esc(story.title)}</span>
     <span style="flex-shrink:0;color:var(--vscode-descriptionForeground)">
-      ${storyLink} · ${tasks.length} tasks · <span style="color:var(--vscode-testing-iconPassed);font-weight:600">${storyH}h</span>
+      ${storyLink} · ${tasks.length} tasks · <span style="color:var(--vscode-testing-iconPassed);font-weight:600">${withUnit(storyH, u)}</span>
     </span>
   </summary>
   <div style="padding:4px 0 8px">${taskItems}</div>
@@ -330,7 +338,7 @@ function collapsedDryRun(dryReport: GenerateReport): string {
   <summary style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--vscode-panel-border,#3d3d3d)">
     <span class="chev">›</span>
     <span class="dry-run-badge" style="opacity:.7">DRY RUN</span>
-    <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${dryReport.storiesSuccess} ${dryReport.storiesSuccess === 1 ? 'story' : 'stories'} · ${dryReport.tasksCalculated} tasks · ${totalH}h</span>
+    <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${dryReport.storiesSuccess} ${dryReport.storiesSuccess === 1 ? 'story' : 'stories'} · ${dryReport.tasksCalculated} tasks · ${withUnit(totalH, dryReport.results[0]?.estimateUnit)}</span>
   </summary>
   <div style="padding:4px 0 8px;opacity:.75">${storyRows}</div>
 </details>`;

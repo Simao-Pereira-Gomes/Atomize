@@ -163,7 +163,7 @@ export class EstimationCalculator {
           : calculatedTask.estimationFixed;
 
       logger.debug(
-        `Calculated task: ${calculatedTask.title} = ${calculatedTask.estimation} points (${calculatedTask.estimationPercent}%)`
+        `Calculated task: ${calculatedTask.title} = ${calculatedTask.estimation ?? "unestimated"} (${calculatedTask.estimationPercent}%)`
       );
     }
 

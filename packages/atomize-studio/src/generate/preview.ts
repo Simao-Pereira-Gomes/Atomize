@@ -16,12 +16,18 @@ export type PreviewResult = {
   tasks: PreviewTask[];
   skippedTasks: PreviewSkippedTask[];
   unresolvedEstimate?: { action: "blank" | "skip"; reason: string };
+  estimateUnit?: string;
   estimationSummary: { storyEstimation: number; totalTaskEstimation: number; percentageUsed: number };
 };
 
+/** Appends the platform's unit when it is known; overridden target fields have no known unit. */
+export function formatEstimateAmount(value: number, unit?: string): string {
+  return unit ? `${value} ${unit}` : String(value);
+}
+
 /** A blank Task Estimate is unknown, never zero. */
-export function formatTaskEstimate(value: number | undefined): string {
-  return value === undefined ? "Unestimated" : String(value);
+export function formatTaskEstimate(value: number | undefined, unit?: string): string {
+  return value === undefined ? "Unestimated" : formatEstimateAmount(value, unit);
 }
 
 /** Presentation-only formatting: preserves over-allocation while avoiding floating-point noise. */

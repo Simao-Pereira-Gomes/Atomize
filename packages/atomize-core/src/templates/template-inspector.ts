@@ -42,6 +42,8 @@ export interface PreviewSkippedTask {
 export interface PreviewResult {
   tasks: PreviewTask[];
   skippedTasks: PreviewSkippedTask[];
+  /** Unit of the Task Estimates when they go to the platform's default fields; absent when unknown. */
+  estimateUnit?: string;
   /** Why the Story Estimate could not be resolved, and whether Tasks were left blank or the Story skipped. */
   unresolvedEstimate?: { action: "blank" | "skip"; reason: string };
   estimationSummary: {
@@ -175,6 +177,7 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
 
   const fieldMapping = resolveEstimationFieldMapping(MOCK_ESTIMATION_DEFAULTS, {
     source: template.estimation?.source,
+    targetFields: template.estimation?.targetFields,
   });
   const { calculatedTasks, skippedTasks, unresolvedEstimate } = calc.calculateTasksWithSkipped(
     story,
@@ -205,6 +208,7 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
       reason: s.reason,
     })),
     ...(unresolvedEstimate ? { unresolvedEstimate } : {}),
+    ...(fieldMapping.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
     estimationSummary: {
       storyEstimation: summary.storyEstimation,
       totalTaskEstimation: summary.totalTaskEstimation,

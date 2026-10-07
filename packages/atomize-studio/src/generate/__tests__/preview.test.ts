@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMockStoryJson, describeSkippedTaskReason, formatAllocationPercentage, formatTaskEstimate, parseInspectResult, parsePreviewResult, previewSourceDetail, previewSourceLabel, previewSourceValue } from "../preview";
+import { buildMockStoryJson, describeSkippedTaskReason, formatAllocationPercentage, formatEstimateAmount, formatTaskEstimate, parseInspectResult, parsePreviewResult, previewSourceDetail, previewSourceLabel, previewSourceValue } from "../preview";
 
 describe("parseInspectResult", () => {
   it("accepts a well-formed InspectResult", () => {
@@ -101,5 +101,14 @@ describe("formatTaskEstimate", () => {
     expect(formatTaskEstimate(undefined)).toBe("Unestimated");
     expect(formatTaskEstimate(0)).toBe("0");
     expect(formatTaskEstimate(2.5)).toBe("2.5");
+  });
+});
+
+describe("formatEstimateAmount", () => {
+  it("appends the platform unit when known and shows a bare number otherwise", () => {
+    expect(formatEstimateAmount(2, "hours")).toBe("2 hours");
+    expect(formatEstimateAmount(2)).toBe("2");
+    expect(formatTaskEstimate(2, "hours")).toBe("2 hours");
+    expect(formatTaskEstimate(undefined, "hours")).toBe("Unestimated");
   });
 });

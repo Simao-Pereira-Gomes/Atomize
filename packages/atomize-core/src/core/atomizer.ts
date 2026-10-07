@@ -103,6 +103,8 @@ export interface StoryAtomizationResult {
   error?: string;
   /** Present when the Story was skipped because its Story Estimate could not be resolved. */
   skipReason?: string;
+  /** Unit of the Task Estimates when they go to the platform's default fields (e.g. "hours"); absent when the unit is unknown. */
+  estimateUnit?: string;
   estimationSummary?: {
     storyEstimation: number;
     totalTaskEstimation: number;

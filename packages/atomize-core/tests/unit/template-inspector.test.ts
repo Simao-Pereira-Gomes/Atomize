@@ -280,6 +280,12 @@ describe("parseMockStory", () => {
 // ---------------------------------------------------------------------------
 
 describe("runPreview", () => {
+  test("Mock Preview carries the unit of the default estimate fields, and none for overridden fields", () => {
+    expect(runPreview(makeTemplate(), '{"estimation":10}').estimateUnit).toBe("hours");
+    const overridden = makeTemplate({ estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] } });
+    expect(runPreview(overridden, '{"estimation":10}').estimateUnit).toBeUndefined();
+  });
+
   const tShirtTemplate = () =>
     makeTemplate({
       tasks: [

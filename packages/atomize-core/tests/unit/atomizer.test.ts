@@ -99,6 +99,26 @@ describe("Atomizer", () => {
       }
     });
 
+    test("labels Task Estimates with the adapter's unit when the default fields are used", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(basicTemplate, { dryRun: true });
+
+      expect(report.results.length).toBeGreaterThan(0);
+      expect(report.results.every((r) => r.estimateUnit === "hours")).toBe(true);
+    });
+
+    test("leaves Task Estimates unlabelled when targetFields are overridden", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(
+        { ...basicTemplate, estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] } },
+        { dryRun: true },
+      );
+
+      expect(report.results.every((r) => r.estimateUnit === undefined)).toBe(true);
+    });
+
     test("creates Tasks as the Template's taskType", async () => {
       await platform.authenticate();
 

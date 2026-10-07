@@ -72,6 +72,7 @@ export class StoryProcessor {
         tasksCreated: [],
         tasksSkipped: [],
         success: true,
+      ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
         skipReason,
       };
     }
@@ -132,6 +133,7 @@ export class StoryProcessor {
       tasksCreated,
       tasksSkipped: skippedTasks,
       success: true,
+      ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
       estimationSummary,
     };
   }

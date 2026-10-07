@@ -425,23 +425,26 @@ export function printReport(
           continue;
         }
         output.print(chalk.green(`✓ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
-        const rawEstimate = result.story.estimation || 0;
+        const withUnit = (value: number) => (result.estimateUnit ? `${value} ${result.estimateUnit}` : String(value));
+        const rawEstimate = result.story.estimation;
         const converted = result.estimationSummary?.storyEstimation;
         const conversionNote =
-          converted !== undefined && converted !== rawEstimate ? ` (converted to ${converted})` : "";
-        output.print(chalk.gray(`  Estimation: ${sanitizeTty(String(rawEstimate))} points${conversionNote}`));
+          converted !== undefined && converted !== rawEstimate ? ` (converted to ${withUnit(converted)})` : "";
+        output.print(
+          chalk.gray(`  Estimation: ${rawEstimate === undefined ? "none" : sanitizeTty(String(rawEstimate))}${conversionNote}`),
+        );
         output.print(chalk.gray(`  Tasks: ${result.tasksCalculated.length}`));
         if (result.estimationSummary) {
           output.print(
             chalk.gray(
-              `  Distribution: ${result.estimationSummary.totalTaskEstimation} points (${result.estimationSummary.percentageUsed.toFixed(0)}%)`,
+              `  Distribution: ${withUnit(result.estimationSummary.totalTaskEstimation)} (${result.estimationSummary.percentageUsed.toFixed(0)}%)`,
             ),
           );
         }
         if ((options.verbose || dryRun) && result.tasksCalculated.length > 0) {
           output.print(chalk.gray("  Task breakdown:"));
           for (const task of result.tasksCalculated) {
-            const estimate = task.estimation === undefined ? "unestimated" : `${task.estimation} points`;
+            const estimate = task.estimation === undefined ? "unestimated" : withUnit(task.estimation);
             output.print(chalk.gray(`    - ${sanitizeTty(task.title)}: ${estimate} (${task.estimationPercent}%)`));
           }
         }
