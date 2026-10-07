@@ -31,10 +31,27 @@ describe("validateCustomFieldsAgainstSchemas", () => {
     const result = await validateCustomFieldsAgainstSchemas(
       template,
       async (workItemType) => workItemType === "Task" ? [taskSchema] : [],
+      "Task",
     );
 
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]?.code).toBe("CUSTOM_FIELD_INVALID_PICKLIST_VALUE");
+  });
+
+  test("checks task custom fields against the given child type", async () => {
+    const template = {
+      filter: {},
+      tasks: [{ title: "Backend", customFields: { "Custom.ClientTier": "VIP" } }],
+    } as unknown as TaskTemplate;
+
+    const result = await validateCustomFieldsAgainstSchemas(
+      template,
+      async () => [],
+      "Sub-task",
+    );
+
+    expect(result.errors[0]?.code).toBe("CUSTOM_FIELD_NOT_FOUND");
+    expect(result.errors[0]?.message).toContain('work item type "Sub-task"');
   });
 
   test("flags missing custom fields referenced by task conditions on story types", async () => {

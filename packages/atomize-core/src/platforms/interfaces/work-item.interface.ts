@@ -101,6 +101,12 @@ export interface TaskDefinition {
   /** Activity type (Design, Development, Testing, etc.) */
   activity?: string;
 
+  /** Template-overridden child Work Item type; absent means the adapter's default */
+  workItemType?: string;
+
+  /** Template-overridden Task Estimate fields, written as-is; absent means the adapter's defaults */
+  estimateFields?: string[];
+
   /** Iteration/sprint path (inherited from parent) */
   iteration?: string;
 

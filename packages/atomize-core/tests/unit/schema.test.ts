@@ -430,6 +430,11 @@ describe("Schema Validation", () => {
       expect(EstimationConfigSchema.safeParse({ conversion: { factor: -2 } }).success).toBe(false);
     });
 
+    test("should accept targetFields and reject an empty list", () => {
+      expect(EstimationConfigSchema.safeParse({ targetFields: ["Custom.Effort"] }).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse({ targetFields: [] }).success).toBe(false);
+    });
+
     test("should reject unknown conversion keys", () => {
       expect(EstimationConfigSchema.safeParse({ conversion: { multiplier: 4 } }).success).toBe(false);
     });

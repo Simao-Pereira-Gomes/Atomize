@@ -23,6 +23,32 @@ describe("TemplateValidator", () => {
 			expect(result.errors.some((e) => e.path.includes("conversion.factor"))).toBe(true);
 		});
 
+		test("Offline Validation rejects an empty targetFields list", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { targetFields: [] },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path.includes("targetFields"))).toBe(true);
+		});
+
+		test("Offline Validation accepts taskType and targetFields overrides", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				taskType: "Sub-task",
+				estimation: { targetFields: ["Custom.Effort"] },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(true);
+		});
+
 		test("Offline Validation accepts a positive conversion factor", () => {
 			const result = validator.validate({
 				version: "1.0",

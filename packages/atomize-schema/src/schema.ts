@@ -361,6 +361,13 @@ export const EstimationConfigSchema = z.object({
     )
     .optional(),
   conversion: EstimationConversionSchema.optional(),
+  targetFields: z
+    .array(z.string().min(1))
+    .min(1, "targetFields must name at least one field")
+    .describe(
+      "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated.",
+    )
+    .optional(),
   rounding: z
     .enum(["nearest", "up", "down", "none"])
     .optional()
@@ -551,6 +558,13 @@ const TaskTemplateBaseSchema = z.object({
       .min(1, "At least one task is required")
       .describe("Task definitions that will be generated from this template."),
 
+    taskType: z
+      .string()
+      .min(1)
+      .describe(
+        "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default.",
+      )
+      .optional(),
     estimation: EstimationConfigSchema.describe(
       "Global estimation configuration for all tasks in this template.",
     ).optional(),

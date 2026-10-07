@@ -14,14 +14,20 @@ export interface CustomFieldVerificationResult {
   warnings: ValidationWarning[];
 }
 
+/**
+ * @param taskWorkItemType the child type Tasks are created as; when unknown, fields are
+ * checked against every field in the project.
+ */
 export async function verifyTemplateCustomFields(
   template: TaskTemplate,
-  getSchemas: (workItemType: string) => Promise<ADoFieldSchema[]>,
+  getSchemas: (workItemType?: string) => Promise<ADoFieldSchema[]>,
+  taskWorkItemType?: string,
 ): Promise<CustomFieldVerificationResult> {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
-  const taskSchemas = await getSchemas("Task");
+  const taskSchemas = await getSchemas(taskWorkItemType);
+  const scope = taskWorkItemType ? `work item type "${taskWorkItemType}"` : "this project";
   const schemaByRef = new Map(taskSchemas.map((field) => [field.referenceName, field]));
 
   for (let i = 0; i < template.tasks.length; i++) {
@@ -35,7 +41,7 @@ export async function verifyTemplateCustomFields(
       if (!schema) {
         errors.push({
           path,
-          message: `Field "${refName}" not found for work item type "Task".`,
+          message: `Field "${refName}" not found for ${scope}.`,
           code: "CUSTOM_FIELD_NOT_FOUND",
         });
         continue;

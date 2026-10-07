@@ -442,6 +442,11 @@
           },
           "description": "Task definitions that will be generated from this template."
         },
+        "taskType": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
+        },
         "estimation": {
           "type": "object",
           "properties": {
@@ -471,6 +476,15 @@
               ],
               "additionalProperties": false,
               "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one."
+            },
+            "targetFields": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
             },
             "rounding": {
               "default": "none",
@@ -1010,6 +1024,11 @@
           },
           "description": "Task definitions that will be generated from this template."
         },
+        "taskType": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
+        },
         "estimation": {
           "type": "object",
           "properties": {
@@ -1039,6 +1058,15 @@
               ],
               "additionalProperties": false,
               "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one."
+            },
+            "targetFields": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
             },
             "rounding": {
               "default": "none",

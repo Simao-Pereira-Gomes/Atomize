@@ -34,7 +34,7 @@ type BasicInfoFields = {
   version: string;
 };
 
-type BasicInfoAdvanced = Pick<TaskTemplate, "created" | "lastModified" | "extends" | "mixins" | "origin">;
+type BasicInfoAdvanced = Pick<TaskTemplate, "created" | "lastModified" | "extends" | "mixins" | "origin" | "taskType">;
 
 type FilterFields = {
   filterMode: "build" | "query";
@@ -655,7 +655,7 @@ export function createAuthoringStore(): AuthoringStore {
   };
 
   const loadTemplate = (template: TaskTemplate) => {
-    const { created, lastModified, extends: parent, mixins, origin } = template;
+    const { created, lastModified, extends: parent, mixins, origin, taskType } = template;
     basicInfo.replace(
       {
         version: template.version,
@@ -665,7 +665,7 @@ export function createAuthoringStore(): AuthoringStore {
         author: template.author ?? "",
         tags: template.tags ?? [],
       },
-      omitUndefined({ created, lastModified, extends: parent, mixins, origin }),
+      omitUndefined({ created, lastModified, extends: parent, mixins, origin, taskType }),
     );
 
     const {
@@ -782,6 +782,7 @@ export function createAuthoringStore(): AuthoringStore {
       lastModified: basicInfo.advanced.lastModified,
       filter: buildFilter(filter),
       tasks: buildTasks(tasks),
+      taskType: basicInfo.advanced.taskType,
       estimation: buildEstimation(estimation),
       validation: buildValidation(validation),
       extends: basicInfo.advanced.extends,

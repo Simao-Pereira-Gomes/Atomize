@@ -334,6 +334,33 @@ describe("AzureDevOpsAdapter", () => {
       await adapter.authenticate();
     });
 
+    test("uses the Task's overridden child type and writes only its overridden estimate fields", async () => {
+      //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      let capturedPatch: any;
+      let capturedType: string | undefined;
+      mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(
+        async (_headers: any, document: any, _project: string, type: string) => {
+          capturedPatch = document;
+          capturedType = type;
+          return { id: 321, fields: { "System.Title": "T", "System.WorkItemType": type, "System.State": "New" }, relations: [] };
+        },
+      );
+
+      await adapter.createTask("100", {
+        title: "T",
+        estimation: 3,
+        workItemType: "Deliverable",
+        estimateFields: ["Custom.Effort"],
+      });
+
+      const fieldPaths = capturedPatch
+        .map((op: any) => op.path)
+        .filter((path: string) => path.includes("Scheduling") || path.includes("Custom.Effort"));
+      //biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
+      expect(capturedType).toBe("Deliverable");
+      expect(fieldPaths).toEqual(["/fields/Custom.Effort"]);
+    });
+
     test("should create task with required fields", async () => {
       const task = {
         title: "New Task",

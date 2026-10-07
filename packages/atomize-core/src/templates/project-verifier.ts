@@ -1,4 +1,5 @@
 import { extractCustomFieldRefs } from "../core/condition-evaluator.js";
+import type { EstimationDefaultsProvider } from "../platforms/interfaces/estimation-defaults.interface";
 import type {
   ProjectMetadataReader,
   SavedQueryReader,
@@ -59,7 +60,9 @@ export async function verifyTemplateProject(
   options: {
     mode: ProjectVerificationMode;
     strict?: boolean;
-    platform?: Pick<ProjectMetadataReader, "getFieldSchemas"> & Pick<SavedQueryReader, "listSavedQueries">;
+    platform?: Pick<ProjectMetadataReader, "getFieldSchemas"> &
+      Pick<SavedQueryReader, "listSavedQueries"> &
+      Partial<EstimationDefaultsProvider>;
   },
 ): Promise<TemplateProjectVerificationResult> {
   const requirements = analyzeTemplateProjectVerification(template);
@@ -88,6 +91,7 @@ export async function verifyTemplateProject(
     const customFields = await verifyTemplateCustomFields(
       template,
       options.platform.getFieldSchemas.bind(options.platform),
+      template.taskType ?? options.platform.getEstimationDefaults?.().taskWorkItemType,
     );
     result.errors.push(...customFields.errors);
     result.warnings.push(...customFields.warnings);

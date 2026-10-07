@@ -139,6 +139,7 @@ async function runValidationInProcess(
 				platform: {
 					getFieldSchemas: workItemType => metadataReader.getFieldSchemas(workItemType),
 					listSavedQueries: folder => savedQueryReader.listSavedQueries(folder),
+					getEstimationDefaults: () => adapter.getEstimationDefaults(),
 				},
 			};
 		} catch (err) {

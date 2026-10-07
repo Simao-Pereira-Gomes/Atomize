@@ -122,6 +122,15 @@ export class EstimationCalculator {
       calculatedTasks.push(calculatedTask);
     }
 
+    if (fieldMapping) {
+      for (const task of calculatedTasks) {
+        task.workItemType = fieldMapping.taskWorkItemType;
+        if (fieldMapping.taskTarget.kind === "override") {
+          task.estimateFields = [...fieldMapping.taskTarget.fields];
+        }
+      }
+    }
+
     distributeActiveTaskPercentages(calculatedTasks, {
       forceNormalize,
       enableLogging: true,

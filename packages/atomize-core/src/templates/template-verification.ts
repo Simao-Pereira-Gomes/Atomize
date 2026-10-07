@@ -1,3 +1,4 @@
+import type { EstimationDefaultsProvider } from "../platforms/interfaces/estimation-defaults.interface";
 import type {
   ProjectMetadataReader,
   SavedQueryReader,
@@ -17,7 +18,8 @@ export interface TemplateVerificationOptions {
     mode: ProjectVerificationMode;
     strict?: boolean;
     platform?: Pick<ProjectMetadataReader, "getFieldSchemas"> &
-      Pick<SavedQueryReader, "listSavedQueries">;
+      Pick<SavedQueryReader, "listSavedQueries"> &
+      Partial<EstimationDefaultsProvider>;
   };
 }
 

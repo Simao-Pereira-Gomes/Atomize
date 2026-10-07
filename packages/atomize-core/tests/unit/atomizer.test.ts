@@ -46,6 +46,47 @@ describe("Atomizer", () => {
   };
 
   describe("atomize", () => {
+    test("creates Tasks as the Template's taskType", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize({ ...basicTemplate, taskType: "Sub-task" }, { dryRun: false });
+
+      const created = report.results.flatMap((r) => r.tasksCreated);
+      expect(created.length).toBeGreaterThan(0);
+      expect(created.every((t) => t.type === "Sub-task")).toBe(true);
+    });
+
+    test("creates Tasks as the adapter's default type when the Template sets no taskType", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(basicTemplate, { dryRun: false });
+
+      const created = report.results.flatMap((r) => r.tasksCreated);
+      expect(created.every((t) => t.type === "Task")).toBe(true);
+    });
+
+    test("carries overridden targetFields on every calculated Task", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(
+        { ...basicTemplate, estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] } },
+        { dryRun: true },
+      );
+
+      const tasks = report.results.flatMap((r) => r.tasksCalculated);
+      expect(tasks.length).toBeGreaterThan(0);
+      expect(tasks.every((t) => t.estimateFields?.join() === "Custom.Effort")).toBe(true);
+    });
+
+    test("leaves estimateFields unset when the Template uses the adapter's default fields", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(basicTemplate, { dryRun: true });
+
+      const tasks = report.results.flatMap((r) => r.tasksCalculated);
+      expect(tasks.every((t) => t.estimateFields === undefined)).toBe(true);
+    });
+
     test("should process stories end-to-end", async () => {
       await platform.authenticate();
 

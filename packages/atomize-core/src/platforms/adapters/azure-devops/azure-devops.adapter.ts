@@ -207,11 +207,14 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       }
 
       const defaults = this.getEstimationDefaults();
+      const estimateWrite = task.estimateFields?.length
+        ? { fields: task.estimateFields }
+        : { fields: defaults.taskEstimateFields, initializeCompletedWork: true };
       const patchDocument = buildCreateTaskPatch(
         this.config.organizationUrl,
         numericParentId,
         task,
-        { fields: defaults.taskEstimateFields, initializeCompletedWork: true },
+        estimateWrite,
       );
 
       if (!this.witApi) {
@@ -222,7 +225,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined, // customHeaders
         patchDocument,
         this.config.project,
-        defaults.taskWorkItemType,
+        task.workItemType ?? defaults.taskWorkItemType,
       );
 
       logger.info(`AzureDevOps: Created task ${createdItem.id}: ${task.title}`);

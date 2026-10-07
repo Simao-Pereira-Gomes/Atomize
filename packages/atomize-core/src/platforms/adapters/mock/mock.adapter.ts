@@ -188,7 +188,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     const createdTask: WorkItem = {
       id: `TASK-${this.taskIdCounter++}`,
       title: task.title,
-      type: MOCK_ESTIMATION_DEFAULTS.taskWorkItemType,
+      type: task.workItemType ?? MOCK_ESTIMATION_DEFAULTS.taskWorkItemType,
       state: "New",
       assignedTo: task.assignTo,
       estimation: task.estimation,

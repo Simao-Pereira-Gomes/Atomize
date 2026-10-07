@@ -202,6 +202,20 @@ describe("createAuthoringStore", () => {
     });
   });
 
+  it("preserves taskType, targetFields and conversion through load and save", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      taskType: "Sub-task",
+      estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"], conversion: { factor: 4 } },
+    });
+
+    expect(serialisedObject(store)).toMatchObject({
+      taskType: "Sub-task",
+      estimation: { targetFields: ["Custom.Effort"], conversion: { factor: 4 } },
+    });
+  });
+
   it("loads the deprecated minimumTaskPoints and saves it as minimumTaskEstimate", () => {
     const store = createAuthoringStore();
     store.loadTemplate({ ...baseTemplate, estimation: { strategy: "percentage", rounding: "none", minimumTaskPoints: 0.5 } });

@@ -94,6 +94,7 @@ mixins:                 # Optional. Mix in reusable task groups
 | `tags` | No | string[] | Tags for categorization |
 | `extends` | No | string | Catalog template name or file path to inherit from |
 | `mixins` | No | string[] | Catalog mixin names or file paths to merge into this template |
+| `taskType` | No | string | Work Item type generated Tasks are created as, in the platform's own vocabulary. Defaults to the platform's type (`Task` on Azure DevOps). Online Validation checks custom fields against it. |
 
 ---
 
@@ -589,6 +590,7 @@ estimation:
 | Field | Type | Default | Options | Description |
 |-------|------|---------|---------|-------------|
 | `strategy` | string | `"percentage"` | `"percentage"` | How to calculate task estimations |
+| `targetFields` | string[] | platform default (Azure DevOps: `RemainingWork` + `OriginalEstimate`, with `CompletedWork` set to 0) | one or more field reference names | Task fields that receive the Task Estimate. Replaces the default fields entirely, including the `CompletedWork` initialisation; values are written exactly as calculated. |
 | `conversion.factor` | number | none (one-to-one) | any number greater than 0 | Multiplies the Story Estimate into the Task's unit before it is split across tasks. With `factor: 4`, a 5-point Story becomes 20 hours and a 20% task gets 4 hours. Rounding and the minimum apply afterwards. |
 | `rounding` | string | `"nearest"` | `nearest`, `up`, `down`, `none` | How to round decimal point values |
 | `minimumTaskEstimate` | number | `0` | any non-negative number | Minimum Task Estimate for any task, in the Task's unit (hours on Azure DevOps). Replaces the deprecated `minimumTaskPoints`, which is still honoured when `minimumTaskEstimate` is absent. |
