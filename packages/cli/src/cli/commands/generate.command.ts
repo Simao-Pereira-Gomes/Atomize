@@ -420,7 +420,11 @@ export function printReport(
     for (const result of report.results) {
       if (result.success) {
         output.print(chalk.green(`✓ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
-        output.print(chalk.gray(`  Estimation: ${result.story.estimation || 0} points`));
+        const rawEstimate = result.story.estimation || 0;
+        const converted = result.estimationSummary?.storyEstimation;
+        const conversionNote =
+          converted !== undefined && converted !== rawEstimate ? ` (converted to ${converted})` : "";
+        output.print(chalk.gray(`  Estimation: ${sanitizeTty(String(rawEstimate))} points${conversionNote}`));
         output.print(chalk.gray(`  Tasks: ${result.tasksCalculated.length}`));
         if (result.estimationSummary) {
           output.print(

@@ -334,6 +334,18 @@ export const TaskDefinitionSchema = z.object({
     }),
 }).strict();
 
+export const EstimationConversionSchema = z
+  .object({
+    factor: z
+      .number()
+      .positive()
+      .describe("Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."),
+  })
+  .strict()
+  .describe(
+    "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one.",
+  );
+
 export const EstimationConfigSchema = z.object({
   strategy: z
     .enum(["percentage"])
@@ -348,6 +360,7 @@ export const EstimationConfigSchema = z.object({
       "Field on the parent story to read the estimation value from (e.g. 'story-points').",
     )
     .optional(),
+  conversion: EstimationConversionSchema.optional(),
   rounding: z
     .enum(["nearest", "up", "down", "none"])
     .optional()
@@ -809,6 +822,7 @@ export type EstimationPercentCondition = z.infer<
   typeof EstimationPercentConditionSchema
 >;
 export type EstimationConfig = z.infer<typeof EstimationConfigSchema>;
+export type EstimationConversion = z.infer<typeof EstimationConversionSchema>;
 export type ValidationMode = z.infer<typeof ValidationModeSchema>;
 export type ValidationConfig = z.infer<typeof ValidationConfigSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;

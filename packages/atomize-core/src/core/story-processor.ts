@@ -61,7 +61,12 @@ export class StoryProcessor {
       });
     }
 
-    const validation = this.estimationCalculator.validateEstimation(story, calculatedTasks);
+    const validation = this.estimationCalculator.validateEstimation(
+      story,
+      calculatedTasks,
+      template.estimation,
+      this.fieldMapping,
+    );
 
     if (!validation.valid) {
       validation.warnings.forEach((warning) => {
@@ -73,6 +78,8 @@ export class StoryProcessor {
     const estimationSummary = this.estimationCalculator.getEstimationSummary(
       story,
       calculatedTasks,
+      template.estimation,
+      this.fieldMapping,
     );
 
     logger.debug("Estimation summary:", estimationSummary);

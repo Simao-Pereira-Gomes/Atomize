@@ -280,6 +280,20 @@ describe("parseMockStory", () => {
 // ---------------------------------------------------------------------------
 
 describe("runPreview", () => {
+  test("Mock Preview shows the converted Story total and converted Task Estimates", () => {
+    const template = makeTemplate({
+      tasks: [
+        { title: "Task A", estimationPercent: 60 },
+        { title: "Task B", estimationPercent: 40 },
+      ],
+      estimation: { strategy: "percentage", rounding: "none", conversion: { factor: 4 } },
+    });
+    const result = runPreview(template, '{"estimation":5}');
+
+    expect(result.estimationSummary.storyEstimation).toBe(20);
+    expect(result.tasks.map((t) => t.estimation)).toEqual([12, 8]);
+  });
+
   test("returns all tasks when no conditions", () => {
     const template = makeTemplate();
     const result = runPreview(template, '{"estimation":10}');

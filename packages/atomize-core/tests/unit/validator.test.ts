@@ -10,6 +10,31 @@ describe("TemplateValidator", () => {
 	const fixturesPath = resolve(__dirname, "../fixtures/templates");
 
 	describe("validate", () => {
+		test("Offline Validation rejects a conversion factor of zero or less", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { conversion: { factor: 0 } },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path.includes("conversion.factor"))).toBe(true);
+		});
+
+		test("Offline Validation accepts a positive conversion factor", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { conversion: { factor: 4 } },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(true);
+		});
+
 		test("should validate a correct template", async () => {
 			const template = await loader.load(
 				resolve(fixturesPath, "valid-template.yaml"),

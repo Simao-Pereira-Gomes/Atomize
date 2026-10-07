@@ -457,6 +457,21 @@
               "type": "string",
               "description": "Field on the parent story to read the estimation value from (e.g. 'story-points')."
             },
+            "conversion": {
+              "type": "object",
+              "properties": {
+                "factor": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
+                }
+              },
+              "required": [
+                "factor"
+              ],
+              "additionalProperties": false,
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one."
+            },
             "rounding": {
               "default": "none",
               "description": "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
@@ -1004,6 +1019,21 @@
             "source": {
               "type": "string",
               "description": "Field on the parent story to read the estimation value from (e.g. 'story-points')."
+            },
+            "conversion": {
+              "type": "object",
+              "properties": {
+                "factor": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
+                }
+              },
+              "required": [
+                "factor"
+              ],
+              "additionalProperties": false,
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one."
             },
             "rounding": {
               "default": "none",

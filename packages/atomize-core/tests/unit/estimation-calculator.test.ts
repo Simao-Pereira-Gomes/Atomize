@@ -834,4 +834,53 @@ describe("EstimationCalculator", () => {
       expect(totalEstimation).toBeCloseTo(10, 1);
     });
   });
+
+  describe("factor conversion", () => {
+    const story: WorkItem = { ...mockStory, estimation: 5 };
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 80 },
+      { title: "Review", estimationPercent: 20 },
+    ];
+    const config: EstimationConfig = { strategy: "percentage", rounding: "none", conversion: { factor: 4 } };
+
+    test("converts the Story Estimate before splitting it", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
+      expect(calculatedTasks.map((t) => t.estimation)).toEqual([16, 4]);
+    });
+
+    test("applies rounding and the minimum after conversion", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(
+        { ...story, estimation: 1 },
+        "",
+        [
+          { title: "Tiny", estimationPercent: 5 },
+          { title: "Rest", estimationPercent: 95 },
+        ],
+        { strategy: "percentage", rounding: "up", minimumTaskPoints: 1, conversion: { factor: 3 } },
+      );
+      // 1 point × 3 = 3 hours; 5% = 0.15 → rounded up to 0.5 → raised to the minimum of 1; 95% = 2.85 → 3
+      expect(calculatedTasks.map((t) => t.estimation)).toEqual([1, 3]);
+    });
+
+    test("Templates without a conversion are unchanged", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+        strategy: "percentage",
+        rounding: "none",
+      });
+      expect(calculatedTasks.map((t) => t.estimation)).toEqual([4, 1]);
+    });
+
+    test("the estimation summary reports the converted Story total", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
+      const summary = calculator.getEstimationSummary(story, calculatedTasks, config);
+      expect(summary.storyEstimation).toBe(20);
+      expect(summary.totalTaskEstimation).toBe(20);
+      expect(summary.percentageUsed).toBe(100);
+    });
+
+    test("validation compares Task Estimates with the converted total, not the raw points", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
+      expect(calculator.validateEstimation(story, calculatedTasks, config).valid).toBe(true);
+    });
+  });
 });

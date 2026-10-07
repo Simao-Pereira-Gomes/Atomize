@@ -578,6 +578,8 @@ Controls how story points are distributed across tasks.
 ```yaml
 estimation:
   strategy: "percentage"      # How to calculate task points
+  conversion:                 # Optional: Story unit → Task unit (omit for one-to-one)
+    factor: 4                 # e.g. 1 point = 4 hours
   rounding: "nearest"         # How to round calculated values
   minimumTaskPoints: 0.5      # Minimum points per task
   ifParentHasNoEstimation: "skip"   # What to do if parent has no points
@@ -587,6 +589,7 @@ estimation:
 | Field | Type | Default | Options | Description |
 |-------|------|---------|---------|-------------|
 | `strategy` | string | `"percentage"` | `"percentage"` | How to calculate task estimations |
+| `conversion.factor` | number | none (one-to-one) | any number greater than 0 | Multiplies the Story Estimate into the Task's unit before it is split across tasks. With `factor: 4`, a 5-point Story becomes 20 hours and a 20% task gets 4 hours. Rounding and the minimum apply afterwards. |
 | `rounding` | string | `"nearest"` | `nearest`, `up`, `down`, `none` | How to round decimal point values |
 | `minimumTaskPoints` | number | `0` | any non-negative number | Minimum points for any task |
 | `ifParentHasNoEstimation` | string | `"skip"` | `skip`, `warn`, `use-default` | Behavior when parent story has no estimation |

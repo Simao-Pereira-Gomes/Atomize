@@ -10,13 +10,9 @@ import type {
 } from "../templates/schema";
 import { getErrorMessage } from "../utils/errors";
 import { ConditionEvaluator } from "./condition-evaluator.js";
+import { convertStoryEstimate, type StoryEstimateConversion } from "./estimation-conversion";
 import { distributeActiveTaskPercentages } from "./estimation-distribution";
-import {
-  type EstimationFieldMapping,
-  numericStoryEstimate,
-  readStoryEstimate,
-  type StoryEstimateSource,
-} from "./estimation-field-mapping";
+import { type EstimationFieldMapping, readStoryEstimate } from "./estimation-field-mapping";
 import { interpolateValue } from "./template-interpolator.js";
 
 /**
@@ -65,9 +61,12 @@ export class EstimationCalculator {
       `EstimationCalculator: Calculating tasks for story ${story.id}`
     );
 
-    const parentEstimation = this.parentEstimation(story, fieldMapping?.storySource);
+    const conversion = this.convertParentEstimate(story, estimationConfig, fieldMapping);
+    const parentEstimation = conversion.kind === "resolved" ? conversion.total : 0;
 
-    if (parentEstimation === 0) {
+    if (conversion.kind === "unresolvable") {
+      logger.warn(`Story ${story.id}: ${conversion.reason}. Tasks will have 0 estimation.`);
+    } else if (parentEstimation === 0) {
       logger.warn(
         `Story ${story.id} has no estimation. Tasks will have 0 estimation.`
       );
@@ -198,9 +197,14 @@ export class EstimationCalculator {
     };
   }
 
-  private parentEstimation(story: WorkItem, source?: StoryEstimateSource): number {
-    const raw = readStoryEstimate(story, source ?? { kind: "default", fields: [] });
-    return numericStoryEstimate(raw) ?? 0;
+  /** The Story Estimate converted into the Task's unit, before it is split across Tasks. */
+  convertParentEstimate(
+    story: WorkItem,
+    config?: EstimationConfig,
+    fieldMapping?: EstimationFieldMapping,
+  ): StoryEstimateConversion {
+    const raw = readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] });
+    return convertStoryEstimate(raw, config?.conversion);
   }
 
   /**
@@ -310,14 +314,17 @@ export class EstimationCalculator {
    */
   getEstimationSummary(
     story: WorkItem,
-    tasks: CalculatedTask[]
+    tasks: CalculatedTask[],
+    config?: EstimationConfig,
+    fieldMapping?: EstimationFieldMapping,
   ): {
     storyEstimation: number;
     totalTaskEstimation: number;
     difference: number;
     percentageUsed: number;
   } {
-    const storyEstimation = numericStoryEstimate(story.estimation) ?? 0;
+    const conversion = this.convertParentEstimate(story, config, fieldMapping);
+    const storyEstimation = conversion.kind === "resolved" ? conversion.total : 0;
     const totalTaskEstimation = this.calculateTotalEstimation(tasks);
     const difference = storyEstimation - totalTaskEstimation;
     const percentageUsed =
@@ -336,14 +343,16 @@ export class EstimationCalculator {
    */
   validateEstimation(
     story: WorkItem,
-    tasks: CalculatedTask[]
+    tasks: CalculatedTask[],
+    config?: EstimationConfig,
+    fieldMapping?: EstimationFieldMapping,
   ): {
     valid: boolean;
     warnings: string[];
   } {
     const warnings: string[] = [];
 
-    const summary = this.getEstimationSummary(story, tasks);
+    const summary = this.getEstimationSummary(story, tasks, config, fieldMapping);
 
     if (Math.abs(summary.difference) > 0.5) {
       warnings.push(

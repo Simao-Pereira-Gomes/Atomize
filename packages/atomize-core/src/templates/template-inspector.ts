@@ -173,7 +173,7 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
     template.estimation,
   );
 
-  const summary = calc.getEstimationSummary(story, calculatedTasks);
+  const summary = calc.getEstimationSummary(story, calculatedTasks, template.estimation);
 
   const tasks: PreviewTask[] = calculatedTasks.map((task) => {
     const result: PreviewTask = {

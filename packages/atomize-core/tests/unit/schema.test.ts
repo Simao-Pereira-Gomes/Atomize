@@ -420,6 +420,20 @@ describe("Schema Validation", () => {
   });
 
   describe("EstimationConfigSchema", () => {
+    test("should accept a positive conversion factor", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 4 } }).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 0.25 } }).success).toBe(true);
+    });
+
+    test("should reject a conversion factor of zero or less", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 0 } }).success).toBe(false);
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: -2 } }).success).toBe(false);
+    });
+
+    test("should reject unknown conversion keys", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { multiplier: 4 } }).success).toBe(false);
+    });
+
     test("should accept valid config", () => {
       const config = {
         strategy: "percentage",
