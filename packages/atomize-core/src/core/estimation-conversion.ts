@@ -18,6 +18,14 @@ export function convertStoryEstimate(
     return { kind: "unresolvable", reason: "Story has no estimate" };
   }
 
+  if (conversion?.table) {
+    const key = String(raw);
+    if (!Object.hasOwn(conversion.table, key)) {
+      return { kind: "unresolvable", reason: `Story Estimate "${key}" is not in the conversion table` };
+    }
+    return { kind: "resolved", total: conversion.table[key] as number };
+  }
+
   const numeric = numericStoryEstimate(raw);
   if (numeric === undefined) {
     return {

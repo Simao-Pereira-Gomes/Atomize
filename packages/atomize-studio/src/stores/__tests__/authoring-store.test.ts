@@ -216,6 +216,38 @@ describe("createAuthoringStore", () => {
     });
   });
 
+  it("keeps a category defaultParentEstimation covered by the conversion table", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "M",
+        conversion: { table: { S: 2, M: 4 } },
+      },
+    });
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBeUndefined();
+    expect((serialisedObject(store) as TaskTemplate).estimation).toMatchObject({ defaultParentEstimation: "M" });
+  });
+
+  it("flags a use-default defaultParentEstimation the conversion table does not cover", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: { strategy: "percentage", rounding: "none", conversion: { table: { S: 2, M: 4 } } },
+    });
+    store.estimation.set("ifParentHasNoEstimation", "use-default");
+    store.estimation.set("defaultParentEstimation", "XXL");
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBe("Must be one of the conversion table's values");
+    expect(store.estimation.isValid()).toBe(false);
+  });
+
   it("loads the deprecated minimumTaskPoints and saves it as minimumTaskEstimate", () => {
     const store = createAuthoringStore();
     store.loadTemplate({ ...baseTemplate, estimation: { strategy: "percentage", rounding: "none", minimumTaskPoints: 0.5 } });

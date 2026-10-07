@@ -435,6 +435,54 @@ describe("Schema Validation", () => {
       expect(EstimationConfigSchema.safeParse({ targetFields: [] }).success).toBe(false);
     });
 
+    test("should accept a conversion table with string and numeric keys", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { S: 2, M: 4, L: 5 } } }).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { 1: 2, 3: 8, "0.32L": 1.6 } } }).success).toBe(true);
+    });
+
+    test("should reject a conversion with both factor and table, or neither", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 4, table: { L: 5 } } }).success).toBe(false);
+      expect(EstimationConfigSchema.safeParse({ conversion: {} }).success).toBe(false);
+    });
+
+    test("should reject negative table values and an empty table", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { L: -1 } } }).success).toBe(false);
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: {} } }).success).toBe(false);
+    });
+
+    test("should accept a category defaultParentEstimation covered by the table", () => {
+      const config = {
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "M",
+        conversion: { table: { M: 4 } },
+      };
+      expect(EstimationConfigSchema.safeParse(config).success).toBe(true);
+    });
+
+    test("should reject a use-default defaultParentEstimation the conversion cannot translate", () => {
+      const notInTable = EstimationConfigSchema.safeParse({
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "XXL",
+        conversion: { table: { M: 4 } },
+      });
+      expect(notInTable.success).toBe(false);
+      expect(notInTable.error?.issues[0]?.path).toEqual(["defaultParentEstimation"]);
+
+      const categoryWithoutTable = EstimationConfigSchema.safeParse({
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "M",
+      });
+      expect(categoryWithoutTable.success).toBe(false);
+    });
+
+    test("should not check defaultParentEstimation coverage unless the policy is use-default", () => {
+      const result = EstimationConfigSchema.safeParse({
+        defaultParentEstimation: "XXL",
+        conversion: { table: { M: 4 } },
+      });
+      expect(result.success).toBe(true);
+    });
+
     test("should reject unknown conversion keys", () => {
       expect(EstimationConfigSchema.safeParse({ conversion: { multiplier: 4 } }).success).toBe(false);
     });

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { EstimationCalculator } from "@sppg2001/atomize-core/core/estimation-calculator";
+import { resolveEstimationFieldMapping } from "@sppg2001/atomize-core/core/estimation-field-mapping";
+import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import type { EstimationConfig, TaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 
@@ -962,6 +964,42 @@ describe("EstimationCalculator", () => {
     test("blank estimates do not trigger the zero-estimation or difference warnings", () => {
       const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks);
       expect(calculator.validateEstimation(unestimated, result.calculatedTasks)).toEqual({ valid: true, warnings: [] });
+    });
+  });
+
+  describe("source override with a t-shirt table", () => {
+    const config: EstimationConfig = {
+      strategy: "percentage",
+      rounding: "none",
+      source: "Custom.TShirtSize",
+      conversion: { table: { S: 2, M: 4, L: 5, XL: 13 } },
+    };
+    const mapping = resolveEstimationFieldMapping(MOCK_ESTIMATION_DEFAULTS, { source: config.source });
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 80 },
+      { title: "Review", estimationPercent: 20 },
+    ];
+    const sized = (size?: string): WorkItem => ({
+      ...mockStory,
+      estimation: 8,
+      customFields: size === undefined ? {} : { "Custom.TShirtSize": size },
+    });
+
+    test("an L Story's 20% task gets 1 hour", () => {
+      const result = calculator.calculateTasksWithSkipped(sized("L"), "", tasks, config, false, mapping);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([4, 1]);
+    });
+
+    test("a size missing from the table leaves Task Estimates blank with a warning", () => {
+      const result = calculator.calculateTasksWithSkipped(sized("XXL"), "", tasks, config, false, mapping);
+      expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
+      expect(result.unresolvedEstimate?.reason).toContain('"XXL"');
+    });
+
+    test("a blank source field never falls back to the default estimation", () => {
+      const result = calculator.calculateTasksWithSkipped(sized(), "", tasks, config, false, mapping);
+      expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
+      expect(result.unresolvedEstimate?.reason).toBe("Story has no estimate");
     });
   });
 });

@@ -460,7 +460,8 @@
             },
             "source": {
               "type": "string",
-              "description": "Field on the parent story to read the estimation value from (e.g. 'story-points')."
+              "minLength": 1,
+              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
             },
             "conversion": {
               "type": "object",
@@ -469,13 +470,21 @@
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
+                },
+                "table": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
                 }
               },
-              "required": [
-                "factor"
-              ],
               "additionalProperties": false,
-              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one."
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one."
             },
             "targetFields": {
               "minItems": 1,
@@ -516,8 +525,16 @@
               "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
             },
             "defaultParentEstimation": {
-              "type": "number",
-              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default'. Goes through the same conversion as a real Story Estimate."
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate."
             }
           },
           "additionalProperties": false,
@@ -1042,7 +1059,8 @@
             },
             "source": {
               "type": "string",
-              "description": "Field on the parent story to read the estimation value from (e.g. 'story-points')."
+              "minLength": 1,
+              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
             },
             "conversion": {
               "type": "object",
@@ -1051,13 +1069,21 @@
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
+                },
+                "table": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
                 }
               },
-              "required": [
-                "factor"
-              ],
               "additionalProperties": false,
-              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one."
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one."
             },
             "targetFields": {
               "minItems": 1,
@@ -1098,8 +1124,16 @@
               "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
             },
             "defaultParentEstimation": {
-              "type": "number",
-              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default'. Goes through the same conversion as a real Story Estimate."
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate."
             }
           },
           "additionalProperties": false,

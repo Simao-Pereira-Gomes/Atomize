@@ -26,7 +26,7 @@ export function EstimationSection(props: { store: EstimationStore }) {
       />
       <TextField
         label="Source field" value={s.fields.source}
-        onInput={(v) => s.set("source", v)} placeholder="story-points"
+        onInput={(v) => s.set("source", v)} placeholder="Platform default (e.g. Custom.TShirtSize)"
       />
       <SelectField
         label="Rounding" value={s.fields.rounding}
@@ -59,7 +59,7 @@ export function EstimationSection(props: { store: EstimationStore }) {
         <TextField
           label="Default parent estimate" value={s.fields.defaultParentEstimation}
           error={s.errors.defaultParentEstimation}
-          onInput={(v) => { s.set("defaultParentEstimation", v); s.validate(); }} onBlur={s.validate} placeholder="8"
+          onInput={(v) => { s.set("defaultParentEstimation", v); s.validate(); }} onBlur={s.validate} placeholder="8 or M"
         />
       </Show>
     </>

@@ -579,23 +579,26 @@ Controls how story points are distributed across tasks.
 ```yaml
 estimation:
   strategy: "percentage"      # How to calculate task points
+  source: "Custom.TShirtSize" # Optional: Story field holding the Story Estimate
   conversion:                 # Optional: Story unit → Task unit (omit for one-to-one)
-    factor: 4                 # e.g. 1 point = 4 hours
+    table: { S: 2, M: 4, L: 5, XL: 13 }   # or `factor: 4` for 1 point = 4 hours
   rounding: "nearest"         # How to round calculated values
   minimumTaskEstimate: 0.5    # Minimum Task Estimate, in the Task's unit
   ifParentHasNoEstimation: "use-default"   # warn (default) | skip | use-default
-  defaultParentEstimation: 8  # Story Estimate to assume when the real one is missing
+  defaultParentEstimation: "M"  # Story Estimate to assume when the real one is missing
 ```
 
 | Field | Type | Default | Options | Description |
 |-------|------|---------|---------|-------------|
 | `strategy` | string | `"percentage"` | `"percentage"` | How to calculate task estimations |
 | `targetFields` | string[] | platform default (Azure DevOps: `RemainingWork` + `OriginalEstimate`, with `CompletedWork` set to 0) | one or more field reference names | Task fields that receive the Task Estimate. Replaces the default fields entirely, including the `CompletedWork` initialisation; values are written exactly as calculated. |
-| `conversion.factor` | number | none (one-to-one) | any number greater than 0 | Multiplies the Story Estimate into the Task's unit before it is split across tasks. With `factor: 4`, a 5-point Story becomes 20 hours and a 20% task gets 4 hours. Rounding and the minimum apply afterwards. |
+| `source` | string | platform default (Azure DevOps reads `StoryPoints`, then `Effort`, then `Size`, then `OriginalEstimate`) | a Story field reference name | Story field that supplies the Story Estimate, e.g. `Custom.TShirtSize`. Replaces the platform's default fields with **no fallback**: if this field is blank, the Story Estimate is unresolvable. |
+| `conversion.factor` | number | none (one-to-one) | any number greater than 0 | Multiplies the Story Estimate into the Task's unit before it is split across tasks. With `factor: 4`, a 5-point Story becomes 20 hours and a 20% task gets 4 hours. Rounding and the minimum apply afterwards. Set either `factor` or `table`, not both. |
+| `conversion.table` | map | none | Story Estimate value → non-negative Task-unit amount | Exact lookup from Story Estimate to Task-unit total, e.g. `{ XS: 1, S: 2, M: 4, L: 5, XL: 13 }`, or numeric keys for scales that aren't linear (`{ 1: 2, 2: 4, 3: 8, 5: 16 }`). Values are matched literally, so a picklist value like `0.32L` needs its own entry. A Story Estimate missing from the table is unresolvable (see `ifParentHasNoEstimation`). |
 | `rounding` | string | `"nearest"` | `nearest`, `up`, `down`, `none` | How to round decimal point values |
 | `minimumTaskEstimate` | number | `0` | any non-negative number | Minimum Task Estimate for any task, in the Task's unit (hours on Azure DevOps). Replaces the deprecated `minimumTaskPoints`, which is still honoured when `minimumTaskEstimate` is absent. |
 | `ifParentHasNoEstimation` | string | `"warn"` | `warn`, `skip`, `use-default` | What to do when the Story Estimate is missing or cannot be converted. `warn` creates the tasks with blank estimates (never 0) and reports a warning; `skip` creates no tasks for that Story and reports why; `use-default` uses `defaultParentEstimation` instead. |
-| `defaultParentEstimation` | number | none | any positive number | Story Estimate used with `use-default`. It goes through the same `conversion` as a real Story Estimate. Without it, `use-default` behaves like `warn`. |
+| `defaultParentEstimation` | number or string | none | a Story Estimate, e.g. `8` or `M` | Story Estimate used with `use-default`, in the Story's unit. It goes through the same `conversion` as a real Story Estimate, so with a table it must be one of the table's keys (Offline Validation checks this). Without it, `use-default` behaves like `warn`. |
 
 **Rounding options:**
 - `nearest` - Round to nearest whole number (0.5 → 1, 0.4 → 0)

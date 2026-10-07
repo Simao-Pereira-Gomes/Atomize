@@ -49,6 +49,36 @@ describe("TemplateValidator", () => {
 			expect(result.valid).toBe(true);
 		});
 
+		test("Offline Validation reports a use-default defaultParentEstimation missing from the table", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: {
+					ifParentHasNoEstimation: "use-default",
+					defaultParentEstimation: "XXL",
+					conversion: { table: { S: 2, M: 4 } },
+				},
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path === "estimation.defaultParentEstimation")).toBe(true);
+		});
+
+		test("Offline Validation rejects a conversion with both factor and table", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { conversion: { factor: 4, table: { L: 5 } } },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path.startsWith("estimation.conversion"))).toBe(true);
+		});
+
 		test("Offline Validation accepts a positive conversion factor", () => {
 			const result = validator.validate({
 				version: "1.0",

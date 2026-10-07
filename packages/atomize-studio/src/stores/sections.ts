@@ -1,6 +1,7 @@
 import {
   type EstimationConfig,
   type FilterCriteria,
+  isConvertibleStoryEstimate,
   type Metadata,
   normalizeEstimationPercentages,
   type TaskDefinition,
@@ -209,6 +210,14 @@ function optionalNumber(value: string): number | undefined {
   return trimmed === "" ? undefined : Number(trimmed);
 }
 
+/** A Story Estimate typed into a text field: numbers stay numeric, anything else is a category such as "M". */
+function optionalStoryEstimate(value: string): number | string | undefined {
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  const numeric = Number(trimmed);
+  return Number.isFinite(numeric) ? numeric : trimmed;
+}
+
 function isNonNegativeNumber(value: string): boolean {
   const numeric = optionalNumber(value);
   return numeric === undefined || (!Number.isNaN(numeric) && numeric >= 0);
@@ -364,21 +373,25 @@ function makeEstimation() {
     setAdvanced(reconcile(nextAdvanced));
     clearErrors(errors, (value) => setErrors(reconcile(value)));
   };
+  const defaultEstimateError = (): string | undefined => {
+    const value = optionalStoryEstimate(fields.defaultParentEstimation);
+    if (typeof value === "number" && value < 0) return "Must be 0 or greater";
+    if (fields.ifParentHasNoEstimation !== "use-default") return undefined;
+    if (value === undefined) return "A default estimate is required";
+    return isConvertibleStoryEstimate(value, advanced.conversion)
+      ? undefined
+      : advanced.conversion?.table
+        ? "Must be one of the conversion table's values"
+        : "Must be a number unless a conversion table is set";
+  };
   const validate = () => {
     setErrors(reconcile({
       minimumTaskEstimate: !isNonNegativeNumber(fields.minimumTaskEstimate) ? "Must be 0 or greater" : undefined,
-      defaultParentEstimation:
-        !isNonNegativeNumber(fields.defaultParentEstimation)
-          ? "Must be 0 or greater"
-          : fields.ifParentHasNoEstimation === "use-default" && fields.defaultParentEstimation.trim() === ""
-            ? "A default estimate is required"
-            : undefined,
+      defaultParentEstimation: defaultEstimateError(),
     }));
   };
   const isValid = () =>
-    isNonNegativeNumber(fields.minimumTaskEstimate) &&
-    isNonNegativeNumber(fields.defaultParentEstimation) &&
-    (fields.ifParentHasNoEstimation !== "use-default" || fields.defaultParentEstimation.trim() !== "");
+    isNonNegativeNumber(fields.minimumTaskEstimate) && defaultEstimateError() === undefined;
   return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
 }
 
@@ -561,7 +574,7 @@ function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
     rounding: store.fields.rounding,
     minimumTaskEstimate: optionalNumber(store.fields.minimumTaskEstimate),
     ifParentHasNoEstimation: store.fields.ifParentHasNoEstimation || undefined,
-    defaultParentEstimation: optionalNumber(store.fields.defaultParentEstimation),
+    defaultParentEstimation: optionalStoryEstimate(store.fields.defaultParentEstimation),
   };
 
   const hasMeaningfulValue =

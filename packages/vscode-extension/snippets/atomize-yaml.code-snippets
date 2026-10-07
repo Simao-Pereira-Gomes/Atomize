@@ -103,10 +103,9 @@
     "body": [
       "estimation:",
       "  strategy: ${1|percentage|}",
-      "  source: \"${2:story-points}\"",
-      "  rounding: ${3|none,nearest,up,down|}"
+      "  rounding: ${2|none,nearest,up,down|}"
     ],
-    "description": "Common Atomize estimation configuration: strategy, source, and rounding."
+    "description": "Common Atomize estimation configuration: strategy and rounding. Add source only to read a non-default Story field, by its reference name."
   },
 
   "Atomize Estimation Percent Condition": {

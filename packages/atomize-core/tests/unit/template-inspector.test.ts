@@ -280,6 +280,36 @@ describe("parseMockStory", () => {
 // ---------------------------------------------------------------------------
 
 describe("runPreview", () => {
+  const tShirtTemplate = () =>
+    makeTemplate({
+      tasks: [
+        { title: "Task A", estimationPercent: 80 },
+        { title: "Task B", estimationPercent: 20 },
+      ],
+      estimation: { strategy: "percentage", rounding: "none", source: "Custom.TShirtSize", conversion: { table: { L: 5 } } },
+    });
+
+  test("Mock Preview reads the Story Estimate from the overridden source field", () => {
+    const result = runPreview(tShirtTemplate(), '{"estimation":40,"customFields":{"Custom.TShirtSize":"L"}}');
+
+    expect(result.tasks.map((t) => t.estimation)).toEqual([4, 1]);
+    expect(result.estimationSummary.storyEstimation).toBe(5);
+  });
+
+  test("Mock Preview shows an Unresolvable Story Estimate when the Mock Story lacks the source field", () => {
+    const result = runPreview(tShirtTemplate(), '{"estimation":40}');
+
+    expect(result.tasks.every((t) => t.estimation === undefined)).toBe(true);
+    expect(result.unresolvedEstimate?.action).toBe("blank");
+  });
+
+  test("inspection asks for the overridden source field instead of estimation", () => {
+    const fields = inspectTemplate(tShirtTemplate()).fields.map((f) => f.name);
+
+    expect(fields).toContain("Custom.TShirtSize");
+    expect(fields).not.toContain("estimation");
+  });
+
   test("Mock Preview leaves Task Estimates blank and explains why when the Story has no estimate", () => {
     const result = runPreview(makeTemplate(), "{}");
 

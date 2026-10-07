@@ -43,6 +43,7 @@ export class StoryProcessor {
 
     const fieldMapping = this.estimationDefaults
       ? resolveEstimationFieldMapping(this.estimationDefaults, {
+          source: template.estimation?.source,
           taskType: template.taskType,
           targetFields: template.estimation?.targetFields,
         })

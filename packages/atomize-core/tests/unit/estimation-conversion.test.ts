@@ -36,6 +36,40 @@ describe("convertStoryEstimate", () => {
   });
 });
 
+describe("convertStoryEstimate with a table", () => {
+  const tShirt = { table: { XS: 1, S: 2, M: 4, L: 5, XL: 13 } };
+
+  test("looks up categories exactly", () => {
+    expect(convertStoryEstimate("L", tShirt)).toEqual({ kind: "resolved", total: 5 });
+    expect(convertStoryEstimate("l", tShirt).kind).toBe("unresolvable");
+  });
+
+  test("matches numeric Story Estimates against numeric keys, for scales that aren't linear", () => {
+    const fibonacci = { table: { 1: 2, 2: 4, 3: 8, 5: 16 } };
+    expect(convertStoryEstimate(5, fibonacci)).toEqual({ kind: "resolved", total: 16 });
+    expect(convertStoryEstimate(4, fibonacci).kind).toBe("unresolvable");
+  });
+
+  test("a value missing from the table is unresolvable and named in the reason", () => {
+    const result = convertStoryEstimate("XXL", tShirt);
+    expect(result).toEqual({ kind: "unresolvable", reason: 'Story Estimate "XXL" is not in the conversion table' });
+  });
+
+  test("compound values are matched literally, never parsed", () => {
+    expect(convertStoryEstimate("0.32L", { table: { "0.32L": 1.6 } })).toEqual({ kind: "resolved", total: 1.6 });
+    expect(convertStoryEstimate("0.5L", { table: { "0.32L": 1.6, L: 5 } }).kind).toBe("unresolvable");
+  });
+
+  test("use-default converts a category default through the table", () => {
+    const result = resolveStoryEstimate(undefined, {
+      ifParentHasNoEstimation: "use-default",
+      defaultParentEstimation: "M",
+      conversion: tShirt,
+    });
+    expect(result).toEqual({ kind: "resolved", total: 4, fallbackReason: "Story has no estimate" });
+  });
+});
+
 describe("resolveStoryEstimate", () => {
   test("a resolvable Story Estimate is converted regardless of policy", () => {
     expect(resolveStoryEstimate(5, { conversion: { factor: 2 }, ifParentHasNoEstimation: "skip" })).toEqual({

@@ -29,7 +29,6 @@ tasks:
 
 estimation:
   strategy: percentage
-  source: "story-points"
   rounding: none
   minimumTaskEstimate: 0
   ifParentHasNoEstimation: warn

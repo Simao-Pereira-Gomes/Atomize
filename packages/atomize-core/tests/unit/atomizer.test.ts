@@ -70,6 +70,35 @@ describe("Atomizer", () => {
       }
     });
 
+    test("reads the Story Estimate from the Template's source field during generation", async () => {
+      await platform.authenticate();
+      const stories = await platform.queryWorkItems(basicTemplate.filter);
+      const target = stories[0];
+      if (!target) throw new Error("mock data has no stories");
+      const originalFields = target.customFields;
+      target.customFields = { ...originalFields, "Custom.TShirtSize": "L" };
+      try {
+        const report = await atomizer.atomize(
+          {
+            ...basicTemplate,
+            estimation: {
+              strategy: "percentage",
+              rounding: "none",
+              source: "Custom.TShirtSize",
+              conversion: { table: { L: 10 } },
+            },
+          },
+          { dryRun: true, storyIds: [target.id] },
+        );
+
+        const result = report.results.find((r) => r.story.id === target.id);
+        expect(result?.tasksCalculated.map((t) => t.estimation)).toEqual([2, 5, 3]);
+        expect(result?.estimationSummary?.storyEstimation).toBe(10);
+      } finally {
+        target.customFields = originalFields;
+      }
+    });
+
     test("creates Tasks as the Template's taskType", async () => {
       await platform.authenticate();
 

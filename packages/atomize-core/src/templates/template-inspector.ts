@@ -4,6 +4,8 @@ import {
 } from "../core/condition-evaluator";
 import { DependencyResolver } from "../core/dependency-resolver";
 import { EstimationCalculator } from "../core/estimation-calculator";
+import { resolveEstimationFieldMapping } from "../core/estimation-field-mapping";
+import { MOCK_ESTIMATION_DEFAULTS } from "../platforms/adapters/mock/mock.adapter";
 import type { WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { FilterCriteria, TaskTemplate } from "./schema";
 
@@ -118,7 +120,9 @@ export function inspectTemplate(template: TaskTemplate): InspectResult {
   }
 
   if (template.tasks.some((task) => task.estimationPercent !== undefined || task.estimationPercentCondition?.length)) {
-    upsert("estimation", "number", "estimation", { required: true });
+    const source = template.estimation?.source;
+    if (source) upsert(source, "unknown", "estimation", { required: true });
+    else upsert("estimation", "number", "estimation", { required: true });
   }
 
   for (const name of filterFields) {
@@ -169,14 +173,19 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
   const orderedTasks = new DependencyResolver().resolveDependencies(template.tasks);
   const calc = new EstimationCalculator();
 
+  const fieldMapping = resolveEstimationFieldMapping(MOCK_ESTIMATION_DEFAULTS, {
+    source: template.estimation?.source,
+  });
   const { calculatedTasks, skippedTasks, unresolvedEstimate } = calc.calculateTasksWithSkipped(
     story,
     "",
     orderedTasks,
     template.estimation,
+    false,
+    fieldMapping,
   );
 
-  const summary = calc.getEstimationSummary(story, calculatedTasks, template.estimation);
+  const summary = calc.getEstimationSummary(story, calculatedTasks, template.estimation, fieldMapping);
 
   const tasks: PreviewTask[] = calculatedTasks.map((task) => {
     const result: PreviewTask = { title: task.title };

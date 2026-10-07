@@ -339,12 +339,32 @@ export const EstimationConversionSchema = z
     factor: z
       .number()
       .positive()
-      .describe("Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."),
+      .describe("Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours.")
+      .optional(),
+    table: z
+      .record(z.string(), z.number().nonnegative())
+      .refine((table) => Object.keys(table).length > 0, "conversion.table must have at least one entry")
+      .describe(
+        "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear.",
+      )
+      .optional(),
   })
   .strict()
+  .refine((conversion) => (conversion.factor === undefined) !== (conversion.table === undefined), {
+    message: "conversion must set exactly one of factor or table",
+  })
   .describe(
-    "Translates the Story Estimate into the Task's unit before it is split across tasks. Omit for one-to-one.",
+    "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
   );
+
+/** Whether a Story Estimate value can be translated by the given conversion (or one-to-one when absent). */
+export function isConvertibleStoryEstimate(
+  value: string | number,
+  conversion: z.infer<typeof EstimationConversionSchema> | undefined,
+): boolean {
+  if (conversion?.table) return Object.hasOwn(conversion.table, String(value));
+  return typeof value === "number" || (value.trim() !== "" && Number.isFinite(Number(value)));
+}
 
 export const EstimationConfigSchema = z.object({
   strategy: z
@@ -356,8 +376,9 @@ export const EstimationConfigSchema = z.object({
     ),
   source: z
     .string()
+    .min(1)
     .describe(
-      "Field on the parent story to read the estimation value from (e.g. 'story-points').",
+      "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default.",
     )
     .optional(),
   conversion: EstimationConversionSchema.optional(),
@@ -391,12 +412,22 @@ export const EstimationConfigSchema = z.object({
     )
     .optional(),
   defaultParentEstimation: z
-    .number()
+    .union([z.number(), z.string().min(1)])
     .describe(
-      "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default'. Goes through the same conversion as a real Story Estimate.",
+      "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate.",
     )
     .optional(),
-}).strict();
+}).strict().superRefine((config, ctx) => {
+  if (config.ifParentHasNoEstimation !== "use-default" || config.defaultParentEstimation === undefined) return;
+  if (isConvertibleStoryEstimate(config.defaultParentEstimation, config.conversion)) return;
+  ctx.addIssue({
+    code: "custom",
+    path: ["defaultParentEstimation"],
+    message: config.conversion?.table
+      ? `defaultParentEstimation "${config.defaultParentEstimation}" is not a key of conversion.table`
+      : `defaultParentEstimation "${config.defaultParentEstimation}" is not numeric and no conversion.table is set`,
+  });
+});
 
 export const ValidationModeSchema = z
   .enum(["strict", "lenient"])
