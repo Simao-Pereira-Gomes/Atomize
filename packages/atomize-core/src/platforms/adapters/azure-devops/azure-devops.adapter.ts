@@ -9,6 +9,7 @@ import {
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
 import { logger } from "../../../logger";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "../../../utils/errors";
+import type { EstimationDefaults } from "../../interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
 import type { FilterCriteria } from "../../interfaces/filter.interface";
 import type {
@@ -23,6 +24,7 @@ import type {
   WorkItem,
 } from "../../interfaces/work-item.interface";
 import { FieldSchemaService } from "./azure-devops-field-schema.service.js";
+import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "./estimation-defaults";
 import { buildCreateTaskPatch, buildDependencyLinkPatch } from "./task-patch-builder";
 import { convertWorkItem } from "./work-item-mapper";
 import { buildWorkItemWiqlQuery } from "./work-item-query";
@@ -204,10 +206,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new Error(`Invalid parent ID: ${parentId}`);
       }
 
+      const defaults = this.getEstimationDefaults();
       const patchDocument = buildCreateTaskPatch(
         this.config.organizationUrl,
         numericParentId,
         task,
+        { fields: defaults.taskEstimateFields, initializeCompletedWork: true },
       );
 
       if (!this.witApi) {
@@ -218,7 +222,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         undefined, // customHeaders
         patchDocument,
         this.config.project,
-        "Task", // work item type
+        defaults.taskWorkItemType,
       );
 
       logger.info(`AzureDevOps: Created task ${createdItem.id}: ${task.title}`);
@@ -281,6 +285,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     );
 
     return createdTasks;
+  }
+
+  getEstimationDefaults(): EstimationDefaults {
+    return AZURE_DEVOPS_ESTIMATION_DEFAULTS;
   }
 
   /**

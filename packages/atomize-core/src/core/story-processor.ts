@@ -4,6 +4,7 @@ import type { WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { TaskTemplate, TaskDefinition as TemplateTaskDefinition } from "../templates/schema";
 import type { AtomizationOptions, StoryAtomizationResult } from "./atomizer";
 import { EstimationCalculator } from "./estimation-calculator";
+import { type EstimationFieldMapping, resolveEstimationFieldMapping } from "./estimation-field-mapping";
 import { TaskMaterializer } from "./task-materializer";
 
 /**
@@ -15,6 +16,7 @@ import { TaskMaterializer } from "./task-materializer";
 export class StoryProcessor {
   private estimationCalculator: EstimationCalculator;
   private taskMaterializer: TaskMaterializer;
+  private fieldMapping: EstimationFieldMapping | undefined;
 
   constructor(
     platform: GenerationPlatform,
@@ -23,6 +25,8 @@ export class StoryProcessor {
   ) {
     this.estimationCalculator = estimationCalculator;
     this.taskMaterializer = taskMaterializer;
+    const defaults = platform.getEstimationDefaults?.();
+    this.fieldMapping = defaults ? resolveEstimationFieldMapping(defaults) : undefined;
   }
 
   async process(
@@ -44,6 +48,7 @@ export class StoryProcessor {
         orderedTasks,
         template.estimation,
         options.forceNormalize,
+        this.fieldMapping,
       );
 
     logger.info(

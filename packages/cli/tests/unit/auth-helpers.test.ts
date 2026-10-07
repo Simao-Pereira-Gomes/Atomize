@@ -17,6 +17,7 @@ import {
 import type { AzureDevOpsProfile, ConnectionProfile } from "@config/connections.interface";
 import { encryptWithKeyfile } from "@config/keyfile.service";
 import { validateOrganizationUrl } from "@sppg2001/atomize-core";
+import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import {
   applyDefault,
@@ -340,6 +341,7 @@ function makePlatform(
     createTask: mock(() => Promise.resolve({ id: "1", title: "t" } as never)),
     createTasksBulk: mock(() => Promise.resolve([])),
     getPlatformMetadata: mock(() => ({ name: "TestPlatform", version: "1.0.0" })),
+    getEstimationDefaults: () => MOCK_ESTIMATION_DEFAULTS,
     ...overrides,
   };
 }

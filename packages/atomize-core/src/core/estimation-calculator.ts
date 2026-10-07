@@ -11,6 +11,12 @@ import type {
 import { getErrorMessage } from "../utils/errors";
 import { ConditionEvaluator } from "./condition-evaluator.js";
 import { distributeActiveTaskPercentages } from "./estimation-distribution";
+import {
+  type EstimationFieldMapping,
+  numericStoryEstimate,
+  readStoryEstimate,
+  type StoryEstimateSource,
+} from "./estimation-field-mapping";
 import { interpolateValue } from "./template-interpolator.js";
 
 /**
@@ -53,12 +59,13 @@ export class EstimationCalculator {
     templateTasks: TemplateTaskDefinition[],
     estimationConfig?: EstimationConfig,
     forceNormalize = false,
+    fieldMapping?: EstimationFieldMapping,
   ): TaskCalculationResult {
     logger.debug(
       `EstimationCalculator: Calculating tasks for story ${story.id}`
     );
 
-    const parentEstimation = story.estimation || 0;
+    const parentEstimation = this.parentEstimation(story, fieldMapping?.storySource);
 
     if (parentEstimation === 0) {
       logger.warn(
@@ -182,7 +189,6 @@ export class EstimationCalculator {
       ),
       priority: templateTask.priority,
       activity: templateTask.activity,
-      completedWork: 0,
       iteration: story.iteration,
       areaPath: story.areaPath,
       customFields: this.interpolateCustomFields(templateTask.customFields, story),
@@ -190,6 +196,11 @@ export class EstimationCalculator {
       estimationPercent: resolvedPercent ?? templateTask.estimationPercent,
       estimationFixed: templateTask.estimationFixed,
     };
+  }
+
+  private parentEstimation(story: WorkItem, source?: StoryEstimateSource): number {
+    const raw = readStoryEstimate(story, source ?? { kind: "default", fields: [] });
+    return numericStoryEstimate(raw) ?? 0;
   }
 
   /**
@@ -306,7 +317,7 @@ export class EstimationCalculator {
     difference: number;
     percentageUsed: number;
   } {
-    const storyEstimation = story.estimation || 0;
+    const storyEstimation = numericStoryEstimate(story.estimation) ?? 0;
     const totalTaskEstimation = this.calculateTotalEstimation(tasks);
     const difference = storyEstimation - totalTaskEstimation;
     const percentageUsed =

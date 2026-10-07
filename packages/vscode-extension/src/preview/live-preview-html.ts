@@ -15,7 +15,7 @@ export interface LivePreviewStory {
 	id: string;
 	title: string;
 	url?: string;
-	estimation?: number;
+	estimation?: number | string;
 }
 
 export interface LivePreviewResult {
@@ -90,7 +90,7 @@ function storyHeader(story: LivePreviewStory, shortFile: string, mode: 'default'
 		: `<span style="font-size:.78em;color:var(--vscode-descriptionForeground)">${esc(story.id)}</span>`;
 
 	const estimation = story.estimation != null
-		? `<div style="font-size:.82em;color:var(--vscode-testing-iconPassed);font-weight:700">${story.estimation}h estimate</div>`
+		? `<div style="font-size:.82em;color:var(--vscode-testing-iconPassed);font-weight:700">${esc(String(story.estimation))}h estimate</div>`
 		: '';
 
 	return `

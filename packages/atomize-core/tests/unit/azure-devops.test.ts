@@ -444,13 +444,13 @@ describe("AzureDevOpsAdapter", () => {
       expect(billableOp.value).toBe(true);
     });
 
-    test("should set CompletedWork and IterationPath from task definition", async () => {
+    test("should create the default child type, initialise CompletedWork, and set IterationPath", async () => {
       const task = {
         title: "Task with inherited fields",
         estimation: 5,
-        completedWork: 0,
         iteration: "SampleProject\\Sprint 1",
       };
+      let capturedType: string | undefined;
 
       // Capture the patch document sent to createWorkItem
       //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
@@ -463,6 +463,7 @@ describe("AzureDevOpsAdapter", () => {
           type: string
         ) => {
           capturedPatchDocument = document;
+          capturedType = type;
           return {
             id: 123,
             fields: {
@@ -479,7 +480,9 @@ describe("AzureDevOpsAdapter", () => {
       const created = await adapter.createTask("100", task);
       expect(created).toBeDefined();
 
-      // Verify CompletedWork is set from task definition
+      expect(capturedType).toBe("Task");
+
+      // CompletedWork comes from the adapter's estimation defaults
       //biome-ignore-start lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
       const completedWorkOp = capturedPatchDocument.find(
         (op: any) =>

@@ -1,3 +1,4 @@
+import { numericStoryEstimate } from "../../core/estimation-field-mapping";
 import { PatternDetector } from "./pattern-detection";
 import type {
   ConfidenceFactor,
@@ -370,7 +371,7 @@ export class OutlierDetector {
     const estimations = analyses
       .map((a) => ({
         storyId: a.story.id,
-        estimation: a.story.estimation ?? 0,
+        estimation: numericStoryEstimate(a.story.estimation) ?? 0,
       }))
       .filter((e) => e.estimation > 0);
 

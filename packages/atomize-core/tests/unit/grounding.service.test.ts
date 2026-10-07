@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { GroundingService } from "@sppg2001/atomize-core/services/template/grounding.service";
@@ -20,6 +21,7 @@ function makePlatform(overrides: Partial<IPlatformAdapter> = {}): IPlatformAdapt
     createTask: mock(async () => makeWorkItem(999)),
     createTasksBulk: mock(async () => [makeWorkItem(999)]),
     getPlatformMetadata: mock(() => ({ name: "mock", version: "1.0" })),
+    getEstimationDefaults: () => MOCK_ESTIMATION_DEFAULTS,
     ...overrides,
   };
 }

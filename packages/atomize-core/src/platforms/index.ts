@@ -1,6 +1,7 @@
 export * from "./adapters/azure-devops/azure-devops.adapter";
 export * from "./adapters/mock/mock.adapter";
 export * from "./adapters/mock/mock-data";
+export * from "./interfaces/estimation-defaults.interface";
 export * from "./interfaces/filter.interface";
 export * from "./interfaces/platform.interface";
 export * from "./interfaces/platform-capabilities";

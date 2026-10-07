@@ -21,8 +21,8 @@ export interface WorkItem {
   /** Assigned user email or identifier */
   assignedTo?: string;
 
-  /** Estimation (story points, hours, etc.) */
-  estimation?: number;
+  /** Estimate in the work item's own unit, read through the platform's estimation field chain */
+  estimation?: StoryEstimate;
 
   /** Tags/labels */
   tags?: string[];
@@ -67,17 +67,14 @@ export interface WorkItem {
 }
 
 /**
- * Standard work item types across platforms
+ * Platform-native work item type name (e.g. "User Story", "Product Backlog Item", "Sub-task").
  */
-export type WorkItemType =
-  | "User Story"
-  | "Product Backlog Item"
-  | "Bug"
-  | "Task"
-  | "Epic"
-  | "Feature"
-  | "Issue"
-  | "Subtask";
+export type WorkItemType = string;
+
+/**
+ * A Story Estimate in the Story's own unit: points, hours, or a category such as a t-shirt size.
+ */
+export type StoryEstimate = number | string;
 
 /**
  * Task definition for creation
@@ -103,9 +100,6 @@ export interface TaskDefinition {
 
   /** Activity type (Design, Development, Testing, etc.) */
   activity?: string;
-
-  /** Completed work in hours (defaults to 0 for new tasks) */
-  completedWork?: number;
 
   /** Iteration/sprint path (inherited from parent) */
   iteration?: string;

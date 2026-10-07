@@ -1,3 +1,4 @@
+import type { EstimationDefaults } from "./estimation-defaults.interface";
 import type { ADoFieldSchema } from "./field-schema.interface";
 import type { FilterCriteria, QueryResult } from "./filter.interface";
 import type { TaskDefinition, WorkItem } from "./work-item.interface";
@@ -93,6 +94,11 @@ export interface IPlatformAdapter {
    * Get platform metadata
    */
   getPlatformMetadata(): PlatformMetadata;
+
+  /**
+   * The platform's default Estimation Field Mapping (ADR 0064)
+   */
+  getEstimationDefaults(): EstimationDefaults;
 
   /**
    * Test connection

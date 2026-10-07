@@ -1,4 +1,5 @@
 import { normalizeLearnedTaskPercentages } from "../../core/estimation-distribution";
+import { numericStoryEstimate } from "../../core/estimation-field-mapping";
 import type { WorkItem } from "../../platforms/interfaces/work-item.interface";
 import type { TaskDefinition, TaskTemplate } from "../../templates/schema";
 import { ConfidenceScorer } from "./confidence-analysis";
@@ -37,7 +38,7 @@ export class LearnedTemplateProductBuilder {
     const workItemTypes = [...new Set(analyses.map((a) => a.story.type))];
     const allTags = [...new Set(analyses.flatMap((a) => a.story.tags ?? []))];
     const estimations = analyses
-      .map((a) => a.story.estimation ?? 0)
+      .map((a) => numericStoryEstimate(a.story.estimation) ?? 0)
       .filter((estimation) => estimation > 0);
     const avgEstimation =
       estimations.length > 0
@@ -89,9 +90,9 @@ export class LearnedTemplateProductBuilder {
   }
 
   buildSingleStoryTemplate(story: WorkItem, tasks: WorkItem[]): TaskTemplate {
-    const storyEstimation = story.estimation || 0;
+    const storyEstimation = numericStoryEstimate(story.estimation) ?? 0;
     const taskDefinitions: TaskDefinition[] = tasks.map((task, index) => {
-      const taskEstimation = task.estimation || 0;
+      const taskEstimation = numericStoryEstimate(task.estimation) ?? 0;
       const estimationPercent =
         storyEstimation > 0
           ? Math.round((taskEstimation / storyEstimation) * 100)

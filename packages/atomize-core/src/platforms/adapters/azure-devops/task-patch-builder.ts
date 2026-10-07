@@ -40,10 +40,17 @@ export function resolveDateMacro(value: unknown): unknown {
   return base.toISOString().slice(0, 10);
 }
 
+export interface TaskEstimateWrite {
+  fields: readonly string[];
+  /** New Tasks start with no completed work; only written alongside the default estimate fields. */
+  initializeCompletedWork?: boolean;
+}
+
 export function buildCreateTaskPatch(
   organizationUrl: string,
   parentId: number,
   task: TaskDefinition,
+  estimateWrite: TaskEstimateWrite,
 ): JsonPatchDocument {
   return [
     {
@@ -61,27 +68,14 @@ export function buildCreateTaskPatch(
         ]
       : []),
     ...(task.estimation !== undefined
-      ? [
-          {
-            op: "add",
-            path: "/fields/Microsoft.VSTS.Scheduling.RemainingWork",
-            value: task.estimation,
-          },
-          {
-            op: "add",
-            path: "/fields/Microsoft.VSTS.Scheduling.OriginalEstimate",
-            value: task.estimation,
-          },
-        ]
+      ? estimateWrite.fields.map((field) => ({
+          op: "add" as const,
+          path: `/fields/${field}`,
+          value: task.estimation,
+        }))
       : []),
-    ...(task.completedWork !== undefined
-      ? [
-          {
-            op: "add",
-            path: "/fields/Microsoft.VSTS.Scheduling.CompletedWork",
-            value: task.completedWork,
-          },
-        ]
+    ...(estimateWrite.initializeCompletedWork
+      ? [{ op: "add" as const, path: "/fields/Microsoft.VSTS.Scheduling.CompletedWork", value: 0 }]
       : []),
     ...(task.iteration
       ? [

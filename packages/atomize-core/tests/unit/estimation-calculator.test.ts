@@ -237,7 +237,7 @@ describe("EstimationCalculator", () => {
       expect(calculated[0]?.activity).toBe("Development");
     });
 
-    test("should set completedWork to 0 and inherit iteration from parent", () => {
+    test("should inherit iteration from parent", () => {
       const storyWithIteration: WorkItem = {
         ...mockStory,
         iteration: "Project\\Sprint 1",
@@ -256,7 +256,6 @@ describe("EstimationCalculator", () => {
         tasks
       );
 
-      expect(calculated[0]?.completedWork).toBe(0);
       expect(calculated[0]?.iteration).toBe("Project\\Sprint 1");
     });
 
