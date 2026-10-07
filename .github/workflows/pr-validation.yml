@@ -147,4 +147,6 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run Bun audit
-        run: bun audit --audit-level=moderate
+        # braces 3.0.3 is the latest release and remains required by the Tailwind CLI.
+        # Remove this exception when https://github.com/micromatch/braces/issues/73 is resolved.
+        run: bun audit --audit-level=moderate --ignore GHSA-vfj7-8cjw-p6xm
