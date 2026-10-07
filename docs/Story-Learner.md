@@ -68,6 +68,7 @@ atomize template create \
 | `--platform <name>` | Platform to fetch from |
 | `--profile <name>` | Azure DevOps connection profile to use |
 | `--save-as <name>` | Catalog name to save the generated template under |
+| `--estimation-source <field>` | Read each Story Estimate from this field reference name (e.g. `Custom.TShirtSize`) instead of the platform default, and write it as `estimation.source` |
 
 ### Minimum Requirements
 
@@ -103,7 +104,15 @@ Stories that are significantly different from the others (e.g., have many more o
 
 ### 4. Estimation Averaging
 
-For tasks that appear in multiple stories, the estimation percentage is averaged across all instances (excluding outliers).
+For tasks that appear in multiple stories, the estimation percentage is averaged across all instances (excluding outliers). Each instance's percentage is that task's share of **its own Story's total Task Estimates** (3h + 3h + 4h → 30/30/40), so it is correct whatever unit the Stories are sized in.
+
+### 4b. Estimation Conversion Inference
+
+The learner also infers how your Story Estimates translate into Task hours and writes it as `estimation.conversion`:
+
+- **Categories** (e.g. t-shirt sizes): a `table` with each size's **median** total Task hours. Sizes seen on only one Story are flagged in the suggestions, so you can check them.
+- **Numbers** (e.g. points): a `factor`, the median of Task hours ÷ Story Estimate. If hours already match the Story Estimate, no conversion is written. Scales that aren't linear are learned as a factor; replace it with a numeric `table` if your team's hours grow faster than points.
+- `defaultParentEstimation` is the **most common** Story Estimate.
 
 ### 5. Condition Pattern Detection
 
@@ -202,10 +211,13 @@ estimation:
   strategy: "percentage"
   rounding: "nearest"
   minimumTaskEstimate: 0.5
+  conversion:
+    factor: 1.5             # learned: median Task hours per Story point
+  defaultParentEstimation: 8
 
 metadata:
   category: "Learned"
-  estimationGuidelines: "Learned from stories with avg estimation of 9.3 points"
+  estimationGuidelines: "Learned from stories with avg estimation of 9.3"
 ```
 
 ---

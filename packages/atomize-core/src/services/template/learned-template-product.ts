@@ -1,7 +1,8 @@
 import { normalizeLearnedTaskPercentages } from "../../core/estimation-distribution";
 import { numericStoryEstimate } from "../../core/estimation-field-mapping";
+import { type EstimationSample, inferEstimation, taskEstimateShares } from "../../core/estimation-inference";
 import type { WorkItem } from "../../platforms/interfaces/work-item.interface";
-import type { TaskDefinition, TaskTemplate } from "../../templates/schema";
+import type { EstimationConfig, TaskDefinition, TaskTemplate } from "../../templates/schema";
 import { ConfidenceScorer } from "./confidence-analysis";
 import type {
   MergedTask,
@@ -16,6 +17,7 @@ export class LearnedTemplateProductBuilder {
   buildMergedTemplate(
     analyses: StoryAnalysis[],
     mergedTasks: MergedTask[],
+    estimationSource?: string,
   ): TaskTemplate {
     const taskDefinitions = mergedTasks.map((mt) => {
       const task = { ...mt.task };
@@ -37,16 +39,6 @@ export class LearnedTemplateProductBuilder {
 
     const workItemTypes = [...new Set(analyses.map((a) => a.story.type))];
     const allTags = [...new Set(analyses.flatMap((a) => a.story.tags ?? []))];
-    const estimations = analyses
-      .map((a) => numericStoryEstimate(a.story.estimation) ?? 0)
-      .filter((estimation) => estimation > 0);
-    const avgEstimation =
-      estimations.length > 0
-        ? Math.round(
-            estimations.reduce((sum, estimation) => sum + estimation, 0) /
-              estimations.length,
-          )
-        : 0;
 
     const storyIds = analyses.map((a) => a.story.id).join(", ");
     return {
@@ -61,12 +53,10 @@ export class LearnedTemplateProductBuilder {
         tags: allTags.length > 0 ? { include: allTags } : undefined,
       },
       tasks: taskDefinitions,
-      estimation: {
-        strategy: "percentage",
-        rounding: "none",
-        minimumTaskEstimate: 0,
-        defaultParentEstimation: avgEstimation,
-      },
+      estimation: learnedEstimationConfig(
+        analyses.map((a) => estimationSample(a.story, a.tasks)),
+        estimationSource,
+      ),
     };
   }
 
@@ -89,14 +79,10 @@ export class LearnedTemplateProductBuilder {
     };
   }
 
-  buildSingleStoryTemplate(story: WorkItem, tasks: WorkItem[]): TaskTemplate {
-    const storyEstimation = numericStoryEstimate(story.estimation) ?? 0;
+  buildSingleStoryTemplate(story: WorkItem, tasks: WorkItem[], estimationSource?: string): TaskTemplate {
+    const shares = taskEstimateShares(tasks.map((task) => numericStoryEstimate(task.estimation)));
     const taskDefinitions: TaskDefinition[] = tasks.map((task, index) => {
-      const taskEstimation = numericStoryEstimate(task.estimation) ?? 0;
-      const estimationPercent =
-        storyEstimation > 0
-          ? Math.round((taskEstimation / storyEstimation) * 100)
-          : 0;
+      const estimationPercent = shares[index] ?? 0;
 
       return {
         id: this.generateTaskId(task.title, index),
@@ -123,12 +109,7 @@ export class LearnedTemplateProductBuilder {
         tags: story.tags?.length ? { include: story.tags } : undefined,
       },
       tasks: taskDefinitions,
-      estimation: {
-        strategy: "percentage",
-        rounding: "none",
-        minimumTaskEstimate: 0,
-        defaultParentEstimation: storyEstimation,
-      },
+      estimation: learnedEstimationConfig([estimationSample(story, tasks)], estimationSource),
     };
   }
 
@@ -139,6 +120,7 @@ export class LearnedTemplateProductBuilder {
     outliers: Outlier[],
   ): TemplateSuggestion[] {
     return [
+      ...this.suggestEstimationChecks(analyses),
       ...this.suggestConfidenceImprovements(analyses, confidence),
       ...this.suggestOutlierRemovals(outliers),
       ...this.suggestNamingImprovements(patterns),
@@ -148,10 +130,22 @@ export class LearnedTemplateProductBuilder {
     ];
   }
 
+  private suggestEstimationChecks(analyses: StoryAnalysis[]): TemplateSuggestion[] {
+    const learned = inferEstimation(analyses.map((a) => estimationSample(a.story, a.tasks)));
+    const table = learned.conversion?.table;
+    if (!table) return [];
+    return learned.lowConfidenceValues.map((value) => ({
+      type: "adjust-estimation" as const,
+      message: `The conversion for "${value}" (${table[value]}) was learned from a single Story; check it before relying on it.`,
+      severity: "info" as const,
+    }));
+  }
+
   generateVariations(
     analyses: StoryAnalysis[],
     patterns: PatternDetectionResult,
     mergedTasks: MergedTask[],
+    estimationSource?: string,
   ): TemplateVariation[] {
     const confidenceScorer = new ConfidenceScorer();
     const variations: TemplateVariation[] = [];
@@ -161,7 +155,7 @@ export class LearnedTemplateProductBuilder {
     });
 
     if (coreTasks.length > 0 && coreTasks.length !== mergedTasks.length) {
-      const coreTemplate = this.buildMergedTemplate(analyses, coreTasks);
+      const coreTemplate = this.buildMergedTemplate(analyses, coreTasks, estimationSource);
       coreTemplate.name = "Core Tasks Template";
       coreTemplate.description = "Tasks appearing in 60%+ of analyzed stories";
       variations.push({
@@ -173,7 +167,7 @@ export class LearnedTemplateProductBuilder {
     }
 
     if (mergedTasks.length > 0) {
-      const fullTemplate = this.buildMergedTemplate(analyses, mergedTasks);
+      const fullTemplate = this.buildMergedTemplate(analyses, mergedTasks, estimationSource);
       fullTemplate.name = "Comprehensive Template";
       fullTemplate.description = "All tasks found across analyzed stories";
       variations.push({
@@ -337,4 +331,23 @@ export class LearnedTemplateProductBuilder {
 
     return suggestions;
   }
+}
+
+function estimationSample(story: WorkItem, tasks: WorkItem[]): EstimationSample {
+  return {
+    storyEstimate: story.estimation,
+    taskEstimates: tasks.map((task) => numericStoryEstimate(task.estimation)),
+  };
+}
+
+function learnedEstimationConfig(samples: EstimationSample[], source?: string): EstimationConfig {
+  const learned = inferEstimation(samples);
+  return {
+    strategy: "percentage",
+    rounding: "none",
+    minimumTaskEstimate: 0,
+    ...(source ? { source } : {}),
+    ...(learned.conversion ? { conversion: learned.conversion } : {}),
+    ...(learned.defaultStoryEstimate !== undefined ? { defaultParentEstimation: learned.defaultStoryEstimate } : {}),
+  };
 }

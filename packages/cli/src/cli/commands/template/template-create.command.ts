@@ -71,6 +71,7 @@ interface CreateOptions {
   type?: CreationTarget;
   from?: string;
   fromStories?: string;
+  estimationSource?: string;
   scratch?: boolean;
   ai?: boolean;
   ground?: boolean;
@@ -88,6 +89,10 @@ export const templateCreateCommand = new Command("create")
   .option(
     "--from-stories <ids>",
     "Learn template from multiple stories (comma-separated IDs)",
+  )
+  .option(
+    "--estimation-source <field>",
+    "With --from-stories, read each Story Estimate from this field reference name (e.g. Custom.TShirtSize) and write it as estimation.source",
   )
   .option("-p, --platform <platform>", "Platform to use", "azure-devops")
   .option("--profile <name>", "Connect to ADO using a named profile for field suggestions (uses default profile if omitted)")
@@ -469,7 +474,7 @@ async function createFromStories(
   const learner = new StoryLearner(learningPlatform);
   const learnSpinner = createManagedSpinner();
   learnSpinner.start(`Learning from ${storyIds.length} stories...`);
-  const result = await learner.learnFromStories(storyIds);
+  const result = await learner.learnFromStories(storyIds, { estimationSource: options.estimationSource });
   learnSpinner.stop(`Analyzed ${result.analyses.length} stories ✓`);
 
   displayMultiStoryResults(result);

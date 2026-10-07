@@ -1,5 +1,7 @@
+import { readStoryEstimate } from "../../core/estimation-field-mapping";
 import { logger } from "../../logger";
 import type { StoryLearningPlatform } from "../../platforms/interfaces/platform-capabilities";
+import type { WorkItem } from "../../platforms/interfaces/work-item.interface";
 import type { TaskTemplate } from "../../templates/schema";
 import { TemplateGenerationError } from "../../utils/errors";
 import { LearnedTemplateProductBuilder } from "./learned-template-product";
@@ -9,6 +11,11 @@ import type {
   SkippedStory,
   StoryAnalysis,
 } from "./story-learner.types";
+
+export interface StoryLearningOptions {
+  /** Story field to read the Story Estimate from instead of the platform default; written to the learned Template's estimation.source. */
+  estimationSource?: string;
+}
 
 /**
  * Story Learner
@@ -29,12 +36,14 @@ export class StoryLearner {
    */
   async learnFromStory(
     storyId: string,
+    options: StoryLearningOptions = {},
   ): Promise<TaskTemplate> {
     logger.info(`Learning template from story: ${storyId}`);
-    const story = await this.platform.getWorkItem(storyId);
-    if (!story) {
+    const fetched = await this.platform.getWorkItem(storyId);
+    if (!fetched) {
       throw new TemplateGenerationError(`Story ${storyId} not found`);
     }
+    const story = withEstimationSource(fetched, options.estimationSource);
 
     const tasks = await this.platform.getChildren(storyId);
     if (!tasks || tasks.length === 0) {
@@ -45,7 +54,7 @@ export class StoryLearner {
 
     logger.info(`Found ${tasks.length} tasks to analyze`);
 
-    const template = this.productBuilder.buildSingleStoryTemplate(story, tasks);
+    const template = this.productBuilder.buildSingleStoryTemplate(story, tasks, options.estimationSource);
 
     logger.info("Template learned successfully");
     return template;
@@ -57,6 +66,7 @@ export class StoryLearner {
    */
   async learnFromStories(
     storyIds: string[],
+    options: StoryLearningOptions = {},
   ): Promise<MultiStoryLearningResult> {
     logger.info(
       `Learning template from ${storyIds.length} stories: ${storyIds.join(", ")}`,
@@ -66,7 +76,7 @@ export class StoryLearner {
       throw new TemplateGenerationError("No story IDs provided");
     }
     const results = await Promise.allSettled(
-      storyIds.map((id) => this.analyzeStory(id)),
+      storyIds.map((id) => this.analyzeStory(id, options.estimationSource)),
     );
 
     const analyses: StoryAnalysis[] = [];
@@ -107,6 +117,7 @@ export class StoryLearner {
     const template = this.productBuilder.buildMergedTemplate(
       analyses,
       mergedTasks,
+      options.estimationSource,
     );
     const suggestions = this.productBuilder.generateSuggestions(
       analyses,
@@ -118,6 +129,7 @@ export class StoryLearner {
       analyses,
       patterns,
       mergedTasks,
+      options.estimationSource,
     );
 
     logger.info(
@@ -142,11 +154,13 @@ export class StoryLearner {
    */
   private async analyzeStory(
     storyId: string,
+    estimationSource?: string,
   ): Promise<StoryAnalysis> {
-    const story = await this.platform.getWorkItem(storyId);
-    if (!story) {
+    const fetched = await this.platform.getWorkItem(storyId);
+    if (!fetched) {
       throw new TemplateGenerationError(`Story ${storyId} not found`);
     }
+    const story = withEstimationSource(fetched, estimationSource);
 
     const tasks = await this.platform.getChildren(storyId);
     const warnings: string[] = [];
@@ -168,7 +182,7 @@ export class StoryLearner {
     }
 
 
-    const template = this.productBuilder.buildSingleStoryTemplate(story, tasks);
+    const template = this.productBuilder.buildSingleStoryTemplate(story, tasks, estimationSource);
 
     return { story, tasks, template, warnings };
   }
@@ -196,4 +210,13 @@ export class StoryLearner {
   }
 
 
+}
+
+/**
+ * Puts the overridden source's value where all learning analysis reads the Story Estimate,
+ * so learned estimation conditions compare the same raw value the runtime will read.
+ */
+function withEstimationSource(story: WorkItem, source: string | undefined): WorkItem {
+  if (!source) return story;
+  return { ...story, estimation: readStoryEstimate(story, { kind: "override", field: source }) };
 }

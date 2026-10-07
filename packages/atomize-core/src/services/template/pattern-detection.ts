@@ -1438,7 +1438,7 @@ export class FilterLearner {
       if (max - min <= 3) {
         suggestions.push({
           type: "improve-filter",
-          message: `Stories have similar estimations (${min}-${max} points, avg ${average}). This template works well for stories of this size.`,
+          message: `Stories have similar estimations (${min}-${max}, avg ${average}). This template works well for stories of this size.`,
           severity: "info",
         });
       }
