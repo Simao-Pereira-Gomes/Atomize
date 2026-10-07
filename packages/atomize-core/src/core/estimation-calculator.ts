@@ -96,7 +96,8 @@ export class EstimationCalculator {
         try {
           conditionMet = this.conditionEvaluator.evaluateCondition(
             templateTask.condition,
-            story
+            story,
+            fieldMapping?.storySource,
           );
         } catch (error) {
           const reason = `Condition evaluation error: ${getErrorMessage(error)}`;
@@ -117,7 +118,15 @@ export class EstimationCalculator {
         );
       }
 
-      const resolvedPercent = this.resolveEffectivePercent(templateTask, story);
+      let resolvedPercent: number | undefined;
+      try {
+        resolvedPercent = this.resolveEffectivePercent(templateTask, story, fieldMapping);
+      } catch (error) {
+        const reason = `Condition evaluation error: ${getErrorMessage(error)}`;
+        logger.error(`Skipping task "${templateTask.title}" - ${reason}`);
+        skippedTasks.push({ templateTask, reason });
+        continue;
+      }
       const calculatedTask = this.buildCalculatedTask(
         templateTask,
         story,
@@ -181,10 +190,11 @@ export class EstimationCalculator {
   private resolveEffectivePercent(
     task: TemplateTaskDefinition,
     story: WorkItem,
+    fieldMapping?: EstimationFieldMapping,
   ): number | undefined {
     if (task.estimationPercentCondition?.length) {
       for (const rule of task.estimationPercentCondition) {
-        if (this.conditionEvaluator.evaluateCondition(rule.condition, story)) {
+        if (this.conditionEvaluator.evaluateCondition(rule.condition, story, fieldMapping?.storySource)) {
           logger.debug(
             `Task "${task.title}": conditional percent → ${rule.percent}%`,
           );

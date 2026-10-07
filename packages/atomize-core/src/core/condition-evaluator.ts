@@ -1,6 +1,9 @@
 import { logger } from "../logger.js";
 import type { WorkItem } from "../platforms/interfaces/work-item.interface.js";
 import type { Condition, ConditionOperator } from "../templates/schema.js";
+import { numericStoryEstimate, readStoryEstimate, type StoryEstimateSource } from "./estimation-field-mapping.js";
+
+const NUMERIC_OPERATORS = new Set<ConditionOperator>(["gt", "lt", "gte", "lte"]);
 
 /**
  * Extracts all standard WorkItem field paths (e.g. "tags", "estimation") from a
@@ -52,24 +55,39 @@ export class ConditionEvaluator {
    * Evaluates a structured condition against a work item.
    * @returns true if the condition passes (or condition is absent), false otherwise.
    */
+  /**
+   * @param storyEstimateSource where `field: estimation` reads the raw Story Estimate from;
+   * defaults to the adapter-resolved `story.estimation`.
+   * @throws when a numeric operator is applied to a non-numeric Story Estimate.
+   */
   public evaluateCondition(
     condition: Condition | undefined | null,
     story: WorkItem,
+    storyEstimateSource?: StoryEstimateSource,
   ): boolean {
     if (!condition) return true;
-    return this.evaluate(condition, story);
+    return this.evaluate(condition, story, storyEstimateSource);
   }
 
-  private evaluate(condition: Condition, story: WorkItem): boolean {
+  private evaluate(condition: Condition, story: WorkItem, source?: StoryEstimateSource): boolean {
     if ("all" in condition) {
-      return condition.all.every((c) => this.evaluate(c, story));
+      return condition.all.every((c) => this.evaluate(c, story, source));
     }
     if ("any" in condition) {
-      return condition.any.some((c) => this.evaluate(c, story));
+      return condition.any.some((c) => this.evaluate(c, story, source));
     }
     if ("customField" in condition) {
       const fieldValue = story.customFields?.[condition.customField];
       return this.applyOperator(fieldValue, condition.operator, condition.value);
+    }
+    if (condition.field === "estimation") {
+      const estimate = readStoryEstimate(story, source ?? { kind: "default", fields: [] });
+      if (estimate !== undefined && NUMERIC_OPERATORS.has(condition.operator) && numericStoryEstimate(estimate) === undefined) {
+        throw new Error(
+          `cannot compare the Story Estimate "${estimate}" with "${condition.operator}" because it is not numeric; use equals or not-equals for categories`,
+        );
+      }
+      return this.applyOperator(estimate, condition.operator, condition.value);
     }
     const fieldValue = this.resolveField(condition.field, story);
     return this.applyOperator(fieldValue, condition.operator, condition.value);

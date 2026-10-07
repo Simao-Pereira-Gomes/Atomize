@@ -996,6 +996,57 @@ describe("EstimationCalculator", () => {
       expect(result.unresolvedEstimate?.reason).toContain('"XXL"');
     });
 
+    test("a Task conditioned on a numeric comparison against a size is skipped with a reason", () => {
+      const result = calculator.calculateTasksWithSkipped(
+        sized("L"),
+        "",
+        [
+          { title: "Build", estimationPercent: 100 },
+          { title: "Extra review", estimationPercent: 0, condition: { field: "estimation", operator: "gt", value: 3 } },
+        ],
+        config,
+        false,
+        mapping,
+      );
+      expect(result.calculatedTasks.map((t) => t.title)).toEqual(["Build"]);
+      expect(result.skippedTasks[0]?.reason).toContain("Condition evaluation error");
+    });
+
+    test("a size condition selects Tasks for large Stories", () => {
+      const conditional: TaskDefinition[] = [
+        { title: "Build", estimationPercent: 100 },
+        {
+          title: "Architecture review",
+          estimationPercent: 0,
+          condition: { any: [{ field: "estimation", operator: "equals", value: "L" }, { field: "estimation", operator: "equals", value: "XL" }] },
+        },
+      ];
+      const large = calculator.calculateTasksWithSkipped(sized("XL"), "", conditional, config, false, mapping);
+      const small = calculator.calculateTasksWithSkipped(sized("S"), "", conditional, config, false, mapping);
+      expect(large.calculatedTasks.map((t) => t.title)).toContain("Architecture review");
+      expect(small.calculatedTasks.map((t) => t.title)).not.toContain("Architecture review");
+    });
+
+    test("an estimationPercentCondition that cannot be evaluated skips that Task instead of failing the Story", () => {
+      const result = calculator.calculateTasksWithSkipped(
+        sized("L"),
+        "",
+        [
+          { title: "Build", estimationPercent: 80 },
+          {
+            title: "Review",
+            estimationPercent: 20,
+            estimationPercentCondition: [{ condition: { field: "estimation", operator: "gte", value: 5 }, percent: 30 }],
+          },
+        ],
+        config,
+        false,
+        mapping,
+      );
+      expect(result.calculatedTasks.map((t) => t.title)).toEqual(["Build"]);
+      expect(result.skippedTasks[0]?.templateTask.title).toBe("Review");
+    });
+
     test("a blank source field never falls back to the default estimation", () => {
       const result = calculator.calculateTasksWithSkipped(sized(), "", tasks, config, false, mapping);
       expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);

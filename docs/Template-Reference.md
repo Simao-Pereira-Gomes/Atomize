@@ -493,6 +493,8 @@ tasks:
 | `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte` |
 | `value` | String, number, or boolean to compare against |
 
+`field: estimation` compares against the **raw Story Estimate**, before any `conversion`, read from `estimation.source` when one is set. Existing point-based conditions keep their meaning, and categories work with `equals`/`not-equals`, e.g. `{ field: estimation, operator: equals, value: L }`. A numeric operator (`gt`, `lt`, `gte`, `lte`) against a non-numeric Story Estimate such as `L` is an evaluation error: the task is skipped and the reason is reported.
+
 **Compound clauses:**
 - `{ all: [...] }` means every nested clause must match
 - `{ any: [...] }` means at least one nested clause must match

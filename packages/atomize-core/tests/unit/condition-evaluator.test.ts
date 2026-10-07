@@ -298,3 +298,45 @@ describe("extractCustomFieldRefs", () => {
     expect(extractCustomFieldRefs(cond)).toEqual(["Custom.X", "Custom.Y"]);
   });
 });
+
+describe("ConditionEvaluator — estimation conditions use the raw Story Estimate", () => {
+  const evaluator = new ConditionEvaluator();
+  const story = (estimation?: number | string, customFields: Record<string, unknown> = {}): WorkItem => ({
+    id: "1",
+    title: "S",
+    type: "User Story",
+    state: "New",
+    estimation,
+    customFields,
+  });
+  const tShirtSource = { kind: "override", field: "Custom.TShirtSize" } as const;
+
+  test("equals matches a t-shirt size read from the overridden source", () => {
+    const condition: Condition = { field: "estimation", operator: "equals", value: "L" };
+    expect(evaluator.evaluateCondition(condition, story(8, { "Custom.TShirtSize": "L" }), tShirtSource)).toBe(true);
+    expect(evaluator.evaluateCondition(condition, story(8, { "Custom.TShirtSize": "M" }), tShirtSource)).toBe(false);
+  });
+
+  test("existing numeric conditions keep comparing raw points", () => {
+    const condition: Condition = { field: "estimation", operator: "gte", value: 8 };
+    expect(evaluator.evaluateCondition(condition, story(8))).toBe(true);
+    expect(evaluator.evaluateCondition(condition, story(5))).toBe(false);
+  });
+
+  test("a numeric operator against a category is an evaluation error", () => {
+    const condition: Condition = { field: "estimation", operator: "gt", value: 3 };
+    expect(() => evaluator.evaluateCondition(condition, story(undefined, { "Custom.TShirtSize": "L" }), tShirtSource)).toThrow(
+      /Story Estimate "L"/,
+    );
+  });
+
+  test("a numeric operator against a missing Story Estimate simply does not match", () => {
+    const condition: Condition = { field: "estimation", operator: "gt", value: 3 };
+    expect(evaluator.evaluateCondition(condition, story(undefined, {}), tShirtSource)).toBe(false);
+  });
+
+  test("an overridden source never falls back to the default estimation", () => {
+    const condition: Condition = { field: "estimation", operator: "gte", value: 8 };
+    expect(evaluator.evaluateCondition(condition, story(13, {}), tShirtSource)).toBe(false);
+  });
+});
