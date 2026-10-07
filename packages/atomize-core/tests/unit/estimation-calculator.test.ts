@@ -985,6 +985,18 @@ describe("EstimationCalculator", () => {
       customFields: size === undefined ? {} : { "Custom.TShirtSize": size },
     });
 
+    test("a multiplier Story Estimate is split like any other total", () => {
+      const multiplied: EstimationConfig = {
+        ...config,
+        rounding: "nearest",
+        conversion: { table: { XL: 5 }, multipliers: true },
+      };
+      // 0.3 × 5 = 1.5 hours; 80% = 1.2 → 1, 20% = 0.3 → 0.5 at half-hour rounding
+      const result = calculator.calculateTasksWithSkipped(sized("0.3XL"), "", tasks, multiplied, false, mapping);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([1, 0.5]);
+      expect(calculator.getEstimationSummary(sized("0.3XL"), result.calculatedTasks, multiplied, mapping).storyEstimation).toBe(1.5);
+    });
+
     test("an L Story's 20% task gets 1 hour", () => {
       const result = calculator.calculateTasksWithSkipped(sized("L"), "", tasks, config, false, mapping);
       expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([4, 1]);

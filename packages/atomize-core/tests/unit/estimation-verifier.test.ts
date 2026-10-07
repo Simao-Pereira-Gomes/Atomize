@@ -131,6 +131,34 @@ describe("verifyEstimationMapping", () => {
     expect(warnings[1]?.message).toContain("suggested picklist");
   });
 
+  test("with multipliers, listed values that parse count as covered and their keys are used", async () => {
+    const p = platform({ ...fieldsByType, "User Story": [tShirt({ allowedValues: ["0.3XL", "0.5XL", "XL"] })] });
+    const template = makeTemplate({
+      estimation: { strategy: "percentage", rounding: "none", source: "Custom.TShirtSize", conversion: { table: { XL: 5 }, multipliers: true } },
+    });
+    expect((await verifyEstimationMapping(template, p)).warnings).toEqual([]);
+  });
+
+  test("with multipliers, a key only used through multiplier values is not reported as never matching", async () => {
+    const p = platform({ ...fieldsByType, "User Story": [tShirt({ allowedValues: ["0.5L", "L"] })] });
+    const template = makeTemplate({
+      estimation: { strategy: "percentage", rounding: "none", source: "Custom.TShirtSize", conversion: { table: { L: 5, XL: 13 }, multipliers: true } },
+    });
+    const { warnings } = await verifyEstimationMapping(template, p);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain('"XL"');
+    expect(warnings[0]?.message).not.toContain('"L"');
+  });
+
+  test("the open-ended warning explains multiplier parsing when it is on", async () => {
+    const p = platform({ ...fieldsByType, "User Story": [field("Custom.TShirtSize", { allowsCustomValues: true })] });
+    const template = makeTemplate({
+      estimation: { strategy: "percentage", rounding: "none", source: "Custom.TShirtSize", conversion: { table: { XL: 5 }, multipliers: true } },
+    });
+    const { warnings } = await verifyEstimationMapping(template, p);
+    expect(warnings[0]?.message).toContain("parses as a number followed by a key");
+  });
+
   test("warns that a free-text source field is open-ended", async () => {
     const p = platform({ ...fieldsByType, "User Story": [field("Custom.TShirtSize", { allowsCustomValues: true })] });
     const { warnings } = await verifyEstimationMapping(tableTemplate({ L: 5 }), p);

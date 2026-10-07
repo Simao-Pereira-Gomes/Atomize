@@ -234,6 +234,27 @@ describe("createAuthoringStore", () => {
     expect((serialisedObject(store) as TaskTemplate).estimation).toMatchObject({ defaultParentEstimation: "M" });
   });
 
+  it("keeps multiplier conversions and accepts a multiplier default", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "0.5L",
+        conversion: { table: { L: 5 }, multipliers: true },
+      },
+    });
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBeUndefined();
+    expect((serialisedObject(store) as TaskTemplate).estimation).toMatchObject({
+      defaultParentEstimation: "0.5L",
+      conversion: { table: { L: 5 }, multipliers: true },
+    });
+  });
+
   it("flags a use-default defaultParentEstimation the conversion table does not cover", () => {
     const store = createAuthoringStore();
     store.loadTemplate({

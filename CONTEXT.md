@@ -26,7 +26,7 @@ _Avoid_: "story points" when referring to the Story Estimate generically; points
 The effort assigned to a generated Task, in the Task's own unit (typically hours). Derived by converting the Story Estimate and distributing it across Tasks by percentage.
 
 **Estimation Conversion**:
-The rule that translates a Story Estimate into the Task's unit before distribution. Either a factor (a numeric multiplier, e.g. 1 point = 4 hours) or a table (a value-by-value mapping, e.g. L = 5 hours, also used for non-linear numeric scales). With no Estimation Conversion the Story Estimate is used one-to-one. A Story Estimate a table does not cover is never guessed.
+The rule that translates a Story Estimate into the Task's unit before distribution. Either a factor (a numeric multiplier, e.g. 1 point = 4 hours) or a table (a value-by-value mapping, e.g. L = 5 hours, also used for non-linear numeric scales). With no Estimation Conversion the Story Estimate is used one-to-one. A table may opt into multiplier values, where a number in front of a table value scales it (0.3XL = 0.3 × XL). A Story Estimate a table does not cover, exactly or as such a multiple, is never guessed.
 
 **Unresolvable Story Estimate**:
 A Story Estimate that is missing or that the Estimation Conversion cannot translate. By default the Story's Tasks are still generated with their Task Estimates left blank (never zero) and a warning is reported; a Template may instead opt to skip the Story entirely or fall back to a default Story Estimate.

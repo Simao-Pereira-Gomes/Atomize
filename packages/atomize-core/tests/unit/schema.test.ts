@@ -483,6 +483,32 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
+    test("should accept multipliers on a table with category keys", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { L: 5, XL: 5 }, multipliers: true } }).success).toBe(true);
+    });
+
+    test("should reject multipliers without a table", () => {
+      const result = EstimationConfigSchema.safeParse({ conversion: { factor: 4, multipliers: true } });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.some((i) => i.path.join(".") === "conversion.multipliers")).toBe(true);
+    });
+
+    test("should reject multipliers when every table key is numeric", () => {
+      const result = EstimationConfigSchema.safeParse({ conversion: { table: { 5: 16, 25: 40 }, multipliers: true } });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toContain("ambiguous");
+    });
+
+    test("should accept a multiplier defaultParentEstimation only when multipliers are on", () => {
+      const config = (multipliers?: boolean) => ({
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "0.5L",
+        conversion: { table: { L: 5 }, ...(multipliers === undefined ? {} : { multipliers }) },
+      });
+      expect(EstimationConfigSchema.safeParse(config(true)).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse(config()).success).toBe(false);
+    });
+
     test("should reject unknown conversion keys", () => {
       expect(EstimationConfigSchema.safeParse({ conversion: { multiplier: 4 } }).success).toBe(false);
     });

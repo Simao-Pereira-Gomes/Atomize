@@ -70,6 +70,50 @@ describe("convertStoryEstimate with a table", () => {
   });
 });
 
+describe("convertStoryEstimate with multipliers", () => {
+  const sizes = { table: { S: 2, M: 4, L: 5, XL: 5, "2XL": 8, "0.32L": 1.6 }, multipliers: true };
+
+  test("multiplies the number in front of a table key", () => {
+    expect(convertStoryEstimate("0.3XL", sizes)).toEqual({ kind: "resolved", total: 1.5 });
+    expect(convertStoryEstimate("0.3 XL", sizes)).toEqual({ kind: "resolved", total: 1.5 });
+    expect(convertStoryEstimate("2L", sizes)).toEqual({ kind: "resolved", total: 10 });
+    expect(convertStoryEstimate(".5M", sizes)).toEqual({ kind: "resolved", total: 2 });
+  });
+
+  test("an exact key wins over parsing", () => {
+    expect(convertStoryEstimate("0.32L", sizes)).toEqual({ kind: "resolved", total: 1.6 });
+    expect(convertStoryEstimate("2XL", sizes)).toEqual({ kind: "resolved", total: 8 });
+  });
+
+  test("prefers the longest matching key", () => {
+    expect(convertStoryEstimate("0.5 2XL", sizes)).toEqual({ kind: "resolved", total: 4 });
+  });
+
+  test("an unknown key or malformed value stays unresolvable", () => {
+    for (const value of ["0.3XXL", "XL*0.3", "0,3XL", "-1L", "L0.3", "0.3"]) {
+      expect(convertStoryEstimate(value, sizes).kind).toBe("unresolvable");
+    }
+  });
+
+  test("the reason mentions multiples when multipliers are on", () => {
+    const result = convertStoryEstimate("0.3XXL", sizes);
+    if (result.kind === "unresolvable") expect(result.reason).toContain("not a multiple of a table key");
+  });
+
+  test("without multipliers a multiplier value is unresolvable", () => {
+    expect(convertStoryEstimate("0.3XL", { table: { XL: 5 } }).kind).toBe("unresolvable");
+  });
+
+  test("use-default accepts a multiplier default", () => {
+    const result = resolveStoryEstimate(undefined, {
+      ifParentHasNoEstimation: "use-default",
+      defaultParentEstimation: "0.5L",
+      conversion: sizes,
+    });
+    expect(result).toMatchObject({ kind: "resolved", total: 2.5 });
+  });
+});
+
 describe("resolveStoryEstimate", () => {
   test("a resolvable Story Estimate is converted regardless of policy", () => {
     expect(resolveStoryEstimate(5, { conversion: { factor: 2 }, ifParentHasNoEstimation: "skip" })).toEqual({

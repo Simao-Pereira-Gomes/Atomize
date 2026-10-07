@@ -481,6 +481,10 @@
                     "minimum": 0
                   },
                   "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
+                },
+                "multipliers": {
+                  "type": "boolean",
+                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys."
                 }
               },
               "additionalProperties": false,
@@ -1080,6 +1084,10 @@
                     "minimum": 0
                   },
                   "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
+                },
+                "multipliers": {
+                  "type": "boolean",
+                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys."
                 }
               },
               "additionalProperties": false,

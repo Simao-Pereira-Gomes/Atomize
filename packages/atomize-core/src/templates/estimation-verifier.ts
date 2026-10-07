@@ -1,6 +1,6 @@
 import type { EstimationDefaults } from "../platforms/interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../platforms/interfaces/field-schema.interface";
-import type { Condition, TaskTemplate } from "./schema";
+import { type Condition, lookupTableEstimate, type TaskTemplate } from "./schema";
 import type { ValidationError, ValidationWarning } from "./validator";
 
 export interface EstimationVerificationPlatform {
@@ -106,11 +106,12 @@ async function verifySourceField(
 
 function checkSourceValues(template: TaskTemplate, field: ADoFieldSchema, warnings: ValidationWarning[]): void {
   const table = template.estimation?.conversion?.table;
+  const multipliers = template.estimation?.conversion?.multipliers === true;
   const allowed = field.isPicklist ? field.allowedValues ?? [] : [];
 
   if (table && allowed.length > 0) {
     const keys = Object.keys(table);
-    const uncovered = allowed.filter((value) => !keys.includes(value));
+    const uncovered = allowed.filter((value) => lookupTableEstimate(value, table, multipliers) === undefined);
     if (uncovered.length > 0) {
       warnings.push({
         path: "estimation.conversion.table",
@@ -118,7 +119,9 @@ function checkSourceValues(template: TaskTemplate, field: ADoFieldSchema, warnin
         suggestion: "Add the missing values to conversion.table.",
       });
     }
-    const unknown = keys.filter((key) => !allowed.includes(key));
+    const usedThroughMultiplier = (key: string) =>
+      multipliers && allowed.some((value) => value !== key && lookupTableEstimate(value, { [key]: 1 }, true) !== undefined);
+    const unknown = keys.filter((key) => !allowed.includes(key) && !usedThroughMultiplier(key));
     if (unknown.length > 0) {
       warnings.push({
         path: "estimation.conversion.table",
@@ -129,11 +132,14 @@ function checkSourceValues(template: TaskTemplate, field: ADoFieldSchema, warnin
   }
 
   if (field.type === "string" && field.allowsCustomValues) {
+    const consequence = multipliers
+      ? "any value that neither matches a conversion table key nor parses as a number followed by a key will leave Tasks unestimated."
+      : "any value not in the conversion table will leave Tasks unestimated.";
     warnings.push({
       path: "estimation.source",
       message: field.isPicklist
-        ? `"${field.referenceName}" is a suggested picklist that also accepts values outside its list; any value not in the conversion table will leave Tasks unestimated.`
-        : `"${field.referenceName}" is a free-text field; any value not in the conversion table will leave Tasks unestimated.`,
+        ? `"${field.referenceName}" is a suggested picklist that also accepts values outside its list; ${consequence}`
+        : `"${field.referenceName}" is a free-text field; ${consequence}`,
     });
   }
 

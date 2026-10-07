@@ -334,6 +334,8 @@ export const TaskDefinitionSchema = z.object({
     }),
 }).strict();
 
+const NUMBER_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
+
 export const EstimationConversionSchema = z
   .object({
     factor: z
@@ -348,21 +350,63 @@ export const EstimationConversionSchema = z
         "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear.",
       )
       .optional(),
+    multipliers: z
+      .boolean()
+      .describe(
+        "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
+      )
+      .optional(),
   })
   .strict()
   .refine((conversion) => (conversion.factor === undefined) !== (conversion.table === undefined), {
     message: "conversion must set exactly one of factor or table",
   })
+  .refine((conversion) => !conversion.multipliers || conversion.table !== undefined, {
+    message: "conversion.multipliers requires conversion.table",
+    path: ["multipliers"],
+  })
+  .refine(
+    (conversion) =>
+      !conversion.multipliers || !conversion.table || !Object.keys(conversion.table).every((key) => NUMBER_PATTERN.test(key)),
+    {
+      message: "conversion.multipliers cannot be used when every table key is numeric: '25' would be ambiguous between the key 25 and 2 × 5",
+      path: ["multipliers"],
+    },
+  )
   .describe(
     "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
   );
+
+/**
+ * Looks a Story Estimate up in a conversion table. An exact key always wins; with
+ * multipliers enabled, "<number><key>" (optional whitespace between) is number × table[key],
+ * preferring the longest matching key.
+ */
+export function lookupTableEstimate(
+  value: string | number,
+  table: Record<string, number>,
+  multipliers = false,
+): number | undefined {
+  const text = String(value).trim();
+  if (Object.hasOwn(table, text)) return table[text];
+  if (!multipliers) return undefined;
+
+  const candidates = Object.keys(table)
+    .filter((key) => key !== "" && text.endsWith(key))
+    .sort((a, b) => b.length - a.length);
+  for (const key of candidates) {
+    const prefix = text.slice(0, text.length - key.length).trim();
+    if (NUMBER_PATTERN.test(prefix)) return Number(prefix) * (table[key] as number);
+  }
+  return undefined;
+}
 
 /** Whether a Story Estimate value can be translated by the given conversion (or one-to-one when absent). */
 export function isConvertibleStoryEstimate(
   value: string | number,
   conversion: z.infer<typeof EstimationConversionSchema> | undefined,
 ): boolean {
-  if (conversion?.table) return Object.hasOwn(conversion.table, String(value));
+  if (conversion?.table) return lookupTableEstimate(value, conversion.table, conversion.multipliers) !== undefined;
   return typeof value === "number" || (value.trim() !== "" && Number.isFinite(Number(value)));
 }
 
@@ -424,7 +468,7 @@ export const EstimationConfigSchema = z.object({
     code: "custom",
     path: ["defaultParentEstimation"],
     message: config.conversion?.table
-      ? `defaultParentEstimation "${config.defaultParentEstimation}" is not a key of conversion.table`
+      ? `defaultParentEstimation "${config.defaultParentEstimation}" is not a key of conversion.table${config.conversion.multipliers ? " or a multiple of one" : ""}`
       : `defaultParentEstimation "${config.defaultParentEstimation}" is not numeric and no conversion.table is set`,
   });
 });

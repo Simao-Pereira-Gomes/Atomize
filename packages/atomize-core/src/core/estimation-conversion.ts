@@ -1,5 +1,5 @@
 import type { StoryEstimate } from "../platforms/interfaces/work-item.interface";
-import type { EstimationConfig, EstimationConversion } from "../templates/schema";
+import { type EstimationConfig, type EstimationConversion, lookupTableEstimate } from "../templates/schema";
 import { numericStoryEstimate } from "./estimation-field-mapping";
 
 export type StoryEstimateConversion =
@@ -19,11 +19,12 @@ export function convertStoryEstimate(
   }
 
   if (conversion?.table) {
-    const key = String(raw);
-    if (!Object.hasOwn(conversion.table, key)) {
-      return { kind: "unresolvable", reason: `Story Estimate "${key}" is not in the conversion table` };
+    const total = lookupTableEstimate(raw, conversion.table, conversion.multipliers);
+    if (total === undefined) {
+      const suffix = conversion.multipliers ? " and is not a multiple of a table key" : "";
+      return { kind: "unresolvable", reason: `Story Estimate "${String(raw).trim()}" is not in the conversion table${suffix}` };
     }
-    return { kind: "resolved", total: conversion.table[key] as number };
+    return { kind: "resolved", total: roundAwayFloatNoise(total) };
   }
 
   const numeric = numericStoryEstimate(raw);
