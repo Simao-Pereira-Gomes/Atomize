@@ -376,7 +376,7 @@ export class TemplateValidator {
       }
 
       case "REPEAT_EXCEEDS_MAX":
-        return "Lower the repeat count. If the template genuinely needs more copies, split it into separate task definitions.";
+        return "Lower the repeat count, or raise validation.maxRepeat if the template genuinely needs more copies.";
 
       case "REPEAT_WITH_DEPENDENCY":
         return "Remove dependsOn from the repeated task, or remove repeat and define each copy as its own task.";

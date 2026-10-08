@@ -9,7 +9,7 @@ A few rules follow from the copies being interchangeable:
 - **No dependencies, in either direction.** A repeated task can't have `dependsOn`, and no task can depend on a repeated one. A dependency link needs a single Work Item at each end, and there's no meaningful choice between copies. Offline Validation rejects both cases rather than guessing.
 - **The condition applies to the group.** A task's condition is evaluated once against the Story, so either all copies are created or none are.
 - **Each copy carries the task's full percentage.** `repeat: 3` on a 10% task contributes 30% before normalization, so the total grows predictably with the count.
-- **A safety cap of 20 per task.** A typo like `repeat: 50` would otherwise bulk-create Tasks on a live platform.
+- **A safety cap of 20 per task.** A typo like `repeat: 50` would otherwise bulk-create Tasks on a live platform. A Template that genuinely needs more raises its own cap with `validation.maxRepeat`. The cap is a per-Template setting, not a global constant.
 
 ## Considered Options
 

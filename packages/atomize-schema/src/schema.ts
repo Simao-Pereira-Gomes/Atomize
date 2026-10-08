@@ -525,6 +525,14 @@ export const ValidationConfigSchema = z.object({
     .number()
     .describe("Maximum number of tasks the template may define.")
     .optional(),
+  maxRepeat: z
+    .number()
+    .int("Maximum repeat count must be a whole number")
+    .min(1, "Maximum repeat count must be at least 1")
+    .describe(
+      "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies.",
+    )
+    .optional(),
   taskEstimationRange: z
     .object({
       min: z
@@ -737,7 +745,7 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
       if (t.id) taskIndexById.set(t.id, i);
     });
 
-    validateRepeatedTasks(tasks, ctx, DEFAULT_MAX_REPEAT);
+    validateRepeatedTasks(tasks, ctx, v?.maxRepeat ?? DEFAULT_MAX_REPEAT);
 
     tasks.forEach((task, index) => {
       task.dependsOn?.forEach((depId) => {
@@ -758,7 +766,10 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
     reportCircularDependencies(tasks, taskIndexById, ctx);
   });
 
-/** Upper bound on a task's `repeat`, guarding against a typo triggering a large bulk creation. */
+/**
+ * Default upper bound on a task's `repeat`, guarding against a typo triggering a large bulk
+ * creation. A Template overrides it with `validation.maxRepeat`.
+ */
 export const DEFAULT_MAX_REPEAT = 20;
 
 /**
@@ -779,7 +790,7 @@ function validateRepeatedTasks(
       ctx.addIssue({
         code: "custom",
         path: ["tasks", index, "repeat"],
-        message: `Task repeats ${task.repeat} times, but the maximum is ${maxRepeat}.`,
+        message: `Task repeats ${task.repeat} times, but the maximum is ${maxRepeat}. Lower repeat or raise validation.maxRepeat.`,
         params: { code: "REPEAT_EXCEEDS_MAX", maxRepeat },
       });
     }

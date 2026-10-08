@@ -601,6 +601,12 @@
               "type": "number",
               "description": "Maximum number of tasks the template may define."
             },
+            "maxRepeat": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies."
+            },
             "taskEstimationRange": {
               "type": "object",
               "properties": {
@@ -1218,6 +1224,12 @@
             "maxTasks": {
               "type": "number",
               "description": "Maximum number of tasks the template may define."
+            },
+            "maxRepeat": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies."
             },
             "taskEstimationRange": {
               "type": "object",

@@ -572,6 +572,12 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
+    test("accepts a positive whole maxRepeat and rejects anything else", () => {
+      expect(ValidationConfigSchema.safeParse({ maxRepeat: 50 }).success).toBe(true);
+      expect(ValidationConfigSchema.safeParse({ maxRepeat: 0 }).success).toBe(false);
+      expect(ValidationConfigSchema.safeParse({ maxRepeat: 2.5 }).success).toBe(false);
+    });
+
     test("should accept estimation range", () => {
       const config = {
         totalEstimationRange: {
@@ -943,6 +949,39 @@ describe("Schema Validation", () => {
 
       test("rejects repeat above the default cap of 20", () => {
         expect(issueCodes(templateWith([{ title: "Review", repeat: 21 }]))).toEqual(["REPEAT_EXCEEDS_MAX"]);
+      });
+
+      test("the cap error names the effective cap and how to raise it", () => {
+        const result = TaskTemplateSchema.safeParse(templateWith([{ title: "Review", repeat: 21 }]));
+        expect(result.success).toBe(false);
+        expect(result.error?.issues[0]?.message).toContain("maximum is 20");
+        expect(result.error?.issues[0]?.message).toContain("validation.maxRepeat");
+      });
+
+      test("a validation.maxRepeat override raises the cap", () => {
+        const template = {
+          ...templateWith([{ title: "Review", repeat: 30 }]),
+          validation: { maxRepeat: 30 },
+        };
+        expect(issueCodes(template)).toEqual([]);
+      });
+
+      test("a repeat above the validation.maxRepeat override is rejected", () => {
+        const template = {
+          ...templateWith([{ title: "Review", repeat: 31 }]),
+          validation: { maxRepeat: 30 },
+        };
+        expect(issueCodes(template)).toEqual(["REPEAT_EXCEEDS_MAX"]);
+        const result = TaskTemplateSchema.safeParse(template);
+        expect(result.error?.issues[0]?.message).toContain("maximum is 30");
+      });
+
+      test("a validation.maxRepeat override can also lower the cap", () => {
+        const template = {
+          ...templateWith([{ title: "Review", repeat: 5 }]),
+          validation: { maxRepeat: 4 },
+        };
+        expect(issueCodes(template)).toEqual(["REPEAT_EXCEEDS_MAX"]);
       });
 
       test("rejects a task that has both repeat and dependsOn", () => {
