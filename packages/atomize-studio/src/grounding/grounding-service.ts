@@ -32,7 +32,7 @@ export type GroundedFieldOptions = {
 export type GroundedEstimationField = Pick<GroundedTaskField, "referenceName" | "name" | "type" | "isPicklist" | "allowedValues">;
 
 export type GroundedEstimation = {
-  defaults: { storyEstimateFields: string[]; taskWorkItemType: string; taskEstimateFields: string[]; unitLabel?: string };
+  defaults: { storyEstimateFields: string[]; taskWorkItemType: string; taskEstimateFields: string[]; unitLabel?: string; nonEstimateFields?: string[] };
   storyEstimateFieldsByWorkItemType: Record<string, GroundedEstimationField[]>;
 };
 
@@ -133,6 +133,7 @@ function groundedEstimation(value: unknown): GroundedEstimation | undefined {
       taskWorkItemType: defaults.taskWorkItemType,
       taskEstimateFields: strings(defaults.taskEstimateFields),
       ...(typeof defaults.unitLabel === "string" ? { unitLabel: defaults.unitLabel } : {}),
+      ...(strings(defaults.nonEstimateFields).length ? { nonEstimateFields: strings(defaults.nonEstimateFields) } : {}),
     },
     storyEstimateFieldsByWorkItemType: Object.fromEntries(
       Object.entries(rawFields).map(([type, fields]) => [

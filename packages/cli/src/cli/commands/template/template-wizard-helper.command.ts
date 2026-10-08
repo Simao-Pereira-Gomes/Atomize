@@ -2,7 +2,11 @@ import { confirm, multiselect, select, text } from "@clack/prompts";
 import type { EstimationDefaults } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import type { SavedQueryInfo } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
-import { isEstimateCapableField, sortEstimateFields } from "@sppg2001/atomize-core/services/template/estimation-grounding";
+import {
+  isEstimateCapableField,
+  isEstimateTargetField,
+  sortEstimateFields,
+} from "@sppg2001/atomize-core/services/template/estimation-grounding";
 import type { TemplateCatalogItem } from "@sppg2001/atomize-core/services/template/template-catalog";
 import {
   type EstimationConfig,
@@ -1041,7 +1045,7 @@ async function promptEstimateTarget(
   }
 
   const numericFields = ctx.getTaskFields
-    ? (await ctx.getTaskFields(taskType)).filter((field) => !field.isReadOnly && (field.type === "integer" || field.type === "decimal"))
+    ? sortEstimateFields((await ctx.getTaskFields(taskType)).filter((field) => isEstimateTargetField(field, ctx.defaults)))
     : [];
   let targetFields: string[];
   if (numericFields.length > 0) {

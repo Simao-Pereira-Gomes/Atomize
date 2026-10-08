@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/estimation-defaults";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
-import { buildEstimationGrounding } from "@sppg2001/atomize-core/services/template/estimation-grounding";
+import { buildEstimationGrounding, isEstimateTargetField } from "@sppg2001/atomize-core/services/template/estimation-grounding";
 
 function field(referenceName: string, overrides: Partial<ADoFieldSchema> = {}): ADoFieldSchema {
   return {
@@ -37,6 +37,7 @@ describe("buildEstimationGrounding", () => {
       taskWorkItemType: "Task",
       taskEstimateFields: [...AZURE_DEVOPS_ESTIMATION_DEFAULTS.taskEstimateFields],
       unitLabel: "hours",
+      nonEstimateFields: [...(AZURE_DEVOPS_ESTIMATION_DEFAULTS.nonEstimateFields ?? [])],
     });
   });
 
@@ -65,5 +66,21 @@ describe("buildEstimationGrounding", () => {
 
   test("leaves out the child Task type and types with no estimate-capable fields", () => {
     expect(Object.keys(grounding.storyEstimateFieldsByWorkItemType)).toEqual(["User Story"]);
+  });
+});
+
+describe("isEstimateTargetField", () => {
+  test("accepts writable numeric effort fields", () => {
+    expect(isEstimateTargetField(field("Microsoft.VSTS.Scheduling.RemainingWork", { type: "decimal", isCustom: false }), AZURE_DEVOPS_ESTIMATION_DEFAULTS)).toBe(true);
+    expect(isEstimateTargetField(field("Custom.Effort", { type: "integer" }), AZURE_DEVOPS_ESTIMATION_DEFAULTS)).toBe(true);
+  });
+
+  test("rejects picklists, ranking fields, System.*, read-only and non-numeric fields", () => {
+    const d = AZURE_DEVOPS_ESTIMATION_DEFAULTS;
+    expect(isEstimateTargetField(field("Microsoft.VSTS.Common.Priority", { type: "integer", isPicklist: true, isCustom: false }), d)).toBe(false);
+    expect(isEstimateTargetField(field("Microsoft.VSTS.Common.StackRank", { type: "decimal", isCustom: false }), d)).toBe(false);
+    expect(isEstimateTargetField(field("System.Rev", { type: "integer", isCustom: false }), d)).toBe(false);
+    expect(isEstimateTargetField(field("Custom.Computed", { type: "decimal", isReadOnly: true }), d)).toBe(false);
+    expect(isEstimateTargetField(field("Custom.Notes"), d)).toBe(false);
   });
 });

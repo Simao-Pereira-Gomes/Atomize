@@ -207,6 +207,28 @@ describe("configureEstimation wizard step", () => {
     expect(estimation.conversion).toEqual({ table: { 8: 32, 13: 80 } });
     expect(answers).toEqual([]);
   });
+  test("offers only valid target fields: numeric, writable, not picklists, rankings or System.*", async () => {
+    const getTaskFields = mock(async () => [
+      field("Microsoft.VSTS.Scheduling.RemainingWork", { name: "Remaining Work", type: "decimal", isCustom: false }),
+      field("Custom.Effort", { name: "Effort", type: "integer" }),
+      field("Microsoft.VSTS.Common.Priority", { name: "Priority", type: "integer", isPicklist: true, isCustom: false }),
+      field("Microsoft.VSTS.Common.StackRank", { name: "Stack Rank", type: "decimal", isCustom: false }),
+      field("System.Rev", { name: "Rev", type: "integer", isCustom: false }),
+      field("Custom.Notes", { name: "Notes" }),
+    ]);
+    answers = ["", "none", true, "Task", ["Custom.Effort"], "none", "0", "warn"];
+
+    const { estimation } = await configureEstimation(undefined, {
+      storyFields: [],
+      workItemTypes: ["Task"],
+      defaults: AZURE_DEVOPS_ESTIMATION_DEFAULTS,
+      getTaskFields,
+    });
+
+    const targetPrompt = next.mock.calls.at(-4)?.[0] as { options?: Array<{ value: string }> };
+    expect(targetPrompt.options?.map((o) => o.value)).toEqual(["Custom.Effort", "Microsoft.VSTS.Scheduling.RemainingWork"]);
+    expect(estimation.targetFields).toEqual(["Custom.Effort"]);
+  });
 });
 
 describe("renderConversionTable", () => {

@@ -34,6 +34,7 @@ export async function verifyEstimationMapping(
   if (!hasEstimationMappingOverrides(template)) return { errors, warnings };
 
   const taskType = template.taskType ?? platform.getEstimationDefaults?.().taskWorkItemType;
+  const nonEstimateFields = platform.getEstimationDefaults?.().nonEstimateFields ?? [];
   const taskTypeExists = await verifyTaskType(template, platform, errors);
 
   const targetFields = template.estimation?.targetFields ?? [];
@@ -49,6 +50,18 @@ export async function verifyEstimationMapping(
           path,
           message: `Field "${ref}" is a ${field.type} field; Task Estimates can only be written to numeric fields.`,
           code: "ESTIMATION_TARGET_FIELD_NOT_NUMERIC",
+        });
+      } else if (field.isPicklist) {
+        errors.push({
+          path,
+          message: `Field "${ref}" only accepts a fixed list of values, so calculated Task Estimates can't be written to it.`,
+          code: "ESTIMATION_TARGET_FIELD_PICKLIST",
+        });
+      } else if (nonEstimateFields.includes(ref)) {
+        warnings.push({
+          path,
+          message: `Field "${ref}" holds a ranking or value, not effort; writing Task Estimates to it will overwrite that.`,
+          suggestion: "Choose an effort field such as the platform's default estimate fields or a custom effort field.",
         });
       }
     });

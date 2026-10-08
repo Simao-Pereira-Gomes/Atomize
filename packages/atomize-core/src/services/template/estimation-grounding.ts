@@ -8,6 +8,7 @@ export interface EstimationGrounding {
     taskWorkItemType: string;
     taskEstimateFields: string[];
     unitLabel?: string;
+    nonEstimateFields?: string[];
   };
   /** Per Story type, the fields that could supply a Story Estimate, with picklist values. */
   storyEstimateFieldsByWorkItemType: Record<string, Array<Pick<ADoFieldSchema, "referenceName" | "name" | "type" | "isPicklist" | "allowedValues">>>;
@@ -23,6 +24,24 @@ export function isEstimateCapableField(field: ADoFieldSchema, defaults: Pick<Est
   if (defaults.storyEstimateFields.includes(field.referenceName)) return true;
   if (field.referenceName.startsWith("System.")) return false;
   return field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline);
+}
+
+/**
+ * Whether a Task field can receive the Task Estimate: writable and numeric, not a picklist (a
+ * fractional estimate can't be written to one), not System.*, and not a field the platform marks
+ * as a ranking or value field.
+ */
+export function isEstimateTargetField(
+  field: Pick<ADoFieldSchema, "referenceName" | "type" | "isReadOnly" | "isPicklist">,
+  defaults?: Pick<EstimationDefaults, "nonEstimateFields">,
+): boolean {
+  return (
+    !field.isReadOnly &&
+    !field.isPicklist &&
+    (field.type === "integer" || field.type === "decimal") &&
+    !field.referenceName.startsWith("System.") &&
+    !(defaults?.nonEstimateFields ?? []).includes(field.referenceName)
+  );
 }
 
 /** Custom fields first (where size fields usually live), then the rest, alphabetically. */
@@ -60,6 +79,7 @@ export function buildEstimationGrounding(
       taskWorkItemType: defaults.taskWorkItemType,
       taskEstimateFields: [...defaults.taskEstimateFields],
       ...(defaults.unitLabel ? { unitLabel: defaults.unitLabel } : {}),
+      ...(defaults.nonEstimateFields?.length ? { nonEstimateFields: [...defaults.nonEstimateFields] } : {}),
     },
     storyEstimateFieldsByWorkItemType: Object.fromEntries(storyEntries),
   };

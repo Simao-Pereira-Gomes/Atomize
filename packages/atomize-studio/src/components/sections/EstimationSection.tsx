@@ -437,7 +437,15 @@ function WriteTarget(props: {
   const workItemTypes = () => props.grounding()?.workItemTypes ?? [];
   const numericFields = () =>
     (props.grounding()?.fieldsByWorkItemType[taskType()] ?? [])
-      .filter((field) => !field.isReadOnly && (field.type === "integer" || field.type === "decimal"))
+      // Mirrors core's isEstimateTargetField: writable, numeric, not a picklist, not System.*, not a ranking field.
+      .filter(
+        (field) =>
+          !field.isReadOnly &&
+          !field.isPicklist &&
+          (field.type === "integer" || field.type === "decimal") &&
+          !field.referenceName.startsWith("System.") &&
+          !(defaults()?.nonEstimateFields ?? []).includes(field.referenceName),
+      )
       .map((field) => field.referenceName);
   const setTaskType = (value: string) => {
     props.basicInfo.setAdvanced("taskType", value && value !== defaultType() ? value : undefined);

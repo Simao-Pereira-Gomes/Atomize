@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/estimation-defaults";
 import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import { verifyEstimationMapping } from "@sppg2001/atomize-core/templates/estimation-verifier";
@@ -80,6 +81,29 @@ describe("verifyEstimationMapping", () => {
     const template = makeTemplate({ estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Notes"] } });
     const { errors } = await verifyEstimationMapping(template, platform());
     expect(errors[0]).toMatchObject({ path: "estimation.targetFields[0]", code: "ESTIMATION_TARGET_FIELD_NOT_NUMERIC" });
+  });
+
+  test("errors for a picklist target field and warns about a ranking field", async () => {
+    const p = {
+      ...platform({
+        ...fieldsByType,
+        Task: [
+          field("Microsoft.VSTS.Common.Priority", { type: "integer", isPicklist: true, isCustom: false }),
+          field("Microsoft.VSTS.Common.StackRank", { type: "decimal", isCustom: false }),
+        ],
+      }),
+      getEstimationDefaults: () => AZURE_DEVOPS_ESTIMATION_DEFAULTS,
+    };
+    const template = makeTemplate({
+      estimation: {
+        strategy: "percentage",
+        rounding: "none",
+        targetFields: ["Microsoft.VSTS.Common.Priority", "Microsoft.VSTS.Common.StackRank"],
+      },
+    });
+    const { errors, warnings } = await verifyEstimationMapping(template, p);
+    expect(errors).toEqual([expect.objectContaining({ path: "estimation.targetFields[0]", code: "ESTIMATION_TARGET_FIELD_PICKLIST" })]);
+    expect(warnings).toEqual([expect.objectContaining({ path: "estimation.targetFields[1]" })]);
   });
 
   test("checks target fields against the overridden taskType", async () => {

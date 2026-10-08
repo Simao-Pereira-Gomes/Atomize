@@ -11,6 +11,8 @@ export interface EstimationDefaults {
   readonly taskEstimateFields: readonly string[];
   /** Unit of the default Task estimate fields, for display. */
   readonly unitLabel?: string;
+  /** Writable numeric fields that hold rankings or values, never effort, so they are not offered as estimate targets. */
+  readonly nonEstimateFields?: readonly string[];
 }
 
 export interface EstimationDefaultsProvider {

@@ -17,4 +17,10 @@ export const AZURE_DEVOPS_ESTIMATION_DEFAULTS: EstimationDefaults = {
     "Microsoft.VSTS.Scheduling.OriginalEstimate",
   ],
   unitLabel: "hours",
+  nonEstimateFields: [
+    "Microsoft.VSTS.Common.StackRank",
+    "Microsoft.VSTS.Common.BacklogPriority",
+    "Microsoft.VSTS.Common.BusinessValue",
+    "Microsoft.VSTS.Common.TimeCriticality",
+  ],
 };
