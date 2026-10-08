@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 // Every prompt answers from one ordered script, so each test reads as the wizard conversation.
 let answers: unknown[] = [];
-const next = mock(async () => {
+const next = mock(async (_prompt?: unknown) => {
   if (answers.length === 0) throw new Error("The wizard asked more questions than the script answers");
   return answers.shift();
 });
@@ -110,5 +110,40 @@ describe("configureEstimation wizard step", () => {
     const { estimation } = await configureEstimation({ strategy: "percentage", rounding: "none", minimumTaskPoints: 0.5 });
 
     expect(estimation).toEqual({ strategy: "percentage", rounding: "none", minimumTaskEstimate: 0.5 });
+  });
+
+  test("connected without platform defaults: the Story field is still chosen from the project's fields", async () => {
+    answers = ["Custom.TShirtSize", "none", false, "none", "0", "warn"];
+
+    const { estimation } = await configureEstimation(undefined, {
+      storyFields: [field("Custom.TShirtSize", { isPicklist: true, allowedValues: ["S", "M"] })],
+    });
+
+    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    expect(firstPrompt.options?.map((o) => o.value)).toEqual(["", "Custom.TShirtSize", "__custom__"]);
+    expect(estimation.source).toBe("Custom.TShirtSize");
+  });
+
+  test("the default Story Estimate is chosen from the picklist, with typing only as an explicit option for fractional sizes", async () => {
+    answers = [
+      "Custom.TShirtSize",
+      "table",
+      "2", "4", // S, M
+      true, // fractional sizes
+      false,
+      "none",
+      "0",
+      "use-default",
+      "__custom__",
+      "0.5M",
+    ];
+
+    const { estimation } = await configureEstimation(undefined, {
+      storyFields: [field("Custom.TShirtSize", { isPicklist: true, allowedValues: ["S", "M"] })],
+    });
+
+    const defaultPrompt = next.mock.calls.at(-2)?.[0] as { options?: Array<{ value: string }> };
+    expect(defaultPrompt.options?.map((o) => o.value)).toEqual(["S", "M", "__custom__"]);
+    expect(estimation.defaultParentEstimation).toBe("0.5M");
   });
 });

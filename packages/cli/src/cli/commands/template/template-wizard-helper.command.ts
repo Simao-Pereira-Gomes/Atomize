@@ -734,6 +734,7 @@ export async function configureEstimation(
   const source = await promptEstimationSource(defaults?.source, ctx);
   const sourceField = source ? ctx.storyFields?.find((field) => field.referenceName === source) : undefined;
   const conversion = await promptConversion(defaults?.conversion, sourceField);
+  const sourceValues = sourceField?.isPicklist ? sourceField.allowedValues ?? [] : [];
   const { taskType, targetFields } = await promptEstimateTarget(currentTaskType, defaults?.targetFields, ctx);
 
   const rounding = assertNotCancelled(
@@ -770,7 +771,7 @@ export async function configureEstimation(
   ) as NonNullable<EstimationConfig["ifParentHasNoEstimation"]>;
 
   const defaultParentEstimation =
-    policy === "use-default" ? await promptDefaultStoryEstimate(defaults?.defaultParentEstimation, conversion) : undefined;
+    policy === "use-default" ? await promptDefaultStoryEstimate(defaults?.defaultParentEstimation, conversion, sourceValues) : undefined;
 
   const {
     source: _source,
@@ -799,12 +800,13 @@ export async function configureEstimation(
 }
 
 async function promptEstimationSource(current: string | undefined, ctx: EstimationWizardContext): Promise<string | undefined> {
-  const defaults = ctx.defaults;
-  const candidates = defaults
-    ? (ctx.storyFields ?? []).filter((field) => isEstimateCapableField(field, defaults) && !defaults.storyEstimateFields.includes(field.referenceName))
-    : [];
+  const defaultChain = { storyEstimateFields: ctx.defaults?.storyEstimateFields ?? [] };
+  const candidates = (ctx.storyFields ?? []).filter(
+    (field) => isEstimateCapableField(field, defaultChain) && !defaultChain.storyEstimateFields.includes(field.referenceName),
+  );
 
-  if (candidates.length > 0) {
+  // Connected (Story fields known): always choose from the project, with typing as an explicit last option.
+  if (ctx.storyFields !== undefined) {
     const choice = assertNotCancelled(
       await select({
         message: "Which Story field holds the Story Estimate?",
@@ -971,15 +973,25 @@ async function promptEstimateTarget(
 async function promptDefaultStoryEstimate(
   current: EstimationConfig["defaultParentEstimation"],
   conversion: EstimationConfig["conversion"],
+  sourceValues: string[],
 ): Promise<string | number> {
-  if (conversion?.table && !conversion.multipliers) {
-    return assertNotCancelled(
+  // Offer the source picklist's values (or the table's keys) that the conversion can translate.
+  const choices = (sourceValues.length ? sourceValues : Object.keys(conversion?.table ?? {})).filter((value) =>
+    isConvertibleStoryEstimate(value, conversion),
+  );
+  if (choices.length > 0) {
+    const currentValue = current === undefined ? undefined : String(current);
+    const choice = assertNotCancelled(
       await select({
         message: "Default Story Estimate to assume:",
-        options: Object.keys(conversion.table).map((key) => ({ label: key, value: key })),
-        initialValue: current !== undefined && Object.hasOwn(conversion.table, String(current)) ? String(current) : Object.keys(conversion.table)[0],
+        options: [
+          ...choices.map((value) => ({ label: value, value })),
+          ...(conversion?.multipliers ? [{ label: "Another value (e.g. 0.5L)", value: CUSTOM_ENTRY }] : []),
+        ],
+        initialValue: currentValue && choices.includes(currentValue) ? currentValue : currentValue && conversion?.multipliers ? CUSTOM_ENTRY : choices[0],
       }),
     ) as string;
+    if (choice !== CUSTOM_ENTRY) return choice;
   }
   const typed = assertNotCancelled(
     await text({

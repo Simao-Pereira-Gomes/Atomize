@@ -295,7 +295,7 @@ async function editTemplate(template: TaskTemplate, ctx: TemplateWizardContext):
       );
       const { estimation, taskType } = await configureEstimation(
         template.estimation,
-        ctx.estimationCtx ?? { storyFields: ctx.storyFieldSchemas },
+        ctx.estimationCtx ?? { storyFields: ctx.storyFieldSchemas, workItemTypes: ctx.filterCtx.workItemTypes },
         template.taskType,
       );
       template.estimation = estimation;

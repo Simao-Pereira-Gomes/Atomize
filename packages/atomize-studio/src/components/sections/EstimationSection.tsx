@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
-import type { GroundedFieldOptions } from "../../grounding/grounding-service";
+import type { GroundedEstimationField, GroundedFieldOptions } from "../../grounding/grounding-service";
 import { previewEstimation } from "../../stores/estimation-preview";
 import {
   type BasicInfoStore,
@@ -25,18 +25,34 @@ export function EstimationSection(props: {
 }) {
   const s = props.store;
   const estimation = () => props.grounding()?.estimation;
-  const connected = () => estimation() !== undefined;
+  const connected = () => props.grounding() !== undefined;
   const unit = () => (s.fields.targetMode === "custom" && s.fields.targetFields.length > 0 ? "" : " h");
 
-  const storyFields = createMemo(() => {
+  // Prefer the curated estimation grounding; older grounding without it still lists every
+  // type's fields, so derive the same estimate-capable custom fields from those.
+  const storyFields = createMemo((): GroundedEstimationField[] => {
+    const options = props.grounding();
+    if (!options) return [];
     const grounded = estimation();
-    if (!grounded) return [];
+    const byType: Record<string, GroundedEstimationField[]> =
+      grounded?.storyEstimateFieldsByWorkItemType ??
+      Object.fromEntries(
+        Object.entries(options.fieldsByWorkItemType).map(([type, fields]) => [
+          type,
+          fields.filter(
+            (field) =>
+              !field.isReadOnly &&
+              field.isCustom &&
+              (field.type === "integer" || field.type === "decimal" || (field.type === "string" && field.isPicklist)),
+          ),
+        ]),
+      );
     const selectedTypes = props.filter.fields.workItemTypes;
-    const types = selectedTypes.length ? selectedTypes : Object.keys(grounded.storyEstimateFieldsByWorkItemType);
-    const defaultChain = new Set(grounded.defaults.storyEstimateFields);
+    const types = selectedTypes.length ? selectedTypes : Object.keys(byType);
+    const defaultChain = new Set(grounded?.defaults.storyEstimateFields ?? []);
     const byRef = new Map(
       types
-        .flatMap((type) => grounded.storyEstimateFieldsByWorkItemType[type] ?? [])
+        .flatMap((type) => byType[type] ?? [])
         .filter((field) => !defaultChain.has(field.referenceName))
         .map((field) => [field.referenceName, field]),
     );
@@ -45,7 +61,9 @@ export function EstimationSection(props: {
   const sourceField = () => storyFields().find((field) => field.referenceName === s.fields.source);
   const conversion = () => buildConversion(s.fields);
   const table = () => conversion()?.table ?? {};
-  const pickListValues = () => (s.fields.conversionKind === "table" ? sourceField()?.allowedValues ?? [] : []);
+  /** The source field's allowed values when it is a grounded picklist; these replace free text wherever a Story Estimate is entered. */
+  const sourceValues = () => (sourceField()?.isPicklist ? sourceField()?.allowedValues ?? [] : []);
+  const pickListValues = () => (s.fields.conversionKind === "table" ? sourceValues() : []);
   const uncovered = () => pickListValues().filter((value) => !Object.hasOwn(table(), value) && !coveredByMultiplier(value));
   const coveredByMultiplier = (value: string) =>
     s.fields.multipliers && Object.keys(table()).some((key) => value !== key && value.endsWith(key) && NUMBER_KEY.test(value.slice(0, -key.length).trim()));
@@ -63,6 +81,14 @@ export function EstimationSection(props: {
   const addRow = (key = "") => change("tableRows", [...s.fields.tableRows, { key, hours: "" }]);
   const removeRow = (index: number) => change("tableRows", s.fields.tableRows.filter((_, i) => i !== index));
   const policy = (): Policy => s.fields.ifParentHasNoEstimation || "warn";
+  /** Values a Story Estimate can take here: the picklist when grounded, otherwise the table being edited. */
+  const estimateChoices = () => (sourceValues().length ? sourceValues() : Object.keys(table()));
+  const rowValueOptions = (current: string) => {
+    const used = new Set(s.fields.tableRows.map((row) => row.key.trim()).filter((key) => key !== current));
+    const values = sourceValues().filter((value) => !used.has(value));
+    const withCurrent = current.trim() && !values.includes(current) ? [current, ...values] : values;
+    return withCurrent.map((value) => ({ value, label: value }));
+  };
 
   return (
     <div class="pl-3.5">
@@ -136,7 +162,22 @@ export function EstimationSection(props: {
                     {(row, index) => (
                       <tr class="border-t border-slate-100 align-top dark:border-slate-800">
                         <td class="py-1.5 pr-2">
-                          <input aria-label="Story Estimate value" class={`ui-input !w-28${s.errors[`tableRows.${index()}.key`] ? " ui-input--error" : ""}`} value={row.key} onInput={(e) => setRow(index(), "key", e.currentTarget.value)} />
+                          <Show
+                            when={sourceValues().length > 0}
+                            fallback={<input aria-label="Story Estimate value" class={`ui-input !w-28${s.errors[`tableRows.${index()}.key`] ? " ui-input--error" : ""}`} value={row.key} onInput={(e) => setRow(index(), "key", e.currentTarget.value)} />}
+                          >
+                            <div class="w-36">
+                              <SelectField
+                                label="Story Estimate value"
+                                hideLabel
+                                placeholder="Choose a value"
+                                value={row.key}
+                                error={s.errors[`tableRows.${index()}.key`]}
+                                options={rowValueOptions(row.key)}
+                                onInput={(v) => setRow(index(), "key", v)}
+                              />
+                            </div>
+                          </Show>
                           <Show when={s.errors[`tableRows.${index()}.key`]}><p class="ui-error">{s.errors[`tableRows.${index()}.key`]}</p></Show>
                         </td>
                         <td class="py-1.5 pr-2">
@@ -206,7 +247,7 @@ export function EstimationSection(props: {
           </div>
 
           <div class="!mt-8">
-            <WorkedExample store={s} tasks={props.tasks} unit={unit()} conversion={conversion()} />
+            <WorkedExample store={s} tasks={props.tasks} unit={unit()} conversion={conversion()} choices={estimateChoices()} />
           </div>
         </div>
       </Stage>
@@ -230,13 +271,27 @@ export function EstimationSection(props: {
           />
           <Show when={policy() === "use-default"}>
             <div class="w-48">
-              <TextField
-                label="Default Story Estimate"
-                value={s.fields.defaultParentEstimation}
-                error={s.errors.defaultParentEstimation}
-                placeholder="e.g. 5 or M"
-                onInput={(v) => change("defaultParentEstimation", v)}
-              />
+              <Show
+                when={estimateChoices().length > 0}
+                fallback={
+                  <TextField
+                    label="Default Story Estimate"
+                    value={s.fields.defaultParentEstimation}
+                    error={s.errors.defaultParentEstimation}
+                    placeholder="e.g. 5 or M"
+                    onInput={(v) => change("defaultParentEstimation", v)}
+                  />
+                }
+              >
+                <SelectField
+                  label="Default Story Estimate"
+                  value={s.fields.defaultParentEstimation}
+                  error={s.errors.defaultParentEstimation}
+                  placeholder="Choose a value"
+                  options={estimateChoices().map((value) => ({ value, label: value }))}
+                  onInput={(v) => change("defaultParentEstimation", v)}
+                />
+              </Show>
             </div>
           </Show>
         </div>
@@ -304,11 +359,13 @@ function WorkedExample(props: {
   tasks: TasksStore;
   unit: string;
   conversion: ReturnType<typeof buildConversion>;
+  /** Grounded Story Estimate values to pick a sample from; free text when empty. */
+  choices: string[];
 }) {
   const s = props.store;
   const [sample, setSample] = createSignal<string>();
   const defaultSample = () => {
-    const keys = Object.keys(props.conversion?.table ?? {});
+    const keys = props.choices.length ? props.choices : Object.keys(props.conversion?.table ?? {});
     return keys[Math.floor(keys.length / 2)] ?? "5";
   };
   const value = () => sample() ?? defaultSample();
@@ -329,7 +386,20 @@ function WorkedExample(props: {
     <aside class="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite">
       <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Worked example</span>
-        <input aria-label="Sample Story Estimate" class="ui-input !w-24" value={value()} onInput={(e) => setSample(e.currentTarget.value)} />
+        <Show
+          when={props.choices.length > 0}
+          fallback={<input aria-label="Sample Story Estimate" class="ui-input !w-24" value={value()} onInput={(e) => setSample(e.currentTarget.value)} />}
+        >
+          <div class="w-32">
+            <SelectField
+              label="Sample Story Estimate"
+              hideLabel
+              value={value()}
+              options={props.choices.map((choice) => ({ value: choice, label: choice }))}
+              onInput={setSample}
+            />
+          </div>
+        </Show>
         <span class="text-xs text-slate-500">sample Story Estimate</span>
       </div>
       <Show when={tasks().length > 0} fallback={<p class="text-slate-500">Add tasks with an estimation percentage to see how a Story's estimate is split.</p>}>
