@@ -8,7 +8,10 @@ export type EstimationPreview =
   | { kind: "skipped" };
 
 type PreviewConfig = Partial<
-  Pick<EstimationConfig, "conversion" | "rounding" | "minimumTaskEstimate" | "ifParentHasNoEstimation" | "defaultParentEstimation">
+  Pick<
+    EstimationConfig,
+    "conversion" | "rounding" | "minimumTaskEstimate" | "ifParentHasNoEstimation" | "defaultParentEstimation" | "normalize"
+  >
 >;
 
 function convert(raw: string, conversion: EstimationConfig["conversion"]): number | undefined {
@@ -28,6 +31,13 @@ function round(value: number, rounding: EstimationConfig["rounding"]): number {
   return Math.floor(value * 100) / 100;
 }
 
+// Mirrors the generator's normalization policy (estimation.normalize) so the example matches generated Tasks.
+function normalizedShares(tasks: PreviewTask[], mode: "auto" | "always" | "never"): number[] {
+  const total = tasks.reduce((sum, task) => sum + task.percent, 0);
+  const scale = total > 0 && ((mode === "auto" && total < 100) || (mode === "always" && total !== 100));
+  return tasks.map((task) => (scale ? Math.round((task.percent / total) * 10000) / 100 : task.percent));
+}
+
 /** What a Story with the given Story Estimate would produce for these tasks under this configuration. */
 export function previewEstimation(sample: string, tasks: PreviewTask[], config: PreviewConfig): EstimationPreview {
   let total = convert(sample, config.conversion);
@@ -45,13 +55,15 @@ export function previewEstimation(sample: string, tasks: PreviewTask[], config: 
   }
   const minimum = config.minimumTaskEstimate ?? 0;
   const roundedTotal = Math.round(total * 1e9) / 1e9;
+  const shares = normalizedShares(tasks, config.normalize ?? "auto");
   return {
     kind: "estimated",
     total: roundedTotal,
     usedDefault,
-    tasks: tasks.map((task) => ({
+    tasks: tasks.map((task, index) => ({
       ...task,
-      hours: Math.max(round((roundedTotal * task.percent) / 100, config.rounding ?? "none"), minimum),
+      percent: shares[index] ?? task.percent,
+      hours: Math.max(round((roundedTotal * (shares[index] ?? task.percent)) / 100, config.rounding ?? "none"), minimum),
     })),
   };
 }

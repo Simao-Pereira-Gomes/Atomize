@@ -7,6 +7,8 @@ import {
 export interface EstimationDistributionOptions {
   forceNormalize?: boolean;
   enableLogging?: boolean;
+  /** The Template's estimation.normalize; "always" and "never" override the auto policy and forceNormalize. */
+  mode?: "auto" | "always" | "never";
 }
 
 export interface EstimationDistributionResult {
@@ -18,17 +20,25 @@ export interface EstimationDistributionResult {
 /**
  * Owns the runtime normalization policy for active task percentages.
  *
- * Totals under 100% are normalized to allocate the full parent estimate. Totals
- * over 100% are valid for multi-role templates and are only normalized when
- * the caller explicitly requests it.
+ * In the default "auto" mode, totals under 100% are normalized to allocate the full parent
+ * estimate, and totals over 100% (valid for multi-role templates) are only normalized when the
+ * caller explicitly requests it. A Template's estimation.normalize of "always" or "never"
+ * replaces that policy.
  */
 export function distributeActiveTaskPercentages<T extends EstimationPercentage>(
   tasks: T[],
   options: EstimationDistributionOptions = {},
 ): EstimationDistributionResult {
   const totalBefore = totalEstimationPercent(tasks);
+  const mode = options.mode ?? "auto";
+  const shouldNormalize =
+    mode === "always"
+      ? totalBefore !== 100
+      : mode === "never"
+        ? false
+        : totalBefore < 100 || (totalBefore > 100 && options.forceNormalize === true);
   const normalized =
-    totalBefore < 100 || (totalBefore > 100 && options.forceNormalize === true)
+    shouldNormalize
       ? normalizeEstimationPercentages(tasks, {
           skipIfAlreadyNormalized: false,
           enableLogging: options.enableLogging ?? true,

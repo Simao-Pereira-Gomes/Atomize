@@ -691,6 +691,8 @@ async function resolveNormalization(
   isTTYSession: boolean,
   prompts: PromptDriver,
 ): Promise<boolean> {
+  // An explicit "always" or "never" in the Template decides; only "auto" leaves overage to the user.
+  if (template.estimation?.normalize && template.estimation.normalize !== "auto") return false;
   const { shouldOffer, total } = shouldOfferOverageNormalization(template.tasks);
   if (!shouldOffer) return false;
 

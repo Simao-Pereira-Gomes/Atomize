@@ -1065,4 +1065,41 @@ describe("EstimationCalculator", () => {
       expect(result.unresolvedEstimate?.reason).toBe("Story has no estimate");
     });
   });
+
+  describe("estimation.normalize", () => {
+    const story: WorkItem = { ...mockStory, estimation: 10, tags: [] };
+    const withSkippedTask: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 60 },
+      { title: "Test", estimationPercent: 20 },
+      { title: "Security review", estimationPercent: 20, condition: { field: "tags", operator: "contains", value: "security" } },
+    ];
+    const overAllocated: TaskDefinition[] = [
+      { title: "Dev", estimationPercent: 90 },
+      { title: "QA", estimationPercent: 60 },
+    ];
+    const run = (tasks: TaskDefinition[], normalize?: EstimationConfig["normalize"]) =>
+      calculator
+        .calculateTasksWithSkipped(story, "", tasks, { strategy: "percentage", rounding: "none", ...(normalize ? { normalize } : {}) })
+        .calculatedTasks.map((t) => t.estimation);
+
+    test("auto (default) scales a skipped task's share up and keeps over-allocation", () => {
+      expect(run(withSkippedTask)).toEqual([7.5, 2.5]);
+      expect(run(overAllocated)).toEqual([9, 6]);
+    });
+
+    test("never uses the written percentages, leaving a skipped task's share unallocated", () => {
+      expect(run(withSkippedTask, "never")).toEqual([6, 2]);
+      expect(run(overAllocated, "never")).toEqual([9, 6]);
+    });
+
+    test("always scales to exactly 100% in both directions", () => {
+      expect(run(withSkippedTask, "always")).toEqual([7.5, 2.5]);
+      expect(run(overAllocated, "always")).toEqual([6, 4]);
+    });
+
+    test("an explicit never wins over a forced normalisation", () => {
+      const result = calculator.calculateTasksWithSkipped(story, "", overAllocated, { strategy: "percentage", rounding: "none", normalize: "never" }, true);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([9, 6]);
+    });
+  });
 });

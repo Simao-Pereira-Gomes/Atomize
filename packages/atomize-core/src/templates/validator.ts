@@ -122,10 +122,14 @@ export class TemplateValidator {
       v?.totalEstimationMustBe !== undefined ||
       v?.totalEstimationRange !== undefined;
 
-    if (!hasStrictRule && total > 100) {
+    const normalize = template.estimation?.normalize ?? "auto";
+    if (!hasStrictRule && total > 100 && normalize !== "always") {
       warnings.push({
         path: "tasks",
-        message: `Total estimation is ${total}% (exceeds 100%). This is valid when tasks span multiple roles. You will be prompted to normalise at generate time.`,
+        message:
+          normalize === "never"
+            ? `Total estimation is ${total}% (exceeds 100%). With normalize: never, tasks are generated with these percentages as written.`
+            : `Total estimation is ${total}% (exceeds 100%). This is valid when tasks span multiple roles. You will be prompted to normalise at generate time.`,
         nonBlocking: true,
       });
     }

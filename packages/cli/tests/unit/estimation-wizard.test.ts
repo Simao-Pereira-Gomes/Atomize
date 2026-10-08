@@ -46,7 +46,7 @@ describe("configureEstimation wizard step", () => {
   });
 
   test("offline: produces a factor Template that passes Offline Validation", async () => {
-    answers = ["", "factor", "4", false, "none", "0", "warn"];
+    answers = ["", "factor", "4", false, "none", "0", "auto", "warn"];
 
     const { estimation, taskType } = await configureEstimation();
 
@@ -69,6 +69,7 @@ describe("configureEstimation wizard step", () => {
       ["Custom.Effort"],
       "nearest",
       "0.5",
+      "auto",
       "use-default",
       "M",
     ];
@@ -97,7 +98,7 @@ describe("configureEstimation wizard step", () => {
   });
 
   test("choosing no conversion and no overrides adds none of the new keys", async () => {
-    answers = ["", "none", false, "none", "0", "warn"];
+    answers = ["", "none", false, "none", "0", "auto", "warn"];
 
     const { estimation, taskType } = await configureEstimation();
 
@@ -106,7 +107,7 @@ describe("configureEstimation wizard step", () => {
   });
 
   test("editing writes minimumTaskEstimate and drops the deprecated minimumTaskPoints", async () => {
-    answers = ["", "none", false, "none", "0.5", "warn"];
+    answers = ["", "none", false, "none", "0.5", "auto", "warn"];
 
     const { estimation } = await configureEstimation({ strategy: "percentage", rounding: "none", minimumTaskPoints: 0.5 });
 
@@ -114,13 +115,13 @@ describe("configureEstimation wizard step", () => {
   });
 
   test("connected without platform defaults: the Story field is still chosen from the project's fields", async () => {
-    answers = ["Custom.TShirtSize", "none", false, "none", "0", "warn"];
+    answers = ["Custom.TShirtSize", "none", false, "none", "0", "auto", "warn"];
 
     const { estimation } = await configureEstimation(undefined, {
       storyFields: [field("Custom.TShirtSize", { isPicklist: true, allowedValues: ["S", "M"] })],
     });
 
-    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    const firstPrompt = next.mock.calls.at(-7)?.[0] as { options?: Array<{ value: string }> };
     expect(firstPrompt.options?.map((o) => o.value)).toEqual(["", "Custom.TShirtSize", "__custom__"]);
     expect(estimation.source).toBe("Custom.TShirtSize");
   });
@@ -135,6 +136,7 @@ describe("configureEstimation wizard step", () => {
       false,
       "none",
       "0",
+      "auto",
       "use-default",
       "__custom__",
       "0.5M",
@@ -150,19 +152,19 @@ describe("configureEstimation wizard step", () => {
   });
 
   test("lists custom free-text size fields, not only picklists, but never multi-line text", async () => {
-    answers = ["Custom.SizeText", "none", false, "none", "0", "warn"];
+    answers = ["Custom.SizeText", "none", false, "none", "0", "auto", "warn"];
 
     await configureEstimation(undefined, {
       storyFields: [field("Custom.SizeText"), field("Custom.Notes", { isMultiline: true })],
       defaults: AZURE_DEVOPS_ESTIMATION_DEFAULTS,
     });
 
-    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    const firstPrompt = next.mock.calls.at(-7)?.[0] as { options?: Array<{ value: string }> };
     expect(firstPrompt.options?.map((o) => o.value)).toEqual(["", "Custom.SizeText", "__custom__"]);
   });
 
   test("lists process-defined size fields and the platform's own estimate fields, custom fields first", async () => {
-    answers = ["MyCompany.TShirtSize", "none", false, "none", "0", "warn"];
+    answers = ["MyCompany.TShirtSize", "none", false, "none", "0", "auto", "warn"];
 
     const { estimation } = await configureEstimation(undefined, {
       storyFields: [
@@ -174,7 +176,7 @@ describe("configureEstimation wizard step", () => {
       defaults: AZURE_DEVOPS_ESTIMATION_DEFAULTS,
     });
 
-    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    const firstPrompt = next.mock.calls.at(-7)?.[0] as { options?: Array<{ value: string }> };
     expect(firstPrompt.options?.map((o) => o.value)).toEqual([
       "",
       "Custom.Complexity",
@@ -199,6 +201,7 @@ describe("configureEstimation wizard step", () => {
       false, // keep the platform's task type and fields
       "none",
       "0",
+      "auto",
       "warn",
     ];
 
@@ -216,7 +219,7 @@ describe("configureEstimation wizard step", () => {
       field("System.Rev", { name: "Rev", type: "integer", isCustom: false }),
       field("Custom.Notes", { name: "Notes" }),
     ]);
-    answers = ["", "none", true, "Task", ["Custom.Effort"], "none", "0", "warn"];
+    answers = ["", "none", true, "Task", ["Custom.Effort"], "none", "0", "auto", "warn"];
 
     const { estimation } = await configureEstimation(undefined, {
       storyFields: [],
@@ -225,12 +228,12 @@ describe("configureEstimation wizard step", () => {
       getTaskFields,
     });
 
-    const targetPrompt = next.mock.calls.at(-4)?.[0] as { options?: Array<{ value: string }> };
+    const targetPrompt = next.mock.calls.at(-5)?.[0] as { options?: Array<{ value: string }> };
     expect(targetPrompt.options?.map((o) => o.value)).toEqual(["Custom.Effort", "Microsoft.VSTS.Scheduling.RemainingWork"]);
     expect(estimation.targetFields).toEqual(["Custom.Effort"]);
   });
   test("does not offer platform non-estimate fields such as Priority or Value Area as the Story field", async () => {
-    answers = ["", "none", false, "none", "0", "warn"];
+    answers = ["", "none", false, "none", "0", "auto", "warn"];
 
     await configureEstimation(undefined, {
       storyFields: [
@@ -242,13 +245,20 @@ describe("configureEstimation wizard step", () => {
       defaults: AZURE_DEVOPS_ESTIMATION_DEFAULTS,
     });
 
-    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    const firstPrompt = next.mock.calls.at(-7)?.[0] as { options?: Array<{ value: string }> };
     expect(firstPrompt.options?.map((o) => o.value)).toEqual([
       "",
       "Custom.TShirtSize",
       "Microsoft.VSTS.Scheduling.StoryPoints",
       "__custom__",
     ]);
+  });
+  test("writes normalize only when it differs from the default", async () => {
+    answers = ["", "none", false, "none", "0", "never", "warn"];
+
+    const { estimation } = await configureEstimation();
+
+    expect(estimation.normalize).toBe("never");
   });
 });
 

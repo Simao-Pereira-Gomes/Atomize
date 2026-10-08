@@ -499,6 +499,15 @@
               },
               "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
             },
+            "normalize": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "always",
+                "never"
+              ],
+              "description": "What to do when the generated tasks' percentages don't add up to 100%. 'auto' (default) scales totals below 100% up and leaves totals above 100% as written unless you choose otherwise at generate time; 'always' scales to 100% in both directions; 'never' uses the percentages exactly as written, so a skipped task's share stays unallocated."
+            },
             "rounding": {
               "default": "none",
               "description": "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
@@ -1101,6 +1110,15 @@
                 "minLength": 1
               },
               "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
+            },
+            "normalize": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "always",
+                "never"
+              ],
+              "description": "What to do when the generated tasks' percentages don't add up to 100%. 'auto' (default) scales totals below 100% up and leaves totals above 100% as written unless you choose otherwise at generate time; 'always' scales to 100% in both directions; 'never' uses the percentages exactly as written, so a skipped task's share stays unallocated."
             },
             "rounding": {
               "default": "none",

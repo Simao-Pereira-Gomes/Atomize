@@ -150,6 +150,7 @@ export class EstimationCalculator {
     distributeActiveTaskPercentages(calculatedTasks, {
       forceNormalize,
       enableLogging: true,
+      mode: estimationConfig?.normalize,
     });
 
     for (const calculatedTask of calculatedTasks) {

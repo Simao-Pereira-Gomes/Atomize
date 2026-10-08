@@ -80,6 +80,7 @@ tasks:                  # required, minimum 1 item
 estimation:             # optional
   strategy: "percentage"
   rounding: "nearest" | "up" | "down" | "none"   # default "none" — omit unless the user asks for rounding
+  normalize: "auto" | "always" | "never"          # optional, default "auto" — set "never" only if the user wants percentages used exactly as written
   minimumTaskEstimate: number   # optional, default 0 — minimum per task, in the Task's unit (hours on Azure DevOps)
   source: string                # optional — Story field reference name holding the Story Estimate (e.g. "Custom.TShirtSize"). Omit to use the platform default (story points / effort / size).
   conversion:                   # optional — Story Estimate → Task-unit total before the split. Set exactly ONE of factor or table.

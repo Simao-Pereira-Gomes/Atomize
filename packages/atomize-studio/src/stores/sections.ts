@@ -98,6 +98,8 @@ type EstimationFields = {
   /** "custom" when the Template overrides the child type or the Task estimate fields. */
   targetMode: "default" | "custom";
   targetFields: string[];
+  /** "" means the default ("auto"), so nothing is written to the Template. */
+  normalize: "" | "auto" | "always" | "never";
   rounding: "none" | "nearest" | "up" | "down";
   minimumTaskEstimate: string;
   ifParentHasNoEstimation: "" | "skip" | "warn" | "use-default";
@@ -191,6 +193,7 @@ const defaultEstimation = (): EstimationFields => ({
   multipliers: false,
   targetMode: "default",
   targetFields: [],
+  normalize: "",
   rounding: "none",
   minimumTaskEstimate: "",
   ifParentHasNoEstimation: "",
@@ -632,6 +635,7 @@ function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
     source: nonEmpty(store.fields.source),
     conversion,
     targetFields,
+    normalize: store.fields.normalize || undefined,
     rounding: store.fields.rounding,
     minimumTaskEstimate: optionalNumber(store.fields.minimumTaskEstimate),
     ifParentHasNoEstimation: store.fields.ifParentHasNoEstimation || undefined,
@@ -642,6 +646,7 @@ function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
     estimation.source !== undefined ||
     conversion !== undefined ||
     targetFields !== undefined ||
+    estimation.normalize !== undefined ||
     estimation.minimumTaskEstimate !== undefined ||
     estimation.ifParentHasNoEstimation !== undefined ||
     estimation.defaultParentEstimation !== undefined ||
@@ -782,6 +787,7 @@ export function createAuthoringStore(): AuthoringStore {
       source,
       conversion,
       targetFields,
+      normalize,
       rounding,
       minimumTaskEstimate,
       minimumTaskPoints,
@@ -799,6 +805,7 @@ export function createAuthoringStore(): AuthoringStore {
         multipliers: conversion?.multipliers === true,
         targetMode: template.taskType || targetFields?.length ? "custom" : "default",
         targetFields: targetFields ?? [],
+        normalize: normalize ?? "",
         rounding: rounding ?? "none",
         minimumTaskEstimate: String(minimumTaskEstimate ?? minimumTaskPoints ?? ""),
         ifParentHasNoEstimation: ifParentHasNoEstimation ?? "",

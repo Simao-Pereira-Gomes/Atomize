@@ -435,6 +435,12 @@ export const EstimationConfigSchema = z.object({
       "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated.",
     )
     .optional(),
+  normalize: z
+    .enum(["auto", "always", "never"])
+    .describe(
+      "What to do when the generated tasks' percentages don't add up to 100%. 'auto' (default) scales totals below 100% up and leaves totals above 100% as written unless you choose otherwise at generate time; 'always' scales to 100% in both directions; 'never' uses the percentages exactly as written, so a skipped task's share stays unallocated.",
+    )
+    .optional(),
   rounding: z
     .enum(["nearest", "up", "down", "none"])
     .optional()

@@ -263,6 +263,27 @@ export function EstimationSection(props: {
               </label>
             </div>
             <Show when={s.errors.minimumTaskEstimate}><p class="ui-error">{s.errors.minimumTaskEstimate}</p></Show>
+            <div class="flex flex-wrap items-center gap-2 pt-2 text-sm">
+              <span>When the tasks don't add up to 100%</span>
+              <Segmented<"auto" | "always" | "never">
+                label="When the tasks don't add up to 100%"
+                hideLabel
+                value={s.fields.normalize || "auto"}
+                options={[
+                  { value: "auto", label: "Fill up to 100%" },
+                  { value: "always", label: "Always scale to 100%" },
+                  { value: "never", label: "Use as written" },
+                ]}
+                onChange={(v) => change("normalize", v === "auto" ? "" : v)}
+              />
+            </div>
+            <p class="text-xs text-slate-500">
+              {(s.fields.normalize || "auto") === "never"
+                ? "Each task gets exactly its percentage; a skipped task's share is left unallocated."
+                : (s.fields.normalize || "auto") === "always"
+                  ? "Percentages are scaled so the tasks always share the whole estimate, even above 100%."
+                  : "Below 100% (e.g. a skipped conditional task), the others are scaled up; above 100% is kept as written."}
+            </p>
           </div>
 
           <div class="!mt-8">
@@ -399,6 +420,7 @@ function WorkedExample(props: {
       minimumTaskEstimate: Number(s.fields.minimumTaskEstimate) || 0,
       ifParentHasNoEstimation: s.fields.ifParentHasNoEstimation || undefined,
       defaultParentEstimation: s.fields.defaultParentEstimation.trim() || undefined,
+      normalize: s.fields.normalize || undefined,
     });
 
   return (

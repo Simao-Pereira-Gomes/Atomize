@@ -773,6 +773,18 @@ export async function configureEstimation(
     }),
   );
 
+  const normalize = assertNotCancelled(
+    await select({
+      message: "When the generated tasks' percentages don't add up to 100%:",
+      options: [
+        { label: "Fill up to 100% (scale up below 100%, keep anything above)", value: "auto" },
+        { label: "Always scale to exactly 100%", value: "always" },
+        { label: "Use the percentages as written", value: "never" },
+      ],
+      initialValue: defaults?.normalize ?? "auto",
+    }),
+  ) as NonNullable<EstimationConfig["normalize"]>;
+
   const policy = assertNotCancelled(
     await select({
       message: "When a Story's estimate is missing or can't be converted:",
@@ -795,6 +807,7 @@ export async function configureEstimation(
     minimumTaskPoints: _minimumTaskPoints,
     defaultParentEstimation: _default,
     ifParentHasNoEstimation: _policy,
+    normalize: _normalize,
     ...kept
   } = defaults ?? {};
 
@@ -806,6 +819,7 @@ export async function configureEstimation(
     ...(source ? { source } : {}),
     ...(conversion ? { conversion } : {}),
     ...(targetFields?.length ? { targetFields } : {}),
+    ...(normalize !== "auto" ? { normalize } : {}),
     ...(policy !== "warn" ? { ifParentHasNoEstimation: policy } : {}),
     ...(defaultParentEstimation !== undefined ? { defaultParentEstimation } : {}),
   };

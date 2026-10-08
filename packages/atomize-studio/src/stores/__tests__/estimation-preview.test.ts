@@ -43,4 +43,21 @@ describe("previewEstimation", () => {
       }),
     ).toMatchObject({ kind: "estimated", total: 5, usedDefault: true });
   });
+
+  it("applies the normalize setting to tasks that don't add up to 100%", () => {
+    const partial = [
+      { title: "Build", percent: 60 },
+      { title: "Test", percent: 20 },
+    ];
+    const config = { conversion: { factor: 1 } };
+    expect(previewEstimation("10", partial, config)).toMatchObject({ tasks: [{ hours: 7.5 }, { hours: 2.5 }] });
+    expect(previewEstimation("10", partial, { ...config, normalize: "never" })).toMatchObject({ tasks: [{ hours: 6 }, { hours: 2 }] });
+
+    const over = [
+      { title: "Build", percent: 90 },
+      { title: "Test", percent: 60 },
+    ];
+    expect(previewEstimation("10", over, config)).toMatchObject({ tasks: [{ hours: 9 }, { hours: 6 }] });
+    expect(previewEstimation("10", over, { ...config, normalize: "always" })).toMatchObject({ tasks: [{ hours: 6 }, { hours: 4 }] });
+  });
 });

@@ -79,6 +79,24 @@ describe("TemplateValidator", () => {
 			expect(result.errors.some((e) => e.path.startsWith("estimation.conversion"))).toBe(true);
 		});
 
+		test("the over-100% warning follows estimation.normalize", () => {
+			const base = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ title: "Dev", estimationPercent: 90 },
+					{ title: "QA", estimationPercent: 60 },
+				],
+			};
+			const overage = (estimation?: object) =>
+				validator.validate({ ...base, ...(estimation ? { estimation } : {}) }).warnings.find((w) => w.path === "tasks")?.message;
+
+			expect(overage()).toContain("prompted to normalise");
+			expect(overage({ normalize: "never" })).toContain("as written");
+			expect(overage({ normalize: "always" })).toBeUndefined();
+		});
+
 		test("Offline Validation accepts a positive conversion factor", () => {
 			const result = validator.validate({
 				version: "1.0",
