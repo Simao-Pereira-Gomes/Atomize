@@ -292,11 +292,25 @@ tasks:
 Maps to Azure DevOps fields:
 - `System.Title` ← title
 - `System.Description` ← description
-- `Microsoft.VSTS.Scheduling.RemainingWork` ← estimationPercent * story points
+- `Microsoft.VSTS.Scheduling.RemainingWork` and `Microsoft.VSTS.Scheduling.OriginalEstimate` ← the Task Estimate (see below); `Microsoft.VSTS.Scheduling.CompletedWork` is set to `0`
 - `System.Tags` ← tags (joined with "; ")
 - `Microsoft.VSTS.Common.Activity` ← activity
 - `System.AssignedTo` ← assignTo
 - `Microsoft.VSTS.Common.Priority` ← priority
+
+Tasks are created as the `Task` work item type unless the Template sets `taskType`.
+
+#### How the Task Estimate is calculated
+
+1. **Read the Story Estimate.** Without `estimation.source`, Atomize uses the first of these fields that has a value: `Microsoft.VSTS.Scheduling.StoryPoints` (Agile), `Microsoft.VSTS.Scheduling.Effort` (Scrum), `Microsoft.VSTS.Scheduling.Size` (CMMI), then `Microsoft.VSTS.Scheduling.OriginalEstimate` (Stories estimated directly in hours). With `estimation.source` set, only that field is read, with no fallback. It can be any writable number field, or a single-line text or picklist field such as a T-shirt size.
+2. **Convert it to hours.** `estimation.conversion` applies a `factor` (e.g. 1 point = 4 hours) or a `table` (e.g. `L: 20`). With `multipliers: true`, values such as `0.3XL` are also accepted. Without a conversion, a numeric Story Estimate is used as hours one-to-one.
+3. **Split it across the tasks** by `estimationPercent`. If the percentages don't add up to 100%, `estimation.normalize` decides whether they are scaled. Then `rounding` and `minimumTaskEstimate` are applied.
+
+When a Story has no estimate, or its value isn't covered by the conversion, its tasks are still created with blank estimates and a warning is reported. Set `ifParentHasNoEstimation: skip` to skip the Story instead, or `use-default` together with `defaultParentEstimation`.
+
+To write the estimate somewhere else, set `estimation.targetFields`. It replaces the default fields: the value is written as calculated, and `CompletedWork` is left alone. Target fields must be writable number fields that aren't picklists; Online Validation reports anything else as an error. The CLI wizard and Studio also leave out `System.*` fields and fields in `Microsoft.VSTS.Common.*` (priority, stack rank, business value, ...), because those don't hold effort. If you type one in, Online Validation warns.
+
+See the [estimation reference](./Template-Reference.md#estimation) for every option.
 
 ### Troubleshooting
 

@@ -491,7 +491,7 @@ tasks:
 |----------|-------------|
 | `field` | Built-in story field such as `title`, `tags`, or `estimation` |
 | `customField` | Parent story custom field reference name such as `Custom.ClientTier` |
-| `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte` |
+| `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte`. `tags` is multi-value, so it accepts only `contains` and `not-contains` |
 | `value` | String, number, or boolean to compare against |
 
 `field: estimation` compares against the **raw Story Estimate**, before any `conversion`, read from `estimation.source` when one is set. Existing point-based conditions keep their meaning, and categories work with `equals`/`not-equals`, e.g. `{ field: estimation, operator: equals, value: L }`. A numeric operator (`gt`, `lt`, `gte`, `lte`) against a non-numeric Story Estimate such as `L` is an evaluation error: the task is skipped and the reason is reported.
@@ -499,6 +499,8 @@ tasks:
 **Compound clauses:**
 - `{ all: [...] }` means every nested clause must match
 - `{ any: [...] }` means at least one nested clause must match
+
+**VS Code snippets:** `atm-condition` (tags), `atm-condition-field` (text fields such as `state` or `areaPath`), `atm-condition-number` (`estimation`, `priority`), `atm-condition-custom`, `atm-condition-all` and `atm-condition-any`. Each snippet offers only the operators its field supports.
 
 ```yaml
 tasks:

@@ -92,6 +92,11 @@ These issues always block template use:
 | Wrong field type | `Expected number but received string` |
 | Negative estimation | `Estimation percentage cannot be negative` |
 | Invalid custom field in Online Validation | `Field "Custom.ClientTier" not found for work item type "Task"` |
+| Tag condition with an operator other than `contains`/`not-contains` | `Field "tags" is multi-value; only "contains"/"not-contains" are supported (got "equals").` |
+| Both or neither of `conversion.factor` and `conversion.table` | `conversion must set exactly one of factor or table` |
+| `defaultParentEstimation` the conversion can't convert | `defaultParentEstimation "XXL" is not a key of conversion.table` |
+| Estimation source, task type or target field missing in Online Validation | `Field "Custom.TShirtSize" not found for work item type "User Story".` |
+| Target field that can't hold a Task Estimate (not numeric, or a picklist) in Online Validation | `Field "Custom.Notes" is a string field; Task Estimates can only be written to numeric fields.` |
 
 ### Warnings (Errors in Strict Mode)
 
@@ -104,6 +109,13 @@ These issues are warnings in lenient mode but become errors in strict mode:
 | Estimation below `taskEstimationRange.min` | `Task estimation 0.2 is below minimum 0.5` |
 | Task missing recommended field | `Task "Implementation" has no activity set` |
 | Template has no filter criteria | `No filter criteria configured — template will match all work items` |
+| Story Estimate value with no conversion (Online) | `"XXL" is a valid value of "Custom.TShirtSize" but has no conversion; Stories with it will get blank Task Estimates.` |
+| `conversion.table` key that isn't an allowed value (Online) | `conversion.table key "XXS" is not an allowed value of "Custom.TShirtSize" and will never match.` |
+| Free-text or open picklist source field (Online) | `"Custom.Size" is a free-text field; any value not in the conversion table will leave Tasks unestimated.` |
+| Numeric condition on a text Story Estimate (Online) | `This condition compares estimation numerically, but "Custom.TShirtSize" holds text values; ...` |
+| Target field that holds a ranking or value (Online) | `Field "Microsoft.VSTS.Common.BacklogPriority" holds a ranking or value, not effort; ...` |
+
+Some warnings stay warnings in strict mode, because the Template still works as intended. One example is the deprecated `minimumTaskPoints` key, which is used as `minimumTaskEstimate`.
 
 ---
 
@@ -142,7 +154,7 @@ CLI --strict  >  template validation.mode  >  lenient (default)
 
 When Azure DevOps-backed validation is needed:
 - `atomize validate` runs Offline Validation by default and only checks structure
-- `atomize validate --profile <name>` performs Online Validation against Azure DevOps
+- `atomize validate --profile <name>` performs Online Validation against Azure DevOps: custom fields, saved queries, and the estimation settings (`estimation.source`, `taskType`, `targetFields`, and `conversion.table` against the source field's allowed values)
 - In interactive terminals, Atomize may prompt you to choose Offline Validation or Online Validation
 
 ---

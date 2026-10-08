@@ -62,6 +62,15 @@ Once a file is open, you get two save actions:
 
 The authoring surface is organised into sections: Basic Info, Filter, Tasks, Estimation, Validation, Metadata, and Review. All sections must validate before you can export, install to Catalog, or (for an Open session) save.
 
+The **Estimation** section follows the estimate in four steps, with a live preview that splits a sample Story Estimate across your tasks:
+
+1. **Read the Story Estimate:** use the platform default fields, or pick the Story field that holds the size.
+2. **Convert it to Task hours:** one-to-one, a factor, or a table. A table can also accept fractional sizes such as `0.3XL`. This step also sets rounding, the minimum Task Estimate, and what happens when the tasks don't add up to 100% (`normalize`).
+3. **Write the Task Estimates:** use the platform defaults, or set a custom task type and target fields.
+4. **When a Story's estimate can't be used:** leave the estimates blank (the default), skip the Story, or use a default Story Estimate.
+
+With a Connection Profile selected, the field choices are searchable lists from your project. They are filtered to fields that can hold an estimate, using the same rules as the CLI. When the Story field is a picklist, its values seed the conversion table, and any row that isn't one of them is flagged. "Enter a reference name instead" lets you type a field that isn't listed. In the Filter section, a saved query asks which work item types it returns. Those types are used for field lookups only, and saving isn't blocked without them.
+
 **Task Auto-normalisation** is an opt-in behavior for Percentage-mode Tasks: editing one Task's percentage proportionally redistributes the remaining percentage among its valid sibling Tasks. It's an in-memory authoring convenience only — never written into the Atomize YAML File.
 
 ### Template Diff

@@ -40,10 +40,35 @@ Session Atomize YAML Opt-In may provide schema-backed authoring support when the
 Atomize YAML authoring includes:
 
 - schema hovers and completions
-- snippets for common Template and Mixin structures
+- snippets for common Template and Mixin structures (type `atm-` to list them)
 - save-time diagnostics for durable Atomize YAML files
 - CodeLens actions for Validate, Preview, and Generate
 - quick fixes for supported validation warnings
+
+### Snippets
+
+| Prefix | Inserts |
+|--------|---------|
+| `atm-template`, `atm-mixin`, `atm-extends` | Template, Mixin and inheriting-Template scaffolds |
+| `atm-task`, `atm-task-condition` | A task, or a task created only when the Story has a tag |
+| `atm-filter`, `atm-filter-ado`, `atm-filter-saved-query`, `atm-filter-tags` | Filter blocks. The saved-query snippet declares `workItemTypes`, which describes what the query returns and doesn't filter |
+| `atm-estimation` | Strategy, rounding and `normalize` |
+| `atm-estimation-factor`, `atm-estimation-table` | A Story Estimate conversion by factor (points to hours), or by table (T-shirt sizes, with optional `multipliers`) |
+| `atm-estimation-target` | `taskType` and `targetFields` for customised processes |
+| `atm-estimation-percent-condition` | A conditional `estimationPercent` rule |
+| `atm-condition`, `atm-condition-field`, `atm-condition-number`, `atm-condition-custom` | Condition clauses on tags, built-in text fields, numbers (`estimation`, `priority`) or custom fields, each offering only the operators its field supports |
+| `atm-condition-all`, `atm-condition-any` | Compound AND / OR conditions |
+| `atm-validation`, `atm-custom-fields`, `atm-acceptance-criteria` | Validation rules, task custom fields, acceptance criteria |
+
+### Quick Fixes
+
+Quick fixes appear on validation warnings that have a safe automatic fix:
+
+- **Add id field derived from task title**, for a task that has dependencies or is depended on but has no `id`
+- **Remove conflicting structured filter fields**, which a `savedQuery` ignores (`workItemTypes` is kept, because it declares the query's types)
+- **Strip newlines from single-line field value**
+- **Rename minimumTaskPoints to minimumTaskEstimate**
+- **Remove deprecated minimumTaskPoints**, when `minimumTaskEstimate` is also set
 
 Validation runs on saved file content. If you explicitly validate a dirty document, the extension asks you to save first.
 

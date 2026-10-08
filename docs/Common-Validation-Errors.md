@@ -102,6 +102,8 @@ Total estimation is 120%, but must be 100%.
    # The wizard will offer to normalize estimations automatically
    ```
 
+3. **Let generation scale the percentages:** set `estimation.normalize: always` to scale them to exactly 100% when tasks are created. The default, `auto`, scales totals below 100% up (for example when a conditional task is skipped) but keeps totals above 100% unless you choose to normalize when the CLI asks. `never` always uses the percentages as written. This changes how tasks are generated, not this validation message, so also relax `totalEstimationMustBe` or `totalEstimationRange` if you've set one.
+
 ### Estimation Outside Range
 
 **Error Message:**
@@ -137,6 +139,77 @@ tasks:
   - title: "Task 1"
     estimationPercent: 50  # Fix: was -10 or 150
 ```
+
+### Conversion Errors
+
+**Error Messages:**
+```
+conversion must set exactly one of factor or table
+conversion.multipliers requires conversion.table
+conversion.multipliers cannot be used when every table key is numeric: '25' would be ambiguous between the key 25 and 2 × 5
+```
+
+**Cause:** `estimation.conversion` turns the Story Estimate into Task hours with either a `factor` or a `table`, not both. `multipliers` (accepting values such as `0.3XL`) only works with a table of non-numeric sizes.
+
+**Solution:**
+```yaml
+estimation:
+  source: "Custom.TShirtSize"
+  conversion:
+    table: { S: 4, M: 8, L: 20, XL: 40 }
+    multipliers: true
+```
+
+### Default Story Estimate Can't Be Converted
+
+**Error Message:**
+```
+defaultParentEstimation "XXL" is not a key of conversion.table
+defaultParentEstimation "M" is not numeric and no conversion.table is set
+```
+
+**Cause:** `defaultParentEstimation` is the Story Estimate assumed with `ifParentHasNoEstimation: use-default`, so it has to go through the same conversion as a real one.
+
+**Solution:** Use one of the table's keys, or a number when there is no table.
+
+### Deprecated `minimumTaskPoints`
+
+**Warning Messages:**
+```
+minimumTaskPoints is deprecated; the minimum applies in the Task's unit, which may not be points.
+Both minimumTaskEstimate and the deprecated minimumTaskPoints are set; minimumTaskEstimate (0.5) is used and minimumTaskPoints (1) is ignored.
+```
+
+**Cause:** The minimum is applied to the Task Estimate (hours by default), so it was renamed. The old key still works.
+
+**Solution:** Rename the key to `minimumTaskEstimate`, or remove the duplicate. In VS Code, the quick fix does this for you.
+
+### Estimation Fields in Online Validation
+
+Online Validation (`atomize validate --profile <name>`) checks the estimation settings against your project.
+
+**Errors:**
+```
+Field "Custom.TShirtSize" not found for work item type "User Story".
+Work item type "Sub-task" does not exist in this project. Available types: Bug, Task, User Story.
+Field "Custom.Effort" not found for work item type "Task".
+Field "Custom.Notes" is a string field; Task Estimates can only be written to numeric fields.
+Field "Custom.Points" only accepts a fixed list of values, so calculated Task Estimates can't be written to it.
+```
+
+**Warnings** (errors in strict mode):
+```
+"XXL" is a valid value of "Custom.TShirtSize" but has no conversion; Stories with it will get blank Task Estimates.
+conversion.table key "XXS" is not an allowed value of "Custom.TShirtSize" and will never match.
+"Custom.Size" is a free-text field; any value not in the conversion table will leave Tasks unestimated.
+Field "Microsoft.VSTS.Common.BacklogPriority" holds a ranking or value, not effort; writing Task Estimates to it will overwrite that.
+```
+
+**Solutions:**
+- Check the reference names of `estimation.source`, `taskType` and `targetFields`. The CLI wizard and Studio list the valid fields when connected.
+- Write Task Estimates only to writable number fields that aren't picklists, such as `Microsoft.VSTS.Scheduling.RemainingWork` or a custom decimal field.
+- Make `conversion.table` keys match the field's allowed values exactly, and add a row for every value your Stories use.
+- With a saved-query filter, declare `workItemTypes` so the source field is checked against the right type.
 
 ---
 
@@ -386,6 +459,45 @@ Invalid input for condition
 - `gt` / `lt` / `gte` / `lte`
 - `all` / `any`
 
+### Unsupported Operator on Tags
+
+**Error Message:**
+```
+Field "tags" is multi-value; only "contains"/"not-contains" are supported (got "equals").
+```
+
+**Cause:** A Story has many tags, so a tag condition can only check whether one is present.
+
+**Solution:**
+```yaml
+condition:
+  field: "tags"
+  operator: "contains"   # was: equals
+  value: "backend"
+```
+
+### Numeric Operator on a Non-Numeric Story Estimate
+
+**Error Message** (at generation, the task is skipped):
+```
+cannot compare the Story Estimate "L" with "gt" because it is not numeric; use equals or not-equals for categories
+```
+
+Online Validation warns about this before you generate:
+```
+This condition compares estimation numerically, but "Custom.TShirtSize" holds text values; it will skip the task for any non-numeric Story Estimate.
+```
+
+**Cause:** `field: estimation` compares the raw Story Estimate, before any conversion. When it is a size such as `L`, `gt`/`lt`/`gte`/`lte` have nothing to compare.
+
+**Solution:** Compare categories by value:
+```yaml
+condition:
+  any:
+    - { field: "estimation", operator: "equals", value: "L" }
+    - { field: "estimation", operator: "equals", value: "XL" }
+```
+
 ---
 
 ## Schema Errors
@@ -528,6 +640,12 @@ fi
 | Missing ID | "no id field" | Add `id: "task-name"` |
 | Circular dependency | "Circular dependency detected" | Remove one dependency from cycle |
 | Invalid condition | "structured object" | Use `field` / `customField` conditions |
+| Tag operator | "is multi-value" | Use `contains` / `not-contains` |
+| Category estimate compared numerically | "is not numeric" | Use `equals` / `not-equals` with the size |
+| Conversion | "exactly one of factor or table" | Keep either `factor` or `table` |
+| Estimation field (Online) | "not found for work item type" | Fix the reference name or `workItemTypes` |
+| Uncovered size (Online) | "has no conversion" | Add the value to `conversion.table` |
+| Deprecated key | "minimumTaskPoints is deprecated" | Rename to `minimumTaskEstimate` |
 | Invalid email | "Invalid email" | Use valid email or "@Me" |
 | Wrong type | "Expected X but received Y" | Fix value type (number vs string) |
 
