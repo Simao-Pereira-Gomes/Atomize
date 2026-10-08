@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { TemplateResolver } from "@sppg2001/atomize-core/services/template/template-resolver";
 import { MAX_INHERITANCE_DEPTH, TemplateComposer } from "@sppg2001/atomize-core/templates/composer";
+import { mergeTemplates } from "@sppg2001/atomize-core/templates/composition-policy";
 import { TemplateLoader } from "@sppg2001/atomize-core/templates/loader";
 import { TemplateCompositionError } from "@sppg2001/atomize-core/utils/errors";
 import { expectToReject } from "../utils/matchers";
@@ -513,5 +514,23 @@ describe("TemplateLoader.loadWithMeta", () => {
       resolve(fixturesPath, "child-template.atomize.yaml"),
     );
     expect(meta.resolvedExtendsPath).toBeDefined();
+  });
+});
+
+describe("mergeTemplates taskType", () => {
+  const base = {
+    version: "1.0",
+    name: "Base",
+    filter: { workItemTypes: ["User Story"] },
+    tasks: [{ title: "Task 1", estimationPercent: 100 }],
+    taskType: "Sub-task",
+  };
+
+  test("a child inherits the base taskType", () => {
+    expect(mergeTemplates(base, { name: "Child" }).taskType).toBe("Sub-task");
+  });
+
+  test("a child's own taskType wins", () => {
+    expect(mergeTemplates(base, { name: "Child", taskType: "Deliverable" }).taskType).toBe("Deliverable");
   });
 });

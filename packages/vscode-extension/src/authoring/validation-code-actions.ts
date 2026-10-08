@@ -82,7 +82,7 @@ export function fixMissingTaskId(docText: string, range: PlainRange, _data: unkn
 }
 
 const STRUCTURED_FILTER_KEYS = new Set([
-	'workItemTypes', 'states', 'statesExclude', 'statesWereEver',
+	'states', 'statesExclude', 'statesWereEver',
 	'tags', 'areaPaths', 'areaPathsUnder', 'iterations', 'iterationsUnder',
 	'assignedTo', 'changedAfter', 'createdAfter', 'priority',
 ]);
@@ -177,4 +177,49 @@ export function fixSavedQueryWithStructuredFilter(docText: string, _range: Plain
 	}
 
 	return edits.length > 0 ? edits : null;
+}
+
+function estimationKeyNode(docText: string, keyName: string) {
+	const lc = new LineCounter();
+	const doc = parseDocument(docText, { lineCounter: lc });
+	const root = doc.contents;
+	if (!isMap(root)) return null;
+	const estimation = root.get('estimation', true);
+	if (!isMap(estimation)) return null;
+	const hasKey = (name: string) => estimation.items.some((p) => isPair(p) && (p.key as { value?: unknown }).value === name);
+	for (const pair of estimation.items) {
+		if (!isPair(pair)) continue;
+		const key = pair.key as ParsedNode;
+		if ((key as { value?: unknown }).value !== keyName || !key.range) continue;
+		const start = lc.linePos(key.range[0]);
+		const end = lc.linePos(key.range[1]);
+		return { start: { line: start.line - 1, character: start.col - 1 }, end: { line: end.line - 1, character: end.col - 1 }, hasKey };
+	}
+	return null;
+}
+
+export function fixDeprecatedMinimumTaskPoints(docText: string, _range: PlainRange, _data: unknown): TextEdit[] | null {
+	const key = estimationKeyNode(docText, 'minimumTaskPoints');
+	if (!key || key.hasKey('minimumTaskEstimate')) return null;
+	return [{
+		startLine: key.start.line,
+		startCharacter: key.start.character,
+		endLine: key.end.line,
+		endCharacter: key.end.character,
+		newText: 'minimumTaskEstimate',
+	}];
+}
+
+export function fixDuplicateMinimumTaskEstimate(docText: string, _range: PlainRange, _data: unknown): TextEdit[] | null {
+	const key = estimationKeyNode(docText, 'minimumTaskPoints');
+	if (!key?.hasKey('minimumTaskEstimate')) return null;
+	const lines = docText.split('\n');
+	const indent = lineIndent(lines[key.start.line] ?? '');
+	return [{
+		startLine: key.start.line,
+		startCharacter: 0,
+		endLine: blockEndLine(lines, key.start.line, indent),
+		endCharacter: 0,
+		newText: '',
+	}];
 }

@@ -146,7 +146,9 @@ export const FilterCriteriaSchema = z.object({
     .optional(),
   workItemTypes: z
     .array(z.string())
-    .describe("Work item types to include (e.g. ['User Story', 'Bug']).")
+    .describe(
+      "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate.",
+    )
     .optional(),
   states: z
     .array(z.string())
@@ -334,6 +336,82 @@ export const TaskDefinitionSchema = z.object({
     }),
 }).strict();
 
+const NUMBER_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
+
+export const EstimationConversionSchema = z
+  .object({
+    factor: z
+      .number()
+      .positive()
+      .describe("Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours.")
+      .optional(),
+    table: z
+      .record(z.string(), z.number().nonnegative())
+      .refine((table) => Object.keys(table).length > 0, "conversion.table must have at least one entry")
+      .describe(
+        "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear.",
+      )
+      .optional(),
+    multipliers: z
+      .boolean()
+      .describe(
+        "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
+      )
+      .optional(),
+  })
+  .strict()
+  .refine((conversion) => (conversion.factor === undefined) !== (conversion.table === undefined), {
+    message: "conversion must set exactly one of factor or table",
+  })
+  .refine((conversion) => !conversion.multipliers || conversion.table !== undefined, {
+    message: "conversion.multipliers requires conversion.table",
+    path: ["multipliers"],
+  })
+  .refine(
+    (conversion) =>
+      !conversion.multipliers || !conversion.table || !Object.keys(conversion.table).every((key) => NUMBER_PATTERN.test(key)),
+    {
+      message: "conversion.multipliers cannot be used when every table key is numeric: '25' would be ambiguous between the key 25 and 2 × 5",
+      path: ["multipliers"],
+    },
+  )
+  .describe(
+    "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
+  );
+
+/**
+ * Looks a Story Estimate up in a conversion table. An exact key always wins; with
+ * multipliers enabled, "<number><key>" (optional whitespace between) is number × table[key],
+ * preferring the longest matching key.
+ */
+export function lookupTableEstimate(
+  value: string | number,
+  table: Record<string, number>,
+  multipliers = false,
+): number | undefined {
+  const text = String(value).trim();
+  if (Object.hasOwn(table, text)) return table[text];
+  if (!multipliers) return undefined;
+
+  const candidates = Object.keys(table)
+    .filter((key) => key !== "" && text.endsWith(key))
+    .sort((a, b) => b.length - a.length);
+  for (const key of candidates) {
+    const prefix = text.slice(0, text.length - key.length).trim();
+    if (NUMBER_PATTERN.test(prefix)) return Number(prefix) * (table[key] as number);
+  }
+  return undefined;
+}
+
+/** Whether a Story Estimate value can be translated by the given conversion (or one-to-one when absent). */
+export function isConvertibleStoryEstimate(
+  value: string | number,
+  conversion: z.infer<typeof EstimationConversionSchema> | undefined,
+): boolean {
+  if (conversion?.table) return lookupTableEstimate(value, conversion.table, conversion.multipliers) !== undefined;
+  return typeof value === "number" || (value.trim() !== "" && Number.isFinite(Number(value)));
+}
+
 export const EstimationConfigSchema = z.object({
   strategy: z
     .enum(["percentage"])
@@ -344,8 +422,23 @@ export const EstimationConfigSchema = z.object({
     ),
   source: z
     .string()
+    .min(1)
     .describe(
-      "Field on the parent story to read the estimation value from (e.g. 'story-points').",
+      "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default.",
+    )
+    .optional(),
+  conversion: EstimationConversionSchema.optional(),
+  targetFields: z
+    .array(z.string().min(1))
+    .min(1, "targetFields must name at least one field")
+    .describe(
+      "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated.",
+    )
+    .optional(),
+  normalize: z
+    .enum(["auto", "always", "never"])
+    .describe(
+      "What to do when the generated tasks' percentages don't add up to 100%. 'auto' (default) scales totals below 100% up and leaves totals above 100% as written unless you choose otherwise at generate time; 'always' scales to 100% in both directions; 'never' uses the percentages exactly as written, so a skipped task's share stays unallocated.",
     )
     .optional(),
   rounding: z
@@ -355,23 +448,38 @@ export const EstimationConfigSchema = z.object({
     .describe(
       "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
     ),
+  minimumTaskEstimate: z
+    .number()
+    .describe("Minimum Task Estimate any single task can receive after rounding, in the Task's unit.")
+    .optional(),
   minimumTaskPoints: z
     .number()
-    .describe("Minimum point value any single task can receive after rounding.")
+    .describe("Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.")
+    .meta({ deprecated: true })
     .optional(),
   ifParentHasNoEstimation: z
     .enum(["skip", "warn", "use-default"])
     .describe(
-      "Behaviour when the parent story has no estimate. 'skip' omits tasks, 'warn' logs a warning, 'use-default' falls back to defaultParentEstimation.",
+      "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead.",
     )
     .optional(),
   defaultParentEstimation: z
-    .number()
+    .union([z.number(), z.string().min(1)])
     .describe(
-      "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'.",
+      "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate.",
     )
     .optional(),
-}).strict();
+}).strict().superRefine((config, ctx) => {
+  if (config.ifParentHasNoEstimation !== "use-default" || config.defaultParentEstimation === undefined) return;
+  if (isConvertibleStoryEstimate(config.defaultParentEstimation, config.conversion)) return;
+  ctx.addIssue({
+    code: "custom",
+    path: ["defaultParentEstimation"],
+    message: config.conversion?.table
+      ? `defaultParentEstimation "${config.defaultParentEstimation}" is not a key of conversion.table${config.conversion.multipliers ? " or a multiple of one" : ""}`
+      : `defaultParentEstimation "${config.defaultParentEstimation}" is not numeric and no conversion.table is set`,
+  });
+});
 
 export const ValidationModeSchema = z
   .enum(["strict", "lenient"])
@@ -533,6 +641,13 @@ const TaskTemplateBaseSchema = z.object({
       .min(1, "At least one task is required")
       .describe("Task definitions that will be generated from this template."),
 
+    taskType: z
+      .string()
+      .min(1)
+      .describe(
+        "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default.",
+      )
+      .optional(),
     estimation: EstimationConfigSchema.describe(
       "Global estimation configuration for all tasks in this template.",
     ).optional(),
@@ -809,6 +924,7 @@ export type EstimationPercentCondition = z.infer<
   typeof EstimationPercentConditionSchema
 >;
 export type EstimationConfig = z.infer<typeof EstimationConfigSchema>;
+export type EstimationConversion = z.infer<typeof EstimationConversionSchema>;
 export type ValidationMode = z.infer<typeof ValidationModeSchema>;
 export type ValidationConfig = z.infer<typeof ValidationConfigSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;

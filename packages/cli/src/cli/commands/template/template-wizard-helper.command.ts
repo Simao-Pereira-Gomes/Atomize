@@ -1,11 +1,19 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
+import type { EstimationDefaults } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
+import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import type { SavedQueryInfo } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
+import {
+  isEstimateCapableField,
+  isEstimateTargetField,
+  sortEstimateFields,
+} from "@sppg2001/atomize-core/services/template/estimation-grounding";
 import type { TemplateCatalogItem } from "@sppg2001/atomize-core/services/template/template-catalog";
-import type {
-  EstimationConfig,
-  FilterCriteria,
-  Metadata,
-  ValidationConfig,
+import {
+  type EstimationConfig,
+  type FilterCriteria,
+  isConvertibleStoryEstimate,
+  type Metadata,
+  type ValidationConfig,
 } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import {
@@ -15,6 +23,7 @@ import {
 import {
   assertNotCancelled,
   Filters,
+  parseConversionTable,
   selectOrAutocomplete,
   Validators,
 } from "../../utilities/prompt-utilities";
@@ -152,7 +161,7 @@ export async function configureFilter(ctx: FilterWizardContext, defaults?: Filte
   ) as "structured" | "savedQuery";
 
   if (filterMode === "savedQuery") {
-    return promptSavedQuery(ctx.savedQueries);
+    return promptSavedQuery(ctx, defaults);
   }
 
   const filter: FilterCriteria = {};
@@ -251,9 +260,9 @@ export async function configureFilter(ctx: FilterWizardContext, defaults?: Filte
   return filter;
 }
 
-async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriteria> {
-  // queries is guaranteed non-empty — the option is hidden in configureFilter when the list is empty
-  const sorted = [...queries].sort((a, b) => {
+async function promptSavedQuery(ctx: FilterWizardContext, defaults?: FilterCriteria): Promise<FilterCriteria> {
+  // ctx.savedQueries is guaranteed non-empty — the option is hidden in configureFilter when the list is empty
+  const sorted = [...ctx.savedQueries].sort((a, b) => {
     if (a.isPublic !== b.isPublic) return a.isPublic ? -1 : 1;
     return a.path.localeCompare(b.path);
   });
@@ -268,6 +277,12 @@ async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriter
     placeholder: "Type to filter by path or name...",
   });
 
+  // The query decides which items are returned; the types only tell Atomize which fields they have.
+  const workItemTypes = await promptWorkItemTypes(ctx, defaults?.workItemTypes, {
+    message: "Which work item types does this query return? (used to look up their fields, not to filter)",
+    required: true,
+  });
+
   const excludeIfHasTasks = assertNotCancelled(
     await confirm({
       message: "Exclude work items that already have tasks?",
@@ -277,11 +292,16 @@ async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriter
 
   return {
     savedQuery: { id: selectedId.trim() },
+    workItemTypes,
     ...(excludeIfHasTasks && { excludeIfHasTasks: true }),
   };
 }
 
-async function promptWorkItemTypes(ctx: FilterWizardContext, defaults?: string[]): Promise<string[]> {
+async function promptWorkItemTypes(
+  ctx: FilterWizardContext,
+  defaults?: string[],
+  options: { message?: string; required?: boolean } = {},
+): Promise<string[]> {
   const defaultType = ctx.workItemTypes.includes("User Story") ? "User Story" : undefined;
   const sorted = [
     ...(defaultType ? [defaultType] : []),
@@ -295,10 +315,10 @@ async function promptWorkItemTypes(ctx: FilterWizardContext, defaults?: string[]
         : [];
   const selected = assertNotCancelled(
     await multiselect({
-      message: "Select work item types:",
+      message: options.message ?? "Select work item types:",
       options: sorted.map((t) => ({ label: t, value: t })),
       initialValues,
-      required: false,
+      required: options.required ?? false,
     }),
   );
   return selected as string[];
@@ -698,13 +718,40 @@ async function promptDateFilter(
   return choice;
 }
 
+export interface EstimationWizardContext {
+  /** Fields of the Template's Story type(s); estimate-capable ones are offered as sources. */
+  storyFields?: ADoFieldSchema[];
+  /** Project work item types, offered for taskType. */
+  workItemTypes?: string[];
+  /** The platform's default Estimation Field Mapping. */
+  defaults?: EstimationDefaults;
+  /** Fields of a child work item type, to offer numeric target fields. */
+  getTaskFields?: (workItemType: string) => Promise<ADoFieldSchema[]>;
+}
+
+export interface EstimationWizardResult {
+  estimation: EstimationConfig;
+  taskType?: string;
+}
+
+const CUSTOM_ENTRY = "__custom__";
+
 /**
- * Configure estimation settings.
- * When `defaults` is supplied each prompt is pre-filled with the existing values.
+ * Configure estimation settings: which Story field supplies the Story Estimate, how it converts
+ * into the Task's unit, where Task Estimates are written, rounding and minimum, and what to do when
+ * a Story Estimate cannot be resolved. Keys this step does not manage are kept from `defaults`.
  */
-export async function configureEstimation(defaults?: Partial<EstimationConfig>): Promise<
-  EstimationConfig | undefined
-> {
+export async function configureEstimation(
+  defaults?: Partial<EstimationConfig>,
+  ctx: EstimationWizardContext = {},
+  currentTaskType?: string,
+): Promise<EstimationWizardResult> {
+  const source = await promptEstimationSource(defaults?.source, ctx);
+  const sourceField = source ? ctx.storyFields?.find((field) => field.referenceName === source) : undefined;
+  const conversion = await promptConversion(defaults?.conversion, sourceField);
+  const sourceValues = sourceField?.isPicklist ? sourceField.allowedValues ?? [] : [];
+  const { taskType, targetFields } = await promptEstimateTarget(currentTaskType, defaults?.targetFields, ctx);
+
   const rounding = assertNotCancelled(
     await select({
       message: "Rounding strategy:",
@@ -718,24 +765,364 @@ export async function configureEstimation(defaults?: Partial<EstimationConfig>):
     }),
   );
 
-  const minimumTaskPointsRaw = assertNotCancelled(
+  const minimumTaskEstimateRaw = assertNotCancelled(
     await text({
-      message: "Minimum task points (0 for no minimum):",
-      initialValue: String(defaults?.minimumTaskPoints ?? 0),
-      validate: (input): string | undefined => {
-        const n = Number(input);
-        if (Number.isNaN(n)) return "Must be a valid number";
-        if (n < 0) return "Cannot be negative";
-        return undefined;
-      },
+      message: "Minimum Task Estimate, in the Task's unit (0 for no minimum):",
+      initialValue: String(defaults?.minimumTaskEstimate ?? defaults?.minimumTaskPoints ?? 0),
+      validate: Validators.nonNegative("Minimum Task Estimate"),
     }),
   );
 
-  return {
+  const normalize = assertNotCancelled(
+    await select({
+      message: "When the generated tasks' percentages don't add up to 100%:",
+      options: [
+        { label: "Fill up to 100% (scale up below 100%, keep anything above)", value: "auto" },
+        { label: "Always scale to exactly 100%", value: "always" },
+        { label: "Use the percentages as written", value: "never" },
+      ],
+      initialValue: defaults?.normalize ?? "auto",
+    }),
+  ) as NonNullable<EstimationConfig["normalize"]>;
+
+  const policy = assertNotCancelled(
+    await select({
+      message: "When a Story's estimate is missing or can't be converted:",
+      options: [
+        { label: "Create the tasks with blank estimates and warn", value: "warn" },
+        { label: "Skip the Story", value: "skip" },
+        { label: "Assume a default Story Estimate", value: "use-default" },
+      ],
+      initialValue: defaults?.ifParentHasNoEstimation ?? "warn",
+    }),
+  ) as NonNullable<EstimationConfig["ifParentHasNoEstimation"]>;
+
+  const defaultParentEstimation =
+    policy === "use-default" ? await promptDefaultStoryEstimate(defaults?.defaultParentEstimation, conversion, sourceValues) : undefined;
+
+  const {
+    source: _source,
+    conversion: _conversion,
+    targetFields: _targetFields,
+    minimumTaskPoints: _minimumTaskPoints,
+    defaultParentEstimation: _default,
+    ifParentHasNoEstimation: _policy,
+    normalize: _normalize,
+    ...kept
+  } = defaults ?? {};
+
+  const estimation: EstimationConfig = {
+    ...kept,
     strategy: "percentage",
     rounding: rounding as EstimationConfig["rounding"],
-    minimumTaskPoints: Number(minimumTaskPointsRaw) || undefined,
+    minimumTaskEstimate: Number(minimumTaskEstimateRaw) || undefined,
+    ...(source ? { source } : {}),
+    ...(conversion ? { conversion } : {}),
+    ...(targetFields?.length ? { targetFields } : {}),
+    ...(normalize !== "auto" ? { normalize } : {}),
+    ...(policy !== "warn" ? { ifParentHasNoEstimation: policy } : {}),
+    ...(defaultParentEstimation !== undefined ? { defaultParentEstimation } : {}),
   };
+  if (estimation.minimumTaskEstimate === undefined) delete estimation.minimumTaskEstimate;
+
+  return { estimation, ...(taskType ? { taskType } : {}) };
+}
+
+async function promptEstimationSource(current: string | undefined, ctx: EstimationWizardContext): Promise<string | undefined> {
+  const rules = { storyEstimateFields: ctx.defaults?.storyEstimateFields ?? [], nonEstimateFields: ctx.defaults?.nonEstimateFields };
+  const candidates = sortEstimateFields((ctx.storyFields ?? []).filter((field) => isEstimateCapableField(field, rules)));
+
+  // Connected (Story fields known): always choose from the project, with typing as an explicit last option.
+  if (ctx.storyFields !== undefined) {
+    const choice = assertNotCancelled(
+      await select({
+        message: "Which Story field holds the Story Estimate?",
+        options: [
+          { label: "Platform default (story points, effort or size)", value: "" },
+          ...candidates.map((field) => ({
+            label: `${field.name} (${field.referenceName})`,
+            value: field.referenceName,
+            hint: field.isPicklist ? `values: ${(field.allowedValues ?? []).join(", ")}` : field.type,
+          })),
+          { label: "Another field (enter its reference name)", value: CUSTOM_ENTRY },
+        ],
+        initialValue: current && candidates.some((field) => field.referenceName === current) ? current : current ? CUSTOM_ENTRY : "",
+      }),
+    ) as string;
+    if (choice !== CUSTOM_ENTRY) return choice || undefined;
+  }
+
+  const typed = assertNotCancelled(
+    await text({
+      message: "Story field reference name holding the Story Estimate (leave blank for the platform default):",
+      initialValue: current ?? "",
+      validate: (input): string | undefined => (input && input.trim() !== "" ? Validators.fieldReferenceName(input) : undefined),
+    }),
+  );
+  return typed.trim() || undefined;
+}
+
+async function promptConversion(
+  current: EstimationConfig["conversion"],
+  sourceField: ADoFieldSchema | undefined,
+): Promise<EstimationConfig["conversion"]> {
+  const kind = assertNotCancelled(
+    await select({
+      message: "How does the Story Estimate translate into Task hours?",
+      options: [
+        { label: "One-to-one (use the number as it is)", value: "none" },
+        { label: "A factor (e.g. 1 point = 4 hours)", value: "factor" },
+        { label: "A table (e.g. t-shirt sizes, or points that don't scale linearly)", value: "table" },
+      ],
+      initialValue: current?.table ? "table" : current?.factor !== undefined ? "factor" : sourceField?.isPicklist ? "table" : "none",
+    }),
+  ) as "none" | "factor" | "table";
+
+  if (kind === "none") return undefined;
+
+  if (kind === "factor") {
+    const factor = assertNotCancelled(
+      await text({
+        message: "Task hours per unit of Story Estimate:",
+        initialValue: current?.factor !== undefined ? String(current.factor) : "",
+        validate: Validators.positiveNumber("Factor"),
+      }),
+    );
+    return { factor: Number(factor) };
+  }
+
+  const table = await promptConversionTable(current?.table, sourceField);
+
+  const keysAreCategories = !Object.keys(table).every((key) => /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(key));
+  const multipliers =
+    keysAreCategories &&
+    assertNotCancelled(
+      await confirm({
+        message: "Also accept multiples of a size, e.g. 0.3XL = 0.3 × XL?",
+        initialValue: current?.multipliers === true,
+      }),
+    );
+
+  return { table, ...(multipliers ? { multipliers: true } : {}) };
+}
+
+/** Renders a conversion table with a per-row 20% preview and, for a picklist source, its coverage. */
+export function renderConversionTable(
+  table: Record<string, number>,
+  source?: { name: string; allowedValues?: string[] },
+): string[] {
+  const allowed = source?.allowedValues ?? [];
+  const entries = Object.entries(table);
+  const heading = `Conversion table — ${source?.name ?? "Story Estimate"} → hours`;
+  const lines = [allowed.length ? `${heading}   ${allowed.filter((v) => Object.hasOwn(table, v)).length} of ${allowed.length} values covered` : heading];
+  if (entries.length === 0) {
+    lines.push("  (no values yet)");
+  } else {
+    const width = Math.max(5, ...entries.map(([key]) => key.length));
+    lines.push(`  ${"Value".padEnd(width)}  ${"Hours".padEnd(6)}  A 20% task gets`);
+    for (const [key, hours] of entries) {
+      const flag = allowed.length && !allowed.includes(key) ? "   not in picklist" : "";
+      lines.push(`  ${key.padEnd(width)}  ${String(hours).padEnd(6)}  ${Math.round(hours * 20) / 100} h${flag}`);
+    }
+  }
+  const missing = allowed.filter((value) => !Object.hasOwn(table, value));
+  if (missing.length) lines.push(`  Missing: ${missing.join(", ")} — Stories with ${missing.length === 1 ? "this value" : "these values"} get blank estimates.`);
+  return lines;
+}
+
+const hoursValidator = (input: string | undefined): string | undefined => {
+  if (!input || input.trim() === "") return "Enter the hours";
+  return Validators.nonNegative("Hours")(input);
+};
+
+/**
+ * Builds a conversion table interactively: for a picklist source it first asks the hours of each
+ * value, then shows the table and a menu to add, change or remove values until done.
+ */
+async function promptConversionTable(
+  current: Record<string, number> | undefined,
+  sourceField: ADoFieldSchema | undefined,
+): Promise<Record<string, number>> {
+  const allowed = sourceField?.isPicklist ? sourceField.allowedValues ?? [] : [];
+  const table: Record<string, number> = { ...(current ?? {}) };
+
+  if (allowed.length && !current) {
+    output.print(chalk.gray(`Enter the Task hours for each ${sourceField?.name ?? "value"}. Leave blank to skip a value.`));
+    for (const [index, value] of allowed.entries()) {
+      const hours = assertNotCancelled(
+        await text({
+          message: `Hours for "${value}" (${index + 1} of ${allowed.length}):`,
+          validate: (input): string | undefined => (input && input.trim() !== "" ? Validators.nonNegative("Hours")(input) : undefined),
+        }),
+      );
+      if (hours.trim() !== "") table[value] = Number(hours);
+    }
+  }
+
+  for (;;) {
+    output.blankLine();
+    for (const line of renderConversionTable(table, sourceField)) output.print(chalk.gray(line));
+    const missing = allowed.filter((value) => !Object.hasOwn(table, value));
+    const keys = Object.keys(table);
+    const action = assertNotCancelled(
+      await select({
+        message: "Conversion table",
+        options: [
+          ...missing.map((value) => ({ label: `Add hours for ${value}`, value: `add:${value}` })),
+          { label: allowed.length ? "Add another value…" : "Add a value", value: "add" },
+          ...(keys.length ? [{ label: "Change a value's hours", value: "change" }, { label: "Remove a value", value: "remove" }] : []),
+          { label: "Paste several (e.g. S=2, M=4)", value: "paste" },
+          { label: "Done", value: "done" },
+        ],
+        initialValue: missing.length ? `add:${missing[0]}` : keys.length ? "done" : "add",
+      }),
+    ) as string;
+
+    if (action === "done") {
+      if (keys.length) return table;
+      output.print(chalk.yellow("Add at least one value before finishing."));
+      continue;
+    }
+    if (action.startsWith("add:")) {
+      const value = action.slice(4);
+      table[value] = Number(assertNotCancelled(await text({ message: `Hours for "${value}":`, validate: hoursValidator })));
+      continue;
+    }
+    if (action === "add") {
+      const value = assertNotCancelled(
+        await text({
+          message: "Story Estimate value (e.g. XL, or 8 for points):",
+          validate: (input): string | undefined => {
+            if (!input || input.trim() === "") return "Enter a value";
+            if (Object.hasOwn(table, input.trim())) return `"${input.trim()}" is already in the table`;
+            return undefined;
+          },
+        }),
+      ).trim();
+      table[value] = Number(assertNotCancelled(await text({ message: `Hours for "${value}":`, validate: hoursValidator })));
+      continue;
+    }
+    if (action === "change") {
+      const value = assertNotCancelled(
+        await select({ message: "Which value?", options: keys.map((key) => ({ label: `${key} (${table[key]} h)`, value: key })) }),
+      ) as string;
+      table[value] = Number(
+        assertNotCancelled(await text({ message: `Hours for "${value}":`, initialValue: String(table[value]), validate: hoursValidator })),
+      );
+      continue;
+    }
+    if (action === "remove") {
+      const value = assertNotCancelled(
+        await select({ message: "Remove which value?", options: keys.map((key) => ({ label: `${key} (${table[key]} h)`, value: key })) }),
+      ) as string;
+      delete table[value];
+      continue;
+    }
+    const pasted = assertNotCancelled(
+      await text({ message: "Value=hours pairs, comma-separated (e.g. S=2, M=4, L=5):", validate: Validators.conversionTable }),
+    );
+    Object.assign(table, parseConversionTable(pasted) as Record<string, number>);
+  }
+}
+
+async function promptEstimateTarget(
+  currentTaskType: string | undefined,
+  currentTargetFields: string[] | undefined,
+  ctx: EstimationWizardContext,
+): Promise<{ taskType?: string; targetFields?: string[] }> {
+  const customise = assertNotCancelled(
+    await confirm({
+      message: `Create tasks as a different work item type, or write estimates to different fields? (default: ${ctx.defaults?.taskWorkItemType ?? "platform default"})`,
+      initialValue: currentTaskType !== undefined || (currentTargetFields?.length ?? 0) > 0,
+    }),
+  );
+  if (!customise) return {};
+
+  const defaultType = ctx.defaults?.taskWorkItemType;
+  let taskType: string;
+  if (ctx.workItemTypes?.length) {
+    taskType = assertNotCancelled(
+      await select({
+        message: "Work item type to create tasks as:",
+        options: ctx.workItemTypes.map((type) => ({ label: type, value: type, hint: type === defaultType ? "platform default" : undefined })),
+        initialValue: currentTaskType ?? defaultType ?? ctx.workItemTypes[0],
+      }),
+    ) as string;
+  } else {
+    taskType = assertNotCancelled(
+      await text({
+        message: "Work item type to create tasks as:",
+        initialValue: currentTaskType ?? defaultType ?? "",
+        validate: Validators.required("Work item type"),
+      }),
+    ).trim();
+  }
+
+  const numericFields = ctx.getTaskFields
+    ? sortEstimateFields((await ctx.getTaskFields(taskType)).filter((field) => isEstimateTargetField(field, ctx.defaults)))
+    : [];
+  let targetFields: string[];
+  if (numericFields.length > 0) {
+    targetFields = assertNotCancelled(
+      await multiselect({
+        message: "Task fields that receive the estimate (none selected = platform default fields):",
+        options: numericFields.map((field) => ({ label: `${field.name} (${field.referenceName})`, value: field.referenceName })),
+        initialValues: currentTargetFields ?? [],
+        required: false,
+      }),
+    ) as string[];
+  } else {
+    const typed = assertNotCancelled(
+      await text({
+        message: "Task field reference names that receive the estimate, comma-separated (blank = platform default fields):",
+        initialValue: currentTargetFields?.join(", ") ?? "",
+      }),
+    );
+    targetFields = Filters.commaSeparated(typed).filter(Boolean);
+  }
+
+  const keepTaskType = taskType !== defaultType || currentTaskType !== undefined;
+  return { ...(keepTaskType ? { taskType } : {}), ...(targetFields.length ? { targetFields } : {}) };
+}
+
+async function promptDefaultStoryEstimate(
+  current: EstimationConfig["defaultParentEstimation"],
+  conversion: EstimationConfig["conversion"],
+  sourceValues: string[],
+): Promise<string | number> {
+  // Offer the source picklist's values (or the table's keys) that the conversion can translate.
+  const choices = (sourceValues.length ? sourceValues : Object.keys(conversion?.table ?? {})).filter((value) =>
+    isConvertibleStoryEstimate(value, conversion),
+  );
+  if (choices.length > 0) {
+    const currentValue = current === undefined ? undefined : String(current);
+    const choice = assertNotCancelled(
+      await select({
+        message: "Default Story Estimate to assume:",
+        options: [
+          ...choices.map((value) => ({ label: value, value })),
+          ...(conversion?.multipliers ? [{ label: "Another value (e.g. 0.5L)", value: CUSTOM_ENTRY }] : []),
+        ],
+        initialValue: currentValue && choices.includes(currentValue) ? currentValue : currentValue && conversion?.multipliers ? CUSTOM_ENTRY : choices[0],
+      }),
+    ) as string;
+    if (choice !== CUSTOM_ENTRY) return choice;
+  }
+  const typed = assertNotCancelled(
+    await text({
+      message: "Default Story Estimate to assume (e.g. 5, or a size like M):",
+      initialValue: current !== undefined ? String(current) : "",
+      validate: (input): string | undefined => {
+        if (!input || input.trim() === "") return "A default Story Estimate is required";
+        return isConvertibleStoryEstimate(input.trim(), conversion)
+          ? undefined
+          : conversion?.table
+            ? "Must be a value of the conversion table, or a multiple of one"
+            : "Must be a number unless a conversion table is set";
+      },
+    }),
+  ).trim();
+  return Number.isFinite(Number(typed)) ? Number(typed) : typed;
 }
 
 /**

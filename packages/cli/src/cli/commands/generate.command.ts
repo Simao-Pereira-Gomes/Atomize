@@ -419,20 +419,33 @@ export function printReport(
     output.print(chalk.cyan(" Details:\n"));
     for (const result of report.results) {
       if (result.success) {
+        if (result.skipReason) {
+          output.print(chalk.yellow(`⊘ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
+          output.print(chalk.gray(`  Skipped: ${sanitizeTty(result.skipReason)}`));
+          continue;
+        }
         output.print(chalk.green(`✓ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
-        output.print(chalk.gray(`  Estimation: ${result.story.estimation || 0} points`));
+        const withUnit = (value: number) => (result.estimateUnit ? `${value} ${result.estimateUnit}` : String(value));
+        const rawEstimate = result.storyEstimate;
+        const converted = result.estimationSummary?.storyEstimation;
+        const conversionNote =
+          converted !== undefined && converted !== rawEstimate ? ` (converted to ${withUnit(converted)})` : "";
+        output.print(
+          chalk.gray(`  Estimation: ${rawEstimate === undefined ? "none" : sanitizeTty(String(rawEstimate))}${conversionNote}`),
+        );
         output.print(chalk.gray(`  Tasks: ${result.tasksCalculated.length}`));
         if (result.estimationSummary) {
           output.print(
             chalk.gray(
-              `  Distribution: ${result.estimationSummary.totalTaskEstimation} points (${result.estimationSummary.percentageUsed.toFixed(0)}%)`,
+              `  Distribution: ${withUnit(result.estimationSummary.totalTaskEstimation)} (${result.estimationSummary.percentageUsed.toFixed(0)}%)`,
             ),
           );
         }
         if ((options.verbose || dryRun) && result.tasksCalculated.length > 0) {
           output.print(chalk.gray("  Task breakdown:"));
           for (const task of result.tasksCalculated) {
-            output.print(chalk.gray(`    - ${sanitizeTty(task.title)}: ${task.estimation} points (${task.estimationPercent}%)`));
+            const estimate = task.estimation === undefined ? "unestimated" : withUnit(task.estimation);
+            output.print(chalk.gray(`    - ${sanitizeTty(task.title)}: ${estimate} (${task.estimationPercent}%)`));
           }
         }
       } else {
@@ -678,6 +691,8 @@ async function resolveNormalization(
   isTTYSession: boolean,
   prompts: PromptDriver,
 ): Promise<boolean> {
+  // An explicit "always" or "never" in the Template decides; only "auto" leaves overage to the user.
+  if (template.estimation?.normalize && template.estimation.normalize !== "auto") return false;
   const { shouldOffer, total } = shouldOfferOverageNormalization(template.tasks);
   if (!shouldOffer) return false;
 

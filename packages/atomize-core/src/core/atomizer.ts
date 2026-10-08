@@ -1,7 +1,7 @@
 import { logger } from "../logger";
 import type { FilterCriteria } from "../platforms/interfaces/filter.interface";
 import type { GenerationPlatform } from "../platforms/interfaces/platform-capabilities";
-import type { WorkItem } from "../platforms/interfaces/work-item.interface";
+import type { StoryEstimate, WorkItem } from "../platforms/interfaces/work-item.interface";
 import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
@@ -101,6 +101,12 @@ export interface StoryAtomizationResult {
   }>;
   success: boolean;
   error?: string;
+  /** Present when the Story was skipped because its Story Estimate could not be resolved. */
+  skipReason?: string;
+  /** Unit of the Task Estimates when they go to the platform's default fields (e.g. "hours"); absent when the unit is unknown. */
+  estimateUnit?: string;
+  /** The raw Story Estimate as read through the effective source (e.g. "L" from an overridden size field); absent when the Story has none. */
+  storyEstimate?: StoryEstimate;
   estimationSummary?: {
     storyEstimation: number;
     totalTaskEstimation: number;

@@ -6,6 +6,7 @@ import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/co
 import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
+import { buildEstimationGrounding } from "@sppg2001/atomize-core/services/template/estimation-grounding";
 import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
@@ -98,6 +99,8 @@ export async function validateOnline(params: OnlineValidationParams, signal: Abo
         platform: {
           getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
           listSavedQueries: () => queryReader.listSavedQueries(),
+          getEstimationDefaults: () => adapter.getEstimationDefaults(),
+          getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
         },
       },
     }), signal);
@@ -200,14 +203,16 @@ export async function fetchGrounding(connection: GroundingConnection): Promise<u
     const metadataReader = requireProjectMetadataReader(adapter);
     const queryReader = requireSavedQueryReader(adapter);
     const workItemTypes = await metadataReader.getWorkItemTypes();
+    const estimationDefaults = adapter.getEstimationDefaults();
     const [states, areaPaths, iterationPaths, teams, savedQueries, taskFields, fieldsByWorkItemType] = await Promise.all([
       Promise.all(workItemTypes.map(async type => [type, await metadataReader.getStatesForWorkItemType(type)] as const)),
       metadataReader.getAreaPaths(), metadataReader.getIterationPaths(), metadataReader.getTeams(), queryReader.listSavedQueries(),
-      metadataReader.getFieldSchemas("Task"),
+      metadataReader.getFieldSchemas(estimationDefaults.taskWorkItemType),
       Promise.all(workItemTypes.map(async type => [type, await metadataReader.getFieldSchemas(type)] as const)),
     ]);
     return { workItemTypes, statesByWorkItemType: Object.fromEntries(states), areaPaths, iterationPaths, teams,
-      savedQueries: savedQueries.map(({ id, path }) => ({ id, path })), taskFields, fieldsByWorkItemType: Object.fromEntries(fieldsByWorkItemType) };
+      savedQueries: savedQueries.map(({ id, path }) => ({ id, path })), taskFields, fieldsByWorkItemType: Object.fromEntries(fieldsByWorkItemType),
+      estimation: buildEstimationGrounding(estimationDefaults, Object.fromEntries(fieldsByWorkItemType)) };
   } catch (error) {
     const message = getErrorMessage(error);
     const code = error instanceof AuthError || /authentication failed|access denied/i.test(message)

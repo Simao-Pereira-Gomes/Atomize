@@ -170,6 +170,13 @@ export function FilterSection(props: { store: FilterStore; grounding: GroundingS
         <p class="ui-hint">Choose a grounded saved query or enter its Azure DevOps ID manually. The ID is stamped in YAML.</p>
         <GroundedTextField label="Saved query" value={f.fields.savedQueryIds[0] ?? ""} options={(options()?.savedQueries ?? []).map((query) => ({ value: query.id, label: query.path }))} placeholder="Saved query ID" onInput={(id) => { f.set("savedQueryIds", id === "" ? [] : [id]); f.validate(); }} />
         <Show when={f.errors.savedQueryIds}><p class="ui-error">{f.errors.savedQueryIds}</p></Show>
+        <MultiSelectField label="Work item types this query returns"
+          selected={f.fields.workItemTypes} options={options()?.workItemTypes ?? []} allowCustom
+          placeholder="Choose the types — type to add" onChange={(v) => f.set("workItemTypes", v)} />
+        <p class="ui-hint">The saved query decides which items are returned. These types only tell Atomize which fields to offer and validate.</p>
+        <Show when={f.fields.workItemTypes.length === 0}>
+          <p class="text-sm text-amber-700 dark:text-amber-300">Add the types this query returns so estimation and condition fields can be listed and validated.</p>
+        </Show>
       </Show>
     </>
   );

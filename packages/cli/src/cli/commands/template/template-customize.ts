@@ -3,6 +3,7 @@ import {
   requireProjectMetadataReader,
   requireSavedQueryReader,
 } from "@sppg2001/atomize-core/platforms/capabilities";
+import type { EstimationDefaults } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { CancellationError, ConfigurationError } from "@sppg2001/atomize-core/utils/errors";
@@ -23,7 +24,7 @@ import {
   previewTemplate,
   type TemplateWizardContext,
 } from "./template-wizard";
-import type { FilterWizardContext } from "./template-wizard-helper.command";
+import type { EstimationWizardContext, FilterWizardContext } from "./template-wizard-helper.command";
 
 const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
@@ -39,6 +40,7 @@ export async function customizeTemplate(
     const adapter = await createAzureDevOpsAdapter(profile);
     const metadataReader = requireProjectMetadataReader(adapter);
     const savedQueryReader = requireSavedQueryReader(adapter);
+    const estimationDefaults = adapter.getEstimationDefaults();
     const [
       taskSchemas,
       liveWorkItemTypes,
@@ -47,7 +49,7 @@ export async function customizeTemplate(
       liveTeams,
       liveSavedQueries,
     ] = await Promise.all([
-      metadataReader.getFieldSchemas("Task"),
+      metadataReader.getFieldSchemas(template.taskType ?? estimationDefaults.taskWorkItemType),
       metadataReader.getWorkItemTypes(),
       metadataReader.getAreaPaths(),
       metadataReader.getIterationPaths(),
@@ -56,6 +58,7 @@ export async function customizeTemplate(
     ]);
     return {
       metadataReader,
+      estimationDefaults,
       fieldSchemas: taskSchemas,
       filterCtx: {
         workItemTypes: liveWorkItemTypes,
@@ -107,6 +110,7 @@ export async function customizeTemplate(
   let filterCtx: FilterWizardContext;
   let fieldSchemas: ADoFieldSchema[];
   let adapterForWizard: ReturnType<typeof requireProjectMetadataReader>;
+  let estimationDefaults: EstimationDefaults;
 
   try {
     const conn = await connectionPromise;
@@ -114,6 +118,7 @@ export async function customizeTemplate(
     filterCtx = conn.filterCtx;
     fieldSchemas = conn.fieldSchemas;
     adapterForWizard = conn.metadataReader;
+    estimationDefaults = conn.estimationDefaults;
   } catch (err) {
     if (!wasAlreadyConnected) connectSpinner.stop("Connection failed");
     const message = err instanceof Error ? err.message : String(err);
@@ -126,6 +131,13 @@ export async function customizeTemplate(
 
   let storyFieldSchemas: ADoFieldSchema[] = [];
   let storySchemasFetched = false;
+  // A saved-query filter names no work item type, so estimation falls back to every field in the project.
+  const estimationContext = async (): Promise<EstimationWizardContext> => ({
+    storyFields: storyFieldSchemas.length ? storyFieldSchemas : await adapterForWizard.getFieldSchemas(),
+    workItemTypes: filterCtx.workItemTypes,
+    defaults: estimationDefaults,
+    getTaskFields: (type) => adapterForWizard.getFieldSchemas(type),
+  });
 
   for (const section of (
     ["filter", "tasks", "estimation", "validation", "metadata"] as const
@@ -170,7 +182,18 @@ export async function customizeTemplate(
       }
       case "estimation": {
         output.print(chalk.cyan("\nEditing Estimation Settings\n"));
-        template.estimation = await configureEstimation(template.estimation);
+        if (!storySchemasFetched) {
+          const wit = template.filter.workItemTypes?.[0];
+          storyFieldSchemas = wit ? await adapterForWizard.getFieldSchemas(wit) : [];
+          storySchemasFetched = true;
+        }
+        const { estimation, taskType } = await configureEstimation(
+          template.estimation,
+          await estimationContext(),
+          template.taskType,
+        );
+        template.estimation = estimation;
+        template.taskType = taskType;
         break;
       }
       case "validation": {
@@ -217,6 +240,7 @@ export async function customizeTemplate(
     fieldSchemas,
     storyFieldSchemas,
     workItemType: template.filter.workItemTypes?.[0],
+    estimationCtx: await estimationContext(),
   };
 
   const confirmed = await previewTemplate(template, wizardCtx);

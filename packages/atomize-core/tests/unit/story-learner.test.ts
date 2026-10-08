@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { StoryLearningPlatform } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { StoryLearner } from "@sppg2001/atomize-core/services/template/story-learner";
+import { TemplateValidator } from "@sppg2001/atomize-core/templates/validator";
 import { TemplateGenerationError } from "@sppg2001/atomize-core/utils/errors";
 
 /**
@@ -345,5 +346,59 @@ describe("StoryLearner", () => {
       const learner = new StoryLearner(createMockPlatform({}, {}));
       expect(learner.detectActivity("Implement feature")).toBe("Development");
     });
+  });
+});
+
+describe("StoryLearner estimation inference", () => {
+  const task = (id: string, title: string, estimation: number): WorkItem => ({ id, title, type: "Task", state: "Done", estimation });
+  const sized = (id: string, size: string): WorkItem => ({
+    id,
+    title: `Story ${id}`,
+    type: "User Story",
+    state: "Done",
+    estimation: 99,
+    customFields: { "Custom.TShirtSize": size },
+  });
+
+  test("learns percentages from each Task's share of its Story, not hours divided by points", async () => {
+    const story: WorkItem = { id: "S", title: "Story", type: "User Story", state: "Done", estimation: 5 };
+    const learner = new StoryLearner(
+      createMockPlatform({ S: story }, { S: [task("a", "Build", 3), task("b", "Test", 3), task("c", "Docs", 4)] }),
+    );
+
+    const template = await learner.learnFromStory("S");
+
+    expect(template.tasks.map((t) => t.estimationPercent)).toEqual([30, 30, 40]);
+    expect(template.estimation?.conversion).toEqual({ factor: 2 });
+    expect(template.estimation?.defaultParentEstimation).toBe(5);
+  });
+
+  test("with an estimation source, learns a t-shirt table, writes the source and flags single-Story sizes", async () => {
+    const items = { A: sized("A", "L"), B: sized("B", "L"), C: sized("C", "XL") };
+    const children = {
+      A: [task("a1", "Build", 4), task("a2", "Test", 2)],
+      B: [task("b1", "Build", 3), task("b2", "Test", 1)],
+      C: [task("c1", "Build", 10), task("c2", "Test", 3)],
+    };
+    const learner = new StoryLearner(createMockPlatform(items, children));
+
+    const result = await learner.learnFromStories(["A", "B", "C"], { estimationSource: "Custom.TShirtSize" });
+
+    expect(result.template.estimation).toMatchObject({
+      source: "Custom.TShirtSize",
+      conversion: { table: { L: 5, XL: 13 } },
+      defaultParentEstimation: "L",
+    });
+    expect(result.suggestions.some((s) => s.type === "adjust-estimation" && s.message.includes('"XL"'))).toBe(true);
+    expect(new TemplateValidator().validate(result.template).errors).toEqual([]);
+  });
+
+  test("with an estimation source, learned estimation conditions compare the source values", async () => {
+    const items = { A: sized("A", "L") };
+    const learner = new StoryLearner(createMockPlatform(items, { A: [task("a1", "Build", 5)] }));
+
+    const result = await learner.learnFromStories(["A"], { estimationSource: "Custom.TShirtSize" });
+
+    expect(result.analyses[0]?.story.estimation).toBe("L");
   });
 });

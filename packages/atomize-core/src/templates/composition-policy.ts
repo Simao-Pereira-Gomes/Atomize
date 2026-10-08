@@ -69,6 +69,7 @@ export function mergeTemplates(
     filter: child.filter ?? base.filter,
     tasks: mergeTasks(base.tasks, child.tasks ?? []),
 
+    taskType: child.taskType ?? base.taskType,
     estimation: child.estimation ?? base.estimation,
     validation: child.validation ?? base.validation,
     metadata: child.metadata ?? base.metadata,

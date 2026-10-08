@@ -10,6 +10,105 @@ describe("TemplateValidator", () => {
 	const fixturesPath = resolve(__dirname, "../fixtures/templates");
 
 	describe("validate", () => {
+		test("Offline Validation rejects a conversion factor of zero or less", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { conversion: { factor: 0 } },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path.includes("conversion.factor"))).toBe(true);
+		});
+
+		test("Offline Validation rejects an empty targetFields list", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { targetFields: [] },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path.includes("targetFields"))).toBe(true);
+		});
+
+		test("Offline Validation accepts taskType and targetFields overrides", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				taskType: "Sub-task",
+				estimation: { targetFields: ["Custom.Effort"] },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("Offline Validation reports a use-default defaultParentEstimation missing from the table", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: {
+					ifParentHasNoEstimation: "use-default",
+					defaultParentEstimation: "XXL",
+					conversion: { table: { S: 2, M: 4 } },
+				},
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path === "estimation.defaultParentEstimation")).toBe(true);
+		});
+
+		test("Offline Validation rejects a conversion with both factor and table", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { conversion: { factor: 4, table: { L: 5 } } },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path.startsWith("estimation.conversion"))).toBe(true);
+		});
+
+		test("the over-100% warning follows estimation.normalize", () => {
+			const base = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				tasks: [
+					{ title: "Dev", estimationPercent: 90 },
+					{ title: "QA", estimationPercent: 60 },
+				],
+			};
+			const overage = (estimation?: object) =>
+				validator.validate({ ...base, ...(estimation ? { estimation } : {}) }).warnings.find((w) => w.path === "tasks")?.message;
+
+			expect(overage()).toContain("prompted to normalise");
+			expect(overage({ normalize: "never" })).toContain("as written");
+			expect(overage({ normalize: "always" })).toBeUndefined();
+		});
+
+		test("Offline Validation accepts a positive conversion factor", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { conversion: { factor: 4 } },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(true);
+		});
+
 		test("should validate a correct template", async () => {
 			const template = await loader.load(
 				resolve(fixturesPath, "valid-template.yaml"),
@@ -914,7 +1013,7 @@ describe("TemplateValidator", () => {
 				name: "Test",
 				filter: {
 					savedQuery: { path: "My Queries/Active Stories" },
-					workItemTypes: ["User Story"],
+					states: ["Active"],
 				},
 				tasks: [{ title: "Task", estimationPercent: 100 }],
 			};
@@ -924,6 +1023,87 @@ describe("TemplateValidator", () => {
 			const warning = result.warnings.find((w) => w.path === "filter.savedQuery");
 			expect(warning).toBeDefined();
 			expect(warning?.code).toBe(FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER);
+		});
+
+		test("workItemTypes alongside savedQuery declares the query's types and is not a conflict", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {
+					savedQuery: { path: "My Queries/Active Stories" },
+					workItemTypes: ["User Story"],
+				},
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.warnings.find((w) => w.path === "filter.savedQuery")).toBeUndefined();
+		});
+
+		test("DEPRECATED_MINIMUM_TASK_POINTS when only minimumTaskPoints is set", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskPoints: 0.5 },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			const warning = result.warnings.find((w) => w.path === "estimation.minimumTaskPoints");
+			expect(warning?.code).toBe(FixableWarningCode.DEPRECATED_MINIMUM_TASK_POINTS);
+			expect(warning?.nonBlocking).toBe(true);
+		});
+
+		test("DUPLICATE_MINIMUM_TASK_ESTIMATE when both keys are set, naming the value in effect", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskEstimate: 1, minimumTaskPoints: 0.5 },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			const warnings = result.warnings.filter((w) => w.path === "estimation.minimumTaskPoints");
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]?.code).toBe(FixableWarningCode.DUPLICATE_MINIMUM_TASK_ESTIMATE);
+			expect(warnings[0]?.message).toContain("minimumTaskEstimate (1) is used");
+			expect(warnings[0]?.nonBlocking).toBe(true);
+		});
+
+		test("minimumTaskEstimate alone produces no deprecation warning", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskEstimate: 1 },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.warnings.find((w) => w.path.startsWith("estimation."))).toBeUndefined();
+		});
+
+		test("strict mode does not fail a Template that still uses minimumTaskPoints", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {},
+				estimation: { minimumTaskPoints: 0.5 },
+				validation: { mode: "strict" },
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(true);
+			expect(result.errors).toHaveLength(0);
+			expect(result.warnings.some((w) => w.code === FixableWarningCode.DEPRECATED_MINIMUM_TASK_POINTS)).toBe(true);
 		});
 
 		test("non-fixable warnings have no code", () => {

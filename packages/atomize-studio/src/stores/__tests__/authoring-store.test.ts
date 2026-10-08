@@ -120,6 +120,18 @@ describe("createAuthoringStore", () => {
     });
   });
 
+  it("keeps the work item types a saved query returns", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      filter: { savedQuery: { path: "Shared Queries/Current Sprint" }, workItemTypes: ["User Story"], excludeIfHasTasks: true },
+    });
+
+    expect(serialisedObject(store)).toMatchObject({
+      filter: { savedQuery: { path: "Shared Queries/Current Sprint" }, workItemTypes: ["User Story"] },
+    });
+  });
+
   it("rejects multiple saved queries instead of serialising only the first", () => {
     const store = createAuthoringStore();
     store.loadTemplate(baseTemplate);
@@ -190,16 +202,105 @@ describe("createAuthoringStore", () => {
     store.loadTemplate(baseTemplate);
     store.estimation.set("source", "story-points");
     store.estimation.set("rounding", "nearest");
-    store.estimation.set("minimumTaskPoints", "0.5");
+    store.estimation.set("minimumTaskEstimate", "0.5");
 
     expect(serialisedObject(store)).toMatchObject({
       estimation: {
         strategy: "percentage",
         source: "story-points",
         rounding: "nearest",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
       },
     });
+  });
+
+  it("preserves taskType, targetFields and conversion through load and save", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      taskType: "Sub-task",
+      estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"], conversion: { factor: 4 } },
+    });
+
+    expect(serialisedObject(store)).toMatchObject({
+      taskType: "Sub-task",
+      estimation: { targetFields: ["Custom.Effort"], conversion: { factor: 4 } },
+    });
+  });
+
+  it("keeps a category defaultParentEstimation covered by the conversion table", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "M",
+        conversion: { table: { S: 2, M: 4 } },
+      },
+    });
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBeUndefined();
+    expect((serialisedObject(store) as TaskTemplate).estimation).toMatchObject({ defaultParentEstimation: "M" });
+  });
+
+  it("keeps multiplier conversions and accepts a multiplier default", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "0.5L",
+        conversion: { table: { L: 5 }, multipliers: true },
+      },
+    });
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBeUndefined();
+    expect((serialisedObject(store) as TaskTemplate).estimation).toMatchObject({
+      defaultParentEstimation: "0.5L",
+      conversion: { table: { L: 5 }, multipliers: true },
+    });
+  });
+
+  it("flags a use-default defaultParentEstimation the conversion table does not cover", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: { strategy: "percentage", rounding: "none", conversion: { table: { S: 2, M: 4 } } },
+    });
+    store.estimation.set("ifParentHasNoEstimation", "use-default");
+    store.estimation.set("defaultParentEstimation", "XXL");
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBe("Must be one of the conversion table's values");
+    expect(store.estimation.isValid()).toBe(false);
+  });
+
+  it("loads the deprecated minimumTaskPoints and saves it as minimumTaskEstimate", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({ ...baseTemplate, estimation: { strategy: "percentage", rounding: "none", minimumTaskPoints: 0.5 } });
+
+    expect(store.estimation.fields.minimumTaskEstimate).toBe("0.5");
+    const estimation = (serialisedObject(store) as TaskTemplate).estimation;
+    expect(estimation).toMatchObject({ minimumTaskEstimate: 0.5 });
+    expect(estimation).not.toHaveProperty("minimumTaskPoints");
+  });
+
+  it("prefers minimumTaskEstimate when a loaded Template has both keys", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: { strategy: "percentage", rounding: "none", minimumTaskEstimate: 1, minimumTaskPoints: 0.5 },
+    });
+
+    const estimation = (serialisedObject(store) as TaskTemplate).estimation;
+    expect(estimation).toMatchObject({ minimumTaskEstimate: 1 });
+    expect(estimation).not.toHaveProperty("minimumTaskPoints");
   });
 
   it("serialises Validation fields into Atomize YAML", () => {
@@ -335,7 +436,7 @@ describe("createAuthoringStore", () => {
         strategy: "percentage",
         source: "story-points",
         rounding: "none",
-        minimumTaskPoints: 0,
+        minimumTaskEstimate: 0,
       },
       validation: {
         mode: "strict",
@@ -476,5 +577,92 @@ describe("createAuthoringStore", () => {
 
     expect(isAuthoringStoreReadyForReview(store)).toBe(true);
     expect(() => store.serialise()).not.toThrow();
+  });
+});
+
+describe("estimation editor fields", () => {
+  const baseTemplate: TaskTemplate = {
+    version: "1.0",
+    name: "Estimation",
+    filter: { workItemTypes: ["User Story"] },
+    tasks: [{ title: "Build", estimationPercent: 100 }],
+  };
+  const estimationOf = (store: ReturnType<typeof createAuthoringStore>) =>
+    (parse(store.serialise()) as TaskTemplate).estimation;
+
+  it("round-trips a table conversion with fractional sizes through the editor fields", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: { strategy: "percentage", rounding: "none", source: "Custom.TShirtSize", conversion: { table: { S: 2, L: 5 }, multipliers: true } },
+    });
+
+    expect(store.estimation.fields.conversionKind).toBe("table");
+    expect(store.estimation.fields.tableRows).toEqual([{ key: "S", hours: "2" }, { key: "L", hours: "5" }]);
+    expect(estimationOf(store)).toMatchObject({ source: "Custom.TShirtSize", conversion: { table: { S: 2, L: 5 }, multipliers: true } });
+  });
+
+  it("writes a factor and drops the conversion when switched to one-to-one", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "factor");
+    store.estimation.set("factor", "4");
+    expect(estimationOf(store)).toMatchObject({ conversion: { factor: 4 } });
+
+    store.estimation.set("conversionKind", "none");
+    expect(estimationOf(store)?.conversion).toBeUndefined();
+  });
+
+  it("flags table rows without a value, duplicate values and invalid hours", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "table");
+    store.estimation.set("tableRows", [{ key: "L", hours: "5" }, { key: "L", hours: "x" }, { key: "", hours: "1" }]);
+
+    store.estimation.validate();
+    expect(store.estimation.errors["tableRows.1.key"]).toBe("Already in the table");
+    expect(store.estimation.errors["tableRows.1.hours"]).toBe("0 or more");
+    expect(store.estimation.errors["tableRows.2.key"]).toBe("Required");
+    expect(store.estimation.isValid()).toBe(false);
+  });
+
+  it("requires a positive factor", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "factor");
+    store.estimation.set("factor", "0");
+
+    store.estimation.validate();
+    expect(store.estimation.errors.factor).toBe("Must be a number greater than 0");
+  });
+
+  it("opens in custom target mode for a Template with taskType or targetFields, and only writes targetFields in that mode", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      taskType: "Sub-task",
+      estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] },
+    });
+    expect(store.estimation.fields.targetMode).toBe("custom");
+    expect(parse(store.serialise())).toMatchObject({ taskType: "Sub-task", estimation: { targetFields: ["Custom.Effort"] } });
+
+    store.estimation.set("targetMode", "default");
+    expect(estimationOf(store)?.targetFields).toBeUndefined();
+  });
+
+  it("checks a use-default Story Estimate against the table being edited", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "table");
+    store.estimation.set("tableRows", [{ key: "M", hours: "4" }]);
+    store.estimation.set("ifParentHasNoEstimation", "use-default");
+    store.estimation.set("defaultParentEstimation", "XL");
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBe("Must be one of the conversion table's values");
+
+    store.estimation.set("defaultParentEstimation", "M");
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBeUndefined();
   });
 });

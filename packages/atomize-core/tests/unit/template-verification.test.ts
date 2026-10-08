@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 
@@ -13,6 +14,37 @@ function makeTemplate(overrides: Partial<TaskTemplate> = {}): TaskTemplate {
 }
 
 describe("verifyTemplate", () => {
+  const withCustomField = (overrides: Partial<TaskTemplate> = {}) =>
+    makeTemplate({
+      tasks: [{ title: "Build", estimationPercent: 100, customFields: { "Custom.ClientTier": "Enterprise" } }],
+      ...overrides,
+    });
+
+  test("Online Validation checks custom fields against the Template's taskType", async () => {
+    const getFieldSchemas = mock(async (_type?: string) => []);
+    await verifyTemplate(withCustomField({ taskType: "Sub-task" }), {
+      project: {
+        mode: "online",
+        platform: { getFieldSchemas, listSavedQueries: mock(async () => []), getEstimationDefaults: () => MOCK_ESTIMATION_DEFAULTS },
+      },
+    });
+
+    expect(getFieldSchemas.mock.calls[0]?.[0]).toBe("Sub-task");
+  });
+
+  test("Online Validation falls back to the adapter's default child type", async () => {
+    const getFieldSchemas = mock(async (_type?: string) => []);
+    const result = await verifyTemplate(withCustomField(), {
+      project: {
+        mode: "online",
+        platform: { getFieldSchemas, listSavedQueries: mock(async () => []), getEstimationDefaults: () => MOCK_ESTIMATION_DEFAULTS },
+      },
+    });
+
+    expect(getFieldSchemas.mock.calls[0]?.[0]).toBe("Task");
+    expect(result.errors.find((e) => e.code === "CUSTOM_FIELD_NOT_FOUND")?.message).toContain('work item type "Task"');
+  });
+
   test("returns structural validation plus project requirements", async () => {
     const result = await verifyTemplate(makeTemplate());
 

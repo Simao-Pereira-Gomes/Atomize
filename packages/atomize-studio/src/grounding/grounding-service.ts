@@ -25,6 +25,15 @@ export type GroundedFieldOptions = {
   savedQueries: SavedQuery[];
   taskFields: GroundedTaskField[];
   fieldsByWorkItemType: Record<string, GroundedTaskField[]>;
+  /** Platform estimation defaults and estimate-capable Story fields, for AI drafts and the estimation editor. */
+  estimation?: GroundedEstimation;
+};
+
+export type GroundedEstimationField = Pick<GroundedTaskField, "referenceName" | "name" | "type" | "isPicklist" | "allowedValues">;
+
+export type GroundedEstimation = {
+  defaults: { storyEstimateFields: string[]; taskWorkItemType: string; taskEstimateFields: string[]; unitLabel?: string; nonEstimateFields?: string[] };
+  storyEstimateFieldsByWorkItemType: Record<string, GroundedEstimationField[]>;
 };
 
 /**
@@ -113,6 +122,34 @@ function taskFields(value: unknown): GroundedTaskField[] {
   });
 }
 
+function groundedEstimation(value: unknown): GroundedEstimation | undefined {
+  if (!isRecord(value) || !isRecord(value.defaults)) return undefined;
+  const defaults = value.defaults;
+  if (typeof defaults.taskWorkItemType !== "string") return undefined;
+  const rawFields = isRecord(value.storyEstimateFieldsByWorkItemType) ? value.storyEstimateFieldsByWorkItemType : {};
+  return {
+    defaults: {
+      storyEstimateFields: strings(defaults.storyEstimateFields),
+      taskWorkItemType: defaults.taskWorkItemType,
+      taskEstimateFields: strings(defaults.taskEstimateFields),
+      ...(typeof defaults.unitLabel === "string" ? { unitLabel: defaults.unitLabel } : {}),
+      ...(strings(defaults.nonEstimateFields).length ? { nonEstimateFields: strings(defaults.nonEstimateFields) } : {}),
+    },
+    storyEstimateFieldsByWorkItemType: Object.fromEntries(
+      Object.entries(rawFields).map(([type, fields]) => [
+        type,
+        taskFields(fields).map(({ referenceName, name, type: fieldType, isPicklist, allowedValues }) => ({
+          referenceName,
+          name,
+          type: fieldType,
+          isPicklist,
+          ...(allowedValues ? { allowedValues } : {}),
+        })),
+      ]),
+    ),
+  };
+}
+
 export function parseGroundedFieldOptions(value: unknown): GroundedFieldOptions {
   if (!isRecord(value)) throw new Error("CLI returned invalid template grounding metadata.");
   const rawStates = isRecord(value.statesByWorkItemType) ? value.statesByWorkItemType : {};
@@ -126,6 +163,7 @@ export function parseGroundedFieldOptions(value: unknown): GroundedFieldOptions 
         : [],
     )
     : [];
+  const estimation = groundedEstimation(value.estimation);
   const rawFieldsByWorkItemType = isRecord(value.fieldsByWorkItemType) ? value.fieldsByWorkItemType : {};
   const fieldsByWorkItemType = Object.fromEntries(
     Object.entries(rawFieldsByWorkItemType).map(([type, fields]) => [type, taskFields(fields)]),
@@ -139,6 +177,7 @@ export function parseGroundedFieldOptions(value: unknown): GroundedFieldOptions 
     savedQueries,
     taskFields: taskFields(value.taskFields),
     fieldsByWorkItemType,
+    ...(estimation ? { estimation } : {}),
   };
 }
 

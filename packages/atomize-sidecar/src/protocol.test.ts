@@ -19,7 +19,7 @@ const services: SidecarServices = {
     },
   },
   fetchGrounding: async () => ({}),
-  validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, needsOnlineVerification: false } }),
+  validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, hasEstimationMapping: false, needsOnlineVerification: false } }),
   queryGenerateStories: async () => ({ stories: [] }),
   runGenerate: async () => {
     throw new Error("runGenerate not stubbed for this test");
@@ -59,7 +59,7 @@ describe("validation.online", () => {
       ...services,
       validateOnline: async (params) => {
         received = params;
-        return { valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, needsOnlineVerification: false } };
+        return { valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, hasEstimationMapping: false, needsOnlineVerification: false } };
       },
     };
     const template = makeTemplate();
@@ -383,6 +383,7 @@ describe("preview.mockStory", () => {
             { title: "Task B", estimation: 4, estimationPercent: 40 },
           ],
           skippedTasks: [],
+          estimateUnit: "hours",
           estimationSummary: { storyEstimation: 10, totalTaskEstimation: 10, percentageUsed: 100 },
         },
       });

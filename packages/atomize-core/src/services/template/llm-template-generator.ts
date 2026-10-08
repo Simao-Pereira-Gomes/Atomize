@@ -27,6 +27,8 @@ mixins: string[]        # optional — list of mixin references or file paths (e
                         # Mixins contribute tasks only. Child tasks override mixin tasks with the same id.
                         # Template names are NOT valid mixin sources.
 
+taskType: string        # optional — work item type Tasks are created as (e.g. "Task", "Sub-task"). Omit to use the platform default.
+
 filter:                 # required (unless inherited via extends)
   workItemTypes: string[]         # e.g. ["User Story"], ["Bug"]
   states: string[]                # e.g. ["New", "Active", "Approved"] — items must be in one of these states
@@ -78,7 +80,16 @@ tasks:                  # required, minimum 1 item
 estimation:             # optional
   strategy: "percentage"
   rounding: "nearest" | "up" | "down" | "none"   # default "none" — omit unless the user asks for rounding
-  minimumTaskPoints: number   # optional, default 0
+  normalize: "auto" | "always" | "never"          # optional, default "auto" — set "never" only if the user wants percentages used exactly as written
+  minimumTaskEstimate: number   # optional, default 0 — minimum per task, in the Task's unit (hours on Azure DevOps)
+  source: string                # optional — Story field reference name holding the Story Estimate (e.g. "Custom.TShirtSize"). Omit to use the platform default (story points / effort / size).
+  conversion:                   # optional — Story Estimate → Task-unit total before the split. Set exactly ONE of factor or table.
+    factor: number              #   e.g. 4 when 1 point = 4 hours
+    table:                      #   exact value → amount, e.g. { S: 2, M: 4, L: 5, XL: 13 }
+    multipliers: boolean        #   optional, only with a table of size keys: "0.3XL" = 0.3 × XL
+  targetFields: string[]        # optional — Task fields that receive the estimate, replacing the platform defaults. Rarely needed.
+  ifParentHasNoEstimation: "warn" | "skip" | "use-default"   # optional, default "warn" (tasks get blank estimates)
+  defaultParentEstimation: number | string   # optional — Story Estimate to assume with use-default, e.g. 5 or "M"
 
 validation:             # optional
   minTasks: number
@@ -123,6 +134,11 @@ CONSTRAINTS (you must follow these):
          estimationPercentCondition:
            - condition: { field: priority, operator: lte, value: 2 }
              percent: 35             # override for critical bugs (priority 1 or 2)
+8. ESTIMATION FIELDS: only set taskType, estimation.source, estimation.conversion or estimation.targetFields when the user describes non-default sizing (for example t-shirt sizes, a custom size field, or "1 point = 4 hours"), or when the workspace context lists an estimation field that matches the description.
+   - Use field reference names and work item types exactly as given in the workspace context; never invent them.
+   - With a conversion table on a picklist source, use the picklist's allowed values exactly as keys and cover every one.
+   - For a numeric scale where hours grow faster than points, use a table with numeric keys instead of a factor.
+   - Conditions on estimation compare the raw Story Estimate: with size categories use equals/not-equals (e.g. value: "L"), never gt/lt/gte/lte.
 
 EXAMPLES:
 
@@ -340,7 +356,7 @@ export function buildUserPrompt(
   let prompt = `Generate an Atomize task template for the following:\n\n${description}`;
 
   if (groundingContext) {
-    prompt += `\n\n---\nObserved patterns from this user's Azure DevOps workspace:\n${groundingContext}\n\nUse these patterns as concrete examples when choosing task names, estimation percentages, and conditions. Adapt them to fit the description above — do not copy verbatim.\n---`;
+    prompt += `\n\n---\nObserved patterns from this user's Azure DevOps workspace:\n${groundingContext}\n\nUse these patterns as concrete examples when choosing task names, estimation percentages, and conditions. Adapt them to fit the description above — do not copy verbatim. If the context has an "estimation" section, it lists the platform's default estimation fields and the Story fields that can hold a Story Estimate, with their allowed values; follow rule 8 when using them.\n---`;
   }
 
   if (prevErrors && prevErrors.length > 0) {

@@ -124,3 +124,39 @@ describe('renderLivePreviewError', () => {
 		expect(html).toContain('rgba(241,76,76');
 	});
 });
+
+describe('blank Task Estimates', () => {
+	it('shows an unestimated Task instead of 0h in both layouts', () => {
+		const report = makeReport({ tasksCalculated: [{ title: 'Unsized task', estimationPercent: 50 }] });
+		for (const mode of ['default', 'compact'] as const) {
+			const html = renderLivePreviewResults(report, mode, 'templates/auth.atomize.yaml');
+			expect(html).toContain('unestimated');
+			// Task estimate cells carry inline styles; the budget axis label (<span>0h</span>) does not.
+			expect(html).not.toMatch(/"[^>]*>0h<\/(span|td)>/);
+		}
+	});
+});
+
+describe('estimate unit labels', () => {
+	it("labels amounts with the adapter's unit when the report carries one", () => {
+		const report = makeReport();
+		const result = report.results[0];
+		if (!result) throw new Error('fixture has no result');
+		result.estimateUnit = 'hours';
+		const html = renderLivePreviewResults(report, 'default', 'templates/auth.atomize.yaml');
+		expect(html).toContain('2 hours');
+		expect(html).toContain('2 hours of 8 hours');
+	});
+
+	it('shows bare numbers when the unit is unknown, never a hardcoded h', () => {
+		for (const mode of ['default', 'compact'] as const) {
+			const html = renderLivePreviewResults(makeReport(), mode, 'templates/auth.atomize.yaml');
+			expect(html).not.toMatch(/\d+h\b/);
+		}
+	});
+
+	it('shows the raw Story Estimate without a unit', () => {
+		const html = renderLivePreviewResults(makeReport(), 'default', 'templates/auth.atomize.yaml');
+		expect(html).toContain('Story Estimate: 8');
+	});
+});

@@ -10,7 +10,9 @@ import type {
 } from "../templates/schema";
 import { getErrorMessage } from "../utils/errors";
 import { ConditionEvaluator } from "./condition-evaluator.js";
+import { resolveStoryEstimate, type StoryEstimateResolution } from "./estimation-conversion";
 import { distributeActiveTaskPercentages } from "./estimation-distribution";
+import { type EstimationFieldMapping, readStoryEstimate } from "./estimation-field-mapping";
 import { interpolateValue } from "./template-interpolator.js";
 
 /**
@@ -31,6 +33,10 @@ export interface TaskCalculationResult {
     templateTask: TemplateTaskDefinition;
     reason: string;
   }>;
+  /** Set when the Story Estimate could not be resolved and the policy left estimates blank or skipped the Story. */
+  unresolvedEstimate?: { action: "blank" | "skip"; reason: string };
+  /** Set when the Story Estimate could not be resolved and defaultParentEstimation was used instead. */
+  defaultEstimateReason?: string;
 }
 
 /**
@@ -53,17 +59,24 @@ export class EstimationCalculator {
     templateTasks: TemplateTaskDefinition[],
     estimationConfig?: EstimationConfig,
     forceNormalize = false,
+    fieldMapping?: EstimationFieldMapping,
   ): TaskCalculationResult {
     logger.debug(
       `EstimationCalculator: Calculating tasks for story ${story.id}`
     );
 
-    const parentEstimation = story.estimation || 0;
+    const resolution = this.resolveParentEstimate(story, estimationConfig, fieldMapping);
 
-    if (parentEstimation === 0) {
-      logger.warn(
-        `Story ${story.id} has no estimation. Tasks will have 0 estimation.`
-      );
+    if (resolution.kind === "skip") {
+      logger.warn(`Story ${story.id}: ${resolution.reason}. Skipping the Story.`);
+      return {
+        calculatedTasks: [],
+        skippedTasks: [],
+        unresolvedEstimate: { action: "skip", reason: resolution.reason },
+      };
+    }
+    if (resolution.kind === "blank") {
+      logger.warn(`Story ${story.id}: ${resolution.reason}. Task Estimates will be left blank.`);
     }
 
     const calculatedTasks: CalculatedTask[] = [];
@@ -83,7 +96,8 @@ export class EstimationCalculator {
         try {
           conditionMet = this.conditionEvaluator.evaluateCondition(
             templateTask.condition,
-            story
+            story,
+            fieldMapping?.storySource,
           );
         } catch (error) {
           const reason = `Condition evaluation error: ${getErrorMessage(error)}`;
@@ -104,7 +118,15 @@ export class EstimationCalculator {
         );
       }
 
-      const resolvedPercent = this.resolveEffectivePercent(templateTask, story);
+      let resolvedPercent: number | undefined;
+      try {
+        resolvedPercent = this.resolveEffectivePercent(templateTask, story, fieldMapping);
+      } catch (error) {
+        const reason = `Condition evaluation error: ${getErrorMessage(error)}`;
+        logger.error(`Skipping task "${templateTask.title}" - ${reason}`);
+        skippedTasks.push({ templateTask, reason });
+        continue;
+      }
       const calculatedTask = this.buildCalculatedTask(
         templateTask,
         story,
@@ -116,20 +138,33 @@ export class EstimationCalculator {
       calculatedTasks.push(calculatedTask);
     }
 
+    if (fieldMapping) {
+      for (const task of calculatedTasks) {
+        task.workItemType = fieldMapping.taskWorkItemType;
+        if (fieldMapping.taskTarget.kind === "override") {
+          task.estimateFields = [...fieldMapping.taskTarget.fields];
+        }
+      }
+    }
+
     distributeActiveTaskPercentages(calculatedTasks, {
       forceNormalize,
       enableLogging: true,
+      mode: estimationConfig?.normalize,
     });
 
     for (const calculatedTask of calculatedTasks) {
-      calculatedTask.estimation = this.calculateEstimation(
-        parentEstimation,
-        calculatedTask as TemplateTaskDefinition,
-        estimationConfig
-      );
+      calculatedTask.estimation =
+        resolution.kind === "resolved"
+          ? this.calculateEstimation(
+              resolution.total,
+              calculatedTask as TemplateTaskDefinition,
+              estimationConfig,
+            )
+          : calculatedTask.estimationFixed;
 
       logger.debug(
-        `Calculated task: ${calculatedTask.title} = ${calculatedTask.estimation} points (${calculatedTask.estimationPercent}%)`
+        `Calculated task: ${calculatedTask.title} = ${calculatedTask.estimation ?? "unestimated"} (${calculatedTask.estimationPercent}%)`
       );
     }
 
@@ -137,7 +172,16 @@ export class EstimationCalculator {
       `EstimationCalculator: Calculated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} tasks for story ${story.id}`
     );
 
-    return { calculatedTasks, skippedTasks };
+    return {
+      calculatedTasks,
+      skippedTasks,
+      ...(resolution.kind === "blank"
+        ? { unresolvedEstimate: { action: "blank" as const, reason: resolution.reason } }
+        : {}),
+      ...(resolution.kind === "resolved" && resolution.fallbackReason
+        ? { defaultEstimateReason: resolution.fallbackReason }
+        : {}),
+    };
   }
 
   /**
@@ -147,10 +191,11 @@ export class EstimationCalculator {
   private resolveEffectivePercent(
     task: TemplateTaskDefinition,
     story: WorkItem,
+    fieldMapping?: EstimationFieldMapping,
   ): number | undefined {
     if (task.estimationPercentCondition?.length) {
       for (const rule of task.estimationPercentCondition) {
-        if (this.conditionEvaluator.evaluateCondition(rule.condition, story)) {
+        if (this.conditionEvaluator.evaluateCondition(rule.condition, story, fieldMapping?.storySource)) {
           logger.debug(
             `Task "${task.title}": conditional percent → ${rule.percent}%`,
           );
@@ -182,7 +227,6 @@ export class EstimationCalculator {
       ),
       priority: templateTask.priority,
       activity: templateTask.activity,
-      completedWork: 0,
       iteration: story.iteration,
       areaPath: story.areaPath,
       customFields: this.interpolateCustomFields(templateTask.customFields, story),
@@ -190,6 +234,16 @@ export class EstimationCalculator {
       estimationPercent: resolvedPercent ?? templateTask.estimationPercent,
       estimationFixed: templateTask.estimationFixed,
     };
+  }
+
+  /** The Story Estimate converted into the Task's unit with the unresolvable-estimate policy applied. */
+  resolveParentEstimate(
+    story: WorkItem,
+    config?: EstimationConfig,
+    fieldMapping?: EstimationFieldMapping,
+  ): StoryEstimateResolution {
+    const raw = readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] });
+    return resolveStoryEstimate(raw, config);
   }
 
   /**
@@ -212,7 +266,7 @@ export class EstimationCalculator {
         config?.rounding || "none"
       );
 
-      const minimum = config?.minimumTaskPoints || 0;
+      const minimum = config?.minimumTaskEstimate ?? config?.minimumTaskPoints ?? 0;
       return Math.max(rounded, minimum);
     }
 
@@ -299,14 +353,17 @@ export class EstimationCalculator {
    */
   getEstimationSummary(
     story: WorkItem,
-    tasks: CalculatedTask[]
+    tasks: CalculatedTask[],
+    config?: EstimationConfig,
+    fieldMapping?: EstimationFieldMapping,
   ): {
     storyEstimation: number;
     totalTaskEstimation: number;
     difference: number;
     percentageUsed: number;
   } {
-    const storyEstimation = story.estimation || 0;
+    const resolution = this.resolveParentEstimate(story, config, fieldMapping);
+    const storyEstimation = resolution.kind === "resolved" ? resolution.total : 0;
     const totalTaskEstimation = this.calculateTotalEstimation(tasks);
     const difference = storyEstimation - totalTaskEstimation;
     const percentageUsed =
@@ -325,14 +382,20 @@ export class EstimationCalculator {
    */
   validateEstimation(
     story: WorkItem,
-    tasks: CalculatedTask[]
+    tasks: CalculatedTask[],
+    config?: EstimationConfig,
+    fieldMapping?: EstimationFieldMapping,
   ): {
     valid: boolean;
     warnings: string[];
   } {
     const warnings: string[] = [];
 
-    const summary = this.getEstimationSummary(story, tasks);
+    if (this.resolveParentEstimate(story, config, fieldMapping).kind !== "resolved") {
+      return { valid: true, warnings };
+    }
+
+    const summary = this.getEstimationSummary(story, tasks, config, fieldMapping);
 
     if (Math.abs(summary.difference) > 0.5) {
       warnings.push(
@@ -340,7 +403,7 @@ export class EstimationCalculator {
       );
     }
 
-    const zeroEstimations = tasks.filter((t) => (t.estimation || 0) === 0);
+    const zeroEstimations = tasks.filter((t) => t.estimation === 0);
     if (zeroEstimations.length > 0) {
       warnings.push(
         `${

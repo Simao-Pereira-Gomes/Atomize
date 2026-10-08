@@ -98,3 +98,44 @@ it("explains how to recover a keychain-backed profile whose token is missing", a
   expect(error).toBeInstanceOf(ProjectConnectionError);
   expect((error as Error).message).toBe("This Connection Profile has no token in your operating system's credential store. Rotate its token in Studio to reconnect.");
 });
+
+describe("estimation grounding", () => {
+  const base = {
+    workItemTypes: ["User Story"],
+    statesByWorkItemType: {},
+    areaPaths: [],
+    iterationPaths: [],
+    teams: [],
+    savedQueries: [],
+    taskFields: [],
+    fieldsByWorkItemType: {},
+  };
+
+  it("keeps the estimation defaults and estimate-capable Story fields with their allowed values", () => {
+    const options = parseGroundedFieldOptions({
+      ...base,
+      estimation: {
+        defaults: {
+          storyEstimateFields: ["Microsoft.VSTS.Scheduling.StoryPoints"],
+          taskWorkItemType: "Task",
+          taskEstimateFields: ["Microsoft.VSTS.Scheduling.RemainingWork"],
+          unitLabel: "hours",
+        },
+        storyEstimateFieldsByWorkItemType: {
+          "User Story": [{ referenceName: "Custom.TShirtSize", name: "T-shirt size", type: "string", isPicklist: true, allowedValues: ["S", "M", "L"] }],
+        },
+      },
+    });
+
+    expect(options.estimation?.defaults.taskWorkItemType).toBe("Task");
+    expect(options.estimation?.defaults.unitLabel).toBe("hours");
+    expect(options.estimation?.storyEstimateFieldsByWorkItemType["User Story"]).toEqual([
+      { referenceName: "Custom.TShirtSize", name: "T-shirt size", type: "string", isPicklist: true, allowedValues: ["S", "M", "L"] },
+    ]);
+  });
+
+  it("omits a malformed or missing estimation section", () => {
+    expect(parseGroundedFieldOptions(base).estimation).toBeUndefined();
+    expect(parseGroundedFieldOptions({ ...base, estimation: { defaults: {} } }).estimation).toBeUndefined();
+  });
+});

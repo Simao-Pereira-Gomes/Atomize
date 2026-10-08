@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { EstimationCalculator } from "@sppg2001/atomize-core/core/estimation-calculator";
+import { resolveEstimationFieldMapping } from "@sppg2001/atomize-core/core/estimation-field-mapping";
+import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import type { EstimationConfig, TaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 
@@ -125,7 +127,7 @@ describe("EstimationCalculator", () => {
       const configWithMin: EstimationConfig = {
         strategy: "percentage",
         rounding: "nearest",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
       };
       const { calculatedTasks: calculatedWithMin } = calculator.calculateTasksWithSkipped(
         story,
@@ -145,7 +147,7 @@ describe("EstimationCalculator", () => {
 
       const config: EstimationConfig = {
         strategy: "percentage",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
         ifParentHasNoEstimation: "use-default",
         defaultParentEstimation: 10,
         rounding: "nearest",
@@ -159,6 +161,35 @@ describe("EstimationCalculator", () => {
       );
 
       expect(calculated[0]?.estimation).toBe(0.5); // Minimum enforced
+    });
+
+    test("should honour the deprecated minimumTaskPoints when minimumTaskEstimate is absent", () => {
+      const story = { ...mockStory, estimation: 10 };
+      const tasks: TaskDefinition[] = [
+        { title: "Small Task", estimationPercent: 3 },
+        { title: "Filler", estimationPercent: 97 },
+      ];
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+        strategy: "percentage",
+        rounding: "nearest",
+        minimumTaskPoints: 0.5,
+      });
+      expect(calculatedTasks[0]?.estimation).toBe(0.5);
+    });
+
+    test("should prefer minimumTaskEstimate over the deprecated minimumTaskPoints", () => {
+      const story = { ...mockStory, estimation: 10 };
+      const tasks: TaskDefinition[] = [
+        { title: "Small Task", estimationPercent: 3 },
+        { title: "Filler", estimationPercent: 97 },
+      ];
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+        strategy: "percentage",
+        rounding: "nearest",
+        minimumTaskEstimate: 1,
+        minimumTaskPoints: 0.5,
+      });
+      expect(calculatedTasks[0]?.estimation).toBe(1);
     });
 
     test("should skip conditional tasks when condition not met", () => {
@@ -237,7 +268,7 @@ describe("EstimationCalculator", () => {
       expect(calculated[0]?.activity).toBe("Development");
     });
 
-    test("should set completedWork to 0 and inherit iteration from parent", () => {
+    test("should inherit iteration from parent", () => {
       const storyWithIteration: WorkItem = {
         ...mockStory,
         iteration: "Project\\Sprint 1",
@@ -256,7 +287,6 @@ describe("EstimationCalculator", () => {
         tasks
       );
 
-      expect(calculated[0]?.completedWork).toBe(0);
       expect(calculated[0]?.iteration).toBe("Project\\Sprint 1");
     });
 
@@ -833,6 +863,243 @@ describe("EstimationCalculator", () => {
         0,
       );
       expect(totalEstimation).toBeCloseTo(10, 1);
+    });
+  });
+
+  describe("factor conversion", () => {
+    const story: WorkItem = { ...mockStory, estimation: 5 };
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 80 },
+      { title: "Review", estimationPercent: 20 },
+    ];
+    const config: EstimationConfig = { strategy: "percentage", rounding: "none", conversion: { factor: 4 } };
+
+    test("converts the Story Estimate before splitting it", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
+      expect(calculatedTasks.map((t) => t.estimation)).toEqual([16, 4]);
+    });
+
+    test("applies rounding and the minimum after conversion", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(
+        { ...story, estimation: 1 },
+        "",
+        [
+          { title: "Tiny", estimationPercent: 5 },
+          { title: "Rest", estimationPercent: 95 },
+        ],
+        { strategy: "percentage", rounding: "up", minimumTaskEstimate: 1, conversion: { factor: 3 } },
+      );
+      // 1 point × 3 = 3 hours; 5% = 0.15 → rounded up to 0.5 → raised to the minimum of 1; 95% = 2.85 → 3
+      expect(calculatedTasks.map((t) => t.estimation)).toEqual([1, 3]);
+    });
+
+    test("Templates without a conversion are unchanged", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+        strategy: "percentage",
+        rounding: "none",
+      });
+      expect(calculatedTasks.map((t) => t.estimation)).toEqual([4, 1]);
+    });
+
+    test("the estimation summary reports the converted Story total", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
+      const summary = calculator.getEstimationSummary(story, calculatedTasks, config);
+      expect(summary.storyEstimation).toBe(20);
+      expect(summary.totalTaskEstimation).toBe(20);
+      expect(summary.percentageUsed).toBe(100);
+    });
+
+    test("validation compares Task Estimates with the converted total, not the raw points", () => {
+      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
+      expect(calculator.validateEstimation(story, calculatedTasks, config).valid).toBe(true);
+    });
+  });
+
+  describe("Unresolvable Story Estimate", () => {
+    const unestimated: WorkItem = { ...mockStory, estimation: undefined };
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 60 },
+      { title: "Review", estimationPercent: 40 },
+    ];
+
+    test("by default Tasks are generated with blank estimates, never zero", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks);
+      expect(result.calculatedTasks).toHaveLength(2);
+      expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
+      expect(result.unresolvedEstimate).toEqual({ action: "blank", reason: "Story has no estimate" });
+    });
+
+    test("a fixed Task Estimate is kept when the Story Estimate is unresolvable", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", [
+        { title: "Fixed", estimationFixed: 2 },
+        { title: "Share", estimationPercent: 100 },
+      ]);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([2, undefined]);
+    });
+
+    test("skip produces no Tasks and reports the reason", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks, {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "skip",
+      });
+      expect(result.calculatedTasks).toHaveLength(0);
+      expect(result.unresolvedEstimate?.action).toBe("skip");
+    });
+
+    test("use-default splits the converted default Story Estimate", () => {
+      const config: EstimationConfig = {
+        strategy: "percentage",
+        rounding: "none",
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: 5,
+        conversion: { factor: 2 },
+      };
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks, config);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([6, 4]);
+      expect(result.defaultEstimateReason).toBe("Story has no estimate");
+      expect(calculator.getEstimationSummary(unestimated, result.calculatedTasks, config).storyEstimation).toBe(10);
+    });
+
+    test("blank estimates do not trigger the zero-estimation or difference warnings", () => {
+      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks);
+      expect(calculator.validateEstimation(unestimated, result.calculatedTasks)).toEqual({ valid: true, warnings: [] });
+    });
+  });
+
+  describe("source override with a t-shirt table", () => {
+    const config: EstimationConfig = {
+      strategy: "percentage",
+      rounding: "none",
+      source: "Custom.TShirtSize",
+      conversion: { table: { S: 2, M: 4, L: 5, XL: 13 } },
+    };
+    const mapping = resolveEstimationFieldMapping(MOCK_ESTIMATION_DEFAULTS, { source: config.source });
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 80 },
+      { title: "Review", estimationPercent: 20 },
+    ];
+    const sized = (size?: string): WorkItem => ({
+      ...mockStory,
+      estimation: 8,
+      customFields: size === undefined ? {} : { "Custom.TShirtSize": size },
+    });
+
+    test("a multiplier Story Estimate is split like any other total", () => {
+      const multiplied: EstimationConfig = {
+        ...config,
+        rounding: "nearest",
+        conversion: { table: { XL: 5 }, multipliers: true },
+      };
+      // 0.3 × 5 = 1.5 hours; 80% = 1.2 → 1, 20% = 0.3 → 0.5 at half-hour rounding
+      const result = calculator.calculateTasksWithSkipped(sized("0.3XL"), "", tasks, multiplied, false, mapping);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([1, 0.5]);
+      expect(calculator.getEstimationSummary(sized("0.3XL"), result.calculatedTasks, multiplied, mapping).storyEstimation).toBe(1.5);
+    });
+
+    test("an L Story's 20% task gets 1 hour", () => {
+      const result = calculator.calculateTasksWithSkipped(sized("L"), "", tasks, config, false, mapping);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([4, 1]);
+    });
+
+    test("a size missing from the table leaves Task Estimates blank with a warning", () => {
+      const result = calculator.calculateTasksWithSkipped(sized("XXL"), "", tasks, config, false, mapping);
+      expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
+      expect(result.unresolvedEstimate?.reason).toContain('"XXL"');
+    });
+
+    test("a Task conditioned on a numeric comparison against a size is skipped with a reason", () => {
+      const result = calculator.calculateTasksWithSkipped(
+        sized("L"),
+        "",
+        [
+          { title: "Build", estimationPercent: 100 },
+          { title: "Extra review", estimationPercent: 0, condition: { field: "estimation", operator: "gt", value: 3 } },
+        ],
+        config,
+        false,
+        mapping,
+      );
+      expect(result.calculatedTasks.map((t) => t.title)).toEqual(["Build"]);
+      expect(result.skippedTasks[0]?.reason).toContain("Condition evaluation error");
+    });
+
+    test("a size condition selects Tasks for large Stories", () => {
+      const conditional: TaskDefinition[] = [
+        { title: "Build", estimationPercent: 100 },
+        {
+          title: "Architecture review",
+          estimationPercent: 0,
+          condition: { any: [{ field: "estimation", operator: "equals", value: "L" }, { field: "estimation", operator: "equals", value: "XL" }] },
+        },
+      ];
+      const large = calculator.calculateTasksWithSkipped(sized("XL"), "", conditional, config, false, mapping);
+      const small = calculator.calculateTasksWithSkipped(sized("S"), "", conditional, config, false, mapping);
+      expect(large.calculatedTasks.map((t) => t.title)).toContain("Architecture review");
+      expect(small.calculatedTasks.map((t) => t.title)).not.toContain("Architecture review");
+    });
+
+    test("an estimationPercentCondition that cannot be evaluated skips that Task instead of failing the Story", () => {
+      const result = calculator.calculateTasksWithSkipped(
+        sized("L"),
+        "",
+        [
+          { title: "Build", estimationPercent: 80 },
+          {
+            title: "Review",
+            estimationPercent: 20,
+            estimationPercentCondition: [{ condition: { field: "estimation", operator: "gte", value: 5 }, percent: 30 }],
+          },
+        ],
+        config,
+        false,
+        mapping,
+      );
+      expect(result.calculatedTasks.map((t) => t.title)).toEqual(["Build"]);
+      expect(result.skippedTasks[0]?.templateTask.title).toBe("Review");
+    });
+
+    test("a blank source field never falls back to the default estimation", () => {
+      const result = calculator.calculateTasksWithSkipped(sized(), "", tasks, config, false, mapping);
+      expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
+      expect(result.unresolvedEstimate?.reason).toBe("Story has no estimate");
+    });
+  });
+
+  describe("estimation.normalize", () => {
+    const story: WorkItem = { ...mockStory, estimation: 10, tags: [] };
+    const withSkippedTask: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 60 },
+      { title: "Test", estimationPercent: 20 },
+      { title: "Security review", estimationPercent: 20, condition: { field: "tags", operator: "contains", value: "security" } },
+    ];
+    const overAllocated: TaskDefinition[] = [
+      { title: "Dev", estimationPercent: 90 },
+      { title: "QA", estimationPercent: 60 },
+    ];
+    const run = (tasks: TaskDefinition[], normalize?: EstimationConfig["normalize"]) =>
+      calculator
+        .calculateTasksWithSkipped(story, "", tasks, { strategy: "percentage", rounding: "none", ...(normalize ? { normalize } : {}) })
+        .calculatedTasks.map((t) => t.estimation);
+
+    test("auto (default) scales a skipped task's share up and keeps over-allocation", () => {
+      expect(run(withSkippedTask)).toEqual([7.5, 2.5]);
+      expect(run(overAllocated)).toEqual([9, 6]);
+    });
+
+    test("never uses the written percentages, leaving a skipped task's share unallocated", () => {
+      expect(run(withSkippedTask, "never")).toEqual([6, 2]);
+      expect(run(overAllocated, "never")).toEqual([9, 6]);
+    });
+
+    test("always scales to exactly 100% in both directions", () => {
+      expect(run(withSkippedTask, "always")).toEqual([7.5, 2.5]);
+      expect(run(overAllocated, "always")).toEqual([6, 4]);
+    });
+
+    test("an explicit never wins over a forced normalisation", () => {
+      const result = calculator.calculateTasksWithSkipped(story, "", overAllocated, { strategy: "percentage", rounding: "none", normalize: "never" }, true);
+      expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([9, 6]);
     });
   });
 });

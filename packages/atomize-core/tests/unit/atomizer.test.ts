@@ -46,6 +46,121 @@ describe("Atomizer", () => {
   };
 
   describe("atomize", () => {
+    test("skip reports the Story as skipped with a reason and creates nothing for it", async () => {
+      await platform.authenticate();
+      const unestimated = { ...basicTemplate, filter: { workItemTypes: ["User Story"] } };
+      const stories = await platform.queryWorkItems(unestimated.filter);
+      const target = stories[0];
+      if (!target) throw new Error("mock data has no stories");
+      // The Mock adapter hands out its shared Story objects, so restore the estimate afterwards.
+      const originalEstimate = target.estimation;
+      target.estimation = undefined;
+      try {
+        const report = await atomizer.atomize(
+          { ...unestimated, estimation: { strategy: "percentage", rounding: "none", ifParentHasNoEstimation: "skip" } },
+          { dryRun: true, storyIds: [target.id] },
+        );
+
+        const result = report.results.find((r) => r.story.id === target.id);
+        expect(result?.skipReason).toContain("Story has no estimate");
+        expect(result?.tasksCalculated).toHaveLength(0);
+        expect(report.warnings.some((w) => w.startsWith(`${target.id}:`) && w.includes("skipped"))).toBe(true);
+      } finally {
+        target.estimation = originalEstimate;
+      }
+    });
+
+    test("reads the Story Estimate from the Template's source field during generation", async () => {
+      await platform.authenticate();
+      const stories = await platform.queryWorkItems(basicTemplate.filter);
+      const target = stories[0];
+      if (!target) throw new Error("mock data has no stories");
+      const originalFields = target.customFields;
+      target.customFields = { ...originalFields, "Custom.TShirtSize": "L" };
+      try {
+        const report = await atomizer.atomize(
+          {
+            ...basicTemplate,
+            estimation: {
+              strategy: "percentage",
+              rounding: "none",
+              source: "Custom.TShirtSize",
+              conversion: { table: { L: 10 } },
+            },
+          },
+          { dryRun: true, storyIds: [target.id] },
+        );
+
+        const result = report.results.find((r) => r.story.id === target.id);
+        expect(result?.tasksCalculated.map((t) => t.estimation)).toEqual([2, 5, 3]);
+        expect(result?.estimationSummary?.storyEstimation).toBe(10);
+        expect(result?.storyEstimate).toBe("L");
+      } finally {
+        target.customFields = originalFields;
+      }
+    });
+
+    test("labels Task Estimates with the adapter's unit when the default fields are used", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(basicTemplate, { dryRun: true });
+
+      expect(report.results.length).toBeGreaterThan(0);
+      expect(report.results.every((r) => r.estimateUnit === "hours")).toBe(true);
+    });
+
+    test("leaves Task Estimates unlabelled when targetFields are overridden", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(
+        { ...basicTemplate, estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] } },
+        { dryRun: true },
+      );
+
+      expect(report.results.every((r) => r.estimateUnit === undefined)).toBe(true);
+    });
+
+    test("creates Tasks as the Template's taskType", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize({ ...basicTemplate, taskType: "Sub-task" }, { dryRun: false });
+
+      const created = report.results.flatMap((r) => r.tasksCreated);
+      expect(created.length).toBeGreaterThan(0);
+      expect(created.every((t) => t.type === "Sub-task")).toBe(true);
+    });
+
+    test("creates Tasks as the adapter's default type when the Template sets no taskType", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(basicTemplate, { dryRun: false });
+
+      const created = report.results.flatMap((r) => r.tasksCreated);
+      expect(created.every((t) => t.type === "Task")).toBe(true);
+    });
+
+    test("carries overridden targetFields on every calculated Task", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(
+        { ...basicTemplate, estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] } },
+        { dryRun: true },
+      );
+
+      const tasks = report.results.flatMap((r) => r.tasksCalculated);
+      expect(tasks.length).toBeGreaterThan(0);
+      expect(tasks.every((t) => t.estimateFields?.join() === "Custom.Effort")).toBe(true);
+    });
+
+    test("leaves estimateFields unset when the Template uses the adapter's default fields", async () => {
+      await platform.authenticate();
+
+      const report = await atomizer.atomize(basicTemplate, { dryRun: true });
+
+      const tasks = report.results.flatMap((r) => r.tasksCalculated);
+      expect(tasks.every((t) => t.estimateFields === undefined)).toBe(true);
+    });
+
     test("should process stories end-to-end", async () => {
       await platform.authenticate();
 

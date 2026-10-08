@@ -167,7 +167,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Work item types to include (e.g. ['User Story', 'Bug'])."
+              "description": "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate."
             },
             "states": {
               "type": "array",
@@ -442,6 +442,11 @@
           },
           "description": "Task definitions that will be generated from this template."
         },
+        "taskType": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
+        },
         "estimation": {
           "type": "object",
           "properties": {
@@ -455,7 +460,53 @@
             },
             "source": {
               "type": "string",
-              "description": "Field on the parent story to read the estimation value from (e.g. 'story-points')."
+              "minLength": 1,
+              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
+            },
+            "conversion": {
+              "type": "object",
+              "properties": {
+                "factor": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
+                },
+                "table": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
+                },
+                "multipliers": {
+                  "type": "boolean",
+                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys."
+                }
+              },
+              "additionalProperties": false,
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one."
+            },
+            "targetFields": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
+            },
+            "normalize": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "always",
+                "never"
+              ],
+              "description": "What to do when the generated tasks' percentages don't add up to 100%. 'auto' (default) scales totals below 100% up and leaves totals above 100% as written unless you choose otherwise at generate time; 'always' scales to 100% in both directions; 'never' uses the percentages exactly as written, so a skipped task's share stays unallocated."
             },
             "rounding": {
               "default": "none",
@@ -468,9 +519,14 @@
                 "none"
               ]
             },
+            "minimumTaskEstimate": {
+              "type": "number",
+              "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
+            },
             "minimumTaskPoints": {
               "type": "number",
-              "description": "Minimum point value any single task can receive after rounding."
+              "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
+              "deprecated": true
             },
             "ifParentHasNoEstimation": {
               "type": "string",
@@ -479,11 +535,19 @@
                 "warn",
                 "use-default"
               ],
-              "description": "Behaviour when the parent story has no estimate. 'skip' omits tasks, 'warn' logs a warning, 'use-default' falls back to defaultParentEstimation."
+              "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
             },
             "defaultParentEstimation": {
-              "type": "number",
-              "description": "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'."
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate."
             }
           },
           "additionalProperties": false,
@@ -715,7 +779,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Work item types to include (e.g. ['User Story', 'Bug'])."
+              "description": "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate."
             },
             "states": {
               "type": "array",
@@ -990,6 +1054,11 @@
           },
           "description": "Task definitions that will be generated from this template."
         },
+        "taskType": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
+        },
         "estimation": {
           "type": "object",
           "properties": {
@@ -1003,7 +1072,53 @@
             },
             "source": {
               "type": "string",
-              "description": "Field on the parent story to read the estimation value from (e.g. 'story-points')."
+              "minLength": 1,
+              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
+            },
+            "conversion": {
+              "type": "object",
+              "properties": {
+                "factor": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
+                },
+                "table": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
+                },
+                "multipliers": {
+                  "type": "boolean",
+                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys."
+                }
+              },
+              "additionalProperties": false,
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one."
+            },
+            "targetFields": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
+            },
+            "normalize": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "always",
+                "never"
+              ],
+              "description": "What to do when the generated tasks' percentages don't add up to 100%. 'auto' (default) scales totals below 100% up and leaves totals above 100% as written unless you choose otherwise at generate time; 'always' scales to 100% in both directions; 'never' uses the percentages exactly as written, so a skipped task's share stays unallocated."
             },
             "rounding": {
               "default": "none",
@@ -1016,9 +1131,14 @@
                 "none"
               ]
             },
+            "minimumTaskEstimate": {
+              "type": "number",
+              "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
+            },
             "minimumTaskPoints": {
               "type": "number",
-              "description": "Minimum point value any single task can receive after rounding."
+              "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
+              "deprecated": true
             },
             "ifParentHasNoEstimation": {
               "type": "string",
@@ -1027,11 +1147,19 @@
                 "warn",
                 "use-default"
               ],
-              "description": "Behaviour when the parent story has no estimate. 'skip' omits tasks, 'warn' logs a warning, 'use-default' falls back to defaultParentEstimation."
+              "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
             },
             "defaultParentEstimation": {
-              "type": "number",
-              "description": "Fallback estimation value used when the parent story has no estimate and ifParentHasNoEstimation is 'use-default'."
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate."
             }
           },
           "additionalProperties": false,

@@ -1,7 +1,17 @@
 import type {
   WorkItem as AzureWorkItem,
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
-import type { WorkItem, WorkItemType } from "../../interfaces/work-item.interface";
+import type { StoryEstimate, WorkItem, WorkItemType } from "../../interfaces/work-item.interface";
+import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "./estimation-defaults";
+
+// Falsy values (0, "") fall through, matching the original StoryPoints || OriginalEstimate behaviour.
+function firstEstimate(fields: Record<string, unknown>): StoryEstimate | undefined {
+  for (const field of AZURE_DEVOPS_ESTIMATION_DEFAULTS.storyEstimateFields) {
+    const value = fields[field];
+    if ((typeof value === "number" || typeof value === "string") && value) return value;
+  }
+  return undefined;
+}
 
 export function convertWorkItem(azureItem: AzureWorkItem): WorkItem {
   const fields = azureItem.fields || {};
@@ -35,9 +45,7 @@ export function convertWorkItem(azureItem: AzureWorkItem): WorkItem {
     assignedTo:
       fields["System.AssignedTo"]?.uniqueName ||
       fields["System.AssignedTo"]?.displayName,
-    estimation:
-      fields["Microsoft.VSTS.Scheduling.StoryPoints"] ||
-      fields["Microsoft.VSTS.Scheduling.OriginalEstimate"],
+    estimation: firstEstimate(fields),
     tags: fields["System.Tags"] ? fields["System.Tags"].split("; ") : [],
     description: fields["System.Description"],
     areaPath: fields["System.AreaPath"],

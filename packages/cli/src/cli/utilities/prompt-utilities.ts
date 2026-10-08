@@ -90,6 +90,26 @@ export const Validators = {
       return Validators.maxLength(fieldName, maxLength)(input);
     },
 
+  positiveNumber:
+    (fieldName: string) =>
+    (input: string | undefined): string | undefined => {
+      const num = Number(input);
+      if (!input || input.trim() === "" || Number.isNaN(num)) return `${fieldName} must be a number`;
+      if (num <= 0) return `${fieldName} must be greater than 0`;
+      return undefined;
+    },
+
+  fieldReferenceName: (input: string | undefined): string | undefined => {
+    if (!input || input.trim() === "") return "Field reference name is required";
+    if (/\s/.test(input.trim())) return "Use the field's reference name (e.g. Custom.TShirtSize), which has no spaces";
+    return undefined;
+  },
+
+  conversionTable: (input: string | undefined): string | undefined => {
+    const parsed = parseConversionTable(input ?? "");
+    return typeof parsed === "string" ? parsed : undefined;
+  },
+
   estimationPercent: (input: string | undefined): string | undefined => {
     const num = Number(input);
     if (Number.isNaN(num)) return "Estimation must be a valid number";
@@ -153,6 +173,26 @@ export const Validators = {
       return undefined;
     },
 };
+
+/**
+ * Parses a typed conversion table such as "S=2, M=4, L=5" into Story Estimate value → amount.
+ * Returns an error message when the input is malformed.
+ */
+export function parseConversionTable(input: string): Record<string, number> | string {
+  const entries = input.split(",").map((entry) => entry.trim()).filter(Boolean);
+  if (entries.length === 0) return "Enter at least one entry, e.g. S=2, M=4, L=5";
+  const table: Record<string, number> = {};
+  for (const entry of entries) {
+    const separator = entry.lastIndexOf("=");
+    const key = separator > 0 ? entry.slice(0, separator).trim() : "";
+    const value = Number(entry.slice(separator + 1).trim());
+    if (!key || separator === entry.length - 1 || Number.isNaN(value)) return `"${entry}" is not in the form value=amount`;
+    if (value < 0) return `"${key}" cannot have a negative amount`;
+    if (Object.hasOwn(table, key)) return `"${key}" appears more than once`;
+    table[key] = value;
+  }
+  return table;
+}
 
 /**
  * Common filter transformations

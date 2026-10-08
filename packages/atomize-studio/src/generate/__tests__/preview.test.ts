@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMockStoryJson, describeSkippedTaskReason, formatAllocationPercentage, parseInspectResult, parsePreviewResult, previewSourceDetail, previewSourceLabel, previewSourceValue } from "../preview";
+import { buildMockStoryJson, describeSkippedTaskReason, formatAllocationPercentage, formatEstimateAmount, formatTaskEstimate, parseInspectResult, parsePreviewResult, previewSourceDetail, previewSourceLabel, previewSourceValue } from "../preview";
 
 describe("parseInspectResult", () => {
   it("accepts a well-formed InspectResult", () => {
@@ -93,5 +93,22 @@ describe("buildMockStoryJson", () => {
   it("drops empty entries from a comma-separated list", () => {
     const json = buildMockStoryJson(fields, { tags: "backend, , urgent," });
     expect(JSON.parse(json)).toEqual({ tags: ["backend", "urgent"] });
+  });
+});
+
+describe("formatTaskEstimate", () => {
+  it("shows a blank Task Estimate as Unestimated, never zero", () => {
+    expect(formatTaskEstimate(undefined)).toBe("Unestimated");
+    expect(formatTaskEstimate(0)).toBe("0");
+    expect(formatTaskEstimate(2.5)).toBe("2.5");
+  });
+});
+
+describe("formatEstimateAmount", () => {
+  it("appends the platform unit when known and shows a bare number otherwise", () => {
+    expect(formatEstimateAmount(2, "hours")).toBe("2 hours");
+    expect(formatEstimateAmount(2)).toBe("2");
+    expect(formatTaskEstimate(2, "hours")).toBe("2 hours");
+    expect(formatTaskEstimate(undefined, "hours")).toBe("Unestimated");
   });
 });

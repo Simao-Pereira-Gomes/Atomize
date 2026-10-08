@@ -11,7 +11,7 @@ filter:
 
 estimation:
   rounding: "nearest"
-  minimumTaskPoints: 0.5
+  minimumTaskEstimate: 0.5
 
 tasks:
   # Phase 1: Design (always runs)

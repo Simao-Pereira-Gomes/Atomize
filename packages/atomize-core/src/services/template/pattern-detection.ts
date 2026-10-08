@@ -1,4 +1,5 @@
 import { match } from "ts-pattern";
+import { numericStoryEstimate } from "../../core/estimation-field-mapping";
 import type { WorkItem } from "../../platforms/interfaces/work-item.interface";
 import type { Condition, FilterCriteria } from "../../templates/schema";
 import type {
@@ -848,7 +849,7 @@ export class ConditionPatternDetector {
     const patterns: ConditionalTaskPattern[] = [];
 
     const estimations = analyses
-      .map((a) => a.story.estimation)
+      .map((a) => numericStoryEstimate(a.story.estimation))
       .filter((e): e is number => e !== undefined && e > 0)
       .sort((a, b) => a - b);
 
@@ -905,7 +906,7 @@ export class ConditionPatternDetector {
     let taskInSmallStories = 0;
 
     for (const analysis of analyses) {
-      const estimation = analysis.story.estimation;
+      const estimation = numericStoryEstimate(analysis.story.estimation);
       if (estimation === undefined) continue;
 
       const isLarge = estimation >= estimationThreshold;
@@ -1056,7 +1057,7 @@ export class ConditionPatternDetector {
           return false;
         }
         case "estimation": {
-          const e = story.estimation;
+          const e = numericStoryEstimate(story.estimation);
           if (e === undefined) return false;
           const v = condition.value as number;
           if (condition.operator === "gte") return e >= v;
@@ -1325,7 +1326,7 @@ export class FilterLearner {
     analyses: StoryAnalysis[],
   ): LearnedFilterCriteria["estimationRange"] {
     const estimations = analyses
-      .map((a) => a.story.estimation)
+      .map((a) => numericStoryEstimate(a.story.estimation))
       .filter((e): e is number => e !== undefined && e > 0);
 
     if (estimations.length === 0) return undefined;
@@ -1437,7 +1438,7 @@ export class FilterLearner {
       if (max - min <= 3) {
         suggestions.push({
           type: "improve-filter",
-          message: `Stories have similar estimations (${min}-${max} points, avg ${average}). This template works well for stories of this size.`,
+          message: `Stories have similar estimations (${min}-${max}, avg ${average}). This template works well for stories of this size.`,
           severity: "info",
         });
       }
@@ -1673,7 +1674,7 @@ export class PatternDetector extends SimilarityCalculator {
     const totalEstimations: number[] = [];
 
     for (const analysis of analyses) {
-      const storyEstimation = analysis.story.estimation ?? 0;
+      const storyEstimation = numericStoryEstimate(analysis.story.estimation) ?? 0;
       totalEstimations.push(storyEstimation);
     }
 

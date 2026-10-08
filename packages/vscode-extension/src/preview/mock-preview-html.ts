@@ -13,7 +13,7 @@ export interface InspectResult {
 
 export interface PreviewTask {
 	title: string;
-	estimation: number;
+	estimation?: number;
 	estimationPercent?: number;
 	dependsOn?: string[];
 	tags?: string[];
@@ -24,6 +24,8 @@ export interface PreviewTask {
 export interface PreviewResult {
 	tasks: PreviewTask[];
 	skippedTasks: Array<{ title: string; reason: string }>;
+	unresolvedEstimate?: { action: 'blank' | 'skip'; reason: string };
+	estimateUnit?: string;
 	estimationSummary: {
 		storyEstimation: number;
 		totalTaskEstimation: number;
@@ -34,6 +36,14 @@ export interface PreviewResult {
 export type StoredValue = string | number | boolean | string[];
 export type StoredValues = Record<string, StoredValue>;
 
+
+function withUnit(value: number, unit: string | undefined): string {
+	return unit ? `${value} ${unit}` : String(value);
+}
+
+function fmtEstimate(value: number | undefined, unit: string | undefined): string {
+	return value === undefined ? 'unestimated' : withUnit(value, unit);
+}
 function esc(s: unknown): string {
 	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -209,8 +219,16 @@ function formFields(fields: InspectField[], stored: StoredValues): string {
 	return html;
 }
 
+function unresolvedNotice(result: PreviewResult): string {
+	const u = result.unresolvedEstimate;
+	if (!u) return '';
+	const outcome = u.action === 'skip' ? 'This Story would be skipped.' : 'Task Estimates are left blank.';
+	return `<div style="margin-bottom:12px;padding:8px 10px;border-left:3px solid var(--vscode-editorWarning-foreground);background:rgba(255,255,255,.04);font-size:.85em">${esc(u.reason)}. ${outcome}</div>`;
+}
+
 function resultsDefault(result: PreviewResult): string {
 	const { tasks, skippedTasks, estimationSummary: s } = result;
+	const u = result.estimateUnit;
 	const pc = s.percentageUsed;
 	const col = pctColor(pc);
 
@@ -218,7 +236,7 @@ function resultsDefault(result: PreviewResult): string {
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
   ${([
 		['Tasks', String(tasks.length), 'var(--vscode-editor-foreground)'],
-		['Total', `${s.totalTaskEstimation}h`, 'var(--vscode-testing-iconPassed)'],
+		['Total', `${withUnit(s.totalTaskEstimation, u)}`, 'var(--vscode-testing-iconPassed)'],
 		['Usage', `${fmtPct(pc)}%`, col],
 	] as [string, string, string][]).map(([lbl, val, c]) => `
   <div style="padding:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:3px;text-align:center">
@@ -236,7 +254,7 @@ ${s.storyEstimation > 0 ? `
     <div class="est-fill" style="width:${Math.min(pc, 100)}%;background:${col}"></div>
   </div>
   <div style="display:flex;justify-content:space-between;font-size:.75em;color:var(--vscode-descriptionForeground);margin-top:3px">
-    <span>0h</span><span>${s.totalTaskEstimation}h of ${s.storyEstimation}h</span>
+    <span>${withUnit(0, u)}</span><span>${withUnit(s.totalTaskEstimation, u)} of ${withUnit(s.storyEstimation, u)}</span>
   </div>
 </div>` : ''}`;
 
@@ -255,7 +273,7 @@ ${s.storyEstimation > 0 ? `
       <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
         ${(t.tags ?? []).map(tag => `<span class="tag">${esc(tag)}</span>`).join('')}
         ${t.priority != null ? `<span class="tag" style="color:#cca700">P${t.priority}</span>` : ''}
-        <span style="font-size:.88em;font-weight:700;color:var(--vscode-testing-iconPassed);min-width:30px;text-align:right">${t.estimation}h</span>
+        <span style="font-size:.88em;font-weight:700;color:var(--vscode-testing-iconPassed);min-width:30px;text-align:right">${fmtEstimate(t.estimation, u)}</span>
       </div>
     </div>
     ${t.estimationPercent != null ? `
@@ -281,7 +299,7 @@ ${s.storyEstimation > 0 ? `
   </div>`).join('')}
 </details>`;
 
-	return kpiHtml + tasksHtml + skippedHtml;
+	return unresolvedNotice(result) + kpiHtml + tasksHtml + skippedHtml;
 }
 
 function thHtml(label: string): string {
@@ -292,13 +310,14 @@ function thHtml(label: string): string {
 
 function resultsCompact(result: PreviewResult): string {
 	const { tasks, skippedTasks, estimationSummary: s } = result;
+	const u = result.estimateUnit;
 	const pc = s.percentageUsed;
 
 	const metaHtml = `
 <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:6px 0;border-bottom:1px solid var(--vscode-panel-border,#3d3d3d);font-size:.85em">
   <span style="color:var(--vscode-descriptionForeground)">Tasks: <strong style="color:var(--vscode-editor-foreground)">${tasks.length}</strong></span>
-  ${s.storyEstimation > 0 ? `<span style="color:var(--vscode-descriptionForeground)">Budget: <strong style="color:var(--vscode-editor-foreground)">${s.storyEstimation}h</strong></span>` : ''}
-  <span style="color:var(--vscode-descriptionForeground)">Total: <strong style="color:var(--vscode-testing-iconPassed)">${s.totalTaskEstimation}h</strong></span>
+  ${s.storyEstimation > 0 ? `<span style="color:var(--vscode-descriptionForeground)">Budget: <strong style="color:var(--vscode-editor-foreground)">${withUnit(s.storyEstimation, u)}</strong></span>` : ''}
+  <span style="color:var(--vscode-descriptionForeground)">Total: <strong style="color:var(--vscode-testing-iconPassed)">${withUnit(s.totalTaskEstimation, u)}</strong></span>
   ${s.storyEstimation > 0 ? `<span style="color:${pctColor(pc)};font-weight:600">${fmtPct(pc)}% used</span>` : ''}
   ${skippedTasks.length ? `<span style="color:var(--vscode-descriptionForeground)">${skippedTasks.length} skipped</span>` : ''}
 </div>`;
@@ -315,7 +334,7 @@ function resultsCompact(result: PreviewResult): string {
           <div style="font-weight:600">${esc(t.title)}</div>
           ${t.dependsOn ? `<div style="font-size:.78em;color:var(--vscode-descriptionForeground)">← ${esc(t.dependsOn.join(', '))}</div>` : ''}
         </td>
-        <td style="padding:5px 8px;text-align:right;vertical-align:top;color:var(--vscode-testing-iconPassed);font-weight:700">${t.estimation}h</td>
+        <td style="padding:5px 8px;text-align:right;vertical-align:top;color:var(--vscode-testing-iconPassed);font-weight:700">${fmtEstimate(t.estimation, u)}</td>
         <td style="padding:5px 8px;text-align:right;vertical-align:top;color:var(--vscode-descriptionForeground)">${t.estimationPercent != null ? `${fmtPct(t.estimationPercent)}%` : '—'}</td>
         <td style="padding:5px 0;vertical-align:top">
           <div style="display:flex;gap:3px;flex-wrap:wrap">
@@ -340,7 +359,7 @@ ${skippedTasks.length ? `
   </div>
 </details>` : ''}`;
 
-	return metaHtml + tableHtml;
+	return unresolvedNotice(result) + metaHtml + tableHtml;
 }
 
 export function renderPreviewForm(

@@ -176,6 +176,8 @@ function createValidateCommandDeps(depsOptions: { showStatus: boolean }): Valida
             platform: {
               getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
               listSavedQueries: (folder) => savedQueryReader.listSavedQueries(folder),
+              getEstimationDefaults: () => adapter.getEstimationDefaults(),
+              getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
             },
           },
           connectionWarnings: [],
@@ -348,6 +350,7 @@ export async function validateCustomFieldsOnline(
     const result = await validateCustomFieldsAgainstSchemas(
       template,
       async (workItemType) => metadataReader.getFieldSchemas(workItemType),
+      template.taskType ?? adapter.getEstimationDefaults().taskWorkItemType,
     );
 
     s.stop("Custom field validation complete");

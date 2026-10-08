@@ -6,7 +6,7 @@ describe('Online Validation bridge', () => {
 		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
 		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
 			calls.push({ command, args });
-			return { valid: true, errors: [], warnings: [], mode: 'lenient', requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, needsOnlineVerification: false } } as T;
+			return { valid: true, errors: [], warnings: [], mode: 'lenient', requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, hasEstimationMapping: false, needsOnlineVerification: false } } as T;
 		};
 		const template = { version: '1.0', name: 'Delivery', filter: {}, tasks: [] };
 		await validateOnline('validation-1', template, 'ado', call);

@@ -94,6 +94,7 @@ mixins:                 # Optional. Mix in reusable task groups
 | `tags` | No | string[] | Tags for categorization |
 | `extends` | No | string | Catalog template name or file path to inherit from |
 | `mixins` | No | string[] | Catalog mixin names or file paths to merge into this template |
+| `taskType` | No | string | Work Item type generated Tasks are created as, in the platform's own vocabulary. Defaults to the platform's type (`Task` on Azure DevOps). Online Validation checks custom fields against it. |
 
 ---
 
@@ -289,7 +290,8 @@ filter:
 - `id` and `path` are mutually exclusive — provide exactly one.
 - `id` must be a valid UUID (visible in the ADO query URL).
 - Only **flat (Work Items)** queries are supported. Tree and one-hop queries are rejected at runtime with a clear error.
-- `savedQuery` takes precedence over all structured filter fields (`workItemTypes`, `states`, `tags`, etc.). A validator warning is emitted if both are present.
+- `savedQuery` takes precedence over all structured filter fields (`states`, `tags`, area paths, etc.). A validator warning is emitted if both are present.
+- `workItemTypes` is the exception: alongside `savedQuery` it declares **which types the query returns**. It never filters the query's results, but Atomize uses it to look up fields: the estimation `source` and condition field pickers, and Online Validation of those fields. The CLI wizard asks for it when you pick a saved query, and Studio shows it next to the saved query.
 
 **Post-processing still applies:** `excludeIfHasTasks` still applies to the query results after resolution, and you can still cap execution with the CLI `--limit` option.
 
@@ -489,12 +491,16 @@ tasks:
 |----------|-------------|
 | `field` | Built-in story field such as `title`, `tags`, or `estimation` |
 | `customField` | Parent story custom field reference name such as `Custom.ClientTier` |
-| `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte` |
+| `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte`. `tags` is multi-value, so it accepts only `contains` and `not-contains` |
 | `value` | String, number, or boolean to compare against |
+
+`field: estimation` compares against the **raw Story Estimate**, before any `conversion`, read from `estimation.source` when one is set. Existing point-based conditions keep their meaning, and categories work with `equals`/`not-equals`, e.g. `{ field: estimation, operator: equals, value: L }`. A numeric operator (`gt`, `lt`, `gte`, `lte`) against a non-numeric Story Estimate such as `L` is an evaluation error: the task is skipped and the reason is reported.
 
 **Compound clauses:**
 - `{ all: [...] }` means every nested clause must match
 - `{ any: [...] }` means at least one nested clause must match
+
+**VS Code snippets:** `atm-condition` (tags), `atm-condition-field` (text fields such as `state` or `areaPath`), `atm-condition-number` (`estimation`, `priority`), `atm-condition-custom`, `atm-condition-all` and `atm-condition-any`. Each snippet offers only the operators its field supports.
 
 ```yaml
 tasks:
@@ -578,19 +584,36 @@ Controls how story points are distributed across tasks.
 ```yaml
 estimation:
   strategy: "percentage"      # How to calculate task points
+  source: "Custom.TShirtSize" # Optional: Story field holding the Story Estimate
+  conversion:                 # Optional: Story unit → Task unit (omit for one-to-one)
+    table: { S: 2, M: 4, L: 5, XL: 13 }   # or `factor: 4` for 1 point = 4 hours
   rounding: "nearest"         # How to round calculated values
-  minimumTaskPoints: 0.5      # Minimum points per task
-  ifParentHasNoEstimation: "skip"   # What to do if parent has no points
-  defaultParentEstimation: 8  # Used when parent has no estimation (if not "skip")
+  minimumTaskEstimate: 0.5    # Minimum Task Estimate, in the Task's unit
+  ifParentHasNoEstimation: "use-default"   # warn (default) | skip | use-default
+  defaultParentEstimation: "M"  # Story Estimate to assume when the real one is missing
 ```
 
 | Field | Type | Default | Options | Description |
 |-------|------|---------|---------|-------------|
 | `strategy` | string | `"percentage"` | `"percentage"` | How to calculate task estimations |
+| `targetFields` | string[] | platform default (Azure DevOps: `RemainingWork` + `OriginalEstimate`, with `CompletedWork` set to 0) | one or more field reference names | Task fields that receive the Task Estimate. Replaces the default fields entirely, including the `CompletedWork` initialisation; values are written exactly as calculated. |
+| `source` | string | platform default (Azure DevOps reads `StoryPoints`, then `Effort`, then `Size`, then `OriginalEstimate`) | a Story field reference name | Story field that supplies the Story Estimate, e.g. `Custom.TShirtSize`. Replaces the platform's default fields with **no fallback**: if this field is blank, the Story Estimate is unresolvable. |
+| `conversion.factor` | number | none (one-to-one) | any number greater than 0 | Multiplies the Story Estimate into the Task's unit before it is split across tasks. With `factor: 4`, a 5-point Story becomes 20 hours and a 20% task gets 4 hours. Rounding and the minimum apply afterwards. Set either `factor` or `table`, not both. |
+| `conversion.table` | map | none | Story Estimate value → non-negative Task-unit amount | Exact lookup from Story Estimate to Task-unit total, e.g. `{ XS: 1, S: 2, M: 4, L: 5, XL: 13 }`, or numeric keys for scales that aren't linear (`{ 1: 2, 2: 4, 3: 8, 5: 16 }`). Values are matched literally, so a picklist value like `0.32L` needs its own entry. A Story Estimate missing from the table is unresolvable (see `ifParentHasNoEstimation`). |
+| `normalize` | string | `"auto"` | `auto`, `always`, `never` | What to do when the generated tasks' percentages don't add up to 100%. `auto` scales totals below 100% up (e.g. when a conditional task is skipped) and keeps totals above 100% unless you choose to normalise when the CLI asks. `always` scales to exactly 100% in both directions. `never` uses the percentages as written, so a skipped task's share is simply not allocated. The same setting applies in the CLI, VS Code and Studio, including previews. |
 | `rounding` | string | `"nearest"` | `nearest`, `up`, `down`, `none` | How to round decimal point values |
-| `minimumTaskPoints` | number | `0` | any non-negative number | Minimum points for any task |
-| `ifParentHasNoEstimation` | string | `"skip"` | `skip`, `warn`, `use-default` | Behavior when parent story has no estimation |
-| `defaultParentEstimation` | number | `8` | any positive number | Fallback estimation when parent has none |
+| `minimumTaskEstimate` | number | `0` | any non-negative number | Minimum Task Estimate for any task, in the Task's unit (hours on Azure DevOps). Replaces the deprecated `minimumTaskPoints`, which is still honoured when `minimumTaskEstimate` is absent. |
+| `ifParentHasNoEstimation` | string | `"warn"` | `warn`, `skip`, `use-default` | What to do when the Story Estimate is missing or cannot be converted. `warn` creates the tasks with blank estimates (never 0) and reports a warning; `skip` creates no tasks for that Story and reports why; `use-default` uses `defaultParentEstimation` instead. |
+| `conversion.multipliers` | boolean | `false` | `true`, `false` | Also accept a number followed by a table key: with `XL: 5`, `0.3XL` (or `0.3 XL`) is 0.3 × 5 = 1.5, which is then split across tasks. An exact key always wins (so `"0.32L": 1.6` is used as-is); otherwise the longest key the value ends with is used. Only `<number><key>` is understood, so values like `XL*0.3` or `0,3XL` stay unresolvable. Requires a `table` whose keys are not all numeric, because `25` would be ambiguous between the key `25` and 2 × `5`. |
+| `defaultParentEstimation` | number or string | none | a Story Estimate, e.g. `8` or `M` | Story Estimate used with `use-default`, in the Story's unit. It goes through the same `conversion` as a real Story Estimate, so with a table it must be one of the table's keys (Offline Validation checks this). Without it, `use-default` behaves like `warn`. |
+
+**VS Code snippets:** type `atm-estimation-factor` or `atm-estimation-table` to insert a factor or a size-table configuration, or `atm-estimation-target` for `taskType` and `targetFields`; `atm-estimation` includes the `normalize` choice.
+
+**Examples:** [points-to-hours](../examples/points-to-hours.atomize.yaml) (factor), [fibonacci-hours-table](../examples/fibonacci-hours-table.atomize.yaml) (numeric table), [tshirt-size-estimation](../examples/tshirt-size-estimation.atomize.yaml) (size field, fractional sizes) and [custom-fields-and-task-type](../examples/custom-fields-and-task-type.atomize.yaml) (`taskType` and `targetFields`); see the [examples README](../examples/README.md) for what each produces.
+
+**Online Validation** (`atomize validate --profile <name>`, or Online in VS Code and Studio) checks estimation overrides against the project:
+- **Errors:** `source` is missing on a filtered Story type; `taskType` does not exist; a `targetFields` entry is missing on the child type or is not numeric.
+- **Warnings** (errors in strict mode): picklist values of `source` that `conversion.table` does not cover; table keys that are not allowed values (often typos); a `source` field that accepts free text or is a *suggested* picklist, because values outside the table leave Task Estimates blank; numeric operators on `estimation` when `source` holds text.
 
 **Rounding options:**
 - `nearest` - Round to nearest whole number (0.5 → 1, 0.4 → 0)
@@ -748,7 +771,7 @@ tasks:
 estimation:
   strategy: "percentage"
   rounding: "nearest"
-  minimumTaskPoints: 0.5
+  minimumTaskEstimate: 0.5
   ifParentHasNoEstimation: "skip"
 
 validation:

@@ -1,3 +1,4 @@
+import type { EstimationDefaultsProvider } from "./estimation-defaults.interface";
 import type { FilterCriteria } from "./filter.interface";
 import type { TaskDefinition, WorkItem } from "./work-item.interface";
 
@@ -44,6 +45,7 @@ export interface GenerationPlatform
   extends Pick<WorkItemReader, "getConnectUserEmail" | "queryWorkItems">,
     TaskWriter {
   createDependencyLink?: DependencyLinker["createDependencyLink"];
+  getEstimationDefaults?: EstimationDefaultsProvider["getEstimationDefaults"];
 }
 
 export interface ProjectMetadataReader {

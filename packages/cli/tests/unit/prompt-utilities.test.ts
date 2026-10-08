@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Filters, Validators } from "@/cli//utilities/prompt-utilities";
+import { Filters, parseConversionTable, Validators } from "@/cli//utilities/prompt-utilities";
 
 describe("Validators", () => {
   describe("required", () => {
@@ -158,5 +158,38 @@ describe("Filters", () => {
     test("should return NaN for invalid input", () => {
       expect(Number.isNaN(Filters.toNumber("abc"))).toBe(true);
     });
+  });
+});
+
+describe("parseConversionTable", () => {
+  test("parses value=amount pairs, keeping keys as typed", () => {
+    expect(parseConversionTable("S=2, M=4, L=5, 0.32L=1.6")).toEqual({ S: 2, M: 4, L: 5, "0.32L": 1.6 });
+  });
+
+  test("reports malformed, negative and duplicate entries", () => {
+    expect(parseConversionTable("")).toContain("at least one entry");
+    expect(parseConversionTable("S2")).toContain('"S2"');
+    expect(parseConversionTable("S=")).toContain('"S="');
+    expect(parseConversionTable("S=-1")).toContain("negative");
+    expect(parseConversionTable("S=1, S=2")).toContain("more than once");
+  });
+});
+
+describe("estimation validators", () => {
+  test("positiveNumber rejects zero, negatives and blanks", () => {
+    const validate = Validators.positiveNumber("Factor");
+    expect(validate("4")).toBeUndefined();
+    expect(validate("0")).toContain("greater than 0");
+    expect(validate("")).toContain("must be a number");
+  });
+
+  test("fieldReferenceName rejects display names with spaces", () => {
+    expect(Validators.fieldReferenceName("Custom.TShirtSize")).toBeUndefined();
+    expect(Validators.fieldReferenceName("T-shirt Size")).toContain("reference name");
+  });
+
+  test("conversionTable reports parse errors", () => {
+    expect(Validators.conversionTable("S=2, M=4")).toBeUndefined();
+    expect(Validators.conversionTable("nonsense")).toBeDefined();
   });
 });

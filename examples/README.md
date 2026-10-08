@@ -13,6 +13,10 @@ Real-world Atomize template examples. Each file is a working template you can va
 | [`conditional-percentage-template.atomize.yaml`](#conditional-percentage-templateatomizeyaml) | Conditional estimation — task weights that adapt to story size and tags |
 | [`advanced-filtering.atomize.yaml`](#advanced-filteringatomizeyaml) | Full filter criteria showcase: state exclusion, historical states, area/iteration hierarchy, date filters, team override |
 | [`custom-location.atomize.yaml`](#custom-locationatomizeyaml) | A template stored outside a standard `templates/`/`atomize/` directory — the `.atomize.yaml` extension alone is a durable VS Code opt-in regardless of file location |
+| [`points-to-hours.atomize.yaml`](#points-to-hoursatomizeyaml) | Estimation conversion with a factor — 1 story point = 4 hours, plus rounding, a minimum, and skipping unestimated Stories |
+| [`fibonacci-hours-table.atomize.yaml`](#fibonacci-hours-tableatomizeyaml) | A numeric conversion table for points that don't scale linearly, with a default Story Estimate and a point-based condition |
+| [`tshirt-size-estimation.atomize.yaml`](#tshirt-size-estimationatomizeyaml) | T-shirt sizes from a custom picklist field — `source`, a size table, fractional sizes like `0.5XL`, and size conditions |
+| [`custom-fields-and-task-type.atomize.yaml`](#custom-fields-and-task-typeatomizeyaml) | A customised process — categorical complexity in, a custom child work item type (`taskType`) and effort field (`targetFields`) out |
 
 ---
 
@@ -187,6 +191,11 @@ A reference template that demonstrates every available filter option. Use it as 
 ```bash
 atomize validate examples/advanced-filtering.atomize.yaml
 atomize generate examples/advanced-filtering.atomize.yaml --platform mock --story STORY-001
+
+# Dry-run the estimation configuration examples
+for f in examples/points-to-hours.atomize.yaml examples/fibonacci-hours-table.atomize.yaml examples/tshirt-size-estimation.atomize.yaml examples/custom-fields-and-task-type.atomize.yaml; do
+  atomize generate "$f" --platform mock --story STORY-003 STORY-005
+done
 ```
 
 ---
@@ -206,6 +215,93 @@ Demonstrates that the `.atomize.yaml` file extension alone is a durable Atomize 
 atomize validate examples/custom-location.atomize.yaml
 atomize generate examples/custom-location.atomize.yaml --platform mock
 ```
+
+---
+
+## points-to-hours.atomize.yaml
+
+The simplest **Estimation Conversion**: every story point is worth the same number of hours. The Story Estimate is read from the platform default (on Azure DevOps: Story Points, then Effort, then Size), multiplied by the `factor`, and then split across tasks by percentage. Rounding and the minimum apply to each task afterwards.
+
+**Key features shown:** `conversion.factor`, `rounding`, `minimumTaskEstimate`, `ifParentHasNoEstimation: skip`.
+
+| Story | Converted | Design 10% | Implement 60% | Test 25% | Review 5% |
+|-------|-----------|------------|---------------|----------|-----------|
+| 3 points | 12 h | 1 h | 7 h | 3 h | 0.5 h |
+| 13 points | 52 h | 5 h | 31 h | 13 h | 2.5 h |
+
+**Try it:**
+```bash
+atomize validate examples/points-to-hours.atomize.yaml
+atomize generate examples/points-to-hours.atomize.yaml --platform mock --story STORY-003 STORY-005
+```
+
+---
+
+## fibonacci-hours-table.atomize.yaml
+
+For teams whose hours grow faster than their points. A numeric `conversion.table` gives each Fibonacci value its own hours, so a 13-point Story is 80 hours rather than 13 × a fixed factor. A value that isn't in the table (often a typo, such as `4`) is never guessed: with `use-default` it is treated as the default Story Estimate.
+
+**Key features shown:**
+- `conversion.table` with numeric keys (`1: 2`, `2: 4`, `3: 8`, `5: 16`, `8: 40`, `13: 80`)
+- `ifParentHasNoEstimation: use-default` with `defaultParentEstimation: 5`
+- A condition on `estimation` (`gte 8`) — conditions compare the **raw** points, not the converted hours
+
+**Try it:**
+```bash
+atomize validate examples/fibonacci-hours-table.atomize.yaml
+atomize generate examples/fibonacci-hours-table.atomize.yaml --platform mock --story STORY-003 STORY-005
+```
+STORY-003 (13 points) becomes 80 hours and gets the Architecture review; STORY-005 (3 points) becomes 8 hours without it.
+
+---
+
+## tshirt-size-estimation.atomize.yaml
+
+Stories sized with T-shirt sizes in a custom picklist field. `estimation.source` names that field. When it is set, Atomize reads only that field, never falling back to story points. The `table` turns each size into hours, and `multipliers: true` also accepts fractional sizes, so `0.5XL` is half the XL hours.
+
+**Key features shown:**
+- `estimation.source: Custom.TShirtSize` (replace with your field's reference name)
+- A size `table` (`XS: 2` … `XL: 40`) with `multipliers: true`
+- `defaultParentEstimation: "M"` — unsized Stories are treated as M
+- Size conditions with `equals` (an Architecture review for `L` or `XL` Stories); use `equals`/`not-equals` for categories, never `gt`/`lt`
+
+| Story size | Converted | Build 60% | Test 25% | Review 10% | Architecture review 5% |
+|------------|-----------|-----------|----------|------------|------------------------|
+| M | 8 h | 5 h | 2 h | 1 h | — |
+| L | 20 h | 12 h | 5 h | 2 h | 1 h |
+| 0.5XL | 20 h | 12.5 h | 5 h | 2 h | — |
+
+When the Architecture review is skipped, its 5% is redistributed across the other tasks. Note that `0.5XL` converts like half an XL, but it does **not** match the `equals XL` condition, because conditions compare the raw Story Estimate exactly.
+
+Run Online Validation (`--profile <name>`) to check that the table covers every value of your picklist. It warns about sizes with no conversion and about table keys that aren't real picklist values.
+
+**Try it:**
+```bash
+atomize validate examples/tshirt-size-estimation.atomize.yaml
+atomize generate examples/tshirt-size-estimation.atomize.yaml --platform mock --story STORY-003
+```
+The mock Stories have no T-shirt size field, so this dry run shows the fallback: each Story is treated as `M` (8 hours) and a warning explains why.
+
+---
+
+## custom-fields-and-task-type.atomize.yaml
+
+For a customised process that doesn't use the platform's standard estimation fields. The Story Estimate comes from a categorical `Custom.Complexity` field, tasks are created as a custom `Deliverable` work item type, and the effort is written to `Custom.Effort` instead of Remaining Work / Original Estimate.
+
+**Key features shown:**
+- `taskType` — the child work item type (defaults to `Task` on Azure DevOps)
+- `estimation.targetFields` — replaces the platform's estimate fields entirely; values are written exactly as calculated (no unit) and Completed Work is not set
+- A categorical `source` with a table (`Low: 4`, `Medium: 8`, `High: 16`, `Very High: 32`)
+- `ifParentHasNoEstimation: warn` — an unknown complexity leaves the effort blank and reports a warning
+
+Online Validation checks that `Deliverable` exists in the project and that `Custom.Effort` exists on it and is numeric.
+
+**Try it:**
+```bash
+atomize validate examples/custom-fields-and-task-type.atomize.yaml
+atomize generate examples/custom-fields-and-task-type.atomize.yaml --platform mock --story STORY-003 STORY-005
+```
+STORY-003 (`Very High`) converts to 32 and STORY-005 (`Medium`) to 8.
 
 ---
 

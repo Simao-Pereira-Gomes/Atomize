@@ -30,7 +30,7 @@ const STORY_FIELDS: Array<{ label: string; value: string }> = [
   { label: "Tags (array)", value: "tags" },
   { label: "Title", value: "title" },
   { label: "State", value: "state" },
-  { label: "Estimation (points)", value: "estimation" },
+  { label: "Story Estimate (raw value, e.g. points or size)", value: "estimation" },
   { label: "Priority", value: "priority" },
   { label: "Description", value: "description" },
   { label: "Assigned To", value: "assignedTo" },

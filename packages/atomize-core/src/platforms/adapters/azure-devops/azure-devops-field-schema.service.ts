@@ -86,15 +86,17 @@ export class FieldSchemaService {
     const isPicklist = !!(allowedValues ?? meta?.isPicklist);
     const isIdentity = (meta as (WorkItemField & { isIdentity?: boolean }) | undefined)?.isIdentity === true
       || fieldType === FieldType.Identity;
+    const type = isIdentity ? "identity" : this.mapFieldType(fieldType);
     return {
       referenceName,
       name: witField.name ?? meta?.name ?? referenceName,
-      type: isIdentity ? "identity" : this.mapFieldType(fieldType),
+      type,
       isCustom: referenceName.startsWith("Custom."),
       isReadOnly: meta?.readOnly ?? false,
       isMultiline: !isPicklist && (fieldType === FieldType.Html || fieldType === FieldType.PlainText),
       isPicklist,
       allowedValues,
+      allowsCustomValues: isPicklist ? meta?.isPicklistSuggested === true : type === "string",
     };
   }
 
@@ -102,15 +104,17 @@ export class FieldSchemaService {
     const referenceName = f.referenceName ?? "";
     const isIdentity = (f as WorkItemField & { isIdentity?: boolean }).isIdentity === true
       || f.type === FieldType.Identity;
+    const type = isIdentity ? "identity" : this.mapFieldType(f.type);
     return {
       referenceName,
       name: f.name ?? referenceName,
-      type: isIdentity ? "identity" : this.mapFieldType(f.type),
+      type,
       isCustom: referenceName.startsWith("Custom."),
       isReadOnly: f.readOnly ?? false,
       isMultiline: !f.isPicklist && (f.type === FieldType.Html || f.type === FieldType.PlainText),
       isPicklist: f.isPicklist ?? false,
       allowedValues: undefined,
+      allowsCustomValues: f.isPicklist ? f.isPicklistSuggested === true : type === "string",
     };
   }
 

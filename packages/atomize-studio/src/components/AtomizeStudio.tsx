@@ -34,7 +34,13 @@ function SectionContent(props: { id: SectionId; stores: SectionStores; canReview
         <TasksSection store={props.stores.tasks} grounding={props.grounding} conditionWorkItemTypes={props.stores.filter.fields.workItemTypes} autoNormalize={props.autoNormalize} onAutoNormalizeChange={props.onAutoNormalizeChange} />
       </Show>
       <Show when={props.id === "estimation"}>
-        <EstimationSection store={props.stores.estimation} />
+        <EstimationSection
+          store={props.stores.estimation}
+          basicInfo={props.stores["basic-info"]}
+          filter={props.stores.filter}
+          tasks={props.stores.tasks}
+          grounding={props.grounding.options}
+        />
       </Show>
       <Show when={props.id === "validation"}>
         <ValidationSection store={props.stores.validation} />

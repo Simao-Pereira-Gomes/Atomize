@@ -1,9 +1,11 @@
 import { logger } from "../logger";
+import type { EstimationDefaults } from "../platforms/interfaces/estimation-defaults.interface";
 import type { GenerationPlatform } from "../platforms/interfaces/platform-capabilities";
-import type { WorkItem } from "../platforms/interfaces/work-item.interface";
+import type { StoryEstimate, WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { TaskTemplate, TaskDefinition as TemplateTaskDefinition } from "../templates/schema";
 import type { AtomizationOptions, StoryAtomizationResult } from "./atomizer";
 import { EstimationCalculator } from "./estimation-calculator";
+import { readStoryEstimate, resolveEstimationFieldMapping } from "./estimation-field-mapping";
 import { TaskMaterializer } from "./task-materializer";
 
 /**
@@ -15,6 +17,7 @@ import { TaskMaterializer } from "./task-materializer";
 export class StoryProcessor {
   private estimationCalculator: EstimationCalculator;
   private taskMaterializer: TaskMaterializer;
+  private estimationDefaults: EstimationDefaults | undefined;
 
   constructor(
     platform: GenerationPlatform,
@@ -23,6 +26,7 @@ export class StoryProcessor {
   ) {
     this.estimationCalculator = estimationCalculator;
     this.taskMaterializer = taskMaterializer;
+    this.estimationDefaults = platform.getEstimationDefaults?.();
   }
 
   async process(
@@ -37,18 +41,48 @@ export class StoryProcessor {
   ): Promise<StoryAtomizationResult> {
     logger.info(`Processing: ${story.id} - ${story.title}`);
 
-    const { calculatedTasks, skippedTasks } =
+    const fieldMapping = this.estimationDefaults
+      ? resolveEstimationFieldMapping(this.estimationDefaults, {
+          source: template.estimation?.source,
+          taskType: template.taskType,
+          targetFields: template.estimation?.targetFields,
+        })
+      : undefined;
+
+    const { calculatedTasks, skippedTasks, unresolvedEstimate, defaultEstimateReason } =
       this.estimationCalculator.calculateTasksWithSkipped(
         story,
         connectUserEmail,
         orderedTasks,
         template.estimation,
         options.forceNormalize,
+        fieldMapping,
       );
 
     logger.info(
       `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`,
     );
+
+    if (unresolvedEstimate?.action === "skip") {
+      const skipReason = `${unresolvedEstimate.reason}; Story skipped (ifParentHasNoEstimation: skip)`;
+      warnings.push(`${story.id}: ${skipReason}`);
+      return {
+        story,
+        tasksCalculated: [],
+        tasksCreated: [],
+        tasksSkipped: [],
+        success: true,
+      ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
+      ...withStoryEstimate(readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] })),
+        skipReason,
+      };
+    }
+    if (unresolvedEstimate?.action === "blank") {
+      warnings.push(`${story.id}: ${unresolvedEstimate.reason}; Task Estimates left blank`);
+    }
+    if (defaultEstimateReason) {
+      warnings.push(`${story.id}: ${defaultEstimateReason}; used defaultParentEstimation`);
+    }
 
     if (skippedTasks.length > 0) {
       skippedTasks.forEach((skipped) => {
@@ -56,7 +90,12 @@ export class StoryProcessor {
       });
     }
 
-    const validation = this.estimationCalculator.validateEstimation(story, calculatedTasks);
+    const validation = this.estimationCalculator.validateEstimation(
+      story,
+      calculatedTasks,
+      template.estimation,
+      fieldMapping,
+    );
 
     if (!validation.valid) {
       validation.warnings.forEach((warning) => {
@@ -68,6 +107,8 @@ export class StoryProcessor {
     const estimationSummary = this.estimationCalculator.getEstimationSummary(
       story,
       calculatedTasks,
+      template.estimation,
+      fieldMapping,
     );
 
     logger.debug("Estimation summary:", estimationSummary);
@@ -93,7 +134,13 @@ export class StoryProcessor {
       tasksCreated,
       tasksSkipped: skippedTasks,
       success: true,
+      ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
+      ...withStoryEstimate(readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] })),
       estimationSummary,
     };
   }
+}
+
+function withStoryEstimate(estimate: StoryEstimate | undefined): { storyEstimate?: StoryEstimate } {
+  return estimate === undefined ? {} : { storyEstimate: estimate };
 }

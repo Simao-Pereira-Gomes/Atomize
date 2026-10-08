@@ -46,9 +46,9 @@ atomize template create --scratch
 The wizard walks through:
 
 1. Basic information: name, description, author, tags
-2. Filter configuration: work item types, states, tags, paths, saved queries, and custom fields
+2. Filter configuration: work item types, states, tags, paths, saved queries, and custom fields. With a saved query, the wizard still asks which work item types the query returns. It uses them only to look up fields, not to filter.
 3. Task configuration: titles, descriptions, estimation, assignments, dependencies, and conditions
-4. Estimation settings: rounding and minimum task points
+4. Estimation settings: the Story field that holds the estimate, how it converts to hours (one-to-one, a factor, or a table of values such as T-shirt sizes), the task type and target fields, what to do when a Story has no usable estimate, what happens when the percentages don't add up to 100%, rounding, and the minimum Task Estimate. With a Connection Profile, field and value choices come from your project instead of typed input.
 5. Validation rules: task count and total-estimation expectations
 6. Metadata: category, guidelines, and notes
 

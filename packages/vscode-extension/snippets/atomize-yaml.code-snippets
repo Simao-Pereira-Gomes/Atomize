@@ -42,11 +42,11 @@
       "  description: \"${3:What this task involves.}\"",
       "  estimationPercent: ${4:20}",
       "  condition:",
-      "    field: \"${5:fieldName}\"",
-      "    operator: ${6|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${7:value}\""
+      "    field: tags",
+      "    operator: ${5|contains,not-contains|}",
+      "    value: \"${6:backend}\""
     ],
-    "description": "Atomize task that is only created when the parent story condition matches."
+    "description": "Atomize task that is only created when the parent story has (or doesn't have) a tag. Tags only support contains/not-contains; use atm-condition-field, atm-condition-number or atm-condition-custom for other fields."
   },
 
   "Atomize Filter": {
@@ -81,9 +81,10 @@
       "filter:",
       "  savedQuery:",
       "    path: \"${1:Shared Queries/Teams/Backend Team/Sprint Active Stories}\"",
-      "  excludeIfHasTasks: ${2|true,false|}"
+      "  workItemTypes: [\"${2:User Story}\"]",
+      "  excludeIfHasTasks: ${3|true,false|}"
     ],
-    "description": "Azure DevOps saved query filter. Use when story selection is delegated to an existing flat saved query."
+    "description": "Azure DevOps saved query filter. Use when story selection is delegated to an existing flat saved query. workItemTypes declares which types the query returns (for field lookups and validation); it does not filter."
   },
 
   "Atomize Filter Tags": {
@@ -103,10 +104,59 @@
     "body": [
       "estimation:",
       "  strategy: ${1|percentage|}",
-      "  source: \"${2:story-points}\"",
+      "  rounding: ${2|none,nearest,up,down|}",
+      "  normalize: ${3|auto,always,never|}"
+    ],
+    "description": "Common Atomize estimation configuration: strategy, rounding, and what happens when the generated tasks don't add up to 100% (auto scales up below 100%, always scales to exactly 100%, never uses the percentages as written)."
+  },
+
+  "Atomize Estimation Factor Conversion": {
+    "prefix": "atm-estimation-factor",
+    "body": [
+      "estimation:",
+      "  strategy: percentage",
+      "  conversion:",
+      "    factor: ${1:4}",
+      "  rounding: ${2|nearest,up,down,none|}",
+      "  minimumTaskEstimate: ${3:0.5}",
+      "  ifParentHasNoEstimation: ${4|warn,skip,use-default|}"
+    ],
+    "description": "Converts the Story Estimate with a factor before splitting it across tasks (e.g. 1 story point = 4 hours)."
+  },
+
+  "Atomize Estimation Table Conversion": {
+    "prefix": "atm-estimation-table",
+    "body": [
+      "estimation:",
+      "  strategy: percentage",
+      "  source: \"${1:Custom.TShirtSize}\"",
+      "  conversion:",
+      "    table:",
+      "      XS: ${2:2}",
+      "      S: ${3:4}",
+      "      M: ${4:8}",
+      "      L: ${5:20}",
+      "      XL: ${6:40}",
+      "    multipliers: ${7|false,true|}",
+      "  rounding: ${8|nearest,up,down,none|}",
+      "  minimumTaskEstimate: ${9:0.5}",
+      "  ifParentHasNoEstimation: ${10|use-default,warn,skip|}",
+      "  defaultParentEstimation: \"${11:M}\""
+    ],
+    "description": "Converts a size field (e.g. T-shirt sizes) to hours with a table. Set source to your field's reference name and the keys to its exact values; multipliers: true also accepts values like 0.3XL."
+  },
+
+  "Atomize Estimation Target Override": {
+    "prefix": "atm-estimation-target",
+    "body": [
+      "taskType: \"${1:Task}\"",
+      "estimation:",
+      "  strategy: percentage",
+      "  targetFields:",
+      "    - \"${2:Custom.Effort}\"",
       "  rounding: ${3|none,nearest,up,down|}"
     ],
-    "description": "Common Atomize estimation configuration: strategy, source, and rounding."
+    "description": "For customised processes: create tasks as another work item type (taskType) and write the Task Estimate to your own numeric fields (targetFields). Custom target fields receive the value as calculated, with no unit, and Completed Work is not set."
   },
 
   "Atomize Estimation Percent Condition": {
@@ -114,8 +164,8 @@
     "body": [
       "estimationPercentCondition:",
       "  - condition:",
-      "      field: \"${1:tags}\"",
-      "      operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "      field: tags",
+      "      operator: ${2|contains,not-contains|}",
       "      value: \"${3:critical}\"",
       "    percent: ${4:30}"
     ],
@@ -158,23 +208,56 @@
     "prefix": "atm-condition",
     "body": [
       "condition:",
-      "  field: \"${1:tags}\"",
-      "  operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "  value: \"${3:backend}\""
+      "  field: tags",
+      "  operator: ${1|contains,not-contains|}",
+      "  value: \"${2:backend}\""
     ],
-    "description": "Single task condition clause evaluated against the parent story."
+    "description": "Condition on the parent story's tags. Tags are multi-value, so only contains/not-contains are supported."
+  },
+
+  "Atomize Condition (text field)": {
+    "prefix": "atm-condition-field",
+    "body": [
+      "condition:",
+      "  field: ${1|title,state,type,areaPath,iteration,assignedTo|}",
+      "  operator: ${2|equals,not-equals,contains,not-contains|}",
+      "  value: \"${3:value}\""
+    ],
+    "description": "Condition on a built-in text field of the parent story. contains/not-contains match a substring; equals/not-equals ignore case."
+  },
+
+  "Atomize Condition (number)": {
+    "prefix": "atm-condition-number",
+    "body": [
+      "condition:",
+      "  field: ${1|estimation,priority|}",
+      "  operator: ${2|gte,gt,lte,lt,equals,not-equals|}",
+      "  value: ${3:5}"
+    ],
+    "description": "Numeric condition on the parent story. estimation is the raw Story Estimate (before conversion); for categories such as T-shirt sizes use equals/not-equals with the size, e.g. value: L."
+  },
+
+  "Atomize Condition (custom field)": {
+    "prefix": "atm-condition-custom",
+    "body": [
+      "condition:",
+      "  customField: \"${1:Custom.ClientTier}\"",
+      "  operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "  value: \"${3:Enterprise}\""
+    ],
+    "description": "Condition on a parent story custom field by reference name. Use gt/lt/gte/lte only for numeric fields."
   },
 
   "Atomize Condition (all)": {
     "prefix": "atm-condition-all",
     "body": [
       "all:",
-      "  - field: \"${1:fieldName}\"",
-      "    operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${3:value}\"",
-      "  - field: \"${4:fieldName}\"",
-      "    operator: ${5|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${6:value}\""
+      "  - field: tags",
+      "    operator: ${1|contains,not-contains|}",
+      "    value: \"${2:backend}\"",
+      "  - field: ${3|estimation,priority|}",
+      "    operator: ${4|gte,gt,lte,lt,equals,not-equals|}",
+      "    value: ${5:5}"
     ],
     "description": "Compound condition: all child conditions must match (AND)."
   },
@@ -183,12 +266,12 @@
     "prefix": "atm-condition-any",
     "body": [
       "any:",
-      "  - field: \"${1:fieldName}\"",
-      "    operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${3:value}\"",
-      "  - field: \"${4:fieldName}\"",
-      "    operator: ${5|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${6:value}\""
+      "  - field: tags",
+      "    operator: ${1|contains,not-contains|}",
+      "    value: \"${2:backend}\"",
+      "  - field: ${3|estimation,priority|}",
+      "    operator: ${4|gte,gt,lte,lt,equals,not-equals|}",
+      "    value: ${5:5}"
     ],
     "description": "Compound condition: any child condition must match (OR)."
   },

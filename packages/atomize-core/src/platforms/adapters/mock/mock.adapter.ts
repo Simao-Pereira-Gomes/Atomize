@@ -1,4 +1,5 @@
 import { logger } from "../../../logger";
+import type { EstimationDefaults } from "../../interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
 import type {
   FilterCriteria,
@@ -15,6 +16,14 @@ import type {
   WorkItem,
 } from "../../interfaces/work-item.interface";
 import { getMockStoryById, mockUserStories } from "./mock-data";
+
+/** Mock Stories carry their Story Estimate in the platform-free `estimation` property. */
+export const MOCK_ESTIMATION_DEFAULTS: EstimationDefaults = {
+  storyEstimateFields: ["estimation"],
+  taskWorkItemType: "Task",
+  taskEstimateFields: ["estimation"],
+  unitLabel: "hours",
+};
 
 /**
  * Mock platform adapter for testing
@@ -179,7 +188,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     const createdTask: WorkItem = {
       id: `TASK-${this.taskIdCounter++}`,
       title: task.title,
-      type: "Task",
+      type: task.workItemType ?? MOCK_ESTIMATION_DEFAULTS.taskWorkItemType,
       state: "New",
       assignedTo: task.assignTo,
       estimation: task.estimation,
@@ -298,6 +307,10 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     logger.info(`MockPlatform: Deleted work item ${id}`);
 
     return true;
+  }
+
+  getEstimationDefaults(): EstimationDefaults {
+    return MOCK_ESTIMATION_DEFAULTS;
   }
 
   /**

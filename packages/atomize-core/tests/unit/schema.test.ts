@@ -420,14 +420,112 @@ describe("Schema Validation", () => {
   });
 
   describe("EstimationConfigSchema", () => {
+    test("should accept a positive conversion factor", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 4 } }).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 0.25 } }).success).toBe(true);
+    });
+
+    test("should reject a conversion factor of zero or less", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 0 } }).success).toBe(false);
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: -2 } }).success).toBe(false);
+    });
+
+    test("should accept targetFields and reject an empty list", () => {
+      expect(EstimationConfigSchema.safeParse({ targetFields: ["Custom.Effort"] }).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse({ targetFields: [] }).success).toBe(false);
+    });
+
+    test("should accept a conversion table with string and numeric keys", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { S: 2, M: 4, L: 5 } } }).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { 1: 2, 3: 8, "0.32L": 1.6 } } }).success).toBe(true);
+    });
+
+    test("should reject a conversion with both factor and table, or neither", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { factor: 4, table: { L: 5 } } }).success).toBe(false);
+      expect(EstimationConfigSchema.safeParse({ conversion: {} }).success).toBe(false);
+    });
+
+    test("should reject negative table values and an empty table", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { L: -1 } } }).success).toBe(false);
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: {} } }).success).toBe(false);
+    });
+
+    test("should accept a category defaultParentEstimation covered by the table", () => {
+      const config = {
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "M",
+        conversion: { table: { M: 4 } },
+      };
+      expect(EstimationConfigSchema.safeParse(config).success).toBe(true);
+    });
+
+    test("should reject a use-default defaultParentEstimation the conversion cannot translate", () => {
+      const notInTable = EstimationConfigSchema.safeParse({
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "XXL",
+        conversion: { table: { M: 4 } },
+      });
+      expect(notInTable.success).toBe(false);
+      expect(notInTable.error?.issues[0]?.path).toEqual(["defaultParentEstimation"]);
+
+      const categoryWithoutTable = EstimationConfigSchema.safeParse({
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "M",
+      });
+      expect(categoryWithoutTable.success).toBe(false);
+    });
+
+    test("should not check defaultParentEstimation coverage unless the policy is use-default", () => {
+      const result = EstimationConfigSchema.safeParse({
+        defaultParentEstimation: "XXL",
+        conversion: { table: { M: 4 } },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("should accept multipliers on a table with category keys", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { table: { L: 5, XL: 5 }, multipliers: true } }).success).toBe(true);
+    });
+
+    test("should reject multipliers without a table", () => {
+      const result = EstimationConfigSchema.safeParse({ conversion: { factor: 4, multipliers: true } });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.some((i) => i.path.join(".") === "conversion.multipliers")).toBe(true);
+    });
+
+    test("should reject multipliers when every table key is numeric", () => {
+      const result = EstimationConfigSchema.safeParse({ conversion: { table: { 5: 16, 25: 40 }, multipliers: true } });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toContain("ambiguous");
+    });
+
+    test("should accept a multiplier defaultParentEstimation only when multipliers are on", () => {
+      const config = (multipliers?: boolean) => ({
+        ifParentHasNoEstimation: "use-default",
+        defaultParentEstimation: "0.5L",
+        conversion: { table: { L: 5 }, ...(multipliers === undefined ? {} : { multipliers }) },
+      });
+      expect(EstimationConfigSchema.safeParse(config(true)).success).toBe(true);
+      expect(EstimationConfigSchema.safeParse(config()).success).toBe(false);
+    });
+
+    test("should reject unknown conversion keys", () => {
+      expect(EstimationConfigSchema.safeParse({ conversion: { multiplier: 4 } }).success).toBe(false);
+    });
+
     test("should accept valid config", () => {
       const config = {
         strategy: "percentage",
         rounding: "nearest",
-        minimumTaskPoints: 0.5,
+        minimumTaskEstimate: 0.5,
       };
 
       const result = EstimationConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
+
+    test("should still accept the deprecated minimumTaskPoints", () => {
+      const result = EstimationConfigSchema.safeParse({ minimumTaskPoints: 0.5 });
       expect(result.success).toBe(true);
     });
 

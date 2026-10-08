@@ -1,0 +1,62 @@
+# Fibonacci story points that don't scale linearly to hours.
+#
+# A single factor treats every point as worth the same, but bigger stories
+# usually carry more uncertainty and integration work. A numeric conversion
+# table gives each point value its own hours. A value not in the table (e.g. a
+# typo like 4) is not guessed: it falls back to the default Story Estimate.
+#
+#   13-point Story → 80 hours → Implement 55% = 44 h, ...
+version: "1.0"
+name: "Fibonacci Points to Hours"
+description: "Maps Fibonacci story points to hours with a non-linear table, and adds an architecture review for large stories."
+author: "Atomize"
+tags: ["estimation", "table", "fibonacci"]
+
+filter:
+  workItemTypes: ["User Story"]
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "design"
+    title: "Technical design"
+    estimationPercent: 15
+    activity: "Design"
+
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    estimationPercent: 55
+    activity: "Development"
+    dependsOn: ["design"]
+
+  - id: "test"
+    title: "Test: ${story.title}"
+    estimationPercent: 25
+    activity: "Testing"
+    dependsOn: ["implement"]
+
+  # Conditions on `estimation` compare the raw Story Estimate (the points),
+  # not the converted hours.
+  - id: "architecture-review"
+    title: "Architecture review"
+    estimationPercent: 5
+    activity: "Design"
+    dependsOn: ["design"]
+    condition:
+      field: "estimation"
+      operator: "gte"
+      value: 8
+
+estimation:
+  strategy: "percentage"
+  conversion:
+    table:
+      1: 2
+      2: 4
+      3: 8
+      5: 16
+      8: 40
+      13: 80
+  rounding: "nearest"
+  minimumTaskEstimate: 1
+  ifParentHasNoEstimation: "use-default"  # unestimated or unlisted points...
+  defaultParentEstimation: 5              # ...are treated as a 5-point Story (16 h)

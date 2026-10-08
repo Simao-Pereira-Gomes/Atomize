@@ -280,6 +280,63 @@ describe("parseMockStory", () => {
 // ---------------------------------------------------------------------------
 
 describe("runPreview", () => {
+  test("Mock Preview carries the unit of the default estimate fields, and none for overridden fields", () => {
+    expect(runPreview(makeTemplate(), '{"estimation":10}').estimateUnit).toBe("hours");
+    const overridden = makeTemplate({ estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] } });
+    expect(runPreview(overridden, '{"estimation":10}').estimateUnit).toBeUndefined();
+  });
+
+  const tShirtTemplate = () =>
+    makeTemplate({
+      tasks: [
+        { title: "Task A", estimationPercent: 80 },
+        { title: "Task B", estimationPercent: 20 },
+      ],
+      estimation: { strategy: "percentage", rounding: "none", source: "Custom.TShirtSize", conversion: { table: { L: 5 } } },
+    });
+
+  test("Mock Preview reads the Story Estimate from the overridden source field", () => {
+    const result = runPreview(tShirtTemplate(), '{"estimation":40,"customFields":{"Custom.TShirtSize":"L"}}');
+
+    expect(result.tasks.map((t) => t.estimation)).toEqual([4, 1]);
+    expect(result.estimationSummary.storyEstimation).toBe(5);
+  });
+
+  test("Mock Preview shows an Unresolvable Story Estimate when the Mock Story lacks the source field", () => {
+    const result = runPreview(tShirtTemplate(), '{"estimation":40}');
+
+    expect(result.tasks.every((t) => t.estimation === undefined)).toBe(true);
+    expect(result.unresolvedEstimate?.action).toBe("blank");
+  });
+
+  test("inspection asks for the overridden source field instead of estimation", () => {
+    const fields = inspectTemplate(tShirtTemplate()).fields.map((f) => f.name);
+
+    expect(fields).toContain("Custom.TShirtSize");
+    expect(fields).not.toContain("estimation");
+  });
+
+  test("Mock Preview leaves Task Estimates blank and explains why when the Story has no estimate", () => {
+    const result = runPreview(makeTemplate(), "{}");
+
+    expect(result.tasks.every((t) => t.estimation === undefined)).toBe(true);
+    expect(result.unresolvedEstimate).toEqual({ action: "blank", reason: "Story has no estimate" });
+  });
+
+  test("Mock Preview shows the converted Story total and converted Task Estimates", () => {
+    const template = makeTemplate({
+      tasks: [
+        { title: "Task A", estimationPercent: 60 },
+        { title: "Task B", estimationPercent: 40 },
+      ],
+      estimation: { strategy: "percentage", rounding: "none", conversion: { factor: 4 } },
+    });
+    const result = runPreview(template, '{"estimation":5}');
+
+    expect(result.estimationSummary.storyEstimation).toBe(20);
+    expect(result.tasks.map((t) => t.estimation)).toEqual([12, 8]);
+  });
+
   test("returns all tasks when no conditions", () => {
     const template = makeTemplate();
     const result = runPreview(template, '{"estimation":10}');

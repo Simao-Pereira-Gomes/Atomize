@@ -1,4 +1,5 @@
 import { logger } from "@config/logger";
+import type { EstimationDefaultsProvider } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
 import type { ProjectMetadataReader } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import {
   analyzeTemplateProjectVerification,
@@ -15,7 +16,7 @@ import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
 
 export async function validateCustomFieldsPreFlight(
   template: TaskTemplate,
-  platform: ProjectMetadataReader,
+  platform: ProjectMetadataReader & Partial<EstimationDefaultsProvider>,
 ): Promise<void> {
   if (!platform.getFieldSchemas) return;
 

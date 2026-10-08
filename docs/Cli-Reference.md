@@ -453,6 +453,7 @@ atomize tpl create [options]  # alias
 | `--type <type>` | string | Create a `template` or a `mixin` (prompted if omitted) |
 | `--from <name>` | string | Start from an existing catalog template |
 | `--from-stories <ids>` | string | Learn template from multiple stories (comma-separated IDs) |
+| `--estimation-source <field>` | string | With `--from-stories`, read each Story Estimate from this field reference name (e.g. `Custom.TShirtSize`) and write it as `estimation.source`; the learned Template gets a matching conversion table or factor |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
 | `--ground` | flag | Ground AI generation with patterns from your Azure DevOps workspace |

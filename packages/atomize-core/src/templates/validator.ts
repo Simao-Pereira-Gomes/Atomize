@@ -37,6 +37,10 @@ export const FixableWarningCode = {
   SAVED_QUERY_WITH_STRUCTURED_FILTER: "SAVED_QUERY_WITH_STRUCTURED_FILTER",
   /** Strip newlines from a custom field value that maps to a single-line ADO field. */
   SINGLE_LINE_FIELD_WITH_NEWLINES: "SINGLE_LINE_FIELD_WITH_NEWLINES",
+  /** Rename `estimation.minimumTaskPoints` to `minimumTaskEstimate`, keeping its value. */
+  DEPRECATED_MINIMUM_TASK_POINTS: "DEPRECATED_MINIMUM_TASK_POINTS",
+  /** Delete `estimation.minimumTaskPoints`; `minimumTaskEstimate` is also set and takes precedence. */
+  DUPLICATE_MINIMUM_TASK_ESTIMATE: "DUPLICATE_MINIMUM_TASK_ESTIMATE",
 } as const;
 
 export type FixableWarningCode = (typeof FixableWarningCode)[keyof typeof FixableWarningCode];
@@ -118,10 +122,14 @@ export class TemplateValidator {
       v?.totalEstimationMustBe !== undefined ||
       v?.totalEstimationRange !== undefined;
 
-    if (!hasStrictRule && total > 100) {
+    const normalize = template.estimation?.normalize ?? "auto";
+    if (!hasStrictRule && total > 100 && normalize !== "always") {
       warnings.push({
         path: "tasks",
-        message: `Total estimation is ${total}% (exceeds 100%). This is valid when tasks span multiple roles. You will be prompted to normalise at generate time.`,
+        message:
+          normalize === "never"
+            ? `Total estimation is ${total}% (exceeds 100%). With normalize: never, tasks are generated with these percentages as written.`
+            : `Total estimation is ${total}% (exceeds 100%). This is valid when tasks span multiple roles. You will be prompted to normalise at generate time.`,
         nonBlocking: true,
       });
     }
@@ -138,8 +146,33 @@ export class TemplateValidator {
     this.validateTaskConditions(template, warnings);
     this.validateTaskDependencies(template, warnings);
     this.validateSavedQueryConflict(template, warnings);
+    this.validateDeprecatedMinimumTaskPoints(template, warnings);
 
     return warnings;
+  }
+
+  private validateDeprecatedMinimumTaskPoints(template: TaskTemplate, warnings: ValidationWarning[]): void {
+    const estimation = template.estimation;
+    if (estimation?.minimumTaskPoints === undefined) return;
+
+    if (estimation.minimumTaskEstimate === undefined) {
+      warnings.push({
+        path: "estimation.minimumTaskPoints",
+        message: "minimumTaskPoints is deprecated; the minimum applies in the Task's unit, which may not be points.",
+        suggestion: `Rename it to minimumTaskEstimate: ${estimation.minimumTaskPoints}.`,
+        code: FixableWarningCode.DEPRECATED_MINIMUM_TASK_POINTS,
+        nonBlocking: true,
+      });
+      return;
+    }
+
+    warnings.push({
+      path: "estimation.minimumTaskPoints",
+      message: `Both minimumTaskEstimate and the deprecated minimumTaskPoints are set; minimumTaskEstimate (${estimation.minimumTaskEstimate}) is used and minimumTaskPoints (${estimation.minimumTaskPoints}) is ignored.`,
+      suggestion: "Remove minimumTaskPoints.",
+      code: FixableWarningCode.DUPLICATE_MINIMUM_TASK_ESTIMATE,
+      nonBlocking: true,
+    });
   }
 
   private collectMixinWarnings(mixin: MixinTemplate): ValidationWarning[] {
@@ -218,8 +251,9 @@ export class TemplateValidator {
     const f = template.filter;
     if (!f.savedQuery) return;
 
+    // workItemTypes is allowed alongside savedQuery: it declares which types the query returns,
+    // so field lookups and Online Validation know which fields to check. It never filters results.
     const hasStructuredFields =
-      f.workItemTypes ||
       f.states ||
       f.statesExclude ||
       f.statesWereEver ||
@@ -241,7 +275,7 @@ export class TemplateValidator {
           "savedQuery and structured filter fields are both set. Structured filter fields will be ignored — the saved query controls which items are returned.",
         code: FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER,
         suggestion:
-          "Remove workItemTypes, states, tags, etc. from the filter when using savedQuery.",
+          "Remove states, tags, area paths, etc. from the filter when using savedQuery. Keep workItemTypes: it declares which types the query returns.",
       });
     }
   }

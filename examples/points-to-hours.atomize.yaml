@@ -1,0 +1,49 @@
+# Story points → Task hours with a single conversion factor.
+#
+# The Story Estimate is read from the platform default (on Azure DevOps:
+# Story Points, then Effort, then Size), multiplied by the factor, and then
+# split across the tasks by percentage. Rounding and the minimum apply to each
+# task afterwards.
+#
+#   5-point Story × 4 = 20 hours → Implement 60% = 12 h, Test 25% = 5 h, ...
+version: "1.0"
+name: "Points to Hours"
+description: "Converts story points to task hours with a fixed factor (1 point = 4 hours)."
+author: "Atomize"
+tags: ["estimation", "factor"]
+
+filter:
+  workItemTypes: ["User Story"]
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "design"
+    title: "Design: ${story.title}"
+    estimationPercent: 10
+    activity: "Design"
+
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    estimationPercent: 60
+    activity: "Development"
+    dependsOn: ["design"]
+
+  - id: "test"
+    title: "Test: ${story.title}"
+    estimationPercent: 25
+    activity: "Testing"
+    dependsOn: ["implement"]
+
+  - id: "review"
+    title: "Code review"
+    estimationPercent: 5
+    activity: "Development"
+    dependsOn: ["implement"]
+
+estimation:
+  strategy: "percentage"
+  conversion:
+    factor: 4                    # 1 story point = 4 hours
+  rounding: "nearest"            # each task rounded to the nearest half hour
+  minimumTaskEstimate: 0.5       # no task gets less than half an hour
+  ifParentHasNoEstimation: "skip" # Stories without points get no tasks
