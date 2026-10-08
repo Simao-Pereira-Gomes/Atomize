@@ -290,7 +290,8 @@ filter:
 - `id` and `path` are mutually exclusive — provide exactly one.
 - `id` must be a valid UUID (visible in the ADO query URL).
 - Only **flat (Work Items)** queries are supported. Tree and one-hop queries are rejected at runtime with a clear error.
-- `savedQuery` takes precedence over all structured filter fields (`workItemTypes`, `states`, `tags`, etc.). A validator warning is emitted if both are present.
+- `savedQuery` takes precedence over all structured filter fields (`states`, `tags`, area paths, etc.). A validator warning is emitted if both are present.
+- `workItemTypes` is the exception: alongside `savedQuery` it declares **which types the query returns**. It never filters the query's results, but Atomize uses it to look up fields: the estimation `source` and condition field pickers, and Online Validation of those fields. The CLI wizard asks for it when you pick a saved query, and Studio shows it next to the saved query.
 
 **Post-processing still applies:** `excludeIfHasTasks` still applies to the query results after resolution, and you can still cap execution with the CLI `--limit` option.
 

@@ -157,7 +157,7 @@ export async function configureFilter(ctx: FilterWizardContext, defaults?: Filte
   ) as "structured" | "savedQuery";
 
   if (filterMode === "savedQuery") {
-    return promptSavedQuery(ctx.savedQueries);
+    return promptSavedQuery(ctx, defaults);
   }
 
   const filter: FilterCriteria = {};
@@ -256,9 +256,9 @@ export async function configureFilter(ctx: FilterWizardContext, defaults?: Filte
   return filter;
 }
 
-async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriteria> {
-  // queries is guaranteed non-empty — the option is hidden in configureFilter when the list is empty
-  const sorted = [...queries].sort((a, b) => {
+async function promptSavedQuery(ctx: FilterWizardContext, defaults?: FilterCriteria): Promise<FilterCriteria> {
+  // ctx.savedQueries is guaranteed non-empty — the option is hidden in configureFilter when the list is empty
+  const sorted = [...ctx.savedQueries].sort((a, b) => {
     if (a.isPublic !== b.isPublic) return a.isPublic ? -1 : 1;
     return a.path.localeCompare(b.path);
   });
@@ -273,6 +273,12 @@ async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriter
     placeholder: "Type to filter by path or name...",
   });
 
+  // The query decides which items are returned; the types only tell Atomize which fields they have.
+  const workItemTypes = await promptWorkItemTypes(ctx, defaults?.workItemTypes, {
+    message: "Which work item types does this query return? (used to look up their fields, not to filter)",
+    required: true,
+  });
+
   const excludeIfHasTasks = assertNotCancelled(
     await confirm({
       message: "Exclude work items that already have tasks?",
@@ -282,11 +288,16 @@ async function promptSavedQuery(queries: SavedQueryInfo[]): Promise<FilterCriter
 
   return {
     savedQuery: { id: selectedId.trim() },
+    workItemTypes,
     ...(excludeIfHasTasks && { excludeIfHasTasks: true }),
   };
 }
 
-async function promptWorkItemTypes(ctx: FilterWizardContext, defaults?: string[]): Promise<string[]> {
+async function promptWorkItemTypes(
+  ctx: FilterWizardContext,
+  defaults?: string[],
+  options: { message?: string; required?: boolean } = {},
+): Promise<string[]> {
   const defaultType = ctx.workItemTypes.includes("User Story") ? "User Story" : undefined;
   const sorted = [
     ...(defaultType ? [defaultType] : []),
@@ -300,10 +311,10 @@ async function promptWorkItemTypes(ctx: FilterWizardContext, defaults?: string[]
         : [];
   const selected = assertNotCancelled(
     await multiselect({
-      message: "Select work item types:",
+      message: options.message ?? "Select work item types:",
       options: sorted.map((t) => ({ label: t, value: t })),
       initialValues,
-      required: false,
+      required: options.required ?? false,
     }),
   );
   return selected as string[];

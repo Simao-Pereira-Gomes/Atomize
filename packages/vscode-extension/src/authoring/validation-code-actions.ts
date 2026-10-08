@@ -82,7 +82,7 @@ export function fixMissingTaskId(docText: string, range: PlainRange, _data: unkn
 }
 
 const STRUCTURED_FILTER_KEYS = new Set([
-	'workItemTypes', 'states', 'statesExclude', 'statesWereEver',
+	'states', 'statesExclude', 'statesWereEver',
 	'tags', 'areaPaths', 'areaPathsUnder', 'iterations', 'iterationsUnder',
 	'assignedTo', 'changedAfter', 'createdAfter', 'priority',
 ]);

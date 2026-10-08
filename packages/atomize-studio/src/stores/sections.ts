@@ -570,6 +570,7 @@ function buildFilter(store: FilterStore): FilterCriteria {
     return {
       ...store.advanced,
       savedQuery: isUuid(savedQueryRef) ? { id: savedQueryRef } : { path: savedQueryRef },
+      workItemTypes: nonEmptyArray(store.fields.workItemTypes),
       excludeIfHasTasks: store.fields.excludeIfHasTasks,
     };
   }

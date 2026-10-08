@@ -247,8 +247,9 @@ export class TemplateValidator {
     const f = template.filter;
     if (!f.savedQuery) return;
 
+    // workItemTypes is allowed alongside savedQuery: it declares which types the query returns,
+    // so field lookups and Online Validation know which fields to check. It never filters results.
     const hasStructuredFields =
-      f.workItemTypes ||
       f.states ||
       f.statesExclude ||
       f.statesWereEver ||
@@ -270,7 +271,7 @@ export class TemplateValidator {
           "savedQuery and structured filter fields are both set. Structured filter fields will be ignored — the saved query controls which items are returned.",
         code: FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER,
         suggestion:
-          "Remove workItemTypes, states, tags, etc. from the filter when using savedQuery.",
+          "Remove states, tags, area paths, etc. from the filter when using savedQuery. Keep workItemTypes: it declares which types the query returns.",
       });
     }
   }

@@ -7,6 +7,8 @@ tags: []
 filter:
   savedQuery:
     path: "Shared Queries/Teams/Platform/Ready for Sprint"
+  # The types the query returns: not a filter, but tells Atomize which fields to offer and validate.
+  workItemTypes: ["User Story"]
   excludeIfHasTasks: true
 
 tasks:

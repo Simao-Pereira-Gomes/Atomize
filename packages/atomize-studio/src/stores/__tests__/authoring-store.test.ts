@@ -120,6 +120,18 @@ describe("createAuthoringStore", () => {
     });
   });
 
+  it("keeps the work item types a saved query returns", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      filter: { savedQuery: { path: "Shared Queries/Current Sprint" }, workItemTypes: ["User Story"], excludeIfHasTasks: true },
+    });
+
+    expect(serialisedObject(store)).toMatchObject({
+      filter: { savedQuery: { path: "Shared Queries/Current Sprint" }, workItemTypes: ["User Story"] },
+    });
+  });
+
   it("rejects multiple saved queries instead of serialising only the first", () => {
     const store = createAuthoringStore();
     store.loadTemplate(baseTemplate);

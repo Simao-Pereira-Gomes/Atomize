@@ -146,7 +146,9 @@ export const FilterCriteriaSchema = z.object({
     .optional(),
   workItemTypes: z
     .array(z.string())
-    .describe("Work item types to include (e.g. ['User Story', 'Bug']).")
+    .describe(
+      "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate.",
+    )
     .optional(),
   states: z
     .array(z.string())

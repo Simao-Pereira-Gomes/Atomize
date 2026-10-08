@@ -113,7 +113,7 @@ describe('fixMissingTaskId', () => {
 describe('fixSavedQueryWithStructuredFilter', () => {
 	const DUMMY = range(0);
 
-	it('returns deletions for block-style conflicting fields', () => {
+	it('removes block-style conflicting fields but keeps workItemTypes, which declares the query\'s types', () => {
 		const doc = [
 			'version: "1.0"',      // line 0
 			'filter:',              // line 1
@@ -129,11 +129,9 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 
 		const edits = fixSavedQueryWithStructuredFilter(doc, DUMMY, undefined);
 
-		expect(edits).toHaveLength(2);
-		// workItemTypes (line 4) + value (line 5) → deleted up to line 6
-		expect(edits?.at(0)).toEqual({ startLine: 4, startCharacter: 0, endLine: 6, endCharacter: 0, newText: '' });
-		// states (line 6) + value (line 7) → deleted up to line 8
-		expect(edits?.at(1)).toEqual({ startLine: 6, startCharacter: 0, endLine: 8, endCharacter: 0, newText: '' });
+		expect(edits).toHaveLength(1);
+		// states (line 6) + value (line 7) → deleted up to line 8; workItemTypes (line 4) is kept
+		expect(edits?.at(0)).toEqual({ startLine: 6, startCharacter: 0, endLine: 8, endCharacter: 0, newText: '' });
 	});
 
 	it('returns deletions for inline (flow) list values', () => {
@@ -149,11 +147,9 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 
 		const edits = fixSavedQueryWithStructuredFilter(doc, DUMMY, undefined);
 
-		expect(edits).toHaveLength(2);
-		// workItemTypes at line 3, block ends at line 4 (states starts there, same indent)
-		expect(edits?.at(0)).toEqual({ startLine: 3, startCharacter: 0, endLine: 4, endCharacter: 0, newText: '' });
-		// states at line 4, block ends at line 5 (tasks starts there, lower indent)
-		expect(edits?.at(1)).toEqual({ startLine: 4, startCharacter: 0, endLine: 5, endCharacter: 0, newText: '' });
+		expect(edits).toHaveLength(1);
+		// states at line 4, block ends at line 5 (tasks starts there, lower indent); workItemTypes is kept
+		expect(edits?.at(0)).toEqual({ startLine: 4, startCharacter: 0, endLine: 5, endCharacter: 0, newText: '' });
 	});
 
 	it('returns null when no conflicting fields are present', () => {
@@ -199,8 +195,9 @@ describe('fixSavedQueryWithStructuredFilter', () => {
 
 		const edits = fixSavedQueryWithStructuredFilter(doc, DUMMY, undefined);
 
-		// workItemTypes, states, statesExclude, tags, priority all removed
-		expect(edits).toHaveLength(5);
+		// states, statesExclude, tags, priority removed; workItemTypes kept
+		expect(edits).toHaveLength(4);
+		expect(edits?.some(e => e.startLine === 3)).toBe(false);
 		expect(edits?.every(e => e.newText === '')).toBe(true);
 	});
 });

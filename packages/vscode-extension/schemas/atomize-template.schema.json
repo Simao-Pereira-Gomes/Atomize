@@ -167,7 +167,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Work item types to include (e.g. ['User Story', 'Bug'])."
+              "description": "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate."
             },
             "states": {
               "type": "array",
@@ -770,7 +770,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Work item types to include (e.g. ['User Story', 'Bug'])."
+              "description": "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate."
             },
             "states": {
               "type": "array",

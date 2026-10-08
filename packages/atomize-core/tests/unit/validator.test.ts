@@ -995,7 +995,7 @@ describe("TemplateValidator", () => {
 				name: "Test",
 				filter: {
 					savedQuery: { path: "My Queries/Active Stories" },
-					workItemTypes: ["User Story"],
+					states: ["Active"],
 				},
 				tasks: [{ title: "Task", estimationPercent: 100 }],
 			};
@@ -1005,6 +1005,22 @@ describe("TemplateValidator", () => {
 			const warning = result.warnings.find((w) => w.path === "filter.savedQuery");
 			expect(warning).toBeDefined();
 			expect(warning?.code).toBe(FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER);
+		});
+
+		test("workItemTypes alongside savedQuery declares the query's types and is not a conflict", () => {
+			const template = {
+				version: "1.0",
+				name: "Test",
+				filter: {
+					savedQuery: { path: "My Queries/Active Stories" },
+					workItemTypes: ["User Story"],
+				},
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.warnings.find((w) => w.path === "filter.savedQuery")).toBeUndefined();
 		});
 
 		test("DEPRECATED_MINIMUM_TASK_POINTS when only minimumTaskPoints is set", () => {
