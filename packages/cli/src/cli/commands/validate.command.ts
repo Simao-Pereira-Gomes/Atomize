@@ -13,9 +13,10 @@ import {
   verifyTemplateCustomFields as validateCustomFieldsAgainstSchemas,
 } from "@sppg2001/atomize-core/templates/custom-field-verifier";
 import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
-import type {
-  TaskTemplate,
-  ValidationMode,
+import {
+  generatedTaskCount,
+  type TaskTemplate,
+  type ValidationMode,
 } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import type {
@@ -307,7 +308,7 @@ export function getTemplateSummary(template: TaskTemplate) {
 
   return {
     name: template.name,
-    tasks: template.tasks.length,
+    tasks: generatedTaskCount(template.tasks),
     totalEstimation: `${totalPercent}%`,
   };
 }

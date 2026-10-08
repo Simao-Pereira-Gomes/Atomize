@@ -95,6 +95,7 @@ describe("getTemplateSummary", () => {
     tasks: Array<{
       estimationPercent?: number;
       condition?: string;
+      repeat?: number;
       customFields?: Record<string, string | number | boolean>;
     }>,
   ): TaskTemplate {
@@ -105,6 +106,7 @@ describe("getTemplateSummary", () => {
         estimationPercent: t.estimationPercent ?? 0,
         customFields: t.customFields,
         ...(t.condition ? { condition: t.condition } : {}),
+        ...(t.repeat ? { repeat: t.repeat } : {}),
       })),
     } as unknown as TaskTemplate;
   }
@@ -128,6 +130,15 @@ describe("getTemplateSummary", () => {
       { estimationPercent: 40, condition: "someCondition" },
     ]);
     expect(getTemplateSummary(template).totalEstimation).toBe("60%");
+  });
+
+  test("counts and sums every copy of a repeated task", () => {
+    const template = makeTemplate("T", [
+      { estimationPercent: 70 },
+      { estimationPercent: 10, repeat: 3 },
+    ]);
+    expect(getTemplateSummary(template).tasks).toBe(4);
+    expect(getTemplateSummary(template).totalEstimation).toBe("100%");
   });
 
   test("sums all tasks when none are conditional", () => {

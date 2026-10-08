@@ -721,6 +721,16 @@ function ownPercentRange(task: TaskTemplate["tasks"][number]): [min: number, max
   return [Math.min(...candidates), Math.max(...candidates)];
 }
 
+/** How many Tasks a definition generates: its `repeat` count, or one when unset. */
+export function copyCount(task: Pick<TaskTemplate["tasks"][number], "repeat">): number {
+  return task.repeat ?? 1;
+}
+
+/** How many Tasks the definitions generate when every one is active, counting each repeated copy. */
+export function generatedTaskCount(tasks: ReadonlyArray<Pick<TaskTemplate["tasks"][number], "repeat">>): number {
+  return tasks.reduce((sum, task) => sum + copyCount(task), 0);
+}
+
 export const TaskTemplateSchema = TaskTemplateBaseSchema
   .superRefine((data, ctx) => {
     const { tasks, validation: v } = data;
@@ -728,13 +738,14 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
     let maxTotalPercent = 0;
     for (const task of tasks) {
       const [ownMin, ownMax] = ownPercentRange(task);
-      totalPercent += task.condition ? 0 : ownMin;
-      maxTotalPercent += ownMax;
+      const copies = copyCount(task);
+      totalPercent += task.condition ? 0 : ownMin * copies;
+      maxTotalPercent += ownMax * copies;
     }
     const taskIds = new Set(tasks.map((t) => t.id).filter(Boolean));
 
     validateUniqueTaskIds(tasks, ctx);
-    validateEstimationConstraints(v, totalPercent, maxTotalPercent, ctx);
+    validateEstimationConstraints(v, totalPercent, maxTotalPercent, tasks.some((t) => copyCount(t) > 1), ctx);
 
     validateTaskConstraints(v, tasks, ctx);
     validateRequiredTasks(v, tasks, ctx);
@@ -822,22 +833,25 @@ function validateTaskConstraints(
   tasks: TaskTemplate["tasks"],
   ctx: z.RefinementCtx,
 ) {
-  if (v?.minTasks !== undefined && tasks.length < v.minTasks) {
-    const needed = v.minTasks - tasks.length;
+  const count = generatedTaskCount(tasks);
+  const hasRepeats = tasks.some((task) => copyCount(task) > 1);
+  const counted = hasRepeats ? " (counting each repeated copy)" : "";
+  if (v?.minTasks !== undefined && count < v.minTasks) {
+    const needed = v.minTasks - count;
     ctx.addIssue({
       code: "custom",
       path: ["tasks"],
-      message: `Template has ${tasks.length} task(s), but minimum is ${v.minTasks}. Add ${needed} more task(s).`,
-      params: { code: "TOO_FEW_TASKS" },
+      message: `Template has ${count} task(s)${counted}, but minimum is ${v.minTasks}. Add ${needed} more task(s).`,
+      params: { code: "TOO_FEW_TASKS", count, limit: v.minTasks, hasRepeats },
     });
   }
-  if (v?.maxTasks !== undefined && tasks.length > v.maxTasks) {
-    const excess = tasks.length - v.maxTasks;
+  if (v?.maxTasks !== undefined && count > v.maxTasks) {
+    const excess = count - v.maxTasks;
     ctx.addIssue({
       code: "custom",
       path: ["tasks"],
-      message: `Template has ${tasks.length} task(s), but maximum is ${v.maxTasks}. Remove ${excess} task(s) or increase maxTasks.`,
-      params: { code: "TOO_MANY_TASKS" },
+      message: `Template has ${count} task(s)${counted}, but maximum is ${v.maxTasks}. Remove ${excess} task(s) or increase maxTasks.`,
+      params: { code: "TOO_MANY_TASKS", count, limit: v.maxTasks, hasRepeats },
     });
   }
 }
@@ -870,6 +884,7 @@ function validateEstimationConstraints(
   v: TaskTemplate["validation"] | undefined,
   totalPercent: number,
   maxTotalPercent: number,
+  hasRepeats: boolean,
   ctx: z.RefinementCtx,
 ) {
   if (v?.totalEstimationMustBe !== undefined) {
@@ -878,7 +893,7 @@ function validateEstimationConstraints(
         code: "custom",
         path: ["tasks"],
         message: `Total estimation is ${totalPercent}%, but must be ${v.totalEstimationMustBe}%.`,
-        params: { code: "INVALID_TOTAL_ESTIMATION" },
+        params: { code: "INVALID_TOTAL_ESTIMATION", hasRepeats },
       });
     }
   } else if (v?.totalEstimationRange) {
@@ -888,7 +903,7 @@ function validateEstimationConstraints(
         code: "custom",
         path: ["tasks"],
         message: `Total estimation is ${totalPercent}%, but must be between ${min}% and ${max}%.`,
-        params: { code: "INVALID_ESTIMATION_RANGE" },
+        params: { code: "INVALID_ESTIMATION_RANGE", hasRepeats },
       });
     }
   }
