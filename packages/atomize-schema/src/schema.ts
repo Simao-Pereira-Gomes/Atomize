@@ -291,6 +291,14 @@ export const TaskDefinitionSchema = z.object({
       "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks.",
     )
     .optional(),
+  repeat: z
+    .number()
+    .int("Repeat count must be a whole number")
+    .min(1, "Repeat count must be at least 1")
+    .describe(
+      "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn.",
+    )
+    .optional(),
   assignTo: z
     .string()
     .describe("Email address or alias to assign this task to.")
@@ -729,6 +737,8 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
       if (t.id) taskIndexById.set(t.id, i);
     });
 
+    validateRepeatedTasks(tasks, ctx, DEFAULT_MAX_REPEAT);
+
     tasks.forEach((task, index) => {
       task.dependsOn?.forEach((depId) => {
         if (!taskIds.has(depId)) {
@@ -747,6 +757,54 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
     });
     reportCircularDependencies(tasks, taskIndexById, ctx);
   });
+
+/** Upper bound on a task's `repeat`, guarding against a typo triggering a large bulk creation. */
+export const DEFAULT_MAX_REPEAT = 20;
+
+/**
+ * A repeated task has several copies, so a dependency link to or from it has no single
+ * Work Item to attach to; repeat and dependsOn are therefore mutually exclusive.
+ */
+function validateRepeatedTasks(
+  tasks: TaskTemplate["tasks"],
+  ctx: z.RefinementCtx,
+  maxRepeat?: number,
+) {
+  const repeatedIds = new Set(
+    tasks.filter((t) => t.repeat !== undefined && t.id).map((t) => t.id as string),
+  );
+
+  tasks.forEach((task, index) => {
+    if (maxRepeat !== undefined && task.repeat !== undefined && task.repeat > maxRepeat) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tasks", index, "repeat"],
+        message: `Task repeats ${task.repeat} times, but the maximum is ${maxRepeat}.`,
+        params: { code: "REPEAT_EXCEEDS_MAX", maxRepeat },
+      });
+    }
+
+    if (task.repeat !== undefined && task.dependsOn?.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tasks", index, "dependsOn"],
+        message: "A repeated task cannot have dependsOn. Remove repeat or dependsOn from this task.",
+        params: { code: "REPEAT_WITH_DEPENDENCY" },
+      });
+    }
+
+    task.dependsOn?.forEach((depId) => {
+      if (repeatedIds.has(depId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["tasks", index, "dependsOn"],
+          message: `Task depends on "${depId}", which is repeated. A task cannot depend on a repeated task.`,
+          params: { code: "DEPENDS_ON_REPEATED_TASK", taskId: depId },
+        });
+      }
+    });
+  });
+}
 
 function validateTaskConstraints(
   v: TaskTemplate["validation"] | undefined,
@@ -905,6 +963,8 @@ export const MixinTemplateSchema = z
   .strict()
   .superRefine((data, ctx) => {
     validateUniqueTaskIds(data.tasks, ctx);
+    // The repeat cap belongs to the composing Template, so a Mixin only checks dependencies.
+    validateRepeatedTasks(data.tasks, ctx);
   });
 
 export const CURRENT_ITERATION = "@CurrentIteration" as const;

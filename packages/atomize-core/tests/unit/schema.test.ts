@@ -909,5 +909,57 @@ describe("Schema Validation", () => {
         expect(TaskTemplateSchema.safeParse(overrideReachesTarget).success).toBe(true);
       });
     });
+
+    describe("repeat", () => {
+      const templateWith = (tasks: unknown[]) => ({
+        version: "1.0",
+        name: "Repeat",
+        filter: {},
+        tasks,
+      });
+
+      const issueCodes = (template: unknown): unknown[] => {
+        const result = TaskTemplateSchema.safeParse(template);
+        return result.success
+          ? []
+          : result.error.issues.map((issue) => (issue as { params?: { code?: unknown } }).params?.code);
+      };
+
+      test("accepts a repeated task", () => {
+        const result = TaskTemplateSchema.safeParse(
+          templateWith([{ title: "Review", estimationPercent: 10, repeat: 3 }]),
+        );
+        expect(result.success).toBe(true);
+      });
+
+      test("rejects a repeat below 1 or a fractional repeat", () => {
+        expect(TaskTemplateSchema.safeParse(templateWith([{ title: "Review", repeat: 0 }])).success).toBe(false);
+        expect(TaskTemplateSchema.safeParse(templateWith([{ title: "Review", repeat: 1.5 }])).success).toBe(false);
+      });
+
+      test("accepts repeat at the default cap of 20", () => {
+        expect(issueCodes(templateWith([{ title: "Review", repeat: 20 }]))).toEqual([]);
+      });
+
+      test("rejects repeat above the default cap of 20", () => {
+        expect(issueCodes(templateWith([{ title: "Review", repeat: 21 }]))).toEqual(["REPEAT_EXCEEDS_MAX"]);
+      });
+
+      test("rejects a task that has both repeat and dependsOn", () => {
+        const template = templateWith([
+          { id: "design", title: "Design" },
+          { id: "review", title: "Review", repeat: 2, dependsOn: ["design"] },
+        ]);
+        expect(issueCodes(template)).toEqual(["REPEAT_WITH_DEPENDENCY"]);
+      });
+
+      test("rejects a dependsOn that references a repeated task", () => {
+        const template = templateWith([
+          { id: "review", title: "Review", repeat: 2 },
+          { id: "merge", title: "Merge", dependsOn: ["review"] },
+        ]);
+        expect(issueCodes(template)).toEqual(["DEPENDS_ON_REPEATED_TASK"]);
+      });
+    });
   });
 });

@@ -120,6 +120,36 @@ describe("Atomizer", () => {
       expect(report.results.every((r) => r.estimateUnit === undefined)).toBe(true);
     });
 
+    test("creates a separate Work Item for every copy of a repeated task", async () => {
+      await platform.authenticate();
+      const template: TaskTemplate = {
+        ...basicTemplate,
+        tasks: [
+          { id: "build", title: "Build", estimationPercent: 70 },
+          { id: "review", title: "Add review conclusions", estimationPercent: 10, repeat: 3 },
+        ],
+      };
+
+      const preview = await atomizer.atomize(template, { dryRun: true });
+      const report = await atomizer.atomize(template, { dryRun: false });
+
+      const expectedTitles = [
+        "Build",
+        "Add review conclusions (1)",
+        "Add review conclusions (2)",
+        "Add review conclusions (3)",
+      ];
+      expect(preview.results.length).toBeGreaterThan(0);
+      for (const result of preview.results) {
+        expect(result.tasksCalculated.map((t) => t.title)).toEqual(expectedTitles);
+      }
+      expect(report.results.length).toBeGreaterThan(0);
+      for (const result of report.results) {
+        expect(result.tasksCreated.map((t) => t.title)).toEqual(expectedTitles);
+        expect(new Set(result.tasksCreated.map((t) => t.id)).size).toBe(expectedTitles.length);
+      }
+    });
+
     test("creates Tasks as the Template's taskType", async () => {
       await platform.authenticate();
 

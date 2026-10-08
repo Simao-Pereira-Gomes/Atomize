@@ -13,6 +13,7 @@ import { ConditionEvaluator } from "./condition-evaluator.js";
 import { resolveStoryEstimate, type StoryEstimateResolution } from "./estimation-conversion";
 import { distributeActiveTaskPercentages } from "./estimation-distribution";
 import { type EstimationFieldMapping, readStoryEstimate } from "./estimation-field-mapping";
+import { repeatTasks, withOrdinal } from "./task-repeater";
 import { interpolateValue } from "./template-interpolator.js";
 
 /**
@@ -79,11 +80,14 @@ export class EstimationCalculator {
       logger.warn(`Story ${story.id}: ${resolution.reason}. Task Estimates will be left blank.`);
     }
 
-    const calculatedTasks: CalculatedTask[] = [];
     const skippedTasks: Array<{
       templateTask: TemplateTaskDefinition;
       reason: string;
     }> = [];
+    // Conditions and percents resolve once per template task, so a repeated task's
+    // copies are produced all together or not at all.
+    const activeTasks: TemplateTaskDefinition[] = [];
+    const resolvedPercents = new Map<TemplateTaskDefinition, number | undefined>();
 
     for (const templateTask of templateTasks) {
       logger.debug(
@@ -127,16 +131,21 @@ export class EstimationCalculator {
         skippedTasks.push({ templateTask, reason });
         continue;
       }
+      activeTasks.push(templateTask);
+      resolvedPercents.set(templateTask, resolvedPercent);
+    }
+
+    const calculatedTasks: CalculatedTask[] = repeatTasks(activeTasks).map((copy) => {
       const calculatedTask = this.buildCalculatedTask(
-        templateTask,
+        copy.task,
         story,
         connectUserEmail,
         0,
-        resolvedPercent,
+        resolvedPercents.get(copy.task),
       );
-
-      calculatedTasks.push(calculatedTask);
-    }
+      calculatedTask.title = withOrdinal(calculatedTask.title, copy);
+      return calculatedTask;
+    });
 
     if (fieldMapping) {
       for (const task of calculatedTasks) {

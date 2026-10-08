@@ -375,6 +375,19 @@ export class TemplateValidator {
         return "Remove one of the dependencies in the cycle to break the circular reference.";
       }
 
+      case "REPEAT_EXCEEDS_MAX":
+        return "Lower the repeat count. If the template genuinely needs more copies, split it into separate task definitions.";
+
+      case "REPEAT_WITH_DEPENDENCY":
+        return "Remove dependsOn from the repeated task, or remove repeat and define each copy as its own task.";
+
+      case "DEPENDS_ON_REPEATED_TASK": {
+        const match = err.message.match(/depends on "([^"]+)"/);
+        return match
+          ? `Remove "${match[1]}" from dependsOn, or remove repeat from task "${match[1]}".`
+          : "Remove the dependency on the repeated task, or remove its repeat.";
+      }
+
       case "MISSING_REQUIRED_TASK": {
         const match = err.message.match(/title "([^"]+)"/);
         return match

@@ -165,6 +165,43 @@ describe("TemplateValidator", () => {
 			expect(depError?.message).toContain("nonexistent-task");
 		});
 
+		test("should report repeat errors with suggestions", () => {
+			const template = {
+				version: "1.0",
+				name: "Repeat",
+				filter: {},
+				tasks: [
+					{ id: "design", title: "Design" },
+					{ id: "review", title: "Review", repeat: 25, dependsOn: ["design"] },
+					{ id: "merge", title: "Merge", dependsOn: ["review"] },
+				],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.map((e) => [e.code, e.path])).toEqual([
+				["REPEAT_EXCEEDS_MAX", "tasks.1.repeat"],
+				["REPEAT_WITH_DEPENDENCY", "tasks.1.dependsOn"],
+				["DEPENDS_ON_REPEATED_TASK", "tasks.2.dependsOn"],
+			]);
+			expect(result.errors.every((e) => e.suggestion)).toBe(true);
+		});
+
+		test("should reject repeat with dependsOn in a mixin but leave the cap to the composing template", () => {
+			const mixin = {
+				name: "Review Mixin",
+				tasks: [
+					{ id: "design", title: "Design" },
+					{ id: "review", title: "Review", repeat: 25, dependsOn: ["design"] },
+				],
+			};
+
+			const result = validator.validate(mixin);
+
+			expect(result.errors.map((e) => e.code)).toEqual(["REPEAT_WITH_DEPENDENCY"]);
+		});
+
 		test("should validate a standalone mixin without requiring template version or filter", () => {
 			const mixin = {
 				name: "Testing Mixin",

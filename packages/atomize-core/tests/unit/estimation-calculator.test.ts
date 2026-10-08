@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ConditionEvaluator } from "@sppg2001/atomize-core/core/condition-evaluator";
 import { EstimationCalculator } from "@sppg2001/atomize-core/core/estimation-calculator";
 import { resolveEstimationFieldMapping } from "@sppg2001/atomize-core/core/estimation-field-mapping";
 import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
@@ -1101,5 +1102,103 @@ describe("EstimationCalculator", () => {
       const result = calculator.calculateTasksWithSkipped(story, "", overAllocated, { strategy: "percentage", rounding: "none", normalize: "never" }, true);
       expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([9, 6]);
     });
+  });
+});
+
+describe("EstimationCalculator repeated tasks", () => {
+  const story: WorkItem = {
+    id: "STORY-R",
+    title: "Checkout",
+    type: "User Story",
+    state: "New",
+    estimation: 10,
+    tags: ["review"],
+  };
+
+  class CountingConditionEvaluator extends ConditionEvaluator {
+    calls = 0;
+    override evaluateCondition(...args: Parameters<ConditionEvaluator["evaluateCondition"]>): boolean {
+      this.calls++;
+      return super.evaluateCondition(...args);
+    }
+  }
+
+  test("produces one Task per copy, each with an ordinal title and the full percentage", () => {
+    // biome-ignore-start lint/suspicious/noTemplateCurlyInString: testing that the ordinal follows interpolation
+    const tasks: TaskDefinition[] = [
+      { title: "Design ${story.title}", estimationPercent: 70 },
+      { id: "review", title: "Review ${story.title}", estimationPercent: 10, repeat: 3 },
+    ];
+    // biome-ignore-end lint/suspicious/noTemplateCurlyInString: testing that the ordinal follows interpolation
+
+    const { calculatedTasks } = new EstimationCalculator().calculateTasksWithSkipped(story, "", tasks);
+
+    expect(calculatedTasks.map((t) => [t.title, t.estimationPercent, t.estimation, t.templateId])).toEqual([
+      ["Design Checkout", 70, 7, undefined],
+      ["Review Checkout (1)", 10, 1, "review"],
+      ["Review Checkout (2)", 10, 1, "review"],
+      ["Review Checkout (3)", 10, 1, "review"],
+    ]);
+  });
+
+  test("a task without repeat keeps its title unsuffixed", () => {
+    const { calculatedTasks } = new EstimationCalculator().calculateTasksWithSkipped(story, "", [
+      { title: "Review", estimationPercent: 100, repeat: 1 },
+    ]);
+
+    expect(calculatedTasks.map((t) => t.title)).toEqual(["Review"]);
+  });
+
+  test("copies count towards the active total the distribution normalises", () => {
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 50 },
+      { title: "Review", estimationPercent: 50, repeat: 3 },
+    ];
+
+    // 50% + 3 × 50% = 200%; forced normalisation halves every copy, not just the definition.
+    const { calculatedTasks } = new EstimationCalculator().calculateTasksWithSkipped(
+      story,
+      "",
+      tasks,
+      { strategy: "percentage", rounding: "none" },
+      true,
+    );
+
+    expect(calculatedTasks.map((t) => t.estimation)).toEqual([2.5, 2.5, 2.5, 2.5]);
+  });
+
+  test("a met condition is evaluated once and produces every copy", () => {
+    const evaluator = new CountingConditionEvaluator();
+    const tasks: TaskDefinition[] = [
+      {
+        title: "Review",
+        estimationPercent: 25,
+        repeat: 4,
+        condition: { field: "tags", operator: "contains", value: "review" },
+      },
+    ];
+
+    const { calculatedTasks, skippedTasks } = new EstimationCalculator(evaluator).calculateTasksWithSkipped(story, "", tasks);
+
+    expect(evaluator.calls).toBe(1);
+    expect(calculatedTasks).toHaveLength(4);
+    expect(skippedTasks).toEqual([]);
+  });
+
+  test("an unmet condition produces no copies and one skipped entry", () => {
+    const tasks: TaskDefinition[] = [
+      { title: "Build", estimationPercent: 100 },
+      {
+        title: "Review",
+        estimationPercent: 25,
+        repeat: 4,
+        condition: { field: "tags", operator: "contains", value: "frontend" },
+      },
+    ];
+
+    const { calculatedTasks, skippedTasks } = new EstimationCalculator().calculateTasksWithSkipped(story, "", tasks);
+
+    expect(calculatedTasks.map((t) => t.title)).toEqual(["Build"]);
+    expect(skippedTasks.map((s) => s.templateTask.title)).toEqual(["Review"]);
   });
 });

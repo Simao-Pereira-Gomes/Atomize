@@ -13,7 +13,7 @@ A platform-tracked planning item that Atomize can read, create, or link.
 A Work Item selected as the parent for generated Tasks.
 
 **Task**:
-A child Work Item produced from a Template task definition.
+A child Work Item produced from a Template task definition. A definition usually produces one Task, but a repeating definition produces several identical Tasks, each titled with its position.
 
 **Template**:
 A YAML-defined task breakdown recipe for matching Stories.
