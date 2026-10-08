@@ -14,13 +14,20 @@ export interface EstimationGrounding {
 }
 
 /**
- * Whether a Story field could supply a Story Estimate: the default chain, or a writable custom
- * numeric or single-line text field (picklist or free text, e.g. a T-shirt size).
+ * Whether a Story field could supply a Story Estimate: any writable numeric or single-line text
+ * field (picklist or free text, custom or process-defined), except System.* plumbing fields.
+ * The `defaults` argument is kept for callers that pass the platform chain; those fields qualify too.
  */
 export function isEstimateCapableField(field: ADoFieldSchema, defaults: Pick<EstimationDefaults, "storyEstimateFields">): boolean {
   if (field.isReadOnly) return false;
   if (defaults.storyEstimateFields.includes(field.referenceName)) return true;
-  return field.isCustom && (field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline));
+  if (field.referenceName.startsWith("System.")) return false;
+  return field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline);
+}
+
+/** Custom fields first (where size fields usually live), then the rest, alphabetically. */
+export function sortEstimateFields<T extends Pick<ADoFieldSchema, "isCustom" | "name">>(fields: T[]): T[] {
+  return [...fields].sort((a, b) => Number(b.isCustom) - Number(a.isCustom) || a.name.localeCompare(b.name));
 }
 
 /**
@@ -37,7 +44,7 @@ export function buildEstimationGrounding(
   const storyEntries: Array<[string, EstimationGrounding["storyEstimateFieldsByWorkItemType"][string]]> = [];
   for (const [type, fields] of Object.entries(fieldsByWorkItemType)) {
     if (type === defaults.taskWorkItemType) continue;
-    const capable = fields.filter(isEstimateCapable).map(({ referenceName, name, type: fieldType, isPicklist, allowedValues }) => ({
+    const capable = sortEstimateFields(fields.filter(isEstimateCapable)).map(({ referenceName, name, type: fieldType, isPicklist, allowedValues }) => ({
       referenceName,
       name,
       type: fieldType,

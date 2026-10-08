@@ -158,4 +158,28 @@ describe("configureEstimation wizard step", () => {
     const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
     expect(firstPrompt.options?.map((o) => o.value)).toEqual(["", "Custom.SizeText", "__custom__"]);
   });
+
+  test("lists process-defined size fields and the platform's own estimate fields, custom fields first", async () => {
+    answers = ["MyCompany.TShirtSize", "none", false, "none", "0", "warn"];
+
+    const { estimation } = await configureEstimation(undefined, {
+      storyFields: [
+        field("Microsoft.VSTS.Scheduling.StoryPoints", { name: "Story Points", type: "decimal", isCustom: false }),
+        field("MyCompany.TShirtSize", { name: "T-shirt size", isCustom: false, isPicklist: true, allowedValues: ["S", "L"] }),
+        field("Custom.Complexity", { name: "Complexity", isPicklist: true, allowedValues: ["Low", "High"] }),
+        field("System.Title", { name: "Title", isCustom: false }),
+      ],
+      defaults: AZURE_DEVOPS_ESTIMATION_DEFAULTS,
+    });
+
+    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    expect(firstPrompt.options?.map((o) => o.value)).toEqual([
+      "",
+      "Custom.Complexity",
+      "Microsoft.VSTS.Scheduling.StoryPoints",
+      "MyCompany.TShirtSize",
+      "__custom__",
+    ]);
+    expect(estimation.source).toBe("MyCompany.TShirtSize");
+  });
 });

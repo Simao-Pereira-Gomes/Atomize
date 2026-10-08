@@ -2,7 +2,7 @@ import { confirm, multiselect, select, text } from "@clack/prompts";
 import type { EstimationDefaults } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import type { SavedQueryInfo } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
-import { isEstimateCapableField } from "@sppg2001/atomize-core/services/template/estimation-grounding";
+import { isEstimateCapableField, sortEstimateFields } from "@sppg2001/atomize-core/services/template/estimation-grounding";
 import type { TemplateCatalogItem } from "@sppg2001/atomize-core/services/template/template-catalog";
 import {
   type EstimationConfig,
@@ -812,9 +812,7 @@ export async function configureEstimation(
 
 async function promptEstimationSource(current: string | undefined, ctx: EstimationWizardContext): Promise<string | undefined> {
   const defaultChain = { storyEstimateFields: ctx.defaults?.storyEstimateFields ?? [] };
-  const candidates = (ctx.storyFields ?? []).filter(
-    (field) => isEstimateCapableField(field, defaultChain) && !defaultChain.storyEstimateFields.includes(field.referenceName),
-  );
+  const candidates = sortEstimateFields((ctx.storyFields ?? []).filter((field) => isEstimateCapableField(field, defaultChain)));
 
   // Connected (Story fields known): always choose from the project, with typing as an explicit last option.
   if (ctx.storyFields !== undefined) {

@@ -39,24 +39,20 @@ export function EstimationSection(props: {
       Object.fromEntries(
         Object.entries(options.fieldsByWorkItemType).map(([type, fields]) => [
           type,
+          // Mirrors core's isEstimateCapableField: writable numeric or single-line text, not System.*.
           fields.filter(
             (field) =>
               !field.isReadOnly &&
-              field.isCustom &&
+              !field.referenceName.startsWith("System.") &&
               (field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline)),
           ),
         ]),
       );
     const selectedTypes = props.filter.fields.workItemTypes;
     const types = selectedTypes.length ? selectedTypes : Object.keys(byType);
-    const defaultChain = new Set(grounded?.defaults.storyEstimateFields ?? []);
-    const byRef = new Map(
-      types
-        .flatMap((type) => byType[type] ?? [])
-        .filter((field) => !defaultChain.has(field.referenceName))
-        .map((field) => [field.referenceName, field]),
-    );
-    return [...byRef.values()];
+    const byRef = new Map(types.flatMap((type) => byType[type] ?? []).map((field) => [field.referenceName, field]));
+    const customFirst = (field: GroundedEstimationField) => Number(field.referenceName.startsWith("Custom."));
+    return [...byRef.values()].sort((a, b) => customFirst(b) - customFirst(a) || a.name.localeCompare(b.name));
   });
   const sourceField = () => storyFields().find((field) => field.referenceName === s.fields.source);
   const conversion = () => buildConversion(s.fields);
