@@ -146,4 +146,16 @@ describe("configureEstimation wizard step", () => {
     expect(defaultPrompt.options?.map((o) => o.value)).toEqual(["S", "M", "__custom__"]);
     expect(estimation.defaultParentEstimation).toBe("0.5M");
   });
+
+  test("lists custom free-text size fields, not only picklists, but never multi-line text", async () => {
+    answers = ["Custom.SizeText", "none", false, "none", "0", "warn"];
+
+    await configureEstimation(undefined, {
+      storyFields: [field("Custom.SizeText"), field("Custom.Notes", { isMultiline: true })],
+      defaults: AZURE_DEVOPS_ESTIMATION_DEFAULTS,
+    });
+
+    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    expect(firstPrompt.options?.map((o) => o.value)).toEqual(["", "Custom.SizeText", "__custom__"]);
+  });
 });

@@ -131,8 +131,9 @@ export async function customizeTemplate(
 
   let storyFieldSchemas: ADoFieldSchema[] = [];
   let storySchemasFetched = false;
-  const estimationContext = (): EstimationWizardContext => ({
-    storyFields: storyFieldSchemas,
+  // A saved-query filter names no work item type, so estimation falls back to every field in the project.
+  const estimationContext = async (): Promise<EstimationWizardContext> => ({
+    storyFields: storyFieldSchemas.length ? storyFieldSchemas : await adapterForWizard.getFieldSchemas(),
     workItemTypes: filterCtx.workItemTypes,
     defaults: estimationDefaults,
     getTaskFields: (type) => adapterForWizard.getFieldSchemas(type),
@@ -188,7 +189,7 @@ export async function customizeTemplate(
         }
         const { estimation, taskType } = await configureEstimation(
           template.estimation,
-          estimationContext(),
+          await estimationContext(),
           template.taskType,
         );
         template.estimation = estimation;
@@ -239,7 +240,7 @@ export async function customizeTemplate(
     fieldSchemas,
     storyFieldSchemas,
     workItemType: template.filter.workItemTypes?.[0],
-    estimationCtx: estimationContext(),
+    estimationCtx: await estimationContext(),
   };
 
   const confirmed = await previewTemplate(template, wizardCtx);

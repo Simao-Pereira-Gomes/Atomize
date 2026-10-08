@@ -22,7 +22,8 @@ describe("buildEstimationGrounding", () => {
       field("Microsoft.VSTS.Scheduling.StoryPoints", { type: "decimal" }),
       field("Custom.TShirtSize", { isPicklist: true, allowedValues: ["S", "M", "L"] }),
       field("Custom.Points", { type: "integer" }),
-      field("Custom.Notes"),
+      field("Custom.SizeText"),
+      field("Custom.Notes", { isMultiline: true }),
       field("Custom.Computed", { type: "decimal", isReadOnly: true }),
       field("System.Title"),
     ],
@@ -39,11 +40,12 @@ describe("buildEstimationGrounding", () => {
     });
   });
 
-  test("lists default-chain fields and writable custom numeric or picklist fields, with allowed values", () => {
+  test("lists default-chain fields and writable custom numeric or single-line text fields, with allowed values", () => {
     expect(grounding.storyEstimateFieldsByWorkItemType["User Story"]).toEqual([
       { referenceName: "Microsoft.VSTS.Scheduling.StoryPoints", name: "Microsoft.VSTS.Scheduling.StoryPoints", type: "decimal", isPicklist: false },
       { referenceName: "Custom.TShirtSize", name: "Custom.TShirtSize", type: "string", isPicklist: true, allowedValues: ["S", "M", "L"] },
       { referenceName: "Custom.Points", name: "Custom.Points", type: "integer", isPicklist: false },
+      { referenceName: "Custom.SizeText", name: "Custom.SizeText", type: "string", isPicklist: false },
     ]);
   });
 

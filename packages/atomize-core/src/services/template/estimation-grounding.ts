@@ -13,13 +13,14 @@ export interface EstimationGrounding {
   storyEstimateFieldsByWorkItemType: Record<string, Array<Pick<ADoFieldSchema, "referenceName" | "name" | "type" | "isPicklist" | "allowedValues">>>;
 }
 
-/** Whether a Story field could supply a Story Estimate: the default chain, or a writable custom numeric or picklist field. */
+/**
+ * Whether a Story field could supply a Story Estimate: the default chain, or a writable custom
+ * numeric or single-line text field (picklist or free text, e.g. a T-shirt size).
+ */
 export function isEstimateCapableField(field: ADoFieldSchema, defaults: Pick<EstimationDefaults, "storyEstimateFields">): boolean {
-  return (
-    !field.isReadOnly &&
-    (defaults.storyEstimateFields.includes(field.referenceName) ||
-      (field.isCustom && (field.type === "integer" || field.type === "decimal" || (field.type === "string" && field.isPicklist))))
-  );
+  if (field.isReadOnly) return false;
+  if (defaults.storyEstimateFields.includes(field.referenceName)) return true;
+  return field.isCustom && (field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline));
 }
 
 /**

@@ -802,7 +802,8 @@ export async function createFromScratch(
     );
 
     const estimationCtx: EstimationWizardContext = {
-      storyFields: storyFieldSchemas,
+      // A saved-query filter names no work item type, so offer every field in the project instead.
+      storyFields: storyFieldSchemas.length ? storyFieldSchemas : await adapterForWizard.getFieldSchemas(),
       workItemTypes: filterCtx.workItemTypes,
       defaults: estimationDefaults,
       getTaskFields: (type) => adapterForWizard.getFieldSchemas(type),

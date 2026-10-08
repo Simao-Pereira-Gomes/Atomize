@@ -43,7 +43,7 @@ export function EstimationSection(props: {
             (field) =>
               !field.isReadOnly &&
               field.isCustom &&
-              (field.type === "integer" || field.type === "decimal" || (field.type === "string" && field.isPicklist)),
+              (field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline)),
           ),
         ]),
       );
