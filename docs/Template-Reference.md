@@ -605,6 +605,8 @@ estimation:
 | `conversion.multipliers` | boolean | `false` | `true`, `false` | Also accept a number followed by a table key: with `XL: 5`, `0.3XL` (or `0.3 XL`) is 0.3 × 5 = 1.5, which is then split across tasks. An exact key always wins (so `"0.32L": 1.6` is used as-is); otherwise the longest key the value ends with is used. Only `<number><key>` is understood, so values like `XL*0.3` or `0,3XL` stay unresolvable. Requires a `table` whose keys are not all numeric, because `25` would be ambiguous between the key `25` and 2 × `5`. |
 | `defaultParentEstimation` | number or string | none | a Story Estimate, e.g. `8` or `M` | Story Estimate used with `use-default`, in the Story's unit. It goes through the same `conversion` as a real Story Estimate, so with a table it must be one of the table's keys (Offline Validation checks this). Without it, `use-default` behaves like `warn`. |
 
+**VS Code snippets:** type `atm-estimation-factor` or `atm-estimation-table` to insert a factor or a size-table configuration; `atm-estimation` includes the `normalize` choice.
+
 **Examples:** [points-to-hours](../examples/points-to-hours.atomize.yaml) (factor), [fibonacci-hours-table](../examples/fibonacci-hours-table.atomize.yaml) (numeric table), [tshirt-size-estimation](../examples/tshirt-size-estimation.atomize.yaml) (size field, fractional sizes) and [custom-fields-and-task-type](../examples/custom-fields-and-task-type.atomize.yaml) (`taskType` and `targetFields`); see the [examples README](../examples/README.md) for what each produces.
 
 **Online Validation** (`atomize validate --profile <name>`, or Online in VS Code and Studio) checks estimation overrides against the project:

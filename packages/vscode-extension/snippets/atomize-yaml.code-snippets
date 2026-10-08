@@ -103,9 +103,46 @@
     "body": [
       "estimation:",
       "  strategy: ${1|percentage|}",
-      "  rounding: ${2|none,nearest,up,down|}"
+      "  rounding: ${2|none,nearest,up,down|}",
+      "  normalize: ${3|auto,always,never|}"
     ],
-    "description": "Common Atomize estimation configuration: strategy and rounding. Add source only to read a non-default Story field, by its reference name."
+    "description": "Common Atomize estimation configuration: strategy, rounding, and what happens when the generated tasks don't add up to 100% (auto scales up below 100%, always scales to exactly 100%, never uses the percentages as written)."
+  },
+
+  "Atomize Estimation Factor Conversion": {
+    "prefix": "atm-estimation-factor",
+    "body": [
+      "estimation:",
+      "  strategy: percentage",
+      "  conversion:",
+      "    factor: ${1:4}",
+      "  rounding: ${2|nearest,up,down,none|}",
+      "  minimumTaskEstimate: ${3:0.5}",
+      "  ifParentHasNoEstimation: ${4|warn,skip,use-default|}"
+    ],
+    "description": "Converts the Story Estimate with a factor before splitting it across tasks (e.g. 1 story point = 4 hours)."
+  },
+
+  "Atomize Estimation Table Conversion": {
+    "prefix": "atm-estimation-table",
+    "body": [
+      "estimation:",
+      "  strategy: percentage",
+      "  source: \"${1:Custom.TShirtSize}\"",
+      "  conversion:",
+      "    table:",
+      "      XS: ${2:2}",
+      "      S: ${3:4}",
+      "      M: ${4:8}",
+      "      L: ${5:20}",
+      "      XL: ${6:40}",
+      "    multipliers: ${7|false,true|}",
+      "  rounding: ${8|nearest,up,down,none|}",
+      "  minimumTaskEstimate: ${9:0.5}",
+      "  ifParentHasNoEstimation: ${10|use-default,warn,skip|}",
+      "  defaultParentEstimation: \"${11:M}\""
+    ],
+    "description": "Converts a size field (e.g. T-shirt sizes) to hours with a table. Set source to your field's reference name and the keys to its exact values; multipliers: true also accepts values like 0.3XL."
   },
 
   "Atomize Estimation Percent Condition": {
