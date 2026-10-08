@@ -42,11 +42,11 @@
       "  description: \"${3:What this task involves.}\"",
       "  estimationPercent: ${4:20}",
       "  condition:",
-      "    field: \"${5:fieldName}\"",
-      "    operator: ${6|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${7:value}\""
+      "    field: tags",
+      "    operator: ${5|contains,not-contains|}",
+      "    value: \"${6:backend}\""
     ],
-    "description": "Atomize task that is only created when the parent story condition matches."
+    "description": "Atomize task that is only created when the parent story has (or doesn't have) a tag. Tags only support contains/not-contains; use atm-condition-field, atm-condition-number or atm-condition-custom for other fields."
   },
 
   "Atomize Filter": {
@@ -164,8 +164,8 @@
     "body": [
       "estimationPercentCondition:",
       "  - condition:",
-      "      field: \"${1:tags}\"",
-      "      operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "      field: tags",
+      "      operator: ${2|contains,not-contains|}",
       "      value: \"${3:critical}\"",
       "    percent: ${4:30}"
     ],
@@ -208,23 +208,56 @@
     "prefix": "atm-condition",
     "body": [
       "condition:",
-      "  field: \"${1:tags}\"",
-      "  operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "  value: \"${3:backend}\""
+      "  field: tags",
+      "  operator: ${1|contains,not-contains|}",
+      "  value: \"${2:backend}\""
     ],
-    "description": "Single task condition clause evaluated against the parent story."
+    "description": "Condition on the parent story's tags. Tags are multi-value, so only contains/not-contains are supported."
+  },
+
+  "Atomize Condition (text field)": {
+    "prefix": "atm-condition-field",
+    "body": [
+      "condition:",
+      "  field: ${1|title,state,type,areaPath,iteration,assignedTo|}",
+      "  operator: ${2|equals,not-equals,contains,not-contains|}",
+      "  value: \"${3:value}\""
+    ],
+    "description": "Condition on a built-in text field of the parent story. contains/not-contains match a substring; equals/not-equals ignore case."
+  },
+
+  "Atomize Condition (number)": {
+    "prefix": "atm-condition-number",
+    "body": [
+      "condition:",
+      "  field: ${1|estimation,priority|}",
+      "  operator: ${2|gte,gt,lte,lt,equals,not-equals|}",
+      "  value: ${3:5}"
+    ],
+    "description": "Numeric condition on the parent story. estimation is the raw Story Estimate (before conversion); for categories such as T-shirt sizes use equals/not-equals with the size, e.g. value: L."
+  },
+
+  "Atomize Condition (custom field)": {
+    "prefix": "atm-condition-custom",
+    "body": [
+      "condition:",
+      "  customField: \"${1:Custom.ClientTier}\"",
+      "  operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
+      "  value: \"${3:Enterprise}\""
+    ],
+    "description": "Condition on a parent story custom field by reference name. Use gt/lt/gte/lte only for numeric fields."
   },
 
   "Atomize Condition (all)": {
     "prefix": "atm-condition-all",
     "body": [
       "all:",
-      "  - field: \"${1:fieldName}\"",
-      "    operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${3:value}\"",
-      "  - field: \"${4:fieldName}\"",
-      "    operator: ${5|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${6:value}\""
+      "  - field: tags",
+      "    operator: ${1|contains,not-contains|}",
+      "    value: \"${2:backend}\"",
+      "  - field: ${3|estimation,priority|}",
+      "    operator: ${4|gte,gt,lte,lt,equals,not-equals|}",
+      "    value: ${5:5}"
     ],
     "description": "Compound condition: all child conditions must match (AND)."
   },
@@ -233,12 +266,12 @@
     "prefix": "atm-condition-any",
     "body": [
       "any:",
-      "  - field: \"${1:fieldName}\"",
-      "    operator: ${2|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${3:value}\"",
-      "  - field: \"${4:fieldName}\"",
-      "    operator: ${5|equals,not-equals,contains,not-contains,gt,lt,gte,lte|}",
-      "    value: \"${6:value}\""
+      "  - field: tags",
+      "    operator: ${1|contains,not-contains|}",
+      "    value: \"${2:backend}\"",
+      "  - field: ${3|estimation,priority|}",
+      "    operator: ${4|gte,gt,lte,lt,equals,not-equals|}",
+      "    value: ${5:5}"
     ],
     "description": "Compound condition: any child condition must match (OR)."
   },
