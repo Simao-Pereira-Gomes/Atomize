@@ -1,11 +1,11 @@
 import { logger } from "../logger";
 import type { EstimationDefaults } from "../platforms/interfaces/estimation-defaults.interface";
 import type { GenerationPlatform } from "../platforms/interfaces/platform-capabilities";
-import type { WorkItem } from "../platforms/interfaces/work-item.interface";
+import type { StoryEstimate, WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { TaskTemplate, TaskDefinition as TemplateTaskDefinition } from "../templates/schema";
 import type { AtomizationOptions, StoryAtomizationResult } from "./atomizer";
 import { EstimationCalculator } from "./estimation-calculator";
-import { resolveEstimationFieldMapping } from "./estimation-field-mapping";
+import { readStoryEstimate, resolveEstimationFieldMapping } from "./estimation-field-mapping";
 import { TaskMaterializer } from "./task-materializer";
 
 /**
@@ -73,6 +73,7 @@ export class StoryProcessor {
         tasksSkipped: [],
         success: true,
       ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
+      ...withStoryEstimate(readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] })),
         skipReason,
       };
     }
@@ -134,7 +135,12 @@ export class StoryProcessor {
       tasksSkipped: skippedTasks,
       success: true,
       ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
+      ...withStoryEstimate(readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] })),
       estimationSummary,
     };
   }
+}
+
+function withStoryEstimate(estimate: StoryEstimate | undefined): { storyEstimate?: StoryEstimate } {
+  return estimate === undefined ? {} : { storyEstimate: estimate };
 }

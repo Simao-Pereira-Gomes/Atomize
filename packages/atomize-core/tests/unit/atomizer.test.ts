@@ -94,6 +94,7 @@ describe("Atomizer", () => {
         const result = report.results.find((r) => r.story.id === target.id);
         expect(result?.tasksCalculated.map((t) => t.estimation)).toEqual([2, 5, 3]);
         expect(result?.estimationSummary?.storyEstimation).toBe(10);
+        expect(result?.storyEstimate).toBe("L");
       } finally {
         target.customFields = originalFields;
       }

@@ -426,7 +426,7 @@ export function printReport(
         }
         output.print(chalk.green(`✓ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
         const withUnit = (value: number) => (result.estimateUnit ? `${value} ${result.estimateUnit}` : String(value));
-        const rawEstimate = result.story.estimation;
+        const rawEstimate = result.storyEstimate;
         const converted = result.estimationSummary?.storyEstimation;
         const conversionNote =
           converted !== undefined && converted !== rawEstimate ? ` (converted to ${withUnit(converted)})` : "";
