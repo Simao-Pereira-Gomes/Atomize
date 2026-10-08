@@ -23,7 +23,7 @@ import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platfor
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateValidator } from "@sppg2001/atomize-core/templates/validator";
-import { configureEstimation } from "@/cli/commands/template/template-wizard-helper.command";
+import { configureEstimation, renderConversionTable } from "@/cli/commands/template/template-wizard-helper.command";
 
 function field(referenceName: string, overrides: Partial<ADoFieldSchema> = {}): ADoFieldSchema {
   return { referenceName, name: referenceName, type: "string", isCustom: true, isReadOnly: false, isMultiline: false, isPicklist: false, ...overrides };
@@ -62,6 +62,7 @@ describe("configureEstimation wizard step", () => {
       "Custom.TShirtSize", // source picked from the estimate-capable Story fields
       "table",
       "2", "4", "5", // hours for S, M, L
+      "done", // table editor menu
       true, // accept multiples like 0.3L
       true, // customise where estimates are written
       "Sub-task",
@@ -129,6 +130,7 @@ describe("configureEstimation wizard step", () => {
       "Custom.TShirtSize",
       "table",
       "2", "4", // S, M
+      "done", // table editor menu
       true, // fractional sizes
       false,
       "none",
@@ -181,5 +183,43 @@ describe("configureEstimation wizard step", () => {
       "__custom__",
     ]);
     expect(estimation.source).toBe("MyCompany.TShirtSize");
+  });
+
+  test("table editor: add, change, remove and paste values for a non-picklist source, refusing to finish empty", async () => {
+    answers = [
+      "", // platform default source
+      "table",
+      "done", // refused: the table is still empty
+      "add", "8", "40",
+      "paste", "13=80, 5=16",
+      "change", "8", "32",
+      "remove", "5",
+      "done",
+      // numeric keys skip the fractional-sizes question
+      false, // keep the platform's task type and fields
+      "none",
+      "0",
+      "warn",
+    ];
+
+    const { estimation } = await configureEstimation();
+
+    expect(estimation.conversion).toEqual({ table: { 8: 32, 13: 80 } });
+    expect(answers).toEqual([]);
+  });
+});
+
+describe("renderConversionTable", () => {
+  test("shows each value with its hours and a 20% preview, plus picklist coverage, gaps and typos", () => {
+    const lines = renderConversionTable({ S: 2, L: 5, Lg: 5 }, { name: "T-shirt size", allowedValues: ["S", "M", "L"] });
+
+    expect(lines[0]).toBe("Conversion table — T-shirt size → hours   2 of 3 values covered");
+    expect(lines).toContain("  S      2       0.4 h");
+    expect(lines.some((line) => line.startsWith("  Lg") && line.endsWith("not in picklist"))).toBe(true);
+    expect(lines.at(-1)).toBe("  Missing: M — Stories with this value get blank estimates.");
+  });
+
+  test("says when the table is empty", () => {
+    expect(renderConversionTable({})).toEqual(["Conversion table — Story Estimate → hours", "  (no values yet)"]);
   });
 });

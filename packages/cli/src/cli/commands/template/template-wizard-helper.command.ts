@@ -873,9 +873,7 @@ async function promptConversion(
     return { factor: Number(factor) };
   }
 
-  const table = sourceField?.isPicklist && sourceField.allowedValues?.length
-    ? await promptTableForValues(sourceField.allowedValues, current?.table)
-    : await promptTypedTable(current?.table);
+  const table = await promptConversionTable(current?.table, sourceField);
 
   const keysAreCategories = !Object.keys(table).every((key) => /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(key));
   const multipliers =
@@ -890,33 +888,123 @@ async function promptConversion(
   return { table, ...(multipliers ? { multipliers: true } : {}) };
 }
 
-async function promptTableForValues(values: string[], current: Record<string, number> | undefined): Promise<Record<string, number>> {
-  output.print(chalk.gray("Enter the Task hours for each value. Leave blank to leave a value unconverted."));
-  const table: Record<string, number> = {};
-  for (const value of values) {
-    const amount = assertNotCancelled(
-      await text({
-        message: `Hours for "${value}":`,
-        initialValue: current?.[value] !== undefined ? String(current[value]) : "",
-        validate: (input): string | undefined => (input && input.trim() !== "" ? Validators.nonNegative("Hours")(input) : undefined),
-      }),
-    );
-    if (amount.trim() !== "") table[value] = Number(amount);
+/** Renders a conversion table with a per-row 20% preview and, for a picklist source, its coverage. */
+export function renderConversionTable(
+  table: Record<string, number>,
+  source?: { name: string; allowedValues?: string[] },
+): string[] {
+  const allowed = source?.allowedValues ?? [];
+  const entries = Object.entries(table);
+  const heading = `Conversion table — ${source?.name ?? "Story Estimate"} → hours`;
+  const lines = [allowed.length ? `${heading}   ${allowed.filter((v) => Object.hasOwn(table, v)).length} of ${allowed.length} values covered` : heading];
+  if (entries.length === 0) {
+    lines.push("  (no values yet)");
+  } else {
+    const width = Math.max(5, ...entries.map(([key]) => key.length));
+    lines.push(`  ${"Value".padEnd(width)}  ${"Hours".padEnd(6)}  A 20% task gets`);
+    for (const [key, hours] of entries) {
+      const flag = allowed.length && !allowed.includes(key) ? "   not in picklist" : "";
+      lines.push(`  ${key.padEnd(width)}  ${String(hours).padEnd(6)}  ${Math.round(hours * 20) / 100} h${flag}`);
+    }
   }
-  if (Object.keys(table).length > 0) return table;
-  output.print(chalk.yellow("No values were converted; enter the table as text instead."));
-  return promptTypedTable(current);
+  const missing = allowed.filter((value) => !Object.hasOwn(table, value));
+  if (missing.length) lines.push(`  Missing: ${missing.join(", ")} — Stories with ${missing.length === 1 ? "this value" : "these values"} get blank estimates.`);
+  return lines;
 }
 
-async function promptTypedTable(current: Record<string, number> | undefined): Promise<Record<string, number>> {
-  const typed = assertNotCancelled(
-    await text({
-      message: "Conversion table as value=hours pairs (e.g. S=2, M=4, L=5, XL=13):",
-      initialValue: current ? Object.entries(current).map(([key, value]) => `${key}=${value}`).join(", ") : "",
-      validate: Validators.conversionTable,
-    }),
-  );
-  return parseConversionTable(typed) as Record<string, number>;
+const hoursValidator = (input: string | undefined): string | undefined => {
+  if (!input || input.trim() === "") return "Enter the hours";
+  return Validators.nonNegative("Hours")(input);
+};
+
+/**
+ * Builds a conversion table interactively: for a picklist source it first asks the hours of each
+ * value, then shows the table and a menu to add, change or remove values until done.
+ */
+async function promptConversionTable(
+  current: Record<string, number> | undefined,
+  sourceField: ADoFieldSchema | undefined,
+): Promise<Record<string, number>> {
+  const allowed = sourceField?.isPicklist ? sourceField.allowedValues ?? [] : [];
+  const table: Record<string, number> = { ...(current ?? {}) };
+
+  if (allowed.length && !current) {
+    output.print(chalk.gray(`Enter the Task hours for each ${sourceField?.name ?? "value"}. Leave blank to skip a value.`));
+    for (const [index, value] of allowed.entries()) {
+      const hours = assertNotCancelled(
+        await text({
+          message: `Hours for "${value}" (${index + 1} of ${allowed.length}):`,
+          validate: (input): string | undefined => (input && input.trim() !== "" ? Validators.nonNegative("Hours")(input) : undefined),
+        }),
+      );
+      if (hours.trim() !== "") table[value] = Number(hours);
+    }
+  }
+
+  for (;;) {
+    output.blankLine();
+    for (const line of renderConversionTable(table, sourceField)) output.print(chalk.gray(line));
+    const missing = allowed.filter((value) => !Object.hasOwn(table, value));
+    const keys = Object.keys(table);
+    const action = assertNotCancelled(
+      await select({
+        message: "Conversion table",
+        options: [
+          ...missing.map((value) => ({ label: `Add hours for ${value}`, value: `add:${value}` })),
+          { label: allowed.length ? "Add another value…" : "Add a value", value: "add" },
+          ...(keys.length ? [{ label: "Change a value's hours", value: "change" }, { label: "Remove a value", value: "remove" }] : []),
+          { label: "Paste several (e.g. S=2, M=4)", value: "paste" },
+          { label: "Done", value: "done" },
+        ],
+        initialValue: missing.length ? `add:${missing[0]}` : keys.length ? "done" : "add",
+      }),
+    ) as string;
+
+    if (action === "done") {
+      if (keys.length) return table;
+      output.print(chalk.yellow("Add at least one value before finishing."));
+      continue;
+    }
+    if (action.startsWith("add:")) {
+      const value = action.slice(4);
+      table[value] = Number(assertNotCancelled(await text({ message: `Hours for "${value}":`, validate: hoursValidator })));
+      continue;
+    }
+    if (action === "add") {
+      const value = assertNotCancelled(
+        await text({
+          message: "Story Estimate value (e.g. XL, or 8 for points):",
+          validate: (input): string | undefined => {
+            if (!input || input.trim() === "") return "Enter a value";
+            if (Object.hasOwn(table, input.trim())) return `"${input.trim()}" is already in the table`;
+            return undefined;
+          },
+        }),
+      ).trim();
+      table[value] = Number(assertNotCancelled(await text({ message: `Hours for "${value}":`, validate: hoursValidator })));
+      continue;
+    }
+    if (action === "change") {
+      const value = assertNotCancelled(
+        await select({ message: "Which value?", options: keys.map((key) => ({ label: `${key} (${table[key]} h)`, value: key })) }),
+      ) as string;
+      table[value] = Number(
+        assertNotCancelled(await text({ message: `Hours for "${value}":`, initialValue: String(table[value]), validate: hoursValidator })),
+      );
+      continue;
+    }
+    if (action === "remove") {
+      const value = assertNotCancelled(
+        await select({ message: "Remove which value?", options: keys.map((key) => ({ label: `${key} (${table[key]} h)`, value: key })) }),
+      ) as string;
+      delete table[value];
+      continue;
+    }
+    const pasted = assertNotCancelled(
+      await text({ message: "Value=hours pairs, comma-separated (e.g. S=2, M=4, L=5):", validate: Validators.conversionTable }),
+    );
+    Object.assign(table, parseConversionTable(pasted) as Record<string, number>);
+  }
 }
 
 async function promptEstimateTarget(
