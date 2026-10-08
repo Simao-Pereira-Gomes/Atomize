@@ -11,7 +11,7 @@ export interface EstimationDefaults {
   readonly taskEstimateFields: readonly string[];
   /** Unit of the default Task estimate fields, for display. */
   readonly unitLabel?: string;
-  /** Writable numeric fields that hold rankings or values, never effort, so they are not offered as estimate targets. */
+  /** Fields that never hold effort (rankings, priorities, metadata), so they are offered neither as Story Estimate sources nor as Task estimate targets. Entries ending in ".*" match a whole namespace. */
   readonly nonEstimateFields?: readonly string[];
 }
 

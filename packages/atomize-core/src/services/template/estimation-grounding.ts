@@ -1,3 +1,4 @@
+import { type EstimationFieldRules, isEstimateSourceField, sortEstimateFields } from "@sppg2001/atomize-schema";
 import type { EstimationDefaults } from "../../platforms/interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../platforms/interfaces/field-schema.interface";
 
@@ -14,39 +15,11 @@ export interface EstimationGrounding {
   storyEstimateFieldsByWorkItemType: Record<string, Array<Pick<ADoFieldSchema, "referenceName" | "name" | "type" | "isPicklist" | "allowedValues">>>;
 }
 
-/**
- * Whether a Story field could supply a Story Estimate: any writable numeric or single-line text
- * field (picklist or free text, custom or process-defined), except System.* plumbing fields.
- * The `defaults` argument is kept for callers that pass the platform chain; those fields qualify too.
- */
-export function isEstimateCapableField(field: ADoFieldSchema, defaults: Pick<EstimationDefaults, "storyEstimateFields">): boolean {
-  if (field.isReadOnly) return false;
-  if (defaults.storyEstimateFields.includes(field.referenceName)) return true;
-  if (field.referenceName.startsWith("System.")) return false;
-  return field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline);
-}
+export { isEstimateTargetField, sortEstimateFields } from "@sppg2001/atomize-schema";
 
-/**
- * Whether a Task field can receive the Task Estimate: writable and numeric, not a picklist (a
- * fractional estimate can't be written to one), not System.*, and not a field the platform marks
- * as a ranking or value field.
- */
-export function isEstimateTargetField(
-  field: Pick<ADoFieldSchema, "referenceName" | "type" | "isReadOnly" | "isPicklist">,
-  defaults?: Pick<EstimationDefaults, "nonEstimateFields">,
-): boolean {
-  return (
-    !field.isReadOnly &&
-    !field.isPicklist &&
-    (field.type === "integer" || field.type === "decimal") &&
-    !field.referenceName.startsWith("System.") &&
-    !(defaults?.nonEstimateFields ?? []).includes(field.referenceName)
-  );
-}
-
-/** Custom fields first (where size fields usually live), then the rest, alphabetically. */
-export function sortEstimateFields<T extends Pick<ADoFieldSchema, "isCustom" | "name">>(fields: T[]): T[] {
-  return [...fields].sort((a, b) => Number(b.isCustom) - Number(a.isCustom) || a.name.localeCompare(b.name));
+/** Whether a Story field could supply a Story Estimate; see the shared rule in atomize-schema. */
+export function isEstimateCapableField(field: ADoFieldSchema, rules: EstimationFieldRules): boolean {
+  return isEstimateSourceField(field, rules);
 }
 
 /**

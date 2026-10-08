@@ -1,3 +1,4 @@
+import { isEstimateSourceField, isEstimateTargetField, sortEstimateFields } from "@sppg2001/atomize-schema";
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 import type { GroundedEstimationField, GroundedFieldOptions } from "../../grounding/grounding-service";
 import { previewEstimation } from "../../stores/estimation-preview";
@@ -9,7 +10,7 @@ import {
   type FilterStore,
   type TasksStore,
 } from "../../stores/sections";
-import { MultiSelectField, SelectField, TextField, ToggleField } from "../fields";
+import { MultiSelectField, SearchableSelectField, SelectField, TextField, ToggleField } from "../fields";
 
 type Rounding = EstimationStore["fields"]["rounding"];
 type Policy = "warn" | "skip" | "use-default";
@@ -29,7 +30,7 @@ export function EstimationSection(props: {
   const unit = () => (s.fields.targetMode === "custom" && s.fields.targetFields.length > 0 ? "" : " h");
 
   // Prefer the curated estimation grounding; older grounding without it still lists every
-  // type's fields, so derive the same estimate-capable custom fields from those.
+  // type's fields, so apply the same shared rule (atomize-schema) to those.
   const storyFields = createMemo((): GroundedEstimationField[] => {
     const options = props.grounding();
     if (!options) return [];
@@ -39,22 +40,17 @@ export function EstimationSection(props: {
       Object.fromEntries(
         Object.entries(options.fieldsByWorkItemType).map(([type, fields]) => [
           type,
-          // Mirrors core's isEstimateCapableField: writable numeric or single-line text, not System.*.
-          fields.filter(
-            (field) =>
-              !field.isReadOnly &&
-              !field.referenceName.startsWith("System.") &&
-              (field.type === "integer" || field.type === "decimal" || (field.type === "string" && !field.isMultiline)),
-          ),
+          fields.filter((field) => isEstimateSourceField(field)),
         ]),
       );
     const selectedTypes = props.filter.fields.workItemTypes;
     const types = selectedTypes.length ? selectedTypes : Object.keys(byType);
     const byRef = new Map(types.flatMap((type) => byType[type] ?? []).map((field) => [field.referenceName, field]));
-    const customFirst = (field: GroundedEstimationField) => Number(field.referenceName.startsWith("Custom."));
-    return [...byRef.values()].sort((a, b) => customFirst(b) - customFirst(a) || a.name.localeCompare(b.name));
+    return sortEstimateFields([...byRef.values()]);
   });
   const sourceField = () => storyFields().find((field) => field.referenceName === s.fields.source);
+  // A saved source the project doesn't list (e.g. typed earlier) opens in typing mode so it stays visible.
+  const [typingSource, setTypingSource] = createSignal(s.fields.source !== "" && !storyFields().some((field) => field.referenceName === s.fields.source));
   const conversion = () => buildConversion(s.fields);
   const table = () => conversion()?.table ?? {};
   /** The source field's allowed values when it is a grounded picklist; these replace free text wherever a Story Estimate is entered. */
@@ -100,16 +96,43 @@ export function EstimationSection(props: {
             />
           }
         >
-          <SelectField
-            label="Story field"
-            value={s.fields.source}
-            options={[
-              { value: "", label: "Platform default (Story Points → Effort → Size)" },
-              ...storyFields().map((field) => ({ value: field.referenceName, label: `${field.name} (${field.referenceName})` })),
-              ...(s.fields.source && !sourceField() ? [{ value: s.fields.source, label: s.fields.source }] : []),
-            ]}
-            onInput={(v) => change("source", v)}
-          />
+          <Show
+            when={!typingSource()}
+            fallback={
+              <div class="space-y-1">
+                <TextField
+                  label="Story field reference name"
+                  value={s.fields.source}
+                  placeholder="e.g. Custom.TShirtSize"
+                  onInput={(v) => change("source", v)}
+                />
+                <button type="button" class="text-xs font-semibold text-indigo-600 dark:text-indigo-300" onClick={() => setTypingSource(false)}>
+                  Choose from the project's fields instead
+                </button>
+              </div>
+            }
+          >
+            <div class="space-y-1">
+              <SearchableSelectField
+                label="Story field"
+                value={s.fields.source}
+                options={[
+                  { value: "", label: "Platform default", description: "Story Points → Effort → Size" },
+                  ...storyFields().map((field) => ({
+                    value: field.referenceName,
+                    label: field.name,
+                    description: field.isPicklist && field.allowedValues?.length
+                      ? `${field.referenceName} · ${field.allowedValues.join(", ")}`
+                      : field.referenceName,
+                  })),
+                ]}
+                onChange={(v) => change("source", v)}
+              />
+              <button type="button" class="text-xs font-semibold text-indigo-600 dark:text-indigo-300" onClick={() => setTypingSource(true)}>
+                Enter a reference name instead
+              </button>
+            </div>
+          </Show>
         </Show>
       </Stage>
 
@@ -436,17 +459,9 @@ function WriteTarget(props: {
   const taskType = () => props.basicInfo.advanced.taskType ?? defaultType();
   const workItemTypes = () => props.grounding()?.workItemTypes ?? [];
   const numericFields = () =>
-    (props.grounding()?.fieldsByWorkItemType[taskType()] ?? [])
-      // Mirrors core's isEstimateTargetField: writable, numeric, not a picklist, not System.*, not a ranking field.
-      .filter(
-        (field) =>
-          !field.isReadOnly &&
-          !field.isPicklist &&
-          (field.type === "integer" || field.type === "decimal") &&
-          !field.referenceName.startsWith("System.") &&
-          !(defaults()?.nonEstimateFields ?? []).includes(field.referenceName),
-      )
-      .map((field) => field.referenceName);
+    sortEstimateFields(
+      (props.grounding()?.fieldsByWorkItemType[taskType()] ?? []).filter((field) => isEstimateTargetField(field, defaults())),
+    ).map((field) => field.referenceName);
   const setTaskType = (value: string) => {
     props.basicInfo.setAdvanced("taskType", value && value !== defaultType() ? value : undefined);
     s.set("targetFields", []);

@@ -229,6 +229,27 @@ describe("configureEstimation wizard step", () => {
     expect(targetPrompt.options?.map((o) => o.value)).toEqual(["Custom.Effort", "Microsoft.VSTS.Scheduling.RemainingWork"]);
     expect(estimation.targetFields).toEqual(["Custom.Effort"]);
   });
+  test("does not offer platform non-estimate fields such as Priority or Value Area as the Story field", async () => {
+    answers = ["", "none", false, "none", "0", "warn"];
+
+    await configureEstimation(undefined, {
+      storyFields: [
+        field("Microsoft.VSTS.Scheduling.StoryPoints", { name: "Story Points", type: "decimal", isCustom: false }),
+        field("Microsoft.VSTS.Common.Priority", { name: "Priority", type: "integer", isPicklist: true, isCustom: false }),
+        field("Microsoft.VSTS.Common.ValueArea", { name: "Value Area", isPicklist: true, isCustom: false }),
+        field("Custom.TShirtSize", { name: "T-shirt size", isPicklist: true }),
+      ],
+      defaults: AZURE_DEVOPS_ESTIMATION_DEFAULTS,
+    });
+
+    const firstPrompt = next.mock.calls.at(-6)?.[0] as { options?: Array<{ value: string }> };
+    expect(firstPrompt.options?.map((o) => o.value)).toEqual([
+      "",
+      "Custom.TShirtSize",
+      "Microsoft.VSTS.Scheduling.StoryPoints",
+      "__custom__",
+    ]);
+  });
 });
 
 describe("renderConversionTable", () => {

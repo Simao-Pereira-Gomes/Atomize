@@ -815,8 +815,8 @@ export async function configureEstimation(
 }
 
 async function promptEstimationSource(current: string | undefined, ctx: EstimationWizardContext): Promise<string | undefined> {
-  const defaultChain = { storyEstimateFields: ctx.defaults?.storyEstimateFields ?? [] };
-  const candidates = sortEstimateFields((ctx.storyFields ?? []).filter((field) => isEstimateCapableField(field, defaultChain)));
+  const rules = { storyEstimateFields: ctx.defaults?.storyEstimateFields ?? [], nonEstimateFields: ctx.defaults?.nonEstimateFields };
+  const candidates = sortEstimateFields((ctx.storyFields ?? []).filter((field) => isEstimateCapableField(field, rules)));
 
   // Connected (Story fields known): always choose from the project, with typing as an explicit last option.
   if (ctx.storyFields !== undefined) {

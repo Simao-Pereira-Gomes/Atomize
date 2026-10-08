@@ -17,10 +17,14 @@ export const AZURE_DEVOPS_ESTIMATION_DEFAULTS: EstimationDefaults = {
     "Microsoft.VSTS.Scheduling.OriginalEstimate",
   ],
   unitLabel: "hours",
+  // Process fields that never hold effort (priority, severity, ranking, value area, build and test
+  // metadata, ...). Estimates live in Microsoft.VSTS.Scheduling.* or in custom fields.
   nonEstimateFields: [
-    "Microsoft.VSTS.Common.StackRank",
-    "Microsoft.VSTS.Common.BacklogPriority",
-    "Microsoft.VSTS.Common.BusinessValue",
-    "Microsoft.VSTS.Common.TimeCriticality",
+    "Microsoft.VSTS.Common.*",
+    "Microsoft.VSTS.Build.*",
+    "Microsoft.VSTS.CMMI.*",
+    "Microsoft.VSTS.CodeReview.*",
+    "Microsoft.VSTS.Feedback.*",
+    "Microsoft.VSTS.TCM.*",
   ],
 };

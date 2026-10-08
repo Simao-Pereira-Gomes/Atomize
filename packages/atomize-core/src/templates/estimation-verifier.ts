@@ -1,6 +1,6 @@
 import type { EstimationDefaults } from "../platforms/interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../platforms/interfaces/field-schema.interface";
-import { type Condition, lookupTableEstimate, type TaskTemplate } from "./schema";
+import { type Condition, lookupTableEstimate, matchesFieldPattern, type TaskTemplate } from "./schema";
 import type { ValidationError, ValidationWarning } from "./validator";
 
 export interface EstimationVerificationPlatform {
@@ -57,7 +57,7 @@ export async function verifyEstimationMapping(
           message: `Field "${ref}" only accepts a fixed list of values, so calculated Task Estimates can't be written to it.`,
           code: "ESTIMATION_TARGET_FIELD_PICKLIST",
         });
-      } else if (nonEstimateFields.includes(ref)) {
+      } else if (matchesFieldPattern(ref, nonEstimateFields)) {
         warnings.push({
           path,
           message: `Field "${ref}" holds a ranking or value, not effort; writing Task Estimates to it will overwrite that.`,
