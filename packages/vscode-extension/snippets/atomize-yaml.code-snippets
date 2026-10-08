@@ -81,9 +81,10 @@
       "filter:",
       "  savedQuery:",
       "    path: \"${1:Shared Queries/Teams/Backend Team/Sprint Active Stories}\"",
-      "  excludeIfHasTasks: ${2|true,false|}"
+      "  workItemTypes: [\"${2:User Story}\"]",
+      "  excludeIfHasTasks: ${3|true,false|}"
     ],
-    "description": "Azure DevOps saved query filter. Use when story selection is delegated to an existing flat saved query."
+    "description": "Azure DevOps saved query filter. Use when story selection is delegated to an existing flat saved query. workItemTypes declares which types the query returns (for field lookups and validation); it does not filter."
   },
 
   "Atomize Filter Tags": {
@@ -143,6 +144,19 @@
       "  defaultParentEstimation: \"${11:M}\""
     ],
     "description": "Converts a size field (e.g. T-shirt sizes) to hours with a table. Set source to your field's reference name and the keys to its exact values; multipliers: true also accepts values like 0.3XL."
+  },
+
+  "Atomize Estimation Target Override": {
+    "prefix": "atm-estimation-target",
+    "body": [
+      "taskType: \"${1:Task}\"",
+      "estimation:",
+      "  strategy: percentage",
+      "  targetFields:",
+      "    - \"${2:Custom.Effort}\"",
+      "  rounding: ${3|none,nearest,up,down|}"
+    ],
+    "description": "For customised processes: create tasks as another work item type (taskType) and write the Task Estimate to your own numeric fields (targetFields). Custom target fields receive the value as calculated, with no unit, and Completed Work is not set."
   },
 
   "Atomize Estimation Percent Condition": {
