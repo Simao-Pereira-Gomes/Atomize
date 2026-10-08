@@ -85,16 +85,29 @@ type TasksFields = {
   items: EditableTask[];
 };
 
+export type ConversionKind = "none" | "factor" | "table";
+export type ConversionRow = { key: string; hours: string };
+
 type EstimationFields = {
   strategy: "percentage";
   source: string;
+  conversionKind: ConversionKind;
+  factor: string;
+  tableRows: ConversionRow[];
+  multipliers: boolean;
+  /** "custom" when the Template overrides the child type or the Task estimate fields. */
+  targetMode: "default" | "custom";
+  targetFields: string[];
   rounding: "none" | "nearest" | "up" | "down";
   minimumTaskEstimate: string;
   ifParentHasNoEstimation: "" | "skip" | "warn" | "use-default";
   defaultParentEstimation: string;
 };
 
-type EstimationAdvanced = Omit<EstimationConfig, keyof EstimationFields | "strategy">;
+type EstimationAdvanced = Omit<
+  EstimationConfig,
+  keyof EstimationFields | "strategy" | "conversion" | "minimumTaskPoints"
+>;
 
 type RequiredTaskFields = { title: string; id: string };
 
@@ -172,6 +185,12 @@ const defaultTasks = (): TasksFields => ({
 const defaultEstimation = (): EstimationFields => ({
   strategy: "percentage",
   source: "",
+  conversionKind: "none",
+  factor: "",
+  tableRows: [],
+  multipliers: false,
+  targetMode: "default",
+  targetFields: [],
   rounding: "none",
   minimumTaskEstimate: "",
   ifParentHasNoEstimation: "",
@@ -378,20 +397,42 @@ function makeEstimation() {
     if (typeof value === "number" && value < 0) return "Must be 0 or greater";
     if (fields.ifParentHasNoEstimation !== "use-default") return undefined;
     if (value === undefined) return "A default estimate is required";
-    return isConvertibleStoryEstimate(value, advanced.conversion)
+    const conversion = buildConversion(fields);
+    return isConvertibleStoryEstimate(value, conversion)
       ? undefined
-      : advanced.conversion?.table
+      : conversion?.table
         ? "Must be one of the conversion table's values"
         : "Must be a number unless a conversion table is set";
   };
+  const conversionErrors = (): Errors => {
+    if (fields.conversionKind === "factor") {
+      const factor = optionalNumber(fields.factor);
+      return { factor: factor === undefined || Number.isNaN(factor) || factor <= 0 ? "Must be a number greater than 0" : undefined };
+    }
+    if (fields.conversionKind !== "table") return {};
+    const next: Errors = {};
+    const seen = new Set<string>();
+    fields.tableRows.forEach((row, index) => {
+      const key = row.key.trim();
+      if (key === "") next[`tableRows.${index}.key`] = "Required";
+      else if (seen.has(key)) next[`tableRows.${index}.key`] = "Already in the table";
+      seen.add(key);
+      if (!isNonNegativeNumber(row.hours) || row.hours.trim() === "") next[`tableRows.${index}.hours`] = "0 or more";
+    });
+    if (fields.tableRows.length === 0) next.tableRows = "Add at least one value";
+    return next;
+  };
   const validate = () => {
     setErrors(reconcile({
+      ...conversionErrors(),
       minimumTaskEstimate: !isNonNegativeNumber(fields.minimumTaskEstimate) ? "Must be 0 or greater" : undefined,
       defaultParentEstimation: defaultEstimateError(),
     }));
   };
   const isValid = () =>
-    isNonNegativeNumber(fields.minimumTaskEstimate) && defaultEstimateError() === undefined;
+    isNonNegativeNumber(fields.minimumTaskEstimate) &&
+    defaultEstimateError() === undefined &&
+    Object.values(conversionErrors()).every((error) => error === undefined);
   return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
 }
 
@@ -566,11 +607,30 @@ function buildTasks(store: TasksStore): TaskDefinition[] {
   }));
 }
 
+/** The conversion the estimation fields describe, or undefined for one-to-one. */
+export function buildConversion(fields: EstimationFields): EstimationConfig["conversion"] {
+  if (fields.conversionKind === "factor") {
+    const factor = optionalNumber(fields.factor);
+    return factor === undefined ? undefined : { factor };
+  }
+  if (fields.conversionKind !== "table") return undefined;
+  const table = Object.fromEntries(
+    fields.tableRows
+      .filter((row) => row.key.trim() !== "" && row.hours.trim() !== "")
+      .map((row) => [row.key.trim(), Number(row.hours)]),
+  );
+  return { table, ...(fields.multipliers ? { multipliers: true } : {}) };
+}
+
 function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
+  const conversion = buildConversion(store.fields);
+  const targetFields = store.fields.targetMode === "custom" ? nonEmptyArray(store.fields.targetFields) : undefined;
   const estimation: EstimationConfig = {
     ...store.advanced,
     strategy: "percentage",
     source: nonEmpty(store.fields.source),
+    conversion,
+    targetFields,
     rounding: store.fields.rounding,
     minimumTaskEstimate: optionalNumber(store.fields.minimumTaskEstimate),
     ifParentHasNoEstimation: store.fields.ifParentHasNoEstimation || undefined,
@@ -579,6 +639,8 @@ function buildEstimation(store: EstimationStore): EstimationConfig | undefined {
 
   const hasMeaningfulValue =
     estimation.source !== undefined ||
+    conversion !== undefined ||
+    targetFields !== undefined ||
     estimation.minimumTaskEstimate !== undefined ||
     estimation.ifParentHasNoEstimation !== undefined ||
     estimation.defaultParentEstimation !== undefined ||
@@ -717,6 +779,8 @@ export function createAuthoringStore(): AuthoringStore {
     const {
       strategy,
       source,
+      conversion,
+      targetFields,
       rounding,
       minimumTaskEstimate,
       minimumTaskPoints,
@@ -728,6 +792,12 @@ export function createAuthoringStore(): AuthoringStore {
       {
         strategy: strategy ?? "percentage",
         source: source ?? "",
+        conversionKind: conversion?.table ? "table" : conversion?.factor !== undefined ? "factor" : "none",
+        factor: conversion?.factor === undefined ? "" : String(conversion.factor),
+        tableRows: Object.entries(conversion?.table ?? {}).map(([key, hours]) => ({ key, hours: String(hours) })),
+        multipliers: conversion?.multipliers === true,
+        targetMode: template.taskType || targetFields?.length ? "custom" : "default",
+        targetFields: targetFields ?? [],
         rounding: rounding ?? "none",
         minimumTaskEstimate: String(minimumTaskEstimate ?? minimumTaskPoints ?? ""),
         ifParentHasNoEstimation: ifParentHasNoEstimation ?? "",

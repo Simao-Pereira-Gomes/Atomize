@@ -567,3 +567,90 @@ describe("createAuthoringStore", () => {
     expect(() => store.serialise()).not.toThrow();
   });
 });
+
+describe("estimation editor fields", () => {
+  const baseTemplate: TaskTemplate = {
+    version: "1.0",
+    name: "Estimation",
+    filter: { workItemTypes: ["User Story"] },
+    tasks: [{ title: "Build", estimationPercent: 100 }],
+  };
+  const estimationOf = (store: ReturnType<typeof createAuthoringStore>) =>
+    (parse(store.serialise()) as TaskTemplate).estimation;
+
+  it("round-trips a table conversion with fractional sizes through the editor fields", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      estimation: { strategy: "percentage", rounding: "none", source: "Custom.TShirtSize", conversion: { table: { S: 2, L: 5 }, multipliers: true } },
+    });
+
+    expect(store.estimation.fields.conversionKind).toBe("table");
+    expect(store.estimation.fields.tableRows).toEqual([{ key: "S", hours: "2" }, { key: "L", hours: "5" }]);
+    expect(estimationOf(store)).toMatchObject({ source: "Custom.TShirtSize", conversion: { table: { S: 2, L: 5 }, multipliers: true } });
+  });
+
+  it("writes a factor and drops the conversion when switched to one-to-one", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "factor");
+    store.estimation.set("factor", "4");
+    expect(estimationOf(store)).toMatchObject({ conversion: { factor: 4 } });
+
+    store.estimation.set("conversionKind", "none");
+    expect(estimationOf(store)?.conversion).toBeUndefined();
+  });
+
+  it("flags table rows without a value, duplicate values and invalid hours", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "table");
+    store.estimation.set("tableRows", [{ key: "L", hours: "5" }, { key: "L", hours: "x" }, { key: "", hours: "1" }]);
+
+    store.estimation.validate();
+    expect(store.estimation.errors["tableRows.1.key"]).toBe("Already in the table");
+    expect(store.estimation.errors["tableRows.1.hours"]).toBe("0 or more");
+    expect(store.estimation.errors["tableRows.2.key"]).toBe("Required");
+    expect(store.estimation.isValid()).toBe(false);
+  });
+
+  it("requires a positive factor", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "factor");
+    store.estimation.set("factor", "0");
+
+    store.estimation.validate();
+    expect(store.estimation.errors.factor).toBe("Must be a number greater than 0");
+  });
+
+  it("opens in custom target mode for a Template with taskType or targetFields, and only writes targetFields in that mode", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      taskType: "Sub-task",
+      estimation: { strategy: "percentage", rounding: "none", targetFields: ["Custom.Effort"] },
+    });
+    expect(store.estimation.fields.targetMode).toBe("custom");
+    expect(parse(store.serialise())).toMatchObject({ taskType: "Sub-task", estimation: { targetFields: ["Custom.Effort"] } });
+
+    store.estimation.set("targetMode", "default");
+    expect(estimationOf(store)?.targetFields).toBeUndefined();
+  });
+
+  it("checks a use-default Story Estimate against the table being edited", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(baseTemplate);
+    store.estimation.set("conversionKind", "table");
+    store.estimation.set("tableRows", [{ key: "M", hours: "4" }]);
+    store.estimation.set("ifParentHasNoEstimation", "use-default");
+    store.estimation.set("defaultParentEstimation", "XL");
+
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBe("Must be one of the conversion table's values");
+
+    store.estimation.set("defaultParentEstimation", "M");
+    store.estimation.validate();
+    expect(store.estimation.errors.defaultParentEstimation).toBeUndefined();
+  });
+});

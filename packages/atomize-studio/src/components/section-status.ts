@@ -1,6 +1,6 @@
 import type { AuthoringSectionId, Errors, SectionStores } from "../stores/sections";
 
-const FILLED_DEFAULTS = new Set(["", "percentage", "none", "1.0", "build"]);
+const FILLED_DEFAULTS = new Set(["", "percentage", "none", "1.0", "build", "default"]);
 const OPTIONAL_DEFAULT_READY_SECTIONS = new Set<AuthoringSectionId>(["estimation", "validation"]);
 
 type StoreView = { errors: Errors; isValid: () => boolean; fields: Record<string, unknown> };
