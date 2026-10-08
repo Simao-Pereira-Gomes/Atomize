@@ -1,0 +1,53 @@
+# A customised process: categorical complexity field in, custom effort field out.
+#
+# - `source` reads the Story Estimate from a categorical field (Custom.Complexity).
+# - `taskType` creates the child items as a custom work item type instead of
+#   the platform default ("Task" on Azure DevOps).
+# - `targetFields` writes the result to your own numeric field instead of
+#   Remaining Work / Original Estimate. The number is written exactly as
+#   calculated, and Completed Work is not set.
+#
+# Online validation (`--profile`) checks that the work item type exists and
+# that the target fields exist on it and are numeric.
+#
+#   High Story → 16 hours → Analysis 20% = 3.2 h, Build 60% = 9.6 h, ...
+version: "1.0"
+name: "Complexity to Effort (Custom Process)"
+description: "Reads a categorical complexity field and writes effort to a custom field on a custom child work item type."
+author: "Atomize"
+tags: ["estimation", "custom-process", "target-fields"]
+
+filter:
+  workItemTypes: ["User Story"]
+  excludeIfHasTasks: true
+
+taskType: "Deliverable"           # replace with your process's child work item type
+
+tasks:
+  - id: "analysis"
+    title: "Analysis: ${story.title}"
+    estimationPercent: 20
+
+  - id: "build"
+    title: "Build: ${story.title}"
+    estimationPercent: 60
+    dependsOn: ["analysis"]
+
+  - id: "verify"
+    title: "Verify: ${story.title}"
+    estimationPercent: 20
+    dependsOn: ["build"]
+
+estimation:
+  strategy: "percentage"
+  source: "Custom.Complexity"
+  conversion:
+    table:
+      Low: 4
+      Medium: 8
+      High: 16
+      Very High: 32
+  targetFields:
+    - "Custom.Effort"             # replace with your numeric effort field
+  rounding: "none"
+  ifParentHasNoEstimation: "warn"  # unknown complexity → tasks with blank effort + a warning

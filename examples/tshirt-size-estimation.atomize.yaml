@@ -1,0 +1,67 @@
+# T-shirt sized Stories, read from a custom picklist field.
+#
+# `source` names the Story field that holds the size. When it is set, Atomize
+# reads only that field (no fallback to story points). The conversion table
+# turns each size into hours; with `multipliers` a value like 0.3XL means
+# 0.3 × the XL hours. Validate online (`--profile`) to check the table covers
+# every value of the picklist.
+#
+#   L Story → 20 hours → Build 60% = 12 h, Test 25% = 5 h, ...
+#   0.5XL Story → 0.5 × 40 = 20 hours
+version: "1.0"
+name: "T-shirt Size Estimation"
+description: "Estimates tasks from a T-shirt size field (XS–XL), including fractional sizes such as 0.5XL."
+author: "Atomize"
+tags: ["estimation", "table", "t-shirt"]
+
+filter:
+  workItemTypes: ["User Story"]
+  excludeIfHasTasks: true
+
+tasks:
+  - id: "build"
+    title: "Build: ${story.title}"
+    estimationPercent: 60
+    activity: "Development"
+
+  - id: "test"
+    title: "Test: ${story.title}"
+    estimationPercent: 25
+    activity: "Testing"
+    dependsOn: ["build"]
+
+  - id: "review"
+    title: "Code review"
+    estimationPercent: 10
+    activity: "Development"
+    dependsOn: ["build"]
+
+  # Sizes are categories, so compare them with equals (not gt/lt).
+  - id: "architecture-review"
+    title: "Architecture review"
+    estimationPercent: 5
+    activity: "Design"
+    condition:
+      any:
+        - field: "estimation"
+          operator: "equals"
+          value: "L"
+        - field: "estimation"
+          operator: "equals"
+          value: "XL"
+
+estimation:
+  strategy: "percentage"
+  source: "Custom.TShirtSize"     # replace with your size field's reference name
+  conversion:
+    table:
+      XS: 2
+      S: 4
+      M: 8
+      L: 20
+      XL: 40
+    multipliers: true             # also accept 0.3XL, 0.5L, ...
+  rounding: "nearest"
+  minimumTaskEstimate: 0.5
+  ifParentHasNoEstimation: "use-default"  # unsized Stories...
+  defaultParentEstimation: "M"            # ...are treated as M (8 h)
