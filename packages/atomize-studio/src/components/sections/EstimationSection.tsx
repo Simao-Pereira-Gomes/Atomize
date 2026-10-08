@@ -362,15 +362,14 @@ function Segmented<T extends string>(props: {
   onChange: (value: T) => void;
 }) {
   return (
-    <div class={props.inline ? "flex items-center gap-2" : ""} role="radiogroup" aria-label={props.label}>
+    <fieldset class={`min-w-0${props.inline ? " flex items-center gap-2" : ""}`} aria-label={props.label}>
       <Show when={!props.hideLabel && props.inline}><span>{props.label}</span></Show>
       <div class="mode-toggle mode-toggle--compact">
         <For each={props.options}>
           {(option) => (
             <button
               type="button"
-              role="radio"
-              aria-checked={props.value === option.value}
+              aria-pressed={props.value === option.value}
               class={`mode-btn${props.value === option.value ? " mode-btn--active" : ""}`}
               onClick={() => props.onChange(option.value)}
             >
@@ -379,7 +378,7 @@ function Segmented<T extends string>(props: {
           )}
         </For>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -498,7 +497,7 @@ function WriteTarget(props: {
 
   return (
     <div class="space-y-4">
-      <div class="flex flex-col gap-3 sm:flex-row" role="radiogroup" aria-label="Where Task Estimates are written">
+      <fieldset class="flex min-w-0 flex-col gap-3 sm:flex-row" aria-label="Where Task Estimates are written">
         <TargetCard
           active={s.fields.targetMode === "default"}
           title="Platform defaults"
@@ -511,7 +510,7 @@ function WriteTarget(props: {
           body="Another work item type, or other numeric fields"
           onSelect={() => choose("custom")}
         />
-      </div>
+      </fieldset>
       <Show when={s.fields.targetMode === "custom"}>
         <div class="grid gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-700">
           <Show
@@ -548,8 +547,7 @@ function TargetCard(props: { active: boolean; title: string; body: string; onSel
   return (
     <button
       type="button"
-      role="radio"
-      aria-checked={props.active}
+      aria-pressed={props.active}
       onClick={props.onSelect}
       class={`flex-1 rounded-xl border p-4 text-left transition ${props.active ? "border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/30 dark:bg-indigo-950/40" : "border-slate-200 hover:border-slate-300 dark:border-slate-700"}`}
     >
