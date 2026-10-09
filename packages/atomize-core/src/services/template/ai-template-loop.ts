@@ -7,6 +7,7 @@ import {
   MAX_ATTEMPTS,
   parseAndValidate,
 } from "./llm-template-generator";
+import type { ProjectGrounding } from "./project-grounding";
 
 /**
  * The part of a Copilot Session the AI Template Loop needs. Deliberately structural so
@@ -21,7 +22,7 @@ export interface AITemplateSession {
 
 export interface DraftRequest {
   prose: string;
-  grounding?: string | null;
+  projectGrounding?: ProjectGrounding | null;
 }
 
 export interface AITemplateLoopOptions {
@@ -59,7 +60,8 @@ export async function draftTemplate(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     throwIfCancelled(options.signal);
-    const userPrompt = buildUserPrompt(request.prose, request.grounding, errors.length > 0 ? errors : undefined);
+    const projectGrounding = request.projectGrounding ? JSON.stringify(request.projectGrounding) : null;
+    const userPrompt = buildUserPrompt(request.prose, projectGrounding, errors.length > 0 ? errors : undefined);
 
     // Only the first attempt streams: repairs are rare, and their progress isn't worth a second subscription.
     if (attempt === 1 && session.stream) {

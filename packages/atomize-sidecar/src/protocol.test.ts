@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
 import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import { classifyGenerateAdapterError, handleLine, type RpcResponse, type SidecarServices } from "./protocol";
 
@@ -18,7 +19,7 @@ const services: SidecarServices = {
       throw new Error("installTemplate not stubbed for this test");
     },
   },
-  fetchGrounding: async () => ({}),
+  fetchGrounding: async () => ({}) as ProjectGrounding,
   validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, hasEstimationMapping: false, needsOnlineVerification: false } }),
   queryGenerateStories: async () => ({ stories: [] }),
   runGenerate: async () => {
@@ -46,7 +47,7 @@ describe("sidecar protocol", () => {
   });
   it("injects a resolved connection into grounding without returning its token", async () => {
     let received: unknown;
-    const grounding: SidecarServices = { ...services, fetchGrounding: async connection => { received = connection; return { workItemTypes: ["Task"] }; } };
+    const grounding: SidecarServices = { ...services, fetchGrounding: async connection => { received = connection; return { workItemTypes: ["Task"] } as ProjectGrounding; } };
     await expect(handleLine('{"jsonrpc":"2.0","id":3,"method":"grounding.fetch","params":{"organizationUrl":"https://dev.azure.com/org","project":"P","team":"T","token":"secret"}}', grounding)).resolves.toEqual({ jsonrpc: "2.0", id: 3, result: { workItemTypes: ["Task"] } });
     expect(received).toEqual({ organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" });
   });

@@ -7,7 +7,12 @@ import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { draftTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
-import { buildEstimationGrounding } from "@sppg2001/atomize-core/services/template/estimation-grounding";
+import {
+  fetchProjectGrounding,
+  type ProjectGrounding,
+  type ProjectGroundingErrorCode,
+  toProjectGroundingError,
+} from "@sppg2001/atomize-core/services/template/project-grounding";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
@@ -33,7 +38,7 @@ export type GenerateQueryStoriesParams = { source: string; connection: Grounding
 export type GenerateRunParams = { runId: string; source: string; connection: GroundingConnection; dryRun: boolean; scope: GenerateScope; continueOnError?: boolean };
 export type SidecarServices = {
   library: SidecarTemplateLibrary;
-  fetchGrounding: (connection: GroundingConnection) => Promise<unknown>;
+  fetchGrounding: (connection: GroundingConnection) => Promise<ProjectGrounding>;
   validateOnline: (params: OnlineValidationParams, signal: AbortSignal) => Promise<TemplateVerificationResult>;
   queryGenerateStories: (params: GenerateQueryStoriesParams) => Promise<{ stories: WorkItem[] }>;
   runGenerate: (params: GenerateRunParams, signal: AbortSignal) => Promise<{ report: AtomizationReport }>;
@@ -139,9 +144,8 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
   const cancellation = new AbortController();
   services.drafts.set(params.draftId, { ...session, abort: async () => { cancellation.abort(); await session.abort(); } });
   try {
-    const grounding = params.grounding === undefined ? undefined : JSON.stringify(params.grounding);
     let received = 0;
-    const result = await draftTemplate(session, { prose: params.prose, grounding }, {
+    const result = await draftTemplate(session, { prose: params.prose, projectGrounding: params.grounding as ProjectGrounding | undefined }, {
       signal: cancellation.signal,
       onChunk: (chunk) => {
         received += chunk.length;
@@ -173,33 +177,21 @@ async function cancelDraft(params: unknown, services: SidecarServices): Promise<
   return { cancelled: true };
 }
 
-export async function fetchGrounding(connection: GroundingConnection): Promise<unknown> {
+/** Studio's wording for each Project Grounding failure, pointing at Studio's own fixes. */
+const GROUNDING_MESSAGES: Record<ProjectGroundingErrorCode, string> = {
+  GROUNDING_TOKEN_EXPIRED: "Your Azure DevOps access token has expired. Add a new project connection with a current token, then try again.",
+  GROUNDING_AUTH_FAILED: "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again.",
+  GROUNDING_FETCH_FAILED: "Atomize could not load choices from this Azure DevOps project. Check the connection and try again.",
+};
+
+export async function fetchGrounding(connection: GroundingConnection): Promise<ProjectGrounding> {
   try {
     const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
     await adapter.authenticate();
-    const metadataReader = requireProjectMetadataReader(adapter);
-    const queryReader = requireSavedQueryReader(adapter);
-    const workItemTypes = await metadataReader.getWorkItemTypes();
-    const estimationDefaults = adapter.getEstimationDefaults();
-    const [states, areaPaths, iterationPaths, teams, savedQueries, taskFields, fieldsByWorkItemType] = await Promise.all([
-      Promise.all(workItemTypes.map(async type => [type, await metadataReader.getStatesForWorkItemType(type)] as const)),
-      metadataReader.getAreaPaths(), metadataReader.getIterationPaths(), metadataReader.getTeams(), queryReader.listSavedQueries(),
-      metadataReader.getFieldSchemas(estimationDefaults.taskWorkItemType),
-      Promise.all(workItemTypes.map(async type => [type, await metadataReader.getFieldSchemas(type)] as const)),
-    ]);
-    return { workItemTypes, statesByWorkItemType: Object.fromEntries(states), areaPaths, iterationPaths, teams,
-      savedQueries: savedQueries.map(({ id, path }) => ({ id, path })), taskFields, fieldsByWorkItemType: Object.fromEntries(fieldsByWorkItemType),
-      estimation: buildEstimationGrounding(estimationDefaults, Object.fromEntries(fieldsByWorkItemType)) };
+    return await fetchProjectGrounding(adapter);
   } catch (error) {
-    const message = getErrorMessage(error);
-    const code = error instanceof AuthError || /authentication failed|access denied/i.test(message)
-      ? (/token.*expired|personal access token.*expired/i.test(message) ? "GROUNDING_TOKEN_EXPIRED" : "GROUNDING_AUTH_FAILED")
-      : "GROUNDING_FETCH_FAILED";
-    throw Object.assign(new Error(code === "GROUNDING_TOKEN_EXPIRED"
-      ? "Your Azure DevOps access token has expired. Add a new project connection with a current token, then try again."
-      : code === "GROUNDING_AUTH_FAILED"
-        ? "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again."
-        : "Atomize could not load choices from this Azure DevOps project. Check the connection and try again."), { code });
+    const { code } = toProjectGroundingError(error);
+    throw Object.assign(new Error(GROUNDING_MESSAGES[code]), { code });
   }
 }
 

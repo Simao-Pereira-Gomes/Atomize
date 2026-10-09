@@ -1,6 +1,7 @@
 import type { AIProvider } from "@sppg2001/atomize-ai";
 import { draftTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import {
@@ -20,13 +21,13 @@ export interface GenerationResult {
 export async function runGeneration(
   provider: AIProvider,
   description: string,
-  groundingContext: string | null,
+  projectGrounding: ProjectGrounding | null,
 ): Promise<GenerationResult> {
   output.print(chalk.cyan("\n━━━ Generating template ━━━\n"));
   let retrySpinner: ReturnType<typeof createManagedSpinner> | undefined;
   let streamed = false;
 
-  const result = await draftTemplate(provider, { prose: description, grounding: groundingContext }, {
+  const result = await draftTemplate(provider, { prose: description, projectGrounding }, {
     onChunk: (chunk) => {
       streamed = true;
       output.write(chalk.gray(chunk));

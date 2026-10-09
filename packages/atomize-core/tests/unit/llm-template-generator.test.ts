@@ -167,15 +167,16 @@ describe("buildUserPrompt", () => {
     expect(prompt).not.toContain("Previous attempt");
   });
 
-  test("appends grounding context when provided", () => {
-    const prompt = buildUserPrompt("feature template", "Common tasks: Design (20%), Implement (80%)");
-    expect(prompt).toContain("Observed patterns from this user");
-    expect(prompt).toContain("Design (20%)");
+  test("appends Project Grounding and tells the model to use only its names", () => {
+    const prompt = buildUserPrompt("feature template", '{"workItemTypes":["Product Backlog Item"]}');
+    expect(prompt).toContain("Project metadata from the user's Azure DevOps project");
+    expect(prompt).toContain("Product Backlog Item");
+    expect(prompt).toContain("use only ones that appear in this metadata");
   });
 
-  test("does not include grounding section when context is null", () => {
+  test("does not include a Project Grounding section when there is none", () => {
     const prompt = buildUserPrompt("feature template", null);
-    expect(prompt).not.toContain("Observed patterns");
+    expect(prompt).not.toContain("Project metadata");
   });
 
   test("appends error correction context on retry", () => {

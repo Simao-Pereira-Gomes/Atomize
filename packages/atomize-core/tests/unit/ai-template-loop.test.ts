@@ -4,6 +4,7 @@ import {
   draftTemplate,
 } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
 import { CancellationError } from "@sppg2001/atomize-core/utils/errors";
 
 const VALID = `version: "1.0"
@@ -131,13 +132,14 @@ describe("draftTemplate", () => {
     expect(events).toEqual(["invalid:1", "repair:2", "output:2", "invalid:2", "repair:3", "output:3"]);
   });
 
-  test("includes grounding in the prompt only when supplied", async () => {
+  test("includes Project Grounding in the prompt only when supplied", async () => {
     const without = scriptedSession([VALID]);
     await draftTemplate(without.session, { prose: "Anything" });
     expect(without.calls[0]?.userPrompt).not.toContain("GROUNDING-MARKER");
 
     const withGrounding = scriptedSession([VALID]);
-    await draftTemplate(withGrounding.session, { prose: "Anything", grounding: "GROUNDING-MARKER" });
+    const projectGrounding = { workItemTypes: ["GROUNDING-MARKER"] } as unknown as ProjectGrounding;
+    await draftTemplate(withGrounding.session, { prose: "Anything", projectGrounding });
     expect(withGrounding.calls[0]?.userPrompt).toContain("GROUNDING-MARKER");
   });
 

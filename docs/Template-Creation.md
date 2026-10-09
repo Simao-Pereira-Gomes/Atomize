@@ -128,13 +128,17 @@ Create a draft. Atomize starts GitHub Copilot sign-in when needed and uses your 
 atomize template create --ai
 ```
 
-For better project-specific output, ground the generation with Azure DevOps metadata and observed patterns:
+For better project-specific output, ground the draft in your Azure DevOps project:
 
 ```bash
 atomize template create --ai --ground --profile work-ado
 ```
 
-Use `--ground` when your project has custom fields, non-standard work item types, or team-specific task naming conventions.
+With `--ground`, Atomize reads the project's work item types and states, field reference names and allowed values, saved queries, and area and iteration paths through the Connection Profile, and tells Copilot to use only those names instead of inventing its own. The profile's token is used only to read that metadata and is never sent to Copilot. Use `--ground` when your project has custom fields, non-standard work item types, or saved queries you want the Template to use.
+
+If Atomize can't load the metadata, for example because the token has expired, it asks whether to retry, continue without project metadata, or cancel. It never drops the grounding you asked for without telling you. When you choose AI drafting from the `atomize template create` menu instead of passing `--ai`, Atomize asks whether to ground the draft.
+
+`--ground` no longer learns from recent Stories. To build a Template from how your team already breaks down work, use `atomize template create --from-stories`.
 
 When you ask for several identical Tasks, such as "one review task per developer, 4 developers", the draft uses a single [repeated task](./Template-Reference.md#repeated-tasks) instead of four copies. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
 

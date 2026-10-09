@@ -136,7 +136,7 @@ CONSTRAINTS (you must follow these):
          estimationPercentCondition:
            - condition: { field: priority, operator: lte, value: 2 }
              percent: 35             # override for critical bugs (priority 1 or 2)
-8. ESTIMATION FIELDS: only set taskType, estimation.source, estimation.conversion or estimation.targetFields when the user describes non-default sizing (for example t-shirt sizes, a custom size field, or "1 point = 4 hours"), or when the workspace context lists an estimation field that matches the description.
+8. ESTIMATION FIELDS: only set taskType, estimation.source, estimation.conversion or estimation.targetFields when the user describes non-default sizing (for example t-shirt sizes, a custom size field, or "1 point = 4 hours"), or when the project metadata lists an estimation field that matches the description.
    - Use field reference names and work item types exactly as given in the workspace context; never invent them.
    - With a conversion table on a picklist source, use the picklist's allowed values exactly as keys and cover every one.
    - For a numeric scale where hours grow faster than points, use a table with numeric keys instead of a factor.
@@ -381,15 +381,19 @@ export function buildSystemPrompt(): string {
   return SYSTEM_PROMPT;
 }
 
+/**
+ * @param projectGrounding Project Grounding serialized as JSON: the names and values that exist in
+ *   the user's project, so the draft uses them instead of inventing its own.
+ */
 export function buildUserPrompt(
   description: string,
-  groundingContext?: string | null,
+  projectGrounding?: string | null,
   prevErrors?: string[],
 ): string {
   let prompt = `Generate an Atomize task template for the following:\n\n${description}`;
 
-  if (groundingContext) {
-    prompt += `\n\n---\nObserved patterns from this user's Azure DevOps workspace:\n${groundingContext}\n\nUse these patterns as concrete examples when choosing task names, estimation percentages, and conditions. Adapt them to fit the description above — do not copy verbatim. If the context has an "estimation" section, it lists the platform's default estimation fields and the Story fields that can hold a Story Estimate, with their allowed values; follow rule 8 when using them.\n---`;
+  if (projectGrounding) {
+    prompt += `\n\n---\nProject metadata from the user's Azure DevOps project (JSON):\n${projectGrounding}\n\nWhen the template names a Work Item type, state, field reference name or allowed value, area or iteration path, or saved query path, use only ones that appear in this metadata — never invent them. If it has an "estimation" section, it lists the platform's default estimation fields and the Story fields that can hold a Story Estimate, with their allowed values; follow rule 8 when using them.\n---`;
   }
 
   if (prevErrors && prevErrors.length > 0) {

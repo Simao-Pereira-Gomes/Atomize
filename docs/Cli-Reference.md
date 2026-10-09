@@ -456,7 +456,7 @@ atomize tpl create [options]  # alias
 | `--estimation-source <field>` | string | With `--from-stories`, read each Story Estimate from this field reference name (e.g. `Custom.TShirtSize`) and write it as `estimation.source`; the learned Template gets a matching conversion table or factor |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
-| `--ground` | flag | Ground AI generation with patterns from your Azure DevOps workspace |
+| `--ground` | flag | Ground AI generation in your Azure DevOps project's work item types, states, fields and allowed values, saved queries, and area and iteration paths. Uses `--profile`, or the default profile |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
 | `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
 | `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
@@ -486,7 +486,7 @@ Describe the template you need in plain language and let AI generate it.
 # Basic AI generation
 atomize template create --ai
 
-# Ground with real patterns from your ADO workspace
+# Ground the draft in your project's real types, fields, and saved queries
 atomize template create --ai --ground --profile work-ado
 
 ```
@@ -812,7 +812,7 @@ atomize auth use work-ado   # set as default profile
 atomize auth test work-ado
 ```
 
-AI-assisted template drafting (`template create --ai`) does not use a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+AI-assisted template drafting (`template create --ai`) talks to Copilot without a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session). Only `--ground` uses a Connection Profile, to read your project's metadata; the profile's token is never sent to Copilot.
 
 ### Environment Variables
 
@@ -903,7 +903,7 @@ atomize generate my-backend.yaml --execute
 # 1. Describe your template to the AI (signs in to GitHub Copilot when needed)
 atomize template create --ai
 
-# 2. Optionally ground it with real ADO patterns
+# 2. Optionally ground it in your project's real types, fields, and saved queries
 atomize template create --ai --ground --profile work-ado
 ```
 

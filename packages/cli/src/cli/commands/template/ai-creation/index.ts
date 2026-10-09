@@ -11,7 +11,7 @@ import {
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
 import { customizeTemplate } from "../template-customize";
 import { buildMinimalTemplate, runGeneration } from "./generation";
-import { resolveGrounding } from "./grounding";
+import { resolveProjectGrounding } from "./grounding";
 import { runPreviewLoop } from "./preview-loop";
 
 const output = createCommandOutput(resolveCommandOutputPolicy({}));
@@ -37,7 +37,7 @@ export async function createWithAI(options: AICreationOptions): Promise<TaskTemp
     throw new ConfigurationError(err instanceof Error ? err.message : String(err));
   }
 
-  const groundingContext = await resolveGrounding(options);
+  const projectGrounding = await resolveProjectGrounding(options);
 
   const description = assertNotCancelled(
     await text({
@@ -53,7 +53,7 @@ export async function createWithAI(options: AICreationOptions): Promise<TaskTemp
   const { template, lastRawOutput, prevErrors } = await runGeneration(
     provider,
     description,
-    groundingContext,
+    projectGrounding,
   );
 
   if (!template) {
