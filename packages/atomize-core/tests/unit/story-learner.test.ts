@@ -130,6 +130,25 @@ describe("StoryLearner", () => {
       expect(template.filter.workItemTypes).toContain("User Story");
     });
 
+    test("emits identical Tasks as separate definitions, never as repeat", async () => {
+      const reviewTask = (id: string): WorkItem => ({
+        id,
+        title: "Add review conclusions",
+        type: "Task",
+        state: "Active",
+        estimation: 2,
+      });
+      const platform = createMockPlatform(
+        { "STORY-1": story1 },
+        { "STORY-1": [...tasksForStory1, reviewTask("R1"), reviewTask("R2"), reviewTask("R3")] },
+      );
+
+      const template = await new StoryLearner(platform).learnFromStory("STORY-1");
+
+      expect(template.tasks.filter((t) => t.title === "Add review conclusions")).toHaveLength(3);
+      expect(template.tasks.every((t) => t.repeat === undefined)).toBe(true);
+    });
+
     test("should normalise percentages to 100% when total is less than 100%", async () => {
       const platform = createMockPlatform(
         { "STORY-1": story1 },

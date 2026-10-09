@@ -1,0 +1,45 @@
+# One review Task per developer, from a single task definition.
+#
+# `repeat: 4` creates four identical Tasks titled "Add review conclusions (1)"
+# to "(4)". Each copy gets the full 10%, so the four copies together take 40%
+# and the template still sums to 100%:
+#
+#   Design 10% + Implement 50% + 4 × Review 10% = 100%
+#
+# A repeated task can't use dependsOn, and no task can depend on it. Other
+# tasks keep their dependencies as usual.
+version: "1.0"
+name: "Repeated Review Tasks"
+description: "Implementation plus one review conclusions Task for each of the team's four developers."
+author: "Atomize"
+tags: ["review", "repeat"]
+
+filter:
+  workItemTypes: ["User Story"]
+  excludeIfHasTasks: false
+
+tasks:
+  - id: "design"
+    title: "Design: ${story.title}"
+    estimationPercent: 10
+    activity: "Design"
+
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    estimationPercent: 50
+    activity: "Development"
+    dependsOn: ["design"]
+
+  - title: "Add review conclusions"
+    description: "Review the change and record your conclusions."
+    estimationPercent: 10
+    repeat: 4                    # one copy per developer; at most 20 unless validation.maxRepeat is raised
+    activity: "Development"
+    assignTo: "@Unassigned"
+
+estimation:
+  strategy: "percentage"
+
+validation:
+  totalEstimationMustBe: 100     # counts each copy: 10 + 50 + 4 × 10
+  maxTasks: 8                    # counts each copy: 6 Tasks are generated

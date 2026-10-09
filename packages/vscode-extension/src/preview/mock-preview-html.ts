@@ -1,3 +1,4 @@
+import { fmtEstimate, withUnit } from '../estimate-format.js';
 import css from '../webview/styles.generated.css';
 
 export interface InspectField {
@@ -37,13 +38,6 @@ export type StoredValue = string | number | boolean | string[];
 export type StoredValues = Record<string, StoredValue>;
 
 
-function withUnit(value: number, unit: string | undefined): string {
-	return unit ? `${value} ${unit}` : String(value);
-}
-
-function fmtEstimate(value: number | undefined, unit: string | undefined): string {
-	return value === undefined ? 'unestimated' : withUnit(value, unit);
-}
 function esc(s: unknown): string {
 	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

@@ -572,6 +572,12 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
+    test("accepts a positive whole maxRepeat and rejects anything else", () => {
+      expect(ValidationConfigSchema.safeParse({ maxRepeat: 50 }).success).toBe(true);
+      expect(ValidationConfigSchema.safeParse({ maxRepeat: 0 }).success).toBe(false);
+      expect(ValidationConfigSchema.safeParse({ maxRepeat: 2.5 }).success).toBe(false);
+    });
+
     test("should accept estimation range", () => {
       const config = {
         totalEstimationRange: {
@@ -907,6 +913,155 @@ describe("Schema Validation", () => {
           tasks: [template.tasks[0], { title: "Rest", estimationPercent: 40 }],
         };
         expect(TaskTemplateSchema.safeParse(overrideReachesTarget).success).toBe(true);
+      });
+    });
+
+    describe("repeat", () => {
+      const templateWith = (tasks: unknown[]) => ({
+        version: "1.0",
+        name: "Repeat",
+        filter: {},
+        tasks,
+      });
+
+      const issueCodes = (template: unknown): unknown[] => {
+        const result = TaskTemplateSchema.safeParse(template);
+        return result.success
+          ? []
+          : result.error.issues.map((issue) => (issue as { params?: { code?: unknown } }).params?.code);
+      };
+
+      test("accepts a repeated task", () => {
+        const result = TaskTemplateSchema.safeParse(
+          templateWith([{ title: "Review", estimationPercent: 10, repeat: 3 }]),
+        );
+        expect(result.success).toBe(true);
+      });
+
+      test("rejects a repeat below 1 or a fractional repeat", () => {
+        expect(TaskTemplateSchema.safeParse(templateWith([{ title: "Review", repeat: 0 }])).success).toBe(false);
+        expect(TaskTemplateSchema.safeParse(templateWith([{ title: "Review", repeat: 1.5 }])).success).toBe(false);
+      });
+
+      test("accepts repeat at the default cap of 20", () => {
+        expect(issueCodes(templateWith([{ title: "Review", repeat: 20 }]))).toEqual([]);
+      });
+
+      test("rejects repeat above the default cap of 20", () => {
+        expect(issueCodes(templateWith([{ title: "Review", repeat: 21 }]))).toEqual(["REPEAT_EXCEEDS_MAX"]);
+      });
+
+      test("the cap error names the effective cap and how to raise it", () => {
+        const result = TaskTemplateSchema.safeParse(templateWith([{ title: "Review", repeat: 21 }]));
+        expect(result.success).toBe(false);
+        expect(result.error?.issues[0]?.message).toContain("maximum is 20");
+        expect(result.error?.issues[0]?.message).toContain("validation.maxRepeat");
+      });
+
+      test("a validation.maxRepeat override raises the cap", () => {
+        const template = {
+          ...templateWith([{ title: "Review", repeat: 30 }]),
+          validation: { maxRepeat: 30 },
+        };
+        expect(issueCodes(template)).toEqual([]);
+      });
+
+      test("a repeat above the validation.maxRepeat override is rejected", () => {
+        const template = {
+          ...templateWith([{ title: "Review", repeat: 31 }]),
+          validation: { maxRepeat: 30 },
+        };
+        expect(issueCodes(template)).toEqual(["REPEAT_EXCEEDS_MAX"]);
+        const result = TaskTemplateSchema.safeParse(template);
+        expect(result.error?.issues[0]?.message).toContain("maximum is 30");
+      });
+
+      test("a validation.maxRepeat override can also lower the cap", () => {
+        const template = {
+          ...templateWith([{ title: "Review", repeat: 5 }]),
+          validation: { maxRepeat: 4 },
+        };
+        expect(issueCodes(template)).toEqual(["REPEAT_EXCEEDS_MAX"]);
+      });
+
+      test("totalEstimationMustBe counts every copy of a repeated task", () => {
+        const tasks = [
+          { title: "Build", estimationPercent: 70 },
+          { title: "Review", estimationPercent: 10, repeat: 3 },
+        ];
+        expect(issueCodes({ ...templateWith(tasks), validation: { totalEstimationMustBe: 100 } })).toEqual([]);
+        expect(issueCodes({ ...templateWith(tasks), validation: { totalEstimationMustBe: 80 } })).toEqual([
+          "INVALID_TOTAL_ESTIMATION",
+        ]);
+      });
+
+      test("the total estimation error reports the repeat-weighted total", () => {
+        const result = TaskTemplateSchema.safeParse({
+          ...templateWith([
+            { title: "Build", estimationPercent: 70 },
+            { title: "Review", estimationPercent: 10, repeat: 4 },
+          ]),
+          validation: { totalEstimationMustBe: 100 },
+        });
+        expect(result.error?.issues[0]?.message).toContain("Total estimation is 110%");
+      });
+
+      test("totalEstimationRange counts every copy, including conditional percent rules", () => {
+        const tasks = [
+          { title: "Build", estimationPercent: 40 },
+          {
+            title: "Review",
+            estimationPercent: 10,
+            repeat: 3,
+            estimationPercentCondition: [
+              { condition: { field: "priority", operator: "equals", value: 1 }, percent: 20 },
+            ],
+          },
+        ];
+        // Reachable totals span 40 + 3 × 10 = 70% to 40 + 3 × 20 = 100%.
+        expect(issueCodes({ ...templateWith(tasks), validation: { totalEstimationRange: { min: 95, max: 120 } } })).toEqual([]);
+        expect(issueCodes({ ...templateWith(tasks), validation: { totalEstimationRange: { min: 101, max: 120 } } })).toEqual([
+          "INVALID_ESTIMATION_RANGE",
+        ]);
+        expect(issueCodes({ ...templateWith(tasks), validation: { totalEstimationRange: { min: 0, max: 69 } } })).toEqual([
+          "INVALID_ESTIMATION_RANGE",
+        ]);
+      });
+
+      test("maxTasks counts every copy of a repeated task", () => {
+        const tasks = [{ title: "Build" }, { title: "Review", repeat: 5 }];
+        expect(issueCodes({ ...templateWith(tasks), validation: { maxTasks: 6 } })).toEqual([]);
+        expect(issueCodes({ ...templateWith(tasks), validation: { maxTasks: 5 } })).toEqual(["TOO_MANY_TASKS"]);
+      });
+
+      test("minTasks counts every copy of a repeated task", () => {
+        const tasks = [{ title: "Review", repeat: 3 }];
+        expect(issueCodes({ ...templateWith(tasks), validation: { minTasks: 3 } })).toEqual([]);
+        expect(issueCodes({ ...templateWith(tasks), validation: { minTasks: 4 } })).toEqual(["TOO_FEW_TASKS"]);
+      });
+
+      test("requiredTasks matches a repeated task by its definition title", () => {
+        const template = {
+          ...templateWith([{ title: "Review", repeat: 3 }]),
+          validation: { requiredTasks: [{ title: "Review" }] },
+        };
+        expect(issueCodes(template)).toEqual([]);
+      });
+
+      test("rejects a task that has both repeat and dependsOn", () => {
+        const template = templateWith([
+          { id: "design", title: "Design" },
+          { id: "review", title: "Review", repeat: 2, dependsOn: ["design"] },
+        ]);
+        expect(issueCodes(template)).toEqual(["REPEAT_WITH_DEPENDENCY"]);
+      });
+
+      test("rejects a dependsOn that references a repeated task", () => {
+        const template = templateWith([
+          { id: "review", title: "Review", repeat: 2 },
+          { id: "merge", title: "Merge", dependsOn: ["review"] },
+        ]);
+        expect(issueCodes(template)).toEqual(["DEPENDS_ON_REPEATED_TASK"]);
       });
     });
   });

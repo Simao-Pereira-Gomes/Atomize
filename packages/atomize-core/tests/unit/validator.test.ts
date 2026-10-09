@@ -165,6 +165,97 @@ describe("TemplateValidator", () => {
 			expect(depError?.message).toContain("nonexistent-task");
 		});
 
+		test("should report repeat errors with suggestions", () => {
+			const template = {
+				version: "1.0",
+				name: "Repeat",
+				filter: {},
+				tasks: [
+					{ id: "design", title: "Design" },
+					{ id: "review", title: "Review", repeat: 25, dependsOn: ["design"] },
+					{ id: "merge", title: "Merge", dependsOn: ["review"] },
+				],
+			};
+
+			const result = validator.validate(template);
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.map((e) => [e.code, e.path])).toEqual([
+				["REPEAT_EXCEEDS_MAX", "tasks.1.repeat"],
+				["REPEAT_WITH_DEPENDENCY", "tasks.1.dependsOn"],
+				["DEPENDS_ON_REPEATED_TASK", "tasks.2.dependsOn"],
+			]);
+			expect(result.errors.every((e) => e.suggestion)).toBe(true);
+		});
+
+		test("should suggest a fix for task-count errors", () => {
+			const template = (tasks: unknown[], validation: unknown) => ({
+				version: "1.0",
+				name: "Counts",
+				filter: {},
+				tasks,
+				validation,
+			});
+			const suggestion = (t: unknown) => validator.validate(t).errors[0]?.suggestion;
+
+			expect(suggestion(template([{ title: "A" }, { title: "B" }], { maxTasks: 1 }))).toBe(
+				"Remove 1 task(s) or increase the maxTasks limit to 2.",
+			);
+			expect(suggestion(template([{ title: "A" }], { minTasks: 3 }))).toBe(
+				"Add 2 more task(s) to meet the minimum requirement of 3 tasks.",
+			);
+			expect(suggestion(template([{ title: "A", repeat: 4 }], { maxTasks: 2 }))).toBe(
+				"Remove 2 task(s), lower a repeat count, or increase the maxTasks limit to 4.",
+			);
+			expect(suggestion(template([{ title: "A", repeat: 2 }], { minTasks: 3 }))).toBe(
+				"Add 1 more task(s) or raise a repeat count to meet the minimum requirement of 3 tasks.",
+			);
+		});
+
+		test("should note that repeated copies count toward a total estimation error", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Totals",
+				filter: {},
+				tasks: [{ title: "Review", estimationPercent: 40, repeat: 3 }],
+				validation: { totalEstimationMustBe: 100 },
+			});
+
+			expect(result.errors[0]?.suggestion).toBe(
+				"Reduce task estimations by 20% to reach 100%. Each copy of a repeated task counts toward this total.",
+			);
+		});
+
+		test("should warn when repeated copies push the total estimation over 100%", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Over",
+				filter: {},
+				tasks: [
+					{ title: "Build", estimationPercent: 70 },
+					{ title: "Review", estimationPercent: 20, repeat: 3 },
+				],
+			});
+
+			expect(result.warnings.map((w) => w.message)).toContainEqual(
+				expect.stringContaining("Total estimation is 130%"),
+			);
+		});
+
+		test("should reject repeat with dependsOn in a mixin but leave the cap to the composing template", () => {
+			const mixin = {
+				name: "Review Mixin",
+				tasks: [
+					{ id: "design", title: "Design" },
+					{ id: "review", title: "Review", repeat: 25, dependsOn: ["design"] },
+				],
+			};
+
+			const result = validator.validate(mixin);
+
+			expect(result.errors.map((e) => e.code)).toEqual(["REPEAT_WITH_DEPENDENCY"]);
+		});
+
 		test("should validate a standalone mixin without requiring template version or filter", () => {
 			const mixin = {
 				name: "Testing Mixin",

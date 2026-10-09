@@ -291,6 +291,14 @@ export const TaskDefinitionSchema = z.object({
       "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks.",
     )
     .optional(),
+  repeat: z
+    .number()
+    .int("Repeat count must be a whole number")
+    .min(1, "Repeat count must be at least 1")
+    .describe(
+      "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn.",
+    )
+    .optional(),
   assignTo: z
     .string()
     .describe("Email address or alias to assign this task to.")
@@ -517,6 +525,14 @@ export const ValidationConfigSchema = z.object({
     .number()
     .describe("Maximum number of tasks the template may define.")
     .optional(),
+  maxRepeat: z
+    .number()
+    .int("Maximum repeat count must be a whole number")
+    .min(1, "Maximum repeat count must be at least 1")
+    .describe(
+      "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies.",
+    )
+    .optional(),
   taskEstimationRange: z
     .object({
       min: z
@@ -705,6 +721,16 @@ function ownPercentRange(task: TaskTemplate["tasks"][number]): [min: number, max
   return [Math.min(...candidates), Math.max(...candidates)];
 }
 
+/** How many Tasks a definition generates: its `repeat` count, or one when unset. */
+export function copyCount(task: Pick<TaskTemplate["tasks"][number], "repeat">): number {
+  return task.repeat ?? 1;
+}
+
+/** How many Tasks the definitions generate when every one is active, counting each repeated copy. */
+export function generatedTaskCount(tasks: ReadonlyArray<Pick<TaskTemplate["tasks"][number], "repeat">>): number {
+  return tasks.reduce((sum, task) => sum + copyCount(task), 0);
+}
+
 export const TaskTemplateSchema = TaskTemplateBaseSchema
   .superRefine((data, ctx) => {
     const { tasks, validation: v } = data;
@@ -712,13 +738,14 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
     let maxTotalPercent = 0;
     for (const task of tasks) {
       const [ownMin, ownMax] = ownPercentRange(task);
-      totalPercent += task.condition ? 0 : ownMin;
-      maxTotalPercent += ownMax;
+      const copies = copyCount(task);
+      totalPercent += task.condition ? 0 : ownMin * copies;
+      maxTotalPercent += ownMax * copies;
     }
     const taskIds = new Set(tasks.map((t) => t.id).filter(Boolean));
 
     validateUniqueTaskIds(tasks, ctx);
-    validateEstimationConstraints(v, totalPercent, maxTotalPercent, ctx);
+    validateEstimationConstraints(v, totalPercent, maxTotalPercent, tasks.some((t) => copyCount(t) > 1), ctx);
 
     validateTaskConstraints(v, tasks, ctx);
     validateRequiredTasks(v, tasks, ctx);
@@ -728,6 +755,8 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
     tasks.forEach((t, i) => {
       if (t.id) taskIndexById.set(t.id, i);
     });
+
+    validateRepeatedTasks(tasks, ctx, v?.maxRepeat ?? DEFAULT_MAX_REPEAT);
 
     tasks.forEach((task, index) => {
       task.dependsOn?.forEach((depId) => {
@@ -748,27 +777,81 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
     reportCircularDependencies(tasks, taskIndexById, ctx);
   });
 
+/**
+ * Default upper bound on a task's `repeat`, guarding against a typo triggering a large bulk
+ * creation. A Template overrides it with `validation.maxRepeat`.
+ */
+export const DEFAULT_MAX_REPEAT = 20;
+
+/**
+ * A repeated task has several copies, so a dependency link to or from it has no single
+ * Work Item to attach to; repeat and dependsOn are therefore mutually exclusive.
+ */
+function validateRepeatedTasks(
+  tasks: TaskTemplate["tasks"],
+  ctx: z.RefinementCtx,
+  maxRepeat?: number,
+) {
+  const repeatedIds = new Set(
+    tasks.filter((t) => t.repeat !== undefined && t.id).map((t) => t.id as string),
+  );
+
+  tasks.forEach((task, index) => {
+    if (maxRepeat !== undefined && task.repeat !== undefined && task.repeat > maxRepeat) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tasks", index, "repeat"],
+        message: `Task repeats ${task.repeat} times, but the maximum is ${maxRepeat}. Lower repeat or raise validation.maxRepeat.`,
+        params: { code: "REPEAT_EXCEEDS_MAX", maxRepeat },
+      });
+    }
+
+    if (task.repeat !== undefined && task.dependsOn?.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tasks", index, "dependsOn"],
+        message: "A repeated task cannot have dependsOn. Remove repeat or dependsOn from this task.",
+        params: { code: "REPEAT_WITH_DEPENDENCY" },
+      });
+    }
+
+    task.dependsOn?.forEach((depId) => {
+      if (repeatedIds.has(depId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["tasks", index, "dependsOn"],
+          message: `Task depends on "${depId}", which is repeated. A task cannot depend on a repeated task.`,
+          params: { code: "DEPENDS_ON_REPEATED_TASK", taskId: depId },
+        });
+      }
+    });
+  });
+}
+
 function validateTaskConstraints(
   v: TaskTemplate["validation"] | undefined,
   tasks: TaskTemplate["tasks"],
   ctx: z.RefinementCtx,
 ) {
-  if (v?.minTasks !== undefined && tasks.length < v.minTasks) {
-    const needed = v.minTasks - tasks.length;
+  const count = generatedTaskCount(tasks);
+  const hasRepeats = tasks.some((task) => copyCount(task) > 1);
+  const counted = hasRepeats ? " (counting each repeated copy)" : "";
+  if (v?.minTasks !== undefined && count < v.minTasks) {
+    const needed = v.minTasks - count;
     ctx.addIssue({
       code: "custom",
       path: ["tasks"],
-      message: `Template has ${tasks.length} task(s), but minimum is ${v.minTasks}. Add ${needed} more task(s).`,
-      params: { code: "TOO_FEW_TASKS" },
+      message: `Template has ${count} task(s)${counted}, but minimum is ${v.minTasks}. Add ${needed} more task(s).`,
+      params: { code: "TOO_FEW_TASKS", count, limit: v.minTasks, hasRepeats },
     });
   }
-  if (v?.maxTasks !== undefined && tasks.length > v.maxTasks) {
-    const excess = tasks.length - v.maxTasks;
+  if (v?.maxTasks !== undefined && count > v.maxTasks) {
+    const excess = count - v.maxTasks;
     ctx.addIssue({
       code: "custom",
       path: ["tasks"],
-      message: `Template has ${tasks.length} task(s), but maximum is ${v.maxTasks}. Remove ${excess} task(s) or increase maxTasks.`,
-      params: { code: "TOO_MANY_TASKS" },
+      message: `Template has ${count} task(s)${counted}, but maximum is ${v.maxTasks}. Remove ${excess} task(s) or increase maxTasks.`,
+      params: { code: "TOO_MANY_TASKS", count, limit: v.maxTasks, hasRepeats },
     });
   }
 }
@@ -801,6 +884,7 @@ function validateEstimationConstraints(
   v: TaskTemplate["validation"] | undefined,
   totalPercent: number,
   maxTotalPercent: number,
+  hasRepeats: boolean,
   ctx: z.RefinementCtx,
 ) {
   if (v?.totalEstimationMustBe !== undefined) {
@@ -809,7 +893,7 @@ function validateEstimationConstraints(
         code: "custom",
         path: ["tasks"],
         message: `Total estimation is ${totalPercent}%, but must be ${v.totalEstimationMustBe}%.`,
-        params: { code: "INVALID_TOTAL_ESTIMATION" },
+        params: { code: "INVALID_TOTAL_ESTIMATION", hasRepeats },
       });
     }
   } else if (v?.totalEstimationRange) {
@@ -819,7 +903,7 @@ function validateEstimationConstraints(
         code: "custom",
         path: ["tasks"],
         message: `Total estimation is ${totalPercent}%, but must be between ${min}% and ${max}%.`,
-        params: { code: "INVALID_ESTIMATION_RANGE" },
+        params: { code: "INVALID_ESTIMATION_RANGE", hasRepeats },
       });
     }
   }
@@ -905,6 +989,8 @@ export const MixinTemplateSchema = z
   .strict()
   .superRefine((data, ctx) => {
     validateUniqueTaskIds(data.tasks, ctx);
+    // The repeat cap belongs to the composing Template, so a Mixin only checks dependencies.
+    validateRepeatedTasks(data.tasks, ctx);
   });
 
 export const CURRENT_ITERATION = "@CurrentIteration" as const;

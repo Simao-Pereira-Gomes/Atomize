@@ -131,7 +131,9 @@ jobs:
         run: |
           package_version=$(node -p "require('./packages/atomize-studio/package.json').version")
           tauri_version=$(node -e "console.log(require('./packages/atomize-studio/src-tauri/tauri.conf.json').version)")
+          cargo_version=$(sed -n 's/^version = "\(.*\)"$/\1/p' packages/atomize-studio/src-tauri/Cargo.toml | head -n 1)
           test "$package_version" = "$tauri_version"
+          test "$package_version" = "$cargo_version"
           tag="studio-v$package_version"
           echo "version=$package_version" >> "$GITHUB_OUTPUT"
           if git tag -l "$tag" | grep -q .; then

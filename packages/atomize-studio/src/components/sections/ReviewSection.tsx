@@ -46,6 +46,10 @@ function YamlCode(props: { value: string }) {
   return <code><For each={props.value.split("\n")}>{(line, index) => <><YamlLine line={line} />{index() < props.value.split("\n").length - 1 ? "\n" : ""}</>}</For></code>;
 }
 
+function TemplateProblems(props: { problems: string[] }) {
+  return <div class="ui-error mt-3"><p>This Template doesn't validate as a whole, even though every section above checks out.</p><ul class="mt-2 list-disc space-y-1 pl-5"><For each={props.problems}>{(problem) => <li>{problem}</li>}</For></ul></div>;
+}
+
 async function revealInFolder(path: string) {
   const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
   await revealItemInDir(path);
@@ -170,18 +174,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
   const decreaseZoom = () => setYamlZoom((zoom) => Math.max(70, zoom - 10));
   const increaseZoom = () => setYamlZoom((zoom) => Math.min(160, zoom + 10));
   const yamlFontSize = () => `${(14 * yamlZoom()) / 100}px`;
-  const yamlPreview = createMemo<{ ok: true; yaml: string } | { ok: false; message: string }>(() => {
-    try {
-      return { ok: true, yaml: props.store.serialise() };
-    } catch (error) {
-      return {
-        ok: false,
-        message: error instanceof Error
-          ? error.message
-          : "This Template doesn't validate as a whole, even though every section above checks out.",
-      };
-    }
-  });
+  const yamlPreview = createMemo(() => props.store.previewYaml());
   const copyYaml = () => {
     const preview = yamlPreview();
     if (preview.ok) void navigator.clipboard.writeText(preview.yaml);
@@ -391,7 +384,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
           </Show>
           <Show
             when={yamlPreview().ok}
-            fallback={<p class="ui-error mt-3">{(yamlPreview() as { ok: false; message: string }).message}</p>}
+            fallback={<TemplateProblems problems={(yamlPreview() as { ok: false; problems: string[] }).problems} />}
           >
             <pre class="overflow-x-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}>
               <YamlCode value={(yamlPreview() as { ok: true; yaml: string }).yaml} />
@@ -457,7 +450,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
               </div>
               <Show
                 when={yamlPreview().ok}
-                fallback={<p class="ui-error mt-3">{(yamlPreview() as { ok: false; message: string }).message}</p>}
+                fallback={<TemplateProblems problems={(yamlPreview() as { ok: false; problems: string[] }).problems} />}
               >
                 <pre class="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-auto rounded-b-xl bg-slate-950 p-5 leading-6 text-slate-100" style={{ "font-size": yamlFontSize() }}><YamlCode value={(yamlPreview() as { ok: true; yaml: string }).yaml} /></pre>
               </Show>

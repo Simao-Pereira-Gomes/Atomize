@@ -14,6 +14,7 @@ describe("Integration Tests", () => {
     backend: "backend.atomize.yaml",
     frontend: "frontend.yaml",
     fullstack: "fullstack.atomize.yaml",
+    repeatedReview: "repeated-review-tasks.atomize.yaml",
   } as const;
 
   describe("Load and Validate Flow", () => {
@@ -111,6 +112,7 @@ describe("Integration Tests", () => {
         exampleTemplates.backend,
         exampleTemplates.frontend,
         exampleTemplates.fullstack,
+        exampleTemplates.repeatedReview,
       ];
 
       for (const templatePath of templates) {

@@ -90,6 +90,14 @@ export const Validators = {
       return Validators.maxLength(fieldName, maxLength)(input);
     },
 
+  positiveInteger:
+    (fieldName: string) =>
+    (input: string | undefined): string | undefined => {
+      const num = Number(input);
+      if (!input || input.trim() === "" || !Number.isInteger(num) || num < 1) return `${fieldName} must be a whole number of at least 1`;
+      return undefined;
+    },
+
   positiveNumber:
     (fieldName: string) =>
     (input: string | undefined): string | undefined => {

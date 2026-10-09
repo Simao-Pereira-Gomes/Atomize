@@ -17,6 +17,7 @@ Complete reference for Atomize YAML template files.
   - [Conditional Tasks](#conditional-tasks)
   - [Conditional Estimation](#conditional-estimation)
   - [Task Dependencies](#task-dependencies)
+  - [Repeated Tasks](#repeated-tasks)
 - [estimation](#estimation)
 - [validation](#validation)
 - [metadata](#metadata)
@@ -363,6 +364,7 @@ tasks:
 | `priority` | No | number | Task priority (1-4) |
 | `condition` | No | object | Structured condition to conditionally create this task |
 | `dependsOn` | No | string[] | IDs of tasks this task depends on |
+| `repeat` | No | number | Create this many identical Tasks from this definition (default 1). See [Repeated Tasks](#repeated-tasks) |
 | `acceptanceCriteria` | No | string[] | List of acceptance criteria |
 | `customFields` | No | object | Task-level Azure DevOps field values keyed by reference name |
 
@@ -574,6 +576,48 @@ tasks:
 - `id` is required on any task that uses `dependsOn`
 - Circular dependencies are a validation error
 - IDs must be unique within a template
+- A [repeated task](#repeated-tasks) can't use `dependsOn`, and no task can depend on one
+
+### Repeated Tasks
+
+Set `repeat` to create several identical Tasks from one task definition, for example one review Task per developer. You don't have to copy the task block and keep the copies in sync.
+
+```yaml
+tasks:
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    estimationPercent: 60
+
+  - title: "Add review conclusions"
+    estimationPercent: 10
+    repeat: 4                  # creates 4 Tasks
+```
+
+Each copy's title ends with its position, so the Story above gets "Add review conclusions (1)" to "Add review conclusions (4)". With `repeat` unset or `1`, the task creates one Task and its title is unchanged.
+
+How a repeated task behaves:
+
+- **Every copy is identical.** All copies share the same description, tags, activity, assignee and custom fields. Write separate tasks when copies need to differ.
+- **Each copy gets the full percentage.** Four copies at 10% take 40% of the Story Estimate together. The template above sums to 60% + 4 × 10% = 100%.
+- **A condition applies to all copies.** The task's `condition` is checked once against the Story, so either every copy is created or none is.
+- **Validation counts copies.** `totalEstimationMustBe`, `totalEstimationRange`, `minTasks` and `maxTasks` count each copy, so they describe what generation produces. `requiredTasks` still matches the task's own title, without the position suffix.
+- **Previews show every copy.** Mock Preview, Live Preview and a dry run list each copy with its title and estimate.
+
+Rules:
+
+- `repeat` is a whole number of at least 1.
+- A repeated task can't use `dependsOn`, and no task can list a repeated task in its `dependsOn`. A dependency links two single Work Items, and the copies have no single Work Item to link.
+- `repeat` can be at most 20, which guards against a typo creating many Tasks on a live platform. A template that genuinely needs more raises its own limit with [`validation.maxRepeat`](#validation).
+
+The count is a fixed number written in the template. It can't come from a Story field and can't be set at generate time. Story Learner never produces `repeat`: identical Tasks it learns from stay separate task definitions.
+
+**Authoring:**
+- **CLI wizard:** the advanced task options ask how many identical Tasks to create.
+- **Atomize Studio:** use the task's **Copies** field.
+- **VS Code:** type `atm-task-repeat`.
+- **AI drafts:** a request such as "one review task per developer" produces a repeated task.
+
+The full decision record is [ADR-0067](./adr/0067-task-repeat-count-is-a-schema-field.md).
 
 ---
 
@@ -636,6 +680,7 @@ validation:
     max: 105
   minTasks: 3                 # Minimum number of tasks required
   maxTasks: 10                # Maximum number of tasks allowed
+  maxRepeat: 30               # Highest repeat any task may use (default 20)
   taskEstimationRange:        # Each task must fall in this range
     min: 0.5
     max: 8
@@ -647,10 +692,11 @@ validation:
 | Field | Type | Description |
 |-------|------|-------------|
 | `mode` | string | `"lenient"` (default) or `"strict"`. In strict mode, warnings become errors |
-| `totalEstimationMustBe` | number | Total estimation percentage must equal this value |
-| `totalEstimationRange` | object | Total estimation must fall within `min`-`max` range |
-| `minTasks` | number | Minimum number of tasks required |
-| `maxTasks` | number | Maximum number of tasks allowed |
+| `totalEstimationMustBe` | number | Total estimation percentage must equal this value. Each copy of a repeated task counts |
+| `totalEstimationRange` | object | Total estimation must fall within `min`-`max` range. Each copy of a repeated task counts |
+| `minTasks` | number | Minimum number of tasks required. Each copy of a repeated task counts |
+| `maxTasks` | number | Maximum number of tasks allowed. Each copy of a repeated task counts |
+| `maxRepeat` | number | Highest `repeat` any task may use. Default 20 |
 | `taskEstimationRange` | object | Each individual task's resolved estimation must fall within this range |
 | `requiredTasks` | array | Tasks that must exist (matched by `id` or `title`) |
 

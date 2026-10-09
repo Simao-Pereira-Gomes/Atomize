@@ -139,6 +139,33 @@ describe("printReport", () => {
     expect(calls).not.toContain("filter configuration");
   });
 
+  test("prints hours rounded to two decimals, without floating-point noise", () => {
+    printReport(
+      makeReport({
+        results: [
+          {
+            story: { id: "S-1", title: "Story", type: "User Story", state: "New" },
+            success: true,
+            tasksCalculated: [
+              { title: "Review (1)", estimation: 1.3333333, estimationPercent: 10 },
+              { title: "Review (2)", estimation: 1.2, estimationPercent: 10 },
+            ],
+            tasksCreated: [],
+            estimateUnit: "hours",
+            storyEstimate: 13,
+            estimationSummary: { storyEstimation: 13, totalTaskEstimation: 13.000000000000002, difference: 0, percentageUsed: 100 },
+          },
+        ] as unknown as AtomizationReport["results"],
+      }),
+      { verbose: true },
+      true,
+    );
+    const calls = consoleSpy.mock.calls.flat().join("\n");
+    expect(calls).toContain("Distribution: 13 hours");
+    expect(calls).toContain("Review (1): 1.33 hours");
+    expect(calls).not.toContain("13.000000000000002");
+  });
+
   test("returns Success when all stories succeed (dry run)", () => {
     const code = printReport(
       makeReport({ storiesProcessed: 2, storiesSuccess: 2, storiesFailed: 0 }),

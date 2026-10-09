@@ -4,6 +4,7 @@ import { extractCustomFieldRefs } from "../core/condition-evaluator.js";
 import { TemplateValidationError } from "../utils/errors";
 import { findDuplicateTaskIds } from "./composition-policy";
 import {
+  copyCount,
   type MixinTemplate,
   MixinTemplateSchema,
   type TaskTemplate,
@@ -115,7 +116,7 @@ export class TemplateValidator {
     const warnings: ValidationWarning[] = [];
     const v = template.validation;
     const total = template.tasks.reduce(
-      (sum, t) => sum + (t.estimationPercent ?? 0),
+      (sum, t) => sum + (t.estimationPercent ?? 0) * copyCount(t),
       0,
     );
     const hasStrictRule =
@@ -319,9 +320,11 @@ export class TemplateValidator {
    * Handles custom application errors based on error codes and regex patterns.
    */
   private handleDomainError(err: $ZodIssue, code: string): string | undefined {
+    const params = err.code === "custom" ? err.params : undefined;
+    const repeatHint = params?.hasRepeats ? " Each copy of a repeated task counts toward this total." : "";
     switch (code) {
       case "INVALID_TOTAL_ESTIMATION":
-        return this.handleNumericError(
+        return this.withHint(repeatHint, this.handleNumericError(
           err.message,
           /is (\d+)%, but must be (\d+)%/,
           (current, required) => {
@@ -330,10 +333,10 @@ export class TemplateValidator {
               ? `Add ${diff}% to existing tasks or create a new task with ${diff}% estimation.`
               : `Reduce task estimations by ${Math.abs(diff)}% to reach ${required}%.`;
           },
-        );
+        ));
 
       case "INVALID_ESTIMATION_RANGE":
-        return this.handleNumericError(
+        return this.withHint(repeatHint, this.handleNumericError(
           err.message,
           /is (\d+)%, but must be between (\d+)% and (\d+)%/,
           (current, min, max) => {
@@ -341,23 +344,23 @@ export class TemplateValidator {
               return `Increase task estimations by ${min - current}% to meet the minimum of ${min}%.`;
             return `Reduce task estimations by ${current - max}% to stay within the maximum of ${max}%.`;
           },
-        );
+        ));
 
-      case "TOO_FEW_TASKS":
-        return this.handleNumericError(
-          err.message,
-          /has (\d+) tasks?, but minimum is (\d+)/,
-          (current, required) =>
-            `Add ${required - current} more task(s) to meet the minimum requirement of ${required} tasks.`,
-        );
+      case "TOO_FEW_TASKS": {
+        if (typeof params?.count !== "number" || typeof params.limit !== "number") return undefined;
+        const { count, limit } = params;
+        return params.hasRepeats
+          ? `Add ${limit - count} more task(s) or raise a repeat count to meet the minimum requirement of ${limit} tasks.`
+          : `Add ${limit - count} more task(s) to meet the minimum requirement of ${limit} tasks.`;
+      }
 
-      case "TOO_MANY_TASKS":
-        return this.handleNumericError(
-          err.message,
-          /has (\d+) tasks?, but maximum is (\d+)/,
-          (current, max) =>
-            `Remove ${current - max} task(s) or increase the maxTasks limit to ${current}.`,
-        );
+      case "TOO_MANY_TASKS": {
+        if (typeof params?.count !== "number" || typeof params.limit !== "number") return undefined;
+        const { count, limit } = params;
+        return params.hasRepeats
+          ? `Remove ${count - limit} task(s), lower a repeat count, or increase the maxTasks limit to ${count}.`
+          : `Remove ${count - limit} task(s) or increase the maxTasks limit to ${count}.`;
+      }
 
       case "INVALID_DEPENDENCY": {
         const match = err.message.match(/non-existent task ID: "([^"]+)"/);
@@ -375,6 +378,19 @@ export class TemplateValidator {
         return "Remove one of the dependencies in the cycle to break the circular reference.";
       }
 
+      case "REPEAT_EXCEEDS_MAX":
+        return "Lower the repeat count, or raise validation.maxRepeat if the template genuinely needs more copies.";
+
+      case "REPEAT_WITH_DEPENDENCY":
+        return "Remove dependsOn from the repeated task, or remove repeat and define each copy as its own task.";
+
+      case "DEPENDS_ON_REPEATED_TASK": {
+        const match = err.message.match(/depends on "([^"]+)"/);
+        return match
+          ? `Remove "${match[1]}" from dependsOn, or remove repeat from task "${match[1]}".`
+          : "Remove the dependency on the repeated task, or remove its repeat.";
+      }
+
       case "MISSING_REQUIRED_TASK": {
         const match = err.message.match(/title "([^"]+)"/);
         return match
@@ -385,6 +401,10 @@ export class TemplateValidator {
       default:
         return undefined;
     }
+  }
+
+  private withHint(hint: string, suggestion: string | undefined): string | undefined {
+    return suggestion && `${suggestion}${hint}`;
   }
 
   /**

@@ -1,4 +1,4 @@
-import type { TaskDefinition } from "../templates/schema";
+import { copyCount, type TaskDefinition } from "../templates/schema";
 import {
   type EstimationPercentage,
   normalizeEstimationPercentages,
@@ -71,12 +71,13 @@ export function totalEstimationPercent(tasks: EstimationPercentage[]): number {
   return tasks.reduce((sum, task) => sum + (task.estimationPercent ?? 0), 0);
 }
 
+/** The percent a Template's unconditional task definitions always allocate, counting each repeated copy. */
 export function totalUnconditionalEstimationPercent(
-  tasks: Array<Pick<TaskDefinition, "condition" | "estimationPercent">>,
+  tasks: Array<Pick<TaskDefinition, "condition" | "estimationPercent" | "repeat">>,
 ): number {
   return tasks
     .filter((task) => !task.condition)
-    .reduce((sum, task) => sum + (task.estimationPercent ?? 0), 0);
+    .reduce((sum, task) => sum + (task.estimationPercent ?? 0) * copyCount(task), 0);
 }
 
 export function shouldOfferOverageNormalization(

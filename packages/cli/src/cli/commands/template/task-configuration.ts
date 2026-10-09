@@ -447,20 +447,34 @@ export async function configureTaskTags(defaults?: string[]): Promise<string[] |
 
 /**
  * Configure advanced task options.
- * When `defaults` is supplied dependsOn and priority are pre-filled.
+ * When `defaults` is supplied repeat, dependsOn and priority are pre-filled.
  */
 export async function configureAdvancedTaskOptions(
   storyFieldSchemas: ADoFieldSchema[],
   defaults?: TaskDefinition,
-): Promise<Pick<TaskDefinition, "dependsOn" | "condition" | "priority">> {
-  const dependsOnRaw = assertNotCancelled(
+): Promise<Pick<TaskDefinition, "repeat" | "dependsOn" | "condition" | "priority">> {
+  const repeatRaw = assertNotCancelled(
     await text({
-      message: "Depends on task IDs (comma-separated, optional):",
-      placeholder: "e.g. task-setup, task-db, task-build, task-test",
-      initialValue: defaults?.dependsOn?.join(", ") ?? "",
+      message: "How many identical Tasks should this create?",
+      placeholder: "1",
+      initialValue: String(defaults?.repeat ?? 1),
+      validate: Validators.positiveInteger("Number of Tasks"),
     }),
   );
-  const dependsOn = Filters.commaSeparated(dependsOnRaw);
+  const repeat = Number(repeatRaw);
+
+  // A repeated task's copies have no single Work Item to link, so it takes no dependencies.
+  let dependsOn: string[] = [];
+  if (repeat === 1) {
+    const dependsOnRaw = assertNotCancelled(
+      await text({
+        message: "Depends on task IDs (comma-separated, optional):",
+        placeholder: "e.g. task-setup, task-db, task-build, task-test",
+        initialValue: defaults?.dependsOn?.join(", ") ?? "",
+      }),
+    );
+    dependsOn = Filters.commaSeparated(dependsOnRaw);
+  }
 
   const addCondition = assertNotCancelled(
     await confirm({ message: "Add a task condition?", initialValue: false }),
@@ -480,8 +494,9 @@ export async function configureAdvancedTaskOptions(
     }),
   );
 
-  const result: Pick<TaskDefinition, "dependsOn" | "condition" | "priority"> = {};
+  const result: Pick<TaskDefinition, "repeat" | "dependsOn" | "condition" | "priority"> = {};
 
+  if (repeat > 1) result.repeat = repeat;
   if (dependsOn.length > 0) result.dependsOn = dependsOn;
   if (condition) result.condition = condition;
   if (priorityRaw) result.priority = Number(priorityRaw);
@@ -539,6 +554,9 @@ export async function buildTaskDefinition(
     }
     const advanced = await configureAdvancedTaskOptions(storyFieldSchemas, defaults);
     Object.assign(taskDef, advanced);
+  } else if (defaults?.repeat !== undefined) {
+    // Skipping the advanced options must not quietly turn a repeated task back into one Task.
+    taskDef.repeat = defaults.repeat;
   }
 
   const customFields = await configureCustomFields(fieldSchemas, storyFieldSchemas);

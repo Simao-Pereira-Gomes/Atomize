@@ -15,7 +15,7 @@ import type {
 } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
 import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
-import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { formatEstimateValue, type TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { AuthError } from "@sppg2001/atomize-core/utils/errors";
 import { clampConcurrency } from "@sppg2001/atomize-core/utils/math";
@@ -425,7 +425,8 @@ export function printReport(
           continue;
         }
         output.print(chalk.green(`✓ ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)}`));
-        const withUnit = (value: number) => (result.estimateUnit ? `${value} ${result.estimateUnit}` : String(value));
+        const withUnit = (value: number) =>
+          result.estimateUnit ? `${formatEstimateValue(value)} ${result.estimateUnit}` : formatEstimateValue(value);
         const rawEstimate = result.storyEstimate;
         const converted = result.estimationSummary?.storyEstimation;
         const conversionNote =
