@@ -19,6 +19,7 @@ import type {
   PlatformMetadata,
   SavedQueryInfo,
 } from "../../interfaces/platform.interface";
+import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
   WorkItem,
@@ -61,6 +62,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private connection?: azdev.WebApi;
   private witApi?: IWorkItemTrackingApi;
   private authenticated = false;
+  private closedStatesByType = new Map<string, Promise<string[]>>();
   private readonly fieldSchemaService: FieldSchemaService;
 
   constructor(
@@ -146,6 +148,60 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         "azure-devops",
       );
     }
+  }
+
+  /**
+   * Run a Story Search, newest first
+   */
+  async searchStories(search: StorySearch): Promise<WorkItem[]> {
+    this.ensureAuthenticated();
+
+    try {
+      if (!this.witApi) {
+        throw new UnknownError("Work Item Tracking API not initialized");
+      }
+      const excludeStates = search.excludeClosed
+        ? [...(search.excludeStates ?? []), ...(await this.getClosedStates(search.workItemTypes))]
+        : search.excludeStates;
+      return await new AzureDevOpsWorkItemRetrieval(this.witApi, {
+        project: this.config.project,
+        team: this.config.team,
+      }).search({ ...search, ...(excludeStates?.length ? { excludeStates } : {}) });
+    } catch (error) {
+      const message = sanitizeAzureErrorMessage(error);
+      logger.debug("AzureDevOps: Story Search failed", { error: message });
+      if (error instanceof PlatformError || error instanceof ConfigurationError) {
+        throw error;
+      }
+      throw new PlatformError(
+        `Failed to search Stories in Azure DevOps: ${message}`,
+        "azure-devops",
+      );
+    }
+  }
+
+  /**
+   * State names in the Completed or Removed category for the given types (or every type),
+   * so "not closed" works across Agile, Scrum, CMMI, and custom processes.
+   */
+  private async getClosedStates(workItemTypes: string[] | undefined): Promise<string[]> {
+    const witApi = this.witApi;
+    if (!witApi) return [];
+    const types = workItemTypes?.length ? workItemTypes : await this.getWorkItemTypes();
+    const perType = await Promise.all(types.map((type) => {
+      let entry = this.closedStatesByType.get(type);
+      if (!entry) {
+        entry = witApi.getWorkItemTypeStates(this.config.project, type)
+          .then((states) => states
+            .filter((state) => state.category === "Completed" || state.category === "Removed")
+            .map((state) => state.name)
+            .filter((name): name is string => !!name))
+          .catch(() => []);
+        this.closedStatesByType.set(type, entry);
+      }
+      return entry;
+    }));
+    return [...new Set(perType.flat())];
   }
 
   /**

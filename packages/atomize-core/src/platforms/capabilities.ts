@@ -34,6 +34,12 @@ export function hasProjectMetadataReader(
   );
 }
 
+export function hasStorySearch(
+  platform: IPlatformAdapter,
+): platform is IPlatformAdapter & Required<Pick<IPlatformAdapter, "searchStories">> {
+  return hasPlatformMethod(platform, "searchStories");
+}
+
 export function hasSavedQueryReader(
   platform: IPlatformAdapter,
 ): platform is IPlatformAdapter & Required<SavedQueryReader> {

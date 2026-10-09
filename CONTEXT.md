@@ -108,7 +108,7 @@ _Avoid_: treating Project Reference Documents as automatically sent; they are a 
 Grounding drawn from one or more Reference Documents. Unlike Project Grounding it needs no Connection Profile when the documents are local files, and it may accompany either AI action.
 
 **Story Browser**:
-The surface for finding and selecting one or more Stories from a platform, shared in behaviour by every Atomize surface that asks the user to pick Stories. It works in two modes: listing the Stories that match a Template's filter, or running a Story Search.
+The surface for finding and selecting one or more Stories from a platform, shared in behaviour by every Atomize surface that asks the user to pick Stories. It opens on a default list suited to the task at hand — for generation, open Stories without Tasks in the team's current and next sprint, of the Template's Work Item types — and can switch to a Story Search; Story IDs can always be entered directly.
 _Avoid_: asking users to type Story IDs blind where a Story Browser can be offered.
 
 **Story Search**:

@@ -1,5 +1,6 @@
 import { CURRENT_ITERATION, TEAM_AREAS } from "../../../templates/schema";
 import type { FilterCriteria } from "../../interfaces/filter.interface";
+import type { StorySearch } from "../../interfaces/story-search.interface";
 
 const CURRENT_ITERATION_OFFSET_RE = /^@CurrentIteration\s*([+-])\s*(\d+)$/i;
 const DATE_MACRO_RE =
@@ -89,6 +90,51 @@ export function buildWorkItemWiqlQuery(
   }
 
   return `SELECT [System.Id] FROM WorkItems WHERE ${conditions.join(" AND ")}`;
+}
+
+export function buildStorySearchWiql(search: StorySearch, project: string): string {
+  const conditions: string[] = [`[System.TeamProject] = '${wiqlEscape(project)}'`];
+
+  const text = search.text?.trim();
+  if (text) {
+    const title = `[System.Title] CONTAINS '${wiqlEscape(text)}'`;
+    conditions.push(/^\d+$/.test(text) ? `([System.Id] = ${text} OR ${title})` : title);
+  }
+
+  if (search.workItemTypes && search.workItemTypes.length > 0) {
+    conditions.push(`[System.WorkItemType] IN (${quoteList(search.workItemTypes)})`);
+  }
+
+  if (search.excludeWorkItemTypes && search.excludeWorkItemTypes.length > 0) {
+    conditions.push(`[System.WorkItemType] NOT IN (${quoteList(search.excludeWorkItemTypes)})`);
+  }
+
+  if (search.states && search.states.length > 0) {
+    conditions.push(`[System.State] IN (${quoteList(search.states)})`);
+  }
+
+  if (search.excludeStates && search.excludeStates.length > 0) {
+    conditions.push(`[System.State] NOT IN (${quoteList(search.excludeStates)})`);
+  }
+
+  if (search.currentAndNextSprint) {
+    conditions.push("([System.IterationPath] = @CurrentIteration OR [System.IterationPath] = @CurrentIteration + 1)");
+  }
+
+  appendUnderConditions(conditions, "[System.AreaPath]", search.areaPaths);
+  appendUnderConditions(conditions, "[System.IterationPath]", search.iterations);
+
+  return `SELECT [System.Id] FROM WorkItems WHERE ${conditions.join(" AND ")} ORDER BY [System.CreatedDate] DESC`;
+}
+
+function quoteList(values: string[]): string {
+  return values.map((value) => `'${wiqlEscape(value)}'`).join(", ");
+}
+
+function appendUnderConditions(conditions: string[], field: string, paths: string[] | undefined): void {
+  if (!paths || paths.length === 0) return;
+  const clauses = paths.map((path) => `${field} UNDER '${wiqlEscape(path)}'`);
+  conditions.push(clauses.length === 1 ? clauses.join("") : `(${clauses.join(" OR ")})`);
 }
 
 export function workItemQueryRequiresTeam(filter: FilterCriteria): boolean {

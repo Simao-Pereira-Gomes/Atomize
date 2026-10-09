@@ -11,11 +11,16 @@ import type {
   PlatformMetadata,
   SavedQueryInfo,
 } from "../../interfaces/platform.interface";
+import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
   WorkItem,
 } from "../../interfaces/work-item.interface";
 import { getMockStoryById, mockUserStories } from "./mock-data";
+
+/** The mock team's current and next sprint, standing in for `@CurrentIteration` and `@CurrentIteration + 1`. */
+export const MOCK_CURRENT_AND_NEXT_SPRINT = ["Sprint 23", "Sprint 24"];
+const MOCK_CLOSED_STATES = ["Closed", "Done", "Removed"];
 
 /** Mock Stories carry their Story Estimate in the platform-free `estimation` property. */
 export const MOCK_ESTIMATION_DEFAULTS: EstimationDefaults = {
@@ -337,6 +342,33 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     logger.info("MockPlatform: Connection test successful");
 
     return true;
+  }
+
+  /**
+   * Run a Story Search over the mock Stories, newest first
+   */
+  async searchStories(search: StorySearch): Promise<WorkItem[]> {
+    this.ensureAuthenticated();
+    await this.delay(50);
+
+    const text = search.text?.trim().toLowerCase();
+    const isUnder = (value: string | undefined, paths: string[] | undefined) =>
+      !paths || paths.length === 0 ||
+      paths.some((path) => value === path || (value ?? "").startsWith(`${path}\\`));
+
+    return mockUserStories
+      .filter((item) => !text || item.id.toLowerCase() === text || item.title.toLowerCase().includes(text))
+      .filter((item) => !search.workItemTypes?.length || search.workItemTypes.includes(item.type))
+      .filter((item) => !search.excludeWorkItemTypes?.includes(item.type))
+      .filter((item) => !search.states?.length || search.states.includes(item.state))
+      .filter((item) => !search.excludeStates?.includes(item.state))
+      .filter((item) => !search.excludeClosed || !MOCK_CLOSED_STATES.includes(item.state))
+      .filter((item) => !search.currentAndNextSprint || MOCK_CURRENT_AND_NEXT_SPRINT.includes(item.iteration ?? ""))
+      .filter((item) => isUnder(item.areaPath, search.areaPaths))
+      .filter((item) => isUnder(item.iteration, search.iterations))
+      .filter((item) => search.hasTasks === undefined || ((item.children?.length ?? 0) > 0) === search.hasTasks)
+      .sort((a, b) => (b.createdDate?.getTime() ?? 0) - (a.createdDate?.getTime() ?? 0))
+      .slice(0, search.limit);
   }
 
   /**

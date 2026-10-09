@@ -96,11 +96,26 @@ Use this while designing a Template or checking conditional tasks and estimation
 
 Runs Live Preview against a real Story through a selected Connection Profile. It reads Story data and renders the resolved task breakdown as a dry run. It does not create Tasks.
 
+You choose the Story with the [Story Browser](#choosing-stories-the-story-browser). It opens on the current and next sprint, and you can search for any Story or type its ID.
+
 ### Atomize: Generate
 
 Runs the Generate Panel for the active Template. The panel first shows a dry-run report. Task creation requires an explicit panel action and confirmation.
 
+Before the run, the [Story Browser](#choosing-stories-the-story-browser) opens on the current and next sprint. Tick the Stories to generate for, or press Enter with none ticked to run on every Story the Template's filter matches. Picked Stories are handled exactly as typed Story IDs were before: the Template's `excludeIfHasTasks` still applies.
+
 Use Generate only when the previewed task plan is ready to create in the connected planning system.
+
+### Choosing Stories: the Story Browser
+
+Commands that need Stories use the Story Browser instead of asking you to type Story IDs. It has two modes:
+
+- **Current and next sprint** (the default) lists Stories of your Template's Work Item types that are in your team's current or next sprint, have no Tasks yet, and aren't closed. "Closed" means any state Azure DevOps puts in the *Completed* or *Removed* category, so it works for every process. This view needs the Connection Profile's team. Type to narrow the list.
+- **Search** finds any Story in the project, assigned to anyone. Type a Story ID or part of a title. The title-bar buttons narrow the results by Work Item type, state, area path and iteration (each path includes everything under it), and switch **Has Tasks** on or off. The title shows every filter in effect.
+
+Both modes list the newest Stories first, 50 at a time. Choose **Load more…** at the end of the list for the next 50, up to 500.
+
+The title-bar buttons switch modes, and the pencil button lets you **enter Story IDs** directly when a Story isn't listed. When several Stories can be picked, your ticks are kept while you search, change filters and load more, and IDs you enter are added to them.
 
 ### Atomize: Manage Profiles
 

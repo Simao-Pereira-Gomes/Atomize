@@ -1,6 +1,7 @@
 import type { EstimationDefaults } from "./estimation-defaults.interface";
 import type { ADoFieldSchema } from "./field-schema.interface";
 import type { FilterCriteria, QueryResult } from "./filter.interface";
+import type { StorySearch } from "./story-search.interface";
 import type { TaskDefinition, WorkItem } from "./work-item.interface";
 
 /**
@@ -66,6 +67,11 @@ export interface IPlatformAdapter {
    * Get a single work item by ID
    */
   getWorkItem?(id: string): Promise<WorkItem | null>;
+
+  /**
+   * Run a Story Search, returning matching work items newest first
+   */
+  searchStories?(search: StorySearch): Promise<WorkItem[]>;
 
   /**
    * Create a single task
