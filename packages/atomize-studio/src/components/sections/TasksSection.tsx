@@ -4,7 +4,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { reconcile } from "solid-js/store";
 import { Portal } from "solid-js/web";
 import { coerceGroundedTaskValue, editableTaskFields, type GroundedTaskField, activityField as groundedActivityField, conditionFields as groundedConditionFields, statesForTypes } from "../../grounding/grounding-service";
-import type { EditableTask, TasksStore } from "../../stores/sections";
+import { dependencyCandidates, type EditableTask, type TasksStore, taskCopies, tasksPercentageTotal } from "../../stores/sections";
 import { MultiSelectField, TagChipInput, TextareaField, TextField } from "../fields";
 import type { GroundingSession } from "../GroundingSettings";
 import { operatorsForCondition } from "./condition-operators";
@@ -452,7 +452,11 @@ function TaskDialog(props: { store: TasksStore; index: () => number; onClose: ()
                 <Show when={showRules()}><Show when={current().advanced.condition} keyed fallback={<button class="mt-2 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-300" type="button" onClick={() => setCondition(newCondition("clause"))}>+ Add condition</button>}>{(condition) => <div class="mt-3 space-y-2"><ConditionEditor condition={condition} onChange={setCondition} groundedFields={props.conditionFields} storyFieldOptions={props.storyFieldOptions} /><button class="text-sm font-semibold text-rose-700 hover:underline dark:text-rose-300" type="button" onClick={() => setCondition(undefined)}>Remove condition</button></div>}</Show></Show>
               </div>
             </div>
-            <MultiSelectField label="Depends on" selected={current().advanced.dependsOn ?? []} options={s.fields.items.filter((item) => item.key !== current().key && item.fields.id).map((item) => item.fields.id)} allowCustom onChange={(value) => setAdvanced("dependsOn", value.length ? value : undefined)} />
+            <div><TextField label="Copies" value={current().fields.repeat} error={s.errors[`tasks.${props.index()}.repeat`]} onInput={(value) => s.updateRepeat(props.index(), value)} onBlur={s.validate} placeholder="1" /><p class="-mt-2 text-xs text-slate-500 dark:text-slate-400">Creates this many identical Tasks, titled “{current().fields.title || "Task"} (1)”, “(2)”… Each copy gets the full percentage.</p></div>
+            <Show when={taskCopies(current()) === 1} fallback={<div><span class="text-sm font-semibold">Depends on</span><p class="mt-1 text-sm text-slate-600 dark:text-slate-300">This task creates {taskCopies(current())} copies, so it can't have dependencies, and no task can depend on it.</p></div>}>
+              <MultiSelectField label="Depends on" selected={current().advanced.dependsOn ?? []} options={dependencyCandidates(s.fields.items, current().key)} allowCustom onChange={(value) => { setAdvanced("dependsOn", value.length ? value : undefined); s.validate(); }} />
+              <Show when={s.errors[`tasks.${props.index()}.dependsOn`]}>{(error) => <p class="ui-error -mt-2 text-sm">{error()}</p>}</Show>
+            </Show>
             <div><span class="text-sm font-semibold">Estimation</span><div class="estimation-mode-row mt-2 grid grid-cols-2 gap-2"><select class="rounded border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900" aria-label="Estimation mode" value={current().advanced.estimationFixed !== undefined ? "fixed" : current().advanced.estimationFormula ? "formula" : "percentage"} onInput={(event) => { const mode = event.currentTarget.value; if (mode === "percentage") { setAdvanced("estimationFixed", undefined); setAdvanced("estimationFormula", undefined); } if (mode === "fixed") { s.set("items", props.index(), "fields", "estimationPercent", ""); setAdvanced("estimationFixed", current().advanced.estimationFixed ?? 0); setAdvanced("estimationFormula", undefined); } if (mode === "formula") { s.set("items", props.index(), "fields", "estimationPercent", ""); setAdvanced("estimationFixed", undefined); setAdvanced("estimationFormula", current().advanced.estimationFormula ?? ""); } }}><option value="percentage">Percentage of parent</option><option value="fixed">Fixed estimate</option><option value="formula">Formula</option></select><Show when={current().advanced.estimationFixed !== undefined} fallback={<Show when={current().advanced.estimationFormula !== undefined} fallback={<TextField label="Percentage" hideLabel value={current().fields.estimationPercent} error={s.errors[`tasks.${props.index()}.estimationPercent`]} onInput={(value) => { s.updatePercentage(props.index(), value, props.autoNormalize); s.validate(); }} onBlur={s.validate} placeholder="20" />}><TextField label="Formula" hideLabel value={current().advanced.estimationFormula ?? ""} onInput={(value) => setAdvanced("estimationFormula", value)} placeholder="parent * 0.2 + 1" /></Show>}><TextField label="Fixed estimate" hideLabel value={String(current().advanced.estimationFixed ?? "")} onInput={(value) => setAdvanced("estimationFixed", Number(value))} placeholder="3" /></Show></div></div>
             <div class="rounded-lg border border-dashed border-indigo-300 p-3 dark:border-indigo-800">
               <button type="button" class="flex w-full items-center justify-between text-left" onClick={() => setShowConditionalRules(!showConditionalRules())}>
@@ -473,11 +477,12 @@ function TaskDialog(props: { store: TasksStore; index: () => number; onClose: ()
 function SortableTaskOutlineItem(props: { store: TasksStore; taskKey: string; index: () => number; selected: boolean; onSelect: () => void; conditionFields: GroundedTaskField[] }) {
   const sortable = createSortable(props.taskKey);
   const task = () => props.store.fields.items.find((item) => item.key === props.taskKey);
+  const copies = () => { const current = task(); return current ? taskCopies(current) : 1; };
   const percent = () => Math.min(100, Math.max(0, Number(task()?.fields.estimationPercent) || 0));
   return <div ref={sortable} class={`flex rounded-lg will-change-transform ${sortable.isActiveDraggable ? "" : "transition-transform duration-150 ease-out"} ${props.selected ? "bg-white shadow-sm ring-1 ring-indigo-100 dark:bg-slate-800 dark:ring-indigo-900" : "hover:bg-white/70 dark:hover:bg-slate-800/60"}`}>
     <button type="button" {...sortable.dragActivators} class="w-9 shrink-0 cursor-grab touch-none text-slate-400 active:cursor-grabbing" aria-label={`Drag ${task()?.fields.title || "Task"} to reorder`}>⠿</button>
     <button type="button" class="min-w-0 flex-1 px-2 py-3 text-left" onClick={props.onSelect}>
-      <span class="flex items-center gap-2"><span class="min-w-0 flex-1 truncate text-sm font-semibold">{task()?.fields.title || "Untitled task"}</span><span class="text-xs font-bold text-indigo-600 dark:text-indigo-300">{task()?.fields.estimationPercent ? `${task()?.fields.estimationPercent}%` : "—"}</span></span>
+      <span class="flex items-center gap-2"><span class="min-w-0 flex-1 truncate text-sm font-semibold">{task()?.fields.title || "Untitled task"}</span><Show when={copies() > 1}><span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200" title="Identical Tasks this definition creates">×{copies()}</span></Show><span class="text-xs font-bold text-indigo-600 dark:text-indigo-300">{task()?.fields.estimationPercent ? `${task()?.fields.estimationPercent}%` : "—"}</span></span>
       <span class="mt-1 block truncate text-xs text-slate-500">{task()?.fields.id || "No task ID"} · {conditionSummary(task()?.advanced.condition, props.conditionFields)}</span>
       <Show when={task()?.fields.estimationPercent !== ""}><span class="mt-2 block h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><span class="block h-full rounded-full bg-indigo-500" style={{ width: `${percent()}%` }} /></span></Show>
     </button>
@@ -488,7 +493,7 @@ export function TasksSection(props: { store: TasksStore; grounding?: GroundingSe
   const s = props.store;
   const [selectedKey, setSelectedKey] = createSignal("");
   const selectedIndex = createMemo(() => s.fields.items.findIndex((task) => task.key === selectedKey()));
-  const percentageTotal = createMemo(() => s.fields.items.reduce((sum, task) => sum + (Number(task.fields.estimationPercent) || 0), 0));
+  const percentageTotal = createMemo(() => tasksPercentageTotal(s.fields.items));
   const select = (index: number) => setSelectedKey(s.fields.items[index]?.key ?? "");
   const add = () => { s.addTask(); select(s.fields.items.length - 1); };
   const idCount = createMemo(() => s.fields.items.filter((task) => task.fields.id.trim()).length);

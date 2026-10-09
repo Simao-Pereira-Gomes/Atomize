@@ -1,7 +1,7 @@
 import { type TaskTemplate, TaskTemplateSchema } from "@sppg2001/atomize-schema";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { createAuthoringStore, isAuthoringStoreReadyForReview } from "../sections";
+import { createAuthoringStore, dependencyCandidates, isAuthoringStoreReadyForReview, tasksPercentageTotal } from "../sections";
 
 const baseTemplate: TaskTemplate = {
   version: "1.0",
@@ -664,5 +664,157 @@ describe("estimation editor fields", () => {
     store.estimation.set("defaultParentEstimation", "M");
     store.estimation.validate();
     expect(store.estimation.errors.defaultParentEstimation).toBeUndefined();
+  });
+});
+
+describe("repeated tasks", () => {
+  const repeatedTemplate: TaskTemplate = {
+    ...baseTemplate,
+    tasks: [
+      { id: "build", title: "Build", estimationPercent: 70 },
+      { id: "review", title: "Review", estimationPercent: 10, repeat: 3 },
+      { id: "deploy", title: "Deploy" },
+    ],
+  };
+
+  it("keeps repeat when a Template is loaded and saved", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+
+    expect(serialisedObject(store)).toMatchObject({
+      tasks: [{ id: "build" }, { id: "review", repeat: 3 }, { id: "deploy" }],
+    });
+  });
+
+  it("counts every copy in the percentage total", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+
+    expect(tasksPercentageTotal(store.tasks.fields.items)).toBe(100);
+  });
+
+  it("does not offer a repeated task as a dependency", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+    const [build] = store.tasks.fields.items;
+
+    expect(dependencyCandidates(store.tasks.fields.items, build?.key ?? "")).toEqual(["deploy"]);
+  });
+
+  it("does not auto-normalise when a repeated task is involved", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+    store.tasks.updatePercentage(0, "40", true);
+
+    expect(store.tasks.fields.items.map((task) => task.fields.estimationPercent)).toEqual(["40", "10", ""]);
+  });
+
+  it("describes whole-Template problems by task instead of throwing", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...repeatedTemplate,
+      tasks: [
+        { id: "build", title: "Build", estimationPercent: 70 },
+        { id: "review", title: "Review", estimationPercent: 10, repeat: 3, dependsOn: ["build"] },
+      ],
+    });
+
+    expect(store.previewYaml()).toEqual({
+      ok: false,
+      problems: ["Task 2 “Review”: A repeated task cannot have dependsOn. Remove repeat or dependsOn from this task."],
+    });
+  });
+
+  it("reports invalid sections instead of throwing, so Review can still render", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+    store.tasks.updateRepeat(1, "0");
+
+    expect(() => store.previewYaml()).not.toThrow();
+    expect(store.previewYaml()).toEqual({
+      ok: false,
+      problems: ["Some sections have invalid values. Fix the sections marked as needing attention."],
+    });
+  });
+
+  it("previews the YAML when the Template is valid", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+
+    expect(store.previewYaml()).toEqual({ ok: true, yaml: store.serialise() });
+  });
+
+  it("loads repeat as an editable field", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+
+    expect(store.tasks.fields.items.map((task) => task.fields.repeat)).toEqual(["", "3", ""]);
+  });
+
+  it("writes an edited repeat, and drops it again at one copy", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+
+    store.tasks.updateRepeat(2, "4");
+    expect(serialisedObject(store)).toMatchObject({ tasks: [{ id: "build" }, { id: "review" }, { id: "deploy", repeat: 4 }] });
+
+    store.tasks.updateRepeat(2, "1");
+    const tasks = (serialisedObject(store) as TaskTemplate).tasks;
+    expect(tasks[2]).not.toHaveProperty("repeat");
+  });
+
+  it("repeating a task removes its own dependencies", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { id: "build", title: "Build", estimationPercent: 50 },
+        { id: "review", title: "Review", estimationPercent: 50, dependsOn: ["build"] },
+      ],
+    });
+
+    store.tasks.updateRepeat(1, "2");
+
+    expect(store.tasks.fields.items[1]?.advanced.dependsOn).toBeUndefined();
+  });
+
+  it("flags a copy count that isn't a whole number of at least 1", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate(repeatedTemplate);
+
+    store.tasks.updateRepeat(1, "0");
+    store.tasks.validate();
+
+    expect(store.tasks.errors["tasks.1.repeat"]).toBe("Must be a whole number of at least 1");
+    expect(store.tasks.isValid()).toBe(false);
+  });
+
+  it("flags a task that depends on a repeated task", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { id: "review", title: "Review", estimationPercent: 50, repeat: 2 },
+        { id: "merge", title: "Merge", estimationPercent: 50, dependsOn: ["review"] },
+      ],
+    });
+
+    store.tasks.validate();
+
+    expect(store.tasks.errors["tasks.1.dependsOn"]).toBe("“review” repeats, so no task can depend on it");
+    expect(store.tasks.isValid()).toBe(false);
+  });
+
+  it("loads, validates and writes validation.maxRepeat", () => {
+    const store = createAuthoringStore();
+    store.loadTemplate({ ...repeatedTemplate, validation: { maxRepeat: 30 } });
+
+    expect(store.validation.fields.maxRepeat).toBe("30");
+    expect(serialisedObject(store)).toMatchObject({ validation: { maxRepeat: 30 } });
+
+    store.validation.set("maxRepeat", "0");
+    store.validation.validate();
+    expect(store.validation.errors.maxRepeat).toBe("Must be a whole number of at least 1");
+    expect(store.validation.isValid()).toBe(false);
   });
 });

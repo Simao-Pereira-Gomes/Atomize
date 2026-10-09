@@ -50,6 +50,50 @@ describe('resolvePathToRange', () => {
 
 		expect(range.start.line).toBe(3);
 	});
+
+	it('resolves a task field to the line inside the indexed task, not an earlier task', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+
+		const { resolvePathToRange } = await import(`../validation/diagnostics.js?t=${Date.now()}-5`);
+
+		const text = [
+			'name: Repeat',
+			'tasks:',
+			'  - id: design',
+			'    title: Design',
+			'  - id: review',
+			'    title: Review',
+			'    repeat: 25',
+			'    dependsOn: [design]',
+			'  - id: merge',
+			'    title: Merge',
+			'    repeat: 30',
+			'    dependsOn: [review]',
+		].join('\n');
+		const doc = {
+			getText: () => text,
+			lineAt: (line: number) => ({ text: text.split('\n')[line] ?? '' }),
+		};
+
+		expect(resolvePathToRange('tasks.1.repeat', doc as never).start.line).toBe(6);
+		expect(resolvePathToRange('tasks.2.repeat', doc as never).start.line).toBe(10);
+		expect(resolvePathToRange('tasks.2.dependsOn', doc as never).start.line).toBe(11);
+		expect(resolvePathToRange('tasks[1].dependsOn', doc as never).start.line).toBe(7);
+	});
+
+	it('falls back to the indexed task line when the task lacks the field', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+
+		const { resolvePathToRange } = await import(`../validation/diagnostics.js?t=${Date.now()}-6`);
+
+		const text = ['tasks:', '  - title: A', '    repeat: 2', '  - title: B', 'validation:', '  repeat: 3'].join('\n');
+		const doc = {
+			getText: () => text,
+			lineAt: (line: number) => ({ text: text.split('\n')[line] ?? '' }),
+		};
+
+		expect(resolvePathToRange('tasks.1.repeat', doc as never).start.line).toBe(3);
+	});
 });
 
 describe('makeDiagnostic', () => {

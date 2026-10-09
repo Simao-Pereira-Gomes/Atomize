@@ -20,7 +20,7 @@ function isConfigured(store: ValidationStore, policy: PolicyKey): boolean {
       store.fields.taskEstimationRangeMax,
     ].some(Boolean);
   }
-  if (policy === "count") return Boolean(store.fields.minTasks || store.fields.maxTasks);
+  if (policy === "count") return Boolean(store.fields.minTasks || store.fields.maxTasks || store.fields.maxRepeat);
   return store.fields.requiredTasks.length > 0;
 }
 
@@ -68,7 +68,7 @@ export function ValidationSection(props: { store: ValidationStore }) {
         </PolicyRow>
         <PolicyRow
           title="Task count"
-          description="Keep generated work between a minimum and maximum number of tasks."
+          description="Keep generated work between a minimum and maximum number of tasks. Each copy of a repeated task counts."
           configured={isConfigured(s, "count")}
           open={openPolicy() === "count"}
           onToggle={() => togglePolicy("count")}
@@ -76,6 +76,7 @@ export function ValidationSection(props: { store: ValidationStore }) {
           <div class="grid gap-4 sm:grid-cols-2">
             <TextField label="Minimum tasks" value={s.fields.minTasks} error={s.errors.minTasks} onInput={(v) => { s.set("minTasks", v); s.validate(); }} onBlur={s.validate} placeholder="1" />
             <TextField label="Maximum tasks" value={s.fields.maxTasks} error={s.errors.maxTasks} onInput={(v) => { s.set("maxTasks", v); s.validate(); }} onBlur={s.validate} placeholder="12" />
+            <TextField label="Maximum copies per task" value={s.fields.maxRepeat} error={s.errors.maxRepeat} onInput={(v) => { s.set("maxRepeat", v); s.validate(); }} onBlur={s.validate} placeholder="20" />
           </div>
         </PolicyRow>
         <PolicyRow

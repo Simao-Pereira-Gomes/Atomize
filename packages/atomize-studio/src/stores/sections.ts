@@ -1,4 +1,5 @@
 import {
+  copyCount,
   type EstimationConfig,
   type FilterCriteria,
   isConvertibleStoryEstimate,
@@ -72,18 +73,48 @@ type TaskFields = {
   description: string;
   estimationPercent: string;
   tags: string[];
+  /** How many identical Tasks the definition generates; blank means one. */
+  repeat: string;
 };
 
 export type EditableTask = {
   /** UI-only identity: never serialised as the Atomize task id. */
   key: string;
   fields: TaskFields;
-  advanced: Omit<TaskDefinition, keyof TaskFields | "estimationPercent">;
+  advanced: Omit<TaskDefinition, keyof TaskFields>;
 };
 
 type TasksFields = {
   items: EditableTask[];
 };
+
+function isRepeatCount(value: string): boolean {
+  const numeric = optionalNumber(value);
+  return numeric === undefined || (Number.isInteger(numeric) && numeric >= 1);
+}
+
+/** The `repeat` a task writes: undefined for a single Task, so one copy never appears in the YAML. */
+function repeatValue(task: EditableTask): number | undefined {
+  const numeric = optionalNumber(task.fields.repeat);
+  return numeric === undefined || numeric === 1 ? undefined : numeric;
+}
+
+/** How many Tasks the definition generates; an invalid count is reported by validate() and counts once. */
+export function taskCopies(task: EditableTask): number {
+  return isRepeatCount(task.fields.repeat) ? copyCount({ repeat: repeatValue(task) }) : 1;
+}
+
+/** The percent the tasks allocate, counting each copy of a repeated task. */
+export function tasksPercentageTotal(items: readonly EditableTask[]): number {
+  return items.reduce((sum, task) => sum + (Number(task.fields.estimationPercent) || 0) * taskCopies(task), 0);
+}
+
+/** Task IDs the task with `key` may depend on: every other identified task that isn't repeated. */
+export function dependencyCandidates(items: readonly EditableTask[], key: string): string[] {
+  return items
+    .filter((item) => item.key !== key && item.fields.id && taskCopies(item) === 1)
+    .map((item) => item.fields.id);
+}
 
 export type ConversionKind = "none" | "factor" | "table";
 export type ConversionRow = { key: string; hours: string };
@@ -120,6 +151,7 @@ type ValidationFields = {
   totalEstimationRangeMax: string;
   minTasks: string;
   maxTasks: string;
+  maxRepeat: string;
   taskEstimationRangeMin: string;
   taskEstimationRangeMax: string;
   requiredTasks: RequiredTaskFields[];
@@ -132,6 +164,7 @@ type ValidationAdvanced = Omit<
   | "totalEstimationRange"
   | "minTasks"
   | "maxTasks"
+  | "maxRepeat"
   | "taskEstimationRange"
   | "requiredTasks"
 >;
@@ -176,6 +209,7 @@ const defaultTask = (): EditableTask => ({
     description: "",
     estimationPercent: "",
     tags: [],
+    repeat: "",
   },
   advanced: {},
 });
@@ -207,6 +241,7 @@ const defaultValidation = (): ValidationFields => ({
   totalEstimationRangeMax: "",
   minTasks: "",
   maxTasks: "",
+  maxRepeat: "",
   taskEstimationRangeMin: "",
   taskEstimationRangeMax: "",
   requiredTasks: [],
@@ -355,6 +390,8 @@ function makeTasks() {
     set("items", index, "fields", "estimationPercent", value);
     const parsed = optionalNumber(value);
     if (!autoNormalize || parsed === undefined || Number.isNaN(parsed) || parsed < 0 || parsed > 100 || fields.items.length <= 1) return;
+    // Rebalancing definitions to 100% is wrong once a definition stands for several Tasks.
+    if (fields.items.some((task) => taskCopies(task) > 1)) return;
     const siblings = fields.items
       .filter((_, itemIndex) => itemIndex !== index)
       .filter((task) => {
@@ -368,22 +405,44 @@ function makeTasks() {
       set("items", fields.items.findIndex((item) => item.key === task.key), "fields", "estimationPercent", String(estimationPercent));
     });
   };
+  /** Sets a task's copy count; a repeated task takes no dependencies, so its own are removed. */
+  const updateRepeat = (index: number, value: string) => {
+    set("items", index, "fields", "repeat", value);
+    const task = fields.items[index];
+    if (task && taskCopies(task) > 1) set("items", index, "advanced", "dependsOn", undefined);
+    validate();
+  };
+  const repeatedIds = () => new Set(fields.items.filter((task) => taskCopies(task) > 1 && task.fields.id).map((task) => task.fields.id));
+  const dependsOnRepeated = (task: EditableTask, repeated: Set<string>) =>
+    task.advanced.dependsOn?.find((dependency) => repeated.has(dependency));
   const validate = () => {
     const nextErrors: Errors = {};
+    const repeated = repeatedIds();
     fields.items.forEach((task, index) => {
       if (task.fields.title.trim() === "") nextErrors[`tasks.${index}.title`] = "Title is required";
       if (!isPercentage(task.fields.estimationPercent)) {
         nextErrors[`tasks.${index}.estimationPercent`] = "Must be 0-100";
       }
+      if (!isRepeatCount(task.fields.repeat)) nextErrors[`tasks.${index}.repeat`] = "Must be a whole number of at least 1";
+      const repeatedDependency = dependsOnRepeated(task, repeated);
+      if (repeatedDependency) nextErrors[`tasks.${index}.dependsOn`] = `“${repeatedDependency}” repeats, so no task can depend on it`;
     });
     setErrors(reconcile(nextErrors));
   };
-  const isValid = () =>
-    fields.items.length > 0 &&
-    fields.items.every(
-      (task) => task.fields.title.trim() !== "" && isPercentage(task.fields.estimationPercent),
+  const isValid = () => {
+    const repeated = repeatedIds();
+    return (
+      fields.items.length > 0 &&
+      fields.items.every(
+        (task) =>
+          task.fields.title.trim() !== "" &&
+          isPercentage(task.fields.estimationPercent) &&
+          isRepeatCount(task.fields.repeat) &&
+          !dependsOnRepeated(task, repeated),
+      )
     );
-  return { fields, set, replace, errors, addTask, removeTask, updateTaskId, moveTask, updatePercentage, validate, isValid };
+  };
+  return { fields, set, replace, errors, addTask, removeTask, updateTaskId, moveTask, updatePercentage, updateRepeat, validate, isValid };
 }
 
 function makeEstimation() {
@@ -459,6 +518,9 @@ function makeValidation() {
     if (!isNonNegativeInteger(fields.maxTasks)) {
       nextErrors.maxTasks = "Must be a whole number 0 or greater";
     }
+    if (!isRepeatCount(fields.maxRepeat)) {
+      nextErrors.maxRepeat = "Must be a whole number of at least 1";
+    }
     const validateRange = (min: string, max: string, prefix: string) => {
       if (!isPercentage(min)) nextErrors[`${prefix}Min`] = "Must be 0-100";
       if (!isPercentage(max)) nextErrors[`${prefix}Max`] = "Must be 0-100";
@@ -502,6 +564,7 @@ function makeValidation() {
       isNonNegativeEstimationTotal(fields.totalEstimationMustBe) &&
       isNonNegativeInteger(fields.minTasks) &&
       isNonNegativeInteger(fields.maxTasks) &&
+      isRepeatCount(fields.maxRepeat) &&
       (minTasks === undefined || maxTasks === undefined || minTasks <= maxTasks) &&
       isNonNegativeEstimationTotal(fields.totalEstimationRangeMin) &&
       isNonNegativeEstimationTotal(fields.totalEstimationRangeMax) &&
@@ -553,6 +616,7 @@ export type AuthoringStore = AuthoringSectionStores & {
   loadTemplate: (template: TaskTemplate) => void;
   toTemplate: () => TaskTemplate;
   serialise: () => string;
+  previewYaml: () => { ok: true; yaml: string } | { ok: false; problems: string[] };
 };
 
 export function isAuthoringStoreReadyForReview(store: AuthoringSectionStores): boolean {
@@ -608,6 +672,7 @@ function buildTasks(store: TasksStore): TaskDefinition[] {
     description: nonEmpty(task.fields.description),
     estimationPercent: optionalNumber(task.fields.estimationPercent),
     tags: nonEmptyArray(task.fields.tags),
+    repeat: repeatValue(task),
   }));
 }
 
@@ -667,6 +732,7 @@ function buildValidation(store: ValidationStore): ValidationConfig | undefined {
         : undefined,
     minTasks: optionalNumber(store.fields.minTasks),
     maxTasks: optionalNumber(store.fields.maxTasks),
+    maxRepeat: optionalNumber(store.fields.maxRepeat),
     taskEstimationRange:
       store.fields.taskEstimationRangeMin !== "" || store.fields.taskEstimationRangeMax !== ""
         ? { min: optionalNumber(store.fields.taskEstimationRangeMin) ?? 0, max: optionalNumber(store.fields.taskEstimationRangeMax) ?? 100 }
@@ -695,7 +761,7 @@ function omitUndefined<T extends Record<string, unknown>>(value: T): T {
 }
 
 function toTaskFields(task: TaskDefinition): EditableTask {
-  const { id, title, description, estimationPercent, tags, ...advanced } = task;
+  const { id, title, description, estimationPercent, tags, repeat, ...advanced } = task;
   return {
     key: crypto.randomUUID(),
     fields: {
@@ -704,6 +770,7 @@ function toTaskFields(task: TaskDefinition): EditableTask {
       description: description ?? "",
       estimationPercent: estimationPercent === undefined ? "" : String(estimationPercent),
       tags: tags ?? [],
+      repeat: repeat === undefined ? "" : String(repeat),
     },
     advanced,
   };
@@ -820,6 +887,7 @@ export function createAuthoringStore(): AuthoringStore {
       totalEstimationRange,
       minTasks,
       maxTasks,
+      maxRepeat,
       taskEstimationRange,
       requiredTasks,
       ...advancedValidation
@@ -832,6 +900,7 @@ export function createAuthoringStore(): AuthoringStore {
         totalEstimationRangeMax: totalEstimationRange?.max === undefined ? "" : String(totalEstimationRange.max),
         minTasks: minTasks === undefined ? "" : String(minTasks),
         maxTasks: maxTasks === undefined ? "" : String(maxTasks),
+        maxRepeat: maxRepeat === undefined ? "" : String(maxRepeat),
         taskEstimationRangeMin: taskEstimationRange?.min === undefined ? "" : String(taskEstimationRange.min),
         taskEstimationRangeMax: taskEstimationRange?.max === undefined ? "" : String(taskEstimationRange.max),
         requiredTasks: requiredTasks?.map((task) => ({ title: task.title, id: task.id ?? "" })) ?? [],
@@ -889,13 +958,40 @@ export function createAuthoringStore(): AuthoringStore {
       lineWidth: 0,
     });
 
+  /** The Template's YAML, or its whole-Template problems when it doesn't validate as a whole. */
+  const previewYaml: AuthoringStore["previewYaml"] = () => {
+    // Review renders this inside a memo, where a thrown error breaks the whole Studio, so an
+    // invalid section is reported rather than raised the way buildCandidate() raises it.
+    for (const store of Object.values(stores)) store.validate();
+    if (!isAuthoringStoreReadyForReview(stores)) {
+      return { ok: false, problems: ["Some sections have invalid values. Fix the sections marked as needing attention."] };
+    }
+    const result = TaskTemplateSchema.safeParse(buildCandidate());
+    if (result.success) return { ok: true, yaml: stringify(result.data, { lineWidth: 0 }) };
+    return { ok: false, problems: describeTemplateIssues(result.error.issues, tasks.fields.items) };
+  };
+
   return {
     ...stores,
     reset,
     loadTemplate,
     toTemplate,
     serialise,
+    previewYaml,
   };
+}
+
+/** Names the task an issue is about, since Studio shows tasks by position and title, not by path. */
+function describeTemplateIssues(
+  issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>,
+  items: readonly EditableTask[],
+): string[] {
+  return issues.map(({ path, message }) => {
+    const [section, index] = path;
+    if (section !== "tasks" || typeof index !== "number") return message;
+    const title = items[index]?.fields.title.trim();
+    return `Task ${index + 1}${title ? ` “${title}”` : ""}: ${message}`;
+  });
 }
 
 export const useSectionStores = createAuthoringStore;

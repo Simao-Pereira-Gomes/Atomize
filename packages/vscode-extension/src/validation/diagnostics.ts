@@ -160,40 +160,54 @@ async function runValidationInProcess(
 }
 
 export function resolvePathToRange(path: string, doc: vscode.TextDocument): vscode.Range {
-	// tasks[N] — point to the Nth task list item so each warning has a unique range.
-	const taskMatch = path.match(/^tasks\[(\d+)\]$/);
-	if (taskMatch) {
-		return resolveTaskItemRange(Number(taskMatch[1]), doc);
-	}
-
+	const lines = doc.getText().split('\n');
 	const segments = Array.from(path.matchAll(/\["([^"]+)"\]|\[(\d+)\]|([^.[\]]+)/g))
 		.map(m => m[1] ?? m[2] ?? m[3] ?? '')
 		.filter(Boolean);
 
+	// tasks.N... / tasks[N]... — search only the Nth task's block, so an issue on one task
+	// never lands on the same key in another task.
+	if (segments[0] === 'tasks' && /^\d+$/.test(segments[1] ?? '')) {
+		const block = findTaskBlock(Number(segments[1]), lines);
+		if (block) {
+			return findKeyRange(segments.slice(2), lines, block.start, block.end)
+				?? lineRange(lines, block.start, line => line.search(/\S/));
+		}
+	}
+
+	return findKeyRange(segments, lines, 0, lines.length)
+		?? new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
+}
+
+/** The deepest named segment's key line within [start, end), or undefined when absent. */
+function findKeyRange(segments: string[], lines: string[], start: number, end: number): vscode.Range | undefined {
 	for (let i = segments.length - 1; i >= 0; i--) {
 		const seg = segments[i];
 		if (seg === undefined || /^\d+$/.test(seg)) continue;
 
-		const lines = doc.getText().split('\n');
 		const keyPattern = new RegExp(`^\\s*(?:-\\s*)?${escapeRegex(seg)}\\s*:`);
-		for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+		for (let lineIdx = start; lineIdx < end; lineIdx++) {
 			const line = lines[lineIdx];
-			if (line === undefined) continue;
-			if (keyPattern.test(line)) {
-				const col = line.indexOf(seg);
-				return new vscode.Range(lineIdx, col >= 0 ? col : 0, lineIdx, line.length);
+			if (line !== undefined && keyPattern.test(line)) {
+				return lineRange(lines, lineIdx, text => text.indexOf(seg));
 			}
 		}
 	}
-
-	// Fallback: first line
-	return new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
+	return undefined;
 }
 
-function resolveTaskItemRange(index: number, doc: vscode.TextDocument): vscode.Range {
-	const lines = doc.getText().split('\n');
+function lineRange(lines: string[], lineIdx: number, startColumn: (line: string) => number): vscode.Range {
+	const line = lines[lineIdx] ?? '';
+	const col = startColumn(line);
+	return new vscode.Range(lineIdx, col >= 0 ? col : 0, lineIdx, line.length);
+}
+
+/** The lines of the Nth task list item: from its `- ` line up to the next item or the end of `tasks:`. */
+function findTaskBlock(index: number, lines: string[]): { start: number; end: number } | undefined {
 	let inTasks = false;
+	let itemIndent = -1;
 	let taskCount = -1;
+	let start = -1;
 
 	for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
 		const line = lines[lineIdx] ?? '';
@@ -201,18 +215,20 @@ function resolveTaskItemRange(index: number, doc: vscode.TextDocument): vscode.R
 			if (/^tasks\s*:/.test(line)) inTasks = true;
 			continue;
 		}
-		if (/^\s*-/.test(line)) {
-			taskCount++;
-			if (taskCount === index) {
-				const col = line.search(/\S/);
-				return new vscode.Range(lineIdx, col >= 0 ? col : 0, lineIdx, line.length);
-			}
-		}
+		if (line.trim() === '' || /^\s*#/.test(line)) continue;
 		// Non-indented non-empty line exits the tasks block
-		if (/^\S/.test(line) && line.trim() !== '') break;
+		if (/^\S/.test(line)) return start === -1 ? undefined : { start, end: lineIdx };
+
+		const indent = line.search(/\S/);
+		if (/^\s*-/.test(line) && (itemIndent === -1 || indent === itemIndent)) {
+			itemIndent = indent;
+			taskCount++;
+			if (taskCount === index) start = lineIdx;
+			else if (taskCount === index + 1) return { start, end: lineIdx };
+		}
 	}
 
-	return new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
+	return start === -1 ? undefined : { start, end: lines.length };
 }
 
 function escapeRegex(s: string): string {

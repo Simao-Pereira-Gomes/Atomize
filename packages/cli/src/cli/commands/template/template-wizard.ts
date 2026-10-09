@@ -1,6 +1,6 @@
 import { confirm, select } from "@clack/prompts";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
-import type { TaskDefinition, TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { copyCount, DEFAULT_MAX_REPEAT, type TaskDefinition, type TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { normalizeEstimationPercentages } from "@sppg2001/atomize-core/utils/estimation-normalizer";
 import chalk from "chalk";
@@ -77,6 +77,7 @@ export async function previewTemplate(
   template: TaskTemplate,
   ctx?: TemplateWizardContext,
 ): Promise<boolean> {
+  await offerRepeatLimit(template);
   displayTemplatePreview(template);
 
   const action = assertNotCancelled(
@@ -92,6 +93,29 @@ export async function previewTemplate(
   );
 
   return await handlePreviewAction(action as Action, template, ctx);
+}
+
+/**
+ * Offers to raise `validation.maxRepeat` when a task repeats more often than the Template
+ * allows, so the author fixes it here rather than at save time.
+ */
+export async function offerRepeatLimit(template: TaskTemplate): Promise<void> {
+  const highest = Math.max(...template.tasks.map(copyCount));
+  const limit = template.validation?.maxRepeat ?? DEFAULT_MAX_REPEAT;
+  if (highest <= limit) return;
+
+  const raise = assertNotCancelled(
+    await confirm({
+      message: `A task creates ${highest} copies, above the limit of ${limit}. Raise the limit (validation.maxRepeat) to ${highest}?`,
+      initialValue: true,
+    }),
+  );
+  if (raise) template.validation = { ...template.validation, maxRepeat: highest };
+}
+
+/** Total estimation percent, counting each copy of a repeated task. */
+function totalTaskPercent(tasks: TaskDefinition[]): number {
+  return tasks.reduce((sum, task) => sum + (task.estimationPercent || 0) * copyCount(task), 0);
 }
 
 /**
@@ -148,18 +172,18 @@ function displayFilterConfig(template: TaskTemplate): void {
  * Display tasks summary with progress bars
  */
 function displayTasksSummary(template: TaskTemplate): void {
-  output.print(chalk.bold(`\nTasks (${template.tasks.length}):`));
+  const generated = template.tasks.reduce((sum, task) => sum + copyCount(task), 0);
+  const counted = generated === template.tasks.length ? "" : `, ${generated} generated`;
+  output.print(chalk.bold(`\nTasks (${template.tasks.length}${counted}):`));
 
-  const totalEstimation = template.tasks.reduce(
-    (sum, task) => sum + (task.estimationPercent || 0),
-    0
-  );
+  const totalEstimation = totalTaskPercent(template.tasks);
 
   template.tasks.forEach((task, index) => {
     const percent = task.estimationPercent || 0;
     const bar = "■".repeat(Math.round(percent / 5));
+    const copies = copyCount(task) > 1 ? chalk.cyan(` ×${copyCount(task)}`) : "";
     output.print(
-      `  ${index + 1}. ${task.title} ${chalk.gray(
+      `  ${index + 1}. ${task.title}${copies} ${chalk.gray(
         `[${percent}%]`
       )} ${chalk.green(bar)}`
     );
@@ -210,6 +234,10 @@ function displayValidationConfig(template: TaskTemplate): void {
         template.validation.maxTasks || "no max"
       }`
     );
+  }
+
+  if (template.validation.maxRepeat !== undefined) {
+    output.print(`  Copies per task: up to ${template.validation.maxRepeat}`);
   }
 }
 
@@ -506,13 +534,10 @@ async function shouldAddMoreTasks(taskCounter: number): Promise<boolean> {
 /**
  * Handle estimation normalization and display results
  */
-async function handleEstimationNormalization(
+export async function handleEstimationNormalization(
   tasks: TaskDefinition[]
 ): Promise<void> {
-  const totalEstimation = tasks.reduce(
-    (sum, task) => sum + (task.estimationPercent || 0),
-    0
-  );
+  const totalEstimation = totalTaskPercent(tasks);
 
   if (totalEstimation === 100) {
     output.print(chalk.green("✓ Total estimation is 100%"));
@@ -524,6 +549,12 @@ async function handleEstimationNormalization(
       `\n  Warning: Total estimation is ${totalEstimation}% (should be 100%)`
     )
   );
+
+  // Normalising rescales definitions, but each copy of a repeated task counts toward the total.
+  if (tasks.some((task) => copyCount(task) > 1)) {
+    output.print(chalk.yellow("  Each copy of a repeated task counts toward the total; adjust the percentages to reach 100%."));
+    return;
+  }
 
   const shouldNormalize = await promptForNormalization();
 
@@ -592,7 +623,7 @@ export async function editTasksInteractively(
         : chalk.yellow(`${total}% — doesn't sum to 100`);
     output.print(chalk.cyan(`\nTasks (${currentTasks.length}) — total: ${totalLabel}\n`));
     currentTasks.forEach((t, i) => {
-      output.print(chalk.gray(`  ${i + 1}. ${t.title} [${t.estimationPercent ?? 0}%]`));
+      output.print(chalk.gray(`  ${i + 1}. ${t.title}${copyCount(t) > 1 ? ` ×${copyCount(t)}` : ""} [${t.estimationPercent ?? 0}%]`));
     });
     output.blankLine();
   };
@@ -622,7 +653,7 @@ export async function editTasksInteractively(
           await select({
             message: "Select task to edit:",
             options: currentTasks.map((t, i) => ({
-              label: `${i + 1}. ${t.title} [${t.estimationPercent ?? 0}%]`,
+              label: `${i + 1}. ${t.title}${copyCount(t) > 1 ? ` ×${copyCount(t)}` : ""} [${t.estimationPercent ?? 0}%]`,
               value: i,
             })),
           }),
@@ -658,7 +689,7 @@ export async function editTasksInteractively(
           await select({
             message: "Select task to remove:",
             options: currentTasks.map((t, i) => ({
-              label: `${i + 1}. ${t.title} [${t.estimationPercent ?? 0}%]`,
+              label: `${i + 1}. ${t.title}${copyCount(t) > 1 ? ` ×${copyCount(t)}` : ""} [${t.estimationPercent ?? 0}%]`,
               value: i,
             })),
           }),
