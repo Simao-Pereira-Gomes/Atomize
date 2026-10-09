@@ -90,14 +90,14 @@ _Avoid_: calling this a Connection Profile or a GitHub Models profile.
 Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms — Project Grounding and Story Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
 
 **Project Grounding**:
-Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. The Grounding used when drafting a new Template.
+Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. Always included when the user chooses a Connection Profile for a draft or an improvement.
 
 **Story Grounding**:
-Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to judge how a Template's Tasks are actually used. The Grounding used when improving an existing Template. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
+Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to show how the team actually breaks work down. Optional evidence on top of Project Grounding: example Stories when drafting, or Stories the Template was applied to when improving. Atomize never picks the Stories itself. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
+_Avoid_: confusing Story Grounding with the Story Learner, which derives a Template from Stories deterministically, without AI.
 
 **Sensitive AI Context**:
 Free-text Story and Task content — descriptions and acceptance criteria — that may carry customer, personal, or internal detail. Never sent to a Copilot Session by default; including it is a per-run opt-in, never a persisted preference.
-_Avoid_: using Story Grounding for drafting; deriving a Template from Stories is the Story Learner's job.
 
 **Grounded Draft**:
 An AI draft or improvement produced with Grounding.
@@ -107,7 +107,7 @@ _Avoid_: "connected draft" or "online draft".
 An AI draft or improvement the user explicitly chose to produce without any Grounding; only the user's request (and, for an improvement, the Template itself) reaches the Copilot Session.
 
 **Template Improvement**:
-An AI-proposed revision of an existing Template, reviewed as a whole and then accepted, saved as a new Template, or rejected — never applied silently. The proposal is judged against the Resolved Template but changes only the Template's own content: it never rewrites `extends`, Mixin references, or anything inherited, and instead carries advisory notes when an inherited Task deserves attention.
+An AI-proposed revision of an existing Template, optionally steered by the user's prose guidance, reviewed as a whole and then accepted, saved as a new Template, or rejected — never applied silently. The proposal is judged against the Resolved Template but changes only the Template's own content: it never rewrites `extends`, Mixin references, or anything inherited, and instead carries advisory notes when an inherited Task deserves attention.
 _Avoid_: "AI edit" or "AI refactor"; an improvement is a proposal until accepted.
 
 **Offline Validation**:
