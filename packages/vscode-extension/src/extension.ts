@@ -207,7 +207,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		),
 
 		registerDraftTemplateCommand({ store, credentialResolver }),
-		registerImproveTemplateCommand({ checkDirtyDocument, isRunnableTemplate }),
+		registerImproveTemplateCommand({ checkDirtyDocument, isRunnableTemplate, store, credentialResolver }),
 
 		registerValidateCommand({
 			diagnostics,

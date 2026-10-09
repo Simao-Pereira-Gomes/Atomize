@@ -11,8 +11,11 @@ export interface StoryBrowserFilters {
 	hasTasks: boolean;
 }
 
-/** `sprint`: the default view for generation; `search`: a Story Search across the project. */
-export type StoryBrowserModeKind = 'sprint' | 'search';
+/**
+ * `sprint`: the default view for generation; `applied`: Stories a Template was applied to, for
+ * Story Grounding; `search`: a Story Search across the project.
+ */
+export type StoryBrowserModeKind = 'sprint' | 'applied' | 'search';
 
 export function emptyFilters(hasTasks: boolean): StoryBrowserFilters {
 	return { text: '', workItemTypes: [], states: [], areaPaths: [], iterations: [], hasTasks };
@@ -41,6 +44,7 @@ export function storyDescription(story: StorySummary): string {
 /** The QuickPick title: which mode is active and, in Search mode, every filter in effect. */
 export function browserTitle(base: string, mode: StoryBrowserModeKind, filters: StoryBrowserFilters): string {
 	if (mode === 'sprint') return `${base} — Current and next sprint, no Tasks yet`;
+	if (mode === 'applied') return `${base} — Stories this Template was applied to`;
 	const parts = [
 		filters.workItemTypes.length ? `Type: ${filters.workItemTypes.join(', ')}` : '',
 		filters.states.length ? `State: ${filters.states.join(', ')}` : '',

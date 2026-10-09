@@ -83,7 +83,7 @@ function setupVscodeMock(panel: FakePanel, opts: { confirm?: string } = {}): voi
 
 function setupSupportMocks(opts: { pickedStoryIds?: string[] } = {}): void {
 	mock.module('../stories/story-browser.js', () => ({
-		prepareTemplateStoryBrowser: async () => ({ adapter: {}, sprintView: {} }),
+		prepareTemplateStoryBrowser: async () => ({ adapter: {}, defaultView: { kind: 'sprint' } }),
 		browseStories: async () => opts.pickedStoryIds ?? [],
 	}));
 	mock.module('../config/atomize-configuration.js', () => ({

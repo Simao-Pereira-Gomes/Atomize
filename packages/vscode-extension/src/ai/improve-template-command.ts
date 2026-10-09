@@ -11,13 +11,14 @@ import { getAIModel } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
+import { chooseImproveGrounding, type ImproveGrounding, type ImproveGroundingDeps } from './improve-grounding.js';
 import { catalogRefFor, improvedCopyContent, reviewMessage } from './improvement-proposal.js';
 
 const TITLE = 'Atomize: Improve Template with AI';
 /** Context key listing open proposal documents, so the diff's title-bar actions appear only on them. */
 const PROPOSALS_CONTEXT = 'atomize.improvementProposals';
 
-export interface ImproveCommandDeps {
+export interface ImproveCommandDeps extends ImproveGroundingDeps {
 	/** Prompts to save a dirty document; false when the user cancels. */
 	checkDirtyDocument: (doc: vscode.TextDocument, verb: string) => Promise<boolean>;
 	isRunnableTemplate: (doc: vscode.TextDocument) => boolean;
@@ -59,11 +60,23 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 	if (guidance === undefined) return;
 
 	const path = resolveDocumentPath(doc.uri);
+	const library = createTemplateLibrary();
+	let resolvedTemplate: TaskTemplate;
+	try {
+		({ template: resolvedTemplate } = await library.loadSource(path));
+	} catch (error) {
+		void vscode.window.showErrorMessage(`Atomize could not load this Template: ${error instanceof Error ? error.message : String(error)}`);
+		return;
+	}
+
+	const grounding = await chooseImproveGrounding(deps, resolvedTemplate.filter, TITLE, doc.uri);
+	if (grounding === 'cancelled') return;
+
 	let prepared: { sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined;
 	try {
 		prepared = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: TITLE, cancellable: true },
-			(progress, token) => runImprovement(path, guidance, progress, token),
+			(progress, token) => runImprovement({ path, guidance, library, resolvedTemplate, grounding }, progress, token),
 		);
 	} catch (error) {
 		if (error instanceof AIUnavailableError) {
@@ -101,8 +114,7 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 
 /** Runs the improvement, resolving undefined when the user cancelled. */
 async function runImprovement(
-	path: string,
-	guidance: string,
+	request: { path: string; guidance: string; library: ReturnType<typeof createTemplateLibrary>; resolvedTemplate: TaskTemplate; grounding: ImproveGrounding },
 	progress: vscode.Progress<{ message?: string }>,
 	token: vscode.CancellationToken,
 ): Promise<{ sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined> {
@@ -112,11 +124,10 @@ async function runImprovement(
 		cancellation.abort();
 		session?.abort();
 	});
+	const { path, guidance, library, resolvedTemplate, grounding } = request;
 	try {
 		progress.report({ message: 'Reading the Template…' });
-		const library = createTemplateLibrary();
-		const sourceText = await readFile(path, 'utf8');
-		const [{ template: resolvedTemplate }, catalog] = await Promise.all([library.loadSource(path), library.getCatalog('template')]);
+		const [sourceText, catalog] = await Promise.all([readFile(path, 'utf8'), library.getCatalog('template')]);
 
 		progress.report({ message: 'Connecting to Copilot…' });
 		session = await openCopilotSession(languageModels, getAIModel());
@@ -128,6 +139,8 @@ async function runImprovement(
 			template: parse(sourceText) as TaskTemplate,
 			resolvedTemplate,
 			guidance: guidance.trim() || null,
+			projectGrounding: grounding.projectGrounding,
+			storyGrounding: grounding.storyGrounding,
 			compose: proposal => library.composeTemplate(proposal, path),
 		}, {
 			signal: cancellation.signal,

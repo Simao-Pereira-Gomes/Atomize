@@ -154,9 +154,14 @@ Asks Copilot to propose a revision of the open Template, and shows it in VS Code
 
 1. If the file has unsaved changes, Atomize asks you to save first. It works from the saved file.
 2. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". Leave it blank for a general review.
-3. Copilot reviews the Template. You can cancel from the progress notification.
-4. The diff opens with your file on the left and Copilot's proposal on the right. Only real changes show: your comments, key order and formatting are kept wherever the content didn't change. A notification lists Copilot's notes on what it changed and why.
-5. You can edit the right-hand side before deciding. Then use the buttons in the editor title bar:
+3. Choose how to ground the improvement: a Connection Profile, with your workspace default selected first, or **No grounding** to review the Template on its own.
+   - With a profile, Atomize reads the project's work item types, fields and allowed values, saved queries and paths, so any conditions, custom fields or queries Copilot proposes use names that really exist.
+   - The [Story Browser](#choosing-stories-the-story-browser) then opens on Stories this Template was applied to: those its filter matches that already have Tasks, newest first, up to 30. The Template's `excludeIfHasTasks` is ignored here, since it would hide exactly these Stories. Tick the ones to learn from. Copilot compares each Story with the Tasks it ended up with, so Tasks people added, renamed or re-estimated show where the Template doesn't fit. Switch to Search for other Stories, or press Enter with none ticked to use project metadata only.
+   - If you tick Stories, choose whether to also send their descriptions and acceptance criteria. They can contain customer, personal or internal details, so they're left out unless you say so, and the choice applies to this run only.
+   - The profile's token is used only to read from Azure DevOps and is never sent to Copilot. If grounding can't be loaded, you choose whether to retry, pick other Stories (when a chosen Story can't be used), continue without grounding, or cancel.
+4. Copilot reviews the Template. You can cancel from the progress notification.
+5. The diff opens with your file on the left and Copilot's proposal on the right. Only real changes show: your comments, key order and formatting are kept wherever the content didn't change. A notification lists Copilot's notes on what it changed and why.
+6. You can edit the right-hand side before deciding. Then use the buttons in the editor title bar:
    - **Accept Improvement** puts the right-hand side, including your edits, into your file as a single change you can undo. The file is left unsaved, so save it when you're happy.
    - **Save Improvement as New Template** opens the proposal as a new, unsaved Template named "*Name* (improved)", leaving your file as it was. When your file is a Catalog Template, the copy records it as its `origin`.
    - **Reject Improvement** closes the diff and leaves your file unchanged.
