@@ -344,3 +344,33 @@ improvementNotes:
     });
   });
 });
+
+describe("improveTemplate grounding", () => {
+  const plain = {
+    version: "1.0",
+    name: "Backend API",
+    filter: { workItemTypes: ["User Story"] },
+    tasks: [{ title: "Build", estimationPercent: 100 }],
+  } as TaskTemplate;
+  const VALID = 'version: "1.0"\nname: "Backend API"\nfilter:\n  workItemTypes: ["User Story"]\ntasks:\n  - title: "Build"\n    estimationPercent: 100\n';
+
+  test("sends Story Grounding and Project Grounding together when both are supplied", async () => {
+    const { session, calls } = scriptedSession([VALID]);
+    await improveTemplate(session, {
+      template: plain,
+      resolvedTemplate: plain,
+      storyGrounding: { stories: [{ id: "42", title: "STORY-MARKER", type: "User Story", state: "Done", tasks: [] }], includesSensitiveContext: false },
+      projectGrounding: { workItemTypes: ["PROJECT-MARKER"] } as unknown as ProjectGrounding,
+    });
+    expect(calls[0]?.userPrompt).toContain("Stories this template was applied to");
+    expect(calls[0]?.userPrompt).toContain("STORY-MARKER");
+    expect(calls[0]?.userPrompt).toContain("PROJECT-MARKER");
+  });
+
+  test("sends neither when there is no grounding", async () => {
+    const { session, calls } = scriptedSession([VALID]);
+    await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+    expect(calls[0]?.userPrompt).not.toContain("Stories this template was applied to");
+    expect(calls[0]?.userPrompt).not.toContain("Project metadata");
+  });
+});

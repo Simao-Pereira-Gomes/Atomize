@@ -2,6 +2,7 @@ import { stringify } from "yaml";
 import type { TaskDefinition, TaskTemplate } from "../../templates/schema";
 import { buildProjectGroundingSection } from "./llm-template-generator";
 import type { ProjectGrounding } from "./project-grounding";
+import type { StoryGrounding } from "./story-grounding";
 
 /** The top-level key a Template Improvement's notes travel under in the model's YAML. */
 export const IMPROVEMENT_NOTES_KEY = "improvementNotes";
@@ -16,6 +17,8 @@ export interface ImproveRequest {
   /** Optional prose steering the improvement, e.g. "focus on estimates". */
   guidance?: string | null;
   projectGrounding?: ProjectGrounding | null;
+  /** Stories the Template was applied to and the Tasks they ended up with. */
+  storyGrounding?: StoryGrounding | null;
   /** Composes a proposal with its parent and Mixins so it's validated as it will run; omit for a plain Template. */
   compose?: (proposal: Record<string, unknown>) => Promise<TaskTemplate>;
 }
@@ -39,6 +42,13 @@ export function buildImprovePrompt(request: ImproveRequest, prevErrors?: string[
     sections.push(
       `This template inherits from a parent Template or Mixins (extends/mixins). Its fully composed form is below, for context only:\n${stringify(request.resolvedTemplate)}\n` +
         "Tasks that appear only in the composed form are inherited. Never copy them into the template's own tasks, and never change extends, mixins, or origin. If an inherited task deserves a change, say so in improvementNotes instead.",
+    );
+  }
+
+  if (request.storyGrounding?.stories.length) {
+    sections.push(
+      `Stories this template was applied to, with the Tasks each one ended up with (JSON):\n${JSON.stringify(request.storyGrounding.stories)}\n` +
+        "Compare them with the template. Tasks people added, removed, renamed, split, or re-estimated show where the template doesn't fit how this team works; let that evidence drive your changes. Don't copy Story-specific details into the template.",
     );
   }
 

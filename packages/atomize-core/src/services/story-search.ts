@@ -58,7 +58,7 @@ export async function listSprintStories(
   });
 }
 
-function toStorySummary(item: WorkItem): StorySummary {
+export function toStorySummary(item: WorkItem): StorySummary {
   return {
     id: item.id,
     title: item.title,

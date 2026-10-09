@@ -53,27 +53,42 @@ export async function resolveProjectGrounding(
       );
       return grounding;
     } catch (error) {
-      const failure = toProjectGroundingError(error);
       spinner.stop("Could not load project metadata");
-      if (!interactive) {
-        throw new ConfigurationError(
-          `${failure.message} The draft was asked to use project metadata (--ground), so Atomize stopped instead of drafting without it.`,
-        );
-      }
-      const next = assertNotCancelled(
-        await select({
-          message: `${failure.message} What would you like to do?`,
-          options: [
-            { label: "Retry", value: "retry" },
-            { label: "Continue without project metadata", value: "ungrounded" },
-            { label: "Cancel", value: "cancel" },
-          ],
-        }),
-      ) as string;
+      const next = await decideAfterGroundingFailure(toProjectGroundingError(error).message, {
+        interactive,
+        requestedWith: "--ground",
+        continueLabel: "Continue without project metadata",
+      });
       if (next === "ungrounded") return null;
-      if (next === "cancel") throw new CancellationError("AI generation cancelled");
     }
   }
+}
+
+/**
+ * Grounding the user asked for never disappears silently (ADR-0069): an interactive run chooses to
+ * retry, continue without it, or cancel; a non-interactive run stops with an error.
+ */
+export async function decideAfterGroundingFailure(
+  message: string,
+  context: { interactive: boolean; requestedWith: string; continueLabel: string },
+): Promise<"retry" | "ungrounded"> {
+  if (!context.interactive) {
+    throw new ConfigurationError(
+      `${message} Grounding was requested (${context.requestedWith}), so Atomize stopped instead of continuing without it.`,
+    );
+  }
+  const next = assertNotCancelled(
+    await select({
+      message: `${message} What would you like to do?`,
+      options: [
+        { label: "Retry", value: "retry" },
+        { label: context.continueLabel, value: "ungrounded" },
+        { label: "Cancel", value: "cancel" },
+      ],
+    }),
+  ) as string;
+  if (next === "cancel") throw new CancellationError("AI request cancelled");
+  return next as "retry" | "ungrounded";
 }
 
 async function loadProjectGrounding(profile?: string): Promise<ProjectGrounding> {

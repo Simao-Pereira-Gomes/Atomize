@@ -14,8 +14,14 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import {
+  type ImproveGrounding,
+  type ImproveGroundingDeps,
+  type ImproveGroundingOptions,
+  resolveImproveGrounding,
+} from "./improve-grounding";
 
-export interface ImproveOptions {
+export interface ImproveOptions extends ImproveGroundingOptions {
   guidance?: string;
   saveAs?: string;
   overwrite?: boolean;
@@ -31,6 +37,10 @@ export interface ImproveDeps {
   library: ImproveLibrary;
   /** Opens a Copilot Session, signing in when needed. */
   openSession: () => Promise<AITemplateSession>;
+  /** Opens an authenticated adapter for a Connection Profile, for grounding. */
+  connect: ImproveGroundingDeps["connect"];
+  /** Lets the user pick Stories to learn from; defaults to the CLI Story Browser. */
+  browseStories?: ImproveGroundingDeps["browse"];
   interactive: boolean;
 }
 
@@ -55,6 +65,10 @@ export const templateImproveCommand = new Command("improve")
   .description("Propose an AI improvement to an existing Template and review it before saving")
   .argument("<template>", "Template ref (template:<name>) or path to a YAML file")
   .option("--guidance <text>", "What the improvement should focus on, e.g. \"tighten the estimates\"")
+  .option("--ground", "Ground the improvement in your Azure DevOps project's types, fields, and saved queries")
+  .option("--from-stories <ids>", "Learn from these Stories the Template was applied to (comma-separated IDs); implies --ground")
+  .option("--profile <name>", "Connection Profile for grounding (uses the default profile if omitted)")
+  .option("--include-sensitive-ai-context", "Also send the Stories' descriptions and acceptance criteria to Copilot")
   .option("--save-as <name>", "Save the improvement as a new Template instead of changing the source")
   .option("--overwrite", "Replace the source Template with the improvement without asking", false)
   .option("--dry-run", "Show the proposed changes without saving anything", false)
@@ -71,6 +85,15 @@ export const templateImproveCommand = new Command("improve")
           const provider = resolveAIProvider();
           await provider.authenticate();
           return provider;
+        },
+        connect: async (profile) => {
+          const [{ resolveAzureConfig }, { PlatformFactory }] = await Promise.all([
+            import("@config/profile-resolver"),
+            import("@sppg2001/atomize-core/platforms/platform-factory"),
+          ]);
+          const adapter = PlatformFactory.create("azure-devops", await resolveAzureConfig(profile));
+          await adapter.authenticate();
+          return adapter;
         },
         interactive: isInteractiveTerminal(),
       });
@@ -103,9 +126,14 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
   const label = catalogRef ?? sourcePath;
 
   const guidance = options.guidance?.trim() || (interactive ? await askGuidance() : "") || null;
+  const grounding = await resolveImproveGrounding(options, loaded.template.filter, {
+    connect: deps.connect,
+    interactive,
+    ...(deps.browseStories ? { browse: deps.browseStories } : {}),
+  });
 
   while (true) {
-    const { result, notes } = await propose(deps, authored, loaded.template, guidance, sourcePath);
+    const { result, notes } = await propose(deps, authored, loaded.template, guidance, grounding, sourcePath);
     const report: ImproveReport = {
       template: label,
       ok: false,
@@ -113,8 +141,8 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
       validation: { valid: result.ok, errors: result.ok ? [] : result.errors, warnings: [] },
       notes,
       guidance,
-      groundingStoryIds: [],
-      sensitiveContextIncluded: false,
+      groundingStoryIds: grounding.storyIds,
+      sensitiveContextIncluded: grounding.sensitiveContextIncluded,
       saved: null,
     };
 
@@ -149,7 +177,14 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
   }
 }
 
-async function propose(deps: ImproveDeps, authored: TaskTemplate, resolved: TaskTemplate, guidance: string | null, sourcePath: string) {
+async function propose(
+  deps: ImproveDeps,
+  authored: TaskTemplate,
+  resolved: TaskTemplate,
+  guidance: string | null,
+  grounding: ImproveGrounding,
+  sourcePath: string,
+) {
   const session = await deps.openSession();
   const spinner = createManagedSpinner();
   spinner.start("Copilot is reviewing the Template…");
@@ -159,6 +194,8 @@ async function propose(deps: ImproveDeps, authored: TaskTemplate, resolved: Task
       template: authored,
       resolvedTemplate: resolved,
       guidance,
+      projectGrounding: grounding.projectGrounding,
+      storyGrounding: grounding.storyGrounding,
       compose: (proposal) => deps.library.composeTemplate(proposal, sourcePath),
     }, {
       onChunk: (chunk) => {
