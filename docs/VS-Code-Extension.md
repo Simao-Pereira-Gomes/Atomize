@@ -135,6 +135,18 @@ Browses platform fields for a selected Connection Profile. Use this when authori
 
 Browses saved platform queries for a selected Connection Profile.
 
+### Atomize: Draft Template with AI
+
+Drafts a new Template from a description, using the GitHub Copilot account you're signed in to in VS Code. Atomize stores no token, and the AI gets no tools: it can't read your files or reach other services. The first time, VS Code asks you to allow Atomize to use Copilot's language models.
+
+1. Describe the Template you need. The box is pre-filled with your last description from this session.
+2. Atomize writes the draft with Copilot, checks it against the Template schema, and asks Copilot to fix any problems, up to three attempts. Cancel from the progress notification at any time.
+3. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog until you save it there. If problems remain after three attempts, they're listed as comments at the top of the file.
+
+To try again, run the command again. To discard a draft, close it without saving.
+
+This command needs GitHub Copilot Chat. If it isn't installed, or you declined VS Code's permission prompt, the command tells you and offers to fix it.
+
 ### Atomize: Show Effective Template
 
 Opens the Resolved Template after applying inheritance and Mixin injections. This is useful when debugging composed Templates.
@@ -150,6 +162,7 @@ Opens Atomize extension settings.
 | `atomize.cliPath` | Deprecated — no longer used. The extension runs Atomize in-process and no longer spawns a CLI executable. |
 | `atomize.cli.installCommand` | Deprecated — no longer used. |
 | `atomize.cli.autoCheckUpdates` | Deprecated — no longer used. |
+| `atomize.ai.model` | The Copilot model family to use for AI drafting, such as `gpt-4o`. Leave as `auto` (the default) to use the first Copilot model available to you. If the model you choose isn't available, Atomize offers to switch back to `auto`. |
 | `atomize.defaultProfile` | Workspace-scoped profile name to preselect in Validate, Live Preview, and Generate pickers. |
 | `atomize.previewLayout` | Preview panel layout: `default` or `compact`. |
 
@@ -168,6 +181,7 @@ Atomize previews by default.
 | Preview (Live) | Yes | No |
 | Generate dry run | Yes | No |
 | Generate confirmed execution | Yes | Yes |
+| Draft Template with AI | No (sends your description to Copilot) | No |
 
 ## Template Example
 

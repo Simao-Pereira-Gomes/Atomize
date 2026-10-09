@@ -11,7 +11,7 @@
 		"directory": "packages/vscode-extension"
 	},
 	"engines": {
-		"vscode": "^1.85.0"
+		"vscode": "^1.90.0"
 	},
 	"icon": "icons/atomize-product.png",
 	"categories": [
@@ -38,6 +38,11 @@
 					"default": "",
 					"scope": "resource",
 					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker opens with no pre-selection. Safe to commit in .vscode/settings.json — stores a name, not a credential."
+				},
+				"atomize.ai.model": {
+					"type": "string",
+					"default": "auto",
+					"markdownDescription": "The GitHub Copilot model family Atomize uses for AI drafting, such as `gpt-4o` or `claude-sonnet-4`. Leave as `auto` to use the first Copilot model available to you. Uses the Copilot account you're signed in to in VS Code; Atomize stores no token."
 				},
 				"atomize.previewLayout": {
 					"type": "string",
@@ -107,6 +112,11 @@
 				"command": "atomize.browseCatalog",
 				"title": "Browse Catalog",
 				"category": "Atomize"
+			},
+			{
+				"command": "atomize.draftTemplateWithAI",
+				"title": "Draft Template with AI",
+				"category": "Atomize"
 			}
 		],
 		"grammars": [
@@ -139,7 +149,7 @@
 	"devDependencies": {
 		"@tailwindcss/cli": "^4.3.3",
 		"@types/node": "^26.5.1",
-		"@types/vscode": "^1.85.0",
+		"@types/vscode": "^1.90.0",
 		"@vscode/vsce": "^4.0.0",
 		"bun-types": "^1.4.2",
 		"esbuild": "^0.28.2",

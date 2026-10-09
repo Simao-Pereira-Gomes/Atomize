@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { registerDraftTemplateCommand } from './ai/draft-template-command.js';
 import { AtomizeCodeLensProvider } from './authoring/codelens-provider.js';
 import {
 	handleDocument,
@@ -203,6 +204,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			new ValidationCodeActionProvider(),
 			{ providedCodeActionKinds: ValidationCodeActionProvider.providedCodeActionKinds },
 		),
+
+		registerDraftTemplateCommand(),
 
 		registerValidateCommand({
 			diagnostics,
