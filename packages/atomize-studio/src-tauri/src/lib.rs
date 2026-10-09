@@ -43,6 +43,11 @@ async fn ai_generate(draft_id: String, prose: String, grounding: Option<serde_js
 }
 
 #[tauri::command]
+async fn ai_improve(draft_id: String, template: serde_json::Value, guidance: Option<String>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("ai.improve", json!({ "draftId": draft_id, "template": template, "guidance": guidance })).await
+}
+
+#[tauri::command]
 async fn ai_cancel(draft_id: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     relay.request("ai.cancel", json!({ "draftId": draft_id })).await
 }
@@ -171,7 +176,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_cancel, ai_auth_status, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_improve, ai_cancel, ai_auth_status, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

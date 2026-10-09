@@ -6,7 +6,7 @@ import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/co
 import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
-import { draftTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
+import { draftTemplate, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import {
   fetchProjectGrounding,
   type ProjectGrounding,
@@ -32,6 +32,7 @@ export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "ge
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
+export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown };
 /** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
 export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
 export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection };
@@ -132,8 +133,16 @@ function aiDraftParams(params: unknown): AIDraftParams {
   return value as AIDraftParams;
 }
 
-async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; errors?: string[] }> {
-  if (services.drafts.has(params.draftId)) throw Object.assign(new Error("That AI draft is already running."), { code: "AI_DRAFT_IN_PROGRESS" });
+/**
+ * Runs one AI request on a fresh Copilot Session registered under `draftId`, so `ai.cancel` can stop
+ * it and `ai.progress` reports its stream — the shared shape of `ai.generate` and `ai.improve`.
+ */
+async function withAISession<T>(
+  draftId: string,
+  services: SidecarServices,
+  run: (session: AIDraftSession, options: { signal: AbortSignal; onChunk: (chunk: string) => void }) => Promise<T>,
+): Promise<T> {
+  if (services.drafts.has(draftId)) throw Object.assign(new Error("That AI request is already running."), { code: "AI_DRAFT_IN_PROGRESS" });
   let session: AIDraftSession;
   try { session = await services.createDraftSession(); }
   catch (error) {
@@ -142,29 +151,64 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
   }
   // Cancelling through `ai.cancel` aborts the session and stops the loop before any further repair attempt.
   const cancellation = new AbortController();
-  services.drafts.set(params.draftId, { ...session, abort: async () => { cancellation.abort(); await session.abort(); } });
+  services.drafts.set(draftId, { ...session, abort: async () => { cancellation.abort(); await session.abort(); } });
   try {
     let received = 0;
-    const result = await draftTemplate(session, { prose: params.prose, projectGrounding: params.grounding as ProjectGrounding | undefined }, {
+    const result = await run(session, {
       signal: cancellation.signal,
       onChunk: (chunk) => {
         received += chunk.length;
-        services.notify({ jsonrpc: "2.0", method: "ai.progress", params: { draftId: params.draftId, length: received } });
+        services.notify({ jsonrpc: "2.0", method: "ai.progress", params: { draftId, length: received } });
       },
     });
-    if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
-    if (result.ok) return { template: result.template as unknown as Record<string, unknown> };
-    // A Template-shaped draft that still fails validation stays editable in Studio, where its errors show.
-    if (result.template) return { template: result.template, errors: result.errors };
-    throw Object.assign(new Error("Copilot did not return a usable Template. Your description is still available to edit."), { code: "AI_DRAFT_MALFORMED" });
+    if (services.cancelledDrafts.has(draftId)) throw Object.assign(new Error("AI request cancelled."), { code: "AI_DRAFT_CANCELLED" });
+    return result;
   } catch (error) {
-    if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
+    if (services.cancelledDrafts.has(draftId)) throw Object.assign(new Error("AI request cancelled."), { code: "AI_DRAFT_CANCELLED" });
     throw error;
   } finally {
-    services.drafts.delete(params.draftId);
-    services.cancelledDrafts.delete(params.draftId);
+    services.drafts.delete(draftId);
+    services.cancelledDrafts.delete(draftId);
     await session.dispose();
   }
+}
+
+async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; errors?: string[] }> {
+  const result = await withAISession(params.draftId, services, (session, options) =>
+    draftTemplate(session, { prose: params.prose, projectGrounding: params.grounding as ProjectGrounding | undefined }, options));
+  if (result.ok) return { template: result.template as unknown as Record<string, unknown> };
+  // A Template-shaped draft that still fails validation stays editable in Studio, where its errors show.
+  if (result.template) return { template: result.template, errors: result.errors };
+  throw Object.assign(new Error("Copilot did not return a usable Template. Your description is still available to edit."), { code: "AI_DRAFT_MALFORMED" });
+}
+
+/**
+ * A Template Improvement of the Template open in Studio. Studio flattens `extends` and Mixins when
+ * it loads a Template (ADR-0048), so the authored Template is also its Resolved Template.
+ */
+async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; notes: string[]; errors?: string[] }> {
+  const template = params.template as TaskTemplate;
+  const result = await withAISession(params.draftId, services, (session, options) =>
+    improveTemplate(session, {
+      template,
+      resolvedTemplate: template,
+      guidance: params.guidance ?? null,
+      projectGrounding: (params.grounding as ProjectGrounding | undefined) ?? null,
+    }, options));
+  if (result.ok) return { template: result.template as unknown as Record<string, unknown>, notes: result.notes };
+  if (result.template) return { template: result.template, notes: result.notes, errors: result.errors };
+  throw Object.assign(new Error("Copilot did not return a usable proposal. Your Template is unchanged."), { code: "AI_DRAFT_MALFORMED" });
+}
+
+function aiImproveParams(params: unknown): AIImproveParams {
+  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<AIImproveParams>;
+  if (typeof value.draftId !== "string" || !value.draftId || typeof value.template !== "object" || value.template === null || Array.isArray(value.template)) {
+    throw Object.assign(new Error("Improving with AI requires a request id and the Template."), { code: "INVALID_PARAMS" });
+  }
+  if (value.guidance !== undefined && value.guidance !== null && typeof value.guidance !== "string") {
+    throw Object.assign(new Error("Improvement guidance must be text."), { code: "INVALID_PARAMS" });
+  }
+  return value as AIImproveParams;
 }
 
 async function cancelDraft(params: unknown, services: SidecarServices): Promise<{ cancelled: boolean }> {
@@ -417,6 +461,7 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
     .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
+    .with("ai.improve", () => improveDraft(aiImproveParams(request.params), services))
     .with("ai.cancel", () => cancelDraft(request.params, services))
     .with("ai.authStatus", () => services.checkCopilotAuth())
     .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))

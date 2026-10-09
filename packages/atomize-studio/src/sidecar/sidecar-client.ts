@@ -86,6 +86,12 @@ export async function generateAIDraft(draftId: string, prose: string, grounding?
   catch (error) { throw sidecarError(error); }
 }
 
+/** Asks Copilot for a Template Improvement of the open Template; progress and cancellation share the AI draft channel. */
+export async function improveTemplateWithAI(draftId: string, template: unknown, guidance?: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("ai_improve", { draftId, template, guidance: guidance?.trim() || null }); }
+  catch (error) { throw sidecarError(error); }
+}
+
 export async function cancelAIDraft(draftId: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
   try { await call("ai_cancel", { draftId }); }
   catch (error) { throw sidecarError(error); }

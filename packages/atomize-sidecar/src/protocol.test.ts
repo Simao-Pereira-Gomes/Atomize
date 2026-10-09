@@ -508,3 +508,46 @@ describe("AI draft protocol", () => {
     expect(calls).toBe(3);
   });
 });
+
+describe("AI improve protocol", () => {
+  const template = { version: "1.0", name: "Backend", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] };
+  const proposal = "version: '1.0'\nname: Backend\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 80\n  - title: Review\n    estimationPercent: 20\nimprovementNotes:\n  - Added a review task.\n";
+
+  it("returns the proposal and Copilot's notes, sending the guidance and the current Template", async () => {
+    const prompts: string[] = [];
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({ generate: async (_system, user) => { prompts.push(user); return proposal; }, abort: async () => {}, dispose: async () => {} }),
+    };
+    const line = JSON.stringify({ jsonrpc: "2.0", id: 30, method: "ai.improve", params: { draftId: "improve-1", template, guidance: "Add reviews" } });
+    await expect(handleLine(line, ai)).resolves.toEqual({
+      jsonrpc: "2.0",
+      id: 30,
+      result: { template: { version: "1.0", name: "Backend", filter: {}, tasks: [{ title: "Build", estimationPercent: 80 }, { title: "Review", estimationPercent: 20 }] }, notes: ["Added a review task."] },
+    });
+    expect(prompts[0]).toContain("Add reviews");
+    expect(prompts[0]).toContain("Template to improve");
+  });
+
+  it("can be cancelled through ai.cancel", async () => {
+    let resolveGeneration!: (value: string) => void;
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({ generate: async () => await new Promise<string>((resolve) => { resolveGeneration = resolve; }), abort: async () => {}, dispose: async () => {} }),
+    };
+    const improving = handleLine(JSON.stringify({ jsonrpc: "2.0", id: 31, method: "ai.improve", params: { draftId: "improve-2", template } }), ai);
+    while (!ai.drafts.has("improve-2")) await new Promise((resolve) => setTimeout(resolve, 0));
+    await handleLine('{"jsonrpc":"2.0","id":32,"method":"ai.cancel","params":{"draftId":"improve-2"}}', ai);
+    resolveGeneration(proposal);
+    await expect(improving).resolves.toMatchObject({ error: { code: "AI_DRAFT_CANCELLED" } });
+  });
+
+  it("rejects a request without a Template", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":33,"method":"ai.improve","params":{"draftId":"improve-3"}}', services))
+      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+  });
+});

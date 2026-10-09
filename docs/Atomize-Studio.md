@@ -89,7 +89,20 @@ The AI draft Starting Path uses a **Copilot Session** — an ephemeral, tool-fre
 
 If you've selected a Connection Profile in the [Work Project Setting](#work-project-setting), Studio can ground the draft with curated Azure DevOps metadata — work item types, field names and allowed values, saved-query and path names — sent to Copilot alongside your prose. Your connection's access token itself is never sent. An explicitly ungrounded draft sends neither metadata nor credentials.
 
-An AI draft that produces valid Template shape enters the authoring surface, possibly with inline field-level errors to fix; malformed or non-Template output is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
+Copilot checks its draft against the Template schema and fixes problems before you see it, up to three attempts. A draft that still has problems after that enters the authoring surface with its field-level errors shown, so you can fix them yourself. Output that isn't Template-shaped at all is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
+
+### Improve with AI
+
+**Improve with AI**, in the builder's sidebar, asks Copilot to propose a revision of the Template you're working on, whichever Starting Path it came from (Scratch, Catalog Clone, Open or AI draft). It works on a complete Template, so finish any highlighted sections first.
+
+1. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". Leave it empty for a general review.
+2. Copilot reviews the Template and proposes changes. You can cancel while it works.
+3. Review the proposal: changed fields and Tasks added, removed, changed or moved, shown the same way as the Template Diff, plus Copilot's notes on what it changed and why.
+4. **Accept** replaces the Template in the builder with the proposal. **Reject** leaves it exactly as it was. Nothing changes before you accept, and nothing is saved until you save as usual.
+
+If Copilot couldn't fix every problem in its proposal, the remaining problems are listed. Accepting loads the proposal anyway so you can fix them in the builder.
+
+Studio flattens a Template's `extends` and Mixins when it opens it ([ADR-0048](./adr/0048-studio-open-flattens-extends-mixins-at-load.md)), so Copilot always sees the complete Template.
 
 ## Grounding
 

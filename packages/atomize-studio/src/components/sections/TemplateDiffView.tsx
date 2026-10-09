@@ -1,5 +1,5 @@
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
-import { diffTemplates, type FieldChange, type TaskChange } from "@sppg2001/atomize-schema";
+import { diffTemplates, type FieldChange, type TaskChange, type TemplateDiff } from "@sppg2001/atomize-schema";
 import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js";
 import type { OriginBaselineState } from "../../diff/origin-baseline";
 
@@ -112,6 +112,37 @@ function RefreshButton(props: { onRefresh: () => void; disabled?: boolean; label
   );
 }
 
+/** The changes between two Templates: a one-line summary, then changed fields and Tasks. */
+export function TemplateChangesList(props: { diff: TemplateDiff }) {
+  return (
+    <div class="space-y-4">
+      <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{summaryText(props.diff)}</p>
+
+      <Show when={props.diff.fieldChanges.length > 0}>
+        <section>
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Fields changed
+          </h3>
+          <ul class="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 px-3 dark:divide-slate-800 dark:border-slate-800">
+            <For each={props.diff.fieldChanges}>{(field) => <FieldChangeRow change={field} />}</For>
+          </ul>
+        </section>
+      </Show>
+
+      <Show when={props.diff.taskChanges.length > 0}>
+        <section>
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Tasks
+          </h3>
+          <ul class="mt-1 space-y-2">
+            <For each={props.diff.taskChanges}>{(change) => <TaskCard change={change} />}</For>
+          </ul>
+        </section>
+      </Show>
+    </div>
+  );
+}
+
 export function TemplateDiffView(props: {
   state: OriginBaselineState;
   current: Accessor<TaskTemplate | undefined>;
@@ -188,33 +219,7 @@ export function TemplateDiffView(props: {
                   </div>
                 }
               >
-                {(d) => (
-                  <div class="space-y-4">
-                    <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{summaryText(d())}</p>
-
-                    <Show when={d().fieldChanges.length > 0}>
-                      <section>
-                        <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Fields changed
-                        </h3>
-                        <ul class="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 px-3 dark:divide-slate-800 dark:border-slate-800">
-                          <For each={d().fieldChanges}>{(field) => <FieldChangeRow change={field} />}</For>
-                        </ul>
-                      </section>
-                    </Show>
-
-                    <Show when={d().taskChanges.length > 0}>
-                      <section>
-                        <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Tasks
-                        </h3>
-                        <ul class="mt-1 space-y-2">
-                          <For each={d().taskChanges}>{(change) => <TaskCard change={change} />}</For>
-                        </ul>
-                      </section>
-                    </Show>
-                  </div>
-                )}
+                {(d) => <TemplateChangesList diff={d()} />}
               </Show>
             </>
           )}
