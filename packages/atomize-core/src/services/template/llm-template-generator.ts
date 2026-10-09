@@ -389,8 +389,13 @@ export function buildUserPrompt(
   description: string,
   projectGrounding?: string | null,
   prevErrors?: string[],
+  exampleStories?: string | null,
 ): string {
   let prompt = `Generate an Atomize task template for the following:\n\n${description}`;
+
+  if (exampleStories) {
+    prompt += `\n\n---\nExample Stories the user picked from their team, with the Tasks each one ended up with (JSON):\n${exampleStories}\n\nFollow the team's conventions they show — how Tasks are named, how estimates are split, which review or test steps they always include — but write the template for the description above. Don't copy Story-specific details into it.\n---`;
+  }
 
   if (projectGrounding) prompt += buildProjectGroundingSection(projectGrounding);
 

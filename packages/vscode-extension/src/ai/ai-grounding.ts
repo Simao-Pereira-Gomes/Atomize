@@ -1,43 +1,51 @@
 import type { IPlatformAdapter } from '@sppg2001/atomize-core/platforms/interfaces/platform.interface';
 import { fetchProjectGrounding, type ProjectGrounding } from '@sppg2001/atomize-core/services/template/project-grounding';
 import { fetchStoryGrounding, type StoryGrounding, toStoryGroundingError } from '@sppg2001/atomize-core/services/template/story-grounding';
-import type { FilterCriteria as TemplateFilter } from '@sppg2001/atomize-core/templates/schema';
 import * as vscode from 'vscode';
 import { getDefaultProfile } from '../config/atomize-configuration.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
-import { browseStories } from '../stories/story-browser.js';
+import { browseStories, type DefaultView } from '../stories/story-browser.js';
 
-export interface ImproveGroundingDeps {
+export interface AIGroundingDeps {
 	store: ProfileStore;
 	credentialResolver: CredentialResolver;
 }
 
-export interface ImproveGrounding {
+export interface AIGrounding {
 	projectGrounding: ProjectGrounding | null;
 	storyGrounding: StoryGrounding | null;
 }
 
-const UNGROUNDED: ImproveGrounding = { projectGrounding: null, storyGrounding: null };
+export interface AIGroundingOptions {
+	title: string;
+	/** Picks the workspace default profile. */
+	resource: vscode.Uri | undefined;
+	/** The choice that skips grounding, worded for the action. */
+	noGrounding: { label: string; description: string };
+	/** Where the Story Browser opens; omit to open in Story Search. */
+	storyView?: DefaultView;
+	storyPlaceholder: string;
+	/** Says what the grounding was for, in the failure dialog, e.g. "The improvement". */
+	purpose: string;
+}
+
+const UNGROUNDED: AIGrounding = { projectGrounding: null, storyGrounding: null };
 
 /**
- * Grounding for a Template Improvement (ADR-0069), always the user's explicit choice: a Connection
- * Profile brings Project Grounding, and ticking Stories the Template was applied to adds Story
- * Grounding on top; ticking none keeps it to project metadata. Sensitive AI Context is a per-run
- * choice. Grounding that can't load is retried, dropped, or cancelled by the user.
+ * Grounding for an AI draft or improvement (ADR-0069), always the user's explicit choice: a
+ * Connection Profile brings Project Grounding, and ticking Stories adds Story Grounding on top;
+ * ticking none keeps it to project metadata. Sensitive AI Context is a per-run choice. Grounding
+ * that can't load is retried, dropped, or cancelled by the user, never dropped silently.
  */
-export async function chooseImproveGrounding(
-	deps: ImproveGroundingDeps,
-	templateFilter: TemplateFilter,
-	title: string,
-	resource: vscode.Uri,
-): Promise<ImproveGrounding | 'cancelled'> {
+export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGroundingOptions): Promise<AIGrounding | 'cancelled'> {
+	const { title } = options;
 	const profile = await pickProfile(deps.store, deps.credentialResolver, {
 		title: `${title} — Grounding`,
 		allowOffline: true,
-		defaultProfile: getDefaultProfile(resource),
-		offlineChoice: { label: 'No grounding', description: 'Review the Template on its own' },
+		defaultProfile: getDefaultProfile(options.resource),
+		offlineChoice: options.noGrounding,
 	});
 	if (profile === null) return 'cancelled';
 	if (profile === undefined) return UNGROUNDED;
@@ -56,9 +64,9 @@ export async function chooseImproveGrounding(
 				const picked = await browseStories({
 					title,
 					adapter,
-					defaultView: { kind: 'applied', templateFilter },
+					...(options.storyView ? { defaultView: options.storyView } : {}),
 					canPickMany: true,
-					placeholder: 'Tick Stories to learn from, or press Enter with none for project metadata only.',
+					placeholder: options.storyPlaceholder,
 					hasTasksByDefault: true,
 				});
 				if (picked === undefined) return 'cancelled';
@@ -83,7 +91,7 @@ export async function chooseImproveGrounding(
 			const failure = toStoryGroundingError(error);
 			const choice = await vscode.window.showWarningMessage(
 				failure.message,
-				{ modal: true, detail: "The improvement was going to use this project's metadata and Stories." },
+				{ modal: true, detail: `${options.purpose} was going to use this project's metadata${storyIds?.length ? ' and Stories' : ''}.` },
 				'Retry',
 				...(failure.code === 'GROUNDING_STORIES_UNUSABLE' ? ['Choose Other Stories'] : []),
 				'Continue without grounding',

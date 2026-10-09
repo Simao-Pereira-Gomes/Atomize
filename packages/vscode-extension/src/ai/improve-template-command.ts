@@ -9,16 +9,16 @@ import { parse } from 'yaml';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getAIModel } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { type AIGrounding, type AIGroundingDeps, chooseAIGrounding } from './ai-grounding.js';
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
-import { chooseImproveGrounding, type ImproveGrounding, type ImproveGroundingDeps } from './improve-grounding.js';
 import { catalogRefFor, improvedCopyContent, reviewMessage } from './improvement-proposal.js';
 
 const TITLE = 'Atomize: Improve Template with AI';
 /** Context key listing open proposal documents, so the diff's title-bar actions appear only on them. */
 const PROPOSALS_CONTEXT = 'atomize.improvementProposals';
 
-export interface ImproveCommandDeps extends ImproveGroundingDeps {
+export interface ImproveCommandDeps extends AIGroundingDeps {
 	/** Prompts to save a dirty document; false when the user cancels. */
 	checkDirtyDocument: (doc: vscode.TextDocument, verb: string) => Promise<boolean>;
 	isRunnableTemplate: (doc: vscode.TextDocument) => boolean;
@@ -69,7 +69,14 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		return;
 	}
 
-	const grounding = await chooseImproveGrounding(deps, resolvedTemplate.filter, TITLE, doc.uri);
+	const grounding = await chooseAIGrounding(deps, {
+		title: TITLE,
+		resource: doc.uri,
+		noGrounding: { label: 'No grounding', description: 'Review the Template on its own' },
+		storyView: { kind: 'applied', templateFilter: resolvedTemplate.filter },
+		storyPlaceholder: 'Tick Stories to learn from, or press Enter with none for project metadata only.',
+		purpose: 'The improvement',
+	});
 	if (grounding === 'cancelled') return;
 
 	let prepared: { sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined;
@@ -114,7 +121,7 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 
 /** Runs the improvement, resolving undefined when the user cancelled. */
 async function runImprovement(
-	request: { path: string; guidance: string; library: ReturnType<typeof createTemplateLibrary>; resolvedTemplate: TaskTemplate; grounding: ImproveGrounding },
+	request: { path: string; guidance: string; library: ReturnType<typeof createTemplateLibrary>; resolvedTemplate: TaskTemplate; grounding: AIGrounding },
 	progress: vscode.Progress<{ message?: string }>,
 	token: vscode.CancellationToken,
 ): Promise<{ sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined> {

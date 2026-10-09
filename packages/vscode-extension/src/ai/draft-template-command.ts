@@ -1,16 +1,9 @@
 import { draftTemplate } from '@sppg2001/atomize-core/services/template/ai-template-loop';
 import { MAX_ATTEMPTS } from '@sppg2001/atomize-core/services/template/llm-template-generator';
-import {
-	fetchProjectGrounding,
-	type ProjectGrounding,
-	toProjectGroundingError,
-} from '@sppg2001/atomize-core/services/template/project-grounding';
 import { CancellationError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
-import { getAIModel, getDefaultProfile } from '../config/atomize-configuration.js';
-import type { CredentialResolver } from '../profiles/credential-resolver.js';
-import { pickProfile } from '../profiles/profile-picker.js';
-import type { ProfileStore } from '../profiles/profile-store.js';
+import { getAIModel } from '../config/atomize-configuration.js';
+import { type AIGrounding, type AIGroundingDeps, chooseAIGrounding } from './ai-grounding.js';
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
 import { draftDocumentContent } from './draft-document.js';
@@ -19,10 +12,7 @@ import { isPromptDocument, promptDocumentContent, promptDocumentDescription } fr
 const TITLE = 'Atomize: Draft Template with AI';
 const COMMAND = 'atomize.draftTemplateWithAI';
 
-export interface DraftCommandDeps {
-	store: ProfileStore;
-	credentialResolver: CredentialResolver;
-}
+export type DraftCommandDeps = AIGroundingDeps;
 
 /** The last description entered this session, so a disappointing or failed draft never loses it. */
 let lastDescription = '';
@@ -47,7 +37,13 @@ async function draftTemplateWithAI(deps: DraftCommandDeps, promptDocument?: vsco
 	if (description === undefined) return;
 	lastDescription = description;
 
-	const grounding = await chooseGrounding(deps);
+	const grounding = await chooseAIGrounding(deps, {
+		title: TITLE,
+		resource: vscode.window.activeTextEditor?.document.uri,
+		noGrounding: { label: 'No project grounding', description: 'Draft from your description only' },
+		storyPlaceholder: 'Optionally tick example Stories your team broke down well, or press Enter with none to skip.',
+		purpose: 'The draft',
+	});
 	if (grounding === 'cancelled') return;
 
 	let content: string | undefined;
@@ -115,44 +111,10 @@ async function describeFromDocument(uri: vscode.Uri): Promise<string | undefined
 	return description;
 }
 
-/**
- * Project Grounding is always the user's explicit choice (ADR-0069): a Connection Profile, with the
- * Workspace Default focused, or no grounding. Grounding that can't load is retried, dropped, or
- * cancelled by the user, never dropped silently.
- */
-async function chooseGrounding(deps: DraftCommandDeps): Promise<ProjectGrounding | null | 'cancelled'> {
-	const profile = await pickProfile(deps.store, deps.credentialResolver, {
-		title: `${TITLE} — Grounding`,
-		allowOffline: true,
-		defaultProfile: getDefaultProfile(vscode.window.activeTextEditor?.document.uri),
-		offlineChoice: { label: 'No project grounding', description: 'Draft from your description only' },
-	});
-	if (profile === null) return 'cancelled';
-	if (profile === undefined) return null;
-
-	while (true) {
-		try {
-			return await vscode.window.withProgress(
-				{ location: vscode.ProgressLocation.Notification, title: `Loading project metadata from "${profile}"…` },
-				async () => fetchProjectGrounding(await deps.credentialResolver.resolveByName(profile)),
-			);
-		} catch (error) {
-			const choice = await vscode.window.showWarningMessage(
-				toProjectGroundingError(error).message,
-				{ modal: true, detail: 'The draft was going to use this project\'s metadata.' },
-				'Retry',
-				'Continue without grounding',
-			);
-			if (choice === 'Continue without grounding') return null;
-			if (choice !== 'Retry') return 'cancelled';
-		}
-	}
-}
-
 /** Resolves the draft's document text, or undefined when the user cancelled. */
 async function runDraft(
 	description: string,
-	projectGrounding: ProjectGrounding | null,
+	grounding: AIGrounding,
 	progress: vscode.Progress<{ message?: string }>,
 	token: vscode.CancellationToken,
 ): Promise<string | undefined> {
@@ -169,7 +131,7 @@ async function runDraft(
 
 		let received = 0;
 		progress.report({ message: `Writing with ${session.modelName}…` });
-		const result = await draftTemplate(session, { prose: description, projectGrounding }, {
+		const result = await draftTemplate(session, { prose: description, ...grounding }, {
 			signal: cancellation.signal,
 			onChunk: chunk => {
 				received += chunk.length;
