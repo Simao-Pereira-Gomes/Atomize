@@ -1,3 +1,5 @@
+import { formatEstimateValue } from "@sppg2001/atomize-schema";
+
 export type PreviewFieldType = "string" | "number" | "boolean" | "string[]" | "unknown";
 export type PreviewFieldSource = "filter" | "condition" | "estimation";
 export type PreviewField = { name: string; type: PreviewFieldType; sources: PreviewFieldSource[]; required?: boolean };
@@ -22,7 +24,8 @@ export type PreviewResult = {
 
 /** Appends the platform's unit when it is known; overridden target fields have no known unit. */
 export function formatEstimateAmount(value: number, unit?: string): string {
-  return unit ? `${value} ${unit}` : String(value);
+  const amount = formatEstimateValue(value);
+  return unit ? `${amount} ${unit}` : amount;
 }
 
 /** A blank Task Estimate is unknown, never zero. */

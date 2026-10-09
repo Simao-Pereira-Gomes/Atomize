@@ -104,6 +104,14 @@ describe("formatTaskEstimate", () => {
   });
 });
 
+describe("estimate rounding", () => {
+  it("shows at most two decimals, without floating-point noise", () => {
+    expect(formatEstimateAmount(5.999999999999999, "hours")).toBe("6 hours");
+    expect(formatTaskEstimate(1.3333333, "hours")).toBe("1.33 hours");
+    expect(formatTaskEstimate(1.3)).toBe("1.3");
+  });
+});
+
 describe("formatEstimateAmount", () => {
   it("appends the platform unit when known and shows a bare number otherwise", () => {
     expect(formatEstimateAmount(2, "hours")).toBe("2 hours");

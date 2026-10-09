@@ -1,4 +1,4 @@
-import { isEstimateSourceField, isEstimateTargetField, sortEstimateFields } from "@sppg2001/atomize-schema";
+import { formatEstimateValue, isEstimateSourceField, isEstimateTargetField, sortEstimateFields } from "@sppg2001/atomize-schema";
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 import type { GroundedEstimationField, GroundedFieldOptions } from "../../grounding/grounding-service";
 import { previewEstimation } from "../../stores/estimation-preview";
@@ -450,13 +450,13 @@ function WorkedExample(props: {
           return (
             <>
               <Show when={r.usedDefault}><p class="text-amber-800 dark:text-amber-200">“{value()}” can't be converted — using the default Story Estimate.</p></Show>
-              <p class="font-semibold">Story total: {r.total}{props.unit}</p>
+              <p class="font-semibold">Story total: {formatEstimateValue(r.total)}{props.unit}</p>
               <ul class="space-y-0.5">
                 <For each={r.tasks}>
                   {(task) => (
                     <li class="flex justify-between gap-4">
                       <span class="truncate">{task.title} · {task.percent}%</span>
-                      <span class="font-mono">{task.hours}{props.unit}</span>
+                      <span class="font-mono">{formatEstimateValue(task.hours)}{props.unit}</span>
                     </li>
                   )}
                 </For>
