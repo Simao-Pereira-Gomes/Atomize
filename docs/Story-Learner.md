@@ -281,6 +281,7 @@ After generation, consider:
 - Adding `assignTo` patterns appropriate for your team
 - Adding `${story.title}` variable interpolation to task titles
 - Adjusting the `filter` section to be more or less restrictive
+- Merging identical learned tasks into one [repeated task](./Template-Reference.md#repeated-tasks). Story Learner never does this itself, because tasks that look alike may still differ in assignee, estimate or purpose
 
 ---
 

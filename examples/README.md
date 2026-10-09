@@ -17,6 +17,7 @@ Real-world Atomize template examples. Each file is a working template you can va
 | [`fibonacci-hours-table.atomize.yaml`](#fibonacci-hours-tableatomizeyaml) | A numeric conversion table for points that don't scale linearly, with a default Story Estimate and a point-based condition |
 | [`tshirt-size-estimation.atomize.yaml`](#tshirt-size-estimationatomizeyaml) | T-shirt sizes from a custom picklist field — `source`, a size table, fractional sizes like `0.5XL`, and size conditions |
 | [`custom-fields-and-task-type.atomize.yaml`](#custom-fields-and-task-typeatomizeyaml) | A customised process — categorical complexity in, a custom child work item type (`taskType`) and effort field (`targetFields`) out |
+| [`repeated-review-tasks.atomize.yaml`](#repeated-review-tasksatomizeyaml) | One review Task per developer from a single definition with `repeat`, alongside ordinary dependent tasks |
 
 ---
 
@@ -302,6 +303,27 @@ atomize validate examples/custom-fields-and-task-type.atomize.yaml
 atomize generate examples/custom-fields-and-task-type.atomize.yaml --platform mock --story STORY-003 STORY-005
 ```
 STORY-003 (`Very High`) converts to 32 and STORY-005 (`Medium`) to 8.
+
+---
+
+## repeated-review-tasks.atomize.yaml
+
+One review conclusions Task per developer, written once. `repeat: 4` creates four identical Tasks titled "Add review conclusions (1)" to "(4)". Each copy gets the full 10%, so the template sums to 10% + 50% + 4 × 10% = 100%.
+
+**Key features shown:**
+- `repeat` on a task definition
+- `validation.totalEstimationMustBe` and `maxTasks`, which count each copy (6 Tasks are generated)
+- Ordinary `dependsOn` on the other tasks. A repeated task can't use `dependsOn`, and no task can depend on it
+
+| Story | Design 10% | Implement 50% | Each review copy 10% |
+|-------|------------|---------------|----------------------|
+| 13 points | 1.3 | 6.5 | 1.3 (× 4) |
+
+**Try it:**
+```bash
+atomize validate examples/repeated-review-tasks.atomize.yaml
+atomize generate examples/repeated-review-tasks.atomize.yaml --platform mock --story STORY-003
+```
 
 ---
 

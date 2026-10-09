@@ -8,6 +8,7 @@ This guide provides solutions for common template validation errors you might en
 - [Estimation Errors](#estimation-errors)
 - [Task Count Errors](#task-count-errors)
 - [Dependency Errors](#dependency-errors)
+- [Repeat Errors](#repeat-errors)
 - [Condition Errors](#condition-errors)
 - [Schema Errors](#schema-errors)
 - [Understanding Error Messages](#understanding-error-messages)
@@ -52,6 +53,8 @@ Total estimation is 70%, but must be 100%.
 ```
 
 **Cause:** Your task estimation percentages don't add up to 100%, and a strict validation constraint requires them to.
+
+A [repeated task](./Template-Reference.md#repeated-tasks) counts once per copy: `repeat: 4` at 10% adds 40% to the total. When the template has repeated tasks, the suggestion ends with "Each copy of a repeated task counts toward this total."
 
 **Solutions:**
 1. **Adjust existing tasks:**
@@ -225,6 +228,8 @@ Template has 1 task(s), but minimum is 3. Add 2 more task(s).
 
 **Cause:** Template doesn't have enough tasks to meet minimum requirement.
 
+Each copy of a [repeated task](./Template-Reference.md#repeated-tasks) counts, so one task with `repeat: 3` counts as 3. When the template has repeated tasks, the message says "(counting each repeated copy)", and the suggestion also offers raising a repeat count.
+
 **Solution:**
 ```yaml
 validation:
@@ -248,6 +253,12 @@ Template has 5 task(s), but maximum is 3. Remove 2 task(s) or increase maxTasks.
 ```
 
 **Cause:** Template has more tasks than the maximum allowed.
+
+Each copy of a [repeated task](./Template-Reference.md#repeated-tasks) counts. With repeated tasks the message reads, for example:
+```
+Template has 6 task(s) (counting each repeated copy), but maximum is 4. Remove 2 task(s) or increase maxTasks.
+💡 Remove 2 task(s), lower a repeat count, or increase the maxTasks limit to 6.
+```
 
 **Solutions:**
 1. **Remove excess tasks:**
@@ -400,6 +411,93 @@ tasks:
     title: "Task 2"
     dependsOn: ["task1"]  # ✅ Linear dependency
 ```
+
+---
+
+## Repeat Errors
+
+These errors come from a task's [`repeat`](./Template-Reference.md#repeated-tasks) count.
+
+### Repeat Above the Limit
+
+**Error Message:**
+```
+Task repeats 25 times, but the maximum is 20. Lower repeat or raise validation.maxRepeat.
+💡 Lower the repeat count, or raise validation.maxRepeat if the template genuinely needs more copies.
+```
+
+**Cause:** A task's `repeat` is above the template's limit, which is 20 unless `validation.maxRepeat` sets another value. The limit guards against a typo creating many Tasks at once.
+
+**Solutions:**
+1. **Lower the count:**
+   ```yaml
+   tasks:
+     - title: "Add review conclusions"
+       estimationPercent: 4
+       repeat: 20             # Was 25
+   ```
+
+2. **Raise the limit** when the template really needs more copies:
+   ```yaml
+   validation:
+     maxRepeat: 25
+   ```
+
+### Repeated Task With Dependencies
+
+**Error Message:**
+```
+A repeated task cannot have dependsOn. Remove repeat or dependsOn from this task.
+💡 Remove dependsOn from the repeated task, or remove repeat and define each copy as its own task.
+```
+
+**Cause:** A task has both `repeat` and `dependsOn`. A dependency links two single Work Items, and a repeated task's copies have no single Work Item to link.
+
+**Solutions:**
+1. **Drop the dependency:**
+   ```yaml
+   tasks:
+     - id: "implement"
+       title: "Implement"
+       estimationPercent: 60
+     - title: "Add review conclusions"
+       estimationPercent: 10
+       repeat: 4               # dependsOn removed
+   ```
+
+2. **Write the copies as separate tasks** when each needs its own dependency.
+
+### Dependency on a Repeated Task
+
+**Error Message:**
+```
+Task depends on "review", which is repeated. A task cannot depend on a repeated task.
+💡 Remove "review" from dependsOn, or remove repeat from task "review".
+```
+
+**Cause:** A task lists a repeated task's `id` in its `dependsOn`. There's no single copy to depend on.
+
+**Solution:**
+```yaml
+tasks:
+  - id: "review"
+    title: "Add review conclusions"
+    estimationPercent: 10
+    repeat: 4
+  - id: "merge"
+    title: "Merge"
+    estimationPercent: 60     # dependsOn: ["review"] removed
+```
+
+### Invalid Repeat Count
+
+**Error Message:**
+```
+Repeat count must be at least 1
+Repeat count must be a whole number
+```
+
+**Cause:** `repeat` is 0, negative or fractional. Use a whole number of at least 1, or remove `repeat` for a single Task.
 
 ---
 
@@ -639,6 +737,9 @@ fi
 | Invalid dependency | "non-existent task ID" | Fix ID or add missing task |
 | Missing ID | "no id field" | Add `id: "task-name"` |
 | Circular dependency | "Circular dependency detected" | Remove one dependency from cycle |
+| Repeat too high | "Task repeats X times, but the maximum is Y" | Lower `repeat` or raise `validation.maxRepeat` |
+| Repeat with dependencies | "A repeated task cannot have dependsOn" | Remove `dependsOn` or `repeat` |
+| Depends on a repeated task | "which is repeated" | Remove it from `dependsOn` |
 | Invalid condition | "structured object" | Use `field` / `customField` conditions |
 | Tag operator | "is multi-value" | Use `contains` / `not-contains` |
 | Category estimate compared numerically | "is not numeric" | Use `equals` / `not-equals` with the size |

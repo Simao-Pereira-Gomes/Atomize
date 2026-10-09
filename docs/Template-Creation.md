@@ -47,7 +47,7 @@ The wizard walks through:
 
 1. Basic information: name, description, author, tags
 2. Filter configuration: work item types, states, tags, paths, saved queries, and custom fields. With a saved query, the wizard still asks which work item types the query returns. It uses them only to look up fields, not to filter.
-3. Task configuration: titles, descriptions, estimation, assignments, dependencies, and conditions
+3. Task configuration: titles, descriptions, estimation, assignments, dependencies, and conditions. The advanced options ask how many identical Tasks to create; a [repeated task](./Template-Reference.md#repeated-tasks) skips the dependency question, and if it goes over the limit of 20, the preview offers to raise `validation.maxRepeat`
 4. Estimation settings: the Story field that holds the estimate, how it converts to hours (one-to-one, a factor, or a table of values such as T-shirt sizes), the task type and target fields, what to do when a Story has no usable estimate, what happens when the percentages don't add up to 100%, rounding, and the minimum Task Estimate. With a Connection Profile, field and value choices come from your project instead of typed input.
 5. Validation rules: task count and total-estimation expectations
 6. Metadata: category, guidelines, and notes
@@ -79,6 +79,19 @@ tasks:
     estimationPercent: 20
 ```
 
+When a Story needs several identical Tasks, such as one review per developer, use `repeat` instead of copying the task (the `atm-task-repeat` snippet inserts one):
+
+```yaml
+tasks:
+  - title: "Build: ${story.title}"
+    estimationPercent: 60
+  - title: "Add review conclusions"
+    estimationPercent: 10
+    repeat: 4        # "Add review conclusions (1)" to "(4)", 10% each
+```
+
+See [Repeated Tasks](./Template-Reference.md#repeated-tasks) and the worked example [`examples/repeated-review-tasks.atomize.yaml`](../examples/repeated-review-tasks.atomize.yaml).
+
 Validate and preview often:
 
 ```bash
@@ -101,6 +114,8 @@ atomize generate my-template.atomize.yaml --platform mock
 
 **Open** is the one exception: it loads an existing local Atomize YAML File, and saving continues that same file's identity rather than detaching into a new template — closer to editing a file directly in VS Code than to the other three Starting Paths. A file that declares `extends` or `mixins` is resolved into its composed form before loading, and those fields are stripped once resolved (re-declaring them after Studio's already-flattened composition would duplicate the contributed tasks the next time the file is opened).
 
+In Studio's task editor, the **Copies** field sets a task's `repeat`; the **Validation** section's **Maximum copies per task** sets `validation.maxRepeat`.
+
 For the full breakdown of Studio's authoring surface, Grounded Field Options, and how it authenticates AI drafts, see the [Atomize Studio reference](./Atomize-Studio.md).
 
 ## AI-Assisted Drafts
@@ -119,7 +134,9 @@ For better project-specific output, ground the generation with Azure DevOps meta
 atomize template create --ai --ground --profile work-ado
 ```
 
-Use `--ground` when your project has custom fields, non-standard work item types, or team-specific task naming conventions. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
+Use `--ground` when your project has custom fields, non-standard work item types, or team-specific task naming conventions.
+
+When you ask for several identical Tasks, such as "one review task per developer, 4 developers", the draft uses a single [repeated task](./Template-Reference.md#repeated-tasks) instead of four copies. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
 
 Always review AI-generated templates before use:
 
@@ -137,6 +154,8 @@ atomize template create --from-stories 123,456,789 --save-as backend-pattern
 ```
 
 With multiple stories, Atomize detects common tasks, estimation patterns, outliers, tags, and possible conditional behavior. With one story, the result mirrors that story's task breakdown more directly.
+
+Story Learner never infers `repeat`: identical Tasks it learns from stay separate task definitions. Merge them into one [repeated task](./Template-Reference.md#repeated-tasks) yourself if they really are interchangeable.
 
 See [Story Learner](./Story-Learner.md) for confidence scoring, outlier detection, normalization, and examples.
 
