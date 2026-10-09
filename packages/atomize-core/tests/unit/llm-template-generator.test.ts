@@ -116,6 +116,50 @@ describe("buildSystemPrompt estimation configuration", () => {
   });
 });
 
+describe("buildSystemPrompt repeated tasks", () => {
+  test("documents repeat and validation.maxRepeat", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("repeat: number");
+    expect(prompt).toContain("maxRepeat: number");
+  });
+
+  test("states the repeat rules: no dependencies, the cap, and copies counting toward the total", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("REPEATED TASKS");
+    expect(prompt).toContain("NEVER combine repeat with dependsOn");
+    expect(prompt).toContain("at most 20");
+    expect(prompt).toContain("every copy counts");
+  });
+
+  test("its repeated-task example passes Offline Validation", () => {
+    const prompt = buildSystemPrompt();
+    const start = prompt.indexOf("Example 7");
+    const yaml = prompt.slice(prompt.indexOf("\n", start) + 1).replace(/\\\$/g, "$");
+    expect(parseAndValidate(yaml)).toMatchObject({ ok: true, template: { tasks: expect.arrayContaining([expect.objectContaining({ repeat: 4 })]) } });
+  });
+
+  test("a draft combining repeat with dependsOn fails, so the retry loop asks for a fix", () => {
+    const yaml = [
+      'version: "1.0"',
+      "name: Reviews",
+      "filter:",
+      '  workItemTypes: ["User Story"]',
+      "tasks:",
+      "  - id: build",
+      "    title: Build",
+      "    estimationPercent: 60",
+      "  - id: review",
+      "    title: Review",
+      "    estimationPercent: 10",
+      "    repeat: 4",
+      "    dependsOn: [build]",
+    ].join("\n");
+    const result = parseAndValidate(yaml);
+    expect(result.ok).toBe(false);
+    expect(result.ok ? [] : result.errors.join("\n")).toContain("repeated task cannot have dependsOn");
+  });
+});
+
 describe("buildUserPrompt", () => {
   test("wraps description in plain form on first attempt", () => {
     const prompt = buildUserPrompt("backend API stories");

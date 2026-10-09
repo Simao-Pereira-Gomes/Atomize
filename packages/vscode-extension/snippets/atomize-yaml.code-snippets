@@ -49,6 +49,17 @@
     "description": "Atomize task that is only created when the parent story has (or doesn't have) a tag. Tags only support contains/not-contains; use atm-condition-field, atm-condition-number or atm-condition-custom for other fields."
   },
 
+  "Atomize Repeated Task": {
+    "prefix": "atm-task-repeat",
+    "body": [
+      "- title: \"${1:Add review conclusions}\"",
+      "  description: \"${2:What each copy involves.}\"",
+      "  estimationPercent: ${3:10}",
+      "  repeat: ${4:4}"
+    ],
+    "description": "Creates several identical Tasks from one definition, titled \"Title (1)\", \"Title (2)\"... Each copy gets the full percentage. A repeated task can't use dependsOn or be depended on, and repeat is capped at 20 unless validation.maxRepeat is raised."
+  },
+
   "Atomize Filter": {
     "prefix": "atm-filter",
     "body": [

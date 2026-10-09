@@ -51,6 +51,7 @@ Atomize YAML authoring includes:
 |--------|---------|
 | `atm-template`, `atm-mixin`, `atm-extends` | Template, Mixin and inheriting-Template scaffolds |
 | `atm-task`, `atm-task-condition` | A task, or a task created only when the Story has a tag |
+| `atm-task-repeat` | A task created several times as identical copies (`repeat`) |
 | `atm-filter`, `atm-filter-ado`, `atm-filter-saved-query`, `atm-filter-tags` | Filter blocks. The saved-query snippet declares `workItemTypes`, which describes what the query returns and doesn't filter |
 | `atm-estimation` | Strategy, rounding and `normalize` |
 | `atm-estimation-factor`, `atm-estimation-table` | A Story Estimate conversion by factor (points to hours), or by table (T-shirt sizes, with optional `multipliers`) |

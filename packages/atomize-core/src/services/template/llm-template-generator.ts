@@ -59,6 +59,7 @@ tasks:                  # required, minimum 1 item
     tags: string[]      # optional
     id: string          # optional, required if this task is referenced in dependsOn
     dependsOn: string[] # optional, references other task ids
+    repeat: number      # optional, default 1 — create this many identical Tasks from this one definition (see rule 9)
     condition:          # optional — skip this task entirely when condition is false
       # Standard fields (case-sensitive, always lowercase camelCase — NOT the ADO REST field
       # names like "System.State" or "Microsoft.VSTS.Common.Priority"):
@@ -92,8 +93,9 @@ estimation:             # optional
   defaultParentEstimation: number | string   # optional — Story Estimate to assume with use-default, e.g. 5 or "M"
 
 validation:             # optional
-  minTasks: number
+  minTasks: number                # each copy of a repeated task counts
   maxTasks: number
+  maxRepeat: number               # optional, default 20 — the highest repeat any task may use
   totalEstimationMustBe: number   # usually 100
   totalEstimationRange:
     min: number
@@ -108,7 +110,7 @@ metadata:               # optional
 
 CONSTRAINTS (you must follow these):
 1. Estimation sums:
-   - Simple templates (no task-level conditions): estimationPercent values MUST sum to exactly 100.
+   - Simple templates (no task-level conditions): estimationPercent values MUST sum to exactly 100. A repeated task contributes its estimationPercent once per copy.
    - Multi-archetype templates (tasks use conditions to target different story types): each archetype's active task set should sum to ~100% independently. The total across all declared tasks will naturally exceed 100 — this is expected and valid.
 2. If a task uses dependsOn, all referenced IDs must exist on other tasks in the same template.
 3. workItemTypes values are case-sensitive strings matching ADO work item types.
@@ -139,6 +141,12 @@ CONSTRAINTS (you must follow these):
    - With a conversion table on a picklist source, use the picklist's allowed values exactly as keys and cover every one.
    - For a numeric scale where hours grow faster than points, use a table with numeric keys instead of a factor.
    - Conditions on estimation compare the raw Story Estimate: with size categories use equals/not-equals (e.g. value: "L"), never gt/lt/gte/lte.
+9. REPEATED TASKS — when the user wants several identical Tasks from the same definition (e.g. "one review task per developer, 4 developers"), write ONE task with repeat: N instead of copying the task block N times.
+   - Atomize titles the copies "<title> (1)", "<title> (2)", ... so do not number the title yourself.
+   - Each copy gets the task's full estimationPercent, so every copy counts toward the total: repeat: 4 at 10% contributes 40%.
+   - NEVER combine repeat with dependsOn, and never list a repeated task's id in another task's dependsOn.
+   - repeat must be a whole number, at most 20 unless you also set validation.maxRepeat to at least that number. Only raise maxRepeat when the user explicitly asks for more than 20 copies.
+   - Every copy is identical; when copies need different assignees, estimates or fields, write separate tasks instead.
 
 EXAMPLES:
 
@@ -342,7 +350,32 @@ filter:
 tasks:
   - id: "implement"
     title: "Implement (Mobile): \${story.title}"
-    estimationPercent: 60`;
+    estimationPercent: 60
+
+Example 7 — Repeated identical tasks (one review per developer):
+version: "1.0"
+name: "Team Review"
+description: "Implementation plus one review conclusions task for each of the four developers."
+filter:
+  workItemTypes: ["User Story"]
+  states: ["Active"]
+  excludeIfHasTasks: true
+tasks:
+  - title: "Implementation"
+    estimationPercent: 60
+    activity: "Development"
+    assignTo: "@ParentAssignee"
+  - title: "Add review conclusions"
+    estimationPercent: 10
+    repeat: 4
+    activity: "Development"
+    assignTo: "@Unassigned"
+estimation:
+  strategy: "percentage"
+metadata:
+  category: "Agile"
+  difficulty: "beginner"
+  estimationGuidelines: "60% + 4 copies × 10% = 100%."`;
 
 export function buildSystemPrompt(): string {
   return SYSTEM_PROMPT;
