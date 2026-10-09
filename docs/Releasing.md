@@ -14,7 +14,7 @@ The four shared libraries (`atomize-schema`, `atomize-core`, `atomize-ai`, `atom
 
 Publishing is driven by a **git tag sentinel** (ADR-[0030](adr/0030-extension-release-pipeline.md), [0031](adr/0031-cli-release-pipeline.md), [0059](adr/0059-studio-release-tags-gate-publishing.md)):
 
-1. In the feature PR, bump the surface's version. For Studio, bump **both** `packages/atomize-studio/package.json` and `packages/atomize-studio/src-tauri/tauri.conf.json` — the pipeline asserts they match.
+1. In the feature PR, bump the surface's version. For Studio, bump `packages/atomize-studio/package.json`, `packages/atomize-studio/src-tauri/tauri.conf.json` **and** `packages/atomize-studio/src-tauri/Cargo.toml` (plus its `Cargo.lock` entry) — the pipeline asserts all three match.
 2. Merge to `main`.
 3. On push to `main`, the pipeline checks whether the surface's `<tag><version>` already exists. If not, it builds, publishes, and creates the tag + GitHub Release. If the version was not bumped, the tag already exists and the publish is skipped.
 
