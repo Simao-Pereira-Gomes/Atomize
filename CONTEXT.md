@@ -83,8 +83,32 @@ A named Azure DevOps connection record, with its non-secret fields and default s
 _Avoid_: "auth profile" or "credentials" when referring to a saved named connection; do not use Connection Profile for Copilot sign-in.
 
 **Copilot Session**:
-An ephemeral, tool-free GitHub Copilot SDK session Atomize uses to draft a Template with the user's locally signed-in Copilot account. Atomize initiates sign-in interactively when needed but stores neither a Copilot token nor a Copilot Connection Profile. Copilot Sessions use automatic model selection and are discarded after each draft.
+An ephemeral, tool-free AI session on the user's own signed-in GitHub Copilot account, used to draft or improve a Template. The CLI and Atomize Studio host it through the GitHub Copilot SDK; the VS Code extension hosts it through the editor's own language-model access. Atomize stores neither a Copilot token nor a Copilot Connection Profile, and a Copilot Session is discarded after each draft or improvement.
 _Avoid_: calling this a Connection Profile or a GitHub Models profile.
+
+**Grounding**:
+Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms — Project Grounding and Story Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
+
+**Project Grounding**:
+Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. The Grounding used when drafting a new Template.
+
+**Story Grounding**:
+Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to judge how a Template's Tasks are actually used. The Grounding used when improving an existing Template. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
+
+**Sensitive AI Context**:
+Free-text Story and Task content — descriptions and acceptance criteria — that may carry customer, personal, or internal detail. Never sent to a Copilot Session by default; including it is a per-run opt-in, never a persisted preference.
+_Avoid_: using Story Grounding for drafting; deriving a Template from Stories is the Story Learner's job.
+
+**Grounded Draft**:
+An AI draft or improvement produced with Grounding.
+_Avoid_: "connected draft" or "online draft".
+
+**Ungrounded Draft**:
+An AI draft or improvement the user explicitly chose to produce without any Grounding; only the user's request (and, for an improvement, the Template itself) reaches the Copilot Session.
+
+**Template Improvement**:
+An AI-proposed revision of an existing Template, reviewed as a whole and then accepted, saved as a new Template, or rejected — never applied silently. The proposal is judged against the Resolved Template but changes only the Template's own content: it never rewrites `extends`, Mixin references, or anything inherited, and instead carries advisory notes when an inherited Task deserves attention.
+_Avoid_: "AI edit" or "AI refactor"; an improvement is a proposal until accepted.
 
 **Offline Validation**:
 Template validation that checks structure only, without connecting to any platform. Runs without credentials and produces results immediately.
