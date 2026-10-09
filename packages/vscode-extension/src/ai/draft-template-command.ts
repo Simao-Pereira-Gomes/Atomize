@@ -11,19 +11,13 @@ import { getAIModel, getDefaultProfile } from '../config/atomize-configuration.j
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
-import { AIUnavailableError, AUTOMATIC_MODEL, type CopilotLmSession, type LanguageModelRuntime, openCopilotSession } from './copilot-session.js';
+import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
+import { languageModels, offerFix } from './copilot-support.js';
 import { draftDocumentContent } from './draft-document.js';
 import { isPromptDocument, promptDocumentContent, promptDocumentDescription } from './prompt-document.js';
 
 const TITLE = 'Atomize: Draft Template with AI';
 const COMMAND = 'atomize.draftTemplateWithAI';
-const COPILOT_CHAT_EXTENSION = 'GitHub.copilot-chat';
-
-const languageModels: LanguageModelRuntime = {
-	selectChatModels: selector => vscode.lm.selectChatModels(selector),
-	createCancellationTokenSource: () => new vscode.CancellationTokenSource(),
-	userMessage: content => vscode.LanguageModelChatMessage.User(content),
-};
 
 export interface DraftCommandDeps {
 	store: ProfileStore;
@@ -190,32 +184,5 @@ async function runDraft(
 	} finally {
 		onCancel.dispose();
 		session?.dispose();
-	}
-}
-
-async function offerFix(error: AIUnavailableError, retry: () => Promise<void>): Promise<void> {
-	switch (error.reason) {
-		case 'no-models': {
-			const choice = await vscode.window.showErrorMessage(error.message, 'Install GitHub Copilot Chat');
-			if (choice) await vscode.commands.executeCommand('extension.open', COPILOT_CHAT_EXTENSION);
-			return;
-		}
-		case 'model-unavailable': {
-			const choice = await vscode.window.showErrorMessage(error.message, 'Use Automatic', 'Open Settings');
-			if (choice === 'Use Automatic') {
-				await vscode.workspace.getConfiguration('atomize').update('ai.model', AUTOMATIC_MODEL, vscode.ConfigurationTarget.Global);
-				await retry();
-			} else if (choice === 'Open Settings') {
-				await vscode.commands.executeCommand('workbench.action.openSettings', 'atomize.ai.model');
-			}
-			return;
-		}
-		case 'no-permission': {
-			const choice = await vscode.window.showErrorMessage(error.message, 'Try Again');
-			if (choice) await retry();
-			return;
-		}
-		default:
-			await vscode.window.showErrorMessage(error.message);
 	}
 }

@@ -148,6 +148,23 @@ To try again, run the command again. To discard a draft, close it without saving
 
 This command needs GitHub Copilot Chat. If it isn't installed, or you declined VS Code's permission prompt, the command tells you and offers to fix it.
 
+### Atomize: Improve Template with AI
+
+Asks Copilot to propose a revision of the open Template, and shows it in VS Code's diff editor next to your file. Run it from the **Atomize: Improve with AI** CodeLens on a Template, or from the Command Palette. It uses the same Copilot Session as drafting, with no tools and no stored token.
+
+1. If the file has unsaved changes, Atomize asks you to save first. It works from the saved file.
+2. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". Leave it blank for a general review.
+3. Copilot reviews the Template. You can cancel from the progress notification.
+4. The diff opens with your file on the left and Copilot's proposal on the right. Only real changes show: your comments, key order and formatting are kept wherever the content didn't change. A notification lists Copilot's notes on what it changed and why.
+5. You can edit the right-hand side before deciding. Then use the buttons in the editor title bar:
+   - **Accept Improvement** puts the right-hand side, including your edits, into your file as a single change you can undo. The file is left unsaved, so save it when you're happy.
+   - **Save Improvement as New Template** opens the proposal as a new, unsaved Template named "*Name* (improved)", leaving your file as it was. When your file is a Catalog Template, the copy records it as its `origin`.
+   - **Reject Improvement** closes the diff and leaves your file unchanged.
+
+For a Template that uses `extends` or Mixins, Copilot sees the composed Template but never changes `extends`, Mixin references or `origin`, and never copies inherited Tasks into your file. When an inherited Task deserves a change, Copilot says so in its notes so you can change the parent or Mixin yourself. The proposal is validated composed with its parent, exactly as it will run. If Copilot can't fix every problem in its proposal, the notification lists what's left to fix.
+
+Atomize never writes to your Catalog.
+
 ### Atomize: Show Effective Template
 
 Opens the Resolved Template after applying inheritance and Mixin injections. This is useful when debugging composed Templates.
@@ -183,6 +200,7 @@ Atomize previews by default.
 | Generate dry run | Yes | No |
 | Generate confirmed execution | Yes | Yes |
 | Draft Template with AI | No (sends your description to Copilot) | No |
+| Improve Template with AI | No (sends the Template to Copilot) | No |
 
 ## Template Example
 

@@ -117,8 +117,64 @@
 				"command": "atomize.draftTemplateWithAI",
 				"title": "Draft Template with AI",
 				"category": "Atomize"
+			},
+			{
+				"command": "atomize.improveTemplateWithAI",
+				"title": "Improve Template with AI",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.acceptImprovement",
+				"title": "Accept Improvement",
+				"category": "Atomize",
+				"icon": "$(check)"
+			},
+			{
+				"command": "atomize.saveImprovementAsNew",
+				"title": "Save Improvement as New Template",
+				"category": "Atomize",
+				"icon": "$(save-as)"
+			},
+			{
+				"command": "atomize.rejectImprovement",
+				"title": "Reject Improvement",
+				"category": "Atomize",
+				"icon": "$(close)"
 			}
 		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "atomize.acceptImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals",
+					"group": "navigation@1"
+				},
+				{
+					"command": "atomize.saveImprovementAsNew",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals",
+					"group": "navigation@2"
+				},
+				{
+					"command": "atomize.rejectImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals",
+					"group": "navigation@3"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "atomize.acceptImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals"
+				},
+				{
+					"command": "atomize.saveImprovementAsNew",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals"
+				},
+				{
+					"command": "atomize.rejectImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals"
+				}
+			]
+		},
 		"grammars": [
 			{
 				"language": "atomize-yaml",

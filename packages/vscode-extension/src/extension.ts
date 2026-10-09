@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { registerDraftTemplateCommand } from './ai/draft-template-command.js';
+import { registerImproveTemplateCommand } from './ai/improve-template-command.js';
 import { AtomizeCodeLensProvider } from './authoring/codelens-provider.js';
 import {
 	handleDocument,
@@ -206,6 +207,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		),
 
 		registerDraftTemplateCommand({ store, credentialResolver }),
+		registerImproveTemplateCommand({ checkDirtyDocument, isRunnableTemplate }),
 
 		registerValidateCommand({
 			diagnostics,

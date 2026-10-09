@@ -27,6 +27,11 @@ export class AtomizeCodeLensProvider implements vscode.CodeLensProvider {
 				command: 'atomize.generate',
 				arguments: [document.uri],
 			}),
+			new vscode.CodeLens(range, {
+				title: 'Atomize: Improve with AI',
+				command: 'atomize.improveTemplateWithAI',
+				arguments: [document.uri],
+			}),
 		];
 	}
 }
