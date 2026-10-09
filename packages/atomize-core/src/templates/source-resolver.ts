@@ -31,10 +31,16 @@ export interface TemplateSourceResolverOptions {
  * reference, or remote URL before asking for a composed template.
  */
 export class TemplateSourceResolver {
+
   constructor(
     private readonly loader: TemplateLoader = new TemplateLoader(),
     private readonly catalog: TemplateCatalog = new TemplateCatalog(),
   ) {}
+
+  /** Composes an in-memory raw template as if it were saved at `contextPath`. */
+  compose(raw: unknown, contextPath: string): Promise<TaskTemplate> {
+    return this.loader.composeRaw(raw, contextPath);
+  }
 
   async load(
     source: string,

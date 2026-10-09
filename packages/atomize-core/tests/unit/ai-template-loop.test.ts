@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
   type AITemplateSession,
   draftTemplate,
+  improveTemplate,
 } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { CancellationError } from "@sppg2001/atomize-core/utils/errors";
 
 const VALID = `version: "1.0"
@@ -197,5 +199,148 @@ describe("draftTemplate", () => {
     finish(VALID);
 
     await expect(draft).rejects.toBeInstanceOf(CancellationError);
+  });
+});
+
+describe("improveTemplate", () => {
+  const plain = {
+    version: "1.0",
+    name: "Backend API",
+    filter: { workItemTypes: ["User Story"], states: ["Active"] },
+    tasks: [
+      { title: "Implementation", estimationPercent: 70 },
+      { title: "Testing", estimationPercent: 30 },
+    ],
+  } as TaskTemplate;
+
+  const IMPROVED = `version: "1.0"
+name: "Backend API"
+filter:
+  workItemTypes: ["User Story"]
+  states: ["Active"]
+tasks:
+  - title: "Implement the endpoint"
+    estimationPercent: 60
+  - title: "Write tests"
+    estimationPercent: 30
+  - title: "Code review"
+    estimationPercent: 10
+improvementNotes:
+  - "Added a code review task."
+  - "Renamed tasks to say what is built."
+`;
+
+  test("returns the proposal with the AI's notes taken out of the Template", async () => {
+    const { session } = scriptedSession([IMPROVED]);
+    const result = await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.template.tasks.map((t) => t.title)).toEqual(["Implement the endpoint", "Write tests", "Code review"]);
+    expect(result.template).not.toHaveProperty("improvementNotes");
+    expect(result.notes).toEqual(["Added a code review task.", "Renamed tasks to say what is built."]);
+  });
+
+  test("includes guidance in the prompt only when given", async () => {
+    const without = scriptedSession([IMPROVED]);
+    await improveTemplate(without.session, { template: plain, resolvedTemplate: plain });
+    expect(without.calls[0]?.userPrompt).not.toContain("focus on");
+
+    const withGuidance = scriptedSession([IMPROVED]);
+    await improveTemplate(withGuidance.session, { template: plain, resolvedTemplate: plain, guidance: "Tighten the estimates" });
+    expect(withGuidance.calls[0]?.userPrompt).toContain("focus on:\nTighten the estimates");
+  });
+
+  test("only shows the composed form for a Template that inherits", async () => {
+    const { session, calls } = scriptedSession([IMPROVED]);
+    await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+    expect(calls[0]?.userPrompt).not.toContain("fully composed form");
+  });
+
+  describe("a Template that inherits", () => {
+    const child = {
+      version: "1.0",
+      name: "Checkout",
+      extends: "template:base-feature",
+      mixins: ["mixin:security-review"],
+      origin: "template:base-feature",
+      filter: { workItemTypes: ["User Story"] },
+      tasks: [{ id: "payments", title: "Payments integration", estimationPercent: 40 }],
+    } as TaskTemplate;
+    const resolved = {
+      ...child,
+      tasks: [
+        { id: "design", title: "Design", estimationPercent: 30 },
+        { id: "review", title: "Security review", estimationPercent: 30 },
+        { id: "payments", title: "Payments integration", estimationPercent: 40 },
+      ],
+    } as TaskTemplate;
+    // Composes a proposal the way the loader would: parent and Mixin Tasks first, then the child's own.
+    const compose = async (proposal: Record<string, unknown>) =>
+      ({ ...proposal, tasks: [...resolved.tasks.slice(0, 2), ...(proposal.tasks as TaskTemplate["tasks"])] }) as TaskTemplate;
+
+    const REWRITES_INHERITANCE = `version: "1.0"
+name: "Checkout"
+extends: "template:something-else"
+origin: "template:other"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - id: "design"
+    title: "Design"
+    estimationPercent: 30
+  - id: "payments"
+    title: "Payments integration with retries"
+    estimationPercent: 40
+improvementNotes:
+  - "Mention retries."
+`;
+
+    test("restores extends, mixins, and origin whatever the model returns", async () => {
+      const { session } = scriptedSession([REWRITES_INHERITANCE]);
+      const result = await improveTemplate(session, { template: child, resolvedTemplate: resolved, compose });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.template.extends).toBe("template:base-feature");
+      expect(result.template.mixins).toEqual(["mixin:security-review"]);
+      expect(result.template.origin).toBe("template:base-feature");
+    });
+
+    test("leaves out inherited Tasks the model copied in, and says so", async () => {
+      const { session } = scriptedSession([REWRITES_INHERITANCE]);
+      const result = await improveTemplate(session, { template: child, resolvedTemplate: resolved, compose });
+      if (!result.ok) throw new Error("expected a valid proposal");
+      expect(result.template.tasks.map((t) => t.title)).toEqual(["Payments integration with retries"]);
+      expect(result.notes).toContain("Mention retries.");
+      expect(result.notes.some((note) => note.includes('"Design"') && note.includes("parent Template or a Mixin"))).toBe(true);
+    });
+
+    test("validates the proposal composed with its parent, not on its own", async () => {
+      // Valid on its own, but the composed form inherits a broken parent Task.
+      const overshooting = async (proposal: Record<string, unknown>) =>
+        ({ ...proposal, tasks: [{ title: "", estimationPercent: 60 }, ...(proposal.tasks as TaskTemplate["tasks"])] }) as TaskTemplate;
+      const composedWith: unknown[] = [];
+      const { session, calls } = scriptedSession([REWRITES_INHERITANCE]);
+      const result = await improveTemplate(session, {
+        template: child,
+        resolvedTemplate: resolved,
+        compose: async (proposal) => { composedWith.push(proposal); return overshooting(proposal); },
+      });
+      expect(result.ok).toBe(false);
+      expect(calls).toHaveLength(MAX_ATTEMPTS);
+      expect(calls[0]?.userPrompt).toContain("fully composed form");
+      // Composition sees the guarded proposal: inheritance restored, notes removed.
+      expect(composedWith[0]).toMatchObject({ extends: "template:base-feature" });
+      expect(composedWith[0]).not.toHaveProperty("improvementNotes");
+    });
+
+    test("keeps inheritance intact in an editable proposal that is still invalid", async () => {
+      const { session } = scriptedSession([REWRITES_INHERITANCE.replace('"Payments integration with retries"', '""')]);
+      const result = await improveTemplate(session, { template: child, resolvedTemplate: resolved, compose });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.template?.extends).toBe("template:base-feature");
+      expect(result.template).not.toHaveProperty("improvementNotes");
+    });
   });
 });

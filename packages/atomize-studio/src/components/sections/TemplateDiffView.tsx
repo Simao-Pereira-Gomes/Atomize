@@ -1,6 +1,6 @@
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
+import { diffTemplates, type FieldChange, type TaskChange } from "@sppg2001/atomize-schema";
 import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js";
-import { diffTemplates, type FieldChange, type TaskChange } from "../../diff/diff-templates";
 import type { OriginBaselineState } from "../../diff/origin-baseline";
 
 function formatValue(value: unknown): string {

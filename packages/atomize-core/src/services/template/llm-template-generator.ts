@@ -392,9 +392,7 @@ export function buildUserPrompt(
 ): string {
   let prompt = `Generate an Atomize task template for the following:\n\n${description}`;
 
-  if (projectGrounding) {
-    prompt += `\n\n---\nProject metadata from the user's Azure DevOps project (JSON):\n${projectGrounding}\n\nWhen the template names a Work Item type, state, field reference name or allowed value, area or iteration path, or saved query path, use only ones that appear in this metadata — never invent them. If it has an "estimation" section, it lists the platform's default estimation fields and the Story fields that can hold a Story Estimate, with their allowed values; follow rule 8 when using them.\n---`;
-  }
+  if (projectGrounding) prompt += buildProjectGroundingSection(projectGrounding);
 
   if (prevErrors && prevErrors.length > 0) {
     prompt += `\n\n---\nPrevious attempt failed validation. Fix these errors and try again:\n${prevErrors.map((e) => `- ${e}`).join("\n")}\n---`;
@@ -403,9 +401,22 @@ export function buildUserPrompt(
   return prompt;
 }
 
-export function parseAndValidate(
+export type TemplateCheck = { ok: true; template: TaskTemplate } | { ok: false; errors: string[] };
+
+/** The prompt section carrying Project Grounding, shared by drafting and improving. */
+export function buildProjectGroundingSection(projectGrounding: string): string {
+  return `\n\n---\nProject metadata from the user's Azure DevOps project (JSON):\n${projectGrounding}\n\nWhen the template names a Work Item type, state, field reference name or allowed value, area or iteration path, or saved query path, use only ones that appear in this metadata — never invent them. If it has an "estimation" section, it lists the platform's default estimation fields and the Story fields that can hold a Story Estimate, with their allowed values; follow rule 8 when using them.\n---`;
+}
+
+export function parseAndValidate(raw: string): TemplateCheck {
+  const parsed = parseTemplateOutput(raw);
+  return parsed.ok ? validateTemplateObject(parsed.value) : parsed;
+}
+
+/** Parses a model's YAML output, tolerating markdown fences, into a plain object. */
+export function parseTemplateOutput(
   raw: string,
-): { ok: true; template: TaskTemplate } | { ok: false; errors: string[] } {
+): { ok: true; value: Record<string, unknown> } | { ok: false; errors: string[] } {
   const cleaned = raw
     .replace(/^```ya?ml\n?/i, "")
     .replace(/\n?```\s*$/, "")
@@ -421,21 +432,21 @@ export function parseAndValidate(
     };
   }
 
-  if (!parsed || typeof parsed !== "object") {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return { ok: false, errors: ["Output did not parse to a YAML object"] };
   }
+  return { ok: true, value: parsed as Record<string, unknown> };
+}
 
-  const validator = new TemplateValidator();
-  const result = validator.validate(parsed as TaskTemplate);
-
+export function validateTemplateObject(value: Record<string, unknown>): TemplateCheck {
+  const result = new TemplateValidator().validate(value as unknown as TaskTemplate);
   if (!result.valid) {
     return {
       ok: false,
       errors: result.errors.map((e) => `${e.path}: ${e.message}`),
     };
   }
-
-  return { ok: true, template: parsed as TaskTemplate };
+  return { ok: true, template: value as unknown as TaskTemplate };
 }
 
 export { LLMGenerationError, MAX_ATTEMPTS };

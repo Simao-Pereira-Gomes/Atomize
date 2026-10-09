@@ -14,6 +14,7 @@ Complete command-line interface documentation for Atomize.
   - [fields](#fields)
   - [validate](#validate)
   - [template create](#template-create)
+  - [template improve](#template-improve)
   - [template list](#template-list)
   - [template install](#template-install)
   - [template remove](#template-remove)
@@ -74,6 +75,7 @@ These options work with any command:
 | `validate` | - | Validate a template file |
 | `template` | `tpl` | Template management commands |
 | `template create` | - | Create a new template interactively or with AI |
+| `template improve` | - | Propose an AI improvement to an existing template and review it before saving |
 | `template list` | `template ls` | List available templates and mixins from the catalog |
 | `template install` | - | Install a template or mixin from a local file or HTTPS URL |
 | `template remove` | `template rm` | Remove a user-installed template or mixin |
@@ -533,6 +535,71 @@ atomize template create --type mixin --save-as security-review-tasks
 ```
 
 See [Template Reference — Composition](./Template-Reference.md#composition) for how to use mixins.
+
+---
+
+### template improve
+
+Asks Copilot to propose a revision of an existing Template, then shows you the changes before anything is saved.
+
+```bash
+atomize template improve <template> [options]
+```
+
+`<template>` is a Catalog ref (`template:<name>`) or a path to a Template file. Remote Templates must be downloaded first.
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--guidance <text>` | string | What the improvement should focus on, such as "tighten the estimates" or "add security reviews". Interactive runs ask for it when you leave it out; press Enter for a general review |
+| `--save-as <name>` | string | Save the improvement as a new Template, leaving the source untouched |
+| `--overwrite` | flag | Replace the source Template with the improvement without asking |
+| `--dry-run` | flag | Show the proposed changes without saving anything |
+| `--strict` | flag | Treat validation warnings as errors |
+| `--output <file>` | string | Write a JSON report of the proposal |
+| `-q, --quiet` | flag | Suppress non-essential output |
+
+**What Copilot can change.** Copilot looks for clearer Task titles and descriptions, estimation percentages that fit the work, missing test, review or documentation Tasks, and useful conditions, filters, custom fields and dependencies. It works through the same tool-free Copilot Session as `template create --ai` (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)).
+
+**Inherited Templates stay intact.** For a Template that uses `extends` or Mixins, Copilot sees the composed Template so it doesn't suggest Tasks the parent already has. The proposal never changes `extends`, `mixins` or `origin`, and never copies inherited Tasks into the Template. Where an inherited Task deserves a change, Copilot says so in its notes instead, so you can change the parent or Mixin yourself. The proposal is validated composed with its parent, exactly as it will run.
+
+**Reviewing and saving.** You see the proposed changes (Template fields, and Tasks added, removed, changed or moved) and Copilot's notes. Nothing is saved without your say-so:
+
+- In an interactive run, choose **Save changes to the source Template**, **Save as a new Template**, **View the full YAML**, or **Reject**.
+- `--overwrite` saves over the source. Your comments, key order and formatting are kept wherever the content didn't change.
+- `--save-as <name>` saves a new Template named "*Name* (improved)". When the source is a Catalog Template, the new one records it as its `origin`, so `template list` shows where it came from. It refuses to replace an existing Template.
+- A non-interactive run without `--overwrite` or `--save-as` saves nothing.
+- Built-in Templates can only be saved with `--save-as`.
+
+If the proposal still fails validation after Copilot's repair attempts (or has warnings with `--strict`), nothing is saved. An interactive run lets you retry, save the proposal as a draft file beside the source to fix by hand, or reject it. A non-interactive run exits with code 1.
+
+**JSON report (`--output`):**
+
+| Field | Description |
+|-------|-------------|
+| `template` | The Catalog ref or file that was improved |
+| `ok` | Whether the proposal passed validation |
+| `diff` | The proposed changes: `fieldChanges`, `taskChanges`, and `identical` |
+| `validation` | `valid`, `errors`, and `warnings` |
+| `notes` | Copilot's notes on what it changed and why |
+| `guidance` | The guidance used, or `null` |
+| `groundingStoryIds` | The Stories the improvement was grounded in (none yet) |
+| `sensitiveContextIncluded` | Whether Story descriptions or acceptance criteria were sent (always `false` for now) |
+| `saved` | What was saved (`overwrite`, `save-as`, or `draft`) and where, or `null` |
+
+**Examples:**
+
+```bash
+# Review an improvement, then choose what to do
+atomize template improve template:backend-api
+
+# Focus the improvement, and save it as a new Template
+atomize template improve template:backend-api --guidance "add security reviews" --save-as backend-api-secure
+
+# Gate an improvement in CI without saving
+atomize template improve ./templates/backend.atomize.yaml --dry-run --strict --output improve-report.json
+```
 
 ---
 

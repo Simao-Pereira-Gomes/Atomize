@@ -1,4 +1,4 @@
-import type { TaskDefinition, TaskTemplate } from "@sppg2001/atomize-schema";
+import type { TaskDefinition, TaskTemplate } from "./schema.js";
 
 /** A single changed leaf, addressed by its key path from the Template root (or from a Task root, for per-task changes). */
 export type FieldChange = { path: string[]; before: unknown; after: unknown };

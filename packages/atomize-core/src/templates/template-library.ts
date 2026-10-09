@@ -94,6 +94,11 @@ export class TemplateLibrary {
     return { ...resolved, validation };
   }
 
+  /** Composes an in-memory raw template as if it were saved at `contextPath` (its `extends` and `mixins` resolved). */
+  composeTemplate(raw: unknown, contextPath: string): Promise<TaskTemplate> {
+    return this.resolver.compose(raw, contextPath);
+  }
+
   async loadSource(
     source: string,
     options: TemplateSourceResolverOptions = {},

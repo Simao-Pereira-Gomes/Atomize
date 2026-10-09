@@ -1,6 +1,6 @@
-import type { TaskDefinition, TaskTemplate } from "@sppg2001/atomize-schema";
-import { describe, expect, it } from "vitest";
-import { diffTemplates } from "../diff-templates";
+import { describe, expect, it } from "bun:test";
+import type { TaskDefinition, TaskTemplate } from "../../src/schema.js";
+import { diffTemplates } from "../../src/template-diff.js";
 
 const task = (over: Partial<TaskDefinition>): TaskDefinition => ({ title: "T", ...over }) as TaskDefinition;
 

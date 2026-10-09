@@ -6,8 +6,17 @@ import {
   buildUserPrompt,
   MAX_ATTEMPTS,
   parseAndValidate,
+  parseTemplateOutput,
+  type TemplateCheck,
+  validateTemplateObject,
 } from "./llm-template-generator";
 import type { ProjectGrounding } from "./project-grounding";
+import {
+  buildImprovePrompt,
+  type ImproveRequest,
+  protectInheritance,
+  takeImprovementNotes,
+} from "./template-improvement";
 
 /**
  * The part of a Copilot Session the AI Template Loop needs. Deliberately structural so
@@ -54,14 +63,72 @@ export async function draftTemplate(
   request: DraftRequest,
   options: AITemplateLoopOptions = {},
 ): Promise<AITemplateLoopResult> {
+  const projectGrounding = request.projectGrounding ? JSON.stringify(request.projectGrounding) : null;
+  const { result } = await runAttempts(session, {
+    userPrompt: (errors) => buildUserPrompt(request.prose, projectGrounding, errors),
+    interpret: async (rawOutput) => ({ check: parseAndValidate(rawOutput), notes: [] }),
+    shaped: parseTemplateShaped,
+  }, options);
+  return result;
+}
+
+/** A Template Improvement: the proposal (or the last failed attempt) plus the AI's notes. */
+export type ImproveResult = AITemplateLoopResult & { notes: string[] };
+
+/**
+ * Proposes a Template Improvement. The proposal is judged against the Resolved Template, validated
+ * as it will run (composed with its parent and Mixins), and never rewrites `extends`, `mixins`,
+ * `origin`, or inherited Tasks, whatever the model returns.
+ */
+export async function improveTemplate(
+  session: AITemplateSession,
+  request: ImproveRequest,
+  options: AITemplateLoopOptions = {},
+): Promise<ImproveResult> {
+  const prepare = (value: Record<string, unknown>) => {
+    const { proposal, notes } = takeImprovementNotes(value);
+    const guarded = protectInheritance(proposal, request.template, request.resolvedTemplate);
+    return { proposal: guarded.proposal, notes: [...notes, ...guarded.notes] };
+  };
+
+  const { result, notes } = await runAttempts(session, {
+    userPrompt: (errors) => buildImprovePrompt(request, errors),
+    interpret: async (rawOutput) => {
+      const parsed = parseTemplateOutput(rawOutput);
+      if (!parsed.ok) return { check: parsed, notes: [] };
+      const { proposal, notes } = prepare(parsed.value);
+      const composed = request.compose ? await request.compose(proposal) : proposal;
+      const check = validateTemplateObject(composed as Record<string, unknown>);
+      return { check: check.ok ? { ok: true, template: proposal as unknown as TaskTemplate } : check, notes };
+    },
+    shaped: (rawOutput) => {
+      const parsed = parseTemplateShaped(rawOutput);
+      return parsed ? prepare(parsed).proposal : undefined;
+    },
+  }, options);
+  return { ...result, notes };
+}
+
+interface AttemptPlan {
+  userPrompt: (prevErrors: string[] | undefined) => string;
+  interpret: (rawOutput: string) => Promise<{ check: TemplateCheck; notes: string[] }>;
+  /** The last output as an editable Template-shaped object, when it is one. */
+  shaped: (rawOutput: string) => Record<string, unknown> | undefined;
+}
+
+async function runAttempts(
+  session: AITemplateSession,
+  plan: AttemptPlan,
+  options: AITemplateLoopOptions,
+): Promise<{ result: AITemplateLoopResult; notes: string[] }> {
   const systemPrompt = buildSystemPrompt();
   let errors: string[] = [];
+  let notes: string[] = [];
   let rawOutput = "";
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     throwIfCancelled(options.signal);
-    const projectGrounding = request.projectGrounding ? JSON.stringify(request.projectGrounding) : null;
-    const userPrompt = buildUserPrompt(request.prose, projectGrounding, errors.length > 0 ? errors : undefined);
+    const userPrompt = plan.userPrompt(errors.length > 0 ? errors : undefined);
 
     // Only the first attempt streams: repairs are rare, and their progress isn't worth a second subscription.
     if (attempt === 1 && session.stream) {
@@ -78,19 +145,20 @@ export async function draftTemplate(
       if (attempt > 1) options.onRepairOutput?.(attempt, rawOutput);
     }
 
-    const parsed = parseAndValidate(rawOutput);
-    if (parsed.ok) return { ok: true, template: parsed.template, attempts: attempt };
+    const interpreted = await plan.interpret(rawOutput);
+    notes = interpreted.notes;
+    if (interpreted.check.ok) return { result: { ok: true, template: interpreted.check.template, attempts: attempt }, notes };
 
-    errors = parsed.errors;
+    errors = interpreted.check.errors;
     if (attempt < MAX_ATTEMPTS) options.onAttemptInvalid?.(attempt, errors);
   }
 
-  const template = parseTemplateShaped(rawOutput);
-  return { ok: false, attempts: MAX_ATTEMPTS, rawOutput, errors, ...(template ? { template } : {}) };
+  const template = plan.shaped(rawOutput);
+  return { result: { ok: false, attempts: MAX_ATTEMPTS, rawOutput, errors, ...(template ? { template } : {}) }, notes };
 }
 
 function throwIfCancelled(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new CancellationError("AI draft cancelled");
+  if (signal?.aborted) throw new CancellationError("AI request cancelled");
 }
 
 function parseTemplateShaped(rawOutput: string): Record<string, unknown> | undefined {
