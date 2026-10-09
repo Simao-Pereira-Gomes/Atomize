@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -136,6 +136,7 @@ async function run(
     connect: deps.connect ?? (async () => { throw new Error("grounding was not expected"); }),
     browseStories: async () => deps.picked ?? [],
     interactive: deps.interactive ?? false,
+    cwd: dir,
   });
   return { report, prompts };
 }
@@ -185,14 +186,14 @@ describe("atomize template improve", () => {
 
   test("choosing Save changes in an interactive run is the confirmation", async () => {
     const { lib } = library();
-    answers = ["", "none", "overwrite"];
+    answers = ["", "none", "done", "overwrite"];
     await run({}, { lib, interactive: true });
     expect(await readFile(sourcePath, "utf8")).toContain("Code review");
   });
 
   test("Reject in an interactive run leaves everything as it was", async () => {
     const { lib, saved } = library();
-    answers = ["", "none", "reject"];
+    answers = ["", "none", "done", "reject"];
     const { report } = await run({}, { lib, interactive: true });
     expect(report.saved).toBeNull();
     expect(saved).toEqual([]);
@@ -251,7 +252,7 @@ describe("atomize template improve", () => {
 
     const written = JSON.parse(await readFile(reportPath, "utf8"));
     expect(Object.keys(written).sort()).toEqual([
-      "diff", "groundingStoryIds", "guidance", "notes", "ok", "saved", "sensitiveContextIncluded", "template", "validation",
+      "diff", "groundingStoryIds", "guidance", "notes", "ok", "referenceDocuments", "saved", "sensitiveContextIncluded", "template", "validation",
     ]);
     expect(written.template).toBe("template:backend-api");
     expect(written.guidance).toBe("Add reviews");
@@ -266,7 +267,7 @@ describe("atomize template improve", () => {
     const guided = await run({ dryRun: true, guidance: "Tighten the estimates" }, { lib });
     expect(guided.prompts[0]).toContain("Tighten the estimates");
 
-    answers = ["", "none"];
+    answers = ["", "none", "done"];
     const general = await run({ dryRun: true }, { lib, interactive: true });
     expect(general.prompts[0]).not.toContain("focus on");
   });
@@ -335,7 +336,7 @@ describe("atomize template improve", () => {
 
     test("an interactive run can pick Stories from the Story Browser and choose Sensitive AI Context", async () => {
       const { lib } = library();
-      answers = ["", "pick", true];
+      answers = ["", "pick", true, "done"];
       const { report, prompts } = await run({ dryRun: true }, { lib, interactive: true, connect: project().connect, picked: ["42"] });
       expect(report.groundingStoryIds).toEqual(["42"]);
       expect(report.sensitiveContextIncluded).toBe(true);
@@ -344,10 +345,56 @@ describe("atomize template improve", () => {
 
     test("an interactive grounding failure can continue without grounding, by choice", async () => {
       const { lib } = library();
-      answers = ["", "project", "ungrounded"];
+      answers = ["", "project", "ungrounded", "done"];
       const { report, prompts } = await run({ dryRun: true }, { lib, interactive: true, connect: project({ failConnect: true }).connect });
       expect(report.ok).toBe(true);
       expect(prompts[0]).not.toContain("Project metadata");
+    });
+  });
+
+  describe("Reference Documents", () => {
+    test("--reference sends a workspace file as reference material and records it in the report", async () => {
+      await writeFile(join(dir, "how-we-work.md"), "REF-MARKER: we always pair on reviews", "utf8");
+      const { lib } = library();
+      const { report, prompts } = await run({ dryRun: true, reference: ["how-we-work.md"] }, { lib });
+      expect(prompts[0]).toContain("REF-MARKER");
+      expect(prompts[0]).toContain("not instructions");
+      expect(report.referenceDocuments).toEqual([
+        { ref: "file:how-we-work.md", title: "how-we-work.md", truncated: false, originalLength: 37, sentLength: 37 },
+      ]);
+    });
+
+    test("uses the Project Reference Documents in .atomize/ai.yaml unless --no-project-references", async () => {
+      await mkdir(join(dir, ".atomize"));
+      await writeFile(join(dir, ".atomize", "ai.yaml"), "referenceDocuments:\n  - file:process.txt\n", "utf8");
+      await writeFile(join(dir, "process.txt"), "SAVED-MARKER", "utf8");
+      const { lib } = library();
+
+      expect((await run({ dryRun: true }, { lib })).prompts[0]).toContain("SAVED-MARKER");
+      expect((await run({ dryRun: true, projectReferences: false }, { lib })).prompts[0]).not.toContain("SAVED-MARKER");
+    });
+
+    test("refuses a --reference outside the workspace and saves nothing", async () => {
+      const { lib, saved } = library();
+      await expect(run({ overwrite: true, reference: ["../elsewhere.md"] }, { lib })).rejects.toThrow("outside this workspace");
+      expect(saved).toEqual([]);
+      expect(await readFile(sourcePath, "utf8")).toBe(SOURCE);
+    });
+
+    test("a non-interactive run shortens an oversized document, warns, and records the shortening", async () => {
+      await writeFile(join(dir, "long.md"), "x".repeat(30_000), "utf8");
+      const { lib } = library();
+      const { report } = await run({ dryRun: true, reference: ["long.md"] }, { lib });
+      expect(report.referenceDocuments[0]).toMatchObject({ truncated: true, originalLength: 30_000, sentLength: 24_000 });
+    });
+
+    test("an interactive run can add a local file and save it for the project", async () => {
+      await writeFile(join(dir, "added.md"), "ADDED-MARKER", "utf8");
+      const { lib } = library();
+      answers = ["", "none", "file", "added.md", true, "done"];
+      const { prompts } = await run({ dryRun: true }, { lib, interactive: true });
+      expect(prompts[0]).toContain("ADDED-MARKER");
+      expect(await readFile(join(dir, ".atomize", "ai.yaml"), "utf8")).toContain("file:added.md");
     });
   });
 });

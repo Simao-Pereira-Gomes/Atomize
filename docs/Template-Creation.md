@@ -148,6 +148,29 @@ atomize template create --ai --from-stories 1234,1240 --profile work-ado
 
 Atomize never picks example Stories for you. Without `--ai`, `--from-stories` keeps its original meaning: the [Story Learner](./Story-Learner.md) derives a Template from those Stories directly, without AI.
 
+### Reference Documents
+
+If your team writes down how it breaks down and estimates work, for example a `docs/how-we-work.md` in the repo, give it to Copilot as a **Reference Document**. Drafts and improvements then follow your written process:
+
+```bash
+atomize template create --ai --reference docs/how-we-work.md
+atomize template improve template:backend-api --reference docs/sizing.md --reference docs/definition-of-done.md
+```
+
+Reference Documents must be Markdown (`.md`) or text (`.txt`) files inside your workspace. Atomize refuses anything else, including files reached through a link that points outside the workspace. They need no Connection Profile. Copilot treats them as reference material about your process, never as instructions.
+
+To share documents with your whole team, save them as **Project Reference Documents** in `.atomize/ai.yaml` and commit it:
+
+```yaml
+referenceDocuments:
+  - file:docs/how-we-work.md
+  - file:docs/sizing.md
+```
+
+Every AI run lists them ticked, so you can leave any out of a single run, and `--no-project-references` leaves them all out. In an interactive run you can add a local file and choose **Also save for this project** to write it to `ai.yaml` for you. A saved document that can't be read is reported and left out. A document you named with `--reference` that can't be read stops the run.
+
+All Reference Documents together are limited to about 24,000 characters, split evenly between them. Space a short document doesn't use goes to the others. If a document has to be shortened, Atomize tells you before anything is sent: an interactive run lets you continue, leave documents out, or cancel. A non-interactive run prints a warning, and `template improve --output` records it.
+
 When you ask for several identical Tasks, such as "one review task per developer, 4 developers", the draft uses a single [repeated task](./Template-Reference.md#repeated-tasks) instead of four copies. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
 
 Always review AI-generated templates before use:

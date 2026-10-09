@@ -460,6 +460,8 @@ atomize tpl create [options]  # alias
 | `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
 | `--ground` | flag | Ground AI generation in your Azure DevOps project's work item types, states, fields and allowed values, saved queries, and area and iteration paths. Uses `--profile`, or the default profile |
 | `--include-sensitive-ai-context` | flag | With `--ai --from-stories`, also send the example Stories' descriptions and acceptance criteria to Copilot, for this run only |
+| `--reference <path>` | string | With `--ai`, send this Markdown or text file in the workspace as a [Reference Document](./Template-Creation.md#reference-documents). Repeatable |
+| `--no-project-references` | flag | With `--ai`, leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
 | `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
 | `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
@@ -561,6 +563,8 @@ atomize template improve <template> [options]
 | `--from-stories <ids>` | string | Learn from these Stories the Template was applied to (comma-separated IDs). Implies `--ground` |
 | `--profile <name>` | string | Connection Profile used for grounding (the default profile if omitted) |
 | `--include-sensitive-ai-context` | flag | Also send the Stories' descriptions and acceptance criteria to Copilot, for this run only |
+| `--reference <path>` | string | Send this Markdown or text file in the workspace as a [Reference Document](./Template-Creation.md#reference-documents). Repeatable |
+| `--no-project-references` | flag | Leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Save the improvement as a new Template, leaving the source untouched |
 | `--overwrite` | flag | Replace the source Template with the improvement without asking |
 | `--dry-run` | flag | Show the proposed changes without saving anything |
@@ -605,6 +609,7 @@ If the proposal still fails validation after Copilot's repair attempts (or has w
 | `guidance` | The guidance used, or `null` |
 | `groundingStoryIds` | The Stories the improvement learned from |
 | `sensitiveContextIncluded` | Whether Story descriptions or acceptance criteria were sent |
+| `referenceDocuments` | Each Reference Document sent (`ref`, `title`), and whether it was shortened to fit (`truncated`, `originalLength`, `sentLength`) |
 | `saved` | What was saved (`overwrite`, `save-as`, or `draft`) and where, or `null` |
 
 **Examples:**

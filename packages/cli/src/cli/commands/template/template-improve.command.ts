@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { select, text } from "@clack/prompts";
 import { type AITemplateSession, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import type { DocumentGrounding } from "@sppg2001/atomize-core/services/template/reference-documents";
 import { applyProposalToYaml, deriveImprovedCopy } from "@sppg2001/atomize-core/services/template/template-writeback";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import type { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
@@ -20,8 +21,9 @@ import {
   type ImproveGroundingOptions,
   resolveImproveGrounding,
 } from "./improve-grounding";
+import { type ReferenceDocumentOptions, resolveReferenceDocuments } from "./reference-documents-step";
 
-export interface ImproveOptions extends ImproveGroundingOptions {
+export interface ImproveOptions extends ImproveGroundingOptions, ReferenceDocumentOptions {
   guidance?: string;
   saveAs?: string;
   overwrite?: boolean;
@@ -42,6 +44,8 @@ export interface ImproveDeps {
   /** Lets the user pick Stories to learn from; defaults to the CLI Story Browser. */
   browseStories?: ImproveGroundingDeps["browse"];
   interactive: boolean;
+  /** Where relative paths start from; defaults to the current directory. */
+  cwd?: string;
 }
 
 /** What `--output` writes: everything needed to review or gate an improvement outside a terminal. */
@@ -54,12 +58,19 @@ export interface ImproveReport {
   guidance: string | null;
   groundingStoryIds: string[];
   sensitiveContextIncluded: boolean;
+  /** Reference Documents sent, and whether each was shortened to fit. */
+  referenceDocuments: { ref: string; title: string; truncated: boolean; originalLength: number; sentLength: number }[];
   saved: { action: "overwrite" | "save-as" | "draft"; path: string } | null;
 }
 
 type Saved = NonNullable<ImproveReport["saved"]>;
 
 const output = createCommandOutput(resolveCommandOutputPolicy({}));
+
+/** Collects a repeatable option's values. */
+function collect(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
+}
 
 export const templateImproveCommand = new Command("improve")
   .description("Propose an AI improvement to an existing Template and review it before saving")
@@ -69,6 +80,8 @@ export const templateImproveCommand = new Command("improve")
   .option("--from-stories <ids>", "Learn from these Stories the Template was applied to (comma-separated IDs); implies --ground")
   .option("--profile <name>", "Connection Profile for grounding (uses the default profile if omitted)")
   .option("--include-sensitive-ai-context", "Also send the Stories' descriptions and acceptance criteria to Copilot")
+  .option("--reference <path>", "Send this Markdown or text file in the workspace as a Reference Document (repeatable)", collect)
+  .option("--no-project-references", "Leave out the Project Reference Documents saved in .atomize/ai.yaml")
   .option("--save-as <name>", "Save the improvement as a new Template instead of changing the source")
   .option("--overwrite", "Replace the source Template with the improvement without asking", false)
   .option("--dry-run", "Show the proposed changes without saving anything", false)
@@ -131,9 +144,10 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
     interactive,
     ...(deps.browseStories ? { browse: deps.browseStories } : {}),
   });
+  const documentGrounding = await resolveReferenceDocuments(options, { interactive, ...(deps.cwd ? { cwd: deps.cwd } : {}) });
 
   while (true) {
-    const { result, notes } = await propose(deps, authored, loaded.template, guidance, grounding, sourcePath);
+    const { result, notes } = await propose(deps, authored, loaded.template, guidance, { ...grounding, documentGrounding }, sourcePath);
     const report: ImproveReport = {
       template: label,
       ok: false,
@@ -143,6 +157,9 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
       guidance,
       groundingStoryIds: grounding.storyIds,
       sensitiveContextIncluded: grounding.sensitiveContextIncluded,
+      referenceDocuments: (documentGrounding?.documents ?? []).map(({ ref, title, truncated, originalLength, text }) => ({
+        ref, title, truncated, originalLength, sentLength: text.length,
+      })),
       saved: null,
     };
 
@@ -182,7 +199,7 @@ async function propose(
   authored: TaskTemplate,
   resolved: TaskTemplate,
   guidance: string | null,
-  grounding: ImproveGrounding,
+  grounding: ImproveGrounding & { documentGrounding: DocumentGrounding | null },
   sourcePath: string,
 ) {
   const session = await deps.openSession();
@@ -196,6 +213,7 @@ async function propose(
       guidance,
       projectGrounding: grounding.projectGrounding,
       storyGrounding: grounding.storyGrounding,
+      documentGrounding: grounding.documentGrounding,
       compose: (proposal) => deps.library.composeTemplate(proposal, sourcePath),
     }, {
       onChunk: (chunk) => {

@@ -2,6 +2,7 @@ import { parse as parseYaml } from "yaml";
 import type { TaskTemplate } from "../../templates/schema";
 import { CancellationError } from "../../utils/errors";
 import {
+  buildReferenceDocumentsSection,
   buildSystemPrompt,
   buildUserPrompt,
   MAX_ATTEMPTS,
@@ -11,6 +12,7 @@ import {
   validateTemplateObject,
 } from "./llm-template-generator";
 import type { ProjectGrounding } from "./project-grounding";
+import type { DocumentGrounding } from "./reference-documents";
 import type { StoryGrounding } from "./story-grounding";
 import {
   buildImprovePrompt,
@@ -35,6 +37,8 @@ export interface DraftRequest {
   projectGrounding?: ProjectGrounding | null;
   /** Example Stories the user picked, showing the team's conventions (ADR-0069). */
   storyGrounding?: StoryGrounding | null;
+  /** The team's Reference Documents, fitted to the limit. */
+  documentGrounding?: DocumentGrounding | null;
 }
 
 export interface AITemplateLoopOptions {
@@ -68,8 +72,9 @@ export async function draftTemplate(
 ): Promise<AITemplateLoopResult> {
   const projectGrounding = request.projectGrounding ? JSON.stringify(request.projectGrounding) : null;
   const exampleStories = request.storyGrounding?.stories.length ? JSON.stringify(request.storyGrounding.stories) : null;
+  const documents = request.documentGrounding?.documents.length ? buildReferenceDocumentsSection(request.documentGrounding.documents) : null;
   const { result } = await runAttempts(session, {
-    userPrompt: (errors) => buildUserPrompt(request.prose, projectGrounding, errors, exampleStories),
+    userPrompt: (errors) => buildUserPrompt(request.prose, projectGrounding, errors, exampleStories, documents),
     interpret: async (rawOutput) => ({ check: parseAndValidate(rawOutput), notes: [] }),
     shaped: parseTemplateShaped,
   }, options);

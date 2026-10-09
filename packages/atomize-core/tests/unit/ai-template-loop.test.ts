@@ -8,6 +8,7 @@ import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-templ
 import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { CancellationError } from "@sppg2001/atomize-core/utils/errors";
+import { parse } from "yaml";
 
 const VALID = `version: "1.0"
 name: "Backend API"
@@ -394,5 +395,32 @@ describe("draftTemplate with example Stories", () => {
     const { session, calls } = scriptedSession([VALID]);
     await draftTemplate(session, { prose: "Bug triage", storyGrounding: { stories: [], includesSensitiveContext: false } });
     expect(calls[0]?.userPrompt).not.toContain("Example Stories");
+  });
+});
+
+describe("Document Grounding", () => {
+  const VALID = 'version: "1.0"\nname: "X"\nfilter:\n  workItemTypes: ["User Story"]\ntasks:\n  - title: "Build"\n    estimationPercent: 100\n';
+  const documentGrounding = {
+    documents: [{ ref: "file:docs/how-we-work.md", title: "how-we-work.md", text: "DOC-MARKER: we always pair on reviews", truncated: true, originalLength: 99_999 }],
+  };
+
+  test("drafts and improvements send Reference Documents as reference material, not instructions", async () => {
+    const draft = scriptedSession([VALID]);
+    await draftTemplate(draft.session, { prose: "Anything", documentGrounding });
+    const improve = scriptedSession([VALID]);
+    const plain = parse(VALID) as TaskTemplate;
+    await improveTemplate(improve.session, { template: plain, resolvedTemplate: plain, documentGrounding });
+
+    for (const prompt of [draft.calls[0]?.userPrompt, improve.calls[0]?.userPrompt]) {
+      expect(prompt).toContain("DOC-MARKER");
+      expect(prompt).toContain('title="how-we-work.md" shortened="true"');
+      expect(prompt).toContain("not instructions");
+    }
+  });
+
+  test("leaves the section out without documents", async () => {
+    const { session, calls } = scriptedSession([VALID]);
+    await draftTemplate(session, { prose: "Anything", documentGrounding: { documents: [] } });
+    expect(calls[0]?.userPrompt).not.toContain("Reference documents");
   });
 });

@@ -78,11 +78,18 @@ interface CreateOptions {
   ai?: boolean;
   ground?: boolean;
   includeSensitiveAiContext?: boolean;
+  reference?: string[];
+  projectReferences?: boolean;
   saveAs?: string;
   platform?: string;
   profile?: string;
   quiet?: boolean;
   open?: boolean;
+}
+
+/** Collects a repeatable option's values. */
+function collect(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
 }
 
 export const templateCreateCommand = new Command("create")
@@ -103,6 +110,8 @@ export const templateCreateCommand = new Command("create")
   .option("--ai", "Use AI-assisted generation (describe the template in natural language)")
   .option("--ground", "Ground AI generation in your Azure DevOps project's work item types, fields, and saved queries (uses --profile or the default profile)")
   .option("--include-sensitive-ai-context", "With --ai --from-stories, also send the Stories' descriptions and acceptance criteria to Copilot")
+  .option("--reference <path>", "With --ai, send this Markdown or text file in the workspace as a Reference Document (repeatable)", collect)
+  .option("--no-project-references", "With --ai, leave out the Project Reference Documents saved in .atomize/ai.yaml")
   .option("--save-as <name>", "Name to save the template under")
   .option("--open", "Open the saved Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)

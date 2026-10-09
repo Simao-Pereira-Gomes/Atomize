@@ -1,7 +1,8 @@
 import { stringify } from "yaml";
 import type { TaskDefinition, TaskTemplate } from "../../templates/schema";
-import { buildProjectGroundingSection } from "./llm-template-generator";
+import { buildProjectGroundingSection, buildReferenceDocumentsSection } from "./llm-template-generator";
 import type { ProjectGrounding } from "./project-grounding";
+import type { DocumentGrounding } from "./reference-documents";
 import type { StoryGrounding } from "./story-grounding";
 
 /** The top-level key a Template Improvement's notes travel under in the model's YAML. */
@@ -19,6 +20,8 @@ export interface ImproveRequest {
   projectGrounding?: ProjectGrounding | null;
   /** Stories the Template was applied to and the Tasks they ended up with. */
   storyGrounding?: StoryGrounding | null;
+  /** The team's Reference Documents, fitted to the limit. */
+  documentGrounding?: DocumentGrounding | null;
   /** Composes a proposal with its parent and Mixins so it's validated as it will run; omit for a plain Template. */
   compose?: (proposal: Record<string, unknown>) => Promise<TaskTemplate>;
 }
@@ -51,6 +54,8 @@ export function buildImprovePrompt(request: ImproveRequest, prevErrors?: string[
         "Compare them with the template. Tasks people added, removed, renamed, split, or re-estimated show where the template doesn't fit how this team works; let that evidence drive your changes. Don't copy Story-specific details into the template.",
     );
   }
+
+  if (request.documentGrounding?.documents.length) sections.push(buildReferenceDocumentsSection(request.documentGrounding.documents));
 
   if (request.projectGrounding) sections.push(buildProjectGroundingSection(JSON.stringify(request.projectGrounding)).trim());
 
