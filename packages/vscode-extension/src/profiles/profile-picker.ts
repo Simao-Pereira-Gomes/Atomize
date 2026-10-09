@@ -8,11 +8,15 @@ export interface PickProfileOptions {
 	title: string;
 	allowOffline: boolean;
 	defaultProfile: string | undefined;
+	/** How to word the choice that skips Azure DevOps, when the default "Offline only" doesn't fit. */
+	offlineChoice?: { label: string; description: string };
 }
+
+const DEFAULT_OFFLINE_CHOICE = { label: 'Offline only', description: 'Skip Azure DevOps connection' };
 
 type ProfileItem = vscode.QuickPickItem & { profileName: string | undefined };
 
-function buildProfileItems(profiles: AzureDevOpsProfileMeta[], allowOffline: boolean): ProfileItem[] {
+function buildProfileItems(profiles: AzureDevOpsProfileMeta[], allowOffline: boolean, offlineChoice = DEFAULT_OFFLINE_CHOICE): ProfileItem[] {
 	const items: ProfileItem[] = sortProfiles(profiles).map(p => ({
 		label: p.name,
 		description: p.isDefault ? 'default' : '',
@@ -21,7 +25,7 @@ function buildProfileItems(profiles: AzureDevOpsProfileMeta[], allowOffline: boo
 	}));
 	if (allowOffline) {
 		items.push({ kind: vscode.QuickPickItemKind.Separator, label: '', profileName: undefined });
-		items.push({ label: 'Offline only', description: 'Skip Azure DevOps connection', profileName: undefined });
+		items.push({ ...offlineChoice, profileName: undefined });
 	}
 	return items;
 }
@@ -56,7 +60,7 @@ export async function pickProfile(
 				type ZeroItem = vscode.QuickPickItem & { action: 'offline' | 'add' };
 				const picked = await vscode.window.showQuickPick<ZeroItem>(
 					[
-						{ label: 'Run offline', action: 'offline' },
+						{ label: opts.offlineChoice?.label ?? 'Run offline', action: 'offline' },
 						{ label: 'Add profile...', action: 'add' },
 					],
 					{ title: opts.title, placeHolder: 'No Azure DevOps profiles configured' },
@@ -74,7 +78,7 @@ export async function pickProfile(
 				await manageProfiles(store, credentialResolver);
 			}
 		} else {
-			const items = buildProfileItems(profiles, opts.allowOffline);
+			const items = buildProfileItems(profiles, opts.allowOffline, opts.offlineChoice);
 			const defaultProfile = resolveDefaultProfile(profiles, opts.defaultProfile);
 			const activeItem = defaultProfile ? items.find(i => i.profileName === defaultProfile.name) : undefined;
 			const picked = await showProfileQuickPick(items, opts.title, activeItem);

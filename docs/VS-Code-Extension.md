@@ -139,9 +139,10 @@ Browses saved platform queries for a selected Connection Profile.
 
 Drafts a new Template from a description, using the GitHub Copilot account you're signed in to in VS Code. Atomize stores no token, and the AI gets no tools: it can't read your files or reach other services. The first time, VS Code asks you to allow Atomize to use Copilot's language models.
 
-1. Describe the Template you need. The box is pre-filled with your last description from this session.
-2. Atomize writes the draft with Copilot, checks it against the Template schema, and asks Copilot to fix any problems, up to three attempts. Cancel from the progress notification at any time.
-3. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog until you save it there. If problems remain after three attempts, they're listed as comments at the top of the file.
+1. Describe the Template you need. The box is pre-filled with your last description from this session. For a longer description, use the **Open in editor** button: your text moves into an untitled Markdown prompt document, where you can write as much as you like. When you're ready, choose **Atomize: Draft Template with AI** at the top of that document.
+2. Choose how to ground the draft: a Connection Profile, with your workspace default selected first, or **No project grounding**. With a profile, Atomize reads that project's work item types, states, fields and allowed values, saved queries, and area and iteration paths, and Copilot uses only those names instead of inventing its own. The profile's token is used only to read that metadata and is never sent to Copilot. If the metadata can't be loaded, you choose whether to retry, continue without grounding, or cancel. If you have no profiles yet, you can add one from here.
+3. Atomize writes the draft with Copilot, checks it against the Template schema, and asks Copilot to fix any problems, up to three attempts. Cancel from the progress notification at any time.
+4. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog until you save it there. If problems remain after three attempts, they're listed as comments at the top of the file.
 
 To try again, run the command again. To discard a draft, close it without saving.
 

@@ -205,7 +205,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			{ providedCodeActionKinds: ValidationCodeActionProvider.providedCodeActionKinds },
 		),
 
-		registerDraftTemplateCommand(),
+		registerDraftTemplateCommand({ store, credentialResolver }),
 
 		registerValidateCommand({
 			diagnostics,
