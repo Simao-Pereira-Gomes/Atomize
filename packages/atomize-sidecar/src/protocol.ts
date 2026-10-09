@@ -6,8 +6,8 @@ import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/co
 import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
+import { draftTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import { buildEstimationGrounding } from "@sppg2001/atomize-core/services/template/estimation-grounding";
-import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
@@ -127,23 +127,7 @@ function aiDraftParams(params: unknown): AIDraftParams {
   return value as AIDraftParams;
 }
 
-function isRawTemplate(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    && typeof (value as Record<string, unknown>).version === "string"
-    && typeof (value as Record<string, unknown>).name === "string"
-    && Array.isArray((value as Record<string, unknown>).tasks)
-    && typeof (value as Record<string, unknown>).filter === "object"
-    && (value as Record<string, unknown>).filter !== null;
-}
-
-function parseRawTemplate(output: string): Record<string, unknown> | undefined {
-  try {
-    const parsed = parseYaml(output.replace(/^```ya?ml\n?/i, "").replace(/\n?```\s*$/, "").trim());
-    return isRawTemplate(parsed) ? parsed : undefined;
-  } catch { return undefined; }
-}
-
-async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown> }> {
+async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; errors?: string[] }> {
   if (services.drafts.has(params.draftId)) throw Object.assign(new Error("That AI draft is already running."), { code: "AI_DRAFT_IN_PROGRESS" });
   let session: AIDraftSession;
   try { session = await services.createDraftSession(); }
@@ -151,30 +135,23 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
     if (error instanceof CopilotAuthenticationError) throw Object.assign(error, { code: "COPILOT_AUTH_REQUIRED" });
     throw error;
   }
-  services.drafts.set(params.draftId, session);
+  // Cancelling through `ai.cancel` aborts the session and stops the loop before any further repair attempt.
+  const cancellation = new AbortController();
+  services.drafts.set(params.draftId, { ...session, abort: async () => { cancellation.abort(); await session.abort(); } });
   try {
     const grounding = params.grounding === undefined ? undefined : JSON.stringify(params.grounding);
-    let repair: string[] | undefined;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const systemPrompt = buildSystemPrompt();
-      const userPrompt = buildUserPrompt(params.prose, grounding, repair);
-      // Only the first attempt streams (mirrors the CLI's runGeneration): repairs are
-      // rare, and re-subscribing per attempt isn't worth it for progress feedback alone.
-      let output: string;
-      if (attempt === 0 && session.stream) {
-        output = "";
-        for await (const chunk of session.stream(systemPrompt, userPrompt)) {
-          output += chunk;
-          services.notify({ jsonrpc: "2.0", method: "ai.progress", params: { draftId: params.draftId, length: output.length } });
-        }
-      } else {
-        output = await session.generate(systemPrompt, userPrompt);
-      }
-      if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
-      const template = parseRawTemplate(output);
-      if (template) return { template };
-      repair = ["The result was not an Atomize Template-shaped YAML object. Return YAML with version, name, filter, and a tasks array."];
-    }
+    let received = 0;
+    const result = await draftTemplate(session, { prose: params.prose, grounding }, {
+      signal: cancellation.signal,
+      onChunk: (chunk) => {
+        received += chunk.length;
+        services.notify({ jsonrpc: "2.0", method: "ai.progress", params: { draftId: params.draftId, length: received } });
+      },
+    });
+    if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
+    if (result.ok) return { template: result.template as unknown as Record<string, unknown> };
+    // A Template-shaped draft that still fails validation stays editable in Studio, where its errors show.
+    if (result.template) return { template: result.template, errors: result.errors };
     throw Object.assign(new Error("Copilot did not return a usable Template. Your description is still available to edit."), { code: "AI_DRAFT_MALFORMED" });
   } catch (error) {
     if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });

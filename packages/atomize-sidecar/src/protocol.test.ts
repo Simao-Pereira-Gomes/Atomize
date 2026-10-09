@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
-import { classifyGenerateAdapterError, handleLine, type SidecarServices } from "./protocol";
+import { classifyGenerateAdapterError, handleLine, type RpcResponse, type SidecarServices } from "./protocol";
 
 const services: SidecarServices = {
   library: {
@@ -437,23 +437,49 @@ describe("AI draft protocol", () => {
     await expect(generation).resolves.toMatchObject({ error: { code: "AI_DRAFT_CANCELLED" } });
   });
 
-  it("returns a minimally-shaped raw Template without strict field validation", async () => {
-    let disposed = false;
+  it("repairs an invalid draft by re-prompting with its validation errors", async () => {
+    const prompts: string[] = [];
+    const outputs = [
+      "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: ''\n    estimationPercent: 120\n",
+      "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n",
+    ];
     const ai: SidecarServices = {
       ...services,
       drafts: new Map(),
+      cancelledDrafts: new Set(),
       createDraftSession: async () => ({
-        generate: async () => "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: ''\n    estimationPercent: 120\n",
+        generate: async (_system, user) => { prompts.push(user); return outputs[prompts.length - 1] ?? ""; },
+        abort: async () => {}, dispose: async () => {},
+      }),
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":15,"method":"ai.generate","params":{"draftId":"draft-repair","prose":"Build something"}}', ai))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 15, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("Previous attempt failed validation");
+  });
+
+  it("keeps a Template-shaped draft that is still invalid after repairs editable, with its errors", async () => {
+    let disposed = false;
+    let calls = 0;
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({
+        generate: async () => { calls += 1; return "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: ''\n    estimationPercent: 120\n"; },
         abort: async () => {}, dispose: async () => { disposed = true; },
       }),
     };
-    await expect(handleLine('{"jsonrpc":"2.0","id":10,"method":"ai.generate","params":{"draftId":"draft-1","prose":"Build something"}}', ai)).resolves.toEqual({ jsonrpc: "2.0", id: 10, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "", estimationPercent: 120 }] } } });
+    const response = await handleLine('{"jsonrpc":"2.0","id":10,"method":"ai.generate","params":{"draftId":"draft-1","prose":"Build something"}}', ai) as RpcResponse;
+    expect(response.result).toMatchObject({ template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "", estimationPercent: 120 }] } });
+    expect((response.result as { errors: string[] }).errors.length).toBeGreaterThan(0);
+    expect(calls).toBe(3);
     expect(disposed).toBe(true);
   });
 
   it("streams the first attempt through session.stream and notifies progress by accumulated length", async () => {
     const notifications: unknown[] = [];
-    const template = "version: '1.0'\nname: Draft\nfilter: {}\ntasks: []";
+    const template = "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n";
     const chunks: [string, string] = [template.slice(0, 10), template.slice(10)];
     const ai: SidecarServices = {
       ...services,
@@ -467,7 +493,7 @@ describe("AI draft protocol", () => {
       }),
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":14,"method":"ai.generate","params":{"draftId":"draft-stream","prose":"Build something"}}', ai))
-      .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [] } } });
+      .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
     expect(notifications).toEqual([
       { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: chunks[0].length } },
       { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: template.length } },

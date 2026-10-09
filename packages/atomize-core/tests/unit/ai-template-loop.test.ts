@@ -1,0 +1,199 @@
+import { describe, expect, test } from "bun:test";
+import {
+  type AITemplateSession,
+  draftTemplate,
+} from "@sppg2001/atomize-core/services/template/ai-template-loop";
+import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import { CancellationError } from "@sppg2001/atomize-core/utils/errors";
+
+const VALID = `version: "1.0"
+name: "Backend API"
+filter:
+  workItemTypes: ["User Story"]
+  states: ["Active"]
+tasks:
+  - title: "Implementation"
+    estimationPercent: 70
+  - title: "Testing"
+    estimationPercent: 30
+`;
+
+const SHAPED_BUT_INVALID = `version: "1.0"
+name: "Draft"
+filter: {}
+tasks:
+  - title: ""
+    estimationPercent: 120
+`;
+
+type Call = { kind: "generate" | "stream"; systemPrompt: string; userPrompt: string };
+
+/** A session that answers each call with the next scripted output. */
+function scriptedSession(outputs: string[], options: { stream?: boolean } = {}) {
+  const calls: Call[] = [];
+  let next = 0;
+  const take = () => outputs[Math.min(next++, outputs.length - 1)] ?? "";
+  const session: AITemplateSession = {
+    generate: async (systemPrompt, userPrompt) => {
+      calls.push({ kind: "generate", systemPrompt, userPrompt });
+      return take();
+    },
+  };
+  if (options.stream) {
+    session.stream = async function* (systemPrompt, userPrompt) {
+      calls.push({ kind: "stream", systemPrompt, userPrompt });
+      const output = take();
+      yield output.slice(0, 10);
+      yield output.slice(10);
+    };
+  }
+  return { session, calls };
+}
+
+describe("draftTemplate", () => {
+  test("returns the Template when the first attempt is valid", async () => {
+    const { session, calls } = scriptedSession([VALID]);
+
+    const result = await draftTemplate(session, { prose: "Backend API stories" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.template.name).toBe("Backend API");
+    expect(result.attempts).toBe(1);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.userPrompt).toContain("Backend API stories");
+  });
+
+  test("re-prompts with the validation errors and returns the repaired Template", async () => {
+    const { session, calls } = scriptedSession([SHAPED_BUT_INVALID, VALID]);
+
+    const result = await draftTemplate(session, { prose: "Backend API stories" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.attempts).toBe(2);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.userPrompt).not.toContain("Previous attempt failed validation");
+    expect(calls[1]?.userPrompt).toContain("Previous attempt failed validation");
+  });
+
+  test("gives up after the maximum attempts and returns the last raw output with its errors", async () => {
+    const { session, calls } = scriptedSession(["not yaml: [unclosed"]);
+
+    const result = await draftTemplate(session, { prose: "Anything" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(calls).toHaveLength(MAX_ATTEMPTS);
+    expect(result.attempts).toBe(MAX_ATTEMPTS);
+    expect(result.rawOutput).toBe("not yaml: [unclosed");
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.template).toBeUndefined();
+  });
+
+  test("keeps a Template-shaped but invalid final output so it can still be edited", async () => {
+    const { session } = scriptedSession([SHAPED_BUT_INVALID]);
+
+    const result = await draftTemplate(session, { prose: "Anything" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.template).toEqual({
+      version: "1.0",
+      name: "Draft",
+      filter: {},
+      tasks: [{ title: "", estimationPercent: 120 }],
+    });
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  test("streams only the first attempt and reports each chunk", async () => {
+    const { session, calls } = scriptedSession([SHAPED_BUT_INVALID, VALID], { stream: true });
+    const chunks: string[] = [];
+
+    const result = await draftTemplate(session, { prose: "Anything" }, { onChunk: (chunk) => chunks.push(chunk) });
+
+    expect(result.ok).toBe(true);
+    expect(calls.map((call) => call.kind)).toEqual(["stream", "generate"]);
+    expect(chunks.join("")).toBe(SHAPED_BUT_INVALID);
+  });
+
+  test("reports each failed attempt and each repair to the caller", async () => {
+    const { session } = scriptedSession([SHAPED_BUT_INVALID, SHAPED_BUT_INVALID, VALID]);
+    const events: string[] = [];
+
+    await draftTemplate(session, { prose: "Anything" }, {
+      onAttemptInvalid: (attempt) => events.push(`invalid:${attempt}`),
+      onRepairStart: (attempt) => events.push(`repair:${attempt}`),
+      onRepairOutput: (attempt) => events.push(`output:${attempt}`),
+    });
+
+    expect(events).toEqual(["invalid:1", "repair:2", "output:2", "invalid:2", "repair:3", "output:3"]);
+  });
+
+  test("includes grounding in the prompt only when supplied", async () => {
+    const without = scriptedSession([VALID]);
+    await draftTemplate(without.session, { prose: "Anything" });
+    expect(without.calls[0]?.userPrompt).not.toContain("GROUNDING-MARKER");
+
+    const withGrounding = scriptedSession([VALID]);
+    await draftTemplate(withGrounding.session, { prose: "Anything", grounding: "GROUNDING-MARKER" });
+    expect(withGrounding.calls[0]?.userPrompt).toContain("GROUNDING-MARKER");
+  });
+
+  test("throws a CancellationError without calling the session when already cancelled", async () => {
+    const { session, calls } = scriptedSession([VALID]);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(draftTemplate(session, { prose: "Anything" }, { signal: controller.signal })).rejects.toBeInstanceOf(CancellationError);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("stops mid-stream when cancelled", async () => {
+    const controller = new AbortController();
+    const session: AITemplateSession = {
+      generate: async () => { throw new Error("generate should not be reached"); },
+      stream: async function* () {
+        yield "version: ";
+        controller.abort();
+        yield '"1.0"';
+      },
+    };
+    const chunks: string[] = [];
+
+    await expect(draftTemplate(session, { prose: "Anything" }, { signal: controller.signal, onChunk: (chunk) => chunks.push(chunk) }))
+      .rejects.toBeInstanceOf(CancellationError);
+    expect(chunks).toEqual(["version: "]);
+  });
+
+  test("does not start a repair attempt once cancelled between attempts", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const session: AITemplateSession = {
+      generate: async () => {
+        calls += 1;
+        controller.abort();
+        return SHAPED_BUT_INVALID;
+      },
+    };
+
+    await expect(draftTemplate(session, { prose: "Anything" }, { signal: controller.signal })).rejects.toBeInstanceOf(CancellationError);
+    expect(calls).toBe(1);
+  });
+
+  test("rejects a late result that arrives after cancellation", async () => {
+    const controller = new AbortController();
+    let finish!: (output: string) => void;
+    const session: AITemplateSession = {
+      generate: () => new Promise<string>((resolve) => { finish = resolve; }),
+    };
+
+    const draft = draftTemplate(session, { prose: "Anything" }, { signal: controller.signal });
+    await Promise.resolve();
+    controller.abort();
+    finish(VALID);
+
+    await expect(draft).rejects.toBeInstanceOf(CancellationError);
+  });
+});
