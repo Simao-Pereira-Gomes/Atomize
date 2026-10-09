@@ -23,4 +23,4 @@ Grounding the user asked for never disappears silently. Interactive runs that fa
 
 - The meaning of `template create --ai --ground` changes for users and is recorded in the Changelog. The flag keeps its name. Story Grounding for drafts moves behind `--from-stories`, and automatic Story selection is removed.
 - `GroundingService`'s silent `null` returns become errors the caller can see, so each surface can offer the explicit retry or ungrounded choice.
-- Selecting Stories differs by surface only in the UI used. For drafting, the user enters IDs (titles are confirmed before the run). For improving, the list built from the Template's filter is offered, and IDs can be entered as well.
+- Stories are always selected through the shared Story Browser. For drafting it opens in Story Search mode, because a draft has no Template filter. For improving it opens on the Stories matching the Template's filter, and can switch to Search.

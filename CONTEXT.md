@@ -96,6 +96,14 @@ Grounding drawn from a Connection Profile's project: Work Item types, field name
 Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to show how the team actually breaks work down. Optional evidence on top of Project Grounding: example Stories when drafting, or Stories the Template was applied to when improving. Atomize never picks the Stories itself. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
 _Avoid_: confusing Story Grounding with the Story Learner, which derives a Template from Stories deterministically, without AI.
 
+**Story Browser**:
+The surface for finding and selecting one or more Stories from a platform, shared in behaviour by every Atomize surface that asks the user to pick Stories. It works in two modes: listing the Stories that match a Template's filter, or running a Story Search.
+_Avoid_: asking users to type Story IDs blind where a Story Browser can be offered.
+
+**Story Search**:
+A Template-independent query for Stories: free text matched against a Story's ID or title, narrowed by Work Item type, state, area path, and iteration. A Story Search is never part of a Template and is distinct from a Template's filter.
+_Avoid_: calling it a filter; "filter" refers to the Template's own selection criteria.
+
 **Sensitive AI Context**:
 Free-text Story and Task content — descriptions and acceptance criteria — that may carry customer, personal, or internal detail. Never sent to a Copilot Session by default; including it is a per-run opt-in, never a persisted preference.
 
