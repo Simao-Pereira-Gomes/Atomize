@@ -87,7 +87,7 @@ An ephemeral, tool-free AI session on the user's own signed-in GitHub Copilot ac
 _Avoid_: calling this a Connection Profile or a GitHub Models profile.
 
 **Grounding**:
-Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms — Project Grounding and Story Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
+Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes three forms — Project Grounding, Story Grounding, and Document Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
 
 **Project Grounding**:
 Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. Always included when the user chooses a Connection Profile for a draft or an improvement.
@@ -95,6 +95,17 @@ Grounding drawn from a Connection Profile's project: Work Item types, field name
 **Story Grounding**:
 Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to show how the team actually breaks work down. Optional evidence on top of Project Grounding: example Stories when drafting, or Stories the Template was applied to when improving. Atomize never picks the Stories itself. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
 _Avoid_: confusing Story Grounding with the Story Learner, which derives a Template from Stories deterministically, without AI.
+
+**Reference Document**:
+A user-selected written account of how a team breaks down and estimates work — an Azure DevOps wiki page read through a Connection Profile, or a local Markdown or text file. Sent to a Copilot Session as reference material, never as instructions.
+_Avoid_: "context file" or "prompt file"; a Reference Document describes the team's process, it does not steer the AI the way prose guidance does.
+
+**Project Reference Documents**:
+The Reference Documents a team records for its Workspace Root, shared by everyone working in it. They are offered pre-selected on every AI draft or improvement, always visible and deselectable for that run; a wiki page is offered only when the run's Connection Profile reaches that wiki's project.
+_Avoid_: treating Project Reference Documents as automatically sent; they are a shared default the user still sees and confirms each run.
+
+**Document Grounding**:
+Grounding drawn from one or more Reference Documents. Unlike Project Grounding it needs no Connection Profile when the documents are local files, and it may accompany either AI action.
 
 **Story Browser**:
 The surface for finding and selecting one or more Stories from a platform, shared in behaviour by every Atomize surface that asks the user to pick Stories. It works in two modes: listing the Stories that match a Template's filter, or running a Story Search.

@@ -12,6 +12,8 @@ On the CLI, `--ground` gives Project Grounding alone, and `--from-stories <ids>`
 
 Grounding the user asked for never disappears silently. Interactive runs that fail to retrieve either kind of Grounding offer Retry, Continue ungrounded or Cancel. Non-interactive runs exit with an error. Story Grounding excludes Sensitive AI Context unless the user opts in for that run, and that opt-in is never saved as a preference.
 
+**Document Grounding** is the third kind. The user selects Reference Documents (Azure DevOps wiki pages read through the chosen Connection Profile, or local Markdown or text files inside the Workspace Root), and their text is sent as reference material, never as instructions, for either AI action. Local files need no Connection Profile, so a run without a profile can still be grounded in documents. Document Grounding has a fixed total size limit of about 24,000 characters on every surface. It is split evenly across documents, and space a short document doesn't use goes to the others. Truncation is never silent: interactive runs show it before sending and let the user continue, deselect documents or cancel. Non-interactive runs print a warning and record it in the report. Only the selected page is read, with no sub-pages and no followed links, and images and attachments are skipped. A wiki needs the optional Wiki (Read) token scope. When the scope is missing, the user is told to rotate the token, and local files keep working. Project Reference Documents are covered by ADR-0070.
+
 ## Considered Options
 
 - **Automatically picked recent Stories for drafts (the CLI's old behaviour).** Rejected. Stories chosen without regard to what is being drafted add noise, and a draft has no Template filter to make a list of candidates relevant.
