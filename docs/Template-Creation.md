@@ -138,7 +138,15 @@ With `--ground`, Atomize reads the project's work item types and states, field r
 
 If Atomize can't load the metadata, for example because the token has expired, it asks whether to retry, continue without project metadata, or cancel. It never drops the grounding you asked for without telling you. When you choose AI drafting from the `atomize template create` menu instead of passing `--ai`, Atomize asks whether to ground the draft.
 
-`--ground` no longer learns from recent Stories. To build a Template from how your team already breaks down work, use `atomize template create --from-stories`.
+You can also give the draft **example Stories**: Stories your team already broke down well. Copilot follows the conventions they show (how Tasks are named, how estimates are split, which review or test steps you always include) while writing the Template you described:
+
+```bash
+atomize template create --ai --from-stories 1234,1240 --profile work-ado
+```
+
+`--from-stories` implies `--ground`. In an interactive run with grounding, Atomize asks whether to add example Stories. You can pick them from a list you can filter by ID or title, and narrow by area and iteration, or enter their IDs. By default only titles, states, estimates and Task activity are sent. Descriptions and acceptance criteria can contain customer, personal or internal details, so they're sent only with `--include-sensitive-ai-context`, or if you say yes when asked, and only for that run.
+
+Atomize never picks example Stories for you. Without `--ai`, `--from-stories` keeps its original meaning: the [Story Learner](./Story-Learner.md) derives a Template from those Stories directly, without AI.
 
 When you ask for several identical Tasks, such as "one review task per developer, 4 developers", the draft uses a single [repeated task](./Template-Reference.md#repeated-tasks) instead of four copies. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
 

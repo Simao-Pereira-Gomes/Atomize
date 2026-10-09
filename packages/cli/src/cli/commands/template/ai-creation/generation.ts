@@ -1,7 +1,6 @@
 import type { AIProvider } from "@sppg2001/atomize-ai";
 import { draftTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
-import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import chalk from "chalk";
 import {
@@ -9,6 +8,7 @@ import {
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { createManagedSpinner } from "@/cli/utilities/prompt-utilities";
+import type { DraftGrounding } from "./grounding";
 
 const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
@@ -21,13 +21,13 @@ export interface GenerationResult {
 export async function runGeneration(
   provider: AIProvider,
   description: string,
-  projectGrounding: ProjectGrounding | null,
+  grounding: Pick<DraftGrounding, "projectGrounding" | "storyGrounding">,
 ): Promise<GenerationResult> {
   output.print(chalk.cyan("\n━━━ Generating template ━━━\n"));
   let retrySpinner: ReturnType<typeof createManagedSpinner> | undefined;
   let streamed = false;
 
-  const result = await draftTemplate(provider, { prose: description, projectGrounding }, {
+  const result = await draftTemplate(provider, { prose: description, projectGrounding: grounding.projectGrounding, storyGrounding: grounding.storyGrounding }, {
     onChunk: (chunk) => {
       streamed = true;
       output.write(chalk.gray(chunk));

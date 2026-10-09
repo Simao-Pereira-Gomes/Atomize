@@ -77,6 +77,7 @@ interface CreateOptions {
   scratch?: boolean;
   ai?: boolean;
   ground?: boolean;
+  includeSensitiveAiContext?: boolean;
   saveAs?: string;
   platform?: string;
   profile?: string;
@@ -90,7 +91,7 @@ export const templateCreateCommand = new Command("create")
   .option("--from <name>", "Start from an existing template")
   .option(
     "--from-stories <ids>",
-    "Learn template from multiple stories (comma-separated IDs)",
+    "Learn a template from these stories (comma-separated IDs). With --ai, use them as example Stories for the draft instead; implies --ground",
   )
   .option(
     "--estimation-source <field>",
@@ -101,6 +102,7 @@ export const templateCreateCommand = new Command("create")
   .option("--scratch", "Create from scratch (skip mode selection)")
   .option("--ai", "Use AI-assisted generation (describe the template in natural language)")
   .option("--ground", "Ground AI generation in your Azure DevOps project's work item types, fields, and saved queries (uses --profile or the default profile)")
+  .option("--include-sensitive-ai-context", "With --ai --from-stories, also send the Stories' descriptions and acceptance criteria to Copilot")
   .option("--save-as <name>", "Name to save the template under")
   .option("--open", "Open the saved Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
@@ -200,9 +202,10 @@ function parseCreationTarget(value: string): CreationTarget {
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
   if (options.from) return "template";
+  // With --ai, --from-stories names example Stories for the draft rather than asking the Story Learner.
+  if (options.ai) return "ai";
   if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
-  if (options.ai) return "ai";
 
   // No flags - show interactive menu
   const mode = assertNotCancelled(
