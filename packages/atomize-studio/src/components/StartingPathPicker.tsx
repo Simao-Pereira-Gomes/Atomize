@@ -1,17 +1,22 @@
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
-import { type Accessor, createSignal, For, Match, Show, Switch } from "solid-js";
+import { type Accessor, createSignal, For, type JSX, Match, Show, Switch } from "solid-js";
 import { type AzureDevOpsProfile, listAzureDevOpsProfiles } from "../connections/connection-client";
 import { openLocalFile } from "../files/open";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
+import { documentLabel, documentsSummary, shortenedDocuments, storiesSummary } from "../grounding/grounding-summary";
 import type { DocumentGrounding } from "../references/reference-documents";
 import { cancelAIDraft, checkCopilotAuthStatus, generateAIDraft, listenAIDraftProgress, loadStoryGrounding, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
 import { createAIDraftLifecycle } from "../starting-paths/ai-draft-lifecycle";
 import type { StoryRow } from "../stories/story-browser-model";
 import { ReferenceDocumentsPicker } from "./ReferenceDocumentsPicker";
+import { ShorteningChoice } from "./ShorteningChoice";
 import { StoryBrowser } from "./StoryBrowser";
 
 type AIState = "idle" | "form" | "grounding-error" | "generating" | "cancelling" | "auth-error" | "error";
+
+const DRAFT_STEPS = ["Brief", "Work Project & Stories", "Reference Documents", "Review & create"] as const;
+const REVIEW_STEP = DRAFT_STEPS.length - 1;
 
 export function StartingPathPicker(props: {
   onScratch: () => void;
@@ -33,8 +38,10 @@ export function StartingPathPicker(props: {
   const [aiError, setAiError] = createSignal("");
   const [draftId, setDraftId] = createSignal("");
   const [streamLength, setStreamLength] = createSignal(0);
+  // Brief → Work Project & Stories → Reference Documents → Review & create; only the last step sends.
+  const [step, setStep] = createSignal(0);
+  const [confirmingShortened, setConfirmingShortened] = createSignal(false);
   // Optional example Stories (ADR-0069): only when a Work Project is chosen, never picked for the user.
-  const [examplesOpen, setExamplesOpen] = createSignal(false);
   const [examples, setExamples] = createSignal<StoryRow[]>([]);
   const [includeSensitive, setIncludeSensitive] = createSignal(false);
   const [projectChoices, setProjectChoices] = createSignal<{ profile: string; options: GroundedFieldOptions } | undefined>();
@@ -51,12 +58,24 @@ export function StartingPathPicker(props: {
   const chooseProfile = (name: string) => {
     setProfile(name);
     setExamples([]);
-    setExamplesOpen(false);
     setIncludeSensitive(false);
+    // Loads the Story Browser's filter choices; a failure surfaces when the draft is created.
+    if (name) void choicesFor(name).catch(() => {});
   };
-  const openExamples = () => {
-    setExamplesOpen(true);
-    void choicesFor(profile()).catch(() => {});
+  const busy = () => aiState() === "generating" || aiState() === "cancelling";
+  const shortened = () => shortenedDocuments(documents());
+  const stepSummary = (index: number) => {
+    if (index === 0) return prose().trim() ? "Written" : "Not written yet";
+    if (index === 1) return profile() ? `${profile()} · ${examples().length === 0 ? "No Stories" : examples().length === 1 ? "1 Story" : `${examples().length} Stories`}` : "No Work Project";
+    if (index === 2) return documentsSummary(documents(), documentsLoading());
+    return "";
+  };
+  // Shortened Reference Documents need an explicit Continue / Leave some out before sending.
+  const requestCreate = () => {
+    if (!prose().trim()) { setAiError("Describe the Template you want to draft."); return; }
+    if (shortened().length > 0 && !confirmingShortened()) { setConfirmingShortened(true); return; }
+    setConfirmingShortened(false);
+    void generate();
   };
   // Diminishing-returns curve over streamed character count: honest ("still working,
   // getting close") without ever claiming completion before the sidecar call resolves.
@@ -163,27 +182,45 @@ export function StartingPathPicker(props: {
 
         <Switch>
           <Match when={aiState() !== "idle"}>
-            <div class="mt-8 grid max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[minmax(0,1.3fr)_minmax(19rem,.7fr)]">
-              <div class="min-w-0 p-6">
+            <div class="mt-8 max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div class="border-b border-slate-200 px-6 pt-6 dark:border-slate-800">
                 <h2 class="text-3xl font-bold tracking-tight">AI draft</h2>
-                <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">Describe the work and task breakdown you want. Copilot creates a reviewable first Template draft.</p>
-                <label class="mt-6 block text-sm font-semibold">Template brief<textarea class="mt-2 min-h-64 w-full rounded-lg border border-slate-300 bg-white p-4 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950" value={prose()} disabled={aiState() === "generating" || aiState() === "cancelling"} onInput={(event) => setProse(event.currentTarget.value)} placeholder="For example: a backend API feature with design, implementation, tests, documentation, and review." /></label>
-                <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Your description is used only for this draft and remains private to this session.</p>
-                <Show when={aiError()}><p class="mt-3 text-sm text-rose-600">{aiError()}</p></Show>
-                <Show when={aiState() === "form" || aiState() === "error"}><button class="mt-5 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700" type="button" disabled={documentsLoading()} onClick={() => void generate()}>{documentsLoading() ? "Checking Reference Documents…" : "Create draft"}</button></Show>
+                <ol class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                  <For each={DRAFT_STEPS}>{(label, index) => (
+                    <li>
+                      <button
+                        type="button"
+                        class={`flex items-start gap-2 !rounded-none !border-0 !border-b-2 !border-solid !bg-transparent pb-3 text-left !shadow-none disabled:opacity-60 ${step() === index() ? "!border-indigo-600 text-indigo-700 dark:text-indigo-300" : "!border-transparent text-slate-500 dark:text-slate-400"}`}
+                        disabled={busy()}
+                        aria-current={step() === index() ? "step" : undefined}
+                        onClick={() => setStep(index())}
+                      >
+                        <span class={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold ${step() === index() ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>{index() + 1}</span>
+                        <span class="min-w-0">
+                          <span class={`block ${step() === index() ? "font-bold" : "font-semibold"}`}>{label}</span>
+                          <Show when={stepSummary(index())}><span class="block max-w-48 truncate text-xs font-normal text-slate-500 dark:text-slate-400">{stepSummary(index())}</span></Show>
+                        </span>
+                      </button>
+                    </li>
+                  )}</For>
+                </ol>
               </div>
-              <aside class="min-w-0 border-t border-slate-200 bg-slate-50 p-6 dark:border-slate-800 dark:bg-slate-950 md:border-t-0 md:border-l">
-                <p class="text-sm font-bold">Draft context</p>
-                <label class="mt-4 block min-w-0 text-sm font-semibold">Work Project <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span><select class="mt-2 block w-full min-w-0 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal dark:border-slate-700 dark:bg-slate-950" value={profile()} disabled={aiState() === "generating" || aiState() === "cancelling"} onChange={(event) => chooseProfile(event.currentTarget.value)}><option value="">No Work Project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.name}</option>}</For></select></label>
-                <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options, never its credentials.</p>
-                <Show when={profile()}>
-                  <section class="mt-5">
-                    <p class="text-sm font-semibold">Example Stories <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span></p>
-                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Stories your team broke down well. Copilot follows their Task naming, estimate splits, and review steps.</p>
-                    <Show
-                      when={examplesOpen()}
-                      fallback={<button class="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700" type="button" disabled={aiState() === "generating" || aiState() === "cancelling"} onClick={openExamples}>{examples().length > 0 ? `${examples().length} chosen — change` : "Choose example Stories"}</button>}
-                    >
+
+              <div class="min-h-80 p-6">
+                {/* Every step stays mounted so the Story Browser and Reference Documents keep their state. */}
+                <div classList={{ hidden: step() !== 0 }}>
+                  <p class="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Describe the work and task breakdown you want. Copilot creates a reviewable first Template draft.</p>
+                  <label class="mt-4 block text-sm font-semibold">Template brief<textarea class="mt-2 min-h-72 w-full rounded-lg border border-slate-300 bg-white p-4 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950" value={prose()} disabled={busy()} onInput={(event) => setProse(event.currentTarget.value)} placeholder="For example: a backend API feature with design, implementation, tests, documentation, and review." /></label>
+                  <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Your description is used only for this draft and remains private to this session.</p>
+                </div>
+
+                <div classList={{ hidden: step() !== 1 }}>
+                  <label class="block max-w-md min-w-0 text-sm font-semibold">Work Project <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span><select class="mt-2 block w-full min-w-0 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal dark:border-slate-700 dark:bg-slate-950" value={profile()} disabled={busy()} onChange={(event) => chooseProfile(event.currentTarget.value)}><option value="">No Work Project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.name}</option>}</For></select></label>
+                  <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options, never its credentials.</p>
+                  <Show when={profile()} fallback={<p class="mt-6 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Choose a Work Project to add example Stories.</p>}>
+                    <section class="mt-6">
+                      <p class="text-sm font-semibold">Example Stories <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span></p>
+                      <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Stories your team broke down well. Copilot follows their Task naming, estimate splits, and review steps.</p>
                       <div class="mt-2">
                         <StoryBrowser
                           profile={profile}
@@ -191,32 +228,85 @@ export function StartingPathPicker(props: {
                           selected={examples}
                           onChange={setExamples}
                           hasTasksByDefault
-                          disabled={() => aiState() === "generating" || aiState() === "cancelling"}
+                          disabled={busy}
                         />
-                        <button class="mt-2 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={() => setExamplesOpen(false)}>Done</button>
                       </div>
-                    </Show>
-                    <Show when={examples().length > 0}>
-                      <label class="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-700 dark:text-slate-200">
-                        <input type="checkbox" class="mt-0.5" checked={includeSensitive()} disabled={aiState() === "generating" || aiState() === "cancelling"} onChange={(event) => setIncludeSensitive(event.currentTarget.checked)} />
-                        Also send their descriptions and acceptance criteria. They can contain customer, personal, or internal details. Applies to this draft only.
-                      </label>
-                    </Show>
-                  </section>
-                </Show>
-                <div class="mt-5">
+                      <Show when={examples().length > 0}>
+                        <label class="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-700 dark:text-slate-200">
+                          <input type="checkbox" class="mt-0.5" checked={includeSensitive()} disabled={busy()} onChange={(event) => setIncludeSensitive(event.currentTarget.checked)} />
+                          Also send their descriptions and acceptance criteria. They can contain customer, personal, or internal details. Applies to this draft only.
+                        </label>
+                      </Show>
+                    </section>
+                  </Show>
+                </div>
+
+                <div classList={{ hidden: step() !== 2 }}>
                   <ReferenceDocumentsPicker
                     profile={profile}
-                    onChange={(grounding, loading) => { setDocuments(grounding); setDocumentsLoading(loading); }}
-                    disabled={() => aiState() === "generating" || aiState() === "cancelling"}
+                    onChange={(grounding, loading) => { setDocuments(grounding); setDocumentsLoading(loading); setConfirmingShortened(false); }}
+                    disabled={busy}
                   />
                 </div>
+
+                <Show when={step() === REVIEW_STEP}>
+                  <p class="text-sm text-slate-600 dark:text-slate-300">This is everything Copilot will receive.</p>
+                  <dl class="mt-3 divide-y divide-slate-200 dark:divide-slate-800">
+                    <ReviewRow label="Brief" onEdit={() => setStep(0)} disabled={busy()}>
+                      <Show when={prose().trim()} fallback={<span class="text-rose-600">Missing. Describe the Template first.</span>}><p class="line-clamp-3 whitespace-pre-wrap">{prose().trim()}</p></Show>
+                    </ReviewRow>
+                    <ReviewRow label="Work Project" onEdit={() => setStep(1)} disabled={busy()}>
+                      {profile() || <span class="text-slate-500 dark:text-slate-400">None. No project field options.</span>}
+                    </ReviewRow>
+                    <ReviewRow label="Example Stories" onEdit={() => setStep(1)} disabled={busy()}>
+                      <Show when={examples().length > 0} fallback={<span class="text-slate-500 dark:text-slate-400">{storiesSummary(examples(), includeSensitive())}</span>}>
+                        <ul class="space-y-0.5"><For each={examples()}>{(story) => <li class="truncate">{story.id} · {story.title}</li>}</For></ul>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{includeSensitive() ? "Titles, Tasks, descriptions and acceptance criteria" : "Titles and Tasks only"}</p>
+                      </Show>
+                    </ReviewRow>
+                    <ReviewRow label="Reference Documents" onEdit={() => setStep(2)} disabled={busy()}>
+                      <Show when={(documents()?.documents.length ?? 0) > 0 && !documentsLoading()} fallback={<span class="text-slate-500 dark:text-slate-400">{documentsSummary(documents(), documentsLoading())}</span>}>
+                        <ul class="space-y-0.5">
+                          <For each={documents()?.documents}>{(document) => <li class="truncate">{documentLabel(document.ref)}<Show when={document.truncated}> <span class="rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200">shortened</span></Show></li>}</For>
+                        </ul>
+                      </Show>
+                    </ReviewRow>
+                  </dl>
+                </Show>
+
+                <Show when={confirmingShortened()}>
+                  <div class="mt-5"><ShorteningChoice shortened={shortened()} onContinue={requestCreate} onLeaveOut={() => { setConfirmingShortened(false); setStep(2); }} onCancel={() => setConfirmingShortened(false)} /></div>
+                </Show>
+                <Show when={aiError()}><p class="mt-4 text-sm text-rose-600">{aiError()}</p></Show>
                 <Switch>
-                  <Match when={aiState() === "grounding-error"}><section class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-50"><p class="font-bold">Couldn’t load Work Project context</p><Show when={groundingMessage()}><p class="mt-1 text-sm leading-6">{groundingMessage()}</p></Show><p class="mt-1 text-sm leading-6">Your description is unchanged. Retry the connection, or explicitly continue without project context.</p><div class="mt-4 flex flex-wrap gap-2"><button class="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry connection</button><button class="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold dark:border-amber-700" type="button" onClick={() => void generate(true)}>Draft without project context</button></div></section></Match>
-                  <Match when={aiState() === "auth-error"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">Sign in to GitHub Copilot</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">Run <code>gh auth login</code> in a terminal on this computer, then retry your preserved draft. Atomize does not store a Copilot token.</p><button class="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry after sign-in</button></section></Match>
-                  <Match when={aiState() === "generating" || aiState() === "cancelling"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">{aiState() === "cancelling" ? "Cancelling draft…" : "Creating your AI draft…"}</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">{aiState() === "cancelling" ? "Waiting for Copilot to acknowledge cancellation." : "Copilot is preparing a Template. Output will open in the authoring surface for review."}</p><div class="mt-4 h-1.5 overflow-hidden rounded-full bg-indigo-200 dark:bg-indigo-950"><div class="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${progressPercent()}%` }} /></div><Show when={aiState() === "generating"}><button class="mt-4 rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-800 dark:border-indigo-700 dark:text-indigo-100" type="button" onClick={() => void cancel()}>Cancel draft</button></Show></section></Match>
+                  <Match when={aiState() === "grounding-error"}><section class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-50"><p class="font-bold">Couldn’t load Work Project context</p><Show when={groundingMessage()}><p class="mt-1 text-sm leading-6">{groundingMessage()}</p></Show><p class="mt-1 text-sm leading-6">Your description is unchanged. Retry the connection, or explicitly continue without project context.</p><div class="mt-4 flex flex-wrap gap-2"><button class="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry connection</button><button class="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold dark:border-amber-700" type="button" onClick={() => void generate(true)}>Draft without project context</button></div></section></Match>
+                  <Match when={aiState() === "auth-error"}><section class="mt-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">Sign in to GitHub Copilot</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">Run <code>gh auth login</code> in a terminal on this computer, then retry your preserved draft. Atomize does not store a Copilot token.</p><button class="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry after sign-in</button></section></Match>
                 </Switch>
-              </aside>
+              </div>
+
+              <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+                <Show
+                  when={!busy()}
+                  fallback={
+                    <div class="flex w-full flex-wrap items-center gap-4" role="status">
+                      <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-indigo-950 dark:text-indigo-50">{aiState() === "cancelling" ? "Cancelling draft…" : "Creating your AI draft…"}</p>
+                        <p class="text-xs leading-5 text-slate-600 dark:text-slate-300">{aiState() === "cancelling" ? "Waiting for Copilot to acknowledge cancellation." : "Output will open in the authoring surface for review."}</p>
+                        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-indigo-200 dark:bg-indigo-950"><div class="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${progressPercent()}%` }} /></div>
+                      </div>
+                      <Show when={aiState() === "generating"}><button class="rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-800 dark:border-indigo-700 dark:text-indigo-100" type="button" onClick={() => void cancel()}>Cancel draft</button></Show>
+                    </div>
+                  }
+                >
+                  <button class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700" type="button" disabled={step() === 0} onClick={() => setStep(step() - 1)}>Back</button>
+                  <div class="flex items-center gap-3">
+                    <Show when={step() > 0 && step() < REVIEW_STEP}><button class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" type="button" onClick={() => setStep(REVIEW_STEP)}>Skip to review</button></Show>
+                    <Show when={step() === REVIEW_STEP} fallback={<button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700" type="button" onClick={() => setStep(step() + 1)}>Next →</button>}>
+                      <Show when={aiState() === "form" || aiState() === "error"}><button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50" type="button" disabled={documentsLoading() || confirmingShortened()} onClick={requestCreate}>{documentsLoading() ? "Checking Reference Documents…" : "Create draft"}</button></Show>
+                    </Show>
+                  </div>
+                </Show>
+              </footer>
             </div>
           </Match>
           <Match when={aiState() === "idle"}>
@@ -241,6 +331,16 @@ export function StartingPathPicker(props: {
           </Match>
         </Switch>
       </section>
+    </div>
+  );
+}
+
+function ReviewRow(props: { label: string; onEdit: () => void; disabled: boolean; children: JSX.Element }) {
+  return (
+    <div class="grid gap-1 py-3 sm:grid-cols-[11rem_minmax(0,1fr)_auto] sm:gap-4">
+      <dt class="text-sm font-semibold text-slate-500 dark:text-slate-400">{props.label}</dt>
+      <dd class="min-w-0 text-sm">{props.children}</dd>
+      <button type="button" class="justify-self-start text-sm font-semibold text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400" disabled={props.disabled} onClick={props.onEdit}>Edit</button>
     </div>
   );
 }

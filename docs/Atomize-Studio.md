@@ -89,7 +89,14 @@ The AI draft Starting Path uses a **Copilot Session** — an ephemeral, tool-fre
 
 If you've selected a Connection Profile in the [Work Project Setting](#work-project-setting), Studio can ground the draft with curated Azure DevOps metadata — work item types, field names and allowed values, saved-query and path names — sent to Copilot alongside your prose. Your connection's access token itself is never sent. An explicitly ungrounded draft sends neither metadata nor credentials.
 
-With a Work Project chosen, you can also add **example Stories**: Stories your team broke down well. Copilot follows the conventions they show (Task naming, estimate splits, the review and test steps you always include) while writing the Template you described. Choose **Choose example Stories** to open the Story Browser in Search mode:
+The AI draft form has four steps, shown as tabs you can move between freely. Each tab shows what's set so far:
+
+1. **Brief**: describe the work and the task breakdown you want.
+2. **Work Project & Stories**: optionally choose a Work Project and example Stories.
+3. **Reference Documents**: optionally add your team's written process (see [Reference Documents](#reference-documents)).
+4. **Review & create**: everything Copilot will receive, with **Edit** links back to each step. **Create draft** is here. From steps 2 and 3, **Skip to review** jumps straight to it.
+
+With a Work Project chosen, you can also add **example Stories**: Stories your team broke down well. Copilot follows the conventions they show (Task naming, estimate splits, the review and test steps you always include) while writing the Template you described. The Story Browser opens in Search mode on the Work Project & Stories step:
 
 - Search by Story ID or title.
 - Narrow by type, state, area path or iteration. Area paths and iterations include everything below them.
@@ -104,6 +111,8 @@ Copilot checks its draft against the Template schema and fixes problems before y
 
 **Improve with AI**, in the builder's sidebar, asks Copilot to propose a revision of the Template you're working on, whichever Starting Path it came from (Scratch, Catalog Clone, Open or AI draft). It works on a complete Template, so finish any highlighted sections first.
 
+It opens as a side panel, so the builder stays visible while you write the focus and review the proposal. Under **Grounding**, one row each for **Work Project**, **Learn from Stories** and **Reference Documents** summarises what's chosen. Select a row to change it, then **Done** to come back.
+
 1. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". Leave it empty for a general review.
 2. Optionally choose a **Work Project** to ground the improvement in. It starts on the one selected in Global Settings, or choose **No grounding** to review the Template on its own.
    - A Work Project brings its types, fields and saved queries, so any conditions, custom fields or queries Copilot proposes use names that really exist.
@@ -111,7 +120,7 @@ Copilot checks its draft against the Template schema and fixes problems before y
    - If you tick Stories, you can also send their descriptions and acceptance criteria for this improvement only. They're left out by default, because they can contain customer, personal or internal details.
    - The project's credentials stay in Studio's backend. If the grounding can't be loaded, Studio tells you why and lets you retry or continue without grounding.
 3. Copilot reviews the Template and proposes changes. You can cancel while it works.
-4. Review the proposal: changed fields and Tasks added, removed, changed or moved, shown the same way as the Template Diff, plus Copilot's notes on what it changed and why.
+4. Review the proposal: the panel widens to show changed fields and Tasks added, removed, changed or moved, the same way as the Template Diff. Copilot's notes on what it changed and why, and anything it left for you to fix, sit beside them.
 5. **Accept** replaces the Template in the builder with the proposal. **Reject** leaves it exactly as it was. Nothing changes before you accept, and nothing is saved until you save as usual.
 
 If Copilot couldn't fix every problem in its proposal, the remaining problems are listed. Accepting loads the proposal anyway so you can fix them in the builder.
@@ -127,7 +136,7 @@ AI drafts and Improve with AI can send your team's written process to Copilot as
 - **Add wiki page…**, available once a Work Project is chosen, lets you pick a wiki, filter its page paths and pick pages. Only each page itself is read: no sub-pages, links, images or attachments. Wiki pages need the optional **Wiki (Read)** scope on the connection's token.
 - **Also save for this project** writes an added document to `.atomize/ai.yaml`, so it's offered on every AI request.
 
-Studio checks the chosen documents as you pick them. All of them together are limited to about 24,000 characters, split evenly. If any have to be shortened, Studio says so before you send, so you can untick documents or continue. Anything that can't be used is listed, never dropped silently: a file outside the project folder, a missing file, or a wiki page this Work Project can't reach.
+Studio checks the chosen documents as you pick them. All of them together are limited to about 24,000 characters, split evenly. If any have to be shortened, they're marked as shortened in the summary, and **Create draft** or **Improve** first asks you to choose: **Continue shortened**, **Leave some out** (back to the documents, to untick some), or **Cancel**. Anything that can't be used is listed, never dropped silently: a file outside the project folder, a missing file, or a wiki page this Work Project can't reach.
 
 ## Grounding
 
