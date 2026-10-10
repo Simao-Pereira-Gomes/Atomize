@@ -27,7 +27,11 @@ export function StoryBrowser(props: {
   onChange: (stories: StoryRow[]) => void;
   hasTasksByDefault?: boolean;
   disabled?: Accessor<boolean>;
+  /** A list to open on, e.g. the Stories a Template was applied to, with Search one click away. */
+  defaultView?: { label: string; load: () => Promise<unknown> };
 }) {
+  const [mode, setMode] = createSignal<"default" | "search">(props.defaultView ? "default" : "search");
+  const [defaultRows, setDefaultRows] = createSignal<StoryRow[] | undefined>();
   const [filters, setFilters] = createSignal<StoryFilters>(emptyFilters(props.hasTasksByDefault ?? true));
   const [limit, setLimit] = createSignal(PAGE_SIZE);
   const [rows, setRows] = createSignal<StoryRow[]>([]);
@@ -38,6 +42,7 @@ export function StoryBrowser(props: {
   onCleanup(() => clearTimeout(timer));
 
   const run = async () => {
+    if (mode() === "default") return loadDefault();
     const current = ++generation;
     setLoading(true);
     setError("");
@@ -54,7 +59,31 @@ export function StoryBrowser(props: {
     }
   };
 
-  createEffect(on([filters, limit, props.profile], () => {
+  /** The default view loads once, then typing narrows it locally. */
+  const loadDefault = async () => {
+    if (defaultRows() !== undefined || !props.defaultView) return;
+    const current = ++generation;
+    setLoading(true);
+    setError("");
+    try {
+      const result = parseStoryRows(await props.defaultView.load());
+      if (current === generation) setDefaultRows(result);
+    } catch (caught) {
+      if (current === generation) {
+        setDefaultRows([]);
+        setError(caught instanceof SidecarRequestError ? caught.message : "We could not load these Stories right now.");
+      }
+    } finally {
+      if (current === generation) setLoading(false);
+    }
+  };
+  const shown = () => {
+    if (mode() === "search") return rows();
+    const text = filters().text.trim().toLowerCase();
+    return (defaultRows() ?? []).filter((row) => !text || row.id.toLowerCase().includes(text) || row.title.toLowerCase().includes(text));
+  };
+
+  createEffect(on([filters, limit, props.profile, mode], () => {
     clearTimeout(timer);
     timer = setTimeout(() => void run(), SEARCH_DEBOUNCE_MS);
   }));
@@ -91,6 +120,21 @@ export function StoryBrowser(props: {
   return (
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
       <div class="space-y-3 border-b border-slate-100 p-3 dark:border-slate-800">
+        <Show when={props.defaultView}>
+          {(view) => (
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span class="font-semibold text-slate-600 dark:text-slate-300">{mode() === "default" ? view().label : "Search all Stories"}</span>
+              <button
+                type="button"
+                class="font-semibold text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
+                disabled={props.disabled?.()}
+                onClick={() => { setError(""); setMode(mode() === "default" ? "search" : "default"); }}
+              >
+                {mode() === "default" ? "Search all Stories instead" : `Back to ${view().label.toLowerCase()}`}
+              </button>
+            </div>
+          )}
+        </Show>
         <input
           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
           placeholder="Search by ID or title…"
@@ -98,6 +142,7 @@ export function StoryBrowser(props: {
           disabled={props.disabled?.()}
           onInput={(event) => update({ text: event.currentTarget.value })}
         />
+        <Show when={mode() === "search"}>
         <div class="grid grid-cols-2 gap-2">
           <FilterSelect label="Type" value={one(filters().workItemTypes)} options={props.choices()?.workItemTypes ?? []} onChange={(value) => update({ workItemTypes: value ? [value] : [], states: [] })} />
           <FilterSelect label="State" value={one(filters().states)} options={states()} onChange={(value) => update({ states: value ? [value] : [] })} />
@@ -108,16 +153,17 @@ export function StoryBrowser(props: {
           <input type="checkbox" checked={filters().hasTasks} disabled={props.disabled?.()} onChange={(event) => update({ hasTasks: event.currentTarget.checked })} />
           Only Stories that already have Tasks
         </label>
+        </Show>
       </div>
 
       <div class="max-h-72 overflow-y-auto p-2" aria-busy={loading()}>
         <Show when={error()}>
           <p class="p-3 text-sm text-rose-600">{error()}</p>
         </Show>
-        <Show when={!error() && !loading() && rows().length === 0}>
+        <Show when={!error() && !loading() && shown().length === 0}>
           <p class="p-3 text-sm text-slate-500 dark:text-slate-400">No Stories match. Try a different search or fewer filters.</p>
         </Show>
-        <For each={rows()}>
+        <For each={shown()}>
           {(row) => (
             <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">
               <input type="checkbox" class="mt-1" checked={isSelected(row.id)} disabled={props.disabled?.()} onChange={() => toggle(row)} />
@@ -128,12 +174,12 @@ export function StoryBrowser(props: {
             </label>
           )}
         </For>
-        <Show when={!error() && canLoadMore(rows().length, limit())}>
+        <Show when={mode() === "search" && !error() && canLoadMore(rows().length, limit())}>
           <button type="button" class="m-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold dark:border-slate-700" disabled={loading()} onClick={() => setLimit(limit() + PAGE_SIZE)}>
             {loading() ? "Loading…" : "Load more"}
           </button>
         </Show>
-        <Show when={loading() && rows().length === 0}>
+        <Show when={loading() && shown().length === 0}>
           <p class="p-3 text-sm text-slate-500 dark:text-slate-400">Searching Stories…</p>
         </Show>
       </div>

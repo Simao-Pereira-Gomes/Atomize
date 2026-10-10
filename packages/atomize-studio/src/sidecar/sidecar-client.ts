@@ -99,8 +99,21 @@ export async function loadStoryGrounding(profile: string, storyIds: string[], in
 }
 
 /** Asks Copilot for a Template Improvement of the open Template; progress and cancellation share the AI draft channel. */
-export async function improveTemplateWithAI(draftId: string, template: unknown, guidance?: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
-  try { return await call("ai_improve", { draftId, template, guidance: guidance?.trim() || null }); }
+export async function improveTemplateWithAI(
+  draftId: string,
+  template: unknown,
+  guidance?: string,
+  grounding?: { project?: unknown; stories?: unknown },
+  call: SidecarInvoker = tauriInvoke,
+): Promise<unknown> {
+  try {
+    return await call("ai_improve", { draftId, template, guidance: guidance?.trim() || null, grounding: grounding?.project ?? null, storyGrounding: grounding?.stories ?? null });
+  } catch (error) { throw sidecarError(error); }
+}
+
+/** Lists the Stories a Template's filter matches that already have Tasks, for Improve's Story Browser. */
+export async function listAppliedStories(profile: string, templateFilter: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("stories_applied", { profile, templateFilter }); }
   catch (error) { throw sidecarError(error); }
 }
 

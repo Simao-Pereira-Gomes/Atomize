@@ -105,9 +105,14 @@ Copilot checks its draft against the Template schema and fixes problems before y
 **Improve with AI**, in the builder's sidebar, asks Copilot to propose a revision of the Template you're working on, whichever Starting Path it came from (Scratch, Catalog Clone, Open or AI draft). It works on a complete Template, so finish any highlighted sections first.
 
 1. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". Leave it empty for a general review.
-2. Copilot reviews the Template and proposes changes. You can cancel while it works.
-3. Review the proposal: changed fields and Tasks added, removed, changed or moved, shown the same way as the Template Diff, plus Copilot's notes on what it changed and why.
-4. **Accept** replaces the Template in the builder with the proposal. **Reject** leaves it exactly as it was. Nothing changes before you accept, and nothing is saved until you save as usual.
+2. Optionally choose a **Work Project** to ground the improvement in. It starts on the one selected in Global Settings, or choose **No grounding** to review the Template on its own.
+   - A Work Project brings its types, fields and saved queries, so any conditions, custom fields or queries Copilot proposes use names that really exist.
+   - The Story Browser then opens on **Stories this Template was applied to**: those its filter matches that already have Tasks, newest first, up to 30. The Template's `excludeIfHasTasks` is ignored here, since it would hide exactly these Stories. Type to narrow the list, or switch to **Search all Stories instead**. Tick Stories to learn from: Copilot compares them with the Tasks they ended up with, so Tasks people added, renamed or re-estimated show where the Template doesn't fit. Tick none to use project metadata only.
+   - If you tick Stories, you can also send their descriptions and acceptance criteria for this improvement only. They're left out by default, because they can contain customer, personal or internal details.
+   - The project's credentials stay in Studio's backend. If the grounding can't be loaded, Studio tells you why and lets you retry or continue without grounding.
+3. Copilot reviews the Template and proposes changes. You can cancel while it works.
+4. Review the proposal: changed fields and Tasks added, removed, changed or moved, shown the same way as the Template Diff, plus Copilot's notes on what it changed and why.
+5. **Accept** replaces the Template in the builder with the proposal. **Reject** leaves it exactly as it was. Nothing changes before you accept, and nothing is saved until you save as usual.
 
 If Copilot couldn't fix every problem in its proposal, the remaining problems are listed. Accepting loads the proposal anyway so you can fix them in the builder.
 

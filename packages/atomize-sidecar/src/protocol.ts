@@ -14,7 +14,12 @@ import {
   type ProjectGroundingErrorCode,
   toProjectGroundingError,
 } from "@sppg2001/atomize-core/services/template/project-grounding";
-import { fetchStoryGrounding, type StoryGrounding, toStoryGroundingError } from "@sppg2001/atomize-core/services/template/story-grounding";
+import {
+  fetchStoryGrounding,
+  listAppliedStories,
+  type StoryGrounding,
+  toStoryGroundingError,
+} from "@sppg2001/atomize-core/services/template/story-grounding";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
@@ -38,7 +43,9 @@ export type AIDraftParams = { draftId: string; prose: string; grounding?: unknow
 export type StorySearchParams = { connection: GroundingConnection; search: Record<string, unknown> };
 /** Example or applied Stories to ground an AI request in, as Story Grounding. */
 export type StoryGroundingParams = { connection: GroundingConnection; storyIds: string[]; includeSensitive?: boolean };
-export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown };
+export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown; storyGrounding?: unknown };
+/** The Stories a Template has been applied to, for the Story Browser's default view in Improve. */
+export type AppliedStoriesParams = { connection: GroundingConnection; templateFilter: Record<string, unknown> };
 /** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
 export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
 export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection };
@@ -48,6 +55,7 @@ export type SidecarServices = {
   fetchGrounding: (connection: GroundingConnection) => Promise<ProjectGrounding>;
   searchStories: (params: StorySearchParams) => Promise<{ stories: StorySummary[] }>;
   fetchStoryGrounding: (params: StoryGroundingParams) => Promise<StoryGrounding>;
+  listAppliedStories: (params: AppliedStoriesParams) => Promise<{ stories: StorySummary[] }>;
   validateOnline: (params: OnlineValidationParams, signal: AbortSignal) => Promise<TemplateVerificationResult>;
   queryGenerateStories: (params: GenerateQueryStoriesParams) => Promise<{ stories: WorkItem[] }>;
   runGenerate: (params: GenerateRunParams, signal: AbortSignal) => Promise<{ report: AtomizationReport }>;
@@ -83,6 +91,7 @@ export function createSidecarServices(library = createTemplateLibrary()): Sideca
     fetchGrounding,
     searchStories: searchStoriesFor,
     fetchStoryGrounding: fetchStoryGroundingFor,
+    listAppliedStories: listAppliedStoriesFor,
     validateOnline,
     queryGenerateStories: (params) => queryGenerateStories(params, library),
     runGenerate: (params, signal) => runGenerate(params, library, notify, signal),
@@ -208,6 +217,7 @@ async function improveDraft(params: AIImproveParams, services: SidecarServices):
       resolvedTemplate: template,
       guidance: params.guidance ?? null,
       projectGrounding: (params.grounding as ProjectGrounding | undefined) ?? null,
+      storyGrounding: (params.storyGrounding as StoryGrounding | undefined) ?? null,
     }, options));
   if (result.ok) return { template: result.template as unknown as Record<string, unknown>, notes: result.notes };
   if (result.template) return { template: result.template, notes: result.notes, errors: result.errors };
@@ -287,6 +297,26 @@ export async function fetchStoryGroundingFor(params: StoryGroundingParams): Prom
     const { code, message } = toStoryGroundingError(error);
     throw Object.assign(new Error(message), { code });
   }
+}
+
+/** Lists Stories the Template's filter matches that already have Tasks (its excludeIfHasTasks turned off). */
+export async function listAppliedStoriesFor(params: AppliedStoriesParams): Promise<{ stories: StorySummary[] }> {
+  try {
+    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
+    await adapter.authenticate();
+    return { stories: await listAppliedStories(adapter, params.templateFilter as TaskTemplate["filter"]) };
+  } catch (error) {
+    const { code, message } = toStoryGroundingError(error);
+    throw Object.assign(new Error(message), { code });
+  }
+}
+
+function appliedStoriesParams(params: unknown): AppliedStoriesParams {
+  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<AppliedStoriesParams>;
+  if (typeof value.templateFilter !== "object" || value.templateFilter === null || Array.isArray(value.templateFilter)) {
+    throw Object.assign(new Error("Listing applied Stories needs the Template's filter."), { code: "INVALID_PARAMS" });
+  }
+  return { connection: groundingConnection(value.connection), templateFilter: value.templateFilter as Record<string, unknown> };
 }
 
 function storySearchParams(params: unknown): StorySearchParams {
@@ -527,6 +557,7 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
     .with("stories.search", () => services.searchStories(storySearchParams(request.params)))
     .with("grounding.stories", () => services.fetchStoryGrounding(storyGroundingParams(request.params)))
+    .with("stories.applied", () => services.listAppliedStories(appliedStoriesParams(request.params)))
     .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.improve", () => improveDraft(aiImproveParams(request.params), services))
