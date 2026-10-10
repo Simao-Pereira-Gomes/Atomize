@@ -8,7 +8,9 @@ export const AUTOMATIC_MODEL = 'auto';
 /** Shown by VS Code when it asks the user to let Atomize use Copilot's language models. */
 const JUSTIFICATION = 'Atomize sends your description to Copilot to draft or improve a Template.';
 
-export type AIUnavailableReason = 'no-models' | 'model-unavailable' | 'no-permission' | 'blocked' | 'failed';
+export type AIUnavailableReason = 'no-models' | 'model-unavailable' | 'no-permission' | 'blocked' | 'too-large' | 'failed';
+
+const TOO_LARGE_ADVICE = 'Try again with fewer Reference Documents or Stories, or choose a Copilot model with a larger limit in atomize.ai.model.';
 
 /** Why AI can't be used right now, so the command can offer the matching action. */
 export class AIUnavailableError extends Error {
@@ -68,6 +70,7 @@ class LmSession implements CopilotLmSession {
 	async *stream(systemPrompt: string, userPrompt: string): AsyncIterable<string> {
 		// The Language Model API has no system role, so the instructions travel as the first user message.
 		const messages = [this.lm.userMessage(systemPrompt), this.lm.userMessage(userPrompt)];
+		await this.ensureFits([systemPrompt, userPrompt]);
 		try {
 			const response = await this.model.sendRequest(messages, { justification: JUSTIFICATION }, this.cancellation.token);
 			for await (const chunk of response.text) {
@@ -84,6 +87,21 @@ class LmSession implements CopilotLmSession {
 		this.cancellation.cancel();
 	}
 
+	/** Checks the request against the model's input limit before sending, so an oversized one gets a clear reason. */
+	private async ensureFits(parts: string[]): Promise<void> {
+		const limit = this.model.maxInputTokens;
+		if (typeof this.model.countTokens !== 'function' || !limit) return;
+		let used = 0;
+		for (const part of parts) used += await this.model.countTokens(part, this.cancellation.token);
+		if (used > limit) {
+			throw new AIUnavailableError(
+				'too-large',
+				`This request is too large for ${this.model.name} (about ${used.toLocaleString('en-US')} of ${limit.toLocaleString('en-US')} tokens). ${TOO_LARGE_ADVICE}`,
+				this.model.family,
+			);
+		}
+	}
+
 	dispose(): void {
 		this.cancellation.dispose();
 	}
@@ -92,6 +110,9 @@ class LmSession implements CopilotLmSession {
 export function toAIUnavailable(error: unknown, model?: string): AIUnavailableError {
 	const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code: unknown }).code) : undefined;
 	const message = error instanceof Error ? error.message : String(error);
+	if (/token limit|exceeds .*tokens?|context (length|window)|too (large|long)/i.test(message)) {
+		return new AIUnavailableError('too-large', `This request is too large for the Copilot model. ${TOO_LARGE_ADVICE}`, model);
+	}
 	switch (code) {
 		case 'NoPermissions':
 			return new AIUnavailableError('no-permission', "Atomize doesn't have permission to use Copilot's language models.");

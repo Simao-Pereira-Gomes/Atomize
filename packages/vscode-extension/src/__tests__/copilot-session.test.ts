@@ -11,6 +11,8 @@ class FakeCancellationTokenSource {
 interface FakeModel {
 	name: string;
 	family: string;
+	maxInputTokens?: number;
+	countTokens?: (text: string) => Promise<number>;
 	requests: { messages: unknown[]; options: Record<string, unknown> }[];
 	sendRequest: (messages: unknown[], options: Record<string, unknown>, token: { isCancellationRequested: boolean }) => Promise<{ text: AsyncIterable<string> }>;
 }
@@ -129,5 +131,28 @@ describe('Copilot Lm session', () => {
 		};
 		await expect(consume()).rejects.toBeInstanceOf(CancellationError);
 		expect(chunks).toEqual(['a']);
+	});
+
+	it('refuses a request larger than the model accepts, before sending it', async () => {
+		const fake = { ...model('gpt-4o'), maxInputTokens: 1000, countTokens: async (text: string) => text.length };
+		const session = await openCopilotSession(languageModels([fake]), 'auto');
+		const error = await rejection(session.generate('S'.repeat(800), 'U'.repeat(400)));
+		expect(error.reason).toBe('too-large');
+		expect(error.message).toContain('1,200 of 1,000 tokens');
+		expect(fake.requests).toHaveLength(0);
+	});
+
+	it('sends a request that fits', async () => {
+		const fake = { ...model('gpt-4o', ['ok']), maxInputTokens: 1000, countTokens: async (text: string) => text.length };
+		const session = await openCopilotSession(languageModels([fake]), 'auto');
+		expect(await session.generate('S', 'U')).toBe('ok');
+	});
+
+	it("explains a provider's token-limit error instead of passing it through", async () => {
+		const failure = new Error('Message exceeds token limit.');
+		const session = await openCopilotSession(languageModels([model('gpt-4o', [], failure)]), 'auto');
+		const error = await rejection(session.generate('S', 'U'));
+		expect(error.reason).toBe('too-large');
+		expect(error.message).toContain('fewer Reference Documents or Stories');
 	});
 });

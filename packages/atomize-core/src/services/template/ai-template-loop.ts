@@ -11,9 +11,9 @@ import {
   type TemplateCheck,
   validateTemplateObject,
 } from "./llm-template-generator";
-import type { ProjectGrounding } from "./project-grounding";
+import { type ProjectGrounding, projectGroundingForPrompt } from "./project-grounding";
 import type { DocumentGrounding } from "./reference-documents";
-import type { StoryGrounding } from "./story-grounding";
+import { type StoryGrounding, storyGroundingForPrompt } from "./story-grounding";
 import {
   buildImprovePrompt,
   type ImproveRequest,
@@ -70,8 +70,8 @@ export async function draftTemplate(
   request: DraftRequest,
   options: AITemplateLoopOptions = {},
 ): Promise<AITemplateLoopResult> {
-  const projectGrounding = request.projectGrounding ? JSON.stringify(request.projectGrounding) : null;
-  const exampleStories = request.storyGrounding?.stories.length ? JSON.stringify(request.storyGrounding.stories) : null;
+  const projectGrounding = request.projectGrounding ? projectGroundingForPrompt(request.projectGrounding).text : null;
+  const exampleStories = request.storyGrounding?.stories.length ? storyGroundingForPrompt(request.storyGrounding).text : null;
   const documents = request.documentGrounding?.documents.length ? buildReferenceDocumentsSection(request.documentGrounding.documents) : null;
   const { result } = await runAttempts(session, {
     userPrompt: (errors) => buildUserPrompt(request.prose, projectGrounding, errors, exampleStories, documents),

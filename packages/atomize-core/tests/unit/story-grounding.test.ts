@@ -5,7 +5,9 @@ import {
   fetchStoryGrounding,
   listAppliedStories,
   STORY_GROUNDING_CANDIDATES,
+  STORY_GROUNDING_PROMPT_LIMIT,
   StoryGroundingError,
+  storyGroundingForPrompt,
 } from "@sppg2001/atomize-core/services/template/story-grounding";
 import { AuthError } from "@sppg2001/atomize-core/utils/errors";
 
@@ -142,5 +144,27 @@ describe("fetchStoryGrounding", () => {
     const { adapter } = platform({ getChildren: async () => { throw new Error("socket hang up"); } });
     const error = await fetchStoryGrounding(adapter, ["1"]).catch((e: unknown) => e);
     expect((error as StoryGroundingError).code).toBe("GROUNDING_FETCH_FAILED");
+  });
+});
+
+describe("storyGroundingForPrompt", () => {
+  const story = (id: string, tasks: number) => ({
+    id, title: `Story ${id}`, type: "User Story", state: "Done",
+    tasks: Array.from({ length: tasks }, (_, i) => ({ title: `Task ${i} with a reasonably descriptive title`, state: "Done", estimate: 4, activity: "Development" })),
+  });
+
+  test("keeps small Story Grounding whole", () => {
+    const result = storyGroundingForPrompt({ stories: [story("1", 3)], includesSensitiveContext: false });
+    expect(result).toMatchObject({ included: 1, trimmed: false });
+    expect(JSON.parse(result.text)[0].tasks).toHaveLength(3);
+  });
+
+  test("caps Tasks per Story, then leaves Stories out from the end until it fits", () => {
+    const result = storyGroundingForPrompt({ stories: Array.from({ length: 40 }, (_, i) => story(String(i), 60)), includesSensitiveContext: false });
+    expect(result.text.length).toBeLessThanOrEqual(STORY_GROUNDING_PROMPT_LIMIT);
+    expect(result.trimmed).toBe(true);
+    expect(result.included).toBeGreaterThan(0);
+    expect(result.included).toBeLessThan(40);
+    expect(JSON.parse(result.text)[0].tasks).toHaveLength(25);
   });
 });

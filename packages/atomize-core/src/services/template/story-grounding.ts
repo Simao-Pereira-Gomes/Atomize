@@ -150,3 +150,27 @@ export function toStoryGroundingError(error: unknown): StoryGroundingError {
     code === "GROUNDING_FETCH_FAILED" ? message.replace("project metadata", "Stories") : message,
   );
 }
+
+/** The most Story Grounding a prompt carries, so many Stories or long Task lists can't exceed a model's limit. */
+export const STORY_GROUNDING_PROMPT_LIMIT = 16_000;
+const MAX_TASKS_PER_STORY = 25;
+
+/**
+ * Story Grounding as the prompt carries it: Tasks per Story capped, then Stories left out from the
+ * end until it fits. `included` says how many Stories made it in.
+ */
+export function storyGroundingForPrompt(grounding: StoryGrounding, limit = STORY_GROUNDING_PROMPT_LIMIT): { text: string; included: number; trimmed: boolean } {
+  let trimmed = false;
+  const stories = grounding.stories.map((story) => {
+    if (story.tasks.length <= MAX_TASKS_PER_STORY) return story;
+    trimmed = true;
+    return { ...story, tasks: story.tasks.slice(0, MAX_TASKS_PER_STORY) };
+  });
+  while (stories.length > 0) {
+    const text = JSON.stringify(stories);
+    if (text.length <= limit) return { text, included: stories.length, trimmed };
+    stories.pop();
+    trimmed = true;
+  }
+  return { text: "[]", included: 0, trimmed: true };
+}

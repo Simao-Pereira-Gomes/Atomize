@@ -1,9 +1,9 @@
 import { stringify } from "yaml";
 import type { TaskDefinition, TaskTemplate } from "../../templates/schema";
 import { buildProjectGroundingSection, buildReferenceDocumentsSection } from "./llm-template-generator";
-import type { ProjectGrounding } from "./project-grounding";
+import { type ProjectGrounding, projectGroundingForPrompt } from "./project-grounding";
 import type { DocumentGrounding } from "./reference-documents";
-import type { StoryGrounding } from "./story-grounding";
+import { type StoryGrounding, storyGroundingForPrompt } from "./story-grounding";
 
 /** The top-level key a Template Improvement's notes travel under in the model's YAML. */
 export const IMPROVEMENT_NOTES_KEY = "improvementNotes";
@@ -50,14 +50,14 @@ export function buildImprovePrompt(request: ImproveRequest, prevErrors?: string[
 
   if (request.storyGrounding?.stories.length) {
     sections.push(
-      `Stories this template was applied to, with the Tasks each one ended up with (JSON):\n${JSON.stringify(request.storyGrounding.stories)}\n` +
+      `Stories this template was applied to, with the Tasks each one ended up with (JSON):\n${storyGroundingForPrompt(request.storyGrounding).text}\n` +
         "Compare them with the template. Tasks people added, removed, renamed, split, or re-estimated show where the template doesn't fit how this team works; let that evidence drive your changes. Don't copy Story-specific details into the template.",
     );
   }
 
   if (request.documentGrounding?.documents.length) sections.push(buildReferenceDocumentsSection(request.documentGrounding.documents));
 
-  if (request.projectGrounding) sections.push(buildProjectGroundingSection(JSON.stringify(request.projectGrounding)).trim());
+  if (request.projectGrounding) sections.push(buildProjectGroundingSection(projectGroundingForPrompt(request.projectGrounding).text).trim());
 
   sections.push(
     `Also add a top-level key "${IMPROVEMENT_NOTES_KEY}": a list of short notes (at most 8) saying what you changed and why, plus any advice about inherited tasks.`,

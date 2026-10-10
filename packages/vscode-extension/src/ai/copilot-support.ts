@@ -30,6 +30,11 @@ export async function offerFix(error: AIUnavailableError, retry: () => Promise<v
 			}
 			return;
 		}
+		case 'too-large': {
+			const choice = await vscode.window.showErrorMessage(error.message, 'Open Settings');
+			if (choice) await vscode.commands.executeCommand('workbench.action.openSettings', 'atomize.ai.model');
+			return;
+		}
 		case 'no-permission': {
 			const choice = await vscode.window.showErrorMessage(error.message, 'Try Again');
 			if (choice) await retry();
