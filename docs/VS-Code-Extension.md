@@ -200,7 +200,7 @@ Opens Atomize extension settings.
 | `atomize.cliPath` | Deprecated — no longer used. The extension runs Atomize in-process and no longer spawns a CLI executable. |
 | `atomize.cli.installCommand` | Deprecated — no longer used. |
 | `atomize.cli.autoCheckUpdates` | Deprecated — no longer used. |
-| `atomize.ai.model` | The Copilot model family to use for AI drafting, such as `gpt-4o`. Leave as `auto` (the default) to use the first Copilot model available to you. If the model you choose isn't available, Atomize offers to switch back to `auto`. |
+| `atomize.ai.model` | The Copilot model family to use for AI drafting, such as `gpt-4o`. Leave as `auto` (the default) to use the available Copilot model with the largest input limit, since grounded requests carry project metadata, Stories and Reference Documents. If the model you choose isn't available, Atomize offers to switch back to `auto`. |
 | `atomize.defaultProfile` | Workspace-scoped profile name to preselect in Validate, Live Preview, and Generate pickers. |
 | `atomize.previewLayout` | Preview panel layout: `default` or `compact`. |
 

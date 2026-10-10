@@ -35,19 +35,27 @@ export interface LanguageModelRuntime {
 }
 
 /**
- * Picks the Copilot model named by `atomize.ai.model` (a model family, or "auto" for the first
- * available one) and opens a session on it.
+ * Picks the Copilot model named by `atomize.ai.model` (a model family, or "auto") and opens a
+ * session on it. Grounded requests carry project metadata, Stories, and Reference Documents, so
+ * "auto" chooses the available model with the largest input limit rather than whichever is listed first.
  */
 export async function openCopilotSession(lm: LanguageModelRuntime, modelPreference: string): Promise<CopilotLmSession> {
 	const pinned = modelPreference.trim() && modelPreference.trim() !== AUTOMATIC_MODEL ? modelPreference.trim() : undefined;
 	const models = await lm.selectChatModels(pinned ? { vendor: 'copilot', family: pinned } : { vendor: 'copilot' });
-	const model = models[0];
+	const model = pinned ? models[0] : largestInput(models);
 	if (model) return new LmSession(lm, model);
 
 	if (pinned && (await lm.selectChatModels({ vendor: 'copilot' })).length > 0) {
 		throw new AIUnavailableError('model-unavailable', `The Copilot model "${pinned}" set in atomize.ai.model isn't available.`, pinned);
 	}
 	throw new AIUnavailableError('no-models', "Atomize's AI features need GitHub Copilot Chat, signed in to a Copilot account.");
+}
+
+function largestInput(models: vscode.LanguageModelChat[]): vscode.LanguageModelChat | undefined {
+	return models.reduce<vscode.LanguageModelChat | undefined>(
+		(best, candidate) => (!best || (candidate.maxInputTokens ?? 0) > (best.maxInputTokens ?? 0) ? candidate : best),
+		undefined,
+	);
 }
 
 class LmSession implements CopilotLmSession {

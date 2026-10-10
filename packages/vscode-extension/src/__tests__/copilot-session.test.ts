@@ -55,11 +55,26 @@ async function rejection(promise: Promise<unknown>): Promise<AIUnavailableError>
 }
 
 describe('openCopilotSession', () => {
-	it('uses the first Copilot model when the preference is automatic', async () => {
+	it('uses the first Copilot model when the preference is automatic and none reports a limit', async () => {
 		const lm = languageModels([model('gpt-4o'), model('claude-sonnet-4')]);
 		const session = await openCopilotSession(lm, 'auto');
 		expect(session.modelName).toBe('Model gpt-4o');
 		expect(lm.selectors).toEqual([{ vendor: 'copilot' }]);
+	});
+
+	it('chooses the model with the largest input limit when automatic, not the first listed', async () => {
+		const small = { ...model('gpt-4o-mini'), maxInputTokens: 12_000 };
+		const large = { ...model('claude-sonnet-4'), maxInputTokens: 128_000 };
+		const medium = { ...model('gpt-4o'), maxInputTokens: 64_000 };
+		const session = await openCopilotSession(languageModels([small, large, medium]), 'auto');
+		expect(session.modelName).toBe('Model claude-sonnet-4');
+	});
+
+	it('keeps a pinned family even when another model has a larger limit', async () => {
+		const small = { ...model('gpt-4o-mini'), maxInputTokens: 12_000 };
+		const large = { ...model('claude-sonnet-4'), maxInputTokens: 128_000 };
+		const session = await openCopilotSession(languageModels([small, large]), 'gpt-4o-mini');
+		expect(session.modelName).toBe('Model gpt-4o-mini');
 	});
 
 	it('uses the pinned model family when it is available', async () => {

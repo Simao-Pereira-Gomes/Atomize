@@ -42,7 +42,7 @@
 				"atomize.ai.model": {
 					"type": "string",
 					"default": "auto",
-					"markdownDescription": "The GitHub Copilot model family Atomize uses for AI drafting, such as `gpt-4o` or `claude-sonnet-4`. Leave as `auto` to use the first Copilot model available to you. Uses the Copilot account you're signed in to in VS Code; Atomize stores no token."
+					"markdownDescription": "The GitHub Copilot model family Atomize uses for AI drafting, such as `gpt-4o` or `claude-sonnet-4`. Leave as `auto` to use the available Copilot model with the largest input limit, which grounded requests need. Uses the Copilot account you're signed in to in VS Code; Atomize stores no token."
 				},
 				"atomize.previewLayout": {
 					"type": "string",
