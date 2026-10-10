@@ -118,6 +118,17 @@ If Copilot couldn't fix every problem in its proposal, the remaining problems ar
 
 Studio flattens a Template's `extends` and Mixins when it opens it ([ADR-0048](./adr/0048-studio-open-flattens-extends-mixins-at-load.md)), so Copilot always sees the complete Template.
 
+### Reference Documents
+
+AI drafts and Improve with AI can send your team's written process to Copilot as **Reference Documents**. Copilot treats them as reference material, never as instructions. They work from a **project folder**: for a Template opened from a file, its workspace is chosen for you, and otherwise choose one with **Choose project folder**.
+
+- The Project Reference Documents saved in the folder's `.atomize/ai.yaml` are listed ticked. Untick any to leave them out of this request.
+- **Add local file…** adds Markdown or text files from inside the project folder.
+- **Add wiki page…**, available once a Work Project is chosen, lets you pick a wiki, filter its page paths and pick pages. Only each page itself is read: no sub-pages, links, images or attachments. Wiki pages need the optional **Wiki (Read)** scope on the connection's token.
+- **Also save for this project** writes an added document to `.atomize/ai.yaml`, so it's offered on every AI request.
+
+Studio checks the chosen documents as you pick them. All of them together are limited to about 24,000 characters, split evenly. If any have to be shortened, Studio says so before you send, so you can untick documents or continue. Anything that can't be used is listed, never dropped silently: a file outside the project folder, a missing file, or a wiki page this Work Project can't reach.
+
 ## Grounding
 
 Grounded Field Options are platform choices — work item types, type-dependent states, teams, area paths, iteration paths, saved queries, and Azure DevOps field schemas with their allowed values — fetched on demand through a selected Connection Profile and offered while authoring filters, custom fields, and conditions. Studio presents the same Azure DevOps-backed choices the CLI's interactive `atomize template create` flow does.

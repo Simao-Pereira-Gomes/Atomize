@@ -1,10 +1,11 @@
-import { readFile } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
 import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
 import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
 import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
+import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { type StorySummary, searchStories } from "@sppg2001/atomize-core/services/story-search";
 import { draftTemplate, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
@@ -15,12 +16,27 @@ import {
   toProjectGroundingError,
 } from "@sppg2001/atomize-core/services/template/project-grounding";
 import {
+  type DocumentGrounding,
+  fitDocumentsToLimit,
+  listProjectWikis,
+  listWikiPagePaths,
+  loadLocalReference,
+  loadWikiReference,
+  parseReferenceRef,
+  type ReferenceDocument,
+  ReferenceDocumentError,
+  readProjectReferences,
+  saveProjectReference,
+  truncationNotices,
+} from "@sppg2001/atomize-core/services/template/reference-documents";
+import {
   fetchStoryGrounding,
   listAppliedStories,
   type StoryGrounding,
   toStoryGroundingError,
 } from "@sppg2001/atomize-core/services/template/story-grounding";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
@@ -38,12 +54,19 @@ export type RpcNotification =
 export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
-export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; storyGrounding?: unknown };
+export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; storyGrounding?: unknown; documentGrounding?: unknown };
+/** Where Reference Documents are looked up: a Workspace Root, discovered from a folder or file inside it. */
+export type ReferencesListParams = { startPath: string };
+export type ReferencesSaveParams = { workspaceRoot: string; entry: string };
+/** Reference Documents to load and fit; wiki entries need the Rust-injected connection. */
+export type ReferencesLoadParams = { workspaceRoot: string; entries: string[]; connection?: GroundingConnection };
+export type ReferencesLoadResult = { grounding: DocumentGrounding | null; notices: string[]; skipped: { entry: string; message: string }[] };
+export type WikiPagesParams = { connection: GroundingConnection; wiki: string };
 /** A Story Search for the Story Browser's Search mode; the connection carries a Rust-injected token. */
 export type StorySearchParams = { connection: GroundingConnection; search: Record<string, unknown> };
 /** Example or applied Stories to ground an AI request in, as Story Grounding. */
 export type StoryGroundingParams = { connection: GroundingConnection; storyIds: string[]; includeSensitive?: boolean };
-export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown; storyGrounding?: unknown };
+export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown; storyGrounding?: unknown; documentGrounding?: unknown };
 /** The Stories a Template has been applied to, for the Story Browser's default view in Improve. */
 export type AppliedStoriesParams = { connection: GroundingConnection; templateFilter: Record<string, unknown> };
 /** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
@@ -198,6 +221,7 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
       prose: params.prose,
       projectGrounding: params.grounding as ProjectGrounding | undefined,
       storyGrounding: params.storyGrounding as StoryGrounding | undefined,
+      documentGrounding: params.documentGrounding as DocumentGrounding | undefined,
     }, options));
   if (result.ok) return { template: result.template as unknown as Record<string, unknown> };
   // A Template-shaped draft that still fails validation stays editable in Studio, where its errors show.
@@ -218,6 +242,7 @@ async function improveDraft(params: AIImproveParams, services: SidecarServices):
       guidance: params.guidance ?? null,
       projectGrounding: (params.grounding as ProjectGrounding | undefined) ?? null,
       storyGrounding: (params.storyGrounding as StoryGrounding | undefined) ?? null,
+      documentGrounding: (params.documentGrounding as DocumentGrounding | undefined) ?? null,
     }, options));
   if (result.ok) return { template: result.template as unknown as Record<string, unknown>, notes: result.notes };
   if (result.template) return { template: result.template, notes: result.notes, errors: result.errors };
@@ -297,6 +322,99 @@ export async function fetchStoryGroundingFor(params: StoryGroundingParams): Prom
     const { code, message } = toStoryGroundingError(error);
     throw Object.assign(new Error(message), { code });
   }
+}
+
+/** The Workspace Root around a folder or file, and its Project Reference Documents (ADR-0070). */
+export async function listReferences(params: ReferencesListParams): Promise<{ workspaceRoot: string; entries: string[]; problems: string[] }> {
+  const start = await isDirectory(params.startPath) ? params.startPath : dirname(params.startPath);
+  const workspaceRoot = discoverWorkspaceRoot(start);
+  return { workspaceRoot, ...await readProjectReferences(workspaceRoot) };
+}
+
+/** Records an entry in `.atomize/ai.yaml`, validating it first. */
+export async function saveReference(params: ReferencesSaveParams): Promise<{ saved: true }> {
+  try {
+    await saveProjectReference(params.workspaceRoot, params.entry);
+    return { saved: true };
+  } catch (error) {
+    throw Object.assign(new Error(getErrorMessage(error)), { code: error instanceof ReferenceDocumentError ? error.code : "REFERENCE_SAVE_FAILED" });
+  }
+}
+
+/**
+ * Loads the chosen Reference Documents and fits them to the shared limit. A document that can't be
+ * used is reported, never silently dropped; the shortening notices are shown before sending.
+ */
+export async function loadReferences(params: ReferencesLoadParams): Promise<ReferencesLoadResult> {
+  const documents: ReferenceDocument[] = [];
+  const skipped: { entry: string; message: string }[] = [];
+  let adapter: Promise<IPlatformAdapter> | undefined;
+  const connect = () => {
+    const connection = params.connection;
+    if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
+    adapter ??= (async () => {
+      const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
+      await platform.authenticate();
+      return platform;
+    })();
+    return adapter;
+  };
+  for (const entry of params.entries) {
+    try {
+      const ref = parseReferenceRef(entry);
+      documents.push(ref.kind === "wiki" ? await loadWikiReference(await connect(), ref) : await loadLocalReference(params.workspaceRoot, ref.path));
+    } catch (error) {
+      skipped.push({ entry, message: getErrorMessage(error) });
+    }
+  }
+  if (documents.length === 0) return { grounding: null, notices: [], skipped };
+  const grounding = fitDocumentsToLimit(documents);
+  return { grounding, notices: truncationNotices(grounding), skipped };
+}
+
+/** Lists the wikis in the Work Project's project, for picking wiki pages. */
+export async function listWikis(connection: GroundingConnection): Promise<{ wikis: { id: string; name: string }[] }> {
+  return withWikiAdapter(connection, async (platform) => ({ wikis: await listProjectWikis(platform) }));
+}
+
+export async function listWikiPages(params: WikiPagesParams): Promise<{ paths: string[] }> {
+  return withWikiAdapter(params.connection, async (platform) => ({ paths: await listWikiPagePaths(platform, params.wiki) }));
+}
+
+async function withWikiAdapter<T>(connection: GroundingConnection, run: (platform: IPlatformAdapter) => Promise<T>): Promise<T> {
+  try {
+    const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
+    await platform.authenticate();
+    return await run(platform);
+  } catch (error) {
+    throw Object.assign(new Error(getErrorMessage(error)), { code: error instanceof ReferenceDocumentError ? error.code : "WIKI_READ_FAILED" });
+  }
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function stringParam(params: unknown, key: string, label: string): string {
+  const value = typeof params === "object" && params !== null ? (params as Record<string, unknown>)[key] : undefined;
+  if (typeof value !== "string" || !value.trim()) throw Object.assign(new Error(`${label} is required.`), { code: "INVALID_PARAMS" });
+  return value;
+}
+
+function referencesLoadParams(params: unknown): ReferencesLoadParams {
+  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<ReferencesLoadParams>;
+  if (!Array.isArray(value.entries) || value.entries.some((entry) => typeof entry !== "string")) {
+    throw Object.assign(new Error("Loading Reference Documents needs a list of entries."), { code: "INVALID_PARAMS" });
+  }
+  return {
+    workspaceRoot: stringParam(params, "workspaceRoot", "A project folder"),
+    entries: value.entries,
+    ...(value.connection ? { connection: groundingConnection(value.connection) } : {}),
+  };
 }
 
 /** Lists Stories the Template's filter matches that already have Tasks (its excludeIfHasTasks turned off). */
@@ -558,6 +676,11 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
     .with("stories.search", () => services.searchStories(storySearchParams(request.params)))
     .with("grounding.stories", () => services.fetchStoryGrounding(storyGroundingParams(request.params)))
     .with("stories.applied", () => services.listAppliedStories(appliedStoriesParams(request.params)))
+    .with("references.list", () => listReferences({ startPath: stringParam(request.params, "startPath", "A project folder") }))
+    .with("references.save", () => saveReference({ workspaceRoot: stringParam(request.params, "workspaceRoot", "A project folder"), entry: stringParam(request.params, "entry", "A Reference Document") }))
+    .with("references.load", () => loadReferences(referencesLoadParams(request.params)))
+    .with("wiki.list", () => listWikis(groundingConnection((request.params as { connection?: unknown } | undefined)?.connection)))
+    .with("wiki.pages", () => listWikiPages({ connection: groundingConnection((request.params as { connection?: unknown } | undefined)?.connection), wiki: stringParam(request.params, "wiki", "A wiki") }))
     .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.improve", () => improveDraft(aiImproveParams(request.params), services))

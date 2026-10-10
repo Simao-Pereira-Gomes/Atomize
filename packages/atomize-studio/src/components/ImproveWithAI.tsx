@@ -2,9 +2,11 @@ import { diffTemplates } from "@sppg2001/atomize-schema";
 import { type Accessor, createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
 import { createImproveSession } from "../improve/improve-session";
+import type { DocumentGrounding } from "../references/reference-documents";
 import { cancelAIDraft, improveTemplateWithAI, listAppliedStories, listenAIDraftProgress, loadStoryGrounding } from "../sidecar/sidecar-client";
 import type { SectionStores } from "../stores/sections";
 import type { GroundingSession } from "./GroundingSettings";
+import { ReferenceDocumentsPicker } from "./ReferenceDocumentsPicker";
 import { StoryBrowser } from "./StoryBrowser";
 import { TemplateChangesList } from "./sections/TemplateDiffView";
 
@@ -12,7 +14,9 @@ import { TemplateChangesList } from "./sections/TemplateDiffView";
  * "Improve with AI" for the Template in the builder, whichever Starting Path produced it. The
  * proposal is reviewed as a whole and only changes the Template on Accept (ADR-0062).
  */
-export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<boolean>; sidecarAvailable: Accessor<boolean>; grounding: GroundingSession }) {
+export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<boolean>; sidecarAvailable: Accessor<boolean>; grounding: GroundingSession; openFilePath?: string }) {
+  const [documents, setDocuments] = createSignal<DocumentGrounding | null>(null);
+  const [documentsLoading, setDocumentsLoading] = createSignal(false);
   // Project metadata per Work Project: the one in Global Settings is already loaded; others load on demand.
   const [projectChoices, setProjectChoices] = createSignal<{ profile: string; options: GroundedFieldOptions } | undefined>();
   const choicesFor = async (profile: string): Promise<GroundedFieldOptions> => {
@@ -26,7 +30,7 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
   const session = createImproveSession({
     current: () => props.stores.toTemplate(),
     apply: (template) => props.stores.loadTemplate(template),
-    improve: (id, template, guidance, grounding) => improveTemplateWithAI(id, template, guidance, grounding),
+    improve: (id, template, guidance, grounding) => improveTemplateWithAI(id, template, guidance, { ...grounding, documents: documents() ?? undefined }),
     cancel: (id) => cancelAIDraft(id),
     listenProgress: (onProgress) => listenAIDraftProgress(onProgress),
     defaultProfile: () => props.grounding.selectedProfile(),
@@ -190,6 +194,14 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
                       </Show>
                     </section>
                   </Show>
+
+                  <div class="mt-5">
+                    <ReferenceDocumentsPicker
+                      profile={() => session.choices().profile}
+                      startPath={() => props.openFilePath}
+                      onChange={(grounding, loading) => { setDocuments(grounding); setDocumentsLoading(loading); }}
+                    />
+                  </div>
                 </Match>
 
                 <Match when={groundingMessage()}>
@@ -221,7 +233,7 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
                 <Match when={state().phase === "form" || state().phase === "auth-error"}>
                   <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" type="button" onClick={session.close}>Close</button>
                   <Show when={state().phase === "form"}>
-                    <button class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50" type="button" disabled={!props.sidecarAvailable()} onClick={() => void session.start()}>Improve</button>
+                    <button class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50" type="button" disabled={!props.sidecarAvailable() || documentsLoading()} onClick={() => void session.start()}>{documentsLoading() ? "Checking Reference Documents…" : "Improve"}</button>
                   </Show>
                 </Match>
               </Switch>

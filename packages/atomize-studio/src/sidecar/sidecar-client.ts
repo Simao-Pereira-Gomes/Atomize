@@ -81,8 +81,33 @@ export async function cancelOnlineValidation(validationId: string, call: Sidecar
   catch (error) { throw sidecarError(error); }
 }
 
-export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, storyGrounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
-  try { return await call("ai_generate", { draftId, prose, grounding, storyGrounding }); }
+export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, storyGrounding?: unknown, documentGrounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("ai_generate", { draftId, prose, grounding, storyGrounding, documentGrounding }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+export async function listReferences(startPath: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("references_list", { startPath }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+export async function saveReference(workspaceRoot: string, entry: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
+  try { await call("references_save", { workspaceRoot, entry }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+export async function loadReferences(workspaceRoot: string, entries: string[], profile?: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("references_load", { workspaceRoot, entries, profile: profile || null }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+export async function listWikis(profile: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("wiki_list", { profile }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+export async function listWikiPages(profile: string, wiki: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("wiki_pages", { profile, wiki }); }
   catch (error) { throw sidecarError(error); }
 }
 
@@ -103,15 +128,21 @@ export async function improveTemplateWithAI(
   draftId: string,
   template: unknown,
   guidance?: string,
-  grounding?: { project?: unknown; stories?: unknown },
+  grounding?: { project?: unknown; stories?: unknown; documents?: unknown },
   call: SidecarInvoker = tauriInvoke,
 ): Promise<unknown> {
   try {
-    return await call("ai_improve", { draftId, template, guidance: guidance?.trim() || null, grounding: grounding?.project ?? null, storyGrounding: grounding?.stories ?? null });
+    return await call("ai_improve", {
+      draftId,
+      template,
+      guidance: guidance?.trim() || null,
+      grounding: grounding?.project ?? null,
+      storyGrounding: grounding?.stories ?? null,
+      documentGrounding: grounding?.documents ?? null,
+    });
   } catch (error) { throw sidecarError(error); }
 }
 
-/** Lists the Stories a Template's filter matches that already have Tasks, for Improve's Story Browser. */
 export async function listAppliedStories(profile: string, templateFilter: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("stories_applied", { profile, templateFilter }); }
   catch (error) { throw sidecarError(error); }
@@ -122,37 +153,31 @@ export async function cancelAIDraft(draftId: string, call: SidecarInvoker = taur
   catch (error) { throw sidecarError(error); }
 }
 
-/** Checks Copilot sign-in state before a draft is attempted, so AI draft can surface a sign-in error immediately instead of only after a failed generate. */
 export async function checkCopilotAuthStatus(call: SidecarInvoker = tauriInvoke): Promise<{ authenticated: boolean }> {
   try { return await call("ai_auth_status"); }
   catch (error) { throw sidecarError(error); }
 }
 
-/** Resolves a local file's `extends`/`mixins` into a composed Template, so Open never has to strip them itself — see ADR-0048. */
 export async function resolveLocalTemplate(path: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("template_resolve_local", { path }); }
   catch (error) { throw sidecarError(error); }
 }
 
-/** Inspects a Generate Area Preview Source (Catalog ref or local path), reporting which mock Story fields it references. */
 export async function inspectPreview(source: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("preview_inspect", { source }); }
   catch (error) { throw sidecarError(error); }
 }
 
-/** Runs Mock Preview: resolves the Preview Source and evaluates it against mock Story field values (JSON string). */
 export async function runMockPreview(source: string, mockStory: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("preview_mock_story", { source, mockStory }); }
   catch (error) { throw sidecarError(error); }
 }
 
-/** Fetches the real Stories a Generate Scope's Story browser can pick from — see ADR-0056. The frontend supplies only a profile name; Rust resolves and injects its token. */
 export async function queryGenerateStories(source: string, profile: string, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
   try { return await call("generate_query_stories", { source, profile }); }
   catch (error) { throw sidecarError(error); }
 }
 
-/** Runs Generate — one call for both Live Preview (`dryRun: true`) and Execute (`dryRun: false`), see ADR-0055. */
 export async function runGenerate(
   runId: string,
   source: string,
@@ -166,7 +191,6 @@ export async function runGenerate(
   catch (error) { throw sidecarError(error); }
 }
 
-/** Best-effort cancellation of an active Generate run — Stories already sent to Azure DevOps are not rolled back. */
 export async function cancelGenerate(runId: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
   try { await call("generate_cancel", { runId }); }
   catch (error) { throw sidecarError(error); }

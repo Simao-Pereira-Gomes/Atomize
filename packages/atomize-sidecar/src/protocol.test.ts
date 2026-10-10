@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
@@ -638,5 +638,67 @@ describe("Improve grounding protocol", () => {
     await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 52, method: "ai.improve", params: { draftId: "i-grounded", template, grounding, storyGrounding } }), ai);
     expect(prompts[0]).toContain("APPLIED-MARKER");
     expect(prompts[0]).toContain("PROJECT-MARKER");
+  });
+});
+
+describe("Reference Documents protocol", () => {
+  async function workspace() {
+    const root = await mkdtemp(join(tmpdir(), "studio-refs-"));
+    await mkdir(join(root, ".atomize"));
+    await mkdir(join(root, "docs"));
+    await writeFile(join(root, ".atomize", "ai.yaml"), "referenceDocuments:\n  - file:docs/how-we-work.md\n");
+    await writeFile(join(root, "docs", "how-we-work.md"), "REF-MARKER: we always pair on reviews");
+    await writeFile(join(root, "docs", "long.md"), "x".repeat(30_000));
+    return root;
+  }
+
+  it("finds the Workspace Root around a file and lists its Project Reference Documents", async () => {
+    const root = await workspace();
+    try {
+      const response = await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 60, method: "references.list", params: { startPath: join(root, "docs", "how-we-work.md") } }), services) as RpcResponse;
+      expect(response.result).toEqual({ workspaceRoot: root, entries: ["file:docs/how-we-work.md"], problems: [] });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("saves an entry to ai.yaml", async () => {
+    const root = await workspace();
+    try {
+      await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 61, method: "references.save", params: { workspaceRoot: root, entry: "file:docs/long.md" } }), services);
+      expect(await readFile(join(root, ".atomize", "ai.yaml"), "utf8")).toContain("file:docs/long.md");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("loads and fits documents, reporting shortening and anything it couldn't use", async () => {
+    const root = await workspace();
+    try {
+      const entries = ["file:docs/how-we-work.md", "file:docs/long.md", "file:../outside.md", "wiki:Team.wiki/Process"];
+      const response = await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 62, method: "references.load", params: { workspaceRoot: root, entries } }), services) as RpcResponse;
+      const result = response.result as { grounding: { documents: { ref: string; truncated: boolean }[] }; notices: string[]; skipped: { entry: string }[] };
+      expect(result.grounding.documents.map((d) => [d.ref, d.truncated])).toEqual([["file:docs/how-we-work.md", false], ["file:docs/long.md", true]]);
+      expect(result.notices[0]).toContain('"long.md" will be shortened');
+      expect(result.skipped.map((s) => s.entry)).toEqual(["file:../outside.md", "wiki:Team.wiki/Process"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("sends Reference Documents with an AI draft", async () => {
+    const prompts: string[] = [];
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({
+        generate: async (_system, user) => { prompts.push(user); return "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n"; },
+        abort: async () => {}, dispose: async () => {},
+      }),
+    };
+    const documentGrounding = { documents: [{ ref: "file:x.md", title: "x.md", text: "DOC-MARKER", truncated: false, originalLength: 10 }] };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 63, method: "ai.generate", params: { draftId: "d-docs", prose: "Anything", documentGrounding } }), ai);
+    expect(prompts[0]).toContain("DOC-MARKER");
   });
 });

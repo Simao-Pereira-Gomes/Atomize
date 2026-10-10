@@ -172,7 +172,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => v
           </div>
         </section>
         <aside class="space-y-4 lg:sticky lg:top-6 lg:h-fit">
-          <ImproveWithAI stores={stores} ready={allSectionsValid} sidecarAvailable={props.sidecarAvailable} grounding={grounding} />
+          <ImproveWithAI stores={stores} ready={allSectionsValid} sidecarAvailable={props.sidecarAvailable} grounding={grounding} openFilePath={props.openFilePath} />
           <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <p class="text-xs font-bold tracking-widest text-slate-500 uppercase dark:text-slate-400">Template health</p>
             <p class="mt-3 text-3xl font-bold text-slate-950 dark:text-white">
