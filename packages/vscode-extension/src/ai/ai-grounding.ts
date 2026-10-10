@@ -16,6 +16,8 @@ export interface AIGroundingDeps {
 export interface AIGrounding {
 	projectGrounding: ProjectGrounding | null;
 	storyGrounding: StoryGrounding | null;
+	/** The chosen profile's connection, reused for reading wiki Reference Documents. */
+	adapter?: IPlatformAdapter;
 }
 
 export interface AIGroundingOptions {
@@ -85,6 +87,7 @@ export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGround
 				async () => ({
 					projectGrounding: await fetchProjectGrounding(connected),
 					storyGrounding: ids.length > 0 ? await fetchStoryGrounding(connected, ids, { includeSensitive }) : null,
+					adapter: connected,
 				}),
 			);
 		} catch (error) {

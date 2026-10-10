@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { type ImproveResult, improveTemplate } from '@sppg2001/atomize-core/services/template/ai-template-loop';
 import { MAX_ATTEMPTS } from '@sppg2001/atomize-core/services/template/llm-template-generator';
+import type { DocumentGrounding } from '@sppg2001/atomize-core/services/template/reference-documents';
 import { applyProposalToYaml } from '@sppg2001/atomize-core/services/template/template-writeback';
 import type { TaskTemplate } from '@sppg2001/atomize-core/templates/schema';
 import { CancellationError } from '@sppg2001/atomize-core/utils/errors';
@@ -13,6 +14,7 @@ import { type AIGrounding, type AIGroundingDeps, chooseAIGrounding } from './ai-
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
 import { catalogRefFor, improvedCopyContent, reviewMessage } from './improvement-proposal.js';
+import { chooseReferenceDocuments } from './reference-documents-step.js';
 
 const TITLE = 'Atomize: Improve Template with AI';
 /** Context key listing open proposal documents, so the diff's title-bar actions appear only on them. */
@@ -78,12 +80,14 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		purpose: 'The improvement',
 	});
 	if (grounding === 'cancelled') return;
+	const documentGrounding = await chooseReferenceDocuments({ title: TITLE, resource: doc.uri, adapter: grounding.adapter });
+	if (documentGrounding === undefined) return;
 
 	let prepared: { sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined;
 	try {
 		prepared = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: TITLE, cancellable: true },
-			(progress, token) => runImprovement({ path, guidance, library, resolvedTemplate, grounding }, progress, token),
+			(progress, token) => runImprovement({ path, guidance, library, resolvedTemplate, grounding, documentGrounding }, progress, token),
 		);
 	} catch (error) {
 		if (error instanceof AIUnavailableError) {
@@ -121,7 +125,7 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 
 /** Runs the improvement, resolving undefined when the user cancelled. */
 async function runImprovement(
-	request: { path: string; guidance: string; library: ReturnType<typeof createTemplateLibrary>; resolvedTemplate: TaskTemplate; grounding: AIGrounding },
+	request: { path: string; guidance: string; library: ReturnType<typeof createTemplateLibrary>; resolvedTemplate: TaskTemplate; grounding: AIGrounding; documentGrounding: DocumentGrounding | null },
 	progress: vscode.Progress<{ message?: string }>,
 	token: vscode.CancellationToken,
 ): Promise<{ sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined> {
@@ -131,7 +135,7 @@ async function runImprovement(
 		cancellation.abort();
 		session?.abort();
 	});
-	const { path, guidance, library, resolvedTemplate, grounding } = request;
+	const { path, guidance, library, resolvedTemplate, grounding, documentGrounding } = request;
 	try {
 		progress.report({ message: 'Reading the Template…' });
 		const [sourceText, catalog] = await Promise.all([readFile(path, 'utf8'), library.getCatalog('template')]);
@@ -148,6 +152,7 @@ async function runImprovement(
 			guidance: guidance.trim() || null,
 			projectGrounding: grounding.projectGrounding,
 			storyGrounding: grounding.storyGrounding,
+			documentGrounding,
 			compose: proposal => library.composeTemplate(proposal, path),
 		}, {
 			signal: cancellation.signal,

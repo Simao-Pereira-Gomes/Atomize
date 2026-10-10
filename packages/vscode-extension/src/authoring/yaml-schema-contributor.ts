@@ -79,4 +79,26 @@ export async function registerYamlSchemaContributor(ctx: vscode.ExtensionContext
 		},
 		(uri: string) => uri === schemaFileUri ? schemaContent : undefined,
 	);
+
+	registerAIConfigSchema(ctx, api);
+}
+
+const AI_CONFIG_PATTERN = /\/\.atomize\/ai\.ya?ml$/;
+
+/** Completion and validation for `.atomize/ai.yaml`, the Project Reference Documents file (ADR-0070). */
+function registerAIConfigSchema(ctx: vscode.ExtensionContext, api: YamlSchemaContributorAPI): void {
+	const schemaPath = vscode.Uri.joinPath(ctx.extensionUri, 'schemas', 'atomize-ai-config.schema.json');
+	let schemaContent: string;
+	try {
+		schemaContent = readFileSync(schemaPath.fsPath, 'utf8');
+	} catch {
+		return;
+	}
+	const schemaFileUri = schemaPath.toString();
+	api.registerContributor(
+		'atomize-ai-config',
+		(resource: string) => (AI_CONFIG_PATTERN.test(resource) ? schemaFileUri : undefined),
+		(uri: string) => (uri === schemaFileUri ? schemaContent : undefined),
+		'Atomize AI settings',
+	);
 }

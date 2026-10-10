@@ -141,8 +141,9 @@ Drafts a new Template from a description, using the GitHub Copilot account you'r
 
 1. Describe the Template you need. The box is pre-filled with your last description from this session. For a longer description, use the **Open in editor** button: your text moves into an untitled Markdown prompt document, where you can write as much as you like. When you're ready, choose **Atomize: Draft Template with AI** at the top of that document.
 2. Choose how to ground the draft: a Connection Profile, with your workspace default selected first, or **No project grounding**. With a profile, Atomize reads that project's work item types, states, fields and allowed values, saved queries, and area and iteration paths, and Copilot uses only those names instead of inventing its own. The [Story Browser](#choosing-stories-the-story-browser) then opens in Search, so you can optionally tick example Stories your team broke down well. Copilot follows the conventions they show (how Tasks are named, how estimates are split, which review or test steps you always include) while writing the Template you described. Press Enter with none ticked to skip this. If you tick Stories, choose whether to also send their descriptions and acceptance criteria. They're left out unless you say so, and the choice applies to this run only. The profile's token is used only to read from Azure DevOps and is never sent to Copilot. If grounding can't be loaded, you choose whether to retry, continue without grounding, or cancel. If you have no profiles yet, you can add one from here.
-3. Atomize writes the draft with Copilot, checks it against the Template schema, and asks Copilot to fix any problems, up to three attempts. Cancel from the progress notification at any time.
-4. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog until you save it there. If problems remain after three attempts, they're listed as comments at the top of the file.
+3. Choose the **Reference Documents** to send, described below.
+4. Atomize writes the draft with Copilot, checks it against the Template schema, and asks Copilot to fix any problems, up to three attempts. Cancel from the progress notification at any time.
+5. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog until you save it there. If problems remain after three attempts, they're listed as comments at the top of the file.
 
 To try again, run the command again. To discard a draft, close it without saving.
 
@@ -159,9 +160,10 @@ Asks Copilot to propose a revision of the open Template, and shows it in VS Code
    - The [Story Browser](#choosing-stories-the-story-browser) then opens on Stories this Template was applied to: those its filter matches that already have Tasks, newest first, up to 30. The Template's `excludeIfHasTasks` is ignored here, since it would hide exactly these Stories. Tick the ones to learn from. Copilot compares each Story with the Tasks it ended up with, so Tasks people added, renamed or re-estimated show where the Template doesn't fit. Switch to Search for other Stories, or press Enter with none ticked to use project metadata only.
    - If you tick Stories, choose whether to also send their descriptions and acceptance criteria. They can contain customer, personal or internal details, so they're left out unless you say so, and the choice applies to this run only.
    - The profile's token is used only to read from Azure DevOps and is never sent to Copilot. If grounding can't be loaded, you choose whether to retry, pick other Stories (when a chosen Story can't be used), continue without grounding, or cancel.
-4. Copilot reviews the Template. You can cancel from the progress notification.
-5. The diff opens with your file on the left and Copilot's proposal on the right. Only real changes show: your comments, key order and formatting are kept wherever the content didn't change. A notification lists Copilot's notes on what it changed and why.
-6. You can edit the right-hand side before deciding. Then use the buttons in the editor title bar:
+4. Choose the **Reference Documents** to send, described below.
+5. Copilot reviews the Template. You can cancel from the progress notification.
+6. The diff opens with your file on the left and Copilot's proposal on the right. Only real changes show: your comments, key order and formatting are kept wherever the content didn't change. A notification lists Copilot's notes on what it changed and why.
+7. You can edit the right-hand side before deciding. Then use the buttons in the editor title bar:
    - **Accept Improvement** puts the right-hand side, including your edits, into your file as a single change you can undo. The file is left unsaved, so save it when you're happy.
    - **Save Improvement as New Template** opens the proposal as a new, unsaved Template named "*Name* (improved)", leaving your file as it was. When your file is a Catalog Template, the copy records it as its `origin`.
    - **Reject Improvement** closes the diff and leaves your file unchanged.
@@ -169,6 +171,19 @@ Asks Copilot to propose a revision of the open Template, and shows it in VS Code
 For a Template that uses `extends` or Mixins, Copilot sees the composed Template but never changes `extends`, Mixin references or `origin`, and never copies inherited Tasks into your file. When an inherited Task deserves a change, Copilot says so in its notes so you can change the parent or Mixin yourself. The proposal is validated composed with its parent, exactly as it will run. If Copilot can't fix every problem in its proposal, the notification lists what's left to fix.
 
 Atomize never writes to your Catalog.
+
+### Reference Documents
+
+Draft and Improve can send your team's written process to Copilot as **Reference Documents**. Copilot treats them as reference material, never as instructions. After you choose grounding, a list shows the Project Reference Documents saved in `.atomize/ai.yaml`, all ticked. Untick any to leave them out of this run, then press Enter. The title-bar buttons add more:
+
+- **Add a local Markdown or text file**: a file dialog for `.md` and `.txt` files. They must be inside your workspace, and files reached through a link that points outside it are refused.
+- **Add an Azure DevOps wiki page**: available when you chose a Connection Profile for grounding. Pick the wiki, then filter its page paths and pick the pages. Only each page itself is read: no sub-pages, links, images or attachments.
+
+After adding documents, choose **Use for this run only** or **Also save for this project**, which adds them to `.atomize/ai.yaml` for everyone working in the repo. Editing `ai.yaml` by hand gives you completion and validation.
+
+A saved wiki page is used only when your Connection Profile reaches that wiki's project; otherwise it's left out as unavailable for that profile. If your token can't read wikis, Atomize asks you to rotate it with the optional **Wiki (Read)** scope from Manage Profiles, and local files keep working.
+
+All Reference Documents together are limited to about 24,000 characters, split evenly between them. If any have to be shortened, Atomize tells you before sending, and you can continue or leave some out.
 
 ### Atomize: Show Effective Template
 

@@ -1,5 +1,6 @@
 import { draftTemplate } from '@sppg2001/atomize-core/services/template/ai-template-loop';
 import { MAX_ATTEMPTS } from '@sppg2001/atomize-core/services/template/llm-template-generator';
+import type { DocumentGrounding } from '@sppg2001/atomize-core/services/template/reference-documents';
 import { CancellationError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
 import { getAIModel } from '../config/atomize-configuration.js';
@@ -8,6 +9,7 @@ import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from '.
 import { languageModels, offerFix } from './copilot-support.js';
 import { draftDocumentContent } from './draft-document.js';
 import { isPromptDocument, promptDocumentContent, promptDocumentDescription } from './prompt-document.js';
+import { chooseReferenceDocuments } from './reference-documents-step.js';
 
 const TITLE = 'Atomize: Draft Template with AI';
 const COMMAND = 'atomize.draftTemplateWithAI';
@@ -45,12 +47,14 @@ async function draftTemplateWithAI(deps: DraftCommandDeps, promptDocument?: vsco
 		purpose: 'The draft',
 	});
 	if (grounding === 'cancelled') return;
+	const documentGrounding = await chooseReferenceDocuments({ title: TITLE, resource: promptDocument ?? vscode.window.activeTextEditor?.document.uri, adapter: grounding.adapter });
+	if (documentGrounding === undefined) return;
 
 	let content: string | undefined;
 	try {
 		content = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: TITLE, cancellable: true },
-			(progress, token) => runDraft(description, grounding, progress, token),
+			(progress, token) => runDraft(description, { ...grounding, documentGrounding }, progress, token),
 		);
 	} catch (error) {
 		if (error instanceof AIUnavailableError) {
@@ -114,7 +118,7 @@ async function describeFromDocument(uri: vscode.Uri): Promise<string | undefined
 /** Resolves the draft's document text, or undefined when the user cancelled. */
 async function runDraft(
 	description: string,
-	grounding: AIGrounding,
+	grounding: AIGrounding & { documentGrounding: DocumentGrounding | null },
 	progress: vscode.Progress<{ message?: string }>,
 	token: vscode.CancellationToken,
 ): Promise<string | undefined> {
@@ -131,7 +135,12 @@ async function runDraft(
 
 		let received = 0;
 		progress.report({ message: `Writing with ${session.modelName}…` });
-		const result = await draftTemplate(session, { prose: description, ...grounding }, {
+		const result = await draftTemplate(session, {
+			prose: description,
+			projectGrounding: grounding.projectGrounding,
+			storyGrounding: grounding.storyGrounding,
+			documentGrounding: grounding.documentGrounding,
+		}, {
 			signal: cancellation.signal,
 			onChunk: chunk => {
 				received += chunk.length;

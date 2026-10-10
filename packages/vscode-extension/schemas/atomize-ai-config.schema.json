@@ -1,0 +1,32 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://atomize.dev/schemas/atomize-ai-config.schema.json",
+	"title": "Atomize project AI settings (.atomize/ai.yaml)",
+	"description": "Project-level AI settings shared by everyone working in this workspace. See ADR-0070.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"referenceDocuments": {
+			"description": "Project Reference Documents: written accounts of how the team breaks down and estimates work. Every AI draft or improvement offers them ticked, and each run can leave any out. They are sent as reference material, never as instructions.",
+			"type": "array",
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"anyOf": [
+					{
+						"pattern": "^file:.+\\.(md|txt|MD|TXT)$",
+						"description": "A Markdown or text file inside the Workspace Root, relative to it, e.g. file:docs/how-we-work.md"
+					},
+					{
+						"pattern": "^wiki:[^/]+/.+$",
+						"description": "An Azure DevOps wiki page, e.g. wiki:Team.wiki/Process/How we work. Read through the run's Connection Profile, and used only when that profile reaches the wiki's project."
+					}
+				],
+				"defaultSnippets": [
+					{ "label": "Local file", "body": "file:${1:docs/how-we-work.md}" },
+					{ "label": "Wiki page", "body": "wiki:${1:Team.wiki}/${2:Process/How we work}" }
+				]
+			}
+		}
+	}
+}
