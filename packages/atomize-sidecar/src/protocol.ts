@@ -6,6 +6,7 @@ import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/co
 import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
+import { type StorySummary, searchStories } from "@sppg2001/atomize-core/services/story-search";
 import { draftTemplate, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import {
   fetchProjectGrounding,
@@ -13,6 +14,7 @@ import {
   type ProjectGroundingErrorCode,
   toProjectGroundingError,
 } from "@sppg2001/atomize-core/services/template/project-grounding";
+import { fetchStoryGrounding, type StoryGrounding, toStoryGroundingError } from "@sppg2001/atomize-core/services/template/story-grounding";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
@@ -31,7 +33,11 @@ export type RpcNotification =
 export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
-export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
+export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; storyGrounding?: unknown };
+/** A Story Search for the Story Browser's Search mode; the connection carries a Rust-injected token. */
+export type StorySearchParams = { connection: GroundingConnection; search: Record<string, unknown> };
+/** Example or applied Stories to ground an AI request in, as Story Grounding. */
+export type StoryGroundingParams = { connection: GroundingConnection; storyIds: string[]; includeSensitive?: boolean };
 export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown };
 /** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
 export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
@@ -40,6 +46,8 @@ export type GenerateRunParams = { runId: string; source: string; connection: Gro
 export type SidecarServices = {
   library: SidecarTemplateLibrary;
   fetchGrounding: (connection: GroundingConnection) => Promise<ProjectGrounding>;
+  searchStories: (params: StorySearchParams) => Promise<{ stories: StorySummary[] }>;
+  fetchStoryGrounding: (params: StoryGroundingParams) => Promise<StoryGrounding>;
   validateOnline: (params: OnlineValidationParams, signal: AbortSignal) => Promise<TemplateVerificationResult>;
   queryGenerateStories: (params: GenerateQueryStoriesParams) => Promise<{ stories: WorkItem[] }>;
   runGenerate: (params: GenerateRunParams, signal: AbortSignal) => Promise<{ report: AtomizationReport }>;
@@ -73,6 +81,8 @@ export function createSidecarServices(library = createTemplateLibrary()): Sideca
   return {
     library,
     fetchGrounding,
+    searchStories: searchStoriesFor,
+    fetchStoryGrounding: fetchStoryGroundingFor,
     validateOnline,
     queryGenerateStories: (params) => queryGenerateStories(params, library),
     runGenerate: (params, signal) => runGenerate(params, library, notify, signal),
@@ -175,7 +185,11 @@ async function withAISession<T>(
 
 async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; errors?: string[] }> {
   const result = await withAISession(params.draftId, services, (session, options) =>
-    draftTemplate(session, { prose: params.prose, projectGrounding: params.grounding as ProjectGrounding | undefined }, options));
+    draftTemplate(session, {
+      prose: params.prose,
+      projectGrounding: params.grounding as ProjectGrounding | undefined,
+      storyGrounding: params.storyGrounding as StoryGrounding | undefined,
+    }, options));
   if (result.ok) return { template: result.template as unknown as Record<string, unknown> };
   // A Template-shaped draft that still fails validation stays editable in Studio, where its errors show.
   if (result.template) return { template: result.template, errors: result.errors };
@@ -237,6 +251,58 @@ export async function fetchGrounding(connection: GroundingConnection): Promise<P
     const { code } = toProjectGroundingError(error);
     throw Object.assign(new Error(GROUNDING_MESSAGES[code]), { code });
   }
+}
+
+/** Runs a Story Search with only the search criteria Studio may set; the limit is capped by atomize-core. */
+export async function searchStoriesFor(params: StorySearchParams): Promise<{ stories: StorySummary[] }> {
+  try {
+    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
+    await adapter.authenticate();
+    const search = params.search;
+    const list = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined);
+    return {
+      stories: await searchStories(adapter, {
+        ...(typeof search.text === "string" ? { text: search.text } : {}),
+        ...(list(search.workItemTypes) ? { workItemTypes: list(search.workItemTypes) } : {}),
+        ...(list(search.states) ? { states: list(search.states) } : {}),
+        ...(list(search.areaPaths) ? { areaPaths: list(search.areaPaths) } : {}),
+        ...(list(search.iterations) ? { iterations: list(search.iterations) } : {}),
+        ...(typeof search.hasTasks === "boolean" ? { hasTasks: search.hasTasks } : {}),
+        ...(typeof search.limit === "number" ? { limit: search.limit } : {}),
+      }),
+    };
+  } catch (error) {
+    const classified = classifyGenerateAdapterError(error, "STORIES_TOKEN_EXPIRED", "STORIES_AUTH_FAILED", "STORIES_SEARCH_FAILED", "Atomize could not search Stories in Azure DevOps. Check the connection and try again.");
+    throw Object.assign(new Error(classified.message), { code: classified.code });
+  }
+}
+
+/** Reads Story Grounding; the codes are atomize-core's, so Studio treats them like Project Grounding failures. */
+export async function fetchStoryGroundingFor(params: StoryGroundingParams): Promise<StoryGrounding> {
+  try {
+    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
+    await adapter.authenticate();
+    return await fetchStoryGrounding(adapter, params.storyIds, { includeSensitive: params.includeSensitive === true });
+  } catch (error) {
+    const { code, message } = toStoryGroundingError(error);
+    throw Object.assign(new Error(message), { code });
+  }
+}
+
+function storySearchParams(params: unknown): StorySearchParams {
+  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<StorySearchParams>;
+  if (typeof value.search !== "object" || value.search === null || Array.isArray(value.search)) {
+    throw Object.assign(new Error("A Story Search needs search criteria."), { code: "INVALID_PARAMS" });
+  }
+  return { connection: groundingConnection(value.connection), search: value.search as Record<string, unknown> };
+}
+
+function storyGroundingParams(params: unknown): StoryGroundingParams {
+  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<StoryGroundingParams>;
+  if (!Array.isArray(value.storyIds) || value.storyIds.some((id) => typeof id !== "string")) {
+    throw Object.assign(new Error("Story Grounding needs a list of Story IDs."), { code: "INVALID_PARAMS" });
+  }
+  return { connection: groundingConnection(value.connection), storyIds: value.storyIds, includeSensitive: value.includeSensitive === true };
 }
 
 async function resolveGenerateTemplate(source: string, library: SidecarTemplateLibrary): Promise<TaskTemplate> {
@@ -459,6 +525,8 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
       return await library.installTemplate({ source: { content, name }, scope, overwrite });
     })
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
+    .with("stories.search", () => services.searchStories(storySearchParams(request.params)))
+    .with("grounding.stories", () => services.fetchStoryGrounding(storyGroundingParams(request.params)))
     .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
     .with("ai.improve", () => improveDraft(aiImproveParams(request.params), services))

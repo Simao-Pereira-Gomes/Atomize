@@ -3,9 +3,11 @@ import { type Accessor, createSignal, For, Match, Show, Switch } from "solid-js"
 import { type AzureDevOpsProfile, listAzureDevOpsProfiles } from "../connections/connection-client";
 import { openLocalFile } from "../files/open";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { cancelAIDraft, checkCopilotAuthStatus, generateAIDraft, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
+import { cancelAIDraft, checkCopilotAuthStatus, generateAIDraft, listenAIDraftProgress, loadStoryGrounding, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
 import { createAIDraftLifecycle } from "../starting-paths/ai-draft-lifecycle";
+import type { StoryRow } from "../stories/story-browser-model";
+import { StoryBrowser } from "./StoryBrowser";
 
 type AIState = "idle" | "form" | "grounding-error" | "generating" | "cancelling" | "auth-error" | "error";
 
@@ -29,6 +31,29 @@ export function StartingPathPicker(props: {
   const [aiError, setAiError] = createSignal("");
   const [draftId, setDraftId] = createSignal("");
   const [streamLength, setStreamLength] = createSignal(0);
+  // Optional example Stories (ADR-0069): only when a Work Project is chosen, never picked for the user.
+  const [examplesOpen, setExamplesOpen] = createSignal(false);
+  const [examples, setExamples] = createSignal<StoryRow[]>([]);
+  const [includeSensitive, setIncludeSensitive] = createSignal(false);
+  const [projectChoices, setProjectChoices] = createSignal<{ profile: string; options: GroundedFieldOptions } | undefined>();
+  const [groundingMessage, setGroundingMessage] = createSignal("");
+  const choicesFor = async (name: string) => {
+    const cached = projectChoices();
+    if (cached?.profile === name) return cached.options;
+    const options = await loadGroundedFieldOptions(name);
+    setProjectChoices({ profile: name, options });
+    return options;
+  };
+  const chooseProfile = (name: string) => {
+    setProfile(name);
+    setExamples([]);
+    setExamplesOpen(false);
+    setIncludeSensitive(false);
+  };
+  const openExamples = () => {
+    setExamplesOpen(true);
+    void choicesFor(profile()).catch(() => {});
+  };
   // Diminishing-returns curve over streamed character count: honest ("still working,
   // getting close") without ever claiming completion before the sidecar call resolves.
   const progressPercent = () => streamLength() === 0 ? 8 : Math.min(92, Math.round((streamLength() / (streamLength() + 400)) * 100));
@@ -68,15 +93,22 @@ export function StartingPathPicker(props: {
     const id = draftLifecycle.begin(); setDraftId(id); setAiState("generating"); setAiError(""); setStreamLength(0);
     const unlisten = await listenAIDraftProgress((progress) => { if (progress.draftId === id) setStreamLength(progress.length); });
     try {
-      const grounding = !withoutProject && profile() ? await loadGroundedFieldOptions(profile()) : undefined;
+      const grounding = !withoutProject && profile() ? await choicesFor(profile()) : undefined;
       if (!draftLifecycle.isActive(id)) return;
-      const result = await generateAIDraft(id, prose(), grounding);
+      const storyGrounding = grounding && examples().length > 0
+        ? await loadStoryGrounding(profile(), examples().map((story) => story.id), includeSensitive())
+        : undefined;
+      if (!draftLifecycle.isActive(id)) return;
+      const result = await generateAIDraft(id, prose(), grounding, storyGrounding);
       if (!draftLifecycle.isActive(id)) return;
       props.onAIDraft(parseAIDraftResponse(result), withoutProject ? "" : profile(), grounding);
     } catch (error) {
       if (!draftLifecycle.isActive(id)) return;
       const code = error instanceof SidecarRequestError ? error.code : "";
-      if (code.startsWith("GROUNDING_") || error instanceof Error && error.name === "ProjectConnectionError") setAiState("grounding-error");
+      if (code.startsWith("GROUNDING_") || error instanceof Error && error.name === "ProjectConnectionError") {
+        setGroundingMessage(error instanceof Error ? error.message : "");
+        setAiState("grounding-error");
+      }
       else if (code === "COPILOT_AUTH_REQUIRED") setAiState("auth-error");
       else if (code === "AI_DRAFT_CANCELLED") setAiState("form");
       else { setAiState("error"); setAiError(error instanceof Error ? error.message : "We could not create a draft."); }
@@ -138,10 +170,38 @@ export function StartingPathPicker(props: {
               </div>
               <aside class="min-w-0 border-t border-slate-200 bg-slate-50 p-6 dark:border-slate-800 dark:bg-slate-950 md:border-t-0 md:border-l">
                 <p class="text-sm font-bold">Draft context</p>
-                <label class="mt-4 block min-w-0 text-sm font-semibold">Work Project <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span><select class="mt-2 block w-full min-w-0 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal dark:border-slate-700 dark:bg-slate-950" value={profile()} disabled={aiState() === "generating" || aiState() === "cancelling"} onChange={(event) => setProfile(event.currentTarget.value)}><option value="">No Work Project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.name}</option>}</For></select></label>
+                <label class="mt-4 block min-w-0 text-sm font-semibold">Work Project <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span><select class="mt-2 block w-full min-w-0 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal dark:border-slate-700 dark:bg-slate-950" value={profile()} disabled={aiState() === "generating" || aiState() === "cancelling"} onChange={(event) => chooseProfile(event.currentTarget.value)}><option value="">No Work Project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.name}</option>}</For></select></label>
                 <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options, never its credentials.</p>
+                <Show when={profile()}>
+                  <section class="mt-5">
+                    <p class="text-sm font-semibold">Example Stories <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span></p>
+                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Stories your team broke down well. Copilot follows their Task naming, estimate splits, and review steps.</p>
+                    <Show
+                      when={examplesOpen()}
+                      fallback={<button class="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700" type="button" disabled={aiState() === "generating" || aiState() === "cancelling"} onClick={openExamples}>{examples().length > 0 ? `${examples().length} chosen — change` : "Choose example Stories"}</button>}
+                    >
+                      <div class="mt-2">
+                        <StoryBrowser
+                          profile={profile}
+                          choices={() => projectChoices()?.profile === profile() ? projectChoices()?.options : undefined}
+                          selected={examples}
+                          onChange={setExamples}
+                          hasTasksByDefault
+                          disabled={() => aiState() === "generating" || aiState() === "cancelling"}
+                        />
+                        <button class="mt-2 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" type="button" onClick={() => setExamplesOpen(false)}>Done</button>
+                      </div>
+                    </Show>
+                    <Show when={examples().length > 0}>
+                      <label class="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" class="mt-0.5" checked={includeSensitive()} disabled={aiState() === "generating" || aiState() === "cancelling"} onChange={(event) => setIncludeSensitive(event.currentTarget.checked)} />
+                        Also send their descriptions and acceptance criteria. They can contain customer, personal, or internal details. Applies to this draft only.
+                      </label>
+                    </Show>
+                  </section>
+                </Show>
                 <Switch>
-                  <Match when={aiState() === "grounding-error"}><section class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-50"><p class="font-bold">Couldn’t load Work Project context</p><p class="mt-1 text-sm leading-6">Your description is unchanged. Retry the connection, or explicitly continue without project context.</p><div class="mt-4 flex flex-wrap gap-2"><button class="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry connection</button><button class="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold dark:border-amber-700" type="button" onClick={() => void generate(true)}>Draft without project context</button></div></section></Match>
+                  <Match when={aiState() === "grounding-error"}><section class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-50"><p class="font-bold">Couldn’t load Work Project context</p><Show when={groundingMessage()}><p class="mt-1 text-sm leading-6">{groundingMessage()}</p></Show><p class="mt-1 text-sm leading-6">Your description is unchanged. Retry the connection, or explicitly continue without project context.</p><div class="mt-4 flex flex-wrap gap-2"><button class="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry connection</button><button class="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold dark:border-amber-700" type="button" onClick={() => void generate(true)}>Draft without project context</button></div></section></Match>
                   <Match when={aiState() === "auth-error"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">Sign in to GitHub Copilot</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">Run <code>gh auth login</code> in a terminal on this computer, then retry your preserved draft. Atomize does not store a Copilot token.</p><button class="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={() => void generate()}>Retry after sign-in</button></section></Match>
                   <Match when={aiState() === "generating" || aiState() === "cancelling"}><section class="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/50"><p class="font-bold text-indigo-950 dark:text-indigo-50">{aiState() === "cancelling" ? "Cancelling draft…" : "Creating your AI draft…"}</p><p class="mt-1 text-sm leading-6 text-indigo-900 dark:text-indigo-100">{aiState() === "cancelling" ? "Waiting for Copilot to acknowledge cancellation." : "Copilot is preparing a Template. Output will open in the authoring surface for review."}</p><div class="mt-4 h-1.5 overflow-hidden rounded-full bg-indigo-200 dark:bg-indigo-950"><div class="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${progressPercent()}%` }} /></div><Show when={aiState() === "generating"}><button class="mt-4 rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-800 dark:border-indigo-700 dark:text-indigo-100" type="button" onClick={() => void cancel()}>Cancel draft</button></Show></section></Match>
                 </Switch>

@@ -89,6 +89,15 @@ The AI draft Starting Path uses a **Copilot Session** — an ephemeral, tool-fre
 
 If you've selected a Connection Profile in the [Work Project Setting](#work-project-setting), Studio can ground the draft with curated Azure DevOps metadata — work item types, field names and allowed values, saved-query and path names — sent to Copilot alongside your prose. Your connection's access token itself is never sent. An explicitly ungrounded draft sends neither metadata nor credentials.
 
+With a Work Project chosen, you can also add **example Stories**: Stories your team broke down well. Copilot follows the conventions they show (Task naming, estimate splits, the review and test steps you always include) while writing the Template you described. Choose **Choose example Stories** to open the Story Browser in Search mode:
+
+- Search by Story ID or title.
+- Narrow by type, state, area path or iteration. Area paths and iterations include everything below them.
+- Keep **Only Stories that already have Tasks** on, so only Stories that were actually broken down are listed.
+- Tick the ones you want. Ticks stay while you change the search, and **Load more** shows the next 50.
+
+By default only titles, states, estimates and Task activity are sent. Tick **Also send their descriptions and acceptance criteria** to include those for this draft only, since they can contain customer, personal or internal details. Studio never picks example Stories for you, and the profile's token stays in Studio's backend. If the Stories can't be loaded, for example because one has no Tasks, the draft stops and tells you why, so you can retry or continue without project context.
+
 Copilot checks its draft against the Template schema and fixes problems before you see it, up to three attempts. A draft that still has problems after that enters the authoring surface with its field-level errors shown, so you can fix them yourself. Output that isn't Template-shaped at all is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
 
 ### Improve with AI

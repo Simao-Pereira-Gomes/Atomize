@@ -81,8 +81,20 @@ export async function cancelOnlineValidation(validationId: string, call: Sidecar
   catch (error) { throw sidecarError(error); }
 }
 
-export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
-  try { return await call("ai_generate", { draftId, prose, grounding }); }
+export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, storyGrounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("ai_generate", { draftId, prose, grounding, storyGrounding }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Runs a Story Search for the Story Browser's Search mode; Rust injects the profile's token. */
+export async function searchStories(profile: string, search: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("stories_search", { profile, search }); }
+  catch (error) { throw sidecarError(error); }
+}
+
+/** Loads Story Grounding for chosen Stories; descriptions and acceptance criteria only when opted in. */
+export async function loadStoryGrounding(profile: string, storyIds: string[], includeSensitive: boolean, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("story_grounding_load", { profile, storyIds, includeSensitive }); }
   catch (error) { throw sidecarError(error); }
 }
 

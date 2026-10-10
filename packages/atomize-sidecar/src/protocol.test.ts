@@ -20,6 +20,8 @@ const services: SidecarServices = {
     },
   },
   fetchGrounding: async () => ({}) as ProjectGrounding,
+  searchStories: async () => ({ stories: [] }),
+  fetchStoryGrounding: async () => ({ stories: [], includesSensitiveContext: false }),
   validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, hasEstimationMapping: false, needsOnlineVerification: false } }),
   queryGenerateStories: async () => ({ stories: [] }),
   runGenerate: async () => {
@@ -549,5 +551,55 @@ describe("AI improve protocol", () => {
   it("rejects a request without a Template", async () => {
     await expect(handleLine('{"jsonrpc":"2.0","id":33,"method":"ai.improve","params":{"draftId":"improve-3"}}', services))
       .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+  });
+});
+
+describe("Story Browser and Story Grounding protocol", () => {
+  const connection = { organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" };
+
+  it("passes a Story Search and its resolved connection through", async () => {
+    let received: unknown;
+    const searching: SidecarServices = { ...services, searchStories: async (params) => { received = params; return { stories: [{ id: "42", title: "Login", type: "User Story", state: "Active", taskCount: 2 }] }; } };
+    const line = JSON.stringify({ jsonrpc: "2.0", id: 40, method: "stories.search", params: { connection, search: { text: "login", hasTasks: true } } });
+    await expect(handleLine(line, searching)).resolves.toEqual({
+      jsonrpc: "2.0", id: 40, result: { stories: [{ id: "42", title: "Login", type: "User Story", state: "Active", taskCount: 2 }] },
+    });
+    expect(received).toEqual({ connection, search: { text: "login", hasTasks: true } });
+  });
+
+  it("passes chosen Story IDs and the sensitive opt-in to Story Grounding", async () => {
+    let received: unknown;
+    const grounding: SidecarServices = { ...services, fetchStoryGrounding: async (params) => { received = params; return { stories: [], includesSensitiveContext: true }; } };
+    const line = JSON.stringify({ jsonrpc: "2.0", id: 41, method: "grounding.stories", params: { connection, storyIds: ["42"], includeSensitive: true } });
+    await expect(handleLine(line, grounding)).resolves.toMatchObject({ result: { includesSensitiveContext: true } });
+    expect(received).toEqual({ connection, storyIds: ["42"], includeSensitive: true });
+  });
+
+  it("leaves Sensitive AI Context out unless explicitly opted in", async () => {
+    let received: { includeSensitive?: boolean } | undefined;
+    const grounding: SidecarServices = { ...services, fetchStoryGrounding: async (params) => { received = params; return { stories: [], includesSensitiveContext: false }; } };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 42, method: "grounding.stories", params: { connection, storyIds: ["42"] } }), grounding);
+    expect(received?.includeSensitive).toBe(false);
+  });
+
+  it("rejects requests without a resolved connection", async () => {
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 43, method: "stories.search", params: { search: {} } }), services))
+      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+  });
+
+  it("sends example Stories with an AI draft", async () => {
+    const prompts: string[] = [];
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({
+        generate: async (_system, user) => { prompts.push(user); return "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n"; },
+        abort: async () => {}, dispose: async () => {},
+      }),
+    };
+    const storyGrounding = { stories: [{ id: "7", title: "EXAMPLE-MARKER", type: "Bug", state: "Done", tasks: [] }], includesSensitiveContext: false };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 44, method: "ai.generate", params: { draftId: "d-examples", prose: "Bug triage", storyGrounding } }), ai);
+    expect(prompts[0]).toContain("EXAMPLE-MARKER");
   });
 });
