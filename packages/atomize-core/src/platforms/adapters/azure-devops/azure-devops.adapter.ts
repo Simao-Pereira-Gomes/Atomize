@@ -18,6 +18,7 @@ import type {
   PlatformConfig,
   PlatformMetadata,
   SavedQueryInfo,
+  WikiInfo,
 } from "../../interfaces/platform.interface";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
@@ -202,6 +203,42 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       return entry;
     }));
     return [...new Set(perType.flat())];
+  }
+
+  async listWikis(): Promise<WikiInfo[]> {
+    const wikiApi = await this.wikiApi();
+    const wikis = await wikiApi.getAllWikis(this.config.project);
+    return wikis
+      .filter((wiki) => wiki.name && wiki.id)
+      .map((wiki) => ({ id: wiki.id as string, name: wiki.name as string }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async listWikiPages(wiki: string): Promise<string[]> {
+    const wikiApi = await this.wikiApi();
+    const paths: string[] = [];
+    let continuationToken: string | undefined;
+    // The batch endpoint pages at most 100 at a time; stop at a sane ceiling for very large wikis.
+    do {
+      const page = await wikiApi.getPagesBatch({ top: 100, continuationToken }, this.config.project, wiki);
+      paths.push(...page.map((detail) => detail.path).filter((path): path is string => !!path && path !== "/"));
+      continuationToken = page.continuationToken;
+    } while (continuationToken && paths.length < 5000);
+    return paths.sort((a, b) => a.localeCompare(b));
+  }
+
+  async readWikiPage(wiki: string, pagePath: string): Promise<string> {
+    const wikiApi = await this.wikiApi();
+    const stream = await wikiApi.getPageText(this.config.project, wiki, pagePath, undefined, undefined, true);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    return Buffer.concat(chunks).toString("utf8");
+  }
+
+  private async wikiApi() {
+    this.ensureAuthenticated();
+    if (!this.connection) throw new UnknownError("Not connected to Azure DevOps");
+    return this.connection.getWikiApi();
   }
 
   /**

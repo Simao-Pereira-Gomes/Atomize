@@ -1,6 +1,9 @@
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isMap, isSeq, parseDocument, YAMLSeq } from "yaml";
+import { hasWikiReader } from "../../platforms/capabilities";
+import type { IPlatformAdapter, WikiInfo } from "../../platforms/interfaces/platform.interface";
+import { getErrorMessage } from "../../utils/errors";
 
 /** The total size of Document Grounding on every surface, so a document behaves the same everywhere (ADR-0069). */
 export const DOCUMENT_GROUNDING_LIMIT = 24_000;
@@ -14,7 +17,12 @@ export type ReferenceDocumentErrorCode =
   | "REFERENCE_INVALID"
   | "REFERENCE_OUTSIDE_WORKSPACE"
   | "REFERENCE_UNSUPPORTED_TYPE"
-  | "REFERENCE_NOT_FOUND";
+  | "REFERENCE_NOT_FOUND"
+  /** A wiki the run's Connection Profile doesn't reach; a saved entry is skipped, not a failure. */
+  | "REFERENCE_UNAVAILABLE"
+  /** The token can't read wikis: it needs the optional Wiki (Read) scope. */
+  | "REFERENCE_WIKI_ACCESS"
+  | "REFERENCE_READ_FAILED";
 
 export class ReferenceDocumentError extends Error {
   constructor(readonly code: ReferenceDocumentErrorCode, message: string) {
@@ -73,6 +81,67 @@ export async function loadLocalReference(workspaceRoot: string, path: string): P
 
   const relativePath = relative(root, actual).split(sep).join("/");
   return { ref: `file:${relativePath}`, title: basename(actual), text: await readFile(actual, "utf8") };
+}
+
+/** Lists a wiki's page paths, so the user can pick pages without copying URLs. */
+export async function listWikiPagePaths(platform: IPlatformAdapter, wiki: string): Promise<string[]> {
+  try {
+    if (!hasWikiReader(platform)) throw noWikis();
+    return await platform.listWikiPages(wiki);
+  } catch (error) {
+    throw toWikiError(error, `wiki:${wiki}`);
+  }
+}
+
+/** The wikis the Connection Profile's project has. */
+export async function listProjectWikis(platform: IPlatformAdapter): Promise<WikiInfo[]> {
+  try {
+    if (!hasWikiReader(platform)) throw noWikis();
+    return await platform.listWikis();
+  } catch (error) {
+    throw toWikiError(error, "this project's wikis");
+  }
+}
+
+/**
+ * Reads one Azure DevOps wiki page's Markdown as a Reference Document: never its sub-pages, the
+ * pages it links to, or its images and attachments. A wiki outside the profile's project is
+ * unavailable for that profile rather than an error the run must stop for.
+ */
+export async function loadWikiReference(platform: IPlatformAdapter, ref: Extract<ReferenceDocumentRef, { kind: "wiki" }>): Promise<ReferenceDocument> {
+  const entry = `wiki:${ref.wiki}${ref.pagePath}`;
+  try {
+    if (!hasWikiReader(platform)) throw noWikis();
+    const wikis = await platform.listWikis();
+    const wiki = wikis.find((candidate) => candidate.name === ref.wiki || candidate.id === ref.wiki);
+    if (!wiki) {
+      throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", `"${entry}" is in a wiki this Connection Profile's project doesn't have.`);
+    }
+    const text = await platform.readWikiPage(wiki.id, ref.pagePath);
+    return { ref: entry, title: ref.pagePath.split("/").filter(Boolean).pop() ?? ref.pagePath, text };
+  } catch (error) {
+    throw toWikiError(error, entry);
+  }
+}
+
+function noWikis(): ReferenceDocumentError {
+  return new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "This platform has no wikis to read Reference Documents from.");
+}
+
+function toWikiError(error: unknown, what: string): ReferenceDocumentError {
+  if (error instanceof ReferenceDocumentError) return error;
+  const status = typeof error === "object" && error !== null ? (error as { statusCode?: unknown; status?: unknown }).statusCode ?? (error as { status?: unknown }).status : undefined;
+  const message = getErrorMessage(error);
+  if (status === 401 || status === 403 || /unauthori[sz]ed|forbidden|TF400813|access denied/i.test(message)) {
+    return new ReferenceDocumentError(
+      "REFERENCE_WIKI_ACCESS",
+      "This Connection Profile's token can't read wikis. Rotate it with the Wiki (Read) scope added, or use local files instead.",
+    );
+  }
+  if (status === 404 || /not found|does not exist/i.test(message)) {
+    return new ReferenceDocumentError("REFERENCE_NOT_FOUND", `"${what}" wasn't found.`);
+  }
+  return new ReferenceDocumentError("REFERENCE_READ_FAILED", `Atomize could not read ${what}: ${message}`);
 }
 
 function isInside(root: string, path: string): boolean {

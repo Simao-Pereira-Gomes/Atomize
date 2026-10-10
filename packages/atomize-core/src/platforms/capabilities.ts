@@ -40,6 +40,14 @@ export function hasStorySearch(
   return hasPlatformMethod(platform, "searchStories");
 }
 
+export function hasWikiReader(
+  platform: IPlatformAdapter,
+): platform is IPlatformAdapter & Required<Pick<IPlatformAdapter, "listWikis" | "listWikiPages" | "readWikiPage">> {
+  return hasPlatformMethod(platform, "listWikis")
+    && hasPlatformMethod(platform, "listWikiPages")
+    && hasPlatformMethod(platform, "readWikiPage");
+}
+
 export function hasSavedQueryReader(
   platform: IPlatformAdapter,
 ): platform is IPlatformAdapter & Required<SavedQueryReader> {

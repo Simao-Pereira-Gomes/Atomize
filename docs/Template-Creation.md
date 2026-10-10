@@ -159,6 +159,14 @@ atomize template improve template:backend-api --reference docs/sizing.md --refer
 
 Reference Documents must be Markdown (`.md`) or text (`.txt`) files inside your workspace. Atomize refuses anything else, including files reached through a link that points outside the workspace. They need no Connection Profile. Copilot treats them as reference material about your process, never as instructions.
 
+If your process lives in an **Azure DevOps wiki**, use a page from it instead:
+
+```bash
+atomize template create --ai --reference "wiki:Team.wiki/Process/How we work" --profile work-ado
+```
+
+Atomize reads that page's Markdown through the Connection Profile, and only that page: no sub-pages, no pages it links to, and no images or attachments. In an interactive run, choose **Add an Azure DevOps wiki page…**, pick the wiki, then filter its page paths and pick the pages you want. Reading wikis needs the optional **Wiki (Read)** token scope. Without it, Atomize asks you to rotate the token with that scope added, and local files keep working.
+
 To share documents with your whole team, save them as **Project Reference Documents** in `.atomize/ai.yaml` and commit it:
 
 ```yaml
@@ -167,7 +175,7 @@ referenceDocuments:
   - file:docs/sizing.md
 ```
 
-Every AI run lists them ticked, so you can leave any out of a single run, and `--no-project-references` leaves them all out. In an interactive run you can add a local file and choose **Also save for this project** to write it to `ai.yaml` for you. A saved document that can't be read is reported and left out. A document you named with `--reference` that can't be read stops the run.
+Wiki pages are saved the same way, as `wiki:<wiki>/<page path>` entries. Every AI run lists them ticked, so you can leave any out of a single run, and `--no-project-references` leaves them all out. A saved wiki page is used only when the run's Connection Profile reaches that wiki's project; otherwise it's reported as unavailable for that profile and left out, so one `ai.yaml` works whichever profile a teammate uses. In an interactive run you can add a local file and choose **Also save for this project** to write it to `ai.yaml` for you. A saved document that can't be read is reported and left out. A document you named with `--reference` that can't be read stops the run.
 
 All Reference Documents together are limited to about 24,000 characters, split evenly between them. Space a short document doesn't use goes to the others. If a document has to be shortened, Atomize tells you before anything is sent: an interactive run lets you continue, leave documents out, or cancel. A non-interactive run prints a warning, and `template improve --output` records it.
 

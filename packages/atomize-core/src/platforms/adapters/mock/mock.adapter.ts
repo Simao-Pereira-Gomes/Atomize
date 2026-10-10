@@ -10,6 +10,7 @@ import type {
   IPlatformAdapter,
   PlatformMetadata,
   SavedQueryInfo,
+  WikiInfo,
 } from "../../interfaces/platform.interface";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
@@ -21,6 +22,15 @@ import { getMockStoryById, mockUserStories } from "./mock-data";
 /** The mock team's current and next sprint, standing in for `@CurrentIteration` and `@CurrentIteration + 1`. */
 export const MOCK_CURRENT_AND_NEXT_SPRINT = ["Sprint 23", "Sprint 24"];
 const MOCK_CLOSED_STATES = ["Closed", "Done", "Removed"];
+
+/** The mock project's wiki, keyed by page path. */
+export const MOCK_WIKI_PAGES: Record<string, Record<string, string>> = {
+  "Team.wiki": {
+    "/Process": "# Process\n\nSee the pages below.",
+    "/Process/How we work": "# How we work\n\nEvery Story gets a code review and a test Task.",
+    "/Process/Sizing": "# Sizing\n\nWe estimate Tasks in hours; reviews are 10% of the Story.",
+  },
+};
 
 /** Mock Stories carry their Story Estimate in the platform-free `estimation` property. */
 export const MOCK_ESTIMATION_DEFAULTS: EstimationDefaults = {
@@ -391,6 +401,23 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     );
 
     return children;
+  }
+
+  async listWikis(): Promise<WikiInfo[]> {
+    this.ensureAuthenticated();
+    return Object.keys(MOCK_WIKI_PAGES).map((name) => ({ id: name, name }));
+  }
+
+  async listWikiPages(wiki: string): Promise<string[]> {
+    this.ensureAuthenticated();
+    return Object.keys(MOCK_WIKI_PAGES[wiki] ?? {}).sort();
+  }
+
+  async readWikiPage(wiki: string, pagePath: string): Promise<string> {
+    this.ensureAuthenticated();
+    const text = MOCK_WIKI_PAGES[wiki]?.[pagePath];
+    if (text === undefined) throw Object.assign(new Error(`Page ${pagePath} not found`), { statusCode: 404 });
+    return text;
   }
 
   async listSavedQueries(_folder?: string): Promise<SavedQueryInfo[]> {

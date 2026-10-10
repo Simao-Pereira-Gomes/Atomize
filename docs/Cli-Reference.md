@@ -460,7 +460,7 @@ atomize tpl create [options]  # alias
 | `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
 | `--ground` | flag | Ground AI generation in your Azure DevOps project's work item types, states, fields and allowed values, saved queries, and area and iteration paths. Uses `--profile`, or the default profile |
 | `--include-sensitive-ai-context` | flag | With `--ai --from-stories`, also send the example Stories' descriptions and acceptance criteria to Copilot, for this run only |
-| `--reference <path>` | string | With `--ai`, send this Markdown or text file in the workspace as a [Reference Document](./Template-Creation.md#reference-documents). Repeatable |
+| `--reference <path>` | string | With `--ai`, send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | With `--ai`, leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
 | `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
@@ -563,7 +563,7 @@ atomize template improve <template> [options]
 | `--from-stories <ids>` | string | Learn from these Stories the Template was applied to (comma-separated IDs). Implies `--ground` |
 | `--profile <name>` | string | Connection Profile used for grounding (the default profile if omitted) |
 | `--include-sensitive-ai-context` | flag | Also send the Stories' descriptions and acceptance criteria to Copilot, for this run only |
-| `--reference <path>` | string | Send this Markdown or text file in the workspace as a [Reference Document](./Template-Creation.md#reference-documents). Repeatable |
+| `--reference <path>` | string | Send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | Leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Save the improvement as a new Template, leaving the source untouched |
 | `--overwrite` | flag | Replace the source Template with the improvement without asking |

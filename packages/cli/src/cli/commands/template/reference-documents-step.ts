@@ -1,11 +1,16 @@
 import { relative, resolve } from "node:path";
-import { confirm, multiselect, select, text } from "@clack/prompts";
+import { autocompleteMultiselect, confirm, multiselect, select, text } from "@clack/prompts";
+import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import {
   type DocumentGrounding,
   fitDocumentsToLimit,
+  listProjectWikis,
+  listWikiPagePaths,
   loadLocalReference,
+  loadWikiReference,
   parseReferenceRef,
   type ReferenceDocument,
+  ReferenceDocumentError,
   readProjectReferences,
   saveProjectReference,
   truncationNotices,
@@ -14,8 +19,11 @@ import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/
 import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { assertNotCancelled, isInteractiveTerminal, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { connectProfile } from "./ai-creation/grounding";
 
 export interface ReferenceDocumentOptions {
+  /** The Connection Profile wiki pages are read through (the default profile when omitted). */
+  profile?: string;
   /** `--reference <path|wiki:...>`, repeatable. */
   reference?: string[];
   /** False with `--no-project-references`. */
@@ -24,6 +32,8 @@ export interface ReferenceDocumentOptions {
 
 export interface ReferenceDocumentDeps {
   interactive?: boolean;
+  /** Opens an authenticated adapter for reading wiki pages; only called when a wiki page is needed. */
+  connect?: (profile?: string) => Promise<IPlatformAdapter>;
   /** Where relative `--reference` paths start from. */
   cwd?: string;
 }
@@ -43,6 +53,9 @@ export async function resolveReferenceDocuments(
   const interactive = deps.interactive ?? isInteractiveTerminal();
   const cwd = deps.cwd ?? process.cwd();
   const root = discoverWorkspaceRoot(cwd);
+  const connect = deps.connect ?? connectProfile;
+  let connection: Promise<IPlatformAdapter> | undefined;
+  const sources: Sources = { root, adapter: () => (connection ??= connect(options.profile)) };
 
   const flagged = (options.reference ?? []).map((entry) => toEntry(entry, cwd, root));
   const project = options.projectReferences === false ? { entries: [], problems: [] } : await readProjectReferences(root);
@@ -51,12 +64,12 @@ export async function resolveReferenceDocuments(
 
   const chosenSaved = interactive && saved.length > 0 ? await tickSaved(saved) : saved;
   const documents: ReferenceDocument[] = [];
-  for (const entry of flagged) documents.push(await load(root, entry, { requested: true, interactive }));
+  for (const entry of flagged) documents.push(await load(sources, entry, { requested: true }));
   for (const entry of chosenSaved) {
-    const document = await load(root, entry, { requested: false, interactive });
+    const document = await load(sources, entry, { requested: false });
     if (document) documents.push(document);
   }
-  if (interactive) documents.push(...await addLocalFiles(root, documents));
+  if (interactive) documents.push(...await addDocuments(sources, documents));
   if (documents.length === 0) return null;
 
   return confirmFit(documents, interactive);
@@ -78,29 +91,37 @@ async function tickSaved(saved: string[]): Promise<string[]> {
   ) as string[];
 }
 
+interface Sources {
+  root: string;
+  /** The run's Azure DevOps connection, opened the first time a wiki page is needed. */
+  adapter: () => Promise<IPlatformAdapter>;
+}
+
 /**
  * Loads one entry. A document named on the command line was asked for, so failing to load it stops
- * the run; a saved default that can't be loaded is reported and left out.
+ * the run; a saved default that can't be loaded, or whose wiki this profile doesn't reach, is
+ * reported and left out.
  */
-async function load(root: string, entry: string, context: { requested: true; interactive: boolean }): Promise<ReferenceDocument>;
-async function load(root: string, entry: string, context: { requested: false; interactive: boolean }): Promise<ReferenceDocument | undefined>;
-async function load(root: string, entry: string, context: { requested: boolean; interactive: boolean }): Promise<ReferenceDocument | undefined> {
+async function load(sources: Sources, entry: string, context: { requested: true }): Promise<ReferenceDocument>;
+async function load(sources: Sources, entry: string, context: { requested: false }): Promise<ReferenceDocument | undefined>;
+async function load(sources: Sources, entry: string, context: { requested: boolean }): Promise<ReferenceDocument | undefined> {
   try {
     const ref = parseReferenceRef(entry);
-    if (ref.kind === "wiki") {
-      throw new ConfigurationError(`"${entry}" is an Azure DevOps wiki page, which this version of Atomize can't read yet.`);
-    }
-    return await loadLocalReference(root, ref.path);
+    return ref.kind === "wiki"
+      ? await loadWikiReference(await sources.adapter(), ref)
+      : await loadLocalReference(sources.root, ref.path);
   } catch (error) {
     const message = getErrorMessage(error);
     if (context.requested) throw new ConfigurationError(`Reference Document ${message}`);
-    output.warn(sanitizeTty(`Left out a Project Reference Document: ${message}`));
+    const unavailable = error instanceof ReferenceDocumentError && error.code === "REFERENCE_UNAVAILABLE";
+    output.warn(sanitizeTty(unavailable ? `Unavailable for this profile, so left out: ${message}` : `Left out a Project Reference Document: ${message}`));
     return undefined;
   }
 }
 
-async function addLocalFiles(root: string, already: ReferenceDocument[]): Promise<ReferenceDocument[]> {
+async function addDocuments(sources: Sources, already: ReferenceDocument[]): Promise<ReferenceDocument[]> {
   const added: ReferenceDocument[] = [];
+  const isNew = (document: ReferenceDocument) => ![...already, ...added].some((existing) => existing.ref === document.ref);
   while (true) {
     const next = assertNotCancelled(
       await select({
@@ -108,10 +129,17 @@ async function addLocalFiles(root: string, already: ReferenceDocument[]): Promis
         options: [
           { label: "No, continue", value: "done" },
           { label: "Add a local Markdown or text file…", value: "file" },
+          { label: "Add an Azure DevOps wiki page…", value: "wiki" },
         ],
       }),
     ) as string;
     if (next === "done") return added;
+    if (next === "wiki") {
+      const pages = (await pickWikiPages(sources)).filter(isNew);
+      added.push(...pages);
+      if (pages.length > 0) await offerToSave(sources.root, pages);
+      continue;
+    }
 
     const path = assertNotCancelled(
       await text({
@@ -122,22 +150,55 @@ async function addLocalFiles(root: string, already: ReferenceDocument[]): Promis
     );
     let document: ReferenceDocument;
     try {
-      document = await loadLocalReference(root, resolve(root, path.trim()));
+      document = await loadLocalReference(sources.root, resolve(sources.root, path.trim()));
     } catch (error) {
       output.warn(sanitizeTty(getErrorMessage(error)));
       continue;
     }
-    if ([...already, ...added].some((existing) => existing.ref === document.ref)) continue;
+    if (!isNew(document)) continue;
     added.push(document);
-
-    const save = assertNotCancelled(
-      await confirm({ message: `Also save ${document.ref} for this project, so it's offered on every AI run?`, initialValue: false }),
-    ) as boolean;
-    if (save) {
-      await saveProjectReference(root, document.ref);
-      output.success(`Saved ${document.ref} to .atomize/ai.yaml`);
-    }
+    await offerToSave(sources.root, [document]);
   }
+}
+
+/** Picks pages from one of the project's wikis by filtering their paths, so nobody copies URLs. */
+async function pickWikiPages(sources: Sources): Promise<ReferenceDocument[]> {
+  try {
+    const adapter = await sources.adapter();
+    const wikis = await listProjectWikis(adapter);
+    if (wikis.length === 0) {
+      output.warn("This project has no wikis.");
+      return [];
+    }
+    const wikiName = wikis.length === 1
+      ? (wikis[0] as { name: string }).name
+      : assertNotCancelled(await select({ message: "Which wiki?", options: wikis.map((wiki) => ({ value: wiki.name, label: sanitizeTty(wiki.name) })) })) as string;
+    const paths = await listWikiPagePaths(adapter, (wikis.find((wiki) => wiki.name === wikiName) ?? { id: wikiName }).id);
+    const picked = assertNotCancelled(
+      await autocompleteMultiselect<string>({
+        message: `Pages from ${wikiName} (only each page itself is read, not its sub-pages):`,
+        placeholder: "Type to filter page paths",
+        options: paths.map((path) => ({ value: path, label: sanitizeTty(path) })),
+        required: false,
+      }),
+    ) as string[];
+    const documents: ReferenceDocument[] = [];
+    for (const pagePath of picked) documents.push(await loadWikiReference(adapter, { kind: "wiki", wiki: wikiName, pagePath }));
+    return documents;
+  } catch (error) {
+    output.warn(sanitizeTty(getErrorMessage(error)));
+    return [];
+  }
+}
+
+async function offerToSave(root: string, documents: ReferenceDocument[]): Promise<void> {
+  const names = documents.map((document) => document.ref).join(", ");
+  const save = assertNotCancelled(
+    await confirm({ message: `Also save ${names} for this project, so ${documents.length === 1 ? "it's" : "they're"} offered on every AI run?`, initialValue: false }),
+  ) as boolean;
+  if (!save) return;
+  for (const document of documents) await saveProjectReference(root, document.ref);
+  output.success(`Saved ${names} to .atomize/ai.yaml`);
 }
 
 /** Shows any shortening before sending; an interactive run can continue, leave documents out, or cancel. */

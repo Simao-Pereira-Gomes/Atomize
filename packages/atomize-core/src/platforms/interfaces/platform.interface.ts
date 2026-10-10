@@ -15,6 +15,14 @@ export interface SavedQueryInfo {
 }
 
 /**
+ * A wiki in the project (a project wiki, or a code wiki published from a repository)
+ */
+export interface WikiInfo {
+  id: string;
+  name: string;
+}
+
+/**
  * Authentication configuration
  */
 export interface AuthConfig {
@@ -125,6 +133,21 @@ export interface IPlatformAdapter {
     dependentId: string,
     predecessorId: string
   ): Promise<void>;
+
+  /**
+   * List the project's wikis (Azure DevOps only)
+   */
+  listWikis?(): Promise<WikiInfo[]>;
+
+  /**
+   * List every page path in a wiki, e.g. "/Process/How we work"
+   */
+  listWikiPages?(wiki: string): Promise<string[]>;
+
+  /**
+   * Read one wiki page's Markdown: never its sub-pages, links, images, or attachments
+   */
+  readWikiPage?(wiki: string, pagePath: string): Promise<string>;
 
   /**
    * List saved queries in the project (Azure DevOps only).

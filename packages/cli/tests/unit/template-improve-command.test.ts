@@ -20,6 +20,7 @@ mock.module("@clack/prompts", () => ({
   confirm: next,
   select: next,
   text: next,
+  autocompleteMultiselect: next,
   log: { info: mock(), warn: mock(), success: mock(), error: mock(), message: mock(), step: mock() },
   spinner: () => ({ start() {}, stop() {}, message() {} }),
 }));
@@ -93,7 +94,7 @@ function session(outputs: string[] = [PROPOSAL]) {
 }
 
 /** An Azure DevOps project with Stories 42 (two Tasks) and 7 (no Tasks), as grounding sees it. */
-function project(options: { failConnect?: boolean } = {}) {
+function project(options: { failConnect?: boolean; wikiStatus?: number } = {}) {
   const connects: (string | undefined)[] = [];
   const stories: Record<string, { item: Record<string, unknown>; children: Record<string, unknown>[] }> = {
     "42": {
@@ -116,6 +117,12 @@ function project(options: { failConnect?: boolean } = {}) {
     getFieldSchemas: async () => [],
     getWorkItem: async (id: string) => stories[id]?.item ?? null,
     getChildren: async (id: string) => stories[id]?.children ?? [],
+    listWikis: async () => {
+      if (options.wikiStatus) throw Object.assign(new Error("TF400813: not authorized"), { statusCode: options.wikiStatus });
+      return [{ id: "wiki-1", name: "Team.wiki" }];
+    },
+    listWikiPages: async () => ["/Process", "/Process/Sizing"],
+    readWikiPage: async (_wiki: string, path: string) => `WIKI-MARKER ${path}: reviews are 10% of the Story`,
   };
   const connect = async (profile?: string) => {
     connects.push(profile);
@@ -395,6 +402,47 @@ describe("atomize template improve", () => {
       const { prompts } = await run({ dryRun: true }, { lib, interactive: true });
       expect(prompts[0]).toContain("ADDED-MARKER");
       expect(await readFile(join(dir, ".atomize", "ai.yaml"), "utf8")).toContain("file:added.md");
+    });
+  });
+
+  describe("wiki pages as Reference Documents", () => {
+    test("--reference wiki:… reads that page through the Connection Profile", async () => {
+      const { lib } = library();
+      const { connect, connects } = project();
+      const { report, prompts } = await run({ dryRun: true, reference: ["wiki:Team.wiki/Process/Sizing"], profile: "work" }, { lib, connect });
+      expect(connects).toEqual(["work"]);
+      expect(prompts[0]).toContain("WIKI-MARKER /Process/Sizing");
+      expect(report.referenceDocuments[0]).toMatchObject({ ref: "wiki:Team.wiki/Process/Sizing", title: "Sizing" });
+    });
+
+    test("a saved page from a wiki this profile doesn't reach is left out, and the run continues", async () => {
+      await mkdir(join(dir, ".atomize"));
+      await writeFile(join(dir, ".atomize", "ai.yaml"), "referenceDocuments:\n  - wiki:Other.wiki/Process\n", "utf8");
+      const { lib } = library();
+      const { report, prompts } = await run({ dryRun: true }, { lib, connect: project().connect });
+      expect(report.ok).toBe(true);
+      expect(prompts[0]).not.toContain("WIKI-MARKER");
+      expect(report.referenceDocuments).toEqual([]);
+    });
+
+    test("an explicitly requested page from an unreachable wiki stops the run", async () => {
+      const { lib } = library();
+      await expect(run({ dryRun: true, reference: ["wiki:Other.wiki/Process"] }, { lib, connect: project().connect }))
+        .rejects.toThrow("doesn't have");
+    });
+
+    test("tells the user to add the Wiki (Read) scope when the token can't read wikis", async () => {
+      const { lib } = library();
+      await expect(run({ dryRun: true, reference: ["wiki:Team.wiki/Process"] }, { lib, connect: project({ wikiStatus: 401 }).connect }))
+        .rejects.toThrow("Wiki (Read)");
+    });
+
+    test("an interactive run can pick wiki pages and save them for the project", async () => {
+      const { lib } = library();
+      answers = ["", "none", "wiki", ["/Process/Sizing"], true, "done"];
+      const { prompts } = await run({ dryRun: true }, { lib, interactive: true, connect: project().connect });
+      expect(prompts[0]).toContain("WIKI-MARKER /Process/Sizing");
+      expect(await readFile(join(dir, ".atomize", "ai.yaml"), "utf8")).toContain("wiki:Team.wiki/Process/Sizing");
     });
   });
 });

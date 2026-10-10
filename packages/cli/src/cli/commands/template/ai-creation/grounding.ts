@@ -176,7 +176,8 @@ function parseIds(value: string): string[] {
   return [...new Set(value.split(/[\s,]+/).map((id) => id.replace(/^#/, "").trim()).filter(Boolean))];
 }
 
-async function connectProfile(profile?: string): Promise<IPlatformAdapter> {
+/** Opens an authenticated Azure DevOps adapter for a Connection Profile (the default one when omitted). */
+export async function connectProfile(profile?: string): Promise<IPlatformAdapter> {
   const { resolveAzureConfig } = await import("@config/profile-resolver");
   const platform = PlatformFactory.create("azure-devops", await resolveAzureConfig(profile));
   await platform.authenticate();

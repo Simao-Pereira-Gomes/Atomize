@@ -144,7 +144,7 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
     interactive,
     ...(deps.browseStories ? { browse: deps.browseStories } : {}),
   });
-  const documentGrounding = await resolveReferenceDocuments(options, { interactive, ...(deps.cwd ? { cwd: deps.cwd } : {}) });
+  const documentGrounding = await resolveReferenceDocuments(options, { interactive, connect: deps.connect, ...(deps.cwd ? { cwd: deps.cwd } : {}) });
 
   while (true) {
     const { result, notes } = await propose(deps, authored, loaded.template, guidance, { ...grounding, documentGrounding }, sourcePath);

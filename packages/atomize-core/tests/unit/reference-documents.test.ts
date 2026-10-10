@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MockPlatformAdapter } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import {
   DOCUMENT_GROUNDING_LIMIT,
   fitDocumentsToLimit,
+  listWikiPagePaths,
   loadLocalReference,
+  loadWikiReference,
   parseReferenceRef,
   ReferenceDocumentError,
   readProjectReferences,
@@ -135,5 +138,50 @@ describe("Project Reference Documents in .atomize/ai.yaml", () => {
     const { entries, problems } = await readProjectReferences(root);
     expect(entries).toEqual([]);
     expect(problems[0]).toContain("ai.yaml");
+  });
+});
+
+describe("loadWikiReference", () => {
+  const ref = (pagePath: string, wiki = "Team.wiki") => ({ kind: "wiki" as const, wiki, pagePath });
+
+  async function mockAdapter() {
+    const adapter = new MockPlatformAdapter();
+    await adapter.authenticate();
+    return adapter;
+  }
+
+  test("reads only the selected page's Markdown", async () => {
+    const doc = await loadWikiReference(await mockAdapter(), ref("/Process/How we work"));
+    expect(doc).toEqual({
+      ref: "wiki:Team.wiki/Process/How we work",
+      title: "How we work",
+      text: "# How we work\n\nEvery Story gets a code review and a test Task.",
+    });
+  });
+
+  test("lists a wiki's page paths", async () => {
+    expect(await listWikiPagePaths(await mockAdapter(), "Team.wiki")).toEqual(["/Process", "/Process/How we work", "/Process/Sizing"]);
+  });
+
+  test("reports a wiki the profile's project doesn't have as unavailable for this profile", async () => {
+    await expect(loadWikiReference(await mockAdapter(), ref("/Anything", "Other.wiki"))).rejects.toMatchObject({ code: "REFERENCE_UNAVAILABLE" });
+  });
+
+  test("reports a missing page", async () => {
+    await expect(loadWikiReference(await mockAdapter(), ref("/Process/Gone"))).rejects.toMatchObject({ code: "REFERENCE_NOT_FOUND" });
+  });
+
+  test("tells the user to add the Wiki (Read) scope when the token can't read wikis", async () => {
+    const adapter = await mockAdapter();
+    adapter.listWikis = async () => { throw Object.assign(new Error("TF400813: not authorized"), { statusCode: 401 }); };
+    const error = await loadWikiReference(adapter, ref("/Process")).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "REFERENCE_WIKI_ACCESS" });
+    expect((error as Error).message).toContain("Wiki (Read)");
+  });
+
+  test("reports a platform without wikis", async () => {
+    const adapter = await mockAdapter();
+    (adapter as { listWikis?: unknown }).listWikis = undefined;
+    await expect(loadWikiReference(adapter, ref("/Process"))).rejects.toMatchObject({ code: "REFERENCE_UNAVAILABLE" });
   });
 });

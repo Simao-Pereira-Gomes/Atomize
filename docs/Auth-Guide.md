@@ -89,7 +89,7 @@ atomize template create --ai
 ```
 
 **Getting a PAT:**
-- Azure DevOps: `https://dev.azure.com/{org}/_usersSettings/tokens` — scopes: Work Items (Read, Write)
+- Azure DevOps: `https://dev.azure.com/{org}/_usersSettings/tokens` — scopes: Work Items (Read, Write). Add the optional **Wiki (Read)** scope if you want to use wiki pages as [Reference Documents](./Template-Creation.md#reference-documents); without it, everything else works and Atomize tells you to rotate the token when a wiki page is needed.
 - GitHub Copilot: an active Copilot subscription; Atomize uses its bundled Copilot runtime and your local sign-in.
 
 ### Verify your profiles
