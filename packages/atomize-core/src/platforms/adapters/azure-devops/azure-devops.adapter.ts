@@ -32,6 +32,9 @@ import { convertWorkItem } from "./work-item-mapper";
 import { buildWorkItemWiqlQuery } from "./work-item-query";
 import { AzureDevOpsWorkItemRetrieval } from "./work-item-retrieval";
 
+/** The Wiki Pages Batch REST resource's location ID, as azure-devops-node-api's WikiApi uses it. */
+const WIKI_PAGES_BATCH_LOCATION = "71323c46-2592-4398-8771-ced73dd87207";
+
 /**
  * Azure DevOps specific configuration
  */
@@ -220,11 +223,40 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     let continuationToken: string | undefined;
     // The batch endpoint pages at most 100 at a time; stop at a sane ceiling for very large wikis.
     do {
-      const page = await wikiApi.getPagesBatch({ top: 100, continuationToken }, this.config.project, wiki);
-      paths.push(...page.map((detail) => detail.path).filter((path): path is string => !!path && path !== "/"));
-      continuationToken = page.continuationToken;
+      const batch = await this.wikiPagesBatch(wikiApi, wiki, continuationToken);
+      paths.push(...batch.paths.filter((path) => path !== "/"));
+      continuationToken = batch.continuationToken;
     } while (continuationToken && paths.length < 5000);
     return paths.sort((a, b) => a.localeCompare(b));
+  }
+
+  /**
+   * One pages batch, with the token for the next. azure-devops-node-api's getPagesBatch returns only
+   * the body, but Azure DevOps sends the continuation token in the x-ms-continuationtoken response
+   * header, so through it the listing would stop after the first batch. This makes the same request
+   * and keeps the header.
+   */
+  private async wikiPagesBatch(
+    wikiApi: Awaited<ReturnType<AzureDevOpsAdapter["wikiApi"]>>,
+    wiki: string,
+    continuationToken: string | undefined,
+  ): Promise<{ paths: string[]; continuationToken?: string }> {
+    const versioning = await wikiApi.vsoClient.getVersioningData(
+      "7.2-preview.1", "wiki", WIKI_PAGES_BATCH_LOCATION, { project: this.config.project, wikiIdentifier: wiki },
+    );
+    if (!versioning.requestUrl) throw new UnknownError("Azure DevOps didn't resolve the wiki pages batch endpoint");
+    const response = await wikiApi.rest.create<unknown>(
+      versioning.requestUrl,
+      { top: 100, ...(continuationToken ? { continuationToken } : {}) },
+      wikiApi.createRequestOptions("application/json", versioning.apiVersion),
+    );
+    const details: { path?: string }[] = wikiApi.formatResponse(response.result, null, true) ?? [];
+    const header = (response.headers as Record<string, string | string[] | undefined>)["x-ms-continuationtoken"];
+    const next = Array.isArray(header) ? header[0] : header;
+    return {
+      paths: details.map((detail) => detail.path).filter((path): path is string => !!path),
+      ...(next ? { continuationToken: next } : {}),
+    };
   }
 
   async readWikiPage(wiki: string, pagePath: string): Promise<string> {
