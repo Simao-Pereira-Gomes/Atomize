@@ -59,6 +59,13 @@ async function installToCatalog(deps: InstallToCatalogDeps, uri?: vscode.Uri): P
 			overwrite = true;
 		}
 		const item = await preview.source.install({ overwrite });
+		if (doc.isUntitled) {
+			// Installing an unsaved draft saves it into the Catalog, so carry on in that file rather
+			// than leave an untitled copy behind that later asks to be saved.
+			await replaceDraft(doc, vscode.Uri.file(item.path));
+			void vscode.window.showInformationMessage(`Saved the draft as ${kind} "${item.name}" in your ${scopeLabel(scope)} Catalog. Use it as ${item.ref}.`);
+			return;
+		}
 		const open = await vscode.window.showInformationMessage(
 			`Installed ${kind} "${item.name}" to your ${scopeLabel(scope)} Catalog. Use it as ${item.ref}.`,
 			'Open',
@@ -88,6 +95,17 @@ function outsideProjectHint(folder: string | undefined): string {
 	return folder
 		? "This isn't in a project, so only the personal Catalog is available. Open a project folder to install to its Catalog."
 		: 'No folder is open, so only the personal Catalog is available. Open a project folder to install to its Catalog.';
+}
+
+/** Closes every tab showing the unsaved draft without asking to save it, then opens the installed file. */
+async function replaceDraft(draft: vscode.TextDocument, installed: vscode.Uri): Promise<void> {
+	const key = draft.uri.toString();
+	const showsDraft = (tab: vscode.Tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === key;
+	await vscode.window.showTextDocument(draft, { preview: false });
+	await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+	const remaining = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(showsDraft);
+	if (remaining.length > 0) await vscode.window.tabGroups.close(remaining);
+	await vscode.window.showTextDocument(installed);
 }
 
 function templateName(content: string): unknown {

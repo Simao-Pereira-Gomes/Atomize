@@ -11,18 +11,28 @@ let offered: Picked[][] = [];
 let workspaceFolders: { uri: { fsPath: string } }[] | undefined;
 let handler: ((uri?: unknown) => Promise<void>) | undefined;
 let activeDocument: unknown;
+let pickScope: string | undefined;
+let executed: string[] = [];
+let shown: string[] = [];
 
 mock.module('vscode', () => ({
 	...baseVscodeMock(),
-	commands: { registerCommand: (_id: string, run: (uri?: unknown) => Promise<void>) => { handler = run; return { dispose() {} }; } },
+	commands: {
+		registerCommand: (_id: string, run: (uri?: unknown) => Promise<void>) => { handler = run; return { dispose() {} }; },
+		executeCommand: async (id: string) => { executed.push(id); },
+	},
+	Uri: { file: (path: string) => ({ fsPath: path, toString: () => path }) },
+	TabInputText: class TabInputText {},
 	workspace: {
 		get textDocuments() { return activeDocument ? [activeDocument] : []; },
 		get workspaceFolders() { return workspaceFolders; },
 	},
 	window: {
 		get activeTextEditor() { return activeDocument ? { document: activeDocument } : undefined; },
-		// Records what's offered, then cancels, so nothing is installed.
-		showQuickPick: async (items: Picked[]) => { offered.push(items); return undefined; },
+		// Records what's offered, then cancels unless a test picks a scope.
+		showQuickPick: async (items: Picked[]) => { offered.push(items); return items.find(item => item.scope === pickScope); },
+		showTextDocument: async (target: { fsPath?: string; fileName?: string }) => { shown.push(target.fsPath ?? target.fileName ?? ''); },
+		tabGroups: { all: [], close: async () => true },
 		showWarningMessage: async () => undefined,
 		showErrorMessage: async () => undefined,
 		showInformationMessage: async () => undefined,
@@ -45,6 +55,9 @@ let project: string;
 beforeEach(async () => {
 	offered = [];
 	workspaceFolders = undefined;
+	pickScope = undefined;
+	executed = [];
+	shown = [];
 	project = await mkdtemp(join(tmpdir(), 'atomize-install-cmd-'));
 	await mkdir(join(project, '.atomize'));
 	await writeFile(join(project, 'backend-api.atomize.yaml'), TEMPLATE);
@@ -88,5 +101,16 @@ describe('Atomize: Install to Catalog', () => {
 		const items = offered[0] ?? [];
 		expect(items.map(item => item.scope)).toEqual(['project', 'user']);
 		expect(new Set(items.map(item => item.detail)).size).toBe(2);
+	});
+
+	test('saves an unsaved draft into the Catalog and carries on in the installed file', async () => {
+		workspaceFolders = [{ uri: { fsPath: project } }];
+		activeDocument = document('Untitled-1', true);
+		pickScope = 'project';
+		await handler?.();
+		const installed = join(project, '.atomize', 'catalog', 'templates', 'backend-api.atomize.yaml');
+		expect(await Bun.file(installed).exists()).toBe(true);
+		expect(executed).toContain('workbench.action.revertAndCloseActiveEditor');
+		expect(shown.at(-1)).toBe(installed);
 	});
 });

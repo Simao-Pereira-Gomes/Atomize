@@ -133,7 +133,7 @@ Installs the open Template or Mixin into a Catalog, so you can run and compose i
 
 1. If the file has unsaved changes, choose whether to save them first or install the saved version. An unsaved AI draft installs straight from the editor.
 2. Choose **Personal Catalog** (`~/.atomize/catalog`, available in every folder) or **Project Catalog** (`.atomize/catalog` in the project the file belongs to: the nearest folder with a `.atomize` folder, otherwise its git repo's root). Each shows the file it would write, and Project names the project. Project comes first when the project already has its own `.atomize` folder. An unsaved draft belongs to the first open workspace folder's project. Outside any project, including your home folder, only Personal is offered.
-3. A saved file installs under its own file name, and an unsaved draft under its Template name. If that name is taken, you're asked before it's overwritten.
+3. A saved file installs under its own file name, and a copy goes into the Catalog while your file stays where it is. An unsaved draft installs under its Template name, and installing saves it there: its untitled tab closes without asking and the installed file opens in its place. If the name is taken, you're asked before it's overwritten.
 
 Installing is always your choice: saving a file never adds it to a Catalog.
 
