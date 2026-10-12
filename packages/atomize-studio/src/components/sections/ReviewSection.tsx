@@ -168,7 +168,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
   const [installing, setInstalling] = createSignal(false);
   const [installError, setInstallError] = createSignal("");
   const [installCollision, setInstallCollision] = createSignal(false);
-  const [installed, setInstalled] = createSignal<{ name: string; scope: CatalogInstallScope }>();
+  const [installed, setInstalled] = createSignal<{ name: string; scope: CatalogInstallScope; path?: string }>();
 
   const fileName = () => `${slugifyTemplateName(props.store["basic-info"].fields.name)}.atomize.yaml`;
   const decreaseZoom = () => setYamlZoom((zoom) => Math.max(70, zoom - 10));
@@ -272,10 +272,11 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
     try {
       const { origin: _origin, ...template } = props.store.toTemplate();
       const content = stringify(template, { lineWidth: 0 });
-      await installCatalogItem(content, name, scope, overwrite, undefined, workspaceRoot);
+      const result = await installCatalogItem(content, name, scope, overwrite, undefined, workspaceRoot) as { path?: unknown } | null;
       setInstallCollision(false);
       setInstallOpen(false);
-      setInstalled({ name, scope });
+      // A project install lands under the chosen folder's project root, which may be above it, so say where.
+      setInstalled({ name, scope, ...(typeof result?.path === "string" ? { path: result.path } : {}) });
       setTimeout(() => setInstalled(undefined), 6000);
     } catch (error) {
       if (error instanceof SidecarRequestError && error.code === "CATALOG_ITEM_ALREADY_EXISTS") {
@@ -509,7 +510,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
                   <p class="text-sm font-semibold text-slate-900 dark:text-white">
                     Installed to {installed()?.scope === "project" ? "the project" : "your"} Catalog
                   </p>
-                  <p class="mt-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400">{installed()?.name}</p>
+                  <p class="mt-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400" title={installed()?.path}>{installed()?.scope === "project" && installed()?.path ? installed()?.path : installed()?.name}</p>
                 </div>
                 <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" onClick={() => setInstalled(undefined)} aria-label="Dismiss">
                   ✕
@@ -559,7 +560,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
                       </button>
                     </div>
                     <Show when={installScope() === "project"}>
-                      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">You’ll choose the project folder before installing.</p>
+                      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">You’ll choose the project folder before installing. A folder inside a repo installs to the repo’s project Catalog, or to the nearest folder with a <code>.atomize</code> folder.</p>
                     </Show>
                   </div>
                   <Show when={installError()}>

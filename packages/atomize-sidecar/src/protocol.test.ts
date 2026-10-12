@@ -147,6 +147,23 @@ describe("catalog.install", () => {
     }
   });
 
+  it("installs a project item at the project root found from a chosen subfolder, as Reference Documents do", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "atomize-studio-repo-"));
+    try {
+      await mkdir(join(repo, ".git"));
+      await mkdir(join(repo, "docs"));
+      const response = await handleLine(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 40,
+        method: "catalog.install",
+        params: { content: "version: \"1.0\"\nname: Delivery\nfilter: {}\ntasks:\n  - title: Plan delivery\n    estimationPercent: 100\n", name: "delivery", scope: "project", workspaceRoot: join(repo, "docs") },
+      }), services);
+      expect(response).toMatchObject({ result: { scope: "project", path: join(repo, ".atomize", "catalog", "templates", "delivery.atomize.yaml") } });
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it("installs a Catalog item from in-memory content and reports the created item", async () => {
     let received: unknown;
     const installing: SidecarServices = {

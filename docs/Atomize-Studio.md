@@ -134,7 +134,7 @@ Studio flattens a Template's `extends` and Mixins when it opens it ([ADR-0048](.
 
 ### Reference Documents
 
-AI drafts and Improve with AI can send your team's written process to Copilot as **Reference Documents**. Copilot treats them as reference material, never as instructions. They work from a **project folder**: for a Template opened from a file, its workspace is chosen for you, and otherwise choose one with **Choose project folder**.
+AI drafts and Improve with AI can send your team's written process to Copilot as **Reference Documents**. Copilot treats them as reference material, never as instructions. They work from a **project folder**: for a Template opened from a file, its workspace is chosen for you, and otherwise choose one with **Choose project folder**. Studio uses the project the chosen folder belongs to: the nearest folder above it with a `.atomize` folder, otherwise its git repo's root, otherwise the folder itself. The `.atomize` folder in your home folder, which holds Atomize's own settings, never counts.
 
 - The Project Reference Documents saved in the folder's `.atomize/ai.yaml` are listed ticked. Untick any to leave them out of this request.
 - **Add local file…** adds Markdown or text files from inside the project folder.
@@ -160,7 +160,7 @@ The header-level **Work Project Setting** chooses the Connection Profile used fo
 The Catalog Area is the single place to browse the Catalog — Templates and Mixins across Built-in, User, and Project scope.
 
 - **Clone** — on any Template row, at any scope, starts the Catalog Clone Starting Path (see [Starting Paths](#starting-paths) above). If you have an unsaved Template open in the Templates area, Studio asks for confirmation before discarding it.
-- **Catalog Install** (from the Templates area's Review step) — installs the Template you're authoring directly into your user or project Catalog, in addition to exporting a downloadable file. The install name comes from the Template's name (no separate prompt); you choose the scope at install time.
+- **Catalog Install** (from the Templates area's Review step) — installs the Template you're authoring directly into your user or project Catalog, in addition to exporting a downloadable file. The install name comes from the Template's name (no separate prompt); you choose the scope at install time. For the project Catalog you choose a folder, and Studio installs to the project it belongs to, found the same way as for Reference Documents, then shows the installed file's path.
 - **Catalog Remove** — removes a user-scoped Catalog item. Built-in and project-scope items can't be removed this way.
 
 ## Generate Area
