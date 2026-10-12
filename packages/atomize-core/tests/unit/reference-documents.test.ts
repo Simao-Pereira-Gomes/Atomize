@@ -114,6 +114,12 @@ describe("Project Reference Documents in .atomize/ai.yaml", () => {
     expect((await readProjectReferences(root)).entries).toEqual(["file:docs/how-we-work.md", "wiki:Team.wiki/Process/Sizing"]);
   });
 
+  test("writes a new file as a plain block list", async () => {
+    await saveProjectReference(root, "file:docs/how-we-work.md");
+    await saveProjectReference(root, "wiki:Team.wiki/Process/Sizing");
+    expect(await readFile(join(root, ".atomize", "ai.yaml"), "utf8")).toBe("referenceDocuments:\n  - file:docs/how-we-work.md\n  - wiki:Team.wiki/Process/Sizing\n");
+  });
+
   test("keeps a hand-written file's comments when saving", async () => {
     await mkdir(join(root, ".atomize"));
     await writeFile(join(root, ".atomize", "ai.yaml"), "# Our team's process docs\nreferenceDocuments:\n  - file:docs/a.md # sizing\n");

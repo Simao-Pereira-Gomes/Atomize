@@ -1,6 +1,6 @@
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { isMap, isSeq, parseDocument, YAMLSeq } from "yaml";
+import { Document, isMap, isSeq, parseDocument, YAMLSeq } from "yaml";
 import { hasWikiReader } from "../../platforms/capabilities";
 import type { IPlatformAdapter, WikiInfo } from "../../platforms/interfaces/platform.interface";
 import { getErrorMessage } from "../../utils/errors";
@@ -233,7 +233,7 @@ export async function saveProjectReference(workspaceRoot: string, entry: string)
   } catch {
     await mkdir(join(workspaceRoot, ".atomize"), { recursive: true });
   }
-  const doc = parseDocument(text || "{}");
+  const doc = text ? parseDocument(text) : new Document({});
   if (!isMap(doc.contents)) doc.contents = doc.createNode({}) as unknown as typeof doc.contents;
   const existing = doc.get("referenceDocuments", true);
   const list = isSeq(existing) ? existing : new YAMLSeq();

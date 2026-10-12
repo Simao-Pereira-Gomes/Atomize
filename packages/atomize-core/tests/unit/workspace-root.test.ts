@@ -43,6 +43,36 @@ describe("discoverWorkspaceRoot", () => {
     expect(discoverWorkspaceRoot(nested)).toBe(repo);
   });
 
+  test("never treats the home folder's .atomize as a project marker", async () => {
+    // ~/.atomize holds Connection Profiles and the user Catalog, so it exists for nearly every user.
+    const home = join(TEST_DIR, "home");
+    const repo = join(home, "dev", "repo");
+    await mkdir(join(home, ".atomize"), { recursive: true });
+    await mkdir(join(repo, ".git"), { recursive: true });
+    await mkdir(join(repo, "packages", "app"), { recursive: true });
+
+    expect(discoverWorkspaceRoot(join(repo, "packages", "app"), home)).toBe(repo);
+  });
+
+  test("still uses a .atomize folder below the home folder", async () => {
+    const home = join(TEST_DIR, "home");
+    const project = join(home, "dev", "project");
+    await mkdir(join(home, ".atomize"), { recursive: true });
+    await mkdir(join(project, ".atomize"), { recursive: true });
+    await mkdir(join(project, "src"), { recursive: true });
+
+    expect(discoverWorkspaceRoot(join(project, "src"), home)).toBe(project);
+  });
+
+  test("falls back to the invocation cwd, not the home folder, outside any repo", async () => {
+    const home = join(TEST_DIR, "home");
+    const loose = join(home, "notes");
+    await mkdir(join(home, ".atomize"), { recursive: true });
+    await mkdir(loose, { recursive: true });
+
+    expect(discoverWorkspaceRoot(loose, home)).toBe(loose);
+  });
+
   test("falls back to invocation cwd", async () => {
     const cwd = join(TEST_DIR, "loose", "nested");
     await mkdir(cwd, { recursive: true });

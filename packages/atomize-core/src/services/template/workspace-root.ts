@@ -1,4 +1,5 @@
 import { existsSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 
 function isDirectory(path: string): boolean {
@@ -9,12 +10,13 @@ function isDirectory(path: string): boolean {
   }
 }
 
-export function discoverWorkspaceRoot(invocationCwd = process.cwd()): string {
+export function discoverWorkspaceRoot(invocationCwd = process.cwd(), homeDirectory = homedir()): string {
   const start = resolve(invocationCwd);
+  const home = resolve(homeDirectory);
 
   let current = start;
   while (true) {
-    if (isDirectory(resolve(current, ".atomize"))) {
+    if (current !== home && isDirectory(resolve(current, ".atomize"))) {
       return current;
     }
 
