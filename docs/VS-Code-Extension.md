@@ -127,6 +127,16 @@ The extension owns its own profile storage: non-secret fields live in VS Code's 
 
 Browses the Template Library Catalog and opens Templates or Mixins. Built-in Catalog items open as read-only virtual documents.
 
+### Atomize: Install to Catalog
+
+Installs the open Template or Mixin into a Catalog, so you can run and compose it by name, such as `atomize generate template:backend-api` or `extends: template:backend-api`. Run it from the **Atomize: Install to Catalog** CodeLens on a Template, or from the Command Palette for a Mixin.
+
+1. If the file has unsaved changes, choose whether to save them first or install the saved version. An unsaved AI draft installs straight from the editor.
+2. Choose **Personal Catalog** (`~/.atomize/catalog`, available in every folder) or **Project Catalog** (`.atomize/catalog` in the project the file belongs to: the nearest folder with a `.atomize` folder, otherwise its git repo's root). Each shows the file it would write, and Project names the project. Project comes first when the project already has its own `.atomize` folder. An unsaved draft belongs to the first open workspace folder's project. Outside any project, including your home folder, only Personal is offered.
+3. A saved file installs under its own file name, and an unsaved draft under its Template name. If that name is taken, you're asked before it's overwritten.
+
+Installing is always your choice: saving a file never adds it to a Catalog.
+
 ### Atomize: Browse Fields
 
 Browses platform fields for a selected Connection Profile. Use this when authoring filters, custom fields, or conditions.
@@ -143,7 +153,7 @@ Drafts a new Template from a description, using the GitHub Copilot account you'r
 2. Choose the **Reference Documents** to send, described below.
 3. Describe the Template you need. This comes after the grounding, so you can refer to what you chose by Story ID or document name, for example "like 4101, but add a security review". The box's title summarises the grounding, and it's pre-filled with your last description from this session. For a longer description, use the **Open in editor** button: your text moves into an untitled Markdown prompt document, where you can write as much as you like, with the chosen Stories and documents listed at the top. When you're ready, choose **Atomize: Draft Template with AI** at the top of that document. It drafts with the grounding you already chose, without asking again.
 4. Atomize writes the draft with Copilot. Copilot keeps the task percentages your brief, example Stories or Reference Documents give, even when they add up to more than 100% (for example when each role estimates its own share). It only makes them add up to 100% when it chooses the split itself, or when you ask it to. A Template above 100% is offered for normalisation when you generate, as usual. Atomize checks the draft against the Template schema, and asks Copilot to fix any problems, up to three attempts. Cancel from the progress notification at any time.
-5. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog until you save it there. If problems remain after three attempts, they're listed as comments at the top of the file.
+5. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog unless you use **Atomize: Install to Catalog**. If problems remain after three attempts, they're listed as comments at the top of the file.
 
 To try again, run the command again. To discard a draft, close it without saving.
 
@@ -170,7 +180,7 @@ Asks Copilot to propose a revision of the open Template, and shows it in VS Code
 
 For a Template that uses `extends` or Mixins, Copilot sees the composed Template but never changes `extends`, Mixin references or `origin`, and never copies inherited Tasks into your file. When an inherited Task deserves a change, Copilot says so in its notes so you can change the parent or Mixin yourself. The proposal is validated composed with its parent, exactly as it will run. If Copilot can't fix every problem in its proposal, the notification lists what's left to fix.
 
-Atomize never writes to your Catalog.
+Improving never writes to your Catalog. To add an improved copy to it, use **Atomize: Install to Catalog**.
 
 ### Reference Documents
 

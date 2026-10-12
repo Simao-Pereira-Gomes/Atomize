@@ -12,6 +12,7 @@ import {
 import { ValidationCodeActionProvider } from './authoring/validation-code-action-provider.js';
 import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './authoring/yaml-schema-contributor.js';
 import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './catalog/browse-catalog-command.js';
+import { registerInstallToCatalogCommand } from './catalog/install-to-catalog-command.js';
 import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './catalog/show-resolved-template-command.js';
 import { GeneratePanel } from './generate/generate-panel.js';
 import { AtomizePanel } from './panel.js';
@@ -259,6 +260,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		registerBrowseFieldsCommand({ store, credentialResolver }),
 		registerBrowseQueriesCommand({ store, credentialResolver }),
 		registerBrowseCatalogCommand({ provider: catalogItemProvider }),
+		registerInstallToCatalogCommand({ checkDirtyDocument }),
 		vscode.workspace.registerTextDocumentContentProvider(CATALOG_ITEM_SCHEME, catalogItemProvider),
 		vscode.workspace.registerTextDocumentContentProvider(RESOLVED_TEMPLATE_SCHEME, resolvedTemplateProvider),
 		registerShowResolvedTemplateCommand({

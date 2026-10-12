@@ -114,6 +114,11 @@
 				"category": "Atomize"
 			},
 			{
+				"command": "atomize.installToCatalog",
+				"title": "Install to Catalog",
+				"category": "Atomize"
+			},
+			{
 				"command": "atomize.draftTemplateWithAI",
 				"title": "Draft Template with AI",
 				"category": "Atomize"
