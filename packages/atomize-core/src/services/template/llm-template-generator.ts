@@ -96,7 +96,7 @@ validation:             # optional
   minTasks: number                # each copy of a repeated task counts
   maxTasks: number
   maxRepeat: number               # optional, default 20 — the highest repeat any task may use
-  totalEstimationMustBe: number   # usually 100
+  totalEstimationMustBe: number   # optional — only when the user asks for a fixed total (see rule 1)
   totalEstimationRange:
     min: number
     max: number
@@ -110,8 +110,9 @@ metadata:               # optional
 
 CONSTRAINTS (you must follow these):
 1. Estimation sums:
-   - Simple templates (no task-level conditions): estimationPercent values MUST sum to exactly 100. A repeated task contributes its estimationPercent once per copy.
-   - Multi-archetype templates (tasks use conditions to target different story types): each archetype's active task set should sum to ~100% independently. The total across all declared tasks will naturally exceed 100 — this is expected and valid.
+   - Keep the allocation the user gives you. When the description, the example Stories, or the reference documents set how the work is split, use those percentages as given, even when they add up to more than 100 (for example each role estimating its own share, or reviews on top of the build work). Don't scale them down to 100, and don't add validation.totalEstimationMustBe or totalEstimationRange to force a total, unless the user explicitly asks for the percentages to add up to 100 or to be normalized. Leave estimation.normalize unset in that case: Atomize asks at generate time whether to normalize a total above 100.
+   - When nothing sets the allocation and you choose the split yourself: in a simple template (no task-level conditions) estimationPercent values sum to exactly 100. A repeated task contributes its estimationPercent once per copy.
+   - Multi-archetype templates (tasks use conditions to target different story types): each archetype's active task set should sum to ~100% independently, unless the user's allocation says otherwise. The total across all declared tasks will naturally exceed 100 — this is expected and valid.
 2. If a task uses dependsOn, all referenced IDs must exist on other tasks in the same template.
 3. workItemTypes values are case-sensitive strings matching ADO work item types.
 4. condition operators must be one of: equals, not-equals, contains, not-contains, gt, lt, gte, lte.

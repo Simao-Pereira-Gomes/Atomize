@@ -68,6 +68,16 @@ describe("draftTemplate", () => {
     expect(calls[0]?.userPrompt).toContain("Backend API stories");
   });
 
+  test("accepts percentages that add up to more than 100 without asking for a repair", async () => {
+    const overAllocated = VALID.replace("estimationPercent: 30", "estimationPercent: 60");
+    const { session, calls } = scriptedSession([overAllocated, VALID]);
+    const result = await draftTemplate(session, { prose: "Dev takes the whole estimate, QA another 60% on top" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.template.tasks.map((t) => t.estimationPercent)).toEqual([70, 60]);
+    expect(calls).toHaveLength(1);
+  });
+
   test("re-prompts with the validation errors and returns the repaired Template", async () => {
     const { session, calls } = scriptedSession([SHAPED_BUT_INVALID, VALID]);
 
@@ -250,6 +260,12 @@ improvementNotes:
     const withGuidance = scriptedSession([IMPROVED]);
     await improveTemplate(withGuidance.session, { template: plain, resolvedTemplate: plain, guidance: "Tighten the estimates" });
     expect(withGuidance.calls[0]?.userPrompt).toContain("focus on:\nTighten the estimates");
+  });
+
+  test("asks to keep the Template's allocation rather than scale it to 100", async () => {
+    const { session, calls } = scriptedSession([IMPROVED]);
+    await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+    expect(calls[0]?.userPrompt).toContain("don't scale them down to 100");
   });
 
   test("only shows the composed form for a Template that inherits", async () => {

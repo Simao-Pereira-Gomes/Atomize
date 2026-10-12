@@ -105,6 +105,8 @@ With a Work Project chosen, you can also add **example Stories**: Stories your t
 
 By default only titles, states, estimates and Task activity are sent. Tick **Also send their descriptions and acceptance criteria** to include those for this draft only, since they can contain customer, personal or internal details. Studio never picks example Stories for you, and the profile's token stays in Studio's backend. If the Stories can't be loaded, for example because one has no Tasks, the draft stops and tells you why, so you can retry or continue without project context.
 
+Copilot keeps the task percentages your brief, example Stories or Reference Documents give, even when they add up to more than 100% (for example when each role estimates its own share). It only makes them add up to 100% when it chooses the split itself, or when you ask it to. A Template above 100% is offered for normalisation when you generate, as usual.
+
 Copilot checks its draft against the Template schema and fixes problems before you see it, up to three attempts. A draft that still has problems after that enters the authoring surface with its field-level errors shown, so you can fix them yourself. Output that isn't Template-shaped at all is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
 
 ### Improve with AI
@@ -123,6 +125,8 @@ It opens as a side panel, so the builder stays visible while you write the focus
 3. Copilot reviews the Template and proposes changes. You can cancel while it works.
 4. Review the proposal: the panel widens to show changed fields and Tasks added, removed, changed or moved, the same way as the Template Diff. Copilot's notes on what it changed and why, and anything it left for you to fix, sit beside them.
 5. **Accept** replaces the Template in the builder with the proposal. **Reject** leaves it exactly as it was. Nothing changes before you accept, and nothing is saved until you save as usual.
+
+A Template whose percentages add up to more than 100% keeps that allocation unless your focus asks for it to add up to 100%.
 
 If Copilot couldn't fix every problem in its proposal, the remaining problems are listed. Accepting loads the proposal anyway so you can fix them in the builder.
 

@@ -23,8 +23,10 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("contains");
   });
 
-  test("includes the critical constraint about estimation summing to 100", () => {
+  test("keeps an allocation the user gives above 100, and only makes its own split sum to 100", () => {
     const prompt = buildSystemPrompt();
+    expect(prompt).toContain("even when they add up to more than 100");
+    expect(prompt).toContain("unless the user explicitly asks");
     expect(prompt).toContain("sum to exactly 100");
   });
 

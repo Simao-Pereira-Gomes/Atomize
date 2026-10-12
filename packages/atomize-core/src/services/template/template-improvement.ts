@@ -34,6 +34,7 @@ export function buildImprovePrompt(request: ImproveRequest, prevErrors?: string[
   const sections = [
     "Improve this existing Atomize task template. Return the complete revised template as YAML, following every rule above.",
     "Look for clearer task titles and descriptions, estimation percentages that fit the work, missing test, review, or documentation tasks, and useful conditions, filters, custom fields, dependencies, and acceptance criteria. Keep what already works: don't change things just to change them.",
+    "Keep the template's allocation: when its estimationPercent values, or the Stories or reference documents, add up to more than 100, that's intended, so don't scale them down to 100 unless the user's focus explicitly asks for the percentages to add up to 100 or to be normalized.",
   ];
 
   const guidance = request.guidance?.trim();
