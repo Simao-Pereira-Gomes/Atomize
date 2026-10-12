@@ -8,7 +8,7 @@ use keyring::Error as KeyringError;
 use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{env, fs::{self, OpenOptions}, io::Write, path::PathBuf, thread, time::{Duration, SystemTime}};
+use std::{collections::HashMap, env, fs::{self, OpenOptions}, io::Write, path::PathBuf, sync::{Mutex, OnceLock}, thread, time::{Duration, SystemTime}};
 
 const KEYRING_SERVICE: &str = "atomize";
 const LOCK_WAIT: Duration = Duration::from_secs(5);
@@ -124,8 +124,44 @@ fn list_from_file(file: &Value) -> Result<Vec<AzureDevOpsProfile>, String> {
 pub fn resolve_for_grounding(name: &str) -> Result<ResolvedAzureDevOpsConnection, ConnectionError> {
     let file = read_file().map_err(|message| ConnectionError { code: "PROFILE_UNAVAILABLE", message })?;
     resolve_grounding_from_file(&file, name, |profile_name| {
-        read_profile_token(profile_name)
+        session_tokens().lock().map_err(|_| unavailable_credential_error())?.get_or_read(profile_name, read_profile_token)
     })
+}
+
+#[derive(Default)]
+struct TokenCache(HashMap<String, String>);
+
+impl TokenCache {
+    fn get_or_read(&mut self, name: &str, read: impl FnOnce(&str) -> Result<String, ConnectionError>) -> Result<String, ConnectionError> {
+        if let Some(token) = self.0.get(name) { return Ok(token.clone()); }
+        let token = read(name)?;
+        self.0.insert(name.to_owned(), token.clone());
+        Ok(token)
+    }
+    fn forget(&mut self, name: &str) { self.0.remove(name); }
+}
+
+fn session_tokens() -> &'static Mutex<TokenCache> {
+    static TOKENS: OnceLock<Mutex<TokenCache>> = OnceLock::new();
+    TOKENS.get_or_init(Mutex::default)
+}
+
+/// Drops a profile's cached token, so the next call reads it from the credential store again.
+pub fn forget_token(name: &str) {
+    if let Ok(mut tokens) = session_tokens().lock() { tokens.forget(name); }
+}
+
+/// Whether a sidecar error code means Azure DevOps rejected the token, e.g. GROUNDING_AUTH_FAILED
+/// or STORIES_TOKEN_EXPIRED, so a cached token is stale.
+pub fn is_rejected_token_code(code: &str) -> bool {
+    code.ends_with("_AUTH_FAILED") || code.ends_with("_TOKEN_EXPIRED")
+}
+
+fn unavailable_credential_error() -> ConnectionError {
+    ConnectionError {
+        code: "CREDENTIAL_UNAVAILABLE",
+        message: "Studio could not read this profile's token from your operating system's credential store.".into(),
+    }
 }
 
 fn missing_credential_error() -> ConnectionError {
@@ -247,6 +283,7 @@ pub fn add(input: NewAzureDevOpsProfile) -> Result<(), String> {
     let _lock = acquire_lock()?; let mut file = read_file()?;
     apply_add(&mut file, &input, &chrono_like_now())?;
     store_profile_token(&input.name, &input.pat)?;
+    forget_token(&input.name);
     if let Err(error) = write_file(&file) { let _ = delete_profile_token(&input.name); return Err(error); } Ok(())
 }
 // The in-memory half of `add`: validate, reject a duplicate name, append the profile with a
@@ -265,6 +302,7 @@ pub fn rotate(name: String, pat: String) -> Result<(), String> {
     let _lock = acquire_lock()?; let mut file = read_file()?;
     apply_rotate(&mut file, &name, &chrono_like_now())?;
     let old = read_profile_token(&name).ok(); store_profile_token(&name, &pat)?;
+    forget_token(&name);
     if let Err(error) = write_file(&file) { if let Some(previous) = old { let _ = store_profile_token(&name, &previous); } return Err(error); } Ok(())
 }
 fn apply_rotate(file: &mut Value, name: &str, now: &str) -> Result<(), String> {
@@ -275,7 +313,7 @@ fn apply_rotate(file: &mut Value, name: &str, now: &str) -> Result<(), String> {
 pub fn remove(name: String) -> Result<(), String> {
     let _lock = acquire_lock()?; let mut file = read_file()?;
     let keyring_backed = apply_remove(&mut file, &name)?;
-    write_file(&file)?; if !keyring_backed { return Ok(()); } delete_profile_token(&name).map_err(|_| "Profile was removed, but its credential could not be deleted. Retry credential cleanup from a system keychain manager.".to_owned())
+    write_file(&file)?; forget_token(&name); if !keyring_backed { return Ok(()); } delete_profile_token(&name).map_err(|_| "Profile was removed, but its credential could not be deleted. Retry credential cleanup from a system keychain manager.".to_owned())
 }
 // Returns whether the removed profile's token lived in the OS credential store, so the caller
 // knows whether a `delete_profile_token` follow-up is owed.
@@ -305,6 +343,40 @@ mod tests {
         let resolved = resolve_grounding_from_file(&profile("keychain"), "ado", |_| Ok("fake-token".into())).unwrap();
         assert_eq!(resolved.organization_url, "https://dev.azure.com/org");
         assert_eq!(resolved.token, "fake-token");
+    }
+
+    #[test]
+    fn reads_a_profile_token_from_the_credential_store_once_per_session() {
+        let mut cache = TokenCache::default();
+        let mut reads = 0;
+        for _ in 0..3 {
+            let token = cache.get_or_read("ado", |_| { reads += 1; Ok("fake-token".into()) }).unwrap();
+            assert_eq!(token, "fake-token");
+        }
+        assert_eq!(reads, 1);
+    }
+
+    #[test]
+    fn reads_the_token_again_once_it_is_forgotten() {
+        let mut cache = TokenCache::default();
+        cache.get_or_read("ado", |_| Ok("old-token".into())).unwrap();
+        cache.forget("ado");
+        assert_eq!(cache.get_or_read("ado", |_| Ok("new-token".into())).unwrap(), "new-token");
+    }
+
+    #[test]
+    fn keeps_nothing_when_the_credential_store_read_fails() {
+        let mut cache = TokenCache::default();
+        assert!(cache.get_or_read("ado", |_| Err(missing_credential_error())).is_err());
+        assert_eq!(cache.get_or_read("ado", |_| Ok("token".into())).unwrap(), "token");
+    }
+
+    #[test]
+    fn treats_only_authentication_failures_as_a_rejected_token() {
+        assert!(is_rejected_token_code("GROUNDING_AUTH_FAILED"));
+        assert!(is_rejected_token_code("STORIES_TOKEN_EXPIRED"));
+        assert!(!is_rejected_token_code("REFERENCE_WIKI_ACCESS"));
+        assert!(!is_rejected_token_code("GROUNDING_NETWORK"));
     }
 
     #[test]

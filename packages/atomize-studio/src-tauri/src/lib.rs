@@ -23,13 +23,13 @@ async fn catalog_install_item(content: String, name: String, scope: String, over
 #[tauri::command]
 async fn grounding_load(profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    relay.request("grounding.fetch", json!({ "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token })).await
+    forget_if_rejected(&profile, relay.request("grounding.fetch", json!({ "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token })).await)
 }
 
 #[tauri::command]
 async fn validation_online(validation_id: String, template: serde_json::Value, profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    relay.validate(validation_id, json!({ "template": template, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await
+    forget_if_rejected(&profile, relay.validate(validation_id, json!({ "template": template, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
 }
 
 #[tauri::command]
@@ -40,6 +40,11 @@ fn validation_cancel(validation_id: String, relay: tauri::State<'_, Arc<SidecarR
 #[tauri::command]
 async fn ai_generate(draft_id: String, prose: String, grounding: Option<serde_json::Value>, story_grounding: Option<serde_json::Value>, document_grounding: Option<serde_json::Value>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     relay.request("ai.generate", json!({ "draftId": draft_id, "prose": prose, "grounding": grounding, "storyGrounding": story_grounding, "documentGrounding": document_grounding })).await
+}
+
+fn forget_if_rejected<T>(profile: &str, result: Result<T, sidecar::SidecarError>) -> Result<T, sidecar::SidecarError> {
+    if let Err(error) = &result { if connections::is_rejected_token_code(&error.code) { connections::forget_token(profile); } }
+    result
 }
 
 fn grounding_connection(profile: &str) -> Result<serde_json::Value, sidecar::SidecarError> {
@@ -59,33 +64,35 @@ async fn references_save(workspace_root: String, entry: String, relay: tauri::St
 
 #[tauri::command]
 async fn references_load(workspace_root: String, entries: Vec<String>, profile: Option<String>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = match profile.filter(|name| !name.is_empty()) {
-        Some(name) => Some(grounding_connection(&name)?),
+    let profile = profile.filter(|name| !name.is_empty());
+    let connection = match &profile {
+        Some(name) => Some(grounding_connection(name)?),
         None => None,
     };
-    relay.request("references.load", json!({ "workspaceRoot": workspace_root, "entries": entries, "connection": connection })).await
+    let result = relay.request("references.load", json!({ "workspaceRoot": workspace_root, "entries": entries, "connection": connection })).await;
+    match &profile { Some(name) => forget_if_rejected(name, result), None => result }
 }
 
 #[tauri::command]
 async fn wiki_list(profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    relay.request("wiki.list", json!({ "connection": grounding_connection(&profile)? })).await
+    forget_if_rejected(&profile, relay.request("wiki.list", json!({ "connection": grounding_connection(&profile)? })).await)
 }
 
 #[tauri::command]
 async fn wiki_pages(profile: String, wiki: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    relay.request("wiki.pages", json!({ "wiki": wiki, "connection": grounding_connection(&profile)? })).await
+    forget_if_rejected(&profile, relay.request("wiki.pages", json!({ "wiki": wiki, "connection": grounding_connection(&profile)? })).await)
 }
 
 #[tauri::command]
 async fn stories_search(profile: String, search: serde_json::Value, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    relay.request("stories.search", json!({ "search": search, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await
+    forget_if_rejected(&profile, relay.request("stories.search", json!({ "search": search, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
 }
 
 #[tauri::command]
 async fn story_grounding_load(profile: String, story_ids: Vec<String>, include_sensitive: bool, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    relay.request("grounding.stories", json!({ "storyIds": story_ids, "includeSensitive": include_sensitive, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await
+    forget_if_rejected(&profile, relay.request("grounding.stories", json!({ "storyIds": story_ids, "includeSensitive": include_sensitive, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
 }
 
 #[tauri::command]
@@ -96,7 +103,7 @@ async fn ai_improve(draft_id: String, template: serde_json::Value, guidance: Opt
 #[tauri::command]
 async fn stories_applied(profile: String, template_filter: serde_json::Value, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    relay.request("stories.applied", json!({ "templateFilter": template_filter, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await
+    forget_if_rejected(&profile, relay.request("stories.applied", json!({ "templateFilter": template_filter, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
 }
 
 #[tauri::command]
@@ -112,20 +119,20 @@ async fn ai_auth_status(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<se
 #[tauri::command]
 async fn generate_query_stories(source: String, profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    relay.request("generate.queryStories", json!({ "source": source, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await
+    forget_if_rejected(&profile, relay.request("generate.queryStories", json!({ "source": source, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
 }
 
 #[tauri::command]
 async fn generate_run(run_id: String, source: String, profile: String, dry_run: bool, scope: serde_json::Value, continue_on_error: Option<bool>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    relay.run_generate(run_id.clone(), json!({
+    forget_if_rejected(&profile, relay.run_generate(run_id.clone(), json!({
         "runId": run_id,
         "source": source,
         "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token },
         "dryRun": dry_run,
         "scope": scope,
         "continueOnError": continue_on_error,
-    })).await
+    })).await)
 }
 
 #[tauri::command]
