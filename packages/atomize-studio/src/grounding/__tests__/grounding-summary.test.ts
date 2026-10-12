@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentGrounding } from "../../references/reference-documents";
-import { documentLabel, documentsSummary, shortenedDocuments, storiesSummary } from "../grounding-summary";
+import { documentLabel, documentsSummary, draftBriefPlaceholder, improveFocusPlaceholder, shortenedDocuments, storiesSummary } from "../grounding-summary";
 
 const document = (ref: string, truncated: boolean) => ({ ref, title: ref, text: "x", truncated, originalLength: 10 });
 const grounding = (...documents: DocumentGrounding["documents"]): DocumentGrounding => ({ documents });
@@ -28,5 +28,15 @@ describe("Grounding summary", () => {
   it("shows an entry without its source prefix", () => {
     expect(documentLabel("file:docs/a.md")).toBe("docs/a.md");
     expect(documentLabel("wiki:Contoso.wiki/Engineering")).toBe("Contoso.wiki/Engineering");
+  });
+
+  it("suggests a brief or focus that refers to what was chosen", () => {
+    const docs = grounding({ ...document("file:docs/estimation.md", false), title: "Estimation guide" });
+    expect(draftBriefPlaceholder([{ id: "4101" }], docs)).toContain("like 4101");
+    expect(draftBriefPlaceholder([], docs)).toContain('"Estimation guide"');
+    expect(draftBriefPlaceholder([], null)).toContain("backend API feature with design");
+    expect(improveFocusPlaceholder([{ id: "4101" }], null)).toContain("4101");
+    expect(improveFocusPlaceholder([], docs)).toContain('"Estimation guide"');
+    expect(improveFocusPlaceholder([], null)).toContain("tighten the estimates");
   });
 });

@@ -13,6 +13,7 @@ import { createTemplateLibrary } from '../core-library.js';
 import { type AIGrounding, type AIGroundingDeps, chooseAIGrounding } from './ai-grounding.js';
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
+import { groundingContext, groundingSummary, improveFocusPlaceholder } from './grounding-context.js';
 import { catalogRefFor, improvedCopyContent, reviewMessage } from './improvement-proposal.js';
 import { chooseReferenceDocuments } from './reference-documents-step.js';
 
@@ -53,14 +54,6 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 	if (!doc || !deps.isRunnableTemplate(doc)) return;
 	if (!await deps.checkDirtyDocument(doc, 'improve')) return;
 
-	const guidance = await vscode.window.showInputBox({
-		title: TITLE,
-		prompt: 'What should the improvement focus on? Leave blank for a general review.',
-		placeHolder: 'e.g. tighten the estimates, add security reviews',
-		ignoreFocusOut: true,
-	});
-	if (guidance === undefined) return;
-
 	const path = resolveDocumentPath(doc.uri);
 	const library = createTemplateLibrary();
 	let resolvedTemplate: TaskTemplate;
@@ -82,6 +75,16 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 	if (grounding === 'cancelled') return;
 	const documentGrounding = await chooseReferenceDocuments({ title: TITLE, resource: doc.uri, adapter: grounding.adapter });
 	if (documentGrounding === undefined) return;
+
+	// The focus comes after the Grounding, so it can name the Stories and documents just chosen.
+	const context = groundingContext(grounding, documentGrounding);
+	const guidance = await vscode.window.showInputBox({
+		title: `${TITLE} — ${groundingSummary(context, 'No grounding')}`,
+		prompt: 'What should the improvement focus on? Leave blank for a general review.',
+		placeHolder: improveFocusPlaceholder(context),
+		ignoreFocusOut: true,
+	});
+	if (guidance === undefined) return;
 
 	let prepared: { sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined;
 	try {

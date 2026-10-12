@@ -14,6 +14,8 @@ export interface AIGroundingDeps {
 }
 
 export interface AIGrounding {
+	/** The grounding Connection Profile's name, shown back to the user. */
+	profile?: string;
 	projectGrounding: ProjectGrounding | null;
 	storyGrounding: StoryGrounding | null;
 	/** The chosen profile's connection, reused for reading wiki Reference Documents. */
@@ -85,6 +87,7 @@ export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGround
 			return await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Notification, title: ids.length > 0 ? 'Loading project metadata and Stories…' : 'Loading project metadata…' },
 				async () => ({
+					profile,
 					projectGrounding: await fetchProjectGrounding(connected),
 					storyGrounding: ids.length > 0 ? await fetchStoryGrounding(connected, ids, { includeSensitive }) : null,
 					adapter: connected,

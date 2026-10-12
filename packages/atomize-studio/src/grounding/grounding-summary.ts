@@ -34,3 +34,21 @@ export function documentsSummary(grounding: DocumentGrounding | null, loading: b
 export function documentLabel(ref: string): string {
   return ref.replace(/^(file|wiki):/, "");
 }
+
+/** An example AI draft brief that refers to what was chosen, so it's clear the brief can. */
+export function draftBriefPlaceholder(stories: Pick<StoryRow, "id">[], grounding: DocumentGrounding | null): string {
+  const [story] = stories;
+  if (story) return `For example: like ${story.id}, but add a security review.`;
+  const [document] = grounding?.documents ?? [];
+  if (document) return `For example: a backend API feature, estimated the way "${document.title}" describes.`;
+  return "For example: a backend API feature with design, implementation, tests, documentation, and review.";
+}
+
+/** An example Improve with AI focus that refers to what was chosen, so it's clear the focus can. */
+export function improveFocusPlaceholder(stories: Pick<StoryRow, "id">[], grounding: DocumentGrounding | null): string {
+  const [story] = stories;
+  if (story) return `For example: ${story.id} needed a security review the Template doesn't have. Leave empty for a general review.`;
+  const [document] = grounding?.documents ?? [];
+  if (document) return `For example: match the estimates to "${document.title}". Leave empty for a general review.`;
+  return "For example: tighten the estimates, add security reviews. Leave empty for a general review.";
+}

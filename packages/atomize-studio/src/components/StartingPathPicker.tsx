@@ -3,7 +3,7 @@ import { type Accessor, createSignal, For, type JSX, Match, Show, Switch } from 
 import { type AzureDevOpsProfile, listAzureDevOpsProfiles } from "../connections/connection-client";
 import { openLocalFile } from "../files/open";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { documentLabel, documentsSummary, shortenedDocuments, storiesSummary } from "../grounding/grounding-summary";
+import { documentLabel, documentsSummary, draftBriefPlaceholder, shortenedDocuments, storiesSummary } from "../grounding/grounding-summary";
 import type { DocumentGrounding } from "../references/reference-documents";
 import { cancelAIDraft, checkCopilotAuthStatus, generateAIDraft, listenAIDraftProgress, loadStoryGrounding, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
@@ -15,8 +15,12 @@ import { StoryBrowser } from "./StoryBrowser";
 
 type AIState = "idle" | "form" | "grounding-error" | "generating" | "cancelling" | "auth-error" | "error";
 
-const DRAFT_STEPS = ["Brief", "Work Project & Stories", "Reference Documents", "Review & create"] as const;
-const REVIEW_STEP = DRAFT_STEPS.length - 1;
+// Grounding first, so the brief can refer to the Stories and documents just chosen.
+const DRAFT_STEPS = ["Work Project & Stories", "Reference Documents", "Brief", "Review & create"] as const;
+const PROJECT_STEP = 0;
+const DOCUMENTS_STEP = 1;
+const BRIEF_STEP = 2;
+const REVIEW_STEP = 3;
 
 export function StartingPathPicker(props: {
   onScratch: () => void;
@@ -65,9 +69,9 @@ export function StartingPathPicker(props: {
   const busy = () => aiState() === "generating" || aiState() === "cancelling";
   const shortened = () => shortenedDocuments(documents());
   const stepSummary = (index: number) => {
-    if (index === 0) return prose().trim() ? "Written" : "Not written yet";
-    if (index === 1) return profile() ? `${profile()} · ${examples().length === 0 ? "No Stories" : examples().length === 1 ? "1 Story" : `${examples().length} Stories`}` : "No Work Project";
-    if (index === 2) return documentsSummary(documents(), documentsLoading());
+    if (index === BRIEF_STEP) return prose().trim() ? "Written" : "Not written yet";
+    if (index === PROJECT_STEP) return profile() ? `${profile()} · ${examples().length === 0 ? "No Stories" : examples().length === 1 ? "1 Story" : `${examples().length} Stories`}` : "No Work Project";
+    if (index === DOCUMENTS_STEP) return documentsSummary(documents(), documentsLoading());
     return "";
   };
   // Shortened Reference Documents need an explicit Continue / Leave some out before sending.
@@ -208,15 +212,9 @@ export function StartingPathPicker(props: {
 
               <div class="min-h-80 p-6">
                 {/* Every step stays mounted so the Story Browser and Reference Documents keep their state. */}
-                <div classList={{ hidden: step() !== 0 }}>
-                  <p class="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Describe the work and task breakdown you want. Copilot creates a reviewable first Template draft.</p>
-                  <label class="mt-4 block text-sm font-semibold">Template brief<textarea class="mt-2 min-h-72 w-full rounded-lg border border-slate-300 bg-white p-4 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950" value={prose()} disabled={busy()} onInput={(event) => setProse(event.currentTarget.value)} placeholder="For example: a backend API feature with design, implementation, tests, documentation, and review." /></label>
-                  <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Your description is used only for this draft and remains private to this session.</p>
-                </div>
-
-                <div classList={{ hidden: step() !== 1 }}>
+                <div classList={{ hidden: step() !== PROJECT_STEP }}>
                   <label class="block max-w-md min-w-0 text-sm font-semibold">Work Project <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span><select class="mt-2 block w-full min-w-0 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal dark:border-slate-700 dark:bg-slate-950" value={profile()} disabled={busy()} onChange={(event) => chooseProfile(event.currentTarget.value)}><option value="">No Work Project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.name}</option>}</For></select></label>
-                  <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options, never its credentials.</p>
+                  <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options.</p>
                   <Show when={profile()} fallback={<p class="mt-6 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Choose a Work Project to add example Stories.</p>}>
                     <section class="mt-6">
                       <p class="text-sm font-semibold">Example Stories <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span></p>
@@ -241,7 +239,7 @@ export function StartingPathPicker(props: {
                   </Show>
                 </div>
 
-                <div classList={{ hidden: step() !== 2 }}>
+                <div classList={{ hidden: step() !== DOCUMENTS_STEP }}>
                   <ReferenceDocumentsPicker
                     profile={profile}
                     onChange={(grounding, loading) => { setDocuments(grounding); setDocumentsLoading(loading); setConfirmingShortened(false); }}
@@ -249,33 +247,48 @@ export function StartingPathPicker(props: {
                   />
                 </div>
 
+                <div classList={{ hidden: step() !== BRIEF_STEP }}>
+                  <p class="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Describe the work and task breakdown you want. Copilot creates a reviewable first Template draft.</p>
+                  <Show when={examples().length > 0 || (documents()?.documents.length ?? 0) > 0}>
+                    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                      <p class="font-semibold text-slate-700 dark:text-slate-200">Refer to what you chose by Story ID or document name</p>
+                      <div class="mt-2 flex flex-wrap gap-1.5">
+                        <For each={examples()}>{(story) => <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 dark:border-slate-700 dark:bg-slate-900">{story.id} · {story.title}</span>}</For>
+                        <For each={documents()?.documents}>{(document) => <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 dark:border-slate-700 dark:bg-slate-900">{document.title}</span>}</For>
+                      </div>
+                    </div>
+                  </Show>
+                  <label class="mt-4 block text-sm font-semibold">Template brief<textarea class="mt-2 min-h-72 w-full rounded-lg border border-slate-300 bg-white p-4 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950" value={prose()} disabled={busy()} onInput={(event) => setProse(event.currentTarget.value)} placeholder={draftBriefPlaceholder(examples(), documents())} /></label>
+                  <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Your description is used only for this draft and remains private to this session.</p>
+                </div>
+
                 <Show when={step() === REVIEW_STEP}>
                   <p class="text-sm text-slate-600 dark:text-slate-300">This is everything Copilot will receive.</p>
                   <dl class="mt-3 divide-y divide-slate-200 dark:divide-slate-800">
-                    <ReviewRow label="Brief" onEdit={() => setStep(0)} disabled={busy()}>
-                      <Show when={prose().trim()} fallback={<span class="text-rose-600">Missing. Describe the Template first.</span>}><p class="line-clamp-3 whitespace-pre-wrap">{prose().trim()}</p></Show>
-                    </ReviewRow>
-                    <ReviewRow label="Work Project" onEdit={() => setStep(1)} disabled={busy()}>
+                    <ReviewRow label="Work Project" onEdit={() => setStep(PROJECT_STEP)} disabled={busy()}>
                       {profile() || <span class="text-slate-500 dark:text-slate-400">None. No project field options.</span>}
                     </ReviewRow>
-                    <ReviewRow label="Example Stories" onEdit={() => setStep(1)} disabled={busy()}>
+                    <ReviewRow label="Example Stories" onEdit={() => setStep(PROJECT_STEP)} disabled={busy()}>
                       <Show when={examples().length > 0} fallback={<span class="text-slate-500 dark:text-slate-400">{storiesSummary(examples(), includeSensitive())}</span>}>
                         <ul class="space-y-0.5"><For each={examples()}>{(story) => <li class="truncate">{story.id} · {story.title}</li>}</For></ul>
                         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{includeSensitive() ? "Titles, Tasks, descriptions and acceptance criteria" : "Titles and Tasks only"}</p>
                       </Show>
                     </ReviewRow>
-                    <ReviewRow label="Reference Documents" onEdit={() => setStep(2)} disabled={busy()}>
+                    <ReviewRow label="Reference Documents" onEdit={() => setStep(DOCUMENTS_STEP)} disabled={busy()}>
                       <Show when={(documents()?.documents.length ?? 0) > 0 && !documentsLoading()} fallback={<span class="text-slate-500 dark:text-slate-400">{documentsSummary(documents(), documentsLoading())}</span>}>
                         <ul class="space-y-0.5">
                           <For each={documents()?.documents}>{(document) => <li class="truncate">{documentLabel(document.ref)}<Show when={document.truncated}> <span class="rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200">shortened</span></Show></li>}</For>
                         </ul>
                       </Show>
                     </ReviewRow>
+                    <ReviewRow label="Brief" onEdit={() => setStep(BRIEF_STEP)} disabled={busy()}>
+                      <Show when={prose().trim()} fallback={<span class="text-rose-600">Missing. Describe the Template first.</span>}><p class="line-clamp-3 whitespace-pre-wrap">{prose().trim()}</p></Show>
+                    </ReviewRow>
                   </dl>
                 </Show>
 
                 <Show when={confirmingShortened()}>
-                  <div class="mt-5"><ShorteningChoice shortened={shortened()} onContinue={requestCreate} onLeaveOut={() => { setConfirmingShortened(false); setStep(2); }} onCancel={() => setConfirmingShortened(false)} /></div>
+                  <div class="mt-5"><ShorteningChoice shortened={shortened()} onContinue={requestCreate} onLeaveOut={() => { setConfirmingShortened(false); setStep(DOCUMENTS_STEP); }} onCancel={() => setConfirmingShortened(false)} /></div>
                 </Show>
                 <Show when={aiError()}><p class="mt-4 text-sm text-rose-600">{aiError()}</p></Show>
                 <Switch>
@@ -300,7 +313,7 @@ export function StartingPathPicker(props: {
                 >
                   <button class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700" type="button" disabled={step() === 0} onClick={() => setStep(step() - 1)}>Back</button>
                   <div class="flex items-center gap-3">
-                    <Show when={step() > 0 && step() < REVIEW_STEP}><button class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" type="button" onClick={() => setStep(REVIEW_STEP)}>Skip to review</button></Show>
+                    <Show when={step() < BRIEF_STEP}><button class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" type="button" onClick={() => setStep(BRIEF_STEP)}>Skip to brief</button></Show>
                     <Show when={step() === REVIEW_STEP} fallback={<button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700" type="button" onClick={() => setStep(step() + 1)}>Next →</button>}>
                       <Show when={aiState() === "form" || aiState() === "error"}><button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50" type="button" disabled={documentsLoading() || confirmingShortened()} onClick={requestCreate}>{documentsLoading() ? "Checking Reference Documents…" : "Create draft"}</button></Show>
                     </Show>

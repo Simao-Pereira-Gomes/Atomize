@@ -8,6 +8,7 @@ import { type AIGrounding, type AIGroundingDeps, chooseAIGrounding } from './ai-
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
 import { draftDocumentContent } from './draft-document.js';
+import { draftDescriptionPlaceholder, type GroundingContext, groundingContext, groundingSummary } from './grounding-context.js';
 import { isPromptDocument, promptDocumentContent, promptDocumentDescription } from './prompt-document.js';
 import { chooseReferenceDocuments } from './reference-documents-step.js';
 
@@ -19,10 +20,16 @@ export type DraftCommandDeps = AIGroundingDeps;
 /** The last description entered this session, so a disappointing or failed draft never loses it. */
 let lastDescription = '';
 
+type ChosenGrounding = AIGrounding & { documentGrounding: DocumentGrounding | null };
+
+/** The Grounding a prompt document was opened with, keyed by its URI, so drafting from it doesn't ask again. */
+const promptGrounding = new Map<string, ChosenGrounding>();
+
 export function registerDraftTemplateCommand(deps: DraftCommandDeps): vscode.Disposable {
 	return vscode.Disposable.from(
 		vscode.commands.registerCommand(COMMAND, (promptDocument?: vscode.Uri) => draftTemplateWithAI(deps, promptDocument)),
 		vscode.languages.registerCodeLensProvider({ language: 'markdown' }, new PromptDocumentCodeLensProvider()),
+		vscode.workspace.onDidCloseTextDocument(doc => promptGrounding.delete(doc.uri.toString())),
 	);
 }
 
@@ -34,27 +41,26 @@ class PromptDocumentCodeLensProvider implements vscode.CodeLensProvider {
 	}
 }
 
+/**
+ * Grounding first, then the description, so the description can refer to the Stories and
+ * documents just chosen. A prompt document keeps the Grounding it was opened with.
+ */
 async function draftTemplateWithAI(deps: DraftCommandDeps, promptDocument?: vscode.Uri): Promise<void> {
-	const description = promptDocument ? await describeFromDocument(promptDocument) : await describeInInputBox();
+	const key = promptDocument?.toString();
+	const grounding = (key ? promptGrounding.get(key) : undefined) ?? await chooseGrounding(deps, promptDocument);
+	if (!grounding) return;
+	if (key) promptGrounding.set(key, grounding);
+
+	const context = groundingContext(grounding, grounding.documentGrounding);
+	const description = promptDocument ? await describeFromDocument(promptDocument) : await describeInInputBox(grounding, context);
 	if (description === undefined) return;
 	lastDescription = description;
-
-	const grounding = await chooseAIGrounding(deps, {
-		title: TITLE,
-		resource: vscode.window.activeTextEditor?.document.uri,
-		noGrounding: { label: 'No project grounding', description: 'Draft from your description only' },
-		storyPlaceholder: 'Optionally tick example Stories your team broke down well, or press Enter with none to skip.',
-		purpose: 'The draft',
-	});
-	if (grounding === 'cancelled') return;
-	const documentGrounding = await chooseReferenceDocuments({ title: TITLE, resource: promptDocument ?? vscode.window.activeTextEditor?.document.uri, adapter: grounding.adapter });
-	if (documentGrounding === undefined) return;
 
 	let content: string | undefined;
 	try {
 		content = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: TITLE, cancellable: true },
-			(progress, token) => runDraft(description, { ...grounding, documentGrounding }, progress, token),
+			(progress, token) => runDraft(description, grounding, progress, token),
 		);
 	} catch (error) {
 		if (error instanceof AIUnavailableError) {
@@ -69,15 +75,31 @@ async function draftTemplateWithAI(deps: DraftCommandDeps, promptDocument?: vsco
 	await vscode.window.showTextDocument(document);
 }
 
+async function chooseGrounding(deps: DraftCommandDeps, promptDocument: vscode.Uri | undefined): Promise<ChosenGrounding | undefined> {
+	const resource = promptDocument ?? vscode.window.activeTextEditor?.document.uri;
+	const grounding = await chooseAIGrounding(deps, {
+		title: TITLE,
+		resource,
+		noGrounding: { label: 'No project grounding', description: 'Draft from your description only' },
+		storyPlaceholder: 'Optionally tick example Stories your team broke down well, or press Enter with none to skip.',
+		purpose: 'The draft',
+	});
+	if (grounding === 'cancelled') return undefined;
+	const documentGrounding = await chooseReferenceDocuments({ title: TITLE, resource, adapter: grounding.adapter });
+	if (documentGrounding === undefined) return undefined;
+	return { ...grounding, documentGrounding };
+}
+
 /**
- * Asks for the description in an InputBox, pre-filled with the last one. Its "Open in editor"
- * button moves the description into a prompt document for longer writing instead.
+ * Asks for the description in an InputBox, pre-filled with the last one and titled with the
+ * chosen Grounding. Its "Open in editor" button moves the description into a prompt document for
+ * longer writing instead, listing the Grounding at the top and keeping it for the draft.
  */
-async function describeInInputBox(): Promise<string | undefined> {
+async function describeInInputBox(grounding: ChosenGrounding, context: GroundingContext): Promise<string | undefined> {
 	const input = vscode.window.createInputBox();
-	input.title = TITLE;
+	input.title = `${TITLE} — ${groundingSummary(context, 'No project grounding')}`;
 	input.prompt = 'Describe the Template you need — or open an editor to write more';
-	input.placeholder = 'e.g. Backend API stories with design, implementation, and testing tasks';
+	input.placeholder = draftDescriptionPlaceholder(context);
 	input.value = lastDescription;
 	input.ignoreFocusOut = true;
 	const openEditor: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon('go-to-file'), tooltip: 'Open in editor for a longer description' };
@@ -99,7 +121,8 @@ async function describeInInputBox(): Promise<string | undefined> {
 	});
 
 	if (outcome?.kind !== 'editor') return outcome?.value;
-	const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: promptDocumentContent(outcome.value) });
+	const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: promptDocumentContent(outcome.value, context) });
+	promptGrounding.set(document.uri.toString(), grounding);
 	await vscode.window.showTextDocument(document);
 	return undefined;
 }
@@ -118,7 +141,7 @@ async function describeFromDocument(uri: vscode.Uri): Promise<string | undefined
 /** Resolves the draft's document text, or undefined when the user cancelled. */
 async function runDraft(
 	description: string,
-	grounding: AIGrounding & { documentGrounding: DocumentGrounding | null },
+	grounding: ChosenGrounding,
 	progress: vscode.Progress<{ message?: string }>,
 	token: vscode.CancellationToken,
 ): Promise<string | undefined> {

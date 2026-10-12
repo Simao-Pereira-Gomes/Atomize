@@ -1,13 +1,31 @@
+import type { GroundingContext } from './grounding-context.js';
+
 /**
  * A prompt document is an untitled Markdown buffer for describing a Template at length. Its first
- * line marks it, so a CodeLens can offer to draft from it; the rest is the description.
+ * line marks it, so a CodeLens can offer to draft from it; the rest is the description. When the
+ * Grounding was chosen first, the marker comment also lists it, so the description can refer to it.
  */
 export const PROMPT_DOCUMENT_MARKER = '<!-- atomize-draft-prompt';
 
-const HEADER = `${PROMPT_DOCUMENT_MARKER}: Describe the Template you need below, as fully as you like, then choose "Draft Template with AI" above. -->`;
+const INSTRUCTION = 'Describe the Template you need below, as fully as you like, then choose "Draft Template with AI" above.';
 
-export function promptDocumentContent(description: string): string {
-	return `${HEADER}\n\n${description.trim()}\n`;
+// A name containing "-->" would end the marker comment early and leak into the description.
+const safe = (text: string) => text.replace(/-->/g, '->');
+
+function contextLines(context: GroundingContext): string[] {
+	if (!context.profile && context.stories.length === 0 && context.documents.length === 0) return [];
+	return [
+		'',
+		`Grounded in: ${safe(context.profile ?? 'no Work Project')}`,
+		...(context.stories.length > 0 ? [`Example Stories: ${context.stories.map(story => safe(`${story.id} ${story.title}`)).join('; ')}`] : []),
+		...(context.documents.length > 0 ? [`Reference Documents: ${context.documents.map(document => safe(document.title)).join('; ')}`] : []),
+		'Refer to them by Story ID or document name.',
+	];
+}
+
+export function promptDocumentContent(description: string, context?: GroundingContext): string {
+	const header = [`${PROMPT_DOCUMENT_MARKER}: ${INSTRUCTION}`, ...(context ? contextLines(context) : [])].join('\n');
+	return `${header} -->\n\n${description.trim()}\n`;
 }
 
 export function isPromptDocument(text: string): boolean {

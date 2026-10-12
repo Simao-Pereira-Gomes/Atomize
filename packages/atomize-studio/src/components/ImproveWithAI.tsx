@@ -1,7 +1,7 @@
 import { diffTemplates } from "@sppg2001/atomize-schema";
 import { type Accessor, createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { documentsSummary, shortenedDocuments, storiesSummary } from "../grounding/grounding-summary";
+import { documentsSummary, improveFocusPlaceholder, shortenedDocuments, storiesSummary } from "../grounding/grounding-summary";
 import { createImproveSession } from "../improve/improve-session";
 import type { DocumentGrounding } from "../references/reference-documents";
 import { cancelAIDraft, improveTemplateWithAI, listAppliedStories, listenAIDraftProgress, loadStoryGrounding } from "../sidecar/sidecar-client";
@@ -192,25 +192,29 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
               {/* The form stays mounted across drill-ins and phases, so the Story Browser and Reference Documents keep their state. */}
               <div classList={{ hidden: state().phase !== "form" }}>
                 <div classList={{ hidden: !!drill() }}>
-                  <label class="block text-sm font-semibold">
-                    What should the improvement focus on? <span class="font-normal text-slate-500">(optional)</span>
-                    <textarea
-                      class="mt-2 min-h-32 w-full rounded-lg border border-slate-300 bg-white p-3 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950"
-                      value={guidance()}
-                      onInput={(event) => session.setGuidance(event.currentTarget.value)}
-                      placeholder="For example: tighten the estimates, add security reviews. Leave empty for a general review."
-                    />
-                  </label>
-                  <Show when={(() => { const current = state(); return current.phase === "form" ? current.error : undefined; })()}>
-                    {(error) => <p class="mt-3 text-sm text-rose-600">{error()}</p>}
-                  </Show>
-
-                  <p class="mt-6 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Grounding <span class="font-normal normal-case tracking-normal">— optional</span></p>
+                  {/* Grounding first, so the focus can refer to the Stories and documents just chosen. */}
+                  <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Grounding <span class="font-normal normal-case tracking-normal">— optional</span></p>
                   <div class="mt-2 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
                     <GroundingRow title={DRILL_TITLES.project} summary={session.choices().profile || "None. Review the Template on its own"} onOpen={() => setDrill("project")} />
                     <GroundingRow title={DRILL_TITLES.stories} summary={session.choices().profile ? storiesSummary(session.choices().stories, session.choices().includeSensitive) : "Needs a Work Project"} disabled={!session.choices().profile} onOpen={() => setDrill("stories")} />
                     <GroundingRow title={DRILL_TITLES.documents} summary={documentsSummary(documents(), documentsLoading())} warn={shortened().length > 0} onOpen={() => setDrill("documents")} />
                   </div>
+
+                  <label class="mt-6 block text-sm font-semibold">
+                    What should the improvement focus on? <span class="font-normal text-slate-500">(optional)</span>
+                    <textarea
+                      class="mt-2 min-h-32 w-full rounded-lg border border-slate-300 bg-white p-3 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950"
+                      value={guidance()}
+                      onInput={(event) => session.setGuidance(event.currentTarget.value)}
+                      placeholder={improveFocusPlaceholder(session.choices().stories, documents())}
+                    />
+                  </label>
+                  <Show when={session.choices().stories.length > 0 || (documents()?.documents.length ?? 0) > 0}>
+                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">You can refer to the Stories and documents above by Story ID or document name.</p>
+                  </Show>
+                  <Show when={(() => { const current = state(); return current.phase === "form" ? current.error : undefined; })()}>
+                    {(error) => <p class="mt-3 text-sm text-rose-600">{error()}</p>}
+                  </Show>
 
                   <Show when={confirmingShortened()}>
                     <div class="mt-5"><ShorteningChoice shortened={shortened()} onContinue={requestImprove} onLeaveOut={() => { setConfirmingShortened(false); setDrill("documents"); }} onCancel={() => setConfirmingShortened(false)} /></div>
