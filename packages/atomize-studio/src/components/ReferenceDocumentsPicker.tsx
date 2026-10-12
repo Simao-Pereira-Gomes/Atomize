@@ -174,7 +174,7 @@ export function ReferenceDocumentsPicker(props: {
   return (
     <section>
       <p class="text-sm font-semibold">Reference Documents <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span></p>
-      <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Your team's written process — sent to Copilot as reference material, never as instructions.</p>
+      <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Your team's written process sent to Copilot as reference material.</p>
 
       <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
         <span>Project folder: <strong>{folder() ? folderName(folder() as string) : "not chosen"}</strong></span>
