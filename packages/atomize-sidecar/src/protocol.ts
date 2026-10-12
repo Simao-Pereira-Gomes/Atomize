@@ -99,15 +99,12 @@ export type SidecarServices = {
 export function createTemplateLibrary(projectFolder?: string): TemplateLibrary {
   // The CI bundle copies atomize-core's catalog beside the sidecar binary.
   const packageRoot = process.env.ATOMIZE_CATALOG_ROOT;
-  const workspaceRoot = projectFolder ? discoverWorkspaceRoot(projectFolder) : undefined;
   // Catalog listing and catalog-reference resolution must use the same root. The
-  // bundled Studio catalog is not at atomize-core's default package location.
+  // bundled Studio catalog is not at atomize-core's default package location. The catalog finds
+  // the project from the chosen folder itself, so the home folder is never taken for a project.
   const catalog = new TemplateCatalog({
     ...(packageRoot ? { packageRoot } : {}),
-    ...(workspaceRoot ? {
-      projectRoot: resolve(workspaceRoot, ".atomize", "catalog"),
-      legacyProjectRoot: resolve(workspaceRoot, ".atomize", "templates"),
-    } : {}),
+    ...(projectFolder ? { invocationCwd: projectFolder } : {}),
   });
   return new TemplateLibrary(new TemplateSourceResolver(undefined, catalog), catalog);
 }

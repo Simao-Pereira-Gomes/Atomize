@@ -1,5 +1,6 @@
 import { type Accessor, createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js";
 import { stringify } from "yaml";
+import { rememberedInstallScope, rememberInstallScope } from "../../catalog/install-scope";
 import { catalogTemplateOrigin, type OriginBaselineSession } from "../../diff/origin-baseline";
 import { downloadTemplate, saveTemplateToPath, slugifyTemplateName } from "../../download/download-service";
 import { type CatalogInstallScope, installCatalogItem, type OnlineValidationResult, SidecarRequestError, validateOnline } from "../../sidecar/sidecar-client";
@@ -164,7 +165,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
   const [profilePickerOpen, setProfilePickerOpen] = createSignal(false);
 
   const [installOpen, setInstallOpen] = createSignal(false);
-  const [installScope, setInstallScope] = createSignal<CatalogInstallScope>("user");
+  const [installScope, setInstallScope] = createSignal<CatalogInstallScope>(rememberedInstallScope());
   const [installing, setInstalling] = createSignal(false);
   const [installError, setInstallError] = createSignal("");
   const [installCollision, setInstallCollision] = createSignal(false);
@@ -245,7 +246,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
 
   const openInstall = () => {
     setInstallOpen(true);
-    setInstallScope("user");
+    setInstallScope(rememberedInstallScope());
     setInstallError("");
     setInstallCollision(false);
   };
@@ -275,6 +276,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
       const result = await installCatalogItem(content, name, scope, overwrite, undefined, workspaceRoot) as { path?: unknown } | null;
       setInstallCollision(false);
       setInstallOpen(false);
+      rememberInstallScope(scope);
       // A project install lands under the chosen folder's project root, which may be above it, so say where.
       setInstalled({ name, scope, ...(typeof result?.path === "string" ? { path: result.path } : {}) });
       setTimeout(() => setInstalled(undefined), 6000);
