@@ -4,6 +4,7 @@ import { type AITemplateSession, improveTemplate } from "@sppg2001/atomize-core/
 import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import type { DocumentGrounding } from "@sppg2001/atomize-core/services/template/reference-documents";
 import { applyProposalToYaml, deriveImprovedCopy } from "@sppg2001/atomize-core/services/template/template-writeback";
+import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import type { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
@@ -14,7 +15,7 @@ import { Command } from "commander";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
-import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { assertNotCancelled, createManagedSpinner, formatScope, isInteractiveTerminal, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import {
   type ImproveGrounding,
   type ImproveGroundingDeps,
@@ -26,6 +27,8 @@ import { type ReferenceDocumentOptions, resolveReferenceDocuments } from "./refe
 export interface ImproveOptions extends ImproveGroundingOptions, ReferenceDocumentOptions {
   guidance?: string;
   saveAs?: string;
+  /** The Catalog --save-as writes to: user or project. */
+  scope?: string;
   overwrite?: boolean;
   dryRun?: boolean;
   strict?: boolean;
@@ -33,7 +36,7 @@ export interface ImproveOptions extends ImproveGroundingOptions, ReferenceDocume
   quiet?: boolean;
 }
 
-export type ImproveLibrary = Pick<TemplateLibrary, "loadSource" | "composeTemplate" | "getCatalog" | "saveTemplate" | "userTemplateExists">;
+export type ImproveLibrary = Pick<TemplateLibrary, "loadSource" | "composeTemplate" | "getCatalog" | "saveTemplate" | "templateExists">;
 
 export interface ImproveDeps {
   library: ImproveLibrary;
@@ -83,6 +86,7 @@ export const templateImproveCommand = new Command("improve")
   .option("--reference <path>", "Send this Markdown or text file in the workspace as a Reference Document (repeatable)", collect)
   .option("--no-project-references", "Leave out the Project Reference Documents saved in .atomize/ai.yaml")
   .option("--save-as <name>", "Save the improvement as a new Template instead of changing the source")
+  .option("--scope <scope>", "With --save-as, the Catalog to save to: user or project [default: project when the project has its own .atomize folder, otherwise user]")
   .option("--overwrite", "Replace the source Template with the improvement without asking", false)
   .option("--dry-run", "Show the proposed changes without saving anything", false)
   .option("--strict", "Treat validation warnings as errors", false)
@@ -189,7 +193,7 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
     }
     if (options.dryRun) return finish(report, options);
 
-    report.saved = await save(valid, { options, interactive, library, sourcePath, sourceText, catalogRef, builtin });
+    report.saved = await save(valid, { options, cwd: deps.cwd, interactive, library, sourcePath, sourceText, catalogRef, builtin });
     return finish(report, options);
   }
 }
@@ -232,6 +236,8 @@ async function propose(
 
 interface SaveContext {
   options: ImproveOptions;
+  /** Where relative paths and the project Catalog start from. */
+  cwd: string | undefined;
   interactive: boolean;
   library: ImproveLibrary;
   sourcePath: string;
@@ -291,12 +297,20 @@ async function overwriteSource(proposal: TaskTemplate, ctx: SaveContext): Promis
 
 async function saveAsNew(proposal: TaskTemplate, name: string, ctx: SaveContext): Promise<Saved> {
   const copy = deriveImprovedCopy(proposal, { catalogRef: ctx.catalogRef });
-  if (await ctx.library.userTemplateExists("template", name)) {
+  const scope = catalogScope(ctx);
+  if (await ctx.library.templateExists("template", scope, name)) {
     throw new ConfigurationError(`A Template named "${name}" already exists. Choose another name for --save-as.`);
   }
-  const item = await ctx.library.saveTemplate({ kind: "template", name, template: copy });
-  output.success(`Saved the improvement as template:${name} (${item.path})`);
+  const item = await ctx.library.saveTemplate({ kind: "template", name, template: copy, scope });
+  output.success(`Saved the improvement as template:${name} (${formatScope(scope)}: ${item.path})`);
   return { action: "save-as", path: item.path };
+}
+
+/** --scope, or project when the project has opted in with its own .atomize folder, else user. */
+function catalogScope(ctx: SaveContext): "user" | "project" {
+  if (ctx.options.scope === undefined) return defaultCatalogScope(ctx.cwd);
+  if (ctx.options.scope === "user" || ctx.options.scope === "project") return ctx.options.scope;
+  throw new ConfigurationError(`Invalid scope "${ctx.options.scope}". Expected: user, project.`);
 }
 
 /** An invalid proposal is never saved into the Catalog; a draft is written beside the source for hand-fixing. */

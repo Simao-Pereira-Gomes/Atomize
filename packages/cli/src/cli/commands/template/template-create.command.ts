@@ -15,6 +15,7 @@ import type { IPlatformAdapter, PlatformType } from "@sppg2001/atomize-core/plat
 import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
 import { StoryLearner } from "@sppg2001/atomize-core/services/template/story-learner";
 import type { MultiStoryLearningResult } from "@sppg2001/atomize-core/services/template/story-learner.types";
+import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { 
   Metadata,MixinTemplate, PartialTaskTemplate, 
   TaskTemplate,
@@ -81,6 +82,8 @@ interface CreateOptions {
   reference?: string[];
   projectReferences?: boolean;
   saveAs?: string;
+  /** The Catalog to save to: user or project. */
+  scope?: string;
   platform?: string;
   profile?: string;
   quiet?: boolean;
@@ -113,6 +116,7 @@ export const templateCreateCommand = new Command("create")
   .option("--reference <path>", "With --ai, send this Markdown or text file in the workspace as a Reference Document (repeatable)", collect)
   .option("--no-project-references", "With --ai, leave out the Project Reference Documents saved in .atomize/ai.yaml")
   .option("--save-as <name>", "Name to save the template under")
+  .option("--scope <scope>", 'Catalog to save to: user (displayed as "personal") or project (displayed as "your project") [default: project when the project has its own .atomize folder, otherwise user]')
   .option("--open", "Open the saved Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (options: CreateOptions) => {
@@ -128,14 +132,17 @@ export const templateCreateCommand = new Command("create")
           ),
         );
       }
+      // Checked before any prompts or AI work, so an invalid --scope fails fast. A project's own
+      // .atomize/ folder means the team has opted in to a project Catalog.
+      const scope = new TemplateLibrary().parseInstallScope(options.scope ?? defaultCatalogScope());
       const target = await determineCreationTarget(options);
       const created =
         target === "mixin"
           ? await createMixin({ quiet: options.quiet, profile: options.profile })
           : await createFullTemplate(options);
 
-      const saved = await saveCreatedTemplate(created, target, options.saveAs);
-      output.print(chalk.green(`\n Template saved to ${saved.path}\n`));
+      const saved = await saveCreatedTemplate(created, target, options.saveAs, scope);
+      output.print(chalk.green(`\n Template saved to ${saved.path} (${formatScope(saved.scope)})\n`));
       output.print(chalk.cyan("Use it with: ") + chalk.gray(saved.ref));
       output.blankLine();
       await handOffToEditor({
@@ -982,13 +989,14 @@ async function saveCreatedTemplate(
   created: AnyTaskTemplate | MixinTemplate,
   target: CreationTarget,
   requestedName: string | undefined,
-): Promise<{ path: string; ref: string }> {
+  scope: "user" | "project",
+): Promise<{ path: string; ref: string; scope: "user" | "project" }> {
   const library = new TemplateLibrary();
   const referenceName = requestedName
     ? parseReferenceName(requestedName)
     : await promptReferenceName(created.name);
-  const targetPath = library.getUserTemplatePath(target, referenceName);
-  const exists = await library.userTemplateExists(target, referenceName);
+  const targetPath = library.getTemplatePath(target, scope, referenceName);
+  const exists = await library.templateExists(target, scope, referenceName);
   const overwrite = exists
     ? assertNotCancelled(
         await confirm({
@@ -1007,9 +1015,10 @@ async function saveCreatedTemplate(
       kind: "mixin",
       name: referenceName,
       template: created,
+      scope,
       overwrite: true,
     });
-    return { path: item.path, ref: item.ref };
+    return { path: item.path, ref: item.ref, scope };
   }
 
   const validation = await validateForSave(created as AnyTaskTemplate, targetPath);
@@ -1025,10 +1034,11 @@ async function saveCreatedTemplate(
     kind: target,
     name: referenceName,
     template: created,
+    scope,
     overwrite: true,
     validate: false,
   });
-  return { path: item.path, ref: item.ref };
+  return { path: item.path, ref: item.ref, scope };
 }
 
 async function promptReferenceName(displayName: string): Promise<string> {

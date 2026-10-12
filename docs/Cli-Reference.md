@@ -463,6 +463,7 @@ atomize tpl create [options]  # alias
 | `--reference <path>` | string | With `--ai`, send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | With `--ai`, leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
+| `--scope <scope>` | string | Catalog to save to: `user` (`~/.atomize/catalog`) or `project` (`.atomize/catalog` in the project root). Default: `project` when the project root has its own `.atomize` folder, otherwise `user`. |
 | `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
 | `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
 | `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
@@ -566,6 +567,7 @@ atomize template improve <template> [options]
 | `--reference <path>` | string | Send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | Leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Save the improvement as a new Template, leaving the source untouched |
+| `--scope <scope>` | string | With `--save-as`, the Catalog to save to: `user` or `project`. Default: `project` when the project root has its own `.atomize` folder, otherwise `user`. |
 | `--overwrite` | flag | Replace the source Template with the improvement without asking |
 | `--dry-run` | flag | Show the proposed changes without saving anything |
 | `--strict` | flag | Treat validation warnings as errors |
@@ -708,7 +710,7 @@ atomize tpl install <source> [options]  # alias
 |--------|-------------|
 | `--type <type>` | Force type: `template` or `mixin` (auto-detected from file content if omitted) |
 | `--overwrite` | Overwrite if a template with the same name already exists |
-| `--scope <scope>` | Installation scope: `user` (default, `~/.atomize`) or `project` (`.atomize` in current directory) |
+| `--scope <scope>` | Installation scope: `user` (`~/.atomize/catalog`) or `project` (`.atomize/catalog` in the project root: the nearest folder with a `.atomize` folder, otherwise the git repo root, otherwise the current directory). Without `--scope`, it's `project` when the project root has its own `.atomize` folder, meaning the team has opted in, and `user` otherwise. |
 | `--open` | Open the installed Atomize YAML file in a supported editor after successful installation |
 | `-q, --quiet` | Suppress non-essential output |
 

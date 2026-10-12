@@ -62,7 +62,7 @@ let sourcePath: string;
 
 /** A Template library over one file, optionally presented as a Catalog Template, that records saves. */
 function library(options: { catalogRef?: string; builtin?: boolean; existing?: string[] } = {}) {
-  const saved: { name: string; template: TaskTemplate }[] = [];
+  const saved: { name: string; template: TaskTemplate; scope?: string }[] = [];
   const lib: ImproveLibrary = {
     loadSource: (async () => ({
       template: parse(SOURCE),
@@ -73,9 +73,9 @@ function library(options: { catalogRef?: string; builtin?: boolean; existing?: s
     })) as unknown as ImproveLibrary["loadSource"],
     composeTemplate: async (raw) => raw as TaskTemplate,
     getCatalog: (async () => ({ items: options.builtin ? [{ path: sourcePath, scope: "builtin" }] : [] })) as unknown as ImproveLibrary["getCatalog"],
-    userTemplateExists: async (_kind, name) => (options.existing ?? []).includes(name),
-    saveTemplate: (async ({ name, template }: { name: string; template: TaskTemplate }) => {
-      saved.push({ name, template });
+    templateExists: async (_kind, _scope, name) => (options.existing ?? []).includes(name),
+    saveTemplate: (async ({ name, template, scope }: { name: string; template: TaskTemplate; scope?: string }) => {
+      saved.push({ name, template, scope });
       return { path: join(dir, `${name}.yaml`) };
     }) as unknown as ImproveLibrary["saveTemplate"],
   };
@@ -217,6 +217,26 @@ describe("atomize template improve", () => {
     expect(saved[0]?.template.origin).toBe("template:backend-api");
     expect(report.saved?.action).toBe("save-as");
     expect(await readFile(sourcePath, "utf8")).toBe(SOURCE);
+  });
+
+  test("--save-as saves to the personal Catalog in a project that hasn't opted in", async () => {
+    const { lib, saved } = library();
+    await run({ saveAs: "copy" }, { lib });
+    expect(saved[0]?.scope).toBe("user");
+  });
+
+  test("--save-as saves to the project Catalog when the project has its own .atomize folder", async () => {
+    await mkdir(join(dir, ".atomize"));
+    const { lib, saved } = library();
+    await run({ saveAs: "copy" }, { lib });
+    expect(saved[0]?.scope).toBe("project");
+  });
+
+  test("--scope overrides the default Catalog for --save-as", async () => {
+    await mkdir(join(dir, ".atomize"));
+    const { lib, saved } = library();
+    await run({ saveAs: "copy", scope: "user" }, { lib });
+    expect(saved[0]?.scope).toBe("user");
   });
 
   test("--save-as from a standalone file leaves out origin", async () => {
