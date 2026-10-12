@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
-import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
+import { defaultCatalogScope, discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 
 const TEST_DIR = join(tmpdir(), `atomize-workspace-root-test-${process.pid}`);
 
@@ -64,6 +64,16 @@ describe("discoverWorkspaceRoot", () => {
     expect(discoverWorkspaceRoot(join(project, "src"), home)).toBe(project);
   });
 
+  test("never treats a folder inside the home .atomize as a project", async () => {
+    // ~/.atomize/catalog/templates holds the personal Catalog: a file there belongs to no project.
+    const home = join(TEST_DIR, "home");
+    const personalTemplates = join(home, ".atomize", "catalog", "templates");
+    await mkdir(personalTemplates, { recursive: true });
+
+    expect(discoverWorkspaceRoot(personalTemplates, home)).toBe(home);
+    expect(defaultCatalogScope(personalTemplates, home)).toBe("user");
+  });
+
   test("falls back to the invocation cwd, not the home folder, outside any repo", async () => {
     const home = join(TEST_DIR, "home");
     const loose = join(home, "notes");
@@ -78,6 +88,35 @@ describe("discoverWorkspaceRoot", () => {
     await mkdir(cwd, { recursive: true });
 
     expect(discoverWorkspaceRoot(cwd)).toBe(cwd);
+  });
+});
+
+describe("defaultCatalogScope", () => {
+  test("is project when the project has its own .atomize folder", async () => {
+    const home = join(TEST_DIR, "home");
+    const repo = join(home, "dev", "repo");
+    await mkdir(join(home, ".atomize"), { recursive: true });
+    await mkdir(join(repo, ".git"), { recursive: true });
+    await mkdir(join(repo, ".atomize"), { recursive: true });
+    await mkdir(join(repo, "src"), { recursive: true });
+
+    expect(defaultCatalogScope(join(repo, "src"), home)).toBe("project");
+  });
+
+  test("is user in a repo that hasn't opted in with a .atomize folder", async () => {
+    const home = join(TEST_DIR, "home");
+    const repo = join(home, "dev", "repo");
+    await mkdir(join(home, ".atomize"), { recursive: true });
+    await mkdir(join(repo, ".git"), { recursive: true });
+
+    expect(defaultCatalogScope(repo, home)).toBe("user");
+  });
+
+  test("is user from the home folder, whose .atomize holds Atomize's own settings", async () => {
+    const home = join(TEST_DIR, "home");
+    await mkdir(join(home, ".atomize"), { recursive: true });
+
+    expect(defaultCatalogScope(home, home)).toBe("user");
   });
 });
 
