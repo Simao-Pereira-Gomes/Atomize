@@ -1,5 +1,6 @@
 mod sidecar;
 mod connections;
+mod open_panel;
 use std::sync::Arc;
 use serde_json::json;
 use sidecar::SidecarRelay;
@@ -235,7 +236,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_improve, ai_cancel, ai_auth_status, stories_search, story_grounding_load, stories_applied, references_list, references_save, references_load, wiki_list, wiki_pages, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default])
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_improve, ai_cancel, ai_auth_status, stories_search, story_grounding_load, stories_applied, references_list, references_save, references_load, wiki_list, wiki_pages, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default, open_panel::open_atomize_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

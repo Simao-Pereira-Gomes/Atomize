@@ -29,6 +29,11 @@ tokio = { version = "1", features = ["sync", "time"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3"
+# Studio's own Open panel, which shows hidden folders such as .atomize (see src/open_panel.rs).
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "block2", "NSApplication", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSWindow"] }
 
 # keyring deliberately enables no platform store by default.  Without this
 # feature, a Windows build uses its in-memory mock store and a profile token
@@ -37,6 +42,10 @@ security-framework = "3"
 keyring = { version = "4.2.0", features = ["windows-native-keyring-store"] }
 keyring-core = "1"
 winreg = "0.55"
+
+# Studio's own Open dialog, which shows hidden folders such as .atomize (see src/open_panel.rs).
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
 
 [target.'cfg(not(any(target_os = "macos", target_os = "windows")))'.dependencies]
 keyring = "4.2.0"

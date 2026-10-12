@@ -49,7 +49,7 @@ Scratch, Catalog Clone, and AI draft always produce a new, detached Template wit
 
 ### Open
 
-Opening a local Atomize YAML File that fails to parse, doesn't have the Template shape, or is structurally a Mixin is rejected immediately with a clear message. A file with the Template shape but invalid values still loads, showing inline errors the same way an in-progress Template would.
+Open's file picker shows hidden folders, so you can open Templates saved in a project Catalog under `.atomize/catalog/templates/` without pressing ⌘⇧. on macOS or Ctrl+H on Linux yourself. Windows already shows `.atomize` folders. On Linux desktops that route file dialogs through a system portal, such as Flatpak, the portal may still hide them; press Ctrl+H there. Opening a local Atomize YAML File that fails to parse, doesn't have the Template shape, or is structurally a Mixin is rejected immediately with a clear message. A file with the Template shape but invalid values still loads, showing inline errors the same way an in-progress Template would.
 
 If the file declares `extends` or `mixins`, Studio resolves it into its fully composed form before loading — the same composition the Template Library performs for the CLI. This requires the companion process to be reachable; a plain file with no composition loads fully offline. Resolving `extends`/`mixins` also strips those fields from the loaded Template, since leaving them declared against an already-composed task list would duplicate the parent's or mixins' tasks the next time the file is opened.
 

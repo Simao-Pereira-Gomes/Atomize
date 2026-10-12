@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { PickLocalFileError, pickLocalFile } from "../pick-local-file";
+import { describe, expect, it, vi } from "vitest";
+import { PickLocalFileError, pickLocalFile, pickShowingHiddenFolders } from "../pick-local-file";
 
 describe("pickLocalFile", () => {
   it("returns the picked path and its contents", async () => {
@@ -47,5 +47,21 @@ describe("pickLocalFile", () => {
 
     expect(error).toBeInstanceOf(PickLocalFileError);
     expect((error as PickLocalFileError).message).toBe("permission denied");
+  });
+});
+
+describe("pickShowingHiddenFolders", () => {
+  it("uses Studio's own panel, which shows hidden folders, when it's available", async () => {
+    const fallback = vi.fn(async () => "/other.yaml");
+    expect(await pickShowingHiddenFolders(async () => "/repo/.atomize/catalog/templates/a.atomize.yaml", fallback)).toBe("/repo/.atomize/catalog/templates/a.atomize.yaml");
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the dialog plugin where that panel isn't supported", async () => {
+    expect(await pickShowingHiddenFolders(async () => { throw "UNSUPPORTED"; }, async () => "/repo/a.yaml")).toBe("/repo/a.yaml");
+  });
+
+  it("reports any other failure instead of hiding it behind the fallback", async () => {
+    await expect(pickShowingHiddenFolders(async () => { throw "panel failed"; }, async () => "/repo/a.yaml")).rejects.toBe("panel failed");
   });
 });
