@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import { type Accessor, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import {
   type DocumentGrounding,
   folderName,
@@ -48,6 +48,9 @@ export function ReferenceDocumentsPicker(props: {
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(timer));
+  // Callers often derive the profile from a larger object that changes on every keystroke
+  // elsewhere; react only when the profile itself changes, or every keystroke reloads the documents.
+  const profile = createMemo(() => props.profile());
 
   const useFolder = async (startPath: string) => {
     setError("");
@@ -139,7 +142,7 @@ export function ReferenceDocumentsPicker(props: {
   };
 
   // Load and fit the chosen documents whenever they or the Work Project change.
-  createEffect(on([folder, ticked, props.profile], () => {
+  createEffect(on([folder, ticked, profile], () => {
     clearTimeout(timer);
     const root = folder();
     const list = chosen();
@@ -154,7 +157,7 @@ export function ReferenceDocumentsPicker(props: {
     timer = setTimeout(async () => {
       const current = ++generation;
       try {
-        const result = parseLoadedReferences(await loadReferences(root, list, props.profile()));
+        const result = parseLoadedReferences(await loadReferences(root, list, profile()));
         if (current !== generation) return;
         setLoaded(result);
         setLoading(false);

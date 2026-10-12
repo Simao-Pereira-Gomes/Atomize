@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
+import { type Accessor, createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
 import type { GroundedFieldOptions } from "../grounding/grounding-service";
 import { SidecarRequestError, searchStories } from "../sidecar/sidecar-client";
 import {
@@ -40,6 +40,8 @@ export function StoryBrowser(props: {
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(timer));
+  // React only when the profile itself changes, not whenever the object a caller derives it from does.
+  const profile = createMemo(() => props.profile());
 
   const run = async () => {
     if (mode() === "default") return loadDefault();
@@ -47,7 +49,7 @@ export function StoryBrowser(props: {
     setLoading(true);
     setError("");
     try {
-      const result = parseStoryRows(await searchStories(props.profile(), toSearchRequest(filters(), limit())));
+      const result = parseStoryRows(await searchStories(profile(), toSearchRequest(filters(), limit())));
       if (current === generation) setRows(result);
     } catch (caught) {
       if (current === generation) {
@@ -83,7 +85,7 @@ export function StoryBrowser(props: {
     return (defaultRows() ?? []).filter((row) => !text || row.id.toLowerCase().includes(text) || row.title.toLowerCase().includes(text));
   };
 
-  createEffect(on([filters, limit, props.profile, mode], () => {
+  createEffect(on([filters, limit, profile, mode], () => {
     clearTimeout(timer);
     timer = setTimeout(() => void run(), SEARCH_DEBOUNCE_MS);
   }));
