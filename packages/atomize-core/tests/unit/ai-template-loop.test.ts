@@ -310,6 +310,14 @@ improvementNotes:
     expect(calls[0]?.userPrompt).toContain("don't scale them down to 100");
   });
 
+  test("doesn't invite new dependencies unless the user's focus or Reference Documents ask for them", async () => {
+    const { session, calls } = scriptedSession([IMPROVED]);
+    await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+    expect(calls[0]?.userPrompt).not.toContain("dependencies");
+    expect(calls[0]?.systemPrompt).toContain("leave dependsOn out by default");
+    expect(calls[0]?.systemPrompt).toContain("keep the dependsOn it already has");
+  });
+
   test("only shows the composed form for a Template that inherits", async () => {
     const { session, calls } = scriptedSession([IMPROVED]);
     await improveTemplate(session, { template: plain, resolvedTemplate: plain });

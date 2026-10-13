@@ -59,7 +59,7 @@ tasks:                  # required, minimum 1 item
     activity: string    # optional; prefer standard values: "Design", "Development", "Testing", "Test", "Documentation", "Requirements"; use the user's exact wording if they specify something different
     tags: string[]      # optional
     id: string          # optional, required if this task is referenced in dependsOn
-    dependsOn: string[] # optional, references other task ids
+    dependsOn: string[] # optional, references other task ids — only when asked for (see rule 12)
     repeat: number      # optional, default 1 — create this many identical Tasks from this one definition (see rule 9)
     condition:          # optional — skip this task entirely when condition is false
       # Standard fields (case-sensitive, always lowercase camelCase — NOT the ADO REST field
@@ -156,6 +156,8 @@ Task percentage bounds: validation.taskEstimationRange constrains final percenta
    - When improving an existing template, keep its iteration filter as it is unless the user's focus or the reference documents ask to change it.
 11. ACCEPTANCE CRITERIA: never write acceptanceCriteria; it is deprecated and has no effect. When the description or the reference documents ask for acceptance criteria, put them in the task's description, using their wording.
    - When improving an existing template whose tasks have acceptanceCriteria, move those criteria into the task's description and remove acceptanceCriteria.
+12. DEPENDENCIES: leave dependsOn out by default. Add it only when the description or the reference documents ask for an order between tasks (e.g. "testing starts after implementation"), and then only for the order they describe.
+   - When improving an existing template, keep the dependsOn it already has, and don't add new ones unless the user's focus or the reference documents ask for an order between tasks.
 
 EXAMPLES:
 

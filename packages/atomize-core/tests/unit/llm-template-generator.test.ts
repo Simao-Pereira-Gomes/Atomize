@@ -30,6 +30,12 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("sum to exactly 100");
   });
 
+  test("adds dependsOn only when the description or Reference Documents ask for an order", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("DEPENDENCIES: leave dependsOn out by default");
+    expect(prompt).toContain("ask for an order between tasks");
+  });
+
   test("documents every standard condition field Studio's condition editor supports", () => {
     const prompt = buildSystemPrompt();
     for (const field of ["tags", "title", "state", "estimation", "priority", "description", "assignedTo", "type", "areaPath", "iteration"]) {
