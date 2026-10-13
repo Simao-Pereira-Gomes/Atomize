@@ -33,7 +33,7 @@ type PendingStart =
 function AreaRail(props: { active: StudioAreaId; onSelect: (id: StudioAreaId) => void; collapsed: boolean; onToggleCollapsed: () => void; canGoBack: boolean; onBack: () => void }) {
   return (
     <nav
-      class={`flex shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-150 dark:border-slate-800 dark:bg-slate-900 ${props.collapsed ? "w-16 items-center py-4" : "w-56 p-3"}`}
+      class={`flex shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white transition-[width] duration-150 dark:border-slate-800 dark:bg-slate-900 ${props.collapsed ? "w-16 items-center py-4" : "w-56 p-3"}`}
     >
       <button
         type="button"
@@ -91,7 +91,7 @@ function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Acc
   dismissOverlay(settingsOpen, () => setSettingsOpen(false), () => [triggerRef, panelRef]);
   dismissOverlay(helpOpen, () => setHelpOpen(false), () => [helpTriggerRef, helpPanelRef]);
   return (
-    <header class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
+    <header class="flex h-[4.5rem] shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
       <div class="flex min-w-0 items-center gap-3">
         <div class="grid size-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-sm font-black text-white">A</div>
         <div class="min-w-0">
@@ -188,6 +188,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const [schemaReferenceTarget, setSchemaReferenceTarget] = createSignal<string>();
   let referenceReturnFocus: HTMLElement | undefined;
   let referenceReturnScroll = 0;
+  let contentScroller: HTMLDivElement | undefined;
   const [isAIDraft, setIsAIDraft] = createSignal(false);
   const [openFilePath, setOpenFilePath] = createSignal<string>();
   const [hasActiveDraft, setHasActiveDraft] = createSignal(!!props.diagnosticInitialSection);
@@ -255,7 +256,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const openSchemaReference = (permalink?: string) => {
     if (!schemaReferenceOpen()) {
       referenceReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-      referenceReturnScroll = window.scrollY;
+      referenceReturnScroll = contentScroller?.scrollTop ?? 0;
       history.record(currentLocation());
     }
     setSchemaReferenceTarget(permalink);
@@ -277,7 +278,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     setSchemaReferenceOpen(previous.schemaReferenceOpen ?? false);
     if (returningFromReference) requestAnimationFrame(() => {
       if (referenceReturnFocus?.isConnected) referenceReturnFocus.focus({ preventScroll: true });
-      window.scrollTo({ top: referenceReturnScroll, behavior: "instant" });
+      contentScroller?.scrollTo({ top: referenceReturnScroll, behavior: "instant" });
     });
   };
   // Entering a new draft invalidates any history accumulated by a previous one — the
@@ -380,11 +381,12 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const requestOpen = (template: TaskTemplate, path: string) => requestStart({ kind: "open", template, path });
 
   return (
-    <div class={`min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
+    <div class={`flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
       <ShellHeader grounding={grounding} sidecarAvailable={props.sidecarAvailable} theme={theme} onToggleTheme={toggleTheme} manageProjectRequest={manageProjectRequest} onOpenSchemaReference={openSchemaReference} />
-      <div class="flex min-h-[calc(100vh-4.5rem)]">
+      {/* The header and Area Rail stay put; only the content column scrolls. */}
+      <div class="flex min-h-0 flex-1">
         <AreaRail active={activeArea()} onSelect={navigateToArea} collapsed={railCollapsed()} onToggleCollapsed={() => setRailCollapsed((value) => !value)} canGoBack={history.canGoBack()} onBack={goBack} />
-        <div class="min-w-0 flex-1">
+        <div ref={contentScroller} class="min-w-0 flex-1 overflow-y-auto" style={{ "--sr-viewport-height": "calc(100dvh - 4.5rem)" }}>
           <Show when={schemaReferenceOpen()}>
             <StudioSchemaReference permalink={schemaReferenceTarget()} />
           </Show>
