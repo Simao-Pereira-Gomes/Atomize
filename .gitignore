@@ -149,6 +149,8 @@ createdTemplates
 nul
 
 # generated
+packages/website/.astro/
+packages/vscode-extension/schemas/atomize-template.schema.json
 packages/vscode-extension/src/webview/styles.generated.css
 
 # Locally compiled Tauri sidecar binaries and Bun's temporary build files.

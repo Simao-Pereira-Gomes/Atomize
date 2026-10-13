@@ -40,7 +40,7 @@
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100",
 		"benchmark": "bun run benchmarks/index.ts",
 		"generate-schema": "bun scripts/generate-schema.ts",
-		"check-schema": "bun run generate-schema && git diff --exit-code ../vscode-extension/schemas/"
+		"check-schema": "bun run generate-schema && git diff --exit-code ../atomize-schema-reference/schema/"
 	},
 	"keywords": [
 		"devops",
