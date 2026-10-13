@@ -5,6 +5,8 @@ import {
   canLoadMore,
   describeRow,
   emptyFilters,
+  loadedSummary,
+  MAX_STORIES,
   PAGE_SIZE,
   parseStoryRows,
   type StoryFilters,
@@ -37,6 +39,8 @@ export function StoryBrowser(props: {
   const [limit, setLimit] = createSignal(PAGE_SIZE);
   const [rows, setRows] = createSignal<StoryRow[]>([]);
   const [loading, setLoading] = createSignal(false);
+  // Set while "Load more" fetches the next page, so its progress shows down by the button, not off-screen at the top.
+  const [loadingMore, setLoadingMore] = createSignal(false);
   const [error, setError] = createSignal("");
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -58,7 +62,10 @@ export function StoryBrowser(props: {
         setError(caught instanceof SidecarRequestError ? caught.message : "We could not search Stories right now.");
       }
     } finally {
-      if (current === generation) setLoading(false);
+      if (current === generation) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -93,7 +100,16 @@ export function StoryBrowser(props: {
 
   const update = (change: Partial<StoryFilters>) => {
     setLimit(PAGE_SIZE);
+    setLoadingMore(false);
     setFilters({ ...filters(), ...change });
+  };
+  const loadedRows = () => (mode() === "search" ? rows() : defaultRows() ?? []);
+  const summary = () => {
+    const search = mode() === "search";
+    return loadedSummary(shown().length, loadedRows().length, {
+      more: search && canLoadMore(rows().length, limit()),
+      atMax: search && rows().length >= MAX_STORIES,
+    });
   };
   const isSelected = (id: string) => props.selected().some((story) => story.id === id);
   const toggle = (row: StoryRow) => props.onChange(isSelected(row.id) ? props.selected().filter((story) => story.id !== row.id) : [...props.selected(), row]);
@@ -111,8 +127,8 @@ export function StoryBrowser(props: {
       label={filterProps.label}
       value={filterProps.value}
       options={filterProps.options.map((option) => ({ value: option, label: option }))}
-      placeholder="Any — type to search"
-      disabled={props.disabled?.()}
+      placeholder={props.choices() ? "Any — type to search" : "Loading choices…"}
+      disabled={props.disabled?.() || !props.choices()}
       clearable
       onChange={filterProps.onChange}
     />
@@ -158,6 +174,13 @@ export function StoryBrowser(props: {
       </div>
 
       <div class="max-h-72 overflow-y-auto p-2" aria-busy={loading()}>
+        {/* Shown on every load, not only an empty one, so a slow project never looks stuck. */}
+        <Show when={loading() && !loadingMore()}>
+          <p class="flex items-center gap-2 p-3 text-sm text-slate-500 dark:text-slate-400" role="status">
+            <span class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600 dark:border-slate-600 dark:border-t-indigo-400" aria-hidden="true" />
+            {mode() === "search" ? "Searching Stories…" : `Loading ${props.defaultView?.label ?? "Stories"}…`}
+          </p>
+        </Show>
         <Show when={error()}>
           <p class="p-3 text-sm text-rose-600">{error()}</p>
         </Show>
@@ -176,17 +199,24 @@ export function StoryBrowser(props: {
           )}
         </For>
         <Show when={mode() === "search" && !error() && canLoadMore(rows().length, limit())}>
-          <button type="button" class="m-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold dark:border-slate-700" disabled={loading()} onClick={() => setLimit(limit() + PAGE_SIZE)}>
-            {loading() ? "Loading…" : "Load more"}
+          <button
+            type="button"
+            class="m-2 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-70 dark:border-slate-700"
+            disabled={loading() || loadingMore()}
+            aria-busy={loadingMore()}
+            onClick={() => { setLoadingMore(true); setLimit(limit() + PAGE_SIZE); }}
+          >
+            <Show when={loadingMore()}>
+              <span class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600 dark:border-slate-600 dark:border-t-indigo-400" aria-hidden="true" />
+            </Show>
+            {loadingMore() ? "Loading more Stories…" : "Load more"}
           </button>
-        </Show>
-        <Show when={loading() && shown().length === 0}>
-          <p class="p-3 text-sm text-slate-500 dark:text-slate-400">Searching Stories…</p>
         </Show>
       </div>
 
-      <div class="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        {props.selected().length} selected
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        <span aria-live="polite">{error() ? "" : summary()}</span>
+        <span class="font-semibold text-slate-700 dark:text-slate-200">{props.selected().length} selected</span>
       </div>
     </div>
   );

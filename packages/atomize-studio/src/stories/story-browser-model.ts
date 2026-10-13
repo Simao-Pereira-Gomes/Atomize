@@ -11,7 +11,7 @@ export type StoryFilters = {
   hasTasks: boolean;
 };
 
-export const PAGE_SIZE = 50;
+export const PAGE_SIZE = 100;
 export const MAX_STORIES = 500;
 
 export function emptyFilters(hasTasks: boolean): StoryFilters {
@@ -51,6 +51,19 @@ export function parseStoryRows(value: unknown): StoryRow[] {
 /** Whether another page could exist: the last load filled its limit and the maximum isn't reached. */
 export function canLoadMore(loaded: number, limit: number): boolean {
   return loaded >= limit && limit < MAX_STORIES;
+}
+
+/**
+ * How much of the list is loaded, for the Story Browser's footer: how many Stories are showing (of
+ * how many loaded, when typing narrows them), and whether more can load or the maximum is reached.
+ */
+export function loadedSummary(shown: number, loaded: number, state: { more: boolean; atMax: boolean }): string {
+  if (loaded === 0) return "";
+  const noun = (count: number) => (count === 1 ? "Story" : "Stories");
+  const count = shown < loaded ? `Showing ${shown} of ${loaded} ${noun(loaded)} loaded` : `${loaded} ${noun(loaded)} loaded`;
+  if (state.more) return `${count} · more available`;
+  if (state.atMax) return `${count} · the newest ${MAX_STORIES}; narrow the search to reach older ones`;
+  return `${count} · all loaded`;
 }
 
 export function describeRow(row: StoryRow): string {
