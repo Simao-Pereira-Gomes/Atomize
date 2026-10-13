@@ -2,11 +2,9 @@ import { FilterEngine } from "../../core/filter-engine";
 import type { IPlatformAdapter } from "../../platforms/interfaces/platform.interface";
 import type { WorkItem } from "../../platforms/interfaces/work-item.interface";
 import type { FilterCriteria as TemplateFilter } from "../../templates/schema";
-import { type StorySummary, toStorySummary } from "../story-search";
+import { STORY_LIST_MAX, type StorySummary, toStorySummary } from "../story-search";
 import { type ProjectGroundingErrorCode, toProjectGroundingError } from "./project-grounding";
 
-/** How many Stories the Template was applied to are offered for Story Grounding. */
-export const STORY_GROUNDING_CANDIDATES = 30;
 /** Each piece of Sensitive AI Context is cut to this length, so one long description can't crowd the prompt. */
 const MAX_SENSITIVE_TEXT = 1000;
 
@@ -53,7 +51,8 @@ export class StoryGroundingError extends Error {
 
 /**
  * The Stories a Template has been applied to: what its filter matches, with `excludeIfHasTasks`
- * turned off (it would hide exactly these), keeping only Stories that already have Tasks.
+ * turned off (it would hide exactly these), keeping only Stories that already have Tasks. Lists
+ * them all, newest first, up to STORY_LIST_MAX, for the user to narrow by typing.
  */
 export async function listAppliedStories(
   platform: IPlatformAdapter,
@@ -68,7 +67,7 @@ export async function listAppliedStories(
       .map(toStorySummary)
       .filter((story) => story.taskCount > 0)
       .sort((a, b) => (b.createdDate?.getTime() ?? 0) - (a.createdDate?.getTime() ?? 0))
-      .slice(0, options.limit ?? STORY_GROUNDING_CANDIDATES);
+      .slice(0, Math.min(options.limit ?? STORY_LIST_MAX, STORY_LIST_MAX));
   } catch (error) {
     throw toStoryGroundingError(error);
   }

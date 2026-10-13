@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
+import { STORY_LIST_MAX } from "@sppg2001/atomize-core/services/story-search";
 import {
   fetchStoryGrounding,
   listAppliedStories,
-  STORY_GROUNDING_CANDIDATES,
   STORY_GROUNDING_PROMPT_LIMIT,
   StoryGroundingError,
   storyGroundingForPrompt,
@@ -79,11 +79,12 @@ describe("listAppliedStories", () => {
     expect(filters[0]).toMatchObject({ excludeIfHasTasks: false });
   });
 
-  test("caps the list at 30", async () => {
-    const many = Array.from({ length: 40 }, (_, i) => story(String(100 + i), `2024-02-${String((i % 28) + 1).padStart(2, "0")}`, [task("t", "T", 1)]));
+  test("lists every applied Story, not just a first page, up to the list ceiling", async () => {
+    const many = Array.from({ length: 120 }, (_, i) => story(String(100 + i), `2024-02-${String((i % 28) + 1).padStart(2, "0")}`, [task("t", "T", 1)]));
     const { adapter } = platform({ queryWorkItems: async () => many });
-    expect(await listAppliedStories(adapter, {})).toHaveLength(STORY_GROUNDING_CANDIDATES);
-    expect(STORY_GROUNDING_CANDIDATES).toBe(30);
+    expect(await listAppliedStories(adapter, {})).toHaveLength(120);
+    expect(await listAppliedStories(adapter, {}, { limit: 5 })).toHaveLength(5);
+    expect(STORY_LIST_MAX).toBe(1000);
   });
 
   test("reports a platform failure as a typed error", async () => {

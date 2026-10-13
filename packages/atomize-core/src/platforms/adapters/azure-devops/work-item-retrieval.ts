@@ -20,8 +20,12 @@ import {
 
 /** Azure DevOps returns at most 200 Work Items per batch fetch. */
 const MAX_BATCH_FETCH = 200;
-/** How many candidate IDs a Story Search considers when a Task post-filter may discard some. */
-const MAX_SEARCH_CANDIDATES = 2000;
+/**
+ * How many candidate IDs a Story Search considers when a Task post-filter may discard some. Only IDs
+ * come back from the query; Work Items are fetched batch by batch until the page fills, so a page
+ * isn't left short (hiding "Load more") just because few recent Stories have Tasks.
+ */
+const MAX_SEARCH_CANDIDATES = 5000;
 
 export interface AzureDevOpsRetrievalConfig {
   project: string;
@@ -73,7 +77,7 @@ export class AzureDevOpsWorkItemRetrieval {
 
     // Tasks are checked after fetching, so consider more candidates to still fill the page.
     const postFiltered = search.hasTasks !== undefined;
-    const top = postFiltered ? Math.min(search.limit * 4, MAX_SEARCH_CANDIDATES) : search.limit;
+    const top = postFiltered ? Math.max(search.limit, MAX_SEARCH_CANDIDATES) : search.limit;
     const result = await this.witApi.queryByWiql(
       { query: buildStorySearchWiql(search, this.config.project) },
       { project: this.config.project, team: this.config.team },

@@ -3,7 +3,9 @@ import { buildStorySearchWiql } from "@sppg2001/atomize-core/platforms/adapters/
 import { AzureDevOpsWorkItemRetrieval } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/work-item-retrieval";
 import { MockPlatformAdapter } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import {
+  listAllStories,
   listSprintStories,
+  STORY_LIST_MAX,
   STORY_SEARCH_LIMIT,
   STORY_SEARCH_MAX,
   searchStories,
@@ -104,7 +106,20 @@ describe("searchStories", () => {
 
   test("caps the results", async () => {
     expect(await searchStories(adapter, { limit: 2 })).toHaveLength(2);
-    expect(STORY_SEARCH_LIMIT).toBe(50);
+    expect(STORY_SEARCH_LIMIT).toBe(100);
+  });
+
+  test("lists every matching Story up to the list ceiling, past Story Search's maximum", async () => {
+    let asked = 0;
+    const platform = Object.assign(Object.create(adapter), {
+      searchStories: async (search: { limit: number }) => {
+        asked = search.limit;
+        return adapter.searchStories(search as never);
+      },
+    });
+    expect(await listAllStories(platform, { hasTasks: true })).toHaveLength(1);
+    expect(asked).toBe(STORY_LIST_MAX);
+    expect(STORY_LIST_MAX).toBeGreaterThan(STORY_SEARCH_MAX);
   });
 });
 
@@ -165,8 +180,19 @@ describe("AzureDevOpsWorkItemRetrieval.search", () => {
   test("over-fetches candidates when keeping only Stories with Tasks, then caps", async () => {
     const { api, calls } = stubApi([4, 3, 2, 1], [item(4, 0), item(3, 1), item(2, 0), item(1, 3)]);
     const stories = await new AzureDevOpsWorkItemRetrieval(api as never, { project: "P", team: "T" }).search({ limit: 1, hasTasks: true });
-    expect(calls.top).toBe(4);
+    expect(calls.top).toBe(5000);
     expect(stories.map((story) => story.id)).toEqual(["3"]);
+  });
+
+  test("still fills the page when Stories with Tasks are few and far back", async () => {
+    // 1000 candidates, only every 100th has Tasks: a 4x over-fetch would have found none of a page of 5.
+    const ids = Array.from({ length: 1000 }, (_, index) => 1000 - index);
+    const api = {
+      queryByWiql: async () => ({ workItems: ids.map((id) => ({ id })) }),
+      getWorkItems: async (requested: number[]) => requested.map((id) => item(id, id % 100 === 0 ? 1 : 0)),
+    };
+    const stories = await new AzureDevOpsWorkItemRetrieval(api as never, { project: "P", team: "T" }).search({ limit: 5, hasTasks: true });
+    expect(stories.map((story) => story.id)).toEqual(["1000", "900", "800", "700", "600"]);
   });
 
   test("keeps only Stories without Tasks when asked", async () => {
