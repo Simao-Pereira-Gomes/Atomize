@@ -98,6 +98,7 @@
       "dependencies": {
         "@kobalte/core": "^0.13.14",
         "@sppg2001/atomize-schema": "workspace:*",
+        "@sppg2001/atomize-schema-reference": "workspace:*",
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-dialog": "~2.7.3",
         "@tauri-apps/plugin-fs": "~2.5.2",

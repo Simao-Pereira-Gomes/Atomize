@@ -20,6 +20,7 @@ import { dismissOverlay } from "./dismiss-overlay";
 import { GenerateArea } from "./GenerateArea";
 import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
 import { StartingPathPicker } from "./StartingPathPicker";
+import { openTemplateReference, StudioSchemaReference } from "./StudioSchemaReference";
 import type { OnlineValidationSession, StoredOnlineValidation } from "./sections/ReviewSection";
 
 type PendingStart =
@@ -77,12 +78,17 @@ function AreaRail(props: { active: StudioAreaId; onSelect: (id: StudioAreaId) =>
   );
 }
 
-function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; theme: Accessor<"light" | "dark">; onToggleTheme: () => void; manageProjectRequest: Accessor<number> }) {
+function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; theme: Accessor<"light" | "dark">; onToggleTheme: () => void; manageProjectRequest: Accessor<number>; onOpenSchemaReference: () => void }) {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [helpOpen, setHelpOpen] = createSignal(false);
+  const [helpError, setHelpError] = createSignal("");
   createEffect(() => { if (props.manageProjectRequest() > 0) setSettingsOpen(true); });
   let triggerRef: HTMLButtonElement | undefined;
   let panelRef: HTMLDivElement | undefined;
+  let helpTriggerRef: HTMLButtonElement | undefined;
+  let helpPanelRef: HTMLDivElement | undefined;
   dismissOverlay(settingsOpen, () => setSettingsOpen(false), () => [triggerRef, panelRef]);
+  dismissOverlay(helpOpen, () => setHelpOpen(false), () => [helpTriggerRef, helpPanelRef]);
   return (
     <header class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
       <div class="flex min-w-0 items-center gap-3">
@@ -92,36 +98,68 @@ function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Acc
           <p class="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Atomize Studio</p>
         </div>
       </div>
-      <div class="relative">
-        <button
-          ref={triggerRef}
-          class="flex items-center gap-2 rounded-xl !border-0 !bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
-          type="button"
-          onClick={() => setSettingsOpen((value) => !value)}
-          aria-expanded={settingsOpen()}
-        >
-          ⚙ Global Settings
-        </button>
-        <Show when={settingsOpen()}>
-          <div ref={panelRef} class="absolute right-0 top-12 z-50 w-72 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-            <div>
-              <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Work project</p>
-              <GroundingSettings session={props.grounding} sidecarAvailable={props.sidecarAvailable} openManagerRequest={props.manageProjectRequest} />
+      <div class="flex items-center gap-3">
+        <div class="relative">
+          <button
+            ref={triggerRef}
+            class="flex items-center gap-2 rounded-xl !border-0 !bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
+            type="button"
+            onClick={() => { setHelpOpen(false); setSettingsOpen((value) => !value); }}
+            aria-expanded={settingsOpen()}
+          >
+            ⚙ Global Settings
+          </button>
+          <Show when={settingsOpen()}>
+            <div ref={panelRef} class="absolute right-0 top-12 z-50 w-72 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+              <div>
+                <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Work project</p>
+                <GroundingSettings session={props.grounding} sidecarAvailable={props.sidecarAvailable} openManagerRequest={props.manageProjectRequest} />
+              </div>
+              <div class="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+                <span class="text-sm text-slate-600 dark:text-slate-300">Theme</span>
+                <button
+                  class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-100 text-slate-600 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-300 dark:hover:!bg-slate-700"
+                  type="button"
+                  onClick={props.onToggleTheme}
+                  title="Toggle light/dark mode"
+                  aria-label="Toggle light/dark mode"
+                >
+                  {props.theme() === "dark" ? "☀" : "☾"}
+                </button>
+              </div>
             </div>
-            <div class="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-              <span class="text-sm text-slate-600 dark:text-slate-300">Theme</span>
+          </Show>
+        </div>
+        <div class="relative">
+          <button
+            ref={helpTriggerRef}
+            class="grid size-9 place-items-center rounded-xl !border-0 !bg-slate-100 text-sm font-bold text-slate-700 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-200 dark:hover:!bg-slate-700"
+            type="button"
+            aria-label="Help"
+            title="Help"
+            aria-expanded={helpOpen()}
+            onClick={() => { setSettingsOpen(false); setHelpOpen((value) => !value); }}
+          >?</button>
+          <Show when={helpOpen()}>
+            <div ref={helpPanelRef} class="absolute right-0 top-12 z-50 w-64 space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+              <p class="px-2 pb-1 text-xs font-bold tracking-widest text-slate-400 uppercase">Help</p>
               <button
-                class="grid size-9 place-items-center rounded-lg !border-0 !bg-slate-100 text-slate-600 !shadow-none hover:!bg-slate-200 dark:!bg-slate-800 dark:text-slate-300 dark:hover:!bg-slate-700"
+                class="flex w-full items-center justify-between rounded-lg !border-0 !bg-transparent px-3 py-2 text-left text-sm font-semibold text-slate-700 !shadow-none hover:!bg-slate-100 dark:text-slate-200 dark:hover:!bg-slate-800"
                 type="button"
-                onClick={props.onToggleTheme}
-                title="Toggle light/dark mode"
-                aria-label="Toggle light/dark mode"
-              >
-                {props.theme() === "dark" ? "☀" : "☾"}
-              </button>
+                onClick={() => { setHelpOpen(false); props.onOpenSchemaReference(); }}
+              >Schema Reference <span aria-hidden="true">→</span></button>
+              <button
+                class="flex w-full items-center justify-between rounded-lg !border-0 !bg-transparent px-3 py-2 text-left text-sm font-semibold text-slate-700 !shadow-none hover:!bg-slate-100 dark:text-slate-200 dark:hover:!bg-slate-800"
+                type="button"
+                onClick={() => {
+                  setHelpError("");
+                  void openTemplateReference().then(() => setHelpOpen(false)).catch(() => setHelpError("We could not open the Template Reference in your browser. Try again."));
+                }}
+              >Template Reference <span aria-hidden="true">↗</span></button>
+              <Show when={helpError()}><p role="alert" class="px-3 text-sm text-rose-700 dark:text-rose-300">{helpError()}</p></Show>
             </div>
-          </div>
-        </Show>
+          </Show>
+        </div>
       </div>
     </header>
   );
@@ -145,6 +183,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const [railCollapsed, setRailCollapsed] = createSignal(true);
 
   const [surface, setSurface] = createSignal<"starting-paths" | "builder">(props.diagnosticInitialSection ? "builder" : "starting-paths");
+  const [schemaReferenceOpen, setSchemaReferenceOpen] = createSignal(false);
   const [isAIDraft, setIsAIDraft] = createSignal(false);
   const [openFilePath, setOpenFilePath] = createSignal<string>();
   const [hasActiveDraft, setHasActiveDraft] = createSignal(!!props.diagnosticInitialSection);
@@ -208,9 +247,16 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     clearOriginBaseline();
   };
 
+  const currentLocation = () => ({ activeArea: activeArea(), surface: surface(), schemaReferenceOpen: schemaReferenceOpen() });
+  const openSchemaReference = () => {
+    if (schemaReferenceOpen()) return;
+    history.record(currentLocation());
+    setSchemaReferenceOpen(true);
+  };
   const navigateToArea = (id: StudioAreaId) => {
-    if (id === activeArea()) return;
-    history.record({ activeArea: activeArea(), surface: surface() });
+    if (id === activeArea() && !schemaReferenceOpen()) return;
+    history.record(currentLocation());
+    setSchemaReferenceOpen(false);
     setActiveArea(id);
   };
   const goBack = () => {
@@ -218,19 +264,20 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     if (!previous) return;
     setActiveArea(previous.activeArea);
     setSurface(previous.surface);
+    setSchemaReferenceOpen(previous.schemaReferenceOpen ?? false);
   };
   // Entering a new draft invalidates any history accumulated by a previous one — the
   // only entry that still means anything afterward is where this draft was started from.
   const enterBuilderFrom = () => {
     history.clear();
-    history.record({ activeArea: activeArea(), surface: surface() });
+    history.record(currentLocation());
   };
   // Back can leave an active draft parked at Starting Paths with the history stack exhausted
   // (e.g. after backing out through several Area switches) — with no Forward control, that
   // draft would otherwise become unreachable except through the discard-confirmation dialog.
   // This re-enters the builder the same way goBack would, without touching the Authoring Store.
   const resumeDraft = () => {
-    history.record({ activeArea: activeArea(), surface: surface() });
+    history.record(currentLocation());
     setSurface("builder");
   };
 
@@ -320,10 +367,14 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
 
   return (
     <div class={`min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
-      <ShellHeader grounding={grounding} sidecarAvailable={props.sidecarAvailable} theme={theme} onToggleTheme={toggleTheme} manageProjectRequest={manageProjectRequest} />
+      <ShellHeader grounding={grounding} sidecarAvailable={props.sidecarAvailable} theme={theme} onToggleTheme={toggleTheme} manageProjectRequest={manageProjectRequest} onOpenSchemaReference={openSchemaReference} />
       <div class="flex min-h-[calc(100vh-4.5rem)]">
         <AreaRail active={activeArea()} onSelect={navigateToArea} collapsed={railCollapsed()} onToggleCollapsed={() => setRailCollapsed((value) => !value)} canGoBack={history.canGoBack()} onBack={goBack} />
         <div class="min-w-0 flex-1">
+          <Show when={schemaReferenceOpen()}>
+            <StudioSchemaReference />
+          </Show>
+          <div hidden={schemaReferenceOpen()}>
           <Show when={activeArea() === "templates"}>
             <Show
               when={surface() === "builder"}
@@ -360,6 +411,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
           <Show when={activeArea() === "catalog"}>
             <CatalogArea sidecarAvailable={props.sidecarAvailable} onClone={requestCatalogClone} />
           </Show>
+          </div>
         </div>
       </div>
       <Show when={pendingStart()}>

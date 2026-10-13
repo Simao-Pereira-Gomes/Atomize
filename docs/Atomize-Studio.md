@@ -32,7 +32,15 @@ Atomize Studio has three Studio Areas, each reachable directly from the sidebar 
 
 **Global Settings** — appearance (Theme) and Connection Profile management — is reachable from any Studio Area rather than being a fourth area itself.
 
-A single, persistent **Back** control (near the sidebar) pops a global navigation history of Studio Area and Starting-Path/Builder transitions. Back never discards the Template you're authoring; it is purely navigational. If Back has nothing left to return to while a draft is still in progress, the Starting Paths screen shows a "Continue your in-progress Template" banner so the draft is never stranded.
+Open **Help (?) → Schema Reference** from any Studio Area. The compact Help menu
+beside Global Settings also links directly to the Template Reference in your browser.
+Browse or search the Template and Mixin fields, constraints, runtime rules and YAML
+examples. The reference uses Studio's bundled schema and shows the installed Studio
+version. Field links open the Template Reference in your system browser. Use the
+persistent **Back** control to return to the previous view, including your current
+Builder section and unfinished inputs.
+
+A single, persistent **Back** control (near the sidebar) pops a global navigation history of Studio Area, Starting-Path/Builder and Schema Reference transitions. Back never discards the Template you're authoring; it is purely navigational. If Back has nothing left to return to while a draft is still in progress, the Starting Paths screen shows a "Continue your in-progress Template" banner so the draft is never stranded.
 
 ## Templates Area
 

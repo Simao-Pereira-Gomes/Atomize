@@ -20,6 +20,13 @@ _Avoid_: treating Back as capable of undoing a Discard, Scratch, Catalog Clone, 
 Atomize Studio's app-wide settings surface, reachable from any Studio Area rather than scoped to one. Hosts appearance (Theme) and Connection Profile management (add, rotate, set default, remove) — capability the Templates Area's own header previously owned before the sidebar shell introduced independent Studio Areas.
 _Avoid_: treating Global Settings as a fourth Studio Area — it has no sidebar entry and is not itself a navigation destination among Templates/Generate/Catalog.
 
+The shared **Schema Reference** is reachable through the compact Help (?) menu beside
+Global Settings, alongside a browser link to the Template Reference. Opening
+it records a Navigation History transition and keeps the underlying view mounted;
+Back restores the current Builder section and local inputs without changing the
+Authoring Store. It uses Studio's bundled schema and installed version, and opens
+Template Reference links in the system browser. It has no Studio Area or sidebar slot.
+
 **Companion Process Recovery**:
 The app-level recovery surface shown only when Studio's bundled companion process cannot start or repeatedly exits. It offers Retry, preserves the current in-memory authoring session, and leaves offline authoring and native Connection Profile management available while blocking companion-dependent actions. It is distinct from normal Studio launch and never checks for or installs an external CLI.
 
