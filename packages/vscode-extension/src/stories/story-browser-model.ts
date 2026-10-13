@@ -98,6 +98,16 @@ export function canLoadMore(loaded: number, limit: number, max: number): boolean
 	return loaded >= limit && limit < max;
 }
 
+/**
+ * Title suffix saying how much of the list is shown: that more can be loaded with the title-bar
+ * button, or that the maximum is reached and older Stories need a narrower search.
+ */
+export function listStatus(loaded: number, limit: number, max: number): string {
+	if (canLoadMore(loaded, limit, max)) return ` · Showing ${loaded}, more with Load more (↓) above`;
+	if (loaded >= max) return ` · Showing the newest ${max}; narrow the search or enter IDs to reach older Stories`;
+	return '';
+}
+
 /** Splits typed Story IDs on commas and whitespace; returns an error message when any isn't numeric. */
 export function parseStoryIds(input: string): { ids: string[] } | { error: string } {
 	const ids = [...new Set(input.split(/[\s,]+/).map(part => part.replace(/^#/, '')).filter(Boolean))];

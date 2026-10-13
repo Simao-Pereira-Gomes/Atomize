@@ -19,6 +19,7 @@ import {
 	emptyFilters,
 	filterTooltip,
 	hasTasksTooltip,
+	listStatus,
 	parseStoryIds,
 	type StoryBrowserFilters,
 	type StoryBrowserModeKind,
@@ -49,18 +50,18 @@ export type DefaultView =
 	| { kind: 'sprint'; workItemTypes?: string[] }
 	| { kind: 'applied'; templateFilter: TemplateFilter };
 
-type StoryItem = vscode.QuickPickItem & { story?: StorySummary; loadMore?: true };
+type StoryItem = vscode.QuickPickItem & { story: StorySummary };
 type Action = 'switchMode' | 'enterIds' | 'type' | 'state' | 'area' | 'iteration' | 'hasTasks';
-type ActionButton = vscode.QuickInputButton & { action: Action };
+type ActionButton = vscode.QuickInputButton & { action: Action | 'loadMore' };
 type Outcome = { kind: 'done'; ids: string[] } | { kind: 'cancelled' } | { kind: 'action'; action: Action };
 
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * The VS Code Story Browser (see CONTEXT.md): a QuickPick that lists a default set of Stories or
- * runs a Story Search as the user types, narrowed by title-bar filters, with "Load more…" for
- * further pages and a button to type Story IDs directly. Resolves with the chosen Story IDs
- * (possibly none), or undefined when dismissed.
+ * runs a Story Search as the user types, narrowed by title-bar filters. Further pages load from a
+ * title-bar button, never a list row that a multi-select would tick, and another button types Story
+ * IDs directly. Resolves with the chosen Story IDs (possibly none), or undefined when dismissed.
  */
 export async function browseStories(options: StoryBrowserOptions): Promise<string[] | undefined> {
 	const state = {
@@ -100,30 +101,39 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				picker.hide();
 			};
 
-			picker.title = browserTitle(options.title, state.mode, state.filters);
+			const title = browserTitle(options.title, state.mode, state.filters);
+			picker.title = title;
 			picker.placeholder = state.mode !== 'search'
 				? `${options.placeholder} Type to narrow the list, search all Stories, or enter IDs from the buttons above.`
 				: `${options.placeholder} Type an ID or part of a title, or enter IDs from the buttons above.`;
 			picker.canSelectMany = options.canPickMany;
 			picker.matchOnDescription = true;
-			picker.buttons = buttonsFor(state.mode, state.filters, options.defaultView);
-			if (state.mode === 'search') picker.value = state.filters.text;
+			const baseButtons = buttonsFor(state.mode, state.filters, options.defaultView);
+			picker.buttons = baseButtons;
+			picker.value = state.filters.text;
 
-			const showStories = (stories: StorySummary[]) => {
+			const showStories = (stories: StorySummary[], focusFrom?: number) => {
 				applyingItems = true;
 				// Search results come from the server, so VS Code must not filter them again by the typed text.
 				const items: StoryItem[] = withSelectedFirst(stories, state.selected).map(story => toItem(story, state.mode === 'search'));
-				if (canLoadMore(stories.length, state.limit, STORY_SEARCH_MAX)) {
-					items.push({ label: '$(chevron-down) Load more…', description: `Showing ${stories.length}`, alwaysShow: true, loadMore: true });
-				}
 				picker.items = items;
-				if (options.canPickMany) picker.selectedItems = items.filter(item => item.story && state.selected.has(item.story.id));
+				if (options.canPickMany) picker.selectedItems = items.filter(item => state.selected.has(item.story.id));
+				// After Load more, move to the first new Story so the user sees what arrived.
+				const firstNew = focusFrom === undefined ? undefined : items[focusFrom];
+				if (firstNew) picker.activeItems = [firstNew];
 				applyingItems = false;
 			};
 
-			const load = async () => {
+			// The applied view already lists every Story the Template matched, so only Search and the sprint view page.
+			const pages = state.mode !== 'applied';
+			const load = async (more = false) => {
 				const generation = ++loadGeneration;
+				const shownBefore = picker.items.length;
 				picker.busy = true;
+				// The busy bar alone is easy to miss, so the title says Stories are loading too.
+				picker.title = `${title} — ${more ? 'Loading more Stories…' : 'Loading Stories…'}`;
+				picker.buttons = baseButtons;
+				let loaded = 0;
 				try {
 					const view = options.defaultView;
 					const stories = state.mode === 'search' || !view
@@ -131,45 +141,38 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 						: view.kind === 'sprint'
 							? await listSprintStories(options.adapter, { workItemTypes: view.workItemTypes, limit: state.limit })
 							: await listAppliedStories(options.adapter, view.templateFilter);
-					if (generation === loadGeneration && !settled) showStories(stories);
+					loaded = stories.length;
+					if (generation === loadGeneration && !settled) showStories(stories, more ? shownBefore : undefined);
 				} catch (error) {
 					if (generation === loadGeneration && !settled) {
 						showStories([]);
 						void vscode.window.showErrorMessage(`Atomize could not load Stories: ${error instanceof Error ? error.message : String(error)}`);
 					}
 				} finally {
-					if (generation === loadGeneration) picker.busy = false;
+					if (generation === loadGeneration) {
+						picker.busy = false;
+						picker.title = pages ? `${title}${listStatus(loaded, state.limit, STORY_SEARCH_MAX)}` : title;
+						if (pages && canLoadMore(loaded, state.limit, STORY_SEARCH_MAX)) {
+							picker.buttons = [loadMoreButton(loaded), ...baseButtons];
+						}
+					}
 				}
 			};
 
-			const loadMore = () => {
-				state.limit = Math.min(state.limit + STORY_SEARCH_LIMIT, STORY_SEARCH_MAX);
-				void load();
-			};
-
 			picker.onDidChangeValue(value => {
-				if (state.mode !== 'search') return;
 				state.filters.text = value;
+				if (state.mode !== 'search') return;
 				state.limit = STORY_SEARCH_LIMIT;
 				if (searchTimer) clearTimeout(searchTimer);
 				searchTimer = setTimeout(() => { void load(); }, SEARCH_DEBOUNCE_MS);
 			});
 			picker.onDidChangeSelection(items => {
 				if (applyingItems || !options.canPickMany) return;
-				// In a multi-select list "Load more…" is a checkbox; ticking it loads the next page instead.
-				if (items.some(item => item.loadMore)) {
-					loadMore();
-					return;
-				}
-				for (const item of picker.items) if (item.story) state.selected.delete(item.story.id);
-				for (const item of items) if (item.story) state.selected.set(item.story.id, item.story);
+				for (const item of picker.items) state.selected.delete(item.story.id);
+				for (const item of items) state.selected.set(item.story.id, item.story);
 			});
 			picker.onDidAccept(() => {
 				const active = picker.activeItems[0];
-				if (active?.loadMore) {
-					loadMore();
-					return;
-				}
 				if (options.canPickMany) {
 					finish({ kind: 'done', ids: [...state.selected.keys()] });
 					return;
@@ -177,7 +180,16 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				const chosen = picker.selectedItems[0]?.story ?? active?.story;
 				if (chosen) finish({ kind: 'done', ids: [chosen.id] });
 			});
-			picker.onDidTriggerButton(button => finish({ kind: 'action', action: (button as ActionButton).action }));
+			picker.onDidTriggerButton(button => {
+				const action = (button as ActionButton).action;
+				if (action !== 'loadMore') {
+					finish({ kind: 'action', action });
+					return;
+				}
+				// Loads in place: the browser stays open with the selection and typed text intact.
+				state.limit = Math.min(state.limit + STORY_SEARCH_LIMIT, STORY_SEARCH_MAX);
+				void load(true);
+			});
 			picker.onDidHide(() => {
 				finish({ kind: 'cancelled' });
 				picker.dispose();
@@ -217,16 +229,16 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 					filters.hasTasks = !filters.hasTasks;
 					return;
 				case 'type':
-					filters.workItemTypes = await pickMany('Work Item types', await metadata.types(), filters.workItemTypes) ?? filters.workItemTypes;
+					filters.workItemTypes = await pickMany('Work Item types', metadata.types(), filters.workItemTypes) ?? filters.workItemTypes;
 					return;
 				case 'state':
-					filters.states = await pickMany('States', await metadata.states(filters.workItemTypes), filters.states) ?? filters.states;
+					filters.states = await pickMany('States', metadata.states(filters.workItemTypes), filters.states) ?? filters.states;
 					return;
 				case 'area':
-					filters.areaPaths = await pickMany('Area paths (each includes its sub-areas)', await metadata.areaPaths(), filters.areaPaths) ?? filters.areaPaths;
+					filters.areaPaths = await pickMany('Area paths (each includes its sub-areas)', metadata.areaPaths(), filters.areaPaths) ?? filters.areaPaths;
 					return;
 				case 'iteration':
-					filters.iterations = await pickMany('Iterations (each includes its sub-iterations)', await metadata.iterations(), filters.iterations) ?? filters.iterations;
+					filters.iterations = await pickMany('Iterations (each includes its sub-iterations)', metadata.iterations(), filters.iterations) ?? filters.iterations;
 					return;
 			}
 		} catch (error) {
@@ -234,13 +246,48 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 		}
 	}
 
-	async function pickMany(title: string, choices: string[], current: string[]): Promise<string[] | undefined> {
-		const picked = await vscode.window.showQuickPick(
-			choices.map(choice => ({ label: choice, picked: current.includes(choice) })),
-			{ title: `${options.title} — ${title}`, canPickMany: true, placeHolder: 'Select none to remove this filter' },
-		);
-		return picked?.map(item => item.label);
+	/** Opens straight away, busy and saying so, while the project's choices load; rejects if they fail to. */
+	function pickMany(title: string, choices: Promise<string[]>, current: string[]): Promise<string[] | undefined> {
+		return new Promise((resolve, reject) => {
+			const picker = vscode.window.createQuickPick();
+			let settled = false;
+			const finish = (value: string[] | undefined) => {
+				if (settled) return;
+				settled = true;
+				resolve(value);
+				picker.hide();
+			};
+			picker.title = `${options.title} — ${title}`;
+			picker.canSelectMany = true;
+			picker.busy = true;
+			picker.enabled = false;
+			picker.placeholder = `Loading ${title.replace(/ \(.*\)$/, '').toLowerCase()}…`;
+			picker.onDidAccept(() => finish(picker.selectedItems.map(item => item.label)));
+			picker.onDidHide(() => {
+				finish(undefined);
+				picker.dispose();
+			});
+			picker.show();
+			choices.then(
+				loaded => {
+					if (settled) return;
+					const items = loaded.map(choice => ({ label: choice }));
+					picker.items = items;
+					picker.selectedItems = items.filter(item => current.includes(item.label));
+					picker.placeholder = 'Type to filter; select none to remove this filter';
+					picker.busy = false;
+					picker.enabled = true;
+				},
+				error => {
+					if (settled) return;
+					settled = true;
+					picker.hide();
+					reject(error);
+				},
+			);
+		});
 	}
+
 }
 
 /**
@@ -264,6 +311,10 @@ export async function prepareTemplateStoryBrowser(
 
 function toItem(story: StorySummary, alwaysShow: boolean): StoryItem {
 	return { label: storyLabel(story), description: storyDescription(story), alwaysShow, story };
+}
+
+function loadMoreButton(shown: number): ActionButton {
+	return { action: 'loadMore', iconPath: new vscode.ThemeIcon('fold-down'), tooltip: `Load more — load the next ${STORY_SEARCH_LIMIT} Stories (showing ${shown})` };
 }
 
 function buttonsFor(mode: StoryBrowserModeKind, filters: StoryBrowserFilters, defaultView: DefaultView | undefined): ActionButton[] {

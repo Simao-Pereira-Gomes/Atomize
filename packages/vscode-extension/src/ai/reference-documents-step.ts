@@ -139,7 +139,7 @@ async function addLocalFiles(root: string | undefined): Promise<ReferenceDocumen
 async function addWikiPages(adapter: IPlatformAdapter | undefined): Promise<ReferenceDocument[]> {
 	if (!adapter) return [];
 	try {
-		const wikis = await listProjectWikis(adapter);
+		const wikis = await inProgress("Loading this project's wikis…", () => listProjectWikis(adapter));
 		if (wikis.length === 0) {
 			void vscode.window.showInformationMessage('This project has no wikis.');
 			return [];
@@ -148,15 +148,18 @@ async function addWikiPages(adapter: IPlatformAdapter | undefined): Promise<Refe
 			? wikis[0]
 			: (await vscode.window.showQuickPick(wikis.map(item => ({ label: item.name, wiki: item })), { placeHolder: 'Which wiki?' }))?.wiki;
 		if (!wiki) return [];
-		const paths = await listWikiPagePaths(adapter, wiki.id);
+		const paths = await inProgress(`Loading the pages of ${wiki.name}…`, () => listWikiPagePaths(adapter, wiki.id));
 		const pages = await vscode.window.showQuickPick(paths.map(path => ({ label: path })), {
 			canPickMany: true,
 			matchOnDescription: true,
 			placeHolder: `Pages from ${wiki.name} — only each page itself is read, not its sub-pages`,
 		});
-		const documents: ReferenceDocument[] = [];
-		for (const page of pages ?? []) documents.push(await loadWikiReference(adapter, { kind: 'wiki', wiki: wiki.name, pagePath: page.label }));
-		return documents;
+		if (!pages?.length) return [];
+		return await inProgress(`Reading ${pages.length} wiki ${pages.length === 1 ? 'page' : 'pages'}…`, async () => {
+			const documents: ReferenceDocument[] = [];
+			for (const page of pages) documents.push(await loadWikiReference(adapter, { kind: 'wiki', wiki: wiki.name, pagePath: page.label }));
+			return documents;
+		});
 	} catch (error) {
 		await reportWikiProblem(error);
 		return [];
@@ -185,7 +188,7 @@ async function loadSaved(root: string | undefined, entry: string, adapter: IPlat
 				void vscode.window.showWarningMessage(`Left out ${entry}: wiki pages need a Connection Profile, and this run has no grounding.`);
 				return undefined;
 			}
-			return await loadWikiReference(adapter, ref);
+			return await inProgress(`Reading ${entry}…`, () => loadWikiReference(adapter, ref));
 		}
 		if (!root) return undefined;
 		return await loadLocalReference(root, ref.path);
@@ -199,6 +202,11 @@ async function loadSaved(root: string | undefined, entry: string, adapter: IPlat
 		}
 		return undefined;
 	}
+}
+
+/** Shows a progress notification while a wiki call runs, so a slow wiki doesn't look like a freeze. */
+function inProgress<T>(title: string, task: () => Promise<T>): Thenable<T> {
+	return vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title }, task);
 }
 
 async function reportWikiProblem(error: unknown): Promise<void> {

@@ -6,6 +6,7 @@ import {
 	emptyFilters,
 	filterTooltip,
 	hasTasksTooltip,
+	listStatus,
 	parseStoryIds,
 	storyDescription,
 	storyLabel,
@@ -47,6 +48,12 @@ describe('story browser model', () => {
 		expect(canLoadMore(50, 50, 500)).toBe(true);
 		expect(canLoadMore(37, 50, 500)).toBe(false);
 		expect(canLoadMore(500, 500, 500)).toBe(false);
+	});
+
+	it('says in the title how much of the list is shown and where to load more', () => {
+		expect(listStatus(50, 50, 500)).toBe(' · Showing 50, more with Load more (↓) above');
+		expect(listStatus(37, 50, 500)).toBe('');
+		expect(listStatus(500, 500, 500)).toBe(' · Showing the newest 500; narrow the search or enter IDs to reach older Stories');
 	});
 
 	it('parses typed Story IDs separated by commas or spaces, ignoring a leading # and duplicates', () => {
