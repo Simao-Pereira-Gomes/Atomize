@@ -41,6 +41,22 @@ function dropDefaultedFromRequired(node: unknown): void {
   for (const value of Object.values(obj)) dropDefaultedFromRequired(value);
 }
 
+// z.record(z.string(), …) emits `propertyNames: { type: "string" }`. In JSON that's always true,
+// but YAML editors validate a key like the `1:` in a conversion table as the number 1 and report
+// "Expected string", while Atomize itself reads every key as a string. Drop the redundant
+// constraint; propertyNames that carry a pattern or other rules are kept.
+function dropStringPropertyNames(node: unknown): void {
+  if (typeof node !== "object" || node === null) return;
+  if (Array.isArray(node)) {
+    for (const item of node) dropStringPropertyNames(item);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  const names = obj.propertyNames as Record<string, unknown> | undefined;
+  if (names && Object.keys(names).length === 1 && names.type === "string") delete obj.propertyNames;
+  for (const value of Object.values(obj)) dropStringPropertyNames(value);
+}
+
 const output = {
   $schema: $schema ?? "https://json-schema.org/draft/2020-12/schema",
   $comment:
@@ -52,6 +68,7 @@ const output = {
 };
 
 dropDefaultedFromRequired(output);
+dropStringPropertyNames(output);
 
 mkdirSync(outDir, { recursive: true });
 writeFileSync(outFile, `${JSON.stringify(output, null, 2)}\n`);
