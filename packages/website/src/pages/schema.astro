@@ -1,0 +1,33 @@
+---
+import { execFileSync } from "node:child_process";
+import { buildSchemaTrees } from "@sppg2001/atomize-schema-reference";
+import schema from "@sppg2001/atomize-schema-reference/schema.json";
+import { SchemaReference } from "@sppg2001/atomize-schema-reference/viewer";
+import "@sppg2001/atomize-schema-reference/styles.css";
+import { SchemaReferencePrototype } from "../components/SchemaReferencePrototype";
+
+const trees = buildSchemaTrees(schema);
+const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim();
+const versionLabel = `main @ ${commit} · ${new Date().toISOString().slice(0, 10)}`;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Browse the fields, types and constraints of Atomize Templates and Mixins." />
+    <title>Schema Reference · Atomize</title>
+  </head>
+  <body>
+    {import.meta.env.DEV ? <SchemaReferencePrototype trees={trees} versionLabel={versionLabel} client:only="solid-js" /> : <main>
+      <p class="development-note">This page documents the latest development state on main. The Schema Reference inside Atomize Studio and the VS Code extension matches your installed version.</p>
+      <SchemaReference trees={trees} versionLabel={versionLabel} client:load />
+    </main>}
+  </body>
+</html>
+<style is:global>
+  :root { color-scheme: light dark; background: #fafbfd; color: #172b3c; }
+  body { margin: 0; padding: clamp(1rem, 4vw, 3rem); }
+  .development-note { max-width: 72rem; margin: 0 auto; font: .9rem/1.6 system-ui, sans-serif; }
+  @media (prefers-color-scheme: dark) { :root { background: #121b24; color: #e0e9f1; } }
+</style>

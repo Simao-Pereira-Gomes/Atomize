@@ -1,0 +1,21 @@
+{
+  "name": "@sppg2001/atomize-schema-reference",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./viewer": "./src/SchemaReference.tsx",
+    "./styles.css": "./src/styles.css",
+    "./schema.json": "./schema/atomize-template.schema.json"
+  },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": { "@sppg2001/atomize-schema": "workspace:*", "solid-js": "^1.9.17" },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-plugin-solid": "^2.11.14",
+    "vitest": "^5.0.0"
+  }
+}

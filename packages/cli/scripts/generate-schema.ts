@@ -7,7 +7,7 @@ import {
 } from "@sppg2001/atomize-core/templates/schema";
 import { z } from "zod";
 
-const outDir = join(import.meta.dir, "../../vscode-extension/schemas");
+const outDir = join(import.meta.dir, "../../atomize-schema-reference/schema");
 const outFile = join(outDir, "atomize-template.schema.json");
 
 const combined = z.union([
@@ -55,4 +55,4 @@ dropDefaultedFromRequired(output);
 
 mkdirSync(outDir, { recursive: true });
 writeFileSync(outFile, `${JSON.stringify(output, null, 2)}\n`);
-console.log("✓ Generated packages/vscode-extension/schemas/atomize-template.schema.json");
+console.log("✓ Generated packages/atomize-schema-reference/schema/atomize-template.schema.json");

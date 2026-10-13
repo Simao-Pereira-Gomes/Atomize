@@ -6,6 +6,9 @@ import { build } from 'esbuild';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 
+cpSync(join(dir, '../atomize-schema-reference/schema/atomize-template.schema.json'),
+	join(dir, 'schemas/atomize-template.schema.json'));
+
 execFileSync(
 	join(dir, 'node_modules/.bin/tailwindcss'),
 	['-i', 'src/webview/styles.css', '-o', 'src/webview/styles.generated.css', '--minify'],

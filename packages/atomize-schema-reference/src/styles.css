@@ -1,0 +1,95 @@
+.schema-reference {
+	--schema-border: #bcc6cf;
+	--schema-muted: #4f6070;
+	max-width: 72rem;
+	margin: auto;
+	font:
+		1rem / 1.6 system-ui,
+		sans-serif;
+	color: inherit;
+}
+.schema-reference header {
+	margin-bottom: 2rem;
+}
+.schema-reference h1 {
+	font-size: clamp(2rem, 5vw, 3rem);
+	margin-bottom: 0.25rem;
+}
+.schema-reference code {
+	font-family: ui-monospace, monospace;
+	overflow-wrap: anywhere;
+}
+.schema-reference ul {
+	list-style: none;
+	padding-left: 1rem;
+}
+.schema-reference > ul {
+	padding: 0;
+}
+.schema-reference-field {
+	border-left: 1px solid var(--schema-border);
+	margin: 0.5rem 0;
+}
+.schema-reference summary {
+	padding: 0.65rem 1rem;
+	cursor: pointer;
+	overflow-wrap: anywhere;
+}
+.schema-reference summary:hover {
+	background: #8090a015;
+}
+.schema-reference summary:focus-visible,
+.schema-reference button:focus-visible {
+	outline: 2px solid #247abd;
+	outline-offset: 3px;
+}
+.schema-reference-type,
+.schema-reference-path {
+	color: var(--schema-muted);
+	font-size: 0.85rem;
+}
+.schema-reference-badge {
+	display: inline-block;
+	border: 1px solid var(--schema-border);
+	border-radius: 0.35rem;
+	padding: 0 0.4rem;
+	margin: 0.15rem 0.3rem;
+	font-size: 0.75rem;
+}
+.schema-reference-details {
+	padding: 0.5rem 1.25rem;
+}
+.schema-reference-constraints > div {
+	display: flex;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+.schema-reference-constraints dd {
+	margin: 0;
+}
+.schema-reference-tabs {
+	display: flex;
+	gap: 0.5rem;
+	border-bottom: 1px solid var(--schema-border);
+	padding-bottom: 1rem;
+}
+.schema-reference-tabs button {
+	font: inherit;
+	cursor: pointer;
+	border: 1px solid var(--schema-border);
+	border-radius: 0.4rem;
+	padding: 0.4rem 1.2rem;
+	background: transparent;
+	color: inherit;
+}
+.schema-reference-tabs button[aria-pressed="true"] {
+	background: #205d91;
+	color: white;
+	border-color: #205d91;
+}
+@media (prefers-color-scheme: dark) {
+	.schema-reference {
+		--schema-border: #53616e;
+		--schema-muted: #b0c0ce;
+	}
+}
