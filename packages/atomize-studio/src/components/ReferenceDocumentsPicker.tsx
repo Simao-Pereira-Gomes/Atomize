@@ -45,6 +45,8 @@ export function ReferenceDocumentsPicker(props: {
   const [pages, setPages] = createSignal<string[]>([]);
   const [pageFilter, setPageFilter] = createSignal("");
   const [pickedPages, setPickedPages] = createSignal<Set<string>>(new Set());
+  // What the wiki picker is waiting on, shown so a slow wiki call doesn't look like a freeze.
+  const [wikiStatus, setWikiStatus] = createSignal("");
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(timer));
@@ -104,6 +106,7 @@ export function ReferenceDocumentsPicker(props: {
 
   const openWikiPicker = async () => {
     setError("");
+    setWikiStatus("Loading this project's wikis…");
     try {
       const list = (await listWikis(props.profile()) as { wikis?: Wiki[] }).wikis ?? [];
       setWikis(list);
@@ -111,15 +114,21 @@ export function ReferenceDocumentsPicker(props: {
       if (list.length === 0) setError("This project has no wikis.");
     } catch (caught) {
       setError(message(caught, "We could not read this project's wikis."));
+    } finally {
+      setWikiStatus("");
     }
   };
   const chooseWiki = async (next: Wiki) => {
     setWiki(next);
     setPickedPages(new Set<string>());
+    setPages([]);
+    setWikiStatus(`Loading pages from ${next.name}…`);
     try {
       setPages((await listWikiPages(props.profile(), next.id) as { paths?: string[] }).paths ?? []);
     } catch (caught) {
       setError(message(caught, "We could not list that wiki's pages."));
+    } finally {
+      setWikiStatus("");
     }
   };
   const addPages = () => {
@@ -172,6 +181,13 @@ export function ReferenceDocumentsPicker(props: {
     }, LOAD_DEBOUNCE_MS);
   }));
 
+  const Loading = (loadingProps: { text: string }) => (
+    <p class="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" role="status">
+      <span class="size-3.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600 dark:border-slate-600 dark:border-t-indigo-400" aria-hidden="true" />
+      {loadingProps.text}
+    </p>
+  );
+
   const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700";
 
   return (
@@ -215,9 +231,13 @@ export function ReferenceDocumentsPicker(props: {
         <div class="mt-2 flex flex-wrap gap-2">
           <button type="button" class={button} disabled={props.disabled?.()} onClick={() => void addLocalFiles()}>Add local file…</button>
           <Show when={props.profile()}>
-            <button type="button" class={button} disabled={props.disabled?.()} onClick={() => void openWikiPicker()}>Add wiki page…</button>
+            <button type="button" class={button} disabled={props.disabled?.() || Boolean(wikiStatus())} onClick={() => void openWikiPicker()}>Add wiki page…</button>
           </Show>
         </div>
+      </Show>
+
+      <Show when={wikiStatus() && !wiki()}>
+        <Loading text={wikiStatus()} />
       </Show>
 
       <Show when={wikis()}>
@@ -226,13 +246,16 @@ export function ReferenceDocumentsPicker(props: {
             <Show when={list().length > 1 && !wiki()}>
               <p class="text-xs font-semibold">Which wiki?</p>
               <div class="mt-2 flex flex-wrap gap-2">
-                <For each={list()}>{(item) => <button type="button" class={button} onClick={() => void chooseWiki(item)}>{item.name}</button>}</For>
+                <For each={list()}>{(item) => <button type="button" class={button} disabled={Boolean(wikiStatus())} onClick={() => void chooseWiki(item)}>{item.name}</button>}</For>
               </div>
             </Show>
             <Show when={wiki()}>
               {(chosenWiki) => (
                 <>
                   <p class="text-xs text-slate-500 dark:text-slate-400">Pages from {chosenWiki().name}. Only each page itself is read, not its sub-pages.</p>
+                  <Show when={wikiStatus()}>
+                    <Loading text={wikiStatus()} />
+                  </Show>
                   <input class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" placeholder="Filter page paths…" value={pageFilter()} onInput={(event) => setPageFilter(event.currentTarget.value)} />
                   <div class="mt-2 max-h-48 overflow-y-auto">
                     <For each={pages().filter((path) => path.toLowerCase().includes(pageFilter().toLowerCase()))}>
@@ -265,7 +288,7 @@ export function ReferenceDocumentsPicker(props: {
       </Show>
 
       <Show when={loading()}>
-        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Checking the Reference Documents…</p>
+        <Loading text={chosen().some((entry) => entry.startsWith("wiki:")) ? "Loading the Reference Documents, including wiki pages…" : "Loading the Reference Documents…"} />
       </Show>
       <Show when={(loaded()?.notices.length ?? 0) > 0}>
         <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
