@@ -327,6 +327,14 @@
             },
             "savedQuery": {
               "x-atomize-guide": "savedquery",
+              "examples": [
+                {
+                  "path": "Shared Queries/Teams/Backend Team/Sprint Active Stories"
+                },
+                {
+                  "id": "a1b2c3d4-0000-4000-8000-000000000000"
+                }
+              ],
               "type": "object",
               "properties": {
                 "id": {
@@ -389,6 +397,26 @@
               },
               "estimationPercentCondition": {
                 "x-atomize-guide": "conditional-estimation",
+                "examples": [
+                  [
+                    {
+                      "condition": {
+                        "field": "tags",
+                        "operator": "contains",
+                        "value": "critical"
+                      },
+                      "percent": 60
+                    },
+                    {
+                      "condition": {
+                        "field": "estimation",
+                        "operator": "gte",
+                        "value": 13
+                      },
+                      "percent": 55
+                    }
+                  ]
+                ],
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -435,6 +463,41 @@
               },
               "condition": {
                 "x-atomize-guide": "conditional-tasks",
+                "examples": [
+                  {
+                    "field": "tags",
+                    "operator": "contains",
+                    "value": "security"
+                  },
+                  {
+                    "customField": "Custom.ClientTier",
+                    "operator": "equals",
+                    "value": "Enterprise"
+                  },
+                  {
+                    "all": [
+                      {
+                        "field": "tags",
+                        "operator": "contains",
+                        "value": "database"
+                      },
+                      {
+                        "any": [
+                          {
+                            "field": "estimation",
+                            "operator": "gt",
+                            "value": 5
+                          },
+                          {
+                            "field": "priority",
+                            "operator": "equals",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
                 "x-atomize-rules": [
                   "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
@@ -467,6 +530,12 @@
               },
               "assignTo": {
                 "x-atomize-guide": "assignment-patterns",
+                "examples": [
+                  "@ParentAssignee",
+                  "@Me",
+                  "@Unassigned",
+                  "lead@company.com"
+                ],
                 "type": "string",
                 "description": "Email address or alias to assign this task to."
               },
@@ -498,6 +567,15 @@
                   "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
                 ],
                 "x-atomize-guide": "task-custom-fields",
+                "examples": [
+                  {
+                    "Custom.ClientTier": "Enterprise",
+                    "Custom.IsBillable": true,
+                    "Custom.TierRank": 3,
+                    "Custom.ReleaseVersion": "{{ story.customFields['Custom.ReleaseVersion'] }}",
+                    "Custom.ReleaseDate": "@Today"
+                  }
+                ],
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -583,6 +661,28 @@
               "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
               "x-atomize-rules": [
                 "Set exactly one of factor or table."
+              ],
+              "examples": [
+                {
+                  "factor": 4
+                },
+                {
+                  "table": {
+                    "1": 2,
+                    "2": 4,
+                    "3": 8,
+                    "5": 16
+                  }
+                },
+                {
+                  "table": {
+                    "S": 2,
+                    "M": 4,
+                    "L": 5,
+                    "XL": 13
+                  },
+                  "multipliers": true
+                }
               ]
             },
             "targetFields": {
@@ -1081,6 +1181,14 @@
             },
             "savedQuery": {
               "x-atomize-guide": "savedquery",
+              "examples": [
+                {
+                  "path": "Shared Queries/Teams/Backend Team/Sprint Active Stories"
+                },
+                {
+                  "id": "a1b2c3d4-0000-4000-8000-000000000000"
+                }
+              ],
               "type": "object",
               "properties": {
                 "id": {
@@ -1143,6 +1251,26 @@
               },
               "estimationPercentCondition": {
                 "x-atomize-guide": "conditional-estimation",
+                "examples": [
+                  [
+                    {
+                      "condition": {
+                        "field": "tags",
+                        "operator": "contains",
+                        "value": "critical"
+                      },
+                      "percent": 60
+                    },
+                    {
+                      "condition": {
+                        "field": "estimation",
+                        "operator": "gte",
+                        "value": 13
+                      },
+                      "percent": 55
+                    }
+                  ]
+                ],
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -1189,6 +1317,41 @@
               },
               "condition": {
                 "x-atomize-guide": "conditional-tasks",
+                "examples": [
+                  {
+                    "field": "tags",
+                    "operator": "contains",
+                    "value": "security"
+                  },
+                  {
+                    "customField": "Custom.ClientTier",
+                    "operator": "equals",
+                    "value": "Enterprise"
+                  },
+                  {
+                    "all": [
+                      {
+                        "field": "tags",
+                        "operator": "contains",
+                        "value": "database"
+                      },
+                      {
+                        "any": [
+                          {
+                            "field": "estimation",
+                            "operator": "gt",
+                            "value": 5
+                          },
+                          {
+                            "field": "priority",
+                            "operator": "equals",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
                 "x-atomize-rules": [
                   "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
@@ -1221,6 +1384,12 @@
               },
               "assignTo": {
                 "x-atomize-guide": "assignment-patterns",
+                "examples": [
+                  "@ParentAssignee",
+                  "@Me",
+                  "@Unassigned",
+                  "lead@company.com"
+                ],
                 "type": "string",
                 "description": "Email address or alias to assign this task to."
               },
@@ -1252,6 +1421,15 @@
                   "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
                 ],
                 "x-atomize-guide": "task-custom-fields",
+                "examples": [
+                  {
+                    "Custom.ClientTier": "Enterprise",
+                    "Custom.IsBillable": true,
+                    "Custom.TierRank": 3,
+                    "Custom.ReleaseVersion": "{{ story.customFields['Custom.ReleaseVersion'] }}",
+                    "Custom.ReleaseDate": "@Today"
+                  }
+                ],
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -1337,6 +1515,28 @@
               "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
               "x-atomize-rules": [
                 "Set exactly one of factor or table."
+              ],
+              "examples": [
+                {
+                  "factor": 4
+                },
+                {
+                  "table": {
+                    "1": 2,
+                    "2": 4,
+                    "3": 8,
+                    "5": 16
+                  }
+                },
+                {
+                  "table": {
+                    "S": 2,
+                    "M": 4,
+                    "L": 5,
+                    "XL": 13
+                  },
+                  "multipliers": true
+                }
               ]
             },
             "targetFields": {
@@ -1679,6 +1879,26 @@
               },
               "estimationPercentCondition": {
                 "x-atomize-guide": "conditional-estimation",
+                "examples": [
+                  [
+                    {
+                      "condition": {
+                        "field": "tags",
+                        "operator": "contains",
+                        "value": "critical"
+                      },
+                      "percent": 60
+                    },
+                    {
+                      "condition": {
+                        "field": "estimation",
+                        "operator": "gte",
+                        "value": 13
+                      },
+                      "percent": 55
+                    }
+                  ]
+                ],
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -1725,6 +1945,41 @@
               },
               "condition": {
                 "x-atomize-guide": "conditional-tasks",
+                "examples": [
+                  {
+                    "field": "tags",
+                    "operator": "contains",
+                    "value": "security"
+                  },
+                  {
+                    "customField": "Custom.ClientTier",
+                    "operator": "equals",
+                    "value": "Enterprise"
+                  },
+                  {
+                    "all": [
+                      {
+                        "field": "tags",
+                        "operator": "contains",
+                        "value": "database"
+                      },
+                      {
+                        "any": [
+                          {
+                            "field": "estimation",
+                            "operator": "gt",
+                            "value": 5
+                          },
+                          {
+                            "field": "priority",
+                            "operator": "equals",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
                 "x-atomize-rules": [
                   "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
@@ -1757,6 +2012,12 @@
               },
               "assignTo": {
                 "x-atomize-guide": "assignment-patterns",
+                "examples": [
+                  "@ParentAssignee",
+                  "@Me",
+                  "@Unassigned",
+                  "lead@company.com"
+                ],
                 "type": "string",
                 "description": "Email address or alias to assign this task to."
               },
@@ -1788,6 +2049,15 @@
                   "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
                 ],
                 "x-atomize-guide": "task-custom-fields",
+                "examples": [
+                  {
+                    "Custom.ClientTier": "Enterprise",
+                    "Custom.IsBillable": true,
+                    "Custom.TierRank": 3,
+                    "Custom.ReleaseVersion": "{{ story.customFields['Custom.ReleaseVersion'] }}",
+                    "Custom.ReleaseDate": "@Today"
+                  }
+                ],
                 "type": "object",
                 "propertyNames": {
                   "type": "string"

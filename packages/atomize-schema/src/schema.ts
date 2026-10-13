@@ -233,7 +233,13 @@ export const FilterCriteriaSchema = z.object({
     .optional().meta({ "x-atomize-guide": "filter" }),
   savedQuery: SavedQuerySchema.describe(
     "Reference an existing Azure DevOps saved query to select stories.",
-  ).optional().meta({ "x-atomize-guide": "savedquery" }),
+  ).optional().meta({
+    "x-atomize-guide": "savedquery",
+    examples: [
+      { path: "Shared Queries/Teams/Backend Team/Sprint Active Stories" },
+      { id: "a1b2c3d4-0000-4000-8000-000000000000" },
+    ],
+  }),
 }).strict();
 
 export const EstimationPercentConditionSchema = z.object({
@@ -278,7 +284,13 @@ export const TaskDefinitionSchema = z.object({
     .describe(
       "Conditional estimation rules evaluated in order. The first matching condition's percent is used.",
     )
-    .optional().meta({ "x-atomize-guide": "conditional-estimation" }),
+    .optional().meta({
+      "x-atomize-guide": "conditional-estimation",
+      examples: [[
+        { condition: { field: "tags", operator: "contains", value: "critical" }, percent: 60 },
+        { condition: { field: "estimation", operator: "gte", value: 13 }, percent: 55 },
+      ]],
+    }),
   estimationFixed: z
     .number()
     .min(0, "Fixed estimation cannot be negative")
@@ -300,7 +312,20 @@ export const TaskDefinitionSchema = z.object({
     "Condition evaluated against the parent story. If it does not match, this task is skipped.",
   ).meta({ "x-atomize-rules": [
     "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform.",
-  ] }).optional().meta({ "x-atomize-guide": "conditional-tasks" }),
+  ] }).optional().meta({
+    "x-atomize-guide": "conditional-tasks",
+    examples: [
+      { field: "tags", operator: "contains", value: "security" },
+      { customField: "Custom.ClientTier", operator: "equals", value: "Enterprise" },
+      { all: [
+        { field: "tags", operator: "contains", value: "database" },
+        { any: [
+          { field: "estimation", operator: "gt", value: 5 },
+          { field: "priority", operator: "equals", value: 1 },
+        ] },
+      ] },
+    ],
+  }),
   dependsOn: z
     .array(z.string())
     .describe(
@@ -327,7 +352,10 @@ export const TaskDefinitionSchema = z.object({
   assignTo: z
     .string()
     .describe("Email address or alias to assign this task to.")
-    .optional().meta({ "x-atomize-guide": "assignment-patterns" }),
+    .optional().meta({
+      "x-atomize-guide": "assignment-patterns",
+      examples: ["@ParentAssignee", "@Me", "@Unassigned", "lead@company.com"],
+    }),
   priority: z
     .number()
     .describe("Priority value for the generated task.")
@@ -369,7 +397,16 @@ export const TaskDefinitionSchema = z.object({
     })
     .meta({ "x-atomize-rules": [
       "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier.",
-    ] }).meta({ "x-atomize-guide": "task-custom-fields" }),
+    ] }).meta({
+      "x-atomize-guide": "task-custom-fields",
+      examples: [{
+        "Custom.ClientTier": "Enterprise",
+        "Custom.IsBillable": true,
+        "Custom.TierRank": 3,
+        "Custom.ReleaseVersion": "{{ story.customFields['Custom.ReleaseVersion'] }}",
+        "Custom.ReleaseDate": "@Today",
+      }],
+    }),
 }).strict();
 
 const NUMBER_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
@@ -418,7 +455,15 @@ export const EstimationConversionSchema = z
   .describe(
     "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
   )
-  .meta({ "x-atomize-guide": "estimation", "x-atomize-rules": ["Set exactly one of factor or table."] });
+  .meta({
+    "x-atomize-guide": "estimation",
+    "x-atomize-rules": ["Set exactly one of factor or table."],
+    examples: [
+      { factor: 4 },
+      { table: { "1": 2, "2": 4, "3": 8, "5": 16 } },
+      { table: { S: 2, M: 4, L: 5, XL: 13 }, multipliers: true },
+    ],
+  });
 
 /**
  * Looks a Story Estimate up in a conversion table. An exact key always wins; with

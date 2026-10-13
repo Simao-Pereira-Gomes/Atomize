@@ -6,6 +6,7 @@ import {
 	onMount,
 	Show,
 } from "solid-js";
+import { stringify } from "yaml";
 import {
 	buildPermalink,
 	normalizeDocumentPath,
@@ -87,6 +88,23 @@ function FieldFacts(props: { node: SchemaNode; links: GuideLinks }) {
 				<p class="schema-reference-description">
 					Recursive structure; follows the same fields as its parent.
 				</p>
+			</Show>
+			<Show when={props.node.examples.length}>
+				<div class="schema-reference-examples">
+					<h3>YAML examples</h3>
+					<For each={props.node.examples}>
+						{(example) => (
+							<figure aria-label={`YAML example for ${props.node.path}`}>
+								<pre>
+									<code>{stringify(
+										props.node.name === "[]" ? example : { [props.node.name]: example },
+										{ lineWidth: 0 },
+									)}</code>
+								</pre>
+							</figure>
+						)}
+					</For>
+				</div>
 			</Show>
 			<Show when={guideUrl()}>
 				{(url) => (

@@ -55,3 +55,11 @@ browser links; without a resolver or a field anchor it omits the link. The websi
 resolves anchors to the GitHub-rendered Template Reference on `main`. Its Solid
 wrapper supplies the resolver inside the Astro island so it survives hydration.
 Contract tests check every generated guide anchor against the guide's headings.
+
+The standard `examples` metadata contains field values, rather than whole documents
+or preformatted YAML. Conditions, assignment patterns, conditional estimation,
+saved queries, custom fields and Estimation Conversion carry a small set of examples. The viewer renders
+each value as YAML under its field name, with quoted strings where YAML requires
+them. The generated artifact also makes these examples available to editor tooling
+that supports example completions. Contract tests validate every example against
+its own generated field schema, resolving internal references and checking formats.
