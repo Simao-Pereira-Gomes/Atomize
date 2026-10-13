@@ -11,7 +11,7 @@ The page documents `main` and is labelled with the commit and date rather than a
 - **GitHub Pages.** Rejected by the maintainer. The `gh-pages` branch already serves benchmark charts.
 - **Netlify.** Rejected. The free tier's credit model allows roughly 20 production deploys a month, and the site pauses when credits run out.
 - **Vercel Hobby.** Rejected because its non-commercial-use clause is a risk for the project.
-- **Cloudflare's Git integration.** Rejected. It builds on every push, outside the path filters and the repo's workflow topology. The repo's pattern is checks on PRs and publishing on `main`.
+- **Cloudflare's Git integration.** Rejected. It deploys independently of CI, so a commit that fails typecheck or tests still ships. It builds in Cloudflare's image instead of the repo's Bun workspace setup, keeps its build config in the dashboard rather than in `.github/workflows`, and needs the Cloudflare GitHub app installed with repo access. It would save the secrets and the preview-comment step, but the repo's pattern is checks on PRs and publishing on `main` from Actions. A Pages project can't switch between Direct Upload and Git integration later, so reversing this means a new project and possibly a new `*.pages.dev` name.
 - **Documenting only the latest CLI release.** Rejected. `atomize-schema` ships inside three independently versioned surfaces, so "released" is ambiguous. The page could lag behind the extension or Studio, and keeping the content pinned to a tag while the viewer ships freely needed extra build machinery. The in-app viewers already give version-exact answers.
 - **Versioned pages or a separate schema version.** Rejected as out of proportion for a single page. It would also complicate the permalinks.
 
