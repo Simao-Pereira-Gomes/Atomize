@@ -18,7 +18,7 @@ import {
 import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
-import { assertNotCancelled, isInteractiveTerminal, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { assertNotCancelled, isInteractiveTerminal, sanitizeTty, withSpinner } from "@/cli/utilities/prompt-utilities";
 import { connectProfile } from "./ai-creation/grounding";
 
 export interface ReferenceDocumentOptions {
@@ -108,7 +108,7 @@ async function load(sources: Sources, entry: string, context: { requested: boole
   try {
     const ref = parseReferenceRef(entry);
     return ref.kind === "wiki"
-      ? await loadWikiReference(await sources.adapter(), ref)
+      ? await withSpinner(`Reading ${sanitizeTty(entry)}…`, async () => loadWikiReference(await sources.adapter(), ref), { done: () => `Read ${sanitizeTty(entry)}`, failed: `Could not read ${sanitizeTty(entry)}` })
       : await loadLocalReference(sources.root, ref.path);
   } catch (error) {
     const message = getErrorMessage(error);
@@ -164,8 +164,10 @@ async function addDocuments(sources: Sources, already: ReferenceDocument[]): Pro
 /** Picks pages from one of the project's wikis by filtering their paths, so nobody copies URLs. */
 async function pickWikiPages(sources: Sources): Promise<ReferenceDocument[]> {
   try {
-    const adapter = await sources.adapter();
-    const wikis = await listProjectWikis(adapter);
+    const { adapter, wikis } = await withSpinner("Loading this project's wikis…", async () => {
+      const adapter = await sources.adapter();
+      return { adapter, wikis: await listProjectWikis(adapter) };
+    }, { done: ({ wikis }) => `Found ${wikis.length} ${wikis.length === 1 ? "wiki" : "wikis"}`, failed: "Could not load the wikis" });
     if (wikis.length === 0) {
       output.warn("This project has no wikis.");
       return [];
@@ -173,7 +175,11 @@ async function pickWikiPages(sources: Sources): Promise<ReferenceDocument[]> {
     const wikiName = wikis.length === 1
       ? (wikis[0] as { name: string }).name
       : assertNotCancelled(await select({ message: "Which wiki?", options: wikis.map((wiki) => ({ value: wiki.name, label: sanitizeTty(wiki.name) })) })) as string;
-    const paths = await listWikiPagePaths(adapter, (wikis.find((wiki) => wiki.name === wikiName) ?? { id: wikiName }).id);
+    const paths = await withSpinner(
+      `Loading the pages of ${sanitizeTty(wikiName)}…`,
+      () => listWikiPagePaths(adapter, (wikis.find((wiki) => wiki.name === wikiName) ?? { id: wikiName }).id),
+      { done: (found) => `Found ${found.length} ${found.length === 1 ? "page" : "pages"}`, failed: "Could not list the wiki's pages" },
+    );
     const picked = assertNotCancelled(
       await autocompleteMultiselect<string>({
         message: `Pages from ${wikiName} (only each page itself is read, not its sub-pages):`,
@@ -182,9 +188,12 @@ async function pickWikiPages(sources: Sources): Promise<ReferenceDocument[]> {
         required: false,
       }),
     ) as string[];
-    const documents: ReferenceDocument[] = [];
-    for (const pagePath of picked) documents.push(await loadWikiReference(adapter, { kind: "wiki", wiki: wikiName, pagePath }));
-    return documents;
+    if (picked.length === 0) return [];
+    return await withSpinner(`Reading ${picked.length} wiki ${picked.length === 1 ? "page" : "pages"}…`, async () => {
+      const documents: ReferenceDocument[] = [];
+      for (const pagePath of picked) documents.push(await loadWikiReference(adapter, { kind: "wiki", wiki: wikiName, pagePath }));
+      return documents;
+    }, { done: (documents) => `Read ${documents.length} wiki ${documents.length === 1 ? "page" : "pages"}`, failed: "Could not read the wiki pages" });
   } catch (error) {
     output.warn(sanitizeTty(getErrorMessage(error)));
     return [];

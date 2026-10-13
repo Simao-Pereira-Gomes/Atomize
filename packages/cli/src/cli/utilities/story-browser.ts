@@ -1,10 +1,10 @@
 import { autocomplete, autocompleteMultiselect } from "@clack/prompts";
 import { requireProjectMetadataReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
-import { type StorySummary, searchStories } from "@sppg2001/atomize-core/services/story-search";
+import { listAllStories, STORY_LIST_MAX, type StorySummary } from "@sppg2001/atomize-core/services/story-search";
 import { listAppliedStories } from "@sppg2001/atomize-core/services/template/story-grounding";
 import type { FilterCriteria as TemplateFilter } from "@sppg2001/atomize-core/templates/schema";
-import { assertNotCancelled, sanitizeTty } from "@/cli/utilities/prompt-utilities";
+import { assertNotCancelled, sanitizeTty, withSpinner } from "@/cli/utilities/prompt-utilities";
 
 const SEARCH = "__search__";
 const ANY = "__any__";
@@ -19,12 +19,14 @@ export interface TerminalStoryBrowserOptions {
 
 /**
  * The CLI Story Browser (see CONTEXT.md): type to filter by ID or title and pick several Stories,
- * switching to a Story Search narrowed by area path and iteration when a Story isn't listed.
- * Nothing is pre-selected, and at least one Story must be chosen.
+ * switching to a Story Search narrowed by area path and iteration when a Story isn't listed. Each
+ * list holds every matching Story (up to STORY_LIST_MAX), like a wiki's page list, so typing finds
+ * Stories past the first page. Nothing is pre-selected, and at least one Story must be chosen.
  */
 export async function browseStoriesInTerminal(adapter: IPlatformAdapter, options: TerminalStoryBrowserOptions): Promise<string[]> {
-  if (options.templateFilter) {
-    const applied = await listAppliedStories(adapter, options.templateFilter);
+  const templateFilter = options.templateFilter;
+  if (templateFilter) {
+    const applied = await withSpinner("Loading the Stories this Template was applied to…", () => listAppliedStories(adapter, templateFilter), FOUND);
     if (applied.length > 0) {
       const picked = await pickStories(options.message, applied, true);
       if (!picked.includes(SEARCH)) return picked;
@@ -55,15 +57,27 @@ async function pickStories(message: string, stories: StorySummary[], offerSearch
 
 async function searchInTerminal(adapter: IPlatformAdapter, hasTasks: boolean): Promise<StorySummary[]> {
   const metadata = requireProjectMetadataReader(adapter);
-  const [areaPaths, iterations] = await Promise.all([metadata.getAreaPaths(), metadata.getIterationPaths()]);
+  const [areaPaths, iterations] = await withSpinner(
+    "Loading the project's area paths and iterations…",
+    () => Promise.all([metadata.getAreaPaths(), metadata.getIterationPaths()]),
+    { done: () => "Area paths and iterations loaded", failed: "Could not load the area paths and iterations" },
+  );
   const area = await choosePath("Narrow to an area path (includes its sub-areas):", "Any area", areaPaths);
   const iteration = await choosePath("Narrow to an iteration (includes its sub-iterations):", "Any iteration", iterations);
-  return searchStories(adapter, {
+  return withSpinner("Searching Stories…", () => listAllStories(adapter, {
     ...(area ? { areaPaths: [area] } : {}),
     ...(iteration ? { iterations: [iteration] } : {}),
     ...(hasTasks ? { hasTasks: true } : {}),
-  });
+  }), FOUND);
 }
+
+const FOUND = {
+  done: (stories: StorySummary[]) => {
+    const count = `Found ${stories.length} ${stories.length === 1 ? "Story" : "Stories"}`;
+    return stories.length >= STORY_LIST_MAX ? `${count}, the newest; narrow by area path or iteration to reach older ones` : count;
+  },
+  failed: "Could not load Stories",
+};
 
 async function choosePath(message: string, anyLabel: string, paths: string[]): Promise<string | undefined> {
   const choice = assertNotCancelled(

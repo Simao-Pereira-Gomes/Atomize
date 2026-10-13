@@ -16,9 +16,11 @@ mock.module("@clack/prompts", () => ({
   cancel: mock(),
   autocomplete: next,
   autocompleteMultiselect: next,
+  spinner: () => ({ start: mock(), message: mock(), stop: mock() }),
 }));
 
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
+import { STORY_LIST_MAX } from "@sppg2001/atomize-core/services/story-search";
 import { browseStoriesInTerminal } from "@/cli/utilities/story-browser";
 
 const item = (id: string, childCount: number, created: string): WorkItem => ({
@@ -69,7 +71,8 @@ describe("browseStoriesInTerminal", () => {
     const ids = await browseStoriesInTerminal(fake, { message: "Pick", templateFilter: {} });
 
     expect(ids).toEqual(["900"]);
-    expect(searches[0]).toMatchObject({ areaPaths: ["Proj\\Web"], hasTasks: true });
+    // Every matching Story is listed for typing to narrow, not just the first 50.
+    expect(searches[0]).toMatchObject({ areaPaths: ["Proj\\Web"], hasTasks: true, limit: STORY_LIST_MAX });
     expect(searches[0]).not.toHaveProperty("iterations");
   });
 
