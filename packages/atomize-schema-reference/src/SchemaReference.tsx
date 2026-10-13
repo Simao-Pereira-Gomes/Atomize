@@ -69,6 +69,14 @@ function FieldFacts(props: { node: SchemaNode }) {
 					)}
 				</For>
 			</dl>
+			<Show when={props.node.rules.length}>
+				<div class="schema-reference-rules">
+					<h3>Runtime rules</h3>
+					<ul>
+						<For each={props.node.rules}>{(rule) => <li>{rule}</li>}</For>
+					</ul>
+				</div>
+			</Show>
 			<Show when={props.node.recursive}>
 				<p class="schema-reference-description">
 					Recursive structure; follows the same fields as its parent.

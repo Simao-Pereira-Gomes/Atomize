@@ -25,7 +25,10 @@
                 "gte",
                 "lte"
               ],
-              "description": "Comparison operator. equals/not-equals: exact match. contains/not-contains: substring or array membership. gt/lt/gte/lte: numeric comparison."
+              "description": "Comparison operator. equals/not-equals: exact match. contains/not-contains: substring or array membership. gt/lt/gte/lte: numeric comparison.",
+              "x-atomize-rules": [
+                "When field is tags, only contains and not-contains are supported because tags is multi-value."
+              ]
             },
             "value": {
               "description": "Value to compare against. Can be a string, number, or boolean.",
@@ -274,10 +277,16 @@
             },
             "changedAfter": {
               "type": "string",
+              "x-atomize-rules": [
+                "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
+              ],
               "description": "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7')."
             },
             "createdAfter": {
               "type": "string",
+              "x-atomize-rules": [
+                "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
+              ],
               "description": "Include stories created after this date. ISO 8601 date or date macro."
             },
             "priority": {
@@ -315,6 +324,10 @@
                 }
               },
               "additionalProperties": false,
+              "x-atomize-rules": [
+                "Set exactly one of id or path.",
+                "State filters, tags, area or iteration paths, assignedTo, date filters or priority alongside savedQuery produce a validation warning and are ignored; the query controls the returned Stories. workItemTypes is allowed because it declares the query's Work Item types rather than filtering them."
+              ],
               "description": "Reference an existing Azure DevOps saved query to select stories."
             }
           },
@@ -329,7 +342,10 @@
             "properties": {
               "id": {
                 "type": "string",
-                "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'."
+                "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
+                "x-atomize-rules": [
+                  "Non-empty task IDs must be unique within the file."
+                ]
               },
               "title": {
                 "type": "string",
@@ -388,6 +404,9 @@
               },
               "condition": {
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
+                "x-atomize-rules": [
+                  "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
+                ],
                 "$ref": "#/$defs/__schema0"
               },
               "dependsOn": {
@@ -395,13 +414,22 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks."
+                "description": "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks.",
+                "x-atomize-rules": [
+                  "In a Resolved Template, dependencies must reference existing task IDs and must not form a cycle, including a dependency on the task itself.",
+                  "A task with repeat set cannot have a non-empty dependsOn, and another task cannot depend on it, even when repeat is 1.",
+                  "A task with dependencies should have its own id; validation reports a warning when it does not."
+                ]
               },
               "repeat": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn."
+                "description": "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn.",
+                "x-atomize-rules": [
+                  "When repeat is set, dependsOn must be absent or empty and other tasks cannot depend on this task, even when repeat is 1.",
+                  "In a Resolved Template, repeat must not exceed validation.maxRepeat (20 by default). A Mixin defers this cap to the composing Template."
+                ]
               },
               "assignTo": {
                 "type": "string",
@@ -427,6 +455,9 @@
                 "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
               },
               "customFields": {
+                "x-atomize-rules": [
+                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
+                ],
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -486,15 +517,24 @@
                     "type": "number",
                     "minimum": 0
                   },
+                  "x-atomize-rules": [
+                    "The conversion table must contain at least one entry."
+                  ],
                   "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
                 },
                 "multipliers": {
                   "type": "boolean",
-                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys."
+                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
+                  "x-atomize-rules": [
+                    "When multipliers is true, conversion.table must be set and at least one table key must be non-numeric."
+                  ]
                 }
               },
               "additionalProperties": false,
-              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one."
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
+              "x-atomize-rules": [
+                "Set exactly one of factor or table."
+              ]
             },
             "targetFields": {
               "minItems": 1,
@@ -532,7 +572,10 @@
             "minimumTaskPoints": {
               "type": "number",
               "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
-              "deprecated": true
+              "deprecated": true,
+              "x-atomize-rules": [
+                "minimumTaskEstimate takes precedence when both minimum fields are set. Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "ifParentHasNoEstimation": {
               "type": "string",
@@ -553,7 +596,10 @@
                   "minLength": 1
                 }
               ],
-              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate."
+              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate.",
+              "x-atomize-rules": [
+                "When ifParentHasNoEstimation is use-default and this value is set, it must be convertible: numeric without a table, or a matching conversion.table key (including enabled multipliers)."
+              ]
             }
           },
           "additionalProperties": false,
@@ -568,7 +614,7 @@
                 "strict",
                 "lenient"
               ],
-              "description": "'strict' fails on any validation warning; 'lenient' allows warnings to pass."
+              "description": "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes."
             },
             "totalEstimationMustBe": {
               "type": "number",
@@ -605,7 +651,10 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991,
-              "description": "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies."
+              "description": "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies.",
+              "x-atomize-rules": [
+                "This cap applies to every task definition in the Resolved Template, including tasks contributed by Mixins."
+              ]
             },
             "taskEstimationRange": {
               "type": "object",
@@ -624,7 +673,7 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Each task's estimation percentage must fall within this range."
+              "description": "Per-task percentage range. Accepted by the schema, but currently not enforced by validation."
             },
             "requiredTasks": {
               "type": "array",
@@ -645,7 +694,10 @@
                 ],
                 "additionalProperties": false
               },
-              "description": "Tasks that must be present in the template, matched by title or id."
+              "description": "Tasks that must be present in the template, matched by title or id.",
+              "x-atomize-rules": [
+                "Each required entry must match an existing task by its supplied id or its title. Both comparisons are case-insensitive; a title match is accepted even if the supplied id does not match."
+              ]
             }
           },
           "additionalProperties": false,
@@ -898,10 +950,16 @@
             },
             "changedAfter": {
               "type": "string",
+              "x-atomize-rules": [
+                "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
+              ],
               "description": "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7')."
             },
             "createdAfter": {
               "type": "string",
+              "x-atomize-rules": [
+                "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
+              ],
               "description": "Include stories created after this date. ISO 8601 date or date macro."
             },
             "priority": {
@@ -939,6 +997,10 @@
                 }
               },
               "additionalProperties": false,
+              "x-atomize-rules": [
+                "Set exactly one of id or path.",
+                "State filters, tags, area or iteration paths, assignedTo, date filters or priority alongside savedQuery produce a validation warning and are ignored; the query controls the returned Stories. workItemTypes is allowed because it declares the query's Work Item types rather than filtering them."
+              ],
               "description": "Reference an existing Azure DevOps saved query to select stories."
             }
           },
@@ -953,7 +1015,10 @@
             "properties": {
               "id": {
                 "type": "string",
-                "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'."
+                "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
+                "x-atomize-rules": [
+                  "Non-empty task IDs must be unique within the file."
+                ]
               },
               "title": {
                 "type": "string",
@@ -1012,6 +1077,9 @@
               },
               "condition": {
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
+                "x-atomize-rules": [
+                  "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
+                ],
                 "$ref": "#/$defs/__schema0"
               },
               "dependsOn": {
@@ -1019,13 +1087,22 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks."
+                "description": "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks.",
+                "x-atomize-rules": [
+                  "In a Resolved Template, dependencies must reference existing task IDs and must not form a cycle, including a dependency on the task itself.",
+                  "A task with repeat set cannot have a non-empty dependsOn, and another task cannot depend on it, even when repeat is 1.",
+                  "A task with dependencies should have its own id; validation reports a warning when it does not."
+                ]
               },
               "repeat": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn."
+                "description": "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn.",
+                "x-atomize-rules": [
+                  "When repeat is set, dependsOn must be absent or empty and other tasks cannot depend on this task, even when repeat is 1.",
+                  "In a Resolved Template, repeat must not exceed validation.maxRepeat (20 by default). A Mixin defers this cap to the composing Template."
+                ]
               },
               "assignTo": {
                 "type": "string",
@@ -1051,6 +1128,9 @@
                 "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
               },
               "customFields": {
+                "x-atomize-rules": [
+                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
+                ],
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -1110,15 +1190,24 @@
                     "type": "number",
                     "minimum": 0
                   },
+                  "x-atomize-rules": [
+                    "The conversion table must contain at least one entry."
+                  ],
                   "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
                 },
                 "multipliers": {
                   "type": "boolean",
-                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys."
+                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
+                  "x-atomize-rules": [
+                    "When multipliers is true, conversion.table must be set and at least one table key must be non-numeric."
+                  ]
                 }
               },
               "additionalProperties": false,
-              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one."
+              "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
+              "x-atomize-rules": [
+                "Set exactly one of factor or table."
+              ]
             },
             "targetFields": {
               "minItems": 1,
@@ -1156,7 +1245,10 @@
             "minimumTaskPoints": {
               "type": "number",
               "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
-              "deprecated": true
+              "deprecated": true,
+              "x-atomize-rules": [
+                "minimumTaskEstimate takes precedence when both minimum fields are set. Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "ifParentHasNoEstimation": {
               "type": "string",
@@ -1177,7 +1269,10 @@
                   "minLength": 1
                 }
               ],
-              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate."
+              "description": "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate.",
+              "x-atomize-rules": [
+                "When ifParentHasNoEstimation is use-default and this value is set, it must be convertible: numeric without a table, or a matching conversion.table key (including enabled multipliers)."
+              ]
             }
           },
           "additionalProperties": false,
@@ -1192,7 +1287,7 @@
                 "strict",
                 "lenient"
               ],
-              "description": "'strict' fails on any validation warning; 'lenient' allows warnings to pass."
+              "description": "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes."
             },
             "totalEstimationMustBe": {
               "type": "number",
@@ -1229,7 +1324,10 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991,
-              "description": "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies."
+              "description": "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies.",
+              "x-atomize-rules": [
+                "This cap applies to every task definition in the Resolved Template, including tasks contributed by Mixins."
+              ]
             },
             "taskEstimationRange": {
               "type": "object",
@@ -1248,7 +1346,7 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Each task's estimation percentage must fall within this range."
+              "description": "Per-task percentage range. Accepted by the schema, but currently not enforced by validation."
             },
             "requiredTasks": {
               "type": "array",
@@ -1269,7 +1367,10 @@
                 ],
                 "additionalProperties": false
               },
-              "description": "Tasks that must be present in the template, matched by title or id."
+              "description": "Tasks that must be present in the template, matched by title or id.",
+              "x-atomize-rules": [
+                "Each required entry must match an existing task by its supplied id or its title. Both comparisons are case-insensitive; a title match is accepted even if the supplied id does not match."
+              ]
             }
           },
           "additionalProperties": false,
@@ -1386,7 +1487,10 @@
             "properties": {
               "id": {
                 "type": "string",
-                "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'."
+                "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
+                "x-atomize-rules": [
+                  "Non-empty task IDs must be unique within the file."
+                ]
               },
               "title": {
                 "type": "string",
@@ -1445,6 +1549,9 @@
               },
               "condition": {
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
+                "x-atomize-rules": [
+                  "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
+                ],
                 "$ref": "#/$defs/__schema0"
               },
               "dependsOn": {
@@ -1452,13 +1559,22 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks."
+                "description": "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks.",
+                "x-atomize-rules": [
+                  "In a Resolved Template, dependencies must reference existing task IDs and must not form a cycle, including a dependency on the task itself.",
+                  "A task with repeat set cannot have a non-empty dependsOn, and another task cannot depend on it, even when repeat is 1.",
+                  "A task with dependencies should have its own id; validation reports a warning when it does not."
+                ]
               },
               "repeat": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn."
+                "description": "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn.",
+                "x-atomize-rules": [
+                  "When repeat is set, dependsOn must be absent or empty and other tasks cannot depend on this task, even when repeat is 1.",
+                  "In a Resolved Template, repeat must not exceed validation.maxRepeat (20 by default). A Mixin defers this cap to the composing Template."
+                ]
               },
               "assignTo": {
                 "type": "string",
@@ -1484,6 +1600,9 @@
                 "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
               },
               "customFields": {
+                "x-atomize-rules": [
+                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
+                ],
                 "type": "object",
                 "propertyNames": {
                   "type": "string"

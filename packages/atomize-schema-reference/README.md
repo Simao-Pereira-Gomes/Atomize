@@ -34,3 +34,15 @@ Normalization converts concrete indices to `[]`, resolves dictionary entries to
 `*`, and falls back to the nearest existing ancestor. It defaults to Template for
 shared task fields; an explicit Mixin tab is preserved. Union alternatives share
 their owning field's permalink; shared child paths land on the first definition.
+
+Runtime-only field rules live in the owning Zod field's `x-atomize-rules` metadata.
+The generator preserves them and the viewer displays them under “Runtime rules”.
+These cover condition operators, dates, saved queries, task IDs and dependencies,
+repeat restrictions, custom-field keys, conversion constraints, fallback estimates,
+required Tasks, and relevant validation warnings.
+
+Rules spanning several fields live in `wholeFileRules`, keyed by tab and exact
+schema path. `buildSchemaTrees(schema, fileRules?)` attaches them at that field;
+the default list documents percentage bounds and generated Task counts on
+`template.tasks`. Passing an empty list disables these additions. Contract tests
+require every listed path to exist in the generated schema, with no ancestor fallback.

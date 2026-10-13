@@ -20,7 +20,10 @@ const DateOrMacroSchema = z
       "Must be an ISO 8601 date (YYYY-MM-DD) or an approved date macro " +
       "(@Today, @StartOfDay, @StartOfMonth, @StartOfWeek, @StartOfYear) " +
       "with an optional numeric offset (e.g. @Today-7).",
-  });
+  })
+  .meta({ "x-atomize-rules": [
+    "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7.",
+  ] });
 
 /** Matches ADO reference names like "Custom.ClientTier" or "System.Tags". */
 const REFERENCE_NAME_RE = /^[A-Za-z][A-Za-z0-9_.]*\.[A-Za-z][A-Za-z0-9_]*$/;
@@ -75,7 +78,9 @@ export const ConditionSchema: z.ZodType<Condition> = z.lazy(() =>
         .describe(
           "Standard work item field name to evaluate (e.g. 'tags', 'priority', 'state', 'title').",
         ),
-      operator: ConditionOperatorSchema,
+      operator: ConditionOperatorSchema.meta({ "x-atomize-rules": [
+        "When field is tags, only contains and not-contains are supported because tags is multi-value.",
+      ] }),
       value: ConditionValueSchema,
     }).strict().superRefine((data, ctx) => {
       if (MULTI_VALUE_STANDARD_FIELDS.has(data.field) && !MULTI_VALUE_FIELD_OPERATORS.has(data.operator)) {
@@ -135,7 +140,11 @@ export const SavedQuerySchema = z
   })
   .refine((d) => !(d.id && d.path), {
     message: "savedQuery accepts id or path, not both",
-  });
+  })
+  .meta({ "x-atomize-rules": [
+    "Set exactly one of id or path.",
+    "State filters, tags, area or iteration paths, assignedTo, date filters or priority alongside savedQuery produce a validation warning and are ignored; the query controls the returned Stories. workItemTypes is allowed because it declares the query's Work Item types rather than filtering them.",
+  ] });
 
 export const FilterCriteriaSchema = z.object({
   team: z
@@ -236,12 +245,15 @@ export const EstimationPercentConditionSchema = z.object({
     .describe("Estimation percentage used when this condition matches (0–100)."),
 }).strict();
 
+export const DEFAULT_MAX_REPEAT = 20;
+
 export const TaskDefinitionSchema = z.object({
   id: z
     .string()
     .describe(
       "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
     )
+    .meta({ "x-atomize-rules": ["Non-empty task IDs must be unique within the file."] })
     .optional(),
   title: z
     .string()
@@ -284,12 +296,19 @@ export const TaskDefinitionSchema = z.object({
     .optional(),
   condition: ConditionSchema.describe(
     "Condition evaluated against the parent story. If it does not match, this task is skipped.",
-  ).optional(),
+  ).meta({ "x-atomize-rules": [
+    "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform.",
+  ] }).optional(),
   dependsOn: z
     .array(z.string())
     .describe(
       "IDs of tasks this task depends on. Atomize creates predecessor dependency links between these tasks.",
     )
+    .meta({ "x-atomize-rules": [
+      "In a Resolved Template, dependencies must reference existing task IDs and must not form a cycle, including a dependency on the task itself.",
+      "A task with repeat set cannot have a non-empty dependsOn, and another task cannot depend on it, even when repeat is 1.",
+      "A task with dependencies should have its own id; validation reports a warning when it does not.",
+    ] })
     .optional(),
   repeat: z
     .number()
@@ -298,6 +317,10 @@ export const TaskDefinitionSchema = z.object({
     .describe(
       "Number of identical Tasks to generate from this definition (default 1). Each copy's title gets its position, e.g. 'Review (2)'. Cannot be combined with dependsOn.",
     )
+    .meta({ "x-atomize-rules": [
+      "When repeat is set, dependsOn must be absent or empty and other tasks cannot depend on this task, even when repeat is 1.",
+      `In a Resolved Template, repeat must not exceed validation.maxRepeat (${DEFAULT_MAX_REPEAT} by default). A Mixin defers this cap to the composing Template.`,
+    ] })
     .optional(),
   assignTo: z
     .string()
@@ -341,7 +364,10 @@ export const TaskDefinitionSchema = z.object({
         }
       }
       return undefined;
-    }),
+    })
+    .meta({ "x-atomize-rules": [
+      "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier.",
+    ] }),
 }).strict();
 
 const NUMBER_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
@@ -356,6 +382,7 @@ export const EstimationConversionSchema = z
     table: z
       .record(z.string(), z.number().nonnegative())
       .refine((table) => Object.keys(table).length > 0, "conversion.table must have at least one entry")
+      .meta({ "x-atomize-rules": ["The conversion table must contain at least one entry."] })
       .describe(
         "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear.",
       )
@@ -365,6 +392,9 @@ export const EstimationConversionSchema = z
       .describe(
         "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
       )
+      .meta({ "x-atomize-rules": [
+        "When multipliers is true, conversion.table must be set and at least one table key must be non-numeric.",
+      ] })
       .optional(),
   })
   .strict()
@@ -385,7 +415,8 @@ export const EstimationConversionSchema = z
   )
   .describe(
     "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
-  );
+  )
+  .meta({ "x-atomize-rules": ["Set exactly one of factor or table."] });
 
 /**
  * Looks a Story Estimate up in a conversion table. An exact key always wins; with
@@ -463,7 +494,9 @@ export const EstimationConfigSchema = z.object({
   minimumTaskPoints: z
     .number()
     .describe("Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.")
-    .meta({ deprecated: true })
+    .meta({ deprecated: true, "x-atomize-rules": [
+      "minimumTaskEstimate takes precedence when both minimum fields are set. Using this deprecated field produces a non-blocking warning, even in strict mode.",
+    ] })
     .optional(),
   ifParentHasNoEstimation: z
     .enum(["skip", "warn", "use-default"])
@@ -476,6 +509,9 @@ export const EstimationConfigSchema = z.object({
     .describe(
       "Story Estimate used when the real one is missing or cannot be converted and ifParentHasNoEstimation is 'use-default', in the Story's unit (e.g. 'M' or 5). Goes through the same conversion as a real Story Estimate.",
     )
+    .meta({ "x-atomize-rules": [
+      "When ifParentHasNoEstimation is use-default and this value is set, it must be convertible: numeric without a table, or a matching conversion.table key (including enabled multipliers).",
+    ] })
     .optional(),
 }).strict().superRefine((config, ctx) => {
   if (config.ifParentHasNoEstimation !== "use-default" || config.defaultParentEstimation === undefined) return;
@@ -491,11 +527,11 @@ export const EstimationConfigSchema = z.object({
 
 export const ValidationModeSchema = z
   .enum(["strict", "lenient"])
-  .describe("'strict' fails on any validation warning; 'lenient' allows warnings to pass.");
+  .describe("'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes.");
 
 export const ValidationConfigSchema = z.object({
   mode: ValidationModeSchema.describe(
-    "'strict' fails on any validation warning; 'lenient' allows warnings to pass.",
+    "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes.",
   ).optional(),
   totalEstimationMustBe: z
     .number()
@@ -532,6 +568,9 @@ export const ValidationConfigSchema = z.object({
     .describe(
       "Highest 'repeat' any task in this template may use (default 20). Raise it for a template that genuinely needs more copies.",
     )
+    .meta({ "x-atomize-rules": [
+      "This cap applies to every task definition in the Resolved Template, including tasks contributed by Mixins.",
+    ] })
     .optional(),
   taskEstimationRange: z
     .object({
@@ -543,7 +582,7 @@ export const ValidationConfigSchema = z.object({
         .describe("Maximum allowed estimation percentage for a single task."),
     })
     .strict()
-    .describe("Each task's estimation percentage must fall within this range.")
+    .describe("Per-task percentage range. Accepted by the schema, but currently not enforced by validation.")
     .optional(),
   requiredTasks: z
     .array(
@@ -564,6 +603,9 @@ export const ValidationConfigSchema = z.object({
     .describe(
       "Tasks that must be present in the template, matched by title or id.",
     )
+    .meta({ "x-atomize-rules": [
+      "Each required entry must match an existing task by its supplied id or its title. Both comparisons are case-insensitive; a title match is accepted even if the supplied id does not match.",
+    ] })
     .optional(),
 }).strict();
 
@@ -776,12 +818,6 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
     });
     reportCircularDependencies(tasks, taskIndexById, ctx);
   });
-
-/**
- * Default upper bound on a task's `repeat`, guarding against a typo triggering a large bulk
- * creation. A Template overrides it with `validation.maxRepeat`.
- */
-export const DEFAULT_MAX_REPEAT = 20;
 
 /**
  * A repeated task has several copies, so a dependency link to or from it has no single

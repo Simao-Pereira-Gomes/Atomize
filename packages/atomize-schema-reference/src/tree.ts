@@ -1,4 +1,5 @@
 import { buildPermalink } from "./permalinks";
+import { type WholeFileRule, wholeFileRules } from "./rules";
 
 /** The JSON Schema subset consumed by the reference; extension keywords are optional. */
 export interface JsonSchema {
@@ -56,7 +57,10 @@ const constraintKeys = [
 ];
 
 /** Build both authoring trees from the generator's standalone/extending/Mixin union. */
-export function buildSchemaTrees(schema: JsonSchema): SchemaTrees {
+export function buildSchemaTrees(
+	schema: JsonSchema,
+	fileRules: readonly WholeFileRule[] = wholeFileRules,
+): SchemaTrees {
 	function resolve(input: JsonSchema): JsonSchema {
 		let result = input;
 		const seen = new Set<string>();
@@ -222,5 +226,15 @@ export function buildSchemaTrees(schema: JsonSchema): SchemaTrees {
 		)
 			field.requirement = "unless-extends";
 	}
-	return { template, mixin: fields(mixin, "mixin") };
+	const trees = { template, mixin: fields(mixin, "mixin") };
+	function attachRules(nodes: SchemaNode[], rule: WholeFileRule) {
+		for (const node of nodes) {
+			if (node.path === rule.path)
+				node.rules = [...new Set([...node.rules, ...rule.rules])];
+			attachRules(node.children, rule);
+			attachRules(node.alternatives, rule);
+		}
+	}
+	for (const rule of fileRules) attachRules(trees[rule.tab], rule);
+	return trees;
 }

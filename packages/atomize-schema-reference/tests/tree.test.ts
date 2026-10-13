@@ -113,6 +113,38 @@ describe("Schema Tree Builder", () => {
 		});
 	});
 
+	it("attaches whole-file rules at their exact field path and keeps field annotations", () => {
+		const trees = buildSchemaTrees(
+			document({ type: "string", "x-atomize-rules": ["Field rule"] }),
+			[
+				{
+					tab: "template",
+					path: "name",
+					rules: ["Whole-file rule", "Field rule"],
+				},
+				{ tab: "template", path: "tasks[].title", rules: ["Nested rule"] },
+				{ tab: "mixin", path: "name", rules: ["Mixin rule"] },
+			],
+		);
+		expect(trees.template[0].rules).toEqual(["Field rule", "Whole-file rule"]);
+		expect(trees.template[2].children[0].children[0].rules).toEqual([
+			"Nested rule",
+		]);
+		expect(trees.mixin[0].rules).toEqual(["Field rule", "Mixin rule"]);
+	});
+
+	it("does not attach a whole-file rule to an unrelated field or ancestor", () => {
+		const trees = buildSchemaTrees(document(), [
+			{
+				tab: "template",
+				path: "tasks[].removedField",
+				rules: ["Missing field rule"],
+			},
+		]);
+		expect(trees.template[2].rules).toEqual([]);
+		expect(trees.template[2].children[0].rules).toEqual([]);
+	});
+
 	it("preserves union alternatives and dictionary value schemas", () => {
 		const field: JsonSchema = {
 			anyOf: [
