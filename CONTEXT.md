@@ -62,6 +62,13 @@ _Avoid_: using "override" for lineage; lineage is derivation, not replacement.
 **Atomize YAML File**:
 Any YAML file authored for Atomize, either a Template or a Mixin.
 
+**Schema Reference**:
+The browsable, always-current account of what a valid Atomize YAML File may contain — every field's shape, type, requirement, default, allowed values, and the cross-field rules that apply to it — presented separately for Templates and Mixins. It answers "what is valid"; the Template Reference answers "what it means and how it behaves", and the two link to each other field by field.
+_Avoid_: "schema docs" or "schema viewer" for the concept; "the JSON Schema" is only the machine-readable artifact the editor uses.
+
+**Template Reference**:
+The prose guide to how Atomize YAML Files behave — composition, interpolation, conditions, estimation semantics, and worked examples. It does not restate field-by-field facts the Schema Reference already shows.
+
 **Platform Adapter**:
 A concrete adapter that lets Atomize read, create, and link Work Items on a work-tracking platform.
 
