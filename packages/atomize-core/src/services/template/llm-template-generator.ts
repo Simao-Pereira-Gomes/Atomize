@@ -39,7 +39,7 @@ filter:                 # required (unless inherited via extends)
     include: string[]             # optional
     exclude: string[]             # optional
   areaPaths: string[]             # optional, or ["@TeamAreas"]
-  iterations: string[]            # optional, e.g. ["@CurrentIteration"] or explicit iteration paths
+  iterations: string[]            # e.g. ["@CurrentIteration"] (the default, see rule 10), ["@CurrentIteration + 1"], or explicit iteration paths
   priority:                       # optional: filter by ADO priority field
     min: number                   # inclusive lower bound (1 = highest priority)
     max: number                   # inclusive upper bound
@@ -148,6 +148,10 @@ CONSTRAINTS (you must follow these):
    - NEVER combine repeat with dependsOn, and never list a repeated task's id in another task's dependsOn.
    - repeat must be a whole number, at most 20 unless you also set validation.maxRepeat to at least that number. Only raise maxRepeat when the user explicitly asks for more than 20 copies.
    - Every copy is identical; when copies need different assignees, estimates or fields, write separate tasks instead.
+10. ITERATION: by default the template targets work items in the current iteration, so set filter.iterations: ["@CurrentIteration"] when drafting a new template.
+   - Use a different iteration only when the description, the example Stories' context, or the reference documents explicitly say so (e.g. "next sprint" → ["@CurrentIteration + 1"], a named sprint → its iteration path from the project metadata, "any iteration" or "the whole backlog" → omit filter.iterations).
+   - When the template extends a parent, set filter.iterations only if the parent doesn't already set it or the user asks for a different one.
+   - When improving an existing template, keep its iteration filter as it is unless the user's focus or the reference documents ask to change it.
 
 EXAMPLES:
 
@@ -160,6 +164,7 @@ tags: ["backend", "api"]
 filter:
   workItemTypes: ["User Story"]
   states: ["New", "Active"]
+  iterations: ["@CurrentIteration"]
   excludeIfHasTasks: true
 tasks:
   - title: "Design API Endpoints: \${story.title}"
@@ -190,6 +195,7 @@ description: "Standard bug investigation and resolution workflow"
 filter:
   workItemTypes: ["Bug"]
   states: ["New", "Active"]
+  iterations: ["@CurrentIteration"]
   excludeIfHasTasks: true
 tasks:
   - title: "Investigate & Reproduce: \${story.title}"
@@ -217,6 +223,7 @@ description: "Single template covering dev-only, test-only, and mixed dev+test s
 filter:
   workItemTypes: ["User Story"]
   states: ["Ready for Sprint"]
+  iterations: ["@CurrentIteration"]
   excludeIfHasTasks: true
 tasks:
   - title: "Analysis & Design"
@@ -298,6 +305,7 @@ description: "Adds a compliance review task for stories classified as Restricted
 filter:
   workItemTypes: ["User Story"]
   states: ["New", "Active"]
+  iterations: ["@CurrentIteration"]
   excludeIfHasTasks: true
 tasks:
   - title: "Implementation"
@@ -360,6 +368,7 @@ description: "Implementation plus one review conclusions task for each of the fo
 filter:
   workItemTypes: ["User Story"]
   states: ["Active"]
+  iterations: ["@CurrentIteration"]
   excludeIfHasTasks: true
 tasks:
   - title: "Implementation"

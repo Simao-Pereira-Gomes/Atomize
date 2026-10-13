@@ -118,6 +118,24 @@ describe("buildSystemPrompt estimation configuration", () => {
   });
 });
 
+describe("buildSystemPrompt iteration default", () => {
+  test("defaults new templates to the current iteration unless the user says otherwise", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("ITERATION");
+    expect(prompt).toContain('set filter.iterations: ["@CurrentIteration"] when drafting a new template');
+    expect(prompt).toContain("only when the description, the example Stories' context, or the reference documents explicitly say so");
+  });
+
+  test("its standalone examples filter on the current iteration", () => {
+    const prompt = buildSystemPrompt();
+    for (const example of ["Example 1", "Example 2", "Example 3", "Example 4", "Example 7"]) {
+      const start = prompt.indexOf(example);
+      const next = prompt.indexOf("Example ", start + example.length);
+      expect(prompt.slice(start, next === -1 ? undefined : next)).toContain('iterations: ["@CurrentIteration"]');
+    }
+  });
+});
+
 describe("buildSystemPrompt repeated tasks", () => {
   test("documents repeat and validation.maxRepeat", () => {
     const prompt = buildSystemPrompt();
