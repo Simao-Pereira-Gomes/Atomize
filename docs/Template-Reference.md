@@ -609,7 +609,7 @@ Rules:
 - A repeated task can't use `dependsOn`, and no task can list a repeated task in its `dependsOn`. A dependency links two single Work Items, and the copies have no single Work Item to link.
 - `repeat` can be at most 20, which guards against a typo creating many Tasks on a live platform. A template that genuinely needs more raises its own limit with [`validation.maxRepeat`](#validation).
 
-The count is a fixed number written in the template. It can't come from a Story field and can't be set at generate time. Story Learner never produces `repeat`: identical Tasks it learns from stay separate task definitions.
+The count is a fixed number written in the template. It can't come from a Story field and can't be set at generate time.
 
 **Authoring:**
 - **CLI wizard:** the advanced task options ask how many identical Tasks to create.
@@ -843,6 +843,5 @@ metadata:
 - [CLI Reference](./Cli-Reference.md) - Commands for validating, installing, and using templates
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix validation failures
-- [Story Learner](./Story-Learner.md) - Generate templates from existing work items
 - [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows
 - [Examples](../examples/) - Real-world template examples

@@ -1,6 +1,6 @@
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
+import { diffTemplates, type FieldChange, type TaskChange, type TemplateDiff } from "@sppg2001/atomize-schema";
 import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js";
-import { diffTemplates, type FieldChange, type TaskChange } from "../../diff/diff-templates";
 import type { OriginBaselineState } from "../../diff/origin-baseline";
 
 function formatValue(value: unknown): string {
@@ -112,6 +112,37 @@ function RefreshButton(props: { onRefresh: () => void; disabled?: boolean; label
   );
 }
 
+/** The changes between two Templates: a one-line summary, then changed fields and Tasks. */
+export function TemplateChangesList(props: { diff: TemplateDiff }) {
+  return (
+    <div class="space-y-4">
+      <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{summaryText(props.diff)}</p>
+
+      <Show when={props.diff.fieldChanges.length > 0}>
+        <section>
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Fields changed
+          </h3>
+          <ul class="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 px-3 dark:divide-slate-800 dark:border-slate-800">
+            <For each={props.diff.fieldChanges}>{(field) => <FieldChangeRow change={field} />}</For>
+          </ul>
+        </section>
+      </Show>
+
+      <Show when={props.diff.taskChanges.length > 0}>
+        <section>
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Tasks
+          </h3>
+          <ul class="mt-1 space-y-2">
+            <For each={props.diff.taskChanges}>{(change) => <TaskCard change={change} />}</For>
+          </ul>
+        </section>
+      </Show>
+    </div>
+  );
+}
+
 export function TemplateDiffView(props: {
   state: OriginBaselineState;
   current: Accessor<TaskTemplate | undefined>;
@@ -159,14 +190,14 @@ export function TemplateDiffView(props: {
         <Match when={props.state.phase === "not-in-catalog" && props.state}>
           {(state) => (
             <StatusPanel action={<RefreshButton onRefresh={props.onRefresh} disabled={!props.sidecarAvailable()} />}>
-              {`This Template records its origin as ${(state() as { ref: string }).ref}, but no such Template is in your Catalog now — it may have been removed or renamed. There is nothing to compare against.`}
+              {`This Template records its origin as ${(state() as { ref: string }).ref}, but no such Template is in your Catalog now; it may have been removed or renamed. There is nothing to compare against.`}
             </StatusPanel>
           )}
         </Match>
 
         <Match when={props.state.phase === "resolved" && !props.current()}>
           <StatusPanel tone="error">
-            This Template doesn't validate as a whole, even though every section above checks out — there's nothing to compare against until that's fixed.
+            This Template doesn't validate as a whole, even though every section above checks out. There's nothing to compare against until that's fixed.
           </StatusPanel>
         </Match>
 
@@ -188,33 +219,7 @@ export function TemplateDiffView(props: {
                   </div>
                 }
               >
-                {(d) => (
-                  <div class="space-y-4">
-                    <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{summaryText(d())}</p>
-
-                    <Show when={d().fieldChanges.length > 0}>
-                      <section>
-                        <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Fields changed
-                        </h3>
-                        <ul class="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 px-3 dark:divide-slate-800 dark:border-slate-800">
-                          <For each={d().fieldChanges}>{(field) => <FieldChangeRow change={field} />}</For>
-                        </ul>
-                      </section>
-                    </Show>
-
-                    <Show when={d().taskChanges.length > 0}>
-                      <section>
-                        <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Tasks
-                        </h3>
-                        <ul class="mt-1 space-y-2">
-                          <For each={d().taskChanges}>{(change) => <TaskCard change={change} />}</For>
-                        </ul>
-                      </section>
-                    </Show>
-                  </div>
-                )}
+                {(d) => <TemplateChangesList diff={d()} />}
               </Show>
             </>
           )}

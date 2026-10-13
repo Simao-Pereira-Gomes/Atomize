@@ -91,7 +91,7 @@ jobs:
           benchmark-data-dir-path: docs/benchmarks
 
       - name: Upload raw benchmark output
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-output
           path: packages/cli/benchmark-output.json

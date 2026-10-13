@@ -72,7 +72,25 @@ const mockWorkItemTrackingApi = {
 };
 // biome-ignore-end lint/suspicious/noExplicitAny : mock signature mirrors SDK and is intentionally loose
 
+const wikiPageBatches: Record<string, { paths: string[]; next?: string }> = {
+  first: { paths: ["/", "/Engineering", "/Engineering/Code review"], next: "token-2" },
+  "token-2": { paths: ["/Onboarding", "/Release checklist"] },
+};
+const mockWikiApi = {
+  vsoClient: { getVersioningData: mock(async () => ({ requestUrl: "https://dev.azure.com/test/_apis/wiki/pagesbatch", apiVersion: "7.2-preview.1" })) },
+  createRequestOptions: mock(() => ({})),
+  formatResponse: mock((data: { value?: unknown[] } | undefined) => data?.value ?? data),
+  rest: {
+    create: mock(async (_url: string, body: { top?: number; continuationToken?: string }) => {
+      const batch = wikiPageBatches[body.continuationToken ?? "first"] ?? { paths: [] };
+      const value = batch.paths.map((path) => ({ path }));
+      return { statusCode: 200, result: { count: value.length, value }, headers: batch.next ? { "x-ms-continuationtoken": batch.next } : {} };
+    }),
+  },
+};
+
 const mockWebApi = {
+  getWikiApi: mock(async () => mockWikiApi),
   getWorkItemTrackingApi: mock(async () => mockWorkItemTrackingApi),
   connect: mock(async () => ({
     authenticatedUser: {
@@ -632,6 +650,17 @@ describe("AzureDevOpsAdapter", () => {
         adapter.createDependencyLink("invalid", "102")
       ).rejects.toThrow();
       expect(true).toBe(true);
+    });
+  });
+
+  describe("listWikiPages", () => {
+    test("follows the continuation token in the response header to list every page", async () => {
+      const adapter = new AzureDevOpsAdapter(validConfig);
+      await adapter.authenticate();
+
+      expect(await adapter.listWikiPages("Contoso.wiki")).toEqual(["/Engineering", "/Engineering/Code review", "/Onboarding", "/Release checklist"]);
+      expect(mockWikiApi.rest.create).toHaveBeenCalledTimes(2);
+      expect(mockWikiApi.rest.create.mock.calls[1]?.[1]).toEqual({ top: 100, continuationToken: "token-2" });
     });
   });
 

@@ -52,21 +52,6 @@ export function distributeActiveTaskPercentages<T extends EstimationPercentage>(
   };
 }
 
-export function normalizeLearnedTaskPercentages<T extends EstimationPercentage>(
-  tasks: T[],
-): EstimationDistributionResult {
-  const totalBefore = totalEstimationPercent(tasks);
-  const normalized = normalizeEstimationPercentages(tasks, {
-    enableLogging: false,
-  });
-
-  return {
-    totalBefore,
-    totalAfter: totalEstimationPercent(tasks),
-    normalized,
-  };
-}
-
 export function totalEstimationPercent(tasks: EstimationPercentage[]): number {
   return tasks.reduce((sum, task) => sum + (task.estimationPercent ?? 0), 0);
 }

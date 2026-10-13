@@ -9,9 +9,10 @@ import {
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
 import { assertNotCancelled, createManagedSpinner } from "@/cli/utilities/prompt-utilities";
+import { resolveReferenceDocuments } from "../reference-documents-step";
 import { customizeTemplate } from "../template-customize";
 import { buildMinimalTemplate, runGeneration } from "./generation";
-import { resolveGrounding } from "./grounding";
+import { resolveDraftGrounding } from "./grounding";
 import { runPreviewLoop } from "./preview-loop";
 
 const output = createCommandOutput(resolveCommandOutputPolicy({}));
@@ -20,6 +21,8 @@ export interface AICreationOptions {
   ai?: boolean;
   ground?: boolean;
   profile?: string;
+  reference?: string[];
+  projectReferences?: boolean;
 }
 
 export async function createWithAI(options: AICreationOptions): Promise<TaskTemplate> {
@@ -37,7 +40,8 @@ export async function createWithAI(options: AICreationOptions): Promise<TaskTemp
     throw new ConfigurationError(err instanceof Error ? err.message : String(err));
   }
 
-  const groundingContext = await resolveGrounding(options);
+  const grounding = await resolveDraftGrounding(options);
+  const documentGrounding = await resolveReferenceDocuments(options);
 
   const description = assertNotCancelled(
     await text({
@@ -53,7 +57,7 @@ export async function createWithAI(options: AICreationOptions): Promise<TaskTemp
   const { template, lastRawOutput, prevErrors } = await runGeneration(
     provider,
     description,
-    groundingContext,
+    { ...grounding, documentGrounding },
   );
 
   if (!template) {

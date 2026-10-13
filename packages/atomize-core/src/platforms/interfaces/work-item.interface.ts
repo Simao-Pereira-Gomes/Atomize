@@ -45,6 +45,9 @@ export interface WorkItem {
   /** Child work items */
   children?: WorkItem[];
 
+  /** Number of child work items, when the platform reports it without fetching them */
+  childCount?: number;
+
   /** IDs of work items this depends on (predecessors) */
   predecessorIds?: string[];
 

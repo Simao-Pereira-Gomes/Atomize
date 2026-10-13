@@ -1,8 +1,8 @@
 {
 	"name": "atomize",
 	"displayName": "Atomize",
-	"description": "VS Code extension for Atomize — generate tasks from YAML templates",
-	"version": "0.3.0",
+	"description": "VS Code extension for Atomize: generate tasks from YAML templates",
+	"version": "0.4.0",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -11,7 +11,7 @@
 		"directory": "packages/vscode-extension"
 	},
 	"engines": {
-		"vscode": "^1.85.0"
+		"vscode": "^1.90.0"
 	},
 	"icon": "icons/atomize-product.png",
 	"categories": [
@@ -37,7 +37,12 @@
 					"type": "string",
 					"default": "",
 					"scope": "resource",
-					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker opens with no pre-selection. Safe to commit in .vscode/settings.json — stores a name, not a credential."
+					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker opens with no pre-selection. Safe to commit in .vscode/settings.json, since it stores a name, not a credential."
+				},
+				"atomize.ai.model": {
+					"type": "string",
+					"default": "auto",
+					"markdownDescription": "The GitHub Copilot model family Atomize uses for AI drafting, such as `gpt-4o` or `claude-sonnet-4`. Leave as `auto` to use the available Copilot model with the largest input limit, which grounded requests need. Uses the Copilot account you're signed in to in VS Code; Atomize stores no token."
 				},
 				"atomize.previewLayout": {
 					"type": "string",
@@ -107,8 +112,74 @@
 				"command": "atomize.browseCatalog",
 				"title": "Browse Catalog",
 				"category": "Atomize"
+			},
+			{
+				"command": "atomize.installToCatalog",
+				"title": "Install to Catalog",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.draftTemplateWithAI",
+				"title": "Draft Template with AI",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.improveTemplateWithAI",
+				"title": "Improve Template with AI",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.acceptImprovement",
+				"title": "Accept Improvement",
+				"category": "Atomize",
+				"icon": "$(check)"
+			},
+			{
+				"command": "atomize.saveImprovementAsNew",
+				"title": "Save Improvement as New Template",
+				"category": "Atomize",
+				"icon": "$(save-as)"
+			},
+			{
+				"command": "atomize.rejectImprovement",
+				"title": "Reject Improvement",
+				"category": "Atomize",
+				"icon": "$(close)"
 			}
 		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "atomize.acceptImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals",
+					"group": "navigation@1"
+				},
+				{
+					"command": "atomize.saveImprovementAsNew",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals",
+					"group": "navigation@2"
+				},
+				{
+					"command": "atomize.rejectImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals",
+					"group": "navigation@3"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "atomize.acceptImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals"
+				},
+				{
+					"command": "atomize.saveImprovementAsNew",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals"
+				},
+				{
+					"command": "atomize.rejectImprovement",
+					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals"
+				}
+			]
+		},
 		"grammars": [
 			{
 				"language": "atomize-yaml",
@@ -139,7 +210,7 @@
 	"devDependencies": {
 		"@tailwindcss/cli": "^4.3.3",
 		"@types/node": "^26.5.1",
-		"@types/vscode": "^1.85.0",
+		"@types/vscode": "^1.90.0",
 		"@vscode/vsce": "^4.0.0",
 		"bun-types": "^1.4.2",
 		"esbuild": "^0.28.2",

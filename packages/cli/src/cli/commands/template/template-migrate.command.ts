@@ -34,14 +34,14 @@ export const templateMigrateCommand = new Command("migrate")
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
     try {
-      output.intro(" Atomize — Migrate Legacy Catalog");
+      output.intro(" Atomize: Migrate Legacy Catalog");
 
       const scopes = resolveScopes(options.scope);
       const dryRun = options.dryRun === true;
       const cleanupDirs = options.cleanupDirs === true;
 
       if (dryRun) {
-        output.print(chalk.yellow("  Dry run — no files will be written or deleted\n"));
+        output.print(chalk.yellow("  Dry run: no files will be written or deleted\n"));
       }
 
       const catalog = new TemplateCatalog();

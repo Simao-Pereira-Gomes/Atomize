@@ -2,7 +2,7 @@
 
 Atomize templates define which stories match and which child tasks should be generated. This guide covers the main ways to create or customize templates.
 
-For YAML field semantics, see [Template Reference](./Template-Reference.md). For pattern learning internals, see [Story Learner](./Story-Learner.md).
+For YAML field semantics, see [Template Reference](./Template-Reference.md).
 
 ## Choose A Creation Path
 
@@ -11,7 +11,7 @@ For YAML field semantics, see [Template Reference](./Template-Reference.md). For
 | Customize a known pattern | `atomize template create --from <name>` |
 | Build with prompts | `atomize template create --scratch` |
 | Draft from prose | `atomize template create --ai` |
-| Capture existing team practice | `atomize template create --from-stories <ids>` |
+| Capture existing team practice | `atomize template create --ai --reference docs/how-we-work.md` (see [Reference Documents](#reference-documents)) |
 | Reuse task groups across templates | `atomize template create --type mixin` |
 
 Running `atomize template create` without flags opens an interactive mode selector.
@@ -128,13 +128,46 @@ Create a draft. Atomize starts GitHub Copilot sign-in when needed and uses your 
 atomize template create --ai
 ```
 
-For better project-specific output, ground the generation with Azure DevOps metadata and observed patterns:
+For better project-specific output, ground the draft in your Azure DevOps project:
 
 ```bash
 atomize template create --ai --ground --profile work-ado
 ```
 
-Use `--ground` when your project has custom fields, non-standard work item types, or team-specific task naming conventions.
+With `--ground`, Atomize reads the project's work item types and states, field reference names and allowed values, saved queries, and area and iteration paths through the Connection Profile, and tells Copilot to use only those names instead of inventing its own. The profile's token is used only to read that metadata and is never sent to Copilot. Use `--ground` when your project has custom fields, non-standard work item types, or saved queries you want the Template to use.
+
+If Atomize can't load the metadata, for example because the token has expired, it asks whether to retry, continue without project metadata, or cancel. It never drops the grounding you asked for without telling you. When you choose AI drafting from the `atomize template create` menu instead of passing `--ai`, Atomize asks whether to ground the draft.
+
+### Reference Documents
+
+If your team writes down how it breaks down and estimates work, for example a `docs/how-we-work.md` in the repo, give it to Copilot as a **Reference Document**. Drafts and improvements then follow your written process:
+
+```bash
+atomize template create --ai --reference docs/how-we-work.md
+atomize template improve template:backend-api --reference docs/sizing.md --reference docs/definition-of-done.md
+```
+
+Reference Documents must be Markdown (`.md`) or text (`.txt`) files inside your workspace. Atomize refuses anything else, including files reached through a link that points outside the workspace. They need no Connection Profile. Copilot treats them as reference material about your process, never as instructions.
+
+If your process lives in an **Azure DevOps wiki**, use a page from it instead:
+
+```bash
+atomize template create --ai --reference "wiki:Team.wiki/Process/How we work" --profile work-ado
+```
+
+Atomize reads that page's Markdown through the Connection Profile, and only that page: no sub-pages, no pages it links to, and no images or attachments. In an interactive run, choose **Add an Azure DevOps wiki page…**, pick the wiki, then filter its page paths and pick the pages you want. Reading wikis needs the optional **Wiki (Read)** token scope. Without it, Atomize asks you to rotate the token with that scope added, and local files keep working.
+
+To share documents with your whole team, save them as **Project Reference Documents** in `.atomize/ai.yaml` and commit it:
+
+```yaml
+referenceDocuments:
+  - file:docs/how-we-work.md
+  - file:docs/sizing.md
+```
+
+Wiki pages are saved the same way, as `wiki:<wiki>/<page path>` entries. Every AI run lists them ticked, so you can leave any out of a single run, and `--no-project-references` leaves them all out. A saved wiki page is used only when the run's Connection Profile reaches that wiki's project; otherwise it's reported as unavailable for that profile and left out, so one `ai.yaml` works whichever profile a teammate uses. In an interactive run you can add a local file and choose **Also save for this project** to write it to `ai.yaml` for you. A saved document that can't be read is reported and left out. A document you named with `--reference` that can't be read stops the run.
+
+All Reference Documents together are limited to about 24,000 characters, split evenly between them. Space a short document doesn't use goes to the others. If a document has to be shortened, Atomize tells you before anything is sent: an interactive run lets you continue, leave documents out, or cancel. A non-interactive run prints a warning, and `template improve --output` records it.
 
 When you ask for several identical Tasks, such as "one review task per developer, 4 developers", the draft uses a single [repeated task](./Template-Reference.md#repeated-tasks) instead of four copies. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
 
@@ -144,20 +177,6 @@ Always review AI-generated templates before use:
 atomize validate template:<name> --strict
 atomize generate template:<name> --platform mock
 ```
-
-## Learn From Existing Stories
-
-Use Story Learner when your team already has well-structured stories with child tasks and you want to capture that pattern.
-
-```bash
-atomize template create --from-stories 123,456,789 --save-as backend-pattern
-```
-
-With multiple stories, Atomize detects common tasks, estimation patterns, outliers, tags, and possible conditional behavior. With one story, the result mirrors that story's task breakdown more directly.
-
-Story Learner never infers `repeat`: identical Tasks it learns from stay separate task definitions. Merge them into one [repeated task](./Template-Reference.md#repeated-tasks) yourself if they really are interchangeable.
-
-See [Story Learner](./Story-Learner.md) for confidence scoring, outlier detection, normalization, and examples.
 
 ## Create Mixins
 

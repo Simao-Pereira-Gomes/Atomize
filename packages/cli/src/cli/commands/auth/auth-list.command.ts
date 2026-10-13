@@ -67,7 +67,7 @@ export function makeAuthListCommand(): Command {
       const output = createCommandOutput(resolveCommandOutputPolicy({}));
       const jsonMode = options.json;
 
-      if (!jsonMode) output.intro(" Atomize — Connection Profiles");
+      if (!jsonMode) output.intro(" Atomize: Connection Profiles");
 
       try {
         const file = await readConnectionsFile();
@@ -101,7 +101,7 @@ export function makeAuthListCommand(): Command {
             output.print(`    Project:  ${sanitizeTty(profile.project)}`);
             output.print(`    Team:     ${sanitizeTty(profile.team)}`);
           } else {
-            output.print(chalk.yellow("    Status:   retired — remove this legacy record when convenient"));
+            output.print(chalk.yellow("    Status:   retired. Remove this legacy record when convenient"));
           }
           output.print(`    Token:    ${tokenDisplay}`);
           output.print(`    Created:  ${sanitizeTty(profile.createdAt).slice(0, 16).replace("T", " ")}`);

@@ -474,7 +474,7 @@ export function printReport(
   }
 
   if (dryRun) {
-    output.print(chalk.yellow("Dry run complete — no tasks were created."));
+    output.print(chalk.yellow("Dry run complete. No tasks were created."));
     output.print(chalk.gray("  Run with --execute to create tasks for real.\n"));
   } else if (report.storiesSuccess > 0) {
     output.print(chalk.green(`Created ${report.tasksCreated} tasks for ${report.storiesSuccess} ${report.storiesSuccess === 1 ? "story" : "stories"}.\n`));
@@ -615,7 +615,7 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
         }
       }
 
-      output.intro(" Atomize — Task Generator");
+      output.intro(" Atomize: Task Generator");
       const willPrompt = !templateArg || options.platform === undefined || options.execute === true;
       if (isTTYSession && willPrompt && outputPolicy.showStandardOutput) {
         output.print(chalk.gray("  ↑↓ to navigate · Space to toggle · Enter to confirm · Ctrl+C to cancel\n"));

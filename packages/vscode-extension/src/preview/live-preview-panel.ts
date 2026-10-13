@@ -8,6 +8,7 @@ import { createTemplateLibrary } from '../core-library.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
+import { browseStories, prepareTemplateStoryBrowser } from '../stories/story-browser.js';
 import { renderLivePreviewError, renderLivePreviewResults } from './live-preview-html.js';
 
 interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
@@ -16,6 +17,22 @@ interface OpenTemplateMessage { type: 'openTemplate'; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
 interface OpenLinkMessage { type: 'openLink'; url: string; }
 type WebviewMessage = SwitchModeMessage | RerunMessage | OpenTemplateMessage | ManageProfilesMessage | OpenLinkMessage;
+
+/**
+ * Picks the one Story to preview with the Story Browser, falling back to typing its ID when the
+ * browser can't load, so the panel's own auth and not-found views still report the problem.
+ */
+async function pickPreviewStory(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri): Promise<string | null> {
+	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri);
+	if (!source) return pickStoryId();
+	const storyIds = await browseStories({
+		...source,
+		title: 'Atomize: Live Preview',
+		canPickMany: false,
+		placeholder: 'Choose the Story to preview against.',
+	});
+	return storyIds?.[0] ?? null;
+}
 
 async function pickStoryId(): Promise<string | null> {
 	const value = await vscode.window.showInputBox({
@@ -76,7 +93,7 @@ export class LivePreviewPanel {
 		const profile = await pickProfile(store, credentialResolver, { title: 'Atomize: Live Preview', allowOffline: false, defaultProfile });
 		if (profile == null) return;
 
-		const storyId = await pickStoryId();
+		const storyId = await pickPreviewStory(credentialResolver, profile, fileUri);
 		if (storyId === null) return;
 
 		const fileName = vscode.workspace.asRelativePath(fileUri);
@@ -87,13 +104,13 @@ export class LivePreviewPanel {
 			inst._fileUri = fileUri;
 			inst._mode = mode;
 			inst._lastReport = undefined;
-			inst._panel.title = `Atomize: ${fileName} (Live Preview — Dry Run)`;
+			inst._panel.title = `Atomize: ${fileName} (Live Preview · Dry Run)`;
 			inst._panel.reveal(vscode.ViewColumn.Beside, true);
 			panel = inst;
 		} else {
 			const webviewPanel = vscode.window.createWebviewPanel(
 				'atomize.livePreview',
-				`Atomize: ${fileName} (Live Preview — Dry Run)`,
+				`Atomize: ${fileName} (Live Preview · Dry Run)`,
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);

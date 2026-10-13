@@ -18,7 +18,9 @@ import type {
   PlatformConfig,
   PlatformMetadata,
   SavedQueryInfo,
+  WikiInfo,
 } from "../../interfaces/platform.interface";
+import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
   WorkItem,
@@ -29,6 +31,9 @@ import { buildCreateTaskPatch, buildDependencyLinkPatch } from "./task-patch-bui
 import { convertWorkItem } from "./work-item-mapper";
 import { buildWorkItemWiqlQuery } from "./work-item-query";
 import { AzureDevOpsWorkItemRetrieval } from "./work-item-retrieval";
+
+/** The Wiki Pages Batch REST resource's location ID, as azure-devops-node-api's WikiApi uses it. */
+const WIKI_PAGES_BATCH_LOCATION = "71323c46-2592-4398-8771-ced73dd87207";
 
 /**
  * Azure DevOps specific configuration
@@ -61,6 +66,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private connection?: azdev.WebApi;
   private witApi?: IWorkItemTrackingApi;
   private authenticated = false;
+  private closedStatesByType = new Map<string, Promise<string[]>>();
   private readonly fieldSchemaService: FieldSchemaService;
 
   constructor(
@@ -146,6 +152,125 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         "azure-devops",
       );
     }
+  }
+
+  /**
+   * Run a Story Search, newest first
+   */
+  async searchStories(search: StorySearch): Promise<WorkItem[]> {
+    this.ensureAuthenticated();
+
+    try {
+      if (!this.witApi) {
+        throw new UnknownError("Work Item Tracking API not initialized");
+      }
+      const excludeStates = search.excludeClosed
+        ? [...(search.excludeStates ?? []), ...(await this.getClosedStates(search.workItemTypes))]
+        : search.excludeStates;
+      return await new AzureDevOpsWorkItemRetrieval(this.witApi, {
+        project: this.config.project,
+        team: this.config.team,
+      }).search({ ...search, ...(excludeStates?.length ? { excludeStates } : {}) });
+    } catch (error) {
+      const message = sanitizeAzureErrorMessage(error);
+      logger.debug("AzureDevOps: Story Search failed", { error: message });
+      if (error instanceof PlatformError || error instanceof ConfigurationError) {
+        throw error;
+      }
+      throw new PlatformError(
+        `Failed to search Stories in Azure DevOps: ${message}`,
+        "azure-devops",
+      );
+    }
+  }
+
+  /**
+   * State names in the Completed or Removed category for the given types (or every type),
+   * so "not closed" works across Agile, Scrum, CMMI, and custom processes.
+   */
+  private async getClosedStates(workItemTypes: string[] | undefined): Promise<string[]> {
+    const witApi = this.witApi;
+    if (!witApi) return [];
+    const types = workItemTypes?.length ? workItemTypes : await this.getWorkItemTypes();
+    const perType = await Promise.all(types.map((type) => {
+      let entry = this.closedStatesByType.get(type);
+      if (!entry) {
+        entry = witApi.getWorkItemTypeStates(this.config.project, type)
+          .then((states) => states
+            .filter((state) => state.category === "Completed" || state.category === "Removed")
+            .map((state) => state.name)
+            .filter((name): name is string => !!name))
+          .catch(() => []);
+        this.closedStatesByType.set(type, entry);
+      }
+      return entry;
+    }));
+    return [...new Set(perType.flat())];
+  }
+
+  async listWikis(): Promise<WikiInfo[]> {
+    const wikiApi = await this.wikiApi();
+    const wikis = await wikiApi.getAllWikis(this.config.project);
+    return wikis
+      .filter((wiki) => wiki.name && wiki.id)
+      .map((wiki) => ({ id: wiki.id as string, name: wiki.name as string }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async listWikiPages(wiki: string): Promise<string[]> {
+    const wikiApi = await this.wikiApi();
+    const paths: string[] = [];
+    let continuationToken: string | undefined;
+    // The batch endpoint pages at most 100 at a time; stop at a sane ceiling for very large wikis.
+    do {
+      const batch = await this.wikiPagesBatch(wikiApi, wiki, continuationToken);
+      paths.push(...batch.paths.filter((path) => path !== "/"));
+      continuationToken = batch.continuationToken;
+    } while (continuationToken && paths.length < 5000);
+    return paths.sort((a, b) => a.localeCompare(b));
+  }
+
+  /**
+   * One pages batch, with the token for the next. azure-devops-node-api's getPagesBatch returns only
+   * the body, but Azure DevOps sends the continuation token in the x-ms-continuationtoken response
+   * header, so through it the listing would stop after the first batch. This makes the same request
+   * and keeps the header.
+   */
+  private async wikiPagesBatch(
+    wikiApi: Awaited<ReturnType<AzureDevOpsAdapter["wikiApi"]>>,
+    wiki: string,
+    continuationToken: string | undefined,
+  ): Promise<{ paths: string[]; continuationToken?: string }> {
+    const versioning = await wikiApi.vsoClient.getVersioningData(
+      "7.2-preview.1", "wiki", WIKI_PAGES_BATCH_LOCATION, { project: this.config.project, wikiIdentifier: wiki },
+    );
+    if (!versioning.requestUrl) throw new UnknownError("Azure DevOps didn't resolve the wiki pages batch endpoint");
+    const response = await wikiApi.rest.create<unknown>(
+      versioning.requestUrl,
+      { top: 100, ...(continuationToken ? { continuationToken } : {}) },
+      wikiApi.createRequestOptions("application/json", versioning.apiVersion),
+    );
+    const details: { path?: string }[] = wikiApi.formatResponse(response.result, null, true) ?? [];
+    const header = (response.headers as Record<string, string | string[] | undefined>)["x-ms-continuationtoken"];
+    const next = Array.isArray(header) ? header[0] : header;
+    return {
+      paths: details.map((detail) => detail.path).filter((path): path is string => !!path),
+      ...(next ? { continuationToken: next } : {}),
+    };
+  }
+
+  async readWikiPage(wiki: string, pagePath: string): Promise<string> {
+    const wikiApi = await this.wikiApi();
+    const stream = await wikiApi.getPageText(this.config.project, wiki, pagePath, undefined, undefined, true);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    return Buffer.concat(chunks).toString("utf8");
+  }
+
+  private async wikiApi() {
+    this.ensureAuthenticated();
+    if (!this.connection) throw new UnknownError("Not connected to Azure DevOps");
+    return this.connection.getWikiApi();
   }
 
   /**

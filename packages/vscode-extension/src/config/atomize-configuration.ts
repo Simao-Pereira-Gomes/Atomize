@@ -9,3 +9,8 @@ export function getPreviewLayout(resource?: vscode.Uri): 'default' | 'compact' {
 		? 'compact'
 		: 'default';
 }
+
+/** The Copilot model family `atomize.ai.model` pins, or "auto" to let Atomize pick an available one. */
+export function getAIModel(): string {
+	return vscode.workspace.getConfiguration('atomize').get<string>('ai.model', 'auto') || 'auto';
+}

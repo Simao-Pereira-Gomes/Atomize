@@ -49,6 +49,8 @@ export interface SaveTemplateInput {
   kind: TemplateCatalogKind;
   name: string;
   template: unknown;
+  /** The Catalog to save to; the personal one when omitted. */
+  scope?: Extract<TemplateCatalogScope, "user" | "project">;
   overwrite?: boolean;
   validate?: boolean;
 }
@@ -92,6 +94,11 @@ export class TemplateLibrary {
     }
 
     return { ...resolved, validation };
+  }
+
+  /** Composes an in-memory raw template as if it were saved at `contextPath` (its `extends` and `mixins` resolved). */
+  composeTemplate(raw: unknown, contextPath: string): Promise<TaskTemplate> {
+    return this.resolver.compose(raw, contextPath);
   }
 
   async loadSource(
@@ -173,8 +180,9 @@ export class TemplateLibrary {
   }
 
   async saveTemplate(input: SaveTemplateInput): Promise<TemplateCatalogItem> {
-    return await this.catalog.saveUserTemplate({
+    return await this.catalog.saveTemplate({
       ...input,
+      scope: input.scope ?? "user",
       validate: input.validate !== false,
     });
   }
@@ -225,7 +233,24 @@ export class TemplateLibrary {
     return this.catalog.getUserTemplatePath(kind, name);
   }
 
+  getProjectTemplatePath(kind: TemplateCatalogKind, name: string): string {
+    return this.catalog.getProjectTemplatePath(kind, name);
+  }
+
+  /** Whether there's a project to hold a project Catalog; the home folder is never one. */
+  get hasProjectCatalog(): boolean {
+    return this.catalog.hasProject;
+  }
+
   async userTemplateExists(kind: TemplateCatalogKind, name: string): Promise<boolean> {
     return await this.catalog.destinationExists(kind, "user", name);
+  }
+
+  getTemplatePath(kind: TemplateCatalogKind, scope: Extract<TemplateCatalogScope, "user" | "project">, name: string): string {
+    return scope === "project" ? this.catalog.getProjectTemplatePath(kind, name) : this.catalog.getUserTemplatePath(kind, name);
+  }
+
+  async templateExists(kind: TemplateCatalogKind, scope: Extract<TemplateCatalogScope, "user" | "project">, name: string): Promise<boolean> {
+    return await this.catalog.destinationExists(kind, scope, name);
   }
 }

@@ -51,6 +51,7 @@ export function convertWorkItem(azureItem: AzureWorkItem): WorkItem {
     areaPath: fields["System.AreaPath"],
     iteration: fields["System.IterationPath"],
     priority: fields["Microsoft.VSTS.Common.Priority"],
+    childCount: countChildRelations(azureItem),
     predecessorIds: predecessorIds.length > 0 ? predecessorIds : undefined,
     successorIds: successorIds.length > 0 ? successorIds : undefined,
     customFields: fields,
@@ -69,10 +70,11 @@ export function convertWorkItem(azureItem: AzureWorkItem): WorkItem {
 }
 
 export function hasChildRelations(workItem: AzureWorkItem): boolean {
-  if (!workItem.relations || workItem.relations.length === 0) {
-    return false;
-  }
-  return workItem.relations.some(
+  return countChildRelations(workItem) > 0;
+}
+
+export function countChildRelations(workItem: AzureWorkItem): number {
+  return (workItem.relations ?? []).filter(
     (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward",
-  );
+  ).length;
 }

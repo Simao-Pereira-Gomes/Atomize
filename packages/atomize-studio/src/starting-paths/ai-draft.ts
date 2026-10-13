@@ -1,6 +1,6 @@
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
 
-export type AIDraftResponse = { template: Record<string, unknown> };
+export type AIDraftResponse = { template: Record<string, unknown>; errors?: string[] };
 
 function record(value: unknown): Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function strings(value: unknown): string[] { return Array.isArray(value) ? value.map(String) : []; }

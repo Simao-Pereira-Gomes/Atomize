@@ -295,7 +295,7 @@ function resultsBodyCompact(result: LivePreviewResult): string {
   <div style="margin-top:5px">
     ${skipped.map(s => `
     <div style="font-size:.82em;color:var(--vscode-descriptionForeground);padding:3px 0 3px 10px;border-left:1px solid rgba(255,255,255,.12);margin-bottom:3px">
-      <span style="text-decoration:line-through">${esc(s.templateTask.title)}</span> — ${esc(s.reason)}
+      <span style="text-decoration:line-through">${esc(s.templateTask.title)}</span>: ${esc(s.reason)}
     </div>`).join('')}
   </div>
 </details>`;
@@ -363,7 +363,7 @@ export function renderLivePreviewResults(
 	const script = `function switchMode(m) { vscode.postMessage({ type: 'switchMode', mode: m }); }
 ${extraScript}`;
 
-	return page('Atomize: Live Preview — Dry Run', body, script);
+	return page('Atomize: Live Preview · Dry Run', body, script);
 }
 
 export function renderLivePreviewError(
@@ -390,5 +390,5 @@ export function renderLivePreviewError(
 	}
 
 	const body = header + errorBubbleState('⚠', title, detail, true, ctaHtml);
-	return page(`Atomize: Live Preview — ${kind === 'auth' ? 'Auth Error' : 'Not Found'}`, body, ctaScript);
+	return page(`Atomize: Live Preview · ${kind === 'auth' ? 'Auth Error' : 'Not Found'}`, body, ctaScript);
 }

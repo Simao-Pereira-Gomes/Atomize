@@ -12,7 +12,26 @@ import type { TemplateCatalogScope } from "@sppg2001/atomize-core/services/templ
 import z from "zod";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
-export { createManagedSpinner } from "@/cli/utilities/terminal-output";
+import { createManagedSpinner } from "@/cli/utilities/terminal-output";
+
+export { createManagedSpinner };
+
+/**
+ * Runs a slow lookup (Stories, wikis, project metadata) behind a spinner, so the terminal never
+ * looks stuck, and stops it with what was found or with `failed` when the lookup throws.
+ */
+export async function withSpinner<T>(message: string, load: () => Promise<T>, messages: { done: (result: T) => string; failed: string }): Promise<T> {
+  const spinner = createManagedSpinner();
+  spinner.start(message);
+  try {
+    const result = await load();
+    spinner.stop(messages.done(result));
+    return result;
+  } catch (error) {
+    spinner.stop(messages.failed);
+    throw error;
+  }
+}
 
 const SCOPE_LABELS: Record<TemplateCatalogScope, string> = {
   builtin: "built-in",

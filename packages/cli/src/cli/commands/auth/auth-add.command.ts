@@ -69,7 +69,7 @@ export function makeAuthAddCommand(config: Config): Command {
   )
   .option(
     "--pat-stdin",
-    "Read the Personal Access Token from stdin instead of ATOMIZE_PAT (safer in CI — avoids env var exposure in logs)",
+    "Read the Personal Access Token from stdin instead of ATOMIZE_PAT (safer in CI, as it avoids env var exposure in logs)",
     false,
   )
   .action(async (nameArg: string | undefined, options: AddOptions) => {
@@ -106,7 +106,7 @@ export function makeAuthAddCommand(config: Config): Command {
         }
       }
 
-      if (!ci) output.intro(" Atomize — Add Connection Profile");
+      if (!ci) output.intro(" Atomize: Add Connection Profile");
 
       let resolvedName: string;
       if (ci || nameArg) {
@@ -148,7 +148,7 @@ export function makeAuthAddCommand(config: Config): Command {
 
       if (!keychainOk && !allowKeyfileStorage) {
         const insecureMsg =
-          "System keychain is unavailable. The token would be stored in an insecure local file fallback — " +
+          "System keychain is unavailable. The token would be stored in an insecure local file fallback: " +
           "anyone who can read ~/.atomize/ can recover it.";
         if (ci) {
           writeCliError(
@@ -164,7 +164,7 @@ export function makeAuthAddCommand(config: Config): Command {
             }),
           );
           if (!allowKeyfileStorage) {
-            output.cancel("Aborted — token not saved.");
+            output.cancel("Aborted. Token not saved.");
             throw new ExitError(ExitCode.Failure);
           }
         }
@@ -180,7 +180,7 @@ export function makeAuthAddCommand(config: Config): Command {
           shouldSetDefault: ci ? undefined : promptSetAsDefault,
         });
         savingSpinner?.stop(
-          `Profile "${inputs.name}" saved (token stored in ${result.useKeychain ? "OS keychain" : "local file — recoverable by anyone with read access to ~/.atomize/"})`,
+          `Profile "${inputs.name}" saved (token stored in ${result.useKeychain ? "OS keychain" : "local file, recoverable by anyone with read access to ~/.atomize/"})`,
         );
 
         if (result.defaultApplied) {

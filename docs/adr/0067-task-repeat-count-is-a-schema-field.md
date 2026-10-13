@@ -20,5 +20,4 @@ A few rules follow from the copies being interchangeable:
 ## Consequences
 
 - Validation sees definitions while generation produces copies. Constraints that count Tasks or sum percentages must weight each definition by its `repeat` count.
-- Story Learner keeps emitting near-duplicate Tasks as separate definitions. It never infers `repeat`.
 - Copies can't be customised individually (assignee, estimate, tags). Teams that need that still write separate definitions.

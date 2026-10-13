@@ -31,10 +31,16 @@ export interface TemplateSourceResolverOptions {
  * reference, or remote URL before asking for a composed template.
  */
 export class TemplateSourceResolver {
+
   constructor(
     private readonly loader: TemplateLoader = new TemplateLoader(),
     private readonly catalog: TemplateCatalog = new TemplateCatalog(),
   ) {}
+
+  /** Composes an in-memory raw template as if it were saved at `contextPath`. */
+  compose(raw: unknown, contextPath: string): Promise<TaskTemplate> {
+    return this.loader.composeRaw(raw, contextPath);
+  }
 
   async load(
     source: string,
@@ -50,7 +56,7 @@ export class TemplateSourceResolver {
 
     if (source.startsWith("mixin:")) {
       throw new Error(
-        `"${source}" is a mixin, not a template. Mixins cannot be used standalone — they are composed into templates via the mixins field.`,
+        `"${source}" is a mixin, not a template. Mixins cannot be used standalone; they are composed into templates via the mixins field.`,
       );
     }
 
@@ -107,7 +113,7 @@ export class TemplateSourceResolver {
     );
     if (override) {
       options.onNotice?.(
-        `Using ${item.scope}-scoped "${item.name}" — your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
+        `Using ${item.scope}-scoped "${item.name}"; your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
       );
     }
 

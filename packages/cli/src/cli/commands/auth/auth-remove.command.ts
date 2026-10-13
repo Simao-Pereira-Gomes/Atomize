@@ -51,7 +51,7 @@ export function makeAuthRemoveCommand(): Command {
         throw new ExitError(ExitCode.Failure);
       }
 
-      if (!confirmed) output.intro(" Atomize — Remove Connection Profile");
+      if (!confirmed) output.intro(" Atomize: Remove Connection Profile");
 
       if (!(await hasProfiles())) {
         if (confirmed) {

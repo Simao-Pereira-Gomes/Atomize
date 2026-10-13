@@ -170,7 +170,7 @@ function formFields(fields: InspectField[], stored: StoredValues): string {
 		return `
 <div style="padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:3px;margin-bottom:14px;text-align:center">
   <div style="font-size:.88em;margin-bottom:4px">This template generates the same tasks for any story.</div>
-  <div style="font-size:.78em;color:var(--vscode-descriptionForeground)">No mock story fields — the preview will run with default values.</div>
+  <div style="font-size:.78em;color:var(--vscode-descriptionForeground)">No mock story fields. The preview will run with default values.</div>
 </div>`;
 	}
 
@@ -179,9 +179,9 @@ function formFields(fields: InspectField[], stored: StoredValues): string {
 
 	const legend = `
 <div style="margin-bottom:16px;font-size:.78em;color:var(--vscode-descriptionForeground);display:flex;gap:14px;flex-wrap:wrap">
-  <span style="display:inline-flex;align-items:center;gap:5px">${dot('filter')}<span>Filter — which tasks are generated</span></span>
-  <span style="display:inline-flex;align-items:center;gap:5px">${dot('condition')}<span>Condition — task properties</span></span>
-  <span style="display:inline-flex;align-items:center;gap:5px">${dot('estimation')}<span>Estimation — story size</span></span>
+  <span style="display:inline-flex;align-items:center;gap:5px">${dot('filter')}<span>Filter: which tasks are generated</span></span>
+  <span style="display:inline-flex;align-items:center;gap:5px">${dot('condition')}<span>Condition: task properties</span></span>
+  <span style="display:inline-flex;align-items:center;gap:5px">${dot('estimation')}<span>Estimation: story size</span></span>
 </div>`;
 
 	let html = legend;
@@ -348,7 +348,7 @@ ${skippedTasks.length ? `
   <div style="margin-top:5px">
     ${skippedTasks.map(t => `
     <div style="font-size:.82em;color:var(--vscode-descriptionForeground);padding:3px 0 3px 10px;border-left:1px solid rgba(255,255,255,.12);margin-bottom:3px">
-      <span style="text-decoration:line-through">${esc(t.title)}</span> — ${esc(t.reason)}
+      <span style="text-decoration:line-through">${esc(t.title)}</span>: ${esc(t.reason)}
     </div>`).join('')}
   </div>
 </details>` : ''}`;
@@ -421,7 +421,7 @@ export function renderPreviewResults(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-<title>Atomize: Mock Preview — Results</title>
+<title>Atomize: Mock Preview · Results</title>
 <style>${SHARED_CSS}</style>
 </head>
 <body>

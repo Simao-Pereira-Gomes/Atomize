@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
 import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
-import { classifyGenerateAdapterError, handleLine, type SidecarServices } from "./protocol";
+import { classifyGenerateAdapterError, handleLine, type RpcResponse, type SidecarServices } from "./protocol";
 
 const services: SidecarServices = {
   library: {
@@ -18,7 +19,7 @@ const services: SidecarServices = {
       throw new Error("installTemplate not stubbed for this test");
     },
   },
-  fetchGrounding: async () => ({}),
+  fetchGrounding: async () => ({}) as ProjectGrounding,
   validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, hasEstimationMapping: false, needsOnlineVerification: false } }),
   queryGenerateStories: async () => ({ stories: [] }),
   runGenerate: async () => {
@@ -46,7 +47,7 @@ describe("sidecar protocol", () => {
   });
   it("injects a resolved connection into grounding without returning its token", async () => {
     let received: unknown;
-    const grounding: SidecarServices = { ...services, fetchGrounding: async connection => { received = connection; return { workItemTypes: ["Task"] }; } };
+    const grounding: SidecarServices = { ...services, fetchGrounding: async connection => { received = connection; return { workItemTypes: ["Task"] } as ProjectGrounding; } };
     await expect(handleLine('{"jsonrpc":"2.0","id":3,"method":"grounding.fetch","params":{"organizationUrl":"https://dev.azure.com/org","project":"P","team":"T","token":"secret"}}', grounding)).resolves.toEqual({ jsonrpc: "2.0", id: 3, result: { workItemTypes: ["Task"] } });
     expect(received).toEqual({ organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" });
   });
@@ -111,10 +112,10 @@ describe("catalog.remove", () => {
   it("propagates a structured error from the catalog without string-scraping it", async () => {
     const notUserScoped: SidecarServices = {
       ...services,
-      library: { ...services.library, removeCatalogItem: async () => { throw Object.assign(new Error('Cannot remove "delivery" — it is a project template and is not user-installed.'), { code: "CATALOG_ITEM_NOT_USER_SCOPED" }); } },
+      library: { ...services.library, removeCatalogItem: async () => { throw Object.assign(new Error('Cannot remove "delivery": it is a project template and is not user-installed.'), { code: "CATALOG_ITEM_NOT_USER_SCOPED" }); } },
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":33,"method":"catalog.remove","params":{"kind":"template","name":"delivery"}}', notUserScoped))
-      .resolves.toEqual({ jsonrpc: "2.0", id: 33, error: { code: "CATALOG_ITEM_NOT_USER_SCOPED", message: 'Cannot remove "delivery" — it is a project template and is not user-installed.' } });
+      .resolves.toEqual({ jsonrpc: "2.0", id: 33, error: { code: "CATALOG_ITEM_NOT_USER_SCOPED", message: 'Cannot remove "delivery": it is a project template and is not user-installed.' } });
   });
 });
 
@@ -140,6 +141,23 @@ describe("catalog.install", () => {
       });
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("installs a project item at the project root found from a chosen subfolder, as Reference Documents do", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "atomize-studio-repo-"));
+    try {
+      await mkdir(join(repo, ".git"));
+      await mkdir(join(repo, "docs"));
+      const response = await handleLine(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 40,
+        method: "catalog.install",
+        params: { content: "version: \"1.0\"\nname: Delivery\nfilter: {}\ntasks:\n  - title: Plan delivery\n    estimationPercent: 100\n", name: "delivery", scope: "project", workspaceRoot: join(repo, "docs") },
+      }), services);
+      expect(response).toMatchObject({ result: { scope: "project", path: join(repo, ".atomize", "catalog", "templates", "delivery.atomize.yaml") } });
+    } finally {
+      await rm(repo, { recursive: true, force: true });
     }
   });
 
@@ -437,23 +455,49 @@ describe("AI draft protocol", () => {
     await expect(generation).resolves.toMatchObject({ error: { code: "AI_DRAFT_CANCELLED" } });
   });
 
-  it("returns a minimally-shaped raw Template without strict field validation", async () => {
-    let disposed = false;
+  it("repairs an invalid draft by re-prompting with its validation errors", async () => {
+    const prompts: string[] = [];
+    const outputs = [
+      "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: ''\n    estimationPercent: 120\n",
+      "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n",
+    ];
     const ai: SidecarServices = {
       ...services,
       drafts: new Map(),
+      cancelledDrafts: new Set(),
       createDraftSession: async () => ({
-        generate: async () => "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: ''\n    estimationPercent: 120\n",
+        generate: async (_system, user) => { prompts.push(user); return outputs[prompts.length - 1] ?? ""; },
+        abort: async () => {}, dispose: async () => {},
+      }),
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":15,"method":"ai.generate","params":{"draftId":"draft-repair","prose":"Build something"}}', ai))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 15, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("Previous attempt failed validation");
+  });
+
+  it("keeps a Template-shaped draft that is still invalid after repairs editable, with its errors", async () => {
+    let disposed = false;
+    let calls = 0;
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({
+        generate: async () => { calls += 1; return "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: ''\n    estimationPercent: 120\n"; },
         abort: async () => {}, dispose: async () => { disposed = true; },
       }),
     };
-    await expect(handleLine('{"jsonrpc":"2.0","id":10,"method":"ai.generate","params":{"draftId":"draft-1","prose":"Build something"}}', ai)).resolves.toEqual({ jsonrpc: "2.0", id: 10, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "", estimationPercent: 120 }] } } });
+    const response = await handleLine('{"jsonrpc":"2.0","id":10,"method":"ai.generate","params":{"draftId":"draft-1","prose":"Build something"}}', ai) as RpcResponse;
+    expect(response.result).toMatchObject({ template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "", estimationPercent: 120 }] } });
+    expect((response.result as { errors: string[] }).errors.length).toBeGreaterThan(0);
+    expect(calls).toBe(3);
     expect(disposed).toBe(true);
   });
 
   it("streams the first attempt through session.stream and notifies progress by accumulated length", async () => {
     const notifications: unknown[] = [];
-    const template = "version: '1.0'\nname: Draft\nfilter: {}\ntasks: []";
+    const template = "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n";
     const chunks: [string, string] = [template.slice(0, 10), template.slice(10)];
     const ai: SidecarServices = {
       ...services,
@@ -467,7 +511,7 @@ describe("AI draft protocol", () => {
       }),
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":14,"method":"ai.generate","params":{"draftId":"draft-stream","prose":"Build something"}}', ai))
-      .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [] } } });
+      .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
     expect(notifications).toEqual([
       { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: chunks[0].length } },
       { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: template.length } },
@@ -479,5 +523,147 @@ describe("AI draft protocol", () => {
     const ai: SidecarServices = { ...services, drafts: new Map(), cancelledDrafts: new Set(), createDraftSession: async () => ({ generate: async () => { calls += 1; return "not a template"; }, abort: async () => {}, dispose: async () => {} }) };
     await expect(handleLine('{"jsonrpc":"2.0","id":11,"method":"ai.generate","params":{"draftId":"draft-2","prose":"Build something"}}', ai)).resolves.toMatchObject({ error: { code: "AI_DRAFT_MALFORMED" } });
     expect(calls).toBe(3);
+  });
+});
+
+describe("AI improve protocol", () => {
+  const template = { version: "1.0", name: "Backend", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] };
+  const proposal = "version: '1.0'\nname: Backend\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 80\n  - title: Review\n    estimationPercent: 20\nimprovementNotes:\n  - Added a review task.\n";
+
+  it("returns the proposal and Copilot's notes, sending the guidance and the current Template", async () => {
+    const prompts: string[] = [];
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({ generate: async (_system, user) => { prompts.push(user); return proposal; }, abort: async () => {}, dispose: async () => {} }),
+    };
+    const line = JSON.stringify({ jsonrpc: "2.0", id: 30, method: "ai.improve", params: { draftId: "improve-1", template, guidance: "Add reviews" } });
+    await expect(handleLine(line, ai)).resolves.toEqual({
+      jsonrpc: "2.0",
+      id: 30,
+      result: { template: { version: "1.0", name: "Backend", filter: {}, tasks: [{ title: "Build", estimationPercent: 80 }, { title: "Review", estimationPercent: 20 }] }, notes: ["Added a review task."] },
+    });
+    expect(prompts[0]).toContain("Add reviews");
+    expect(prompts[0]).toContain("Template to improve");
+  });
+
+  it("can be cancelled through ai.cancel", async () => {
+    let resolveGeneration!: (value: string) => void;
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({ generate: async () => await new Promise<string>((resolve) => { resolveGeneration = resolve; }), abort: async () => {}, dispose: async () => {} }),
+    };
+    const improving = handleLine(JSON.stringify({ jsonrpc: "2.0", id: 31, method: "ai.improve", params: { draftId: "improve-2", template } }), ai);
+    while (!ai.drafts.has("improve-2")) await new Promise((resolve) => setTimeout(resolve, 0));
+    await handleLine('{"jsonrpc":"2.0","id":32,"method":"ai.cancel","params":{"draftId":"improve-2"}}', ai);
+    resolveGeneration(proposal);
+    await expect(improving).resolves.toMatchObject({ error: { code: "AI_DRAFT_CANCELLED" } });
+  });
+
+  it("rejects a request without a Template", async () => {
+    await expect(handleLine('{"jsonrpc":"2.0","id":33,"method":"ai.improve","params":{"draftId":"improve-3"}}', services))
+      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+  });
+});
+
+describe("AI grounding protocol", () => {
+  const aiServices = (prompts: string[], output: string): SidecarServices => ({
+    ...services,
+    drafts: new Map(),
+    cancelledDrafts: new Set(),
+    createDraftSession: async () => ({
+      generate: async (_system, user) => { prompts.push(user); return output; },
+      abort: async () => {}, dispose: async () => {},
+    }),
+  });
+  const storyGrounding = { stories: [{ id: "7", title: "STORY-MARKER", type: "Bug", state: "Done", tasks: [] }], includesSensitiveContext: false };
+
+  it("never sends Stories with an AI draft", async () => {
+    const prompts: string[] = [];
+    const ai = aiServices(prompts, "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n");
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 44, method: "ai.generate", params: { draftId: "d-examples", prose: "Bug triage", storyGrounding } }), ai);
+    expect(prompts[0]).not.toContain("STORY-MARKER");
+  });
+
+  it("sends Project Grounding with an improvement, and never Stories", async () => {
+    const prompts: string[] = [];
+    const ai = aiServices(prompts, "version: '1.0'\nname: B\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n");
+    const template = { version: "1.0", name: "B", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] };
+    const grounding = { workItemTypes: ["PROJECT-MARKER"] };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 52, method: "ai.improve", params: { draftId: "i-grounded", template, grounding, storyGrounding } }), ai);
+    expect(prompts[0]).toContain("PROJECT-MARKER");
+    expect(prompts[0]).not.toContain("STORY-MARKER");
+  });
+
+  it("no longer offers Story Search or Story Grounding", async () => {
+    for (const method of ["stories.search", "grounding.stories", "stories.applied"]) {
+      await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 53, method, params: {} }), services))
+        .resolves.toMatchObject({ error: { code: "METHOD_NOT_FOUND" } });
+    }
+  });
+});
+
+describe("Reference Documents protocol", () => {
+  async function workspace() {
+    const root = await mkdtemp(join(tmpdir(), "studio-refs-"));
+    await mkdir(join(root, ".atomize"));
+    await mkdir(join(root, "docs"));
+    await writeFile(join(root, ".atomize", "ai.yaml"), "referenceDocuments:\n  - file:docs/how-we-work.md\n");
+    await writeFile(join(root, "docs", "how-we-work.md"), "REF-MARKER: we always pair on reviews");
+    await writeFile(join(root, "docs", "long.md"), "x".repeat(30_000));
+    return root;
+  }
+
+  it("finds the Workspace Root around a file and lists its Project Reference Documents", async () => {
+    const root = await workspace();
+    try {
+      const response = await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 60, method: "references.list", params: { startPath: join(root, "docs", "how-we-work.md") } }), services) as RpcResponse;
+      expect(response.result).toEqual({ workspaceRoot: root, entries: ["file:docs/how-we-work.md"], problems: [] });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("saves an entry to ai.yaml", async () => {
+    const root = await workspace();
+    try {
+      await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 61, method: "references.save", params: { workspaceRoot: root, entry: "file:docs/long.md" } }), services);
+      expect(await readFile(join(root, ".atomize", "ai.yaml"), "utf8")).toContain("file:docs/long.md");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("loads and fits documents, reporting shortening and anything it couldn't use", async () => {
+    const root = await workspace();
+    try {
+      const entries = ["file:docs/how-we-work.md", "file:docs/long.md", "file:../outside.md", "wiki:Team.wiki/Process"];
+      const response = await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 62, method: "references.load", params: { workspaceRoot: root, entries } }), services) as RpcResponse;
+      const result = response.result as { grounding: { documents: { ref: string; truncated: boolean }[] }; notices: string[]; skipped: { entry: string }[] };
+      expect(result.grounding.documents.map((d) => [d.ref, d.truncated])).toEqual([["file:docs/how-we-work.md", false], ["file:docs/long.md", true]]);
+      expect(result.notices[0]).toContain('"long.md" will be shortened');
+      expect(result.skipped.map((s) => s.entry)).toEqual(["file:../outside.md", "wiki:Team.wiki/Process"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("sends Reference Documents with an AI draft", async () => {
+    const prompts: string[] = [];
+    const ai: SidecarServices = {
+      ...services,
+      drafts: new Map(),
+      cancelledDrafts: new Set(),
+      createDraftSession: async () => ({
+        generate: async (_system, user) => { prompts.push(user); return "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n"; },
+        abort: async () => {}, dispose: async () => {},
+      }),
+    };
+    const documentGrounding = { documents: [{ ref: "file:x.md", title: "x.md", text: "DOC-MARKER", truncated: false, originalLength: 10 }] };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 63, method: "ai.generate", params: { draftId: "d-docs", prose: "Anything", documentGrounding } }), ai);
+    expect(prompts[0]).toContain("DOC-MARKER");
   });
 });

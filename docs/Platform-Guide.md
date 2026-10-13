@@ -63,6 +63,7 @@ Complete setup guide for Azure DevOps Services.
    - Go to `https://dev.azure.com/{organization}/_usersSettings/tokens`
    - Click "New Token"
    - Set scopes: **Work Items (Read, Write)**
+   - Optionally add **Wiki (Read)** to use wiki pages as [Reference Documents](./Template-Creation.md#reference-documents)
    - Copy the token (you won't see it again!)
 
 3. **Save a connection profile**

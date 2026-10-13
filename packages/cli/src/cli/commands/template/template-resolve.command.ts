@@ -30,7 +30,7 @@ export const templateResolveCommand = new Command("resolve")
     );
 
     if (!options.quiet) {
-      output.intro(" Atomize — Template Resolver");
+      output.intro(" Atomize: Template Resolver");
     }
 
     try {

@@ -8,6 +8,7 @@ import { createTemplateLibrary } from '../core-library.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
+import { browseStories, prepareTemplateStoryBrowser } from '../stories/story-browser.js';
 import type { GenerateReport } from './generate-html.js';
 import {
 	renderGenerateBlocked,
@@ -53,6 +54,22 @@ async function runAtomize(
 	}
 }
 
+/**
+ * Lets the user pick Stories with the Story Browser. Resolves undefined when dismissed, and an empty
+ * list to run on every Story the Template matches — also the fallback when the browser can't load,
+ * so the panel's own auth and blocked views still report the problem.
+ */
+async function pickGenerateStories(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri): Promise<string[] | undefined> {
+	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri);
+	if (!source) return [];
+	return browseStories({
+		...source,
+		title: 'Atomize: Generate',
+		canPickMany: true,
+		placeholder: 'Tick Stories to generate for, or press Enter with none ticked to use every Story the Template matches.',
+	});
+}
+
 export class GeneratePanel {
 	private static _instance: GeneratePanel | undefined;
 
@@ -96,23 +113,9 @@ export class GeneratePanel {
 		const profile = await pickProfile(store, credentialResolver, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
 		if (profile == null) return;
 
-		const storyIdsInput = await vscode.window.showInputBox({
-			title: 'Atomize: Generate',
-			prompt: 'Filter to specific story IDs (leave blank to use template filter)',
-			placeHolder: '123, 456, 789',
-			validateInput: (value): string | undefined => {
-				const trimmed = value.trim();
-				if (!trimmed) return undefined;
-				const parts = trimmed.split(',').map(s => s.trim()).filter(Boolean);
-				const invalid = parts.filter(p => !/^\d+$/.test(p));
-				if (invalid.length > 0) return `IDs must be numeric. Invalid: ${invalid.join(', ')}`;
-				return undefined;
-			},
-		});
-		if (storyIdsInput === undefined) return;
-		const storyIds = storyIdsInput.trim()
-			? storyIdsInput.split(',').map(s => s.trim()).filter(Boolean)
-			: undefined;
+		const pickedStoryIds = await pickGenerateStories(credentialResolver, profile, fileUri);
+		if (pickedStoryIds === undefined) return;
+		const storyIds = pickedStoryIds.length > 0 ? pickedStoryIds : undefined;
 
 		const fileName = vscode.workspace.asRelativePath(fileUri);
 
@@ -126,13 +129,13 @@ export class GeneratePanel {
 			inst._dryRunReport = undefined;
 			inst._execReport = undefined;
 			inst._continueOnError = false;
-			inst._panel.title = `Atomize: ${fileName} (Generate — Dry Run)`;
+			inst._panel.title = `Atomize: ${fileName} (Generate · Dry Run)`;
 			inst._panel.reveal(vscode.ViewColumn.Beside, true);
 			panel = inst;
 		} else {
 			const webviewPanel = vscode.window.createWebviewPanel(
 				'atomize.generate',
-				`Atomize: ${fileName} (Generate — Dry Run)`,
+				`Atomize: ${fileName} (Generate · Dry Run)`,
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);
@@ -206,7 +209,7 @@ export class GeneratePanel {
 		this._isExecuting = true;
 		try {
 			const fileName = vscode.workspace.asRelativePath(this._fileUri);
-			this._panel.title = `Atomize: ${fileName} (Generate — Creating…)`;
+			this._panel.title = `Atomize: ${fileName} (Generate · Creating…)`;
 			this._panel.webview.html = renderGenerateLiveRunning(dryReport, fileName, this._profile, this._storyIds);
 
 			const outcome = await runAtomize(this._credentialResolver, this._profile, this._fileUri, {
@@ -224,7 +227,7 @@ export class GeneratePanel {
 				},
 			});
 
-			this._panel.title = `Atomize: ${fileName} (Generate — Done)`;
+			this._panel.title = `Atomize: ${fileName} (Generate · Done)`;
 
 			if ('error' in outcome) {
 				this._panel.webview.html = renderGenerateBlocked(
@@ -285,7 +288,7 @@ export class GeneratePanel {
 
 			const nTasks = report.tasksCalculated;
 			const nStories = report.storiesSuccess;
-			const coeNote = this._continueOnError ? '\n\nContinue on task failure is enabled — if a task fails to create, remaining tasks will still be attempted.' : '';
+			const coeNote = this._continueOnError ? '\n\nContinue on task failure is enabled: if a task fails to create, remaining tasks will still be attempted.' : '';
 
 			const confirmed = await vscode.window.showInformationMessage(
 				`Create ${nTasks} task${nTasks === 1 ? '' : 's'} for ${nStories} ${nStories === 1 ? 'story' : 'stories'} using profile "${this._profile}"?${coeNote}`,

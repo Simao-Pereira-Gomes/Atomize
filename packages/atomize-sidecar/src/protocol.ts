@@ -1,14 +1,35 @@
-import { readFile } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
 import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
 import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
 import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
+import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
-import { buildEstimationGrounding } from "@sppg2001/atomize-core/services/template/estimation-grounding";
-import { buildSystemPrompt, buildUserPrompt } from "@sppg2001/atomize-core/services/template/llm-template-generator";
+import { draftTemplate, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
+import {
+  fetchProjectGrounding,
+  type ProjectGrounding,
+  type ProjectGroundingErrorCode,
+  toProjectGroundingError,
+} from "@sppg2001/atomize-core/services/template/project-grounding";
+import {
+  type DocumentGrounding,
+  fitDocumentsToLimit,
+  listProjectWikis,
+  listWikiPagePaths,
+  loadLocalReference,
+  loadWikiReference,
+  parseReferenceRef,
+  type ReferenceDocument,
+  ReferenceDocumentError,
+  readProjectReferences,
+  saveProjectReference,
+  truncationNotices,
+} from "@sppg2001/atomize-core/services/template/reference-documents";
 import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
@@ -26,14 +47,22 @@ export type RpcNotification =
 export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
-export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown };
+export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; documentGrounding?: unknown };
+/** Where Reference Documents are looked up: a Workspace Root, discovered from a folder or file inside it. */
+export type ReferencesListParams = { startPath: string };
+export type ReferencesSaveParams = { workspaceRoot: string; entry: string };
+/** Reference Documents to load and fit; wiki entries need the Rust-injected connection. */
+export type ReferencesLoadParams = { workspaceRoot: string; entries: string[]; connection?: GroundingConnection };
+export type ReferencesLoadResult = { grounding: DocumentGrounding | null; notices: string[]; skipped: { entry: string; message: string }[] };
+export type WikiPagesParams = { connection: GroundingConnection; wiki: string };
+export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown; documentGrounding?: unknown };
 /** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
 export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
 export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection };
 export type GenerateRunParams = { runId: string; source: string; connection: GroundingConnection; dryRun: boolean; scope: GenerateScope; continueOnError?: boolean };
 export type SidecarServices = {
   library: SidecarTemplateLibrary;
-  fetchGrounding: (connection: GroundingConnection) => Promise<unknown>;
+  fetchGrounding: (connection: GroundingConnection) => Promise<ProjectGrounding>;
   validateOnline: (params: OnlineValidationParams, signal: AbortSignal) => Promise<TemplateVerificationResult>;
   queryGenerateStories: (params: GenerateQueryStoriesParams) => Promise<{ stories: WorkItem[] }>;
   runGenerate: (params: GenerateRunParams, signal: AbortSignal) => Promise<{ report: AtomizationReport }>;
@@ -46,17 +75,20 @@ export type SidecarServices = {
   notify: (notification: RpcNotification) => void;
 };
 
-export function createTemplateLibrary(workspaceRoot?: string): TemplateLibrary {
+/**
+ * The Template Library, with its project Catalog under the Workspace Root found from `projectFolder`
+ * (the folder the user chose), so a project Template and a Project Reference Document picked from
+ * the same folder land in the same `.atomize/`.
+ */
+export function createTemplateLibrary(projectFolder?: string): TemplateLibrary {
   // The CI bundle copies atomize-core's catalog beside the sidecar binary.
   const packageRoot = process.env.ATOMIZE_CATALOG_ROOT;
   // Catalog listing and catalog-reference resolution must use the same root. The
-  // bundled Studio catalog is not at atomize-core's default package location.
+  // bundled Studio catalog is not at atomize-core's default package location. The catalog finds
+  // the project from the chosen folder itself, so the home folder is never taken for a project.
   const catalog = new TemplateCatalog({
     ...(packageRoot ? { packageRoot } : {}),
-    ...(workspaceRoot ? {
-      projectRoot: resolve(workspaceRoot, ".atomize", "catalog"),
-      legacyProjectRoot: resolve(workspaceRoot, ".atomize", "templates"),
-    } : {}),
+    ...(projectFolder ? { invocationCwd: projectFolder } : {}),
   });
   return new TemplateLibrary(new TemplateSourceResolver(undefined, catalog), catalog);
 }
@@ -127,63 +159,87 @@ function aiDraftParams(params: unknown): AIDraftParams {
   return value as AIDraftParams;
 }
 
-function isRawTemplate(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    && typeof (value as Record<string, unknown>).version === "string"
-    && typeof (value as Record<string, unknown>).name === "string"
-    && Array.isArray((value as Record<string, unknown>).tasks)
-    && typeof (value as Record<string, unknown>).filter === "object"
-    && (value as Record<string, unknown>).filter !== null;
-}
-
-function parseRawTemplate(output: string): Record<string, unknown> | undefined {
-  try {
-    const parsed = parseYaml(output.replace(/^```ya?ml\n?/i, "").replace(/\n?```\s*$/, "").trim());
-    return isRawTemplate(parsed) ? parsed : undefined;
-  } catch { return undefined; }
-}
-
-async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown> }> {
-  if (services.drafts.has(params.draftId)) throw Object.assign(new Error("That AI draft is already running."), { code: "AI_DRAFT_IN_PROGRESS" });
+/**
+ * Runs one AI request on a fresh Copilot Session registered under `draftId`, so `ai.cancel` can stop
+ * it and `ai.progress` reports its stream — the shared shape of `ai.generate` and `ai.improve`.
+ */
+async function withAISession<T>(
+  draftId: string,
+  services: SidecarServices,
+  run: (session: AIDraftSession, options: { signal: AbortSignal; onChunk: (chunk: string) => void }) => Promise<T>,
+): Promise<T> {
+  if (services.drafts.has(draftId)) throw Object.assign(new Error("That AI request is already running."), { code: "AI_DRAFT_IN_PROGRESS" });
   let session: AIDraftSession;
   try { session = await services.createDraftSession(); }
   catch (error) {
     if (error instanceof CopilotAuthenticationError) throw Object.assign(error, { code: "COPILOT_AUTH_REQUIRED" });
     throw error;
   }
-  services.drafts.set(params.draftId, session);
+  // Cancelling through `ai.cancel` aborts the session and stops the loop before any further repair attempt.
+  const cancellation = new AbortController();
+  services.drafts.set(draftId, { ...session, abort: async () => { cancellation.abort(); await session.abort(); } });
   try {
-    const grounding = params.grounding === undefined ? undefined : JSON.stringify(params.grounding);
-    let repair: string[] | undefined;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const systemPrompt = buildSystemPrompt();
-      const userPrompt = buildUserPrompt(params.prose, grounding, repair);
-      // Only the first attempt streams (mirrors the CLI's runGeneration): repairs are
-      // rare, and re-subscribing per attempt isn't worth it for progress feedback alone.
-      let output: string;
-      if (attempt === 0 && session.stream) {
-        output = "";
-        for await (const chunk of session.stream(systemPrompt, userPrompt)) {
-          output += chunk;
-          services.notify({ jsonrpc: "2.0", method: "ai.progress", params: { draftId: params.draftId, length: output.length } });
-        }
-      } else {
-        output = await session.generate(systemPrompt, userPrompt);
-      }
-      if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
-      const template = parseRawTemplate(output);
-      if (template) return { template };
-      repair = ["The result was not an Atomize Template-shaped YAML object. Return YAML with version, name, filter, and a tasks array."];
-    }
-    throw Object.assign(new Error("Copilot did not return a usable Template. Your description is still available to edit."), { code: "AI_DRAFT_MALFORMED" });
+    let received = 0;
+    const result = await run(session, {
+      signal: cancellation.signal,
+      onChunk: (chunk) => {
+        received += chunk.length;
+        services.notify({ jsonrpc: "2.0", method: "ai.progress", params: { draftId, length: received } });
+      },
+    });
+    if (services.cancelledDrafts.has(draftId)) throw Object.assign(new Error("AI request cancelled."), { code: "AI_DRAFT_CANCELLED" });
+    return result;
   } catch (error) {
-    if (services.cancelledDrafts.has(params.draftId)) throw Object.assign(new Error("AI draft cancelled."), { code: "AI_DRAFT_CANCELLED" });
+    if (services.cancelledDrafts.has(draftId)) throw Object.assign(new Error("AI request cancelled."), { code: "AI_DRAFT_CANCELLED" });
     throw error;
   } finally {
-    services.drafts.delete(params.draftId);
-    services.cancelledDrafts.delete(params.draftId);
+    services.drafts.delete(draftId);
+    services.cancelledDrafts.delete(draftId);
     await session.dispose();
   }
+}
+
+async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; errors?: string[] }> {
+  const result = await withAISession(params.draftId, services, (session, options) =>
+    draftTemplate(session, {
+      prose: params.prose,
+      projectGrounding: params.grounding as ProjectGrounding | undefined,
+      documentGrounding: params.documentGrounding as DocumentGrounding | undefined,
+    }, options));
+  if (result.ok) return { template: result.template as unknown as Record<string, unknown> };
+  // A Template-shaped draft that still fails validation stays editable in Studio, where its errors show.
+  if (result.template) return { template: result.template, errors: result.errors };
+  throw Object.assign(new Error("Copilot did not return a usable Template. Your description is still available to edit."), { code: "AI_DRAFT_MALFORMED" });
+}
+
+/**
+ * A Template Improvement of the Template open in Studio. Studio flattens `extends` and Mixins when
+ * it loads a Template (ADR-0048), so the authored Template is also its Resolved Template.
+ */
+async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; notes: string[]; errors?: string[] }> {
+  const template = params.template as TaskTemplate;
+  const result = await withAISession(params.draftId, services, (session, options) =>
+    improveTemplate(session, {
+      template,
+      resolvedTemplate: template,
+      guidance: params.guidance ?? null,
+      projectGrounding: (params.grounding as ProjectGrounding | undefined) ?? null,
+      documentGrounding: (params.documentGrounding as DocumentGrounding | undefined) ?? null,
+    }, options));
+  if (result.ok) return { template: result.template as unknown as Record<string, unknown>, notes: result.notes };
+  if (result.template) return { template: result.template, notes: result.notes, errors: result.errors };
+  throw Object.assign(new Error("Copilot did not return a usable proposal. Your Template is unchanged."), { code: "AI_DRAFT_MALFORMED" });
+}
+
+function aiImproveParams(params: unknown): AIImproveParams {
+  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<AIImproveParams>;
+  if (typeof value.draftId !== "string" || !value.draftId || typeof value.template !== "object" || value.template === null || Array.isArray(value.template)) {
+    throw Object.assign(new Error("Improving with AI requires a request id and the Template."), { code: "INVALID_PARAMS" });
+  }
+  if (value.guidance !== undefined && value.guidance !== null && typeof value.guidance !== "string") {
+    throw Object.assign(new Error("Improvement guidance must be text."), { code: "INVALID_PARAMS" });
+  }
+  return value as AIImproveParams;
 }
 
 async function cancelDraft(params: unknown, services: SidecarServices): Promise<{ cancelled: boolean }> {
@@ -196,34 +252,115 @@ async function cancelDraft(params: unknown, services: SidecarServices): Promise<
   return { cancelled: true };
 }
 
-export async function fetchGrounding(connection: GroundingConnection): Promise<unknown> {
+/** Studio's wording for each Project Grounding failure, pointing at Studio's own fixes. */
+const GROUNDING_MESSAGES: Record<ProjectGroundingErrorCode, string> = {
+  GROUNDING_TOKEN_EXPIRED: "Your Azure DevOps access token has expired. Add a new project connection with a current token, then try again.",
+  GROUNDING_AUTH_FAILED: "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again.",
+  GROUNDING_FETCH_FAILED: "Atomize could not load choices from this Azure DevOps project. Check the connection and try again.",
+};
+
+export async function fetchGrounding(connection: GroundingConnection): Promise<ProjectGrounding> {
   try {
     const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
     await adapter.authenticate();
-    const metadataReader = requireProjectMetadataReader(adapter);
-    const queryReader = requireSavedQueryReader(adapter);
-    const workItemTypes = await metadataReader.getWorkItemTypes();
-    const estimationDefaults = adapter.getEstimationDefaults();
-    const [states, areaPaths, iterationPaths, teams, savedQueries, taskFields, fieldsByWorkItemType] = await Promise.all([
-      Promise.all(workItemTypes.map(async type => [type, await metadataReader.getStatesForWorkItemType(type)] as const)),
-      metadataReader.getAreaPaths(), metadataReader.getIterationPaths(), metadataReader.getTeams(), queryReader.listSavedQueries(),
-      metadataReader.getFieldSchemas(estimationDefaults.taskWorkItemType),
-      Promise.all(workItemTypes.map(async type => [type, await metadataReader.getFieldSchemas(type)] as const)),
-    ]);
-    return { workItemTypes, statesByWorkItemType: Object.fromEntries(states), areaPaths, iterationPaths, teams,
-      savedQueries: savedQueries.map(({ id, path }) => ({ id, path })), taskFields, fieldsByWorkItemType: Object.fromEntries(fieldsByWorkItemType),
-      estimation: buildEstimationGrounding(estimationDefaults, Object.fromEntries(fieldsByWorkItemType)) };
+    return await fetchProjectGrounding(adapter);
   } catch (error) {
-    const message = getErrorMessage(error);
-    const code = error instanceof AuthError || /authentication failed|access denied/i.test(message)
-      ? (/token.*expired|personal access token.*expired/i.test(message) ? "GROUNDING_TOKEN_EXPIRED" : "GROUNDING_AUTH_FAILED")
-      : "GROUNDING_FETCH_FAILED";
-    throw Object.assign(new Error(code === "GROUNDING_TOKEN_EXPIRED"
-      ? "Your Azure DevOps access token has expired. Add a new project connection with a current token, then try again."
-      : code === "GROUNDING_AUTH_FAILED"
-        ? "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again."
-        : "Atomize could not load choices from this Azure DevOps project. Check the connection and try again."), { code });
+    const { code } = toProjectGroundingError(error);
+    throw Object.assign(new Error(GROUNDING_MESSAGES[code]), { code });
   }
+}
+
+/** The Workspace Root around a folder or file, and its Project Reference Documents (ADR-0070). */
+export async function listReferences(params: ReferencesListParams): Promise<{ workspaceRoot: string; entries: string[]; problems: string[] }> {
+  const start = await isDirectory(params.startPath) ? params.startPath : dirname(params.startPath);
+  const workspaceRoot = discoverWorkspaceRoot(start);
+  return { workspaceRoot, ...await readProjectReferences(workspaceRoot) };
+}
+
+/** Records an entry in `.atomize/ai.yaml`, validating it first. */
+export async function saveReference(params: ReferencesSaveParams): Promise<{ saved: true }> {
+  try {
+    await saveProjectReference(params.workspaceRoot, params.entry);
+    return { saved: true };
+  } catch (error) {
+    throw Object.assign(new Error(getErrorMessage(error)), { code: error instanceof ReferenceDocumentError ? error.code : "REFERENCE_SAVE_FAILED" });
+  }
+}
+
+/**
+ * Loads the chosen Reference Documents and fits them to the shared limit. A document that can't be
+ * used is reported, never silently dropped; the shortening notices are shown before sending.
+ */
+export async function loadReferences(params: ReferencesLoadParams): Promise<ReferencesLoadResult> {
+  const documents: ReferenceDocument[] = [];
+  const skipped: { entry: string; message: string }[] = [];
+  let adapter: Promise<IPlatformAdapter> | undefined;
+  const connect = () => {
+    const connection = params.connection;
+    if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
+    adapter ??= (async () => {
+      const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
+      await platform.authenticate();
+      return platform;
+    })();
+    return adapter;
+  };
+  for (const entry of params.entries) {
+    try {
+      const ref = parseReferenceRef(entry);
+      documents.push(ref.kind === "wiki" ? await loadWikiReference(await connect(), ref) : await loadLocalReference(params.workspaceRoot, ref.path));
+    } catch (error) {
+      skipped.push({ entry, message: getErrorMessage(error) });
+    }
+  }
+  if (documents.length === 0) return { grounding: null, notices: [], skipped };
+  const grounding = fitDocumentsToLimit(documents);
+  return { grounding, notices: truncationNotices(grounding), skipped };
+}
+
+/** Lists the wikis in the Work Project's project, for picking wiki pages. */
+export async function listWikis(connection: GroundingConnection): Promise<{ wikis: { id: string; name: string }[] }> {
+  return withWikiAdapter(connection, async (platform) => ({ wikis: await listProjectWikis(platform) }));
+}
+
+export async function listWikiPages(params: WikiPagesParams): Promise<{ paths: string[] }> {
+  return withWikiAdapter(params.connection, async (platform) => ({ paths: await listWikiPagePaths(platform, params.wiki) }));
+}
+
+async function withWikiAdapter<T>(connection: GroundingConnection, run: (platform: IPlatformAdapter) => Promise<T>): Promise<T> {
+  try {
+    const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
+    await platform.authenticate();
+    return await run(platform);
+  } catch (error) {
+    throw Object.assign(new Error(getErrorMessage(error)), { code: error instanceof ReferenceDocumentError ? error.code : "WIKI_READ_FAILED" });
+  }
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function stringParam(params: unknown, key: string, label: string): string {
+  const value = typeof params === "object" && params !== null ? (params as Record<string, unknown>)[key] : undefined;
+  if (typeof value !== "string" || !value.trim()) throw Object.assign(new Error(`${label} is required.`), { code: "INVALID_PARAMS" });
+  return value;
+}
+
+function referencesLoadParams(params: unknown): ReferencesLoadParams {
+  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<ReferencesLoadParams>;
+  if (!Array.isArray(value.entries) || value.entries.some((entry) => typeof entry !== "string")) {
+    throw Object.assign(new Error("Loading Reference Documents needs a list of entries."), { code: "INVALID_PARAMS" });
+  }
+  return {
+    workspaceRoot: stringParam(params, "workspaceRoot", "A project folder"),
+    entries: value.entries,
+    ...(value.connection ? { connection: groundingConnection(value.connection) } : {}),
+  };
 }
 
 async function resolveGenerateTemplate(source: string, library: SidecarTemplateLibrary): Promise<TaskTemplate> {
@@ -446,8 +583,14 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
       return await library.installTemplate({ source: { content, name }, scope, overwrite });
     })
     .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
+    .with("references.list", () => listReferences({ startPath: stringParam(request.params, "startPath", "A project folder") }))
+    .with("references.save", () => saveReference({ workspaceRoot: stringParam(request.params, "workspaceRoot", "A project folder"), entry: stringParam(request.params, "entry", "A Reference Document") }))
+    .with("references.load", () => loadReferences(referencesLoadParams(request.params)))
+    .with("wiki.list", () => listWikis(groundingConnection((request.params as { connection?: unknown } | undefined)?.connection)))
+    .with("wiki.pages", () => listWikiPages({ connection: groundingConnection((request.params as { connection?: unknown } | undefined)?.connection), wiki: stringParam(request.params, "wiki", "A wiki") }))
     .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
     .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
+    .with("ai.improve", () => improveDraft(aiImproveParams(request.params), services))
     .with("ai.cancel", () => cancelDraft(request.params, services))
     .with("ai.authStatus", () => services.checkCopilotAuth())
     .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))

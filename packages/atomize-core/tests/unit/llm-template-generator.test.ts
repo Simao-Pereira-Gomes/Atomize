@@ -23,8 +23,10 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("contains");
   });
 
-  test("includes the critical constraint about estimation summing to 100", () => {
+  test("keeps an allocation the user gives above 100, and only makes its own split sum to 100", () => {
     const prompt = buildSystemPrompt();
+    expect(prompt).toContain("even when they add up to more than 100");
+    expect(prompt).toContain("unless the user explicitly asks");
     expect(prompt).toContain("sum to exactly 100");
   });
 
@@ -116,6 +118,24 @@ describe("buildSystemPrompt estimation configuration", () => {
   });
 });
 
+describe("buildSystemPrompt iteration default", () => {
+  test("defaults new templates to the current iteration unless the user says otherwise", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("ITERATION");
+    expect(prompt).toContain('set filter.iterations: ["@CurrentIteration"] when drafting a new template');
+    expect(prompt).toContain("only when the description or the reference documents explicitly say so");
+  });
+
+  test("its standalone examples filter on the current iteration", () => {
+    const prompt = buildSystemPrompt();
+    for (const example of ["Example 1", "Example 2", "Example 3", "Example 4", "Example 7"]) {
+      const start = prompt.indexOf(example);
+      const next = prompt.indexOf("Example ", start + example.length);
+      expect(prompt.slice(start, next === -1 ? undefined : next)).toContain('iterations: ["@CurrentIteration"]');
+    }
+  });
+});
+
 describe("buildSystemPrompt repeated tasks", () => {
   test("documents repeat and validation.maxRepeat", () => {
     const prompt = buildSystemPrompt();
@@ -167,15 +187,16 @@ describe("buildUserPrompt", () => {
     expect(prompt).not.toContain("Previous attempt");
   });
 
-  test("appends grounding context when provided", () => {
-    const prompt = buildUserPrompt("feature template", "Common tasks: Design (20%), Implement (80%)");
-    expect(prompt).toContain("Observed patterns from this user");
-    expect(prompt).toContain("Design (20%)");
+  test("appends Project Grounding and tells the model to use only its names", () => {
+    const prompt = buildUserPrompt("feature template", '{"workItemTypes":["Product Backlog Item"]}');
+    expect(prompt).toContain("Project metadata from the user's Azure DevOps project");
+    expect(prompt).toContain("Product Backlog Item");
+    expect(prompt).toContain("use only ones that appear in this metadata");
   });
 
-  test("does not include grounding section when context is null", () => {
+  test("does not include a Project Grounding section when there is none", () => {
     const prompt = buildUserPrompt("feature template", null);
-    expect(prompt).not.toContain("Observed patterns");
+    expect(prompt).not.toContain("Project metadata");
   });
 
   test("appends error correction context on retry", () => {
