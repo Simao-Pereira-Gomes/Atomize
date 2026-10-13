@@ -176,6 +176,8 @@ export function resolvePathToRange(path: string, doc: vscode.TextDocument): vsco
 	}
 
 	return findKeyRange(segments, lines, 0, lines.length)
+		?? findKeyRange(['extends'], lines, 0, lines.length)
+		?? findKeyRange(['mixins'], lines, 0, lines.length)
 		?? new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
 }
 
