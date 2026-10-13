@@ -9,8 +9,9 @@ export const PROMPT_DOCUMENT_MARKER = '<!-- atomize-draft-prompt';
 
 const INSTRUCTION = 'Describe the Template you need below, as fully as you like, then choose "Draft Template with AI" above.';
 
-// A name containing "-->" would end the marker comment early and leak into the description.
-const safe = (text: string) => text.replace(/-->/g, '->');
+// A name containing "-->" or "--!>" would end the marker comment early and leak into the description.
+// The whole run of dashes is collapsed, so "--->" can't leave a "-->" behind.
+const safe = (text: string) => text.replace(/-{2,}(!?)>/g, '-$1>');
 
 function contextLines(context: GroundingContext): string[] {
 	if (!context.profile && context.documents.length === 0) return [];

@@ -45,6 +45,12 @@ describe('prompt document', () => {
 		const text = promptDocumentContent('mine', { documents: [{ title: 'A --> B' }] });
 		expect(promptDocumentDescription(text)).toBe('mine');
 	});
+
+	it.each(['A --!> B', 'A ---> B', 'A --!--> B'])('ends the header comment only once for the name %p', title => {
+		const text = promptDocumentContent('mine', { profile: title, documents: [{ title }] });
+		expect(text.match(/--!?>/g)).toHaveLength(1);
+		expect(promptDocumentDescription(text)).toBe('mine');
+	});
 });
 
 describe('grounding context', () => {
