@@ -96,6 +96,9 @@ validation:             # optional
   minTasks: number                # each copy of a repeated task counts
   maxTasks: number
   maxRepeat: number               # optional, default 20 — the highest repeat any task may use
+  taskEstimationRange:            # optional, only when requested; preserve existing bounds on improvement
+    min: number                  # inclusive percentage, 0-100
+    max: number                  # inclusive percentage, min <= max <= 100
   totalEstimationMustBe: number   # optional — only when the user asks for a fixed total (see rule 1)
   totalEstimationRange:
     min: number
@@ -109,6 +112,7 @@ metadata:               # optional
   notes: string              # optional context for template authors and maintainers
 
 CONSTRAINTS (you must follow these):
+Task percentage bounds: validation.taskEstimationRange constrains final percentages AFTER normalization and its percentage rounding, per repeated copy, not raw weights. With normalize: never, supplied percentages remain unchanged. For example, a lone 20% task becomes 100% under normalize: always and fails a 10–30% range; four 50% tasks become 25% each and pass. Fixed estimates are excluded. Story-dependent task conditions and the first matching percentage override are checked during preview/generation after resolving the active tasks. Task Estimate rounding in hours or points does not change this percentage constraint. Never silently remove or widen requested bounds to repair a validation failure; adjust allocations consistently with the user's request.
 1. Estimation sums:
    - Keep the allocation the user gives you. When the description or the reference documents set how the work is split, use those percentages as given, even when they add up to more than 100 (for example each role estimating its own share, or reviews on top of the build work). Don't scale them down to 100, and don't add validation.totalEstimationMustBe or totalEstimationRange to force a total, unless the user explicitly asks for the percentages to add up to 100 or to be normalized. Leave estimation.normalize unset in that case: Atomize asks at generate time whether to normalize a total above 100.
    - When nothing sets the allocation and you choose the split yourself: in a simple template (no task-level conditions) estimationPercent values sum to exactly 100. A repeated task contributes its estimationPercent once per copy.

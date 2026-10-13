@@ -90,7 +90,7 @@ function runValidation(request: ValidationRequest): void {
 
 		const items = [
 			...result.errors.map(e =>
-				makeDiagnostic(e.path, e.message, vscode.DiagnosticSeverity.Error, doc),
+				makeDiagnostic(e.path, e.message, vscode.DiagnosticSeverity.Error, doc, e.code),
 			),
 			...result.warnings.map(w =>
 				makeDiagnostic(w.path, w.message, vscode.DiagnosticSeverity.Warning, doc, w.code),

@@ -97,6 +97,24 @@ describe('resolvePathToRange', () => {
 });
 
 describe('makeDiagnostic', () => {
+	it('shows a final allocation range error on the task percentage field', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const { TemplateValidator } = await import('@sppg2001/atomize-core/templates/validator');
+		const { makeDiagnostic } = await import(`../validation/diagnostics.js?t=${Date.now()}-range`);
+		const text = 'tasks:\n  - title: Single\n    estimationPercent: 20';
+		const doc = { getText: () => text, lineAt: (line: number) => ({ text: text.split('\n')[line] ?? '' }) };
+		const result = new TemplateValidator().validate({
+			name: 'Range', filter: {}, tasks: [{ title: 'Single', estimationPercent: 20 }],
+			estimation: { normalize: 'always' }, validation: { taskEstimationRange: { min: 10, max: 30 } },
+		});
+		const error = result.errors.find(item => item.code === 'TASK_ESTIMATION_OUT_OF_RANGE');
+		if (!error) throw new Error('Expected a task allocation range error');
+		const diagnostic = makeDiagnostic(error.path, error.message, 0, doc as never, error.code);
+		expect(diagnostic.range.start.line).toBe(2);
+		expect(diagnostic.severity).toBe(0);
+		expect(diagnostic.code).toBe('TASK_ESTIMATION_OUT_OF_RANGE');
+		expect(diagnostic.message).toContain('Final task allocation is 100%');
+	});
 	const text = ['estimation:', '  minimumTaskPoints: 0.5'].join('\n');
 	const doc = {
 		getText: () => text,

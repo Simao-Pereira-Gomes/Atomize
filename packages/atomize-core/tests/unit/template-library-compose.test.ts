@@ -38,4 +38,25 @@ describe("TemplateLibrary.composeTemplate", () => {
     const plain = { version: "1.0", name: "Plain", filter: {}, tasks: [{ title: "A", estimationPercent: 100 }] };
     expect(await new TemplateLibrary().composeTemplate(plain, join(dir, "plain.yaml"))).toEqual(plain as never);
   });
+
+  test("enforces the Template's per-task percentage range after inheritance and Mixin composition", async () => {
+    const library = new TemplateLibrary();
+    const validation = { taskEstimationRange: { min: 10, max: 30 } };
+    const inherited = await library.validateTemplateForPath({
+      name: "Child",
+      extends: "./base.yaml",
+      tasks: [{ id: "build", title: "Build", estimationPercent: 20 }],
+      validation, estimation: { normalize: "never" },
+    }, join(dir, "child.yaml"));
+    expect(inherited.valid).toBe(false);
+    expect(inherited.errors).toContainEqual(expect.objectContaining({ code: "TASK_ESTIMATION_OUT_OF_RANGE", message: expect.stringContaining("40%") }));
+
+    await writeFile(join(dir, "mixin.yaml"), "name: Extra\ntasks:\n  - title: Extra\n    estimationPercent: 50\n");
+    const withMixin = await library.validateTemplateForPath({
+      name: "With Mixin", filter: {}, mixins: ["./mixin.yaml"],
+      tasks: [{ title: "Local", estimationPercent: 20 }], validation, estimation: { normalize: "never" },
+    }, join(dir, "with-mixin.yaml"));
+    expect(withMixin.valid).toBe(false);
+    expect(withMixin.errors).toContainEqual(expect.objectContaining({ code: "TASK_ESTIMATION_OUT_OF_RANGE", message: expect.stringContaining("50%") }));
+  });
 });

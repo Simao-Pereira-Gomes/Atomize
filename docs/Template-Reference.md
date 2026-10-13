@@ -681,9 +681,9 @@ validation:
   minTasks: 3                 # Minimum number of tasks required
   maxTasks: 10                # Maximum number of tasks allowed
   maxRepeat: 30               # Highest repeat any task may use (default 20)
-  taskEstimationRange:        # Each task must fall in this range
-    min: 0.5
-    max: 8
+  taskEstimationRange:        # Inclusive percentage bounds per task
+    min: 10
+    max: 30
   requiredTasks:              # Tasks that must be present
     - title: "Code Review"
       id: "review"
@@ -697,10 +697,23 @@ validation:
 | `minTasks` | number | Minimum number of tasks required. Each copy of a repeated task counts |
 | `maxTasks` | number | Maximum number of tasks allowed. Each copy of a repeated task counts |
 | `maxRepeat` | number | Highest `repeat` any task may use. Default 20 |
-| `taskEstimationRange` | object | Each individual task's resolved estimation must fall within this range |
+| `taskEstimationRange` | object | Each final task percentage after normalization must fall within the inclusive `min`–`max` bounds |
 | `requiredTasks` | array | Tasks that must exist (matched by `id` or `title`) |
 
 > **Note:** `totalEstimationMustBe` and `totalEstimationRange` are mutually exclusive.
+
+`taskEstimationRange` bounds are percentages from 0 to 100, with `min <= max`.
+Validation checks final allocation percentages after normalization, including the
+normalizer's percentage rounding. With `normalize: never`, percentages remain as
+written. A lone 20% task normalized to 100% fails a 10–30% range; four 50% tasks
+normalized to 25% each pass. Task Estimate rounding in hours or points does not
+change this percentage constraint. Fixed estimates are excluded.
+Each repeated copy is checked separately. Offline and Online Validation check
+unconditional allocations on the Resolved Template (including inherited and Mixin
+tasks). Story-dependent conditions and percentage overrides defer this check to
+preview and generation, with an informational warning; the final active allocation
+is checked before any Tasks are created. Violations are errors in both lenient and
+strict mode. Normalization never clamps percentages to satisfy the bounds.
 
 ---
 

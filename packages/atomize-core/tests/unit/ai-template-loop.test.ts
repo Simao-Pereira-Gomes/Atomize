@@ -55,6 +55,17 @@ function scriptedSession(outputs: string[], options: { stream?: boolean } = {}) 
 }
 
 describe("draftTemplate", () => {
+  test("repairs a final allocation range failure using validation feedback", async () => {
+    const header = 'name: Bounded\nfilter: {}\nestimation:\n  normalize: always\nvalidation:\n  taskEstimationRange: { min: 10, max: 30 }\ntasks:\n';
+    const invalid = `${header}  - title: Single\n    estimationPercent: 20\n`;
+    const valid = `${header}${Array.from({ length: 4 }, (_, i) => `  - title: Task ${i}\n    estimationPercent: 50\n`).join("")}`;
+    const { session, calls } = scriptedSession([invalid, valid]);
+    const result = await draftTemplate(session, { prose: "Every final task allocation must be 10–30%." });
+    expect(result.ok).toBe(true);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.systemPrompt).toContain("AFTER normalization");
+    expect(calls[1]?.userPrompt).toContain("Final task allocation is 100%");
+  });
   test("returns the Template when the first attempt is valid", async () => {
     const { session, calls } = scriptedSession([VALID]);
 

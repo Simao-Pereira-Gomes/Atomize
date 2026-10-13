@@ -167,6 +167,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		warnContentOnlyDetected(doc);
 		normalizeDocumentLanguage(doc);
 		trackDocument(doc);
+		validatePassive(doc);
 	}
 
 	const resolvedTemplateProvider = new ResolvedTemplateProvider();
@@ -181,6 +182,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			warnContentOnlyDetected(doc);
 			normalizeDocumentLanguage(doc);
 			trackDocument(doc);
+			validatePassive(doc);
 		}),
 		vscode.workspace.onDidSaveTextDocument(doc => {
 			normalizeDocumentLanguage(doc);

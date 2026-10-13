@@ -661,10 +661,14 @@
               "properties": {
                 "min": {
                   "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
                   "description": "Minimum allowed estimation percentage for a single task."
                 },
                 "max": {
                   "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
                   "description": "Maximum allowed estimation percentage for a single task."
                 }
               },
@@ -673,7 +677,11 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Per-task percentage range. Accepted by the schema, but currently not enforced by validation."
+              "description": "Inclusive bounds for each final task percentage after normalization, including percentage rounding. Fixed estimates are excluded.",
+              "x-atomize-rules": [
+                "min must be less than or equal to max.",
+                "Checked after normalization and its percentage rounding, per repeated copy. With normalize: never, supplied percentages are used unchanged. Fixed estimates are excluded. Story-dependent conditions and percentage overrides are checked during preview and generation, once the active allocation is known. Task Estimate rounding in hours or points does not change this percentage constraint."
+              ]
             },
             "requiredTasks": {
               "type": "array",
@@ -1334,10 +1342,14 @@
               "properties": {
                 "min": {
                   "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
                   "description": "Minimum allowed estimation percentage for a single task."
                 },
                 "max": {
                   "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
                   "description": "Maximum allowed estimation percentage for a single task."
                 }
               },
@@ -1346,7 +1358,11 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Per-task percentage range. Accepted by the schema, but currently not enforced by validation."
+              "description": "Inclusive bounds for each final task percentage after normalization, including percentage rounding. Fixed estimates are excluded.",
+              "x-atomize-rules": [
+                "min must be less than or equal to max.",
+                "Checked after normalization and its percentage rounding, per repeated copy. With normalize: never, supplied percentages are used unchanged. Fixed estimates are excluded. Story-dependent conditions and percentage overrides are checked during preview and generation, once the active allocation is known. Task Estimate rounding in hours or points does not change this percentage constraint."
+              ]
             },
             "requiredTasks": {
               "type": "array",

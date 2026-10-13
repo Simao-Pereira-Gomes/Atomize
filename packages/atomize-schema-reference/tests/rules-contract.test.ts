@@ -50,6 +50,7 @@ describe("Runtime rule contracts", () => {
 			"estimation.minimumTaskPoints",
 			"validation.maxRepeat",
 			"validation.requiredTasks",
+			"validation.taskEstimationRange",
 		]) {
 			expect(
 				at("template", path).some((node) => node.rules.length > 0),

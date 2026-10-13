@@ -323,7 +323,13 @@ describe("createAuthoringStore", () => {
 
   it("serialises all Estimation settings and Validation rules into Atomize YAML", () => {
     const store = createAuthoringStore();
-    store.loadTemplate(baseTemplate);
+    store.loadTemplate({
+      ...baseTemplate,
+      tasks: [
+        { id: "analysis", title: "Analysis", estimationPercent: 50 },
+        { id: "implementation", title: "Implementation", estimationPercent: 50 },
+      ],
+    });
     store.estimation.set("ifParentHasNoEstimation", "use-default");
     store.estimation.set("defaultParentEstimation", "8");
     store.validation.set("totalEstimationRangeMin", "90");

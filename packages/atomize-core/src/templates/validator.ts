@@ -148,6 +148,13 @@ export class TemplateValidator {
     this.validateTaskDependencies(template, warnings);
     this.validateSavedQueryConflict(template, warnings);
     this.validateDeprecatedMinimumTaskPoints(template, warnings);
+    if (v?.taskEstimationRange && template.tasks.some(task => task.condition || task.estimationPercentCondition?.length)) {
+      warnings.push({
+        path: "validation.taskEstimationRange",
+        message: "The per-task percentage range will be checked during preview and generation after Story conditions and normalization resolve the active allocation.",
+        nonBlocking: true,
+      });
+    }
 
     return warnings;
   }
@@ -323,6 +330,13 @@ export class TemplateValidator {
     const params = err.code === "custom" ? err.params : undefined;
     const repeatHint = params?.hasRepeats ? " Each copy of a repeated task counts toward this total." : "";
     switch (code) {
+      case "TASK_ESTIMATION_OUT_OF_RANGE":
+        if (typeof params?.min !== "number" || typeof params.max !== "number") return undefined;
+        return `Adjust the allocation so this task's final percentage after normalization is between ${params.min}% and ${params.max}%.`;
+
+      case "INVALID_TASK_ESTIMATION_RANGE":
+        return "Set validation.taskEstimationRange.min less than or equal to max.";
+
       case "INVALID_TOTAL_ESTIMATION":
         return this.withHint(repeatHint, this.handleNumericError(
           err.message,

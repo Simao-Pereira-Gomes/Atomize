@@ -186,6 +186,7 @@ export function runPreview(template: TaskTemplate, mockStoryJson: string): Previ
     template.estimation,
     false,
     fieldMapping,
+    template.validation?.taskEstimationRange,
   );
 
   const summary = calc.getEstimationSummary(story, calculatedTasks, template.estimation, fieldMapping);

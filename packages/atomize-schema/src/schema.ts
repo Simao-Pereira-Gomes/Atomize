@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { distributeEstimationPercentages, taskEstimationRangeViolations } from "./estimation-normalizer.js";
 import {
   buildAdjacencyList,
   detectCycles,
   formatCyclePath,
+  orderTaskDefinitions,
 } from "./graph.js";
 
 /**
@@ -576,13 +578,29 @@ export const ValidationConfigSchema = z.object({
     .object({
       min: z
         .number()
+        .min(0)
+        .max(100)
         .describe("Minimum allowed estimation percentage for a single task."),
       max: z
         .number()
+        .min(0)
+        .max(100)
         .describe("Maximum allowed estimation percentage for a single task."),
     })
     .strict()
-    .describe("Per-task percentage range. Accepted by the schema, but currently not enforced by validation.")
+    .superRefine((range, ctx) => {
+      if (range.min > range.max) ctx.addIssue({
+        code: "custom",
+        path: ["max"],
+        message: "taskEstimationRange.max must be greater than or equal to min.",
+        params: { code: "INVALID_TASK_ESTIMATION_RANGE" },
+      });
+    })
+    .describe("Inclusive bounds for each final task percentage after normalization, including percentage rounding. Fixed estimates are excluded.")
+    .meta({ "x-atomize-rules": [
+      "min must be less than or equal to max.",
+      "Checked after normalization and its percentage rounding, per repeated copy. With normalize: never, supplied percentages are used unchanged. Fixed estimates are excluded. Story-dependent conditions and percentage overrides are checked during preview and generation, once the active allocation is known. Task Estimate rounding in hours or points does not change this percentage constraint.",
+    ] })
     .optional(),
   requiredTasks: z
     .array(
@@ -788,6 +806,7 @@ export const TaskTemplateSchema = TaskTemplateBaseSchema
 
     validateUniqueTaskIds(tasks, ctx);
     validateEstimationConstraints(v, totalPercent, maxTotalPercent, tasks.some((t) => copyCount(t) > 1), ctx);
+    validateTaskEstimationRange(data, ctx);
 
     validateTaskConstraints(v, tasks, ctx);
     validateRequiredTasks(v, tasks, ctx);
@@ -862,6 +881,35 @@ function validateRepeatedTasks(
       }
     });
   });
+}
+
+function validateTaskEstimationRange(
+  template: TaskTemplate,
+  ctx: z.RefinementCtx,
+) {
+  const { tasks, validation, estimation } = template;
+  const range = validation?.taskEstimationRange;
+  if (!range || range.min > range.max) return;
+  if (tasks.some(task => task.condition || task.estimationPercentCondition?.length)) return;
+  if (tasks.some(task => copyCount(task) > (validation?.maxRepeat ?? DEFAULT_MAX_REPEAT))) return;
+  const ordered = orderTaskDefinitions(tasks.map((task, sourceIndex) => ({ ...task, sourceIndex })));
+  if (!ordered) return; // The dependency refinement reports cycles separately.
+  const copies = ordered.flatMap(task => Array.from({ length: copyCount(task) }, () => ({ ...task })));
+  distributeEstimationPercentages(copies, estimation?.normalize);
+  const { min, max } = range;
+  const reported = new Set<number>();
+  for (const { index, percent, message } of taskEstimationRangeViolations(copies, range)) {
+    const sourceIndex = copies[index]?.sourceIndex;
+    if (sourceIndex === undefined) continue;
+    if (reported.has(sourceIndex)) continue;
+    reported.add(sourceIndex);
+    ctx.addIssue({
+      code: "custom",
+      path: ["tasks", sourceIndex, "estimationPercent"],
+      message,
+      params: { code: "TASK_ESTIMATION_OUT_OF_RANGE", percent, min, max },
+    });
+  }
 }
 
 function validateTaskConstraints(
