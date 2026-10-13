@@ -104,15 +104,13 @@ Copilot checks its draft against the Template schema and fixes problems before y
 
 **Improve with AI**, in the builder's sidebar, asks Copilot to propose a revision of the Template you're working on, whichever Starting Path it came from (Scratch, Catalog Clone, Open or AI draft). It works on a complete Template, so finish any highlighted sections first.
 
-It opens as a side panel, so the builder stays visible while you write the focus and review the proposal. Under **Grounding**, one row each for **Work Project**, **Learn from Stories** and **Reference Documents** summarises what's chosen. Select a row to change it, then **Done** to come back.
+It opens as a side panel, so the builder stays visible while you write the focus and review the proposal. Under **Grounding**, one row each for **Work Project** and **Reference Documents** summarises what's chosen. Select a row to change it, then **Done** to come back.
 
 1. Optionally choose a **Work Project** to ground the improvement in. It starts on the one selected in Global Settings, or choose **No grounding** to review the Template on its own.
    - A Work Project brings its types, fields and saved queries, so any conditions, custom fields or queries Copilot proposes use names that really exist.
-   - The Story Browser then opens on **Stories this Template was applied to**: those its filter matches that already have Tasks, newest first, up to 30. The Template's `excludeIfHasTasks` is ignored here, since it would hide exactly these Stories. Type to narrow the list, or switch to **Search all Stories instead**. Tick Stories to learn from: Copilot compares them with the Tasks they ended up with, so Tasks people added, renamed or re-estimated show where the Template doesn't fit. Tick none to use project metadata only.
-   - If you tick Stories, you can also send their descriptions and acceptance criteria for this improvement only. They're left out by default, because they can contain customer, personal or internal details.
    - Optionally add [Reference Documents](#reference-documents).
    - The project's credentials stay in Studio's backend. If the grounding can't be loaded, Studio tells you why and lets you retry or continue without grounding.
-2. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". The focus box comes after the Grounding, so you can refer to what you chose, such as "4101 needed a security review the Template doesn't have". Leave it empty for a general review.
+2. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". This is where to say where the Template doesn't fit how your team works, such as "we always end up adding a security review". The focus box comes after the Grounding, so you can refer to the documents you chose by name. Leave it empty for a general review.
 3. Copilot reviews the Template and proposes changes. You can cancel while it works.
 4. Review the proposal: the panel widens to show changed fields and Tasks added, removed, changed or moved, the same way as the Template Diff. Copilot's notes on what it changed and why, and anything it left for you to fix, sit beside them.
 5. **Accept** replaces the Template in the builder with the proposal. **Reject** leaves it exactly as it was. Nothing changes before you accept, and nothing is saved until you save as usual.

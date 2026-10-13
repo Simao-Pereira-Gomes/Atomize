@@ -11,11 +11,8 @@ export interface StoryBrowserFilters {
 	hasTasks: boolean;
 }
 
-/**
- * `sprint`: the default view for generation; `applied`: Stories a Template was applied to, for
- * Story Grounding; `search`: a Story Search across the project.
- */
-export type StoryBrowserModeKind = 'sprint' | 'applied' | 'search';
+/** `sprint`: the default view for generation; `search`: a Story Search across the project. */
+export type StoryBrowserModeKind = 'sprint' | 'search';
 
 export function emptyFilters(hasTasks: boolean): StoryBrowserFilters {
 	return { text: '', workItemTypes: [], states: [], areaPaths: [], iterations: [], hasTasks };
@@ -44,7 +41,6 @@ export function storyDescription(story: StorySummary): string {
 /** The QuickPick title: which mode is active and, in Search mode, every filter in effect. */
 export function browserTitle(base: string, mode: StoryBrowserModeKind, filters: StoryBrowserFilters): string {
 	if (mode === 'sprint') return `${base} · Current and next sprint, no Tasks yet`;
-	if (mode === 'applied') return `${base} · Stories this Template was applied to`;
 	const parts = [
 		filters.workItemTypes.length ? `Type: ${filters.workItemTypes.join(', ')}` : '',
 		filters.states.length ? `State: ${filters.states.join(', ')}` : '',
@@ -81,11 +77,9 @@ export function hasTasksTooltip(hasTasks: boolean): string {
 }
 
 /** The mode button's hover text: which list clicking it switches to and whether the Search filters apply there. */
-export function switchModeTooltip(mode: StoryBrowserModeKind, defaultView: 'sprint' | 'applied'): string {
+export function switchModeTooltip(mode: StoryBrowserModeKind): string {
 	if (mode !== 'search') return 'Search all Stories: type to search and narrow with the Type, State, Area, Iteration, and Has Tasks filters';
-	return defaultView === 'sprint'
-		? 'Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied'
-		: 'Back to Stories this Template was applied to. Your Search filters are kept but not applied';
+	return 'Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied';
 }
 
 /** Merges the current page of results with Stories already selected, selected first and without duplicates. */

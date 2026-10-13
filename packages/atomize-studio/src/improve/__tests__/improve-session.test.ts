@@ -144,22 +144,18 @@ describe("Improve with AI", () => {
 });
 
 describe("Improve with AI grounding", () => {
-  const story = { id: "42", title: "Login", type: "User Story", state: "Done", taskCount: 3 };
-
-  it("starts on the Work Project selected in Global Settings, and sends its metadata and the chosen Stories", async () => {
+  it("starts on the Work Project selected in Global Settings, and sends its metadata", async () => {
     const loaded: ImproveChoices[] = [];
     const { improve, requests } = session({
       defaultProfile: "work",
-      loadGrounding: async (choices) => { loaded.push(choices); return { project: { workItemTypes: ["User Story"] }, stories: { stories: [] } }; },
+      loadGrounding: async (choices) => { loaded.push(choices); return { project: { workItemTypes: ["User Story"] } }; },
     });
     improve.open();
     expect(improve.choices().profile).toBe("work");
-    improve.setStories([story]);
-    improve.setIncludeSensitive(true);
     await improve.start();
 
-    expect(loaded[0]).toMatchObject({ profile: "work", stories: [story], includeSensitive: true });
-    expect(requests[0]?.grounding).toEqual({ project: { workItemTypes: ["User Story"] }, stories: { stories: [] } });
+    expect(loaded[0]).toMatchObject({ profile: "work" });
+    expect(requests[0]?.grounding).toEqual({ project: { workItemTypes: ["User Story"] } });
   });
 
   it("loads no grounding without a Work Project", async () => {
@@ -172,10 +168,10 @@ describe("Improve with AI grounding", () => {
   });
 
   it("stops on a grounding failure, then continues without grounding only when asked", async () => {
-    const { improve, requests } = session({ defaultProfile: "work", loadGrounding: async () => { throw new Error("Story 7 has no Tasks."); } });
+    const { improve, requests } = session({ defaultProfile: "work", loadGrounding: async () => { throw new Error("The token has expired."); } });
     improve.open();
     await improve.start();
-    expect(improve.state()).toMatchObject({ phase: "grounding-error", message: "Story 7 has no Tasks." });
+    expect(improve.state()).toMatchObject({ phase: "grounding-error", message: "The token has expired." });
     expect(requests).toHaveLength(0);
 
     await improve.start({ ungrounded: true });
@@ -184,14 +180,6 @@ describe("Improve with AI grounding", () => {
     expect(improve.state().phase).toBe("review");
   });
 
-  it("clears the chosen Stories and the sensitive opt-in when the Work Project changes", () => {
-    const { improve } = session({ defaultProfile: "work" });
-    improve.open();
-    improve.setStories([story]);
-    improve.setIncludeSensitive(true);
-    improve.setProfile("other");
-    expect(improve.choices()).toMatchObject({ profile: "other", stories: [], includeSensitive: false });
-  });
 });
 
 describe("parseImproveResponse", () => {

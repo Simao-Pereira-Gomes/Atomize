@@ -68,17 +68,13 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		title: TITLE,
 		resource: doc.uri,
 		noGrounding: { label: 'No grounding', description: 'Review the Template on its own' },
-		stories: {
-			view: { kind: 'applied', templateFilter: resolvedTemplate.filter },
-			placeholder: 'Tick Stories to learn from, or press Enter with none for project metadata only.',
-		},
 		purpose: 'The improvement',
 	});
 	if (grounding === 'cancelled') return;
 	const documentGrounding = await chooseReferenceDocuments({ title: TITLE, resource: doc.uri, adapter: grounding.adapter });
 	if (documentGrounding === undefined) return;
 
-	// The focus comes after the Grounding, so it can name the Stories and documents just chosen.
+	// The focus comes after the Grounding, so it can name the documents just chosen.
 	const context = groundingContext(grounding, documentGrounding);
 	const guidance = await vscode.window.showInputBox({
 		title: `${TITLE} · ${groundingSummary(context, 'No grounding')}`,
@@ -156,7 +152,6 @@ async function runImprovement(
 			resolvedTemplate,
 			guidance: guidance.trim() || null,
 			projectGrounding: grounding.projectGrounding,
-			storyGrounding: grounding.storyGrounding,
 			documentGrounding,
 			compose: proposal => library.composeTemplate(proposal, path),
 		}, {

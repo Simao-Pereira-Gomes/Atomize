@@ -20,9 +20,6 @@ const services: SidecarServices = {
     },
   },
   fetchGrounding: async () => ({}) as ProjectGrounding,
-  searchStories: async () => ({ stories: [] }),
-  fetchStoryGrounding: async () => ({ stories: [], includesSensitiveContext: false }),
-  listAppliedStories: async () => ({ stories: [] }),
   validateOnline: async () => ({ valid: true, errors: [], warnings: [], mode: "lenient", requirements: { customFieldTaskCount: 0, conditionFieldRefs: [], hasSavedQuery: false, hasEstimationMapping: false, needsOnlineVerification: false } }),
   queryGenerateStories: async () => ({ stories: [] }),
   runGenerate: async () => {
@@ -572,89 +569,40 @@ describe("AI improve protocol", () => {
   });
 });
 
-describe("Story Browser and Story Grounding protocol", () => {
-  const connection = { organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" };
-
-  it("passes a Story Search and its resolved connection through", async () => {
-    let received: unknown;
-    const searching: SidecarServices = { ...services, searchStories: async (params) => { received = params; return { stories: [{ id: "42", title: "Login", type: "User Story", state: "Active", taskCount: 2 }] }; } };
-    const line = JSON.stringify({ jsonrpc: "2.0", id: 40, method: "stories.search", params: { connection, search: { text: "login", hasTasks: true } } });
-    await expect(handleLine(line, searching)).resolves.toEqual({
-      jsonrpc: "2.0", id: 40, result: { stories: [{ id: "42", title: "Login", type: "User Story", state: "Active", taskCount: 2 }] },
-    });
-    expect(received).toEqual({ connection, search: { text: "login", hasTasks: true } });
+describe("AI grounding protocol", () => {
+  const aiServices = (prompts: string[], output: string): SidecarServices => ({
+    ...services,
+    drafts: new Map(),
+    cancelledDrafts: new Set(),
+    createDraftSession: async () => ({
+      generate: async (_system, user) => { prompts.push(user); return output; },
+      abort: async () => {}, dispose: async () => {},
+    }),
   });
+  const storyGrounding = { stories: [{ id: "7", title: "STORY-MARKER", type: "Bug", state: "Done", tasks: [] }], includesSensitiveContext: false };
 
-  it("passes chosen Story IDs and the sensitive opt-in to Story Grounding", async () => {
-    let received: unknown;
-    const grounding: SidecarServices = { ...services, fetchStoryGrounding: async (params) => { received = params; return { stories: [], includesSensitiveContext: true }; } };
-    const line = JSON.stringify({ jsonrpc: "2.0", id: 41, method: "grounding.stories", params: { connection, storyIds: ["42"], includeSensitive: true } });
-    await expect(handleLine(line, grounding)).resolves.toMatchObject({ result: { includesSensitiveContext: true } });
-    expect(received).toEqual({ connection, storyIds: ["42"], includeSensitive: true });
-  });
-
-  it("leaves Sensitive AI Context out unless explicitly opted in", async () => {
-    let received: { includeSensitive?: boolean } | undefined;
-    const grounding: SidecarServices = { ...services, fetchStoryGrounding: async (params) => { received = params; return { stories: [], includesSensitiveContext: false }; } };
-    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 42, method: "grounding.stories", params: { connection, storyIds: ["42"] } }), grounding);
-    expect(received?.includeSensitive).toBe(false);
-  });
-
-  it("rejects requests without a resolved connection", async () => {
-    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 43, method: "stories.search", params: { search: {} } }), services))
-      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
-  });
-
-  it("never sends Stories with an AI draft: Story Grounding is for improving only", async () => {
+  it("never sends Stories with an AI draft", async () => {
     const prompts: string[] = [];
-    const ai: SidecarServices = {
-      ...services,
-      drafts: new Map(),
-      cancelledDrafts: new Set(),
-      createDraftSession: async () => ({
-        generate: async (_system, user) => { prompts.push(user); return "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n"; },
-        abort: async () => {}, dispose: async () => {},
-      }),
-    };
-    const storyGrounding = { stories: [{ id: "7", title: "EXAMPLE-MARKER", type: "Bug", state: "Done", tasks: [] }], includesSensitiveContext: false };
+    const ai = aiServices(prompts, "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n");
     await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 44, method: "ai.generate", params: { draftId: "d-examples", prose: "Bug triage", storyGrounding } }), ai);
-    expect(prompts[0]).not.toContain("EXAMPLE-MARKER");
-  });
-});
-
-describe("Improve grounding protocol", () => {
-  const connection = { organizationUrl: "https://dev.azure.com/org", project: "P", team: "T", token: "secret" };
-
-  it("lists the Stories a Template was applied to for its filter", async () => {
-    let received: unknown;
-    const applied: SidecarServices = { ...services, listAppliedStories: async (params) => { received = params; return { stories: [] }; } };
-    const line = JSON.stringify({ jsonrpc: "2.0", id: 50, method: "stories.applied", params: { connection, templateFilter: { workItemTypes: ["User Story"], excludeIfHasTasks: true } } });
-    await expect(handleLine(line, applied)).resolves.toEqual({ jsonrpc: "2.0", id: 50, result: { stories: [] } });
-    expect(received).toEqual({ connection, templateFilter: { workItemTypes: ["User Story"], excludeIfHasTasks: true } });
+    expect(prompts[0]).not.toContain("STORY-MARKER");
   });
 
-  it("rejects a request without the Template's filter", async () => {
-    expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 51, method: "stories.applied", params: { connection } }), services))
-      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
-  });
-
-  it("sends both Project and Story Grounding with an improvement", async () => {
+  it("sends Project Grounding with an improvement, and never Stories", async () => {
     const prompts: string[] = [];
-    const ai: SidecarServices = {
-      ...services,
-      drafts: new Map(),
-      cancelledDrafts: new Set(),
-      createDraftSession: async () => ({
-        generate: async (_system, user) => { prompts.push(user); return "version: '1.0'\nname: B\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n"; },
-        abort: async () => {}, dispose: async () => {},
-      }),
-    };
+    const ai = aiServices(prompts, "version: '1.0'\nname: B\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n");
     const template = { version: "1.0", name: "B", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] };
-    const storyGrounding = { stories: [{ id: "42", title: "APPLIED-MARKER", type: "User Story", state: "Done", tasks: [] }], includesSensitiveContext: false };
     const grounding = { workItemTypes: ["PROJECT-MARKER"] };
     await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 52, method: "ai.improve", params: { draftId: "i-grounded", template, grounding, storyGrounding } }), ai);
-    expect(prompts[0]).toContain("APPLIED-MARKER");
     expect(prompts[0]).toContain("PROJECT-MARKER");
+    expect(prompts[0]).not.toContain("STORY-MARKER");
+  });
+
+  it("no longer offers Story Search or Story Grounding", async () => {
+    for (const method of ["stories.search", "grounding.stories", "stories.applied"]) {
+      await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 53, method, params: {} }), services))
+        .resolves.toMatchObject({ error: { code: "METHOD_NOT_FOUND" } });
+    }
   });
 });
 

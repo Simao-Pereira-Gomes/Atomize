@@ -30,7 +30,6 @@ async function pickPreviewStory(credentialResolver: CredentialResolver, profile:
 		title: 'Atomize: Live Preview',
 		canPickMany: false,
 		placeholder: 'Choose the Story to preview against.',
-		hasTasksByDefault: false,
 	});
 	return storyIds?.[0] ?? null;
 }

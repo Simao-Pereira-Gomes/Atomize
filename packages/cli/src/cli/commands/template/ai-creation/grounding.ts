@@ -25,8 +25,7 @@ const UNGROUNDED: DraftGrounding = { projectGrounding: null };
 
 /**
  * Grounding for an AI draft (ADR-0069): `--ground` brings Project Grounding, `--ai` alone is an
- * Ungrounded Draft, and choosing AI from the menu asks. Drafts take no Story Grounding: Stories are
- * evidence for improving a Template. Grounding that was asked for never disappears silently:
+ * Ungrounded Draft, and choosing AI from the menu asks. Grounding that was asked for never disappears silently:
  * interactive runs choose to retry, continue without it, or cancel; non-interactive runs stop with an error.
  */
 export async function resolveDraftGrounding(options: GroundingInput, deps: DraftGroundingDeps = {}): Promise<DraftGrounding> {
@@ -35,26 +34,33 @@ export async function resolveDraftGrounding(options: GroundingInput, deps: Draft
 
   const wantsGrounding = options.ground || (!options.ai && interactive && await askToGround());
   if (!wantsGrounding) return UNGROUNDED;
+  return { projectGrounding: await loadProjectGrounding(options.profile, connect, interactive) };
+}
 
+/**
+ * Project Grounding through a Connection Profile, for either AI action. When it can't be loaded, an
+ * interactive run chooses to retry, continue without it (null), or cancel; a non-interactive run stops.
+ */
+export async function loadProjectGrounding(
+  profile: string | undefined,
+  connect: (profile?: string) => Promise<IPlatformAdapter>,
+  interactive: boolean,
+): Promise<ProjectGrounding | null> {
   while (true) {
     const spinner = createManagedSpinner();
     try {
       spinner.start("Connecting to Azure DevOps…");
-      const adapter = await connect(options.profile);
+      const adapter = await connect(profile);
       spinner.message("Loading project metadata…");
       const projectGrounding = await fetchProjectGrounding(adapter);
       spinner.stop(
         `Project metadata loaded ✓ (${projectGrounding.workItemTypes.length} work item types, ${projectGrounding.savedQueries.length} saved queries)`,
       );
-      return { projectGrounding };
+      return projectGrounding;
     } catch (error) {
       spinner.stop("Grounding failed");
-      const next = await decideAfterGroundingFailure(toProjectGroundingError(error).message, {
-        interactive,
-        requestedWith: "--ground",
-        continueLabel: "Continue without grounding",
-      });
-      if (next === "ungrounded") return UNGROUNDED;
+      const next = await decideAfterGroundingFailure(toProjectGroundingError(error).message, interactive);
+      if (next === "ungrounded") return null;
     }
   }
 }
@@ -63,13 +69,10 @@ export async function resolveDraftGrounding(options: GroundingInput, deps: Draft
  * Grounding the user asked for never disappears silently (ADR-0069): an interactive run chooses to
  * retry, continue without it, or cancel; a non-interactive run stops with an error.
  */
-export async function decideAfterGroundingFailure(
-  message: string,
-  context: { interactive: boolean; requestedWith: string; continueLabel: string },
-): Promise<"retry" | "ungrounded"> {
-  if (!context.interactive) {
+async function decideAfterGroundingFailure(message: string, interactive: boolean): Promise<"retry" | "ungrounded"> {
+  if (!interactive) {
     throw new ConfigurationError(
-      `${message} Grounding was requested (${context.requestedWith}), so Atomize stopped instead of continuing without it.`,
+      `${message} Grounding was requested (--ground), so Atomize stopped instead of continuing without it.`,
     );
   }
   const next = assertNotCancelled(
@@ -77,7 +80,7 @@ export async function decideAfterGroundingFailure(
       message: `${message} What would you like to do?`,
       options: [
         { label: "Retry", value: "retry" },
-        { label: context.continueLabel, value: "ungrounded" },
+        { label: "Continue without grounding", value: "ungrounded" },
         { label: "Cancel", value: "cancel" },
       ],
     }),

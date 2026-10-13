@@ -8,7 +8,7 @@ Every AI run shows the saved documents **ticked but visible**, and the user can 
 
 - **Picking documents every run.** Rejected as tedious for documents that rarely change, and the team's shared knowledge of where its process lives would never be recorded.
 - **A per-user "last used documents" preference.** Rejected. It is hidden personal state that doesn't help teammates, and it differs from machine to machine.
-- **Sending saved documents automatically, without showing them.** Rejected for the same reason ADR-0069 refuses to save the Sensitive AI Context opt-in: a committed file must never silently widen what leaves a user's machine. Here the saved item is a pointer that is always shown before use.
+- **Sending saved documents automatically, without showing them.** Rejected: a committed file must never silently widen what leaves a user's machine. Here the saved item is a pointer that is always shown before use.
 
 ## Consequences
 

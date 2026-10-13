@@ -67,7 +67,6 @@ async function pickGenerateStories(credentialResolver: CredentialResolver, profi
 		title: 'Atomize: Generate',
 		canPickMany: true,
 		placeholder: 'Tick Stories to generate for, or press Enter with none ticked to use every Story the Template matches.',
-		hasTasksByDefault: false,
 	});
 }
 

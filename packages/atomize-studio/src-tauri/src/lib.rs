@@ -85,26 +85,8 @@ async fn wiki_pages(profile: String, wiki: String, relay: tauri::State<'_, Arc<S
 }
 
 #[tauri::command]
-async fn stories_search(profile: String, search: serde_json::Value, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    forget_if_rejected(&profile, relay.request("stories.search", json!({ "search": search, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
-}
-
-#[tauri::command]
-async fn story_grounding_load(profile: String, story_ids: Vec<String>, include_sensitive: bool, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    forget_if_rejected(&profile, relay.request("grounding.stories", json!({ "storyIds": story_ids, "includeSensitive": include_sensitive, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
-}
-
-#[tauri::command]
-async fn ai_improve(draft_id: String, template: serde_json::Value, guidance: Option<String>, grounding: Option<serde_json::Value>, story_grounding: Option<serde_json::Value>, document_grounding: Option<serde_json::Value>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    relay.request("ai.improve", json!({ "draftId": draft_id, "template": template, "guidance": guidance, "grounding": grounding, "storyGrounding": story_grounding, "documentGrounding": document_grounding })).await
-}
-
-#[tauri::command]
-async fn stories_applied(profile: String, template_filter: serde_json::Value, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
-    forget_if_rejected(&profile, relay.request("stories.applied", json!({ "templateFilter": template_filter, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
+async fn ai_improve(draft_id: String, template: serde_json::Value, guidance: Option<String>, grounding: Option<serde_json::Value>, document_grounding: Option<serde_json::Value>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("ai.improve", json!({ "draftId": draft_id, "template": template, "guidance": guidance, "grounding": grounding, "documentGrounding": document_grounding })).await
 }
 
 #[tauri::command]
@@ -236,7 +218,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_improve, ai_cancel, ai_auth_status, stories_search, story_grounding_load, stories_applied, references_list, references_save, references_load, wiki_list, wiki_pages, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default, open_panel::open_atomize_file])
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_improve, ai_cancel, ai_auth_status, references_list, references_save, references_load, wiki_list, wiki_pages, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default, open_panel::open_atomize_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

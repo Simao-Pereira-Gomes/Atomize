@@ -1,19 +1,18 @@
 import { diffTemplates } from "@sppg2001/atomize-schema";
 import { type Accessor, createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { documentsSummary, improveFocusPlaceholder, shortenedDocuments, storiesSummary } from "../grounding/grounding-summary";
+import { documentsSummary, improveFocusPlaceholder, shortenedDocuments } from "../grounding/grounding-summary";
 import { createImproveSession } from "../improve/improve-session";
 import type { DocumentGrounding } from "../references/reference-documents";
-import { cancelAIDraft, improveTemplateWithAI, listAppliedStories, listenAIDraftProgress, loadStoryGrounding } from "../sidecar/sidecar-client";
+import { cancelAIDraft, improveTemplateWithAI, listenAIDraftProgress } from "../sidecar/sidecar-client";
 import type { SectionStores } from "../stores/sections";
 import type { GroundingSession } from "./GroundingSettings";
 import { ReferenceDocumentsPicker } from "./ReferenceDocumentsPicker";
 import { ShorteningChoice } from "./ShorteningChoice";
-import { StoryBrowser } from "./StoryBrowser";
 import { TemplateChangesList } from "./sections/TemplateDiffView";
 
-type Drill = "project" | "stories" | "documents";
-const DRILL_TITLES: Record<Drill, string> = { project: "Work Project", stories: "Learn from Stories", documents: "Reference Documents" };
+type Drill = "project" | "documents";
+const DRILL_TITLES: Record<Drill, string> = { project: "Work Project", documents: "Reference Documents" };
 
 /**
  * "Improve with AI" for the Template in the builder, whichever Starting Path produced it. The
@@ -39,19 +38,9 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
     cancel: (id) => cancelAIDraft(id),
     listenProgress: (onProgress) => listenAIDraftProgress(onProgress),
     defaultProfile: () => props.grounding.selectedProfile(),
-    // A Work Project always brings Project Grounding; chosen Stories add Story Grounding (ADR-0069).
-    loadGrounding: async (choices) => ({
-      project: await choicesFor(choices.profile),
-      ...(choices.stories.length > 0
-        ? { stories: await loadStoryGrounding(choices.profile, choices.stories.map((story) => story.id), choices.includeSensitive) }
-        : {}),
-    }),
+    // A Work Project brings Project Grounding (ADR-0069).
+    loadGrounding: async (choices) => ({ project: await choicesFor(choices.profile) }),
   });
-  const filterChoices = () => {
-    const profile = session.choices().profile;
-    if (profile === props.grounding.selectedProfile() && props.grounding.options()) return props.grounding.options();
-    return projectChoices()?.profile === profile ? projectChoices()?.options : undefined;
-  };
   createEffect(() => {
     const profile = session.choices().profile;
     if (state().phase === "form" && profile) void choicesFor(profile).catch(() => {});
@@ -189,14 +178,13 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
                 </Match>
               </Switch>
 
-              {/* The form stays mounted across drill-ins and phases, so the Story Browser and Reference Documents keep their state. */}
+              {/* The form stays mounted across drill-ins and phases, so the Reference Documents keep their state. */}
               <div classList={{ hidden: state().phase !== "form" }}>
                 <div classList={{ hidden: !!drill() }}>
-                  {/* Grounding first, so the focus can refer to the Stories and documents just chosen. */}
+                  {/* Grounding first, so the focus can refer to the documents just chosen. */}
                   <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Grounding <span class="font-normal normal-case tracking-normal">(optional)</span></p>
                   <div class="mt-2 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
                     <GroundingRow title={DRILL_TITLES.project} summary={session.choices().profile || "None. Review the Template on its own"} onOpen={() => setDrill("project")} />
-                    <GroundingRow title={DRILL_TITLES.stories} summary={session.choices().profile ? storiesSummary(session.choices().stories, session.choices().includeSensitive) : "Needs a Work Project"} disabled={!session.choices().profile} onOpen={() => setDrill("stories")} />
                     <GroundingRow title={DRILL_TITLES.documents} summary={documentsSummary(documents(), documentsLoading())} warn={shortened().length > 0} onOpen={() => setDrill("documents")} />
                   </div>
 
@@ -206,11 +194,11 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
                       class="mt-2 min-h-32 w-full rounded-lg border border-slate-300 bg-white p-3 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950"
                       value={guidance()}
                       onInput={(event) => session.setGuidance(event.currentTarget.value)}
-                      placeholder={improveFocusPlaceholder(session.choices().stories, documents())}
+                      placeholder={improveFocusPlaceholder(documents())}
                     />
                   </label>
-                  <Show when={session.choices().stories.length > 0 || (documents()?.documents.length ?? 0) > 0}>
-                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">You can refer to the Stories and documents above by Story ID or document name.</p>
+                  <Show when={(documents()?.documents.length ?? 0) > 0}>
+                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">You can refer to the documents above by name.</p>
                   </Show>
                   <Show when={(() => { const current = state(); return current.phase === "form" ? current.error : undefined; })()}>
                     {(error) => <p class="mt-3 text-sm text-rose-600">{error()}</p>}
@@ -234,31 +222,6 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
                     </select>
                   </label>
                   <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">The project's types, fields, and saved queries keep Copilot to names that really exist. Its credentials are never sent.</p>
-                </div>
-
-                <div classList={{ hidden: drill() !== "stories" }}>
-                  <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Tick Stories this Template was applied to. Copilot compares them with the Tasks they ended up with to see where the Template doesn't fit. Tick none to use project metadata only.</p>
-                  <Show when={session.choices().profile}>
-                    <div class="mt-3">
-                      <StoryBrowser
-                        profile={() => session.choices().profile}
-                        choices={filterChoices}
-                        selected={() => session.choices().stories}
-                        onChange={session.setStories}
-                        hasTasksByDefault
-                        defaultView={{
-                          label: "Stories this Template was applied to",
-                          load: () => listAppliedStories(session.choices().profile, props.stores.toTemplate().filter),
-                        }}
-                      />
-                    </div>
-                  </Show>
-                  <Show when={session.choices().stories.length > 0}>
-                    <label class="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-700 dark:text-slate-200">
-                      <input type="checkbox" class="mt-0.5" checked={session.choices().includeSensitive} onChange={(event) => session.setIncludeSensitive(event.currentTarget.checked)} />
-                      Also send their descriptions and acceptance criteria. They can contain customer, personal, or internal details. Applies to this improvement only.
-                    </label>
-                  </Show>
                 </div>
 
                 <div classList={{ hidden: drill() !== "documents" }}>

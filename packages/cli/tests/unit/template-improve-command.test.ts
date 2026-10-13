@@ -93,19 +93,9 @@ function session(outputs: string[] = [PROPOSAL]) {
   return { fake, prompts };
 }
 
-/** An Azure DevOps project with Stories 42 (two Tasks) and 7 (no Tasks), as grounding sees it. */
+/** An Azure DevOps project as grounding sees it. */
 function project(options: { failConnect?: boolean; wikiStatus?: number } = {}) {
   const connects: (string | undefined)[] = [];
-  const stories: Record<string, { item: Record<string, unknown>; children: Record<string, unknown>[] }> = {
-    "42": {
-      item: { id: "42", title: "Login API", type: "User Story", state: "Done", description: "<p>Customer Acme login</p>", customFields: {} },
-      children: [
-        { id: "421", title: "Implementation", type: "Task", state: "Done", customFields: { "Microsoft.VSTS.Scheduling.OriginalEstimate": 8 } },
-        { id: "422", title: "Security review", type: "Task", state: "Done", customFields: { "Microsoft.VSTS.Scheduling.OriginalEstimate": 2 } },
-      ],
-    },
-    "7": { item: { id: "7", title: "Empty", type: "User Story", state: "New" }, children: [] },
-  };
   const adapter = {
     getEstimationDefaults: () => ({ storyEstimateFields: [], taskWorkItemType: "Task", taskEstimateFields: ["Microsoft.VSTS.Scheduling.OriginalEstimate"], unitLabel: "hours" }),
     getWorkItemTypes: async () => ["PROJECT-TYPE-MARKER"],
@@ -115,8 +105,6 @@ function project(options: { failConnect?: boolean; wikiStatus?: number } = {}) {
     getTeams: async () => [],
     listSavedQueries: async () => [],
     getFieldSchemas: async () => [],
-    getWorkItem: async (id: string) => stories[id]?.item ?? null,
-    getChildren: async (id: string) => stories[id]?.children ?? [],
     listWikis: async () => {
       if (options.wikiStatus) throw Object.assign(new Error("TF400813: not authorized"), { statusCode: options.wikiStatus });
       return [{ id: "wiki-1", name: "Team.wiki" }];
@@ -134,14 +122,13 @@ function project(options: { failConnect?: boolean; wikiStatus?: number } = {}) {
 
 async function run(
   options: ImproveOptions,
-  deps: { lib: ImproveLibrary; interactive?: boolean; outputs?: string[]; connect?: ReturnType<typeof project>["connect"]; picked?: string[] },
+  deps: { lib: ImproveLibrary; interactive?: boolean; outputs?: string[]; connect?: ReturnType<typeof project>["connect"] },
 ) {
   const { fake, prompts } = session(deps.outputs);
   const report = await runTemplateImprove(sourcePath, options, {
     library: deps.lib,
     openSession: async () => fake,
     connect: deps.connect ?? (async () => { throw new Error("grounding was not expected"); }),
-    browseStories: async () => deps.picked ?? [],
     interactive: deps.interactive ?? false,
     cwd: dir,
   });
@@ -279,13 +266,11 @@ describe("atomize template improve", () => {
 
     const written = JSON.parse(await readFile(reportPath, "utf8"));
     expect(Object.keys(written).sort()).toEqual([
-      "diff", "groundingStoryIds", "guidance", "notes", "ok", "referenceDocuments", "saved", "sensitiveContextIncluded", "template", "validation",
+      "diff", "guidance", "notes", "ok", "referenceDocuments", "saved", "template", "validation",
     ]);
     expect(written.template).toBe("template:backend-api");
     expect(written.guidance).toBe("Add reviews");
     expect(written.notes).toEqual(["Added a code review task."]);
-    expect(written.groundingStoryIds).toEqual([]);
-    expect(written.sensitiveContextIncluded).toBe(false);
     expect(written.validation.valid).toBe(true);
   });
 
@@ -310,35 +295,12 @@ describe("atomize template improve", () => {
   });
 
   describe("grounding", () => {
-    test("--from-stories learns from exactly those Stories and brings Project Grounding with it", async () => {
+    test("--ground brings Project Grounding from the chosen profile", async () => {
       const { lib } = library();
       const { connect, connects } = project();
-      const { report, prompts } = await run({ dryRun: true, fromStories: "42", profile: "work" }, { lib, connect });
-
+      const { prompts } = await run({ dryRun: true, ground: true, profile: "work" }, { lib, connect });
       expect(connects).toEqual(["work"]);
-      expect(prompts[0]).toContain("Stories this template was applied to");
-      expect(prompts[0]).toContain("Security review");
       expect(prompts[0]).toContain("PROJECT-TYPE-MARKER");
-      expect(report.groundingStoryIds).toEqual(["42"]);
-      expect(report.sensitiveContextIncluded).toBe(false);
-    });
-
-    test("leaves out descriptions unless --include-sensitive-ai-context is passed", async () => {
-      const { lib } = library();
-      const without = await run({ dryRun: true, fromStories: "42" }, { lib, connect: project().connect });
-      expect(without.prompts[0]).not.toContain("Customer Acme");
-
-      const withSensitive = await run({ dryRun: true, fromStories: "42", includeSensitiveAiContext: true }, { lib, connect: project().connect });
-      expect(withSensitive.prompts[0]).toContain("Customer Acme login");
-      expect(withSensitive.report.sensitiveContextIncluded).toBe(true);
-    });
-
-    test("--ground alone brings Project Grounding without Stories", async () => {
-      const { lib } = library();
-      const { report, prompts } = await run({ dryRun: true, ground: true }, { lib, connect: project().connect });
-      expect(prompts[0]).toContain("PROJECT-TYPE-MARKER");
-      expect(prompts[0]).not.toContain("Stories this template was applied to");
-      expect(report.groundingStoryIds).toEqual([]);
     });
 
     test("an ungrounded run never connects to the platform", async () => {
@@ -350,24 +312,17 @@ describe("atomize template improve", () => {
 
     test("a non-interactive grounding failure stops with an error and saves nothing", async () => {
       const { lib, saved } = library();
-      await expect(run({ overwrite: true, fromStories: "42" }, { lib, connect: project({ failConnect: true }).connect }))
-        .rejects.toThrow("--from-stories");
+      await expect(run({ overwrite: true, ground: true }, { lib, connect: project({ failConnect: true }).connect }))
+        .rejects.toThrow("--ground");
       expect(saved).toEqual([]);
       expect(await readFile(sourcePath, "utf8")).toBe(SOURCE);
     });
 
-    test("names Stories that can't be used instead of skipping them", async () => {
+    test("an interactive run asks only whether to ground in the project", async () => {
       const { lib } = library();
-      await expect(run({ dryRun: true, fromStories: "42,7" }, { lib, connect: project().connect })).rejects.toThrow("Story 7 has no Tasks");
-    });
-
-    test("an interactive run can pick Stories from the Story Browser and choose Sensitive AI Context", async () => {
-      const { lib } = library();
-      answers = ["", "pick", true, "done"];
-      const { report, prompts } = await run({ dryRun: true }, { lib, interactive: true, connect: project().connect, picked: ["42"] });
-      expect(report.groundingStoryIds).toEqual(["42"]);
-      expect(report.sensitiveContextIncluded).toBe(true);
-      expect(prompts[0]).toContain("Customer Acme login");
+      answers = ["", "project", "done"];
+      const { prompts } = await run({ dryRun: true }, { lib, interactive: true, connect: project().connect });
+      expect(prompts[0]).toContain("PROJECT-TYPE-MARKER");
     });
 
     test("an interactive grounding failure can continue without grounding, by choice", async () => {

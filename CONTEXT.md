@@ -84,13 +84,10 @@ An ephemeral, tool-free AI session on the user's own signed-in GitHub Copilot ac
 _Avoid_: calling this a Connection Profile or a GitHub Models profile.
 
 **Grounding**:
-Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes three forms — Project Grounding, Story Grounding, and Document Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
+Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms — Project Grounding and Document Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
 
 **Project Grounding**:
 Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. Always included when the user chooses a Connection Profile for a draft or an improvement.
-
-**Story Grounding**:
-Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to show how the team actually breaks work down. Optional evidence on top of Project Grounding for a Template Improvement only: Stories the Template was applied to. A draft never carries it. Atomize never picks the Stories itself. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
 
 **Reference Document**:
 A user-selected written account of how a team breaks down and estimates work — an Azure DevOps wiki page read through a Connection Profile, or a local Markdown or text file. Sent to a Copilot Session as reference material, never as instructions.
@@ -110,9 +107,6 @@ _Avoid_: asking users to type Story IDs blind where a Story Browser can be offer
 **Story Search**:
 A Template-independent query for Stories: free text matched against a Story's ID or title, narrowed by Work Item type, state, area path, and iteration. A Story Search is never part of a Template and is distinct from a Template's filter.
 _Avoid_: calling it a filter; "filter" refers to the Template's own selection criteria.
-
-**Sensitive AI Context**:
-Free-text Story and Task content — descriptions and acceptance criteria — that may carry customer, personal, or internal detail. Never sent to a Copilot Session by default; including it is a per-run opt-in, never a persisted preference.
 
 **Grounded Draft**:
 An AI draft or improvement produced with Grounding.

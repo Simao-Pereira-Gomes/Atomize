@@ -44,8 +44,6 @@ export interface ImproveDeps {
   openSession: () => Promise<AITemplateSession>;
   /** Opens an authenticated adapter for a Connection Profile, for grounding. */
   connect: ImproveGroundingDeps["connect"];
-  /** Lets the user pick Stories to learn from; defaults to the CLI Story Browser. */
-  browseStories?: ImproveGroundingDeps["browse"];
   interactive: boolean;
   /** Where relative paths start from; defaults to the current directory. */
   cwd?: string;
@@ -59,8 +57,6 @@ export interface ImproveReport {
   validation: { valid: boolean; errors: string[]; warnings: string[] };
   notes: string[];
   guidance: string | null;
-  groundingStoryIds: string[];
-  sensitiveContextIncluded: boolean;
   /** Reference Documents sent, and whether each was shortened to fit. */
   referenceDocuments: { ref: string; title: string; truncated: boolean; originalLength: number; sentLength: number }[];
   saved: { action: "overwrite" | "save-as" | "draft"; path: string } | null;
@@ -80,9 +76,7 @@ export const templateImproveCommand = new Command("improve")
   .argument("<template>", "Template ref (template:<name>) or path to a YAML file")
   .option("--guidance <text>", "What the improvement should focus on, e.g. \"tighten the estimates\"")
   .option("--ground", "Ground the improvement in your Azure DevOps project's types, fields, and saved queries")
-  .option("--from-stories <ids>", "Learn from these Stories the Template was applied to (comma-separated IDs); implies --ground")
   .option("--profile <name>", "Connection Profile for grounding (uses the default profile if omitted)")
-  .option("--include-sensitive-ai-context", "Also send the Stories' descriptions and acceptance criteria to Copilot")
   .option("--reference <path>", "Send this Markdown or text file in the workspace as a Reference Document (repeatable)", collect)
   .option("--no-project-references", "Leave out the Project Reference Documents saved in .atomize/ai.yaml")
   .option("--save-as <name>", "Save the improvement as a new Template instead of changing the source")
@@ -143,11 +137,7 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
   const label = catalogRef ?? sourcePath;
 
   const guidance = options.guidance?.trim() || (interactive ? await askGuidance() : "") || null;
-  const grounding = await resolveImproveGrounding(options, loaded.template.filter, {
-    connect: deps.connect,
-    interactive,
-    ...(deps.browseStories ? { browse: deps.browseStories } : {}),
-  });
+  const grounding = await resolveImproveGrounding(options, { connect: deps.connect, interactive });
   const documentGrounding = await resolveReferenceDocuments(options, { interactive, connect: deps.connect, ...(deps.cwd ? { cwd: deps.cwd } : {}) });
 
   while (true) {
@@ -159,8 +149,6 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
       validation: { valid: result.ok, errors: result.ok ? [] : result.errors, warnings: [] },
       notes,
       guidance,
-      groundingStoryIds: grounding.storyIds,
-      sensitiveContextIncluded: grounding.sensitiveContextIncluded,
       referenceDocuments: (documentGrounding?.documents ?? []).map(({ ref, title, truncated, originalLength, text }) => ({
         ref, title, truncated, originalLength, sentLength: text.length,
       })),
@@ -216,7 +204,6 @@ async function propose(
       resolvedTemplate: resolved,
       guidance,
       projectGrounding: grounding.projectGrounding,
-      storyGrounding: grounding.storyGrounding,
       documentGrounding: grounding.documentGrounding,
       compose: (proposal) => deps.library.composeTemplate(proposal, sourcePath),
     }, {

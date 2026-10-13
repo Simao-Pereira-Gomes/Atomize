@@ -7,8 +7,6 @@ import {
 	type StorySummary,
 	searchStories,
 } from '@sppg2001/atomize-core/services/story-search';
-import { listAppliedStories } from '@sppg2001/atomize-core/services/template/story-grounding';
-import type { FilterCriteria as TemplateFilter } from '@sppg2001/atomize-core/templates/schema';
 import * as vscode from 'vscode';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { createTemplateLibrary } from '../core-library.js';
@@ -36,19 +34,14 @@ export interface StoryBrowserOptions {
 	adapter: IPlatformAdapter;
 	/**
 	 * The view the browser opens on, with Search one button away: `sprint` lists Stories of these
-	 * types in the current or next sprint with no Tasks yet and not closed; `applied` lists Stories
-	 * the Template's filter matches that already have Tasks. Omit to open straight in Search.
+	 * types in the current or next sprint with no Tasks yet and not closed. Omit to open straight in Search.
 	 */
 	defaultView?: DefaultView;
 	canPickMany: boolean;
 	placeholder: string;
-	/** Whether Search starts with "Has Tasks" on (true for AI grounding, false for generation). */
-	hasTasksByDefault?: boolean;
 }
 
-export type DefaultView =
-	| { kind: 'sprint'; workItemTypes?: string[] }
-	| { kind: 'applied'; templateFilter: TemplateFilter };
+export type DefaultView = { kind: 'sprint'; workItemTypes?: string[] };
 
 type StoryItem = vscode.QuickPickItem & { story: StorySummary };
 type Action = 'switchMode' | 'enterIds' | 'type' | 'state' | 'area' | 'iteration' | 'hasTasks';
@@ -66,7 +59,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 export async function browseStories(options: StoryBrowserOptions): Promise<string[] | undefined> {
 	const state = {
 		mode: (options.defaultView?.kind ?? 'search') as StoryBrowserModeKind,
-		filters: emptyFilters(options.hasTasksByDefault ?? false),
+		filters: emptyFilters(false),
 		selected: new Map<string, StorySummary>(),
 		limit: STORY_SEARCH_LIMIT,
 	};
@@ -124,8 +117,6 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				applyingItems = false;
 			};
 
-			// The applied view already lists every Story the Template matched, so only Search and the sprint view page.
-			const pages = state.mode !== 'applied';
 			const load = async (more = false) => {
 				const generation = ++loadGeneration;
 				const shownBefore = picker.items.length;
@@ -138,9 +129,7 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 					const view = options.defaultView;
 					const stories = state.mode === 'search' || !view
 						? await searchStories(options.adapter, { ...toStorySearch(state.filters), limit: state.limit })
-						: view.kind === 'sprint'
-							? await listSprintStories(options.adapter, { workItemTypes: view.workItemTypes, limit: state.limit })
-							: await listAppliedStories(options.adapter, view.templateFilter);
+						: await listSprintStories(options.adapter, { workItemTypes: view.workItemTypes, limit: state.limit });
 					loaded = stories.length;
 					if (generation === loadGeneration && !settled) showStories(stories, more ? shownBefore : undefined);
 				} catch (error) {
@@ -151,8 +140,8 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				} finally {
 					if (generation === loadGeneration) {
 						picker.busy = false;
-						picker.title = pages ? `${title}${listStatus(loaded, state.limit, STORY_SEARCH_MAX)}` : title;
-						if (pages && canLoadMore(loaded, state.limit, STORY_SEARCH_MAX)) {
+						picker.title = `${title}${listStatus(loaded, state.limit, STORY_SEARCH_MAX)}`;
+						if (canLoadMore(loaded, state.limit, STORY_SEARCH_MAX)) {
 							picker.buttons = [loadMoreButton(loaded), ...baseButtons];
 						}
 					}
@@ -323,7 +312,7 @@ function buttonsFor(mode: StoryBrowserModeKind, filters: StoryBrowserFilters, de
 		buttons.push({
 			action: 'switchMode',
 			iconPath: new vscode.ThemeIcon(mode !== 'search' ? 'search' : 'history'),
-			tooltip: switchModeTooltip(mode, defaultView.kind),
+			tooltip: switchModeTooltip(mode),
 		});
 	}
 	buttons.push({ action: 'enterIds', iconPath: new vscode.ThemeIcon('edit'), tooltip: 'Enter Story IDs: type IDs directly instead of picking from the list' });

@@ -3,9 +3,7 @@ import { buildStorySearchWiql } from "@sppg2001/atomize-core/platforms/adapters/
 import { AzureDevOpsWorkItemRetrieval } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/work-item-retrieval";
 import { MockPlatformAdapter } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import {
-  listAllStories,
   listSprintStories,
-  STORY_LIST_MAX,
   STORY_SEARCH_LIMIT,
   STORY_SEARCH_MAX,
   searchStories,
@@ -107,19 +105,6 @@ describe("searchStories", () => {
   test("caps the results", async () => {
     expect(await searchStories(adapter, { limit: 2 })).toHaveLength(2);
     expect(STORY_SEARCH_LIMIT).toBe(100);
-  });
-
-  test("lists every matching Story up to the list ceiling, past Story Search's maximum", async () => {
-    let asked = 0;
-    const platform = Object.assign(Object.create(adapter), {
-      searchStories: async (search: { limit: number }) => {
-        asked = search.limit;
-        return adapter.searchStories(search as never);
-      },
-    });
-    expect(await listAllStories(platform, { hasTasks: true })).toHaveLength(1);
-    expect(asked).toBe(STORY_LIST_MAX);
-    expect(STORY_LIST_MAX).toBeGreaterThan(STORY_SEARCH_MAX);
   });
 });
 

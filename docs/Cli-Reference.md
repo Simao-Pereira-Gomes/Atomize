@@ -541,9 +541,7 @@ atomize template improve <template> [options]
 |--------|------|-------------|
 | `--guidance <text>` | string | What the improvement should focus on, such as "tighten the estimates" or "add security reviews". Interactive runs ask for it when you leave it out; press Enter for a general review |
 | `--ground` | flag | Ground the improvement in your Azure DevOps project's work item types, fields and allowed values, saved queries, and paths |
-| `--from-stories <ids>` | string | Learn from these Stories the Template was applied to (comma-separated IDs). Implies `--ground` |
 | `--profile <name>` | string | Connection Profile used for grounding (the default profile if omitted) |
-| `--include-sensitive-ai-context` | flag | Also send the Stories' descriptions and acceptance criteria to Copilot, for this run only |
 | `--reference <path>` | string | Send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | Leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Save the improvement as a new Template, leaving the source untouched |
@@ -556,16 +554,9 @@ atomize template improve <template> [options]
 
 **What Copilot can change.** Copilot looks for clearer Task titles and descriptions, estimation percentages that fit the work, missing test, review or documentation Tasks, and useful conditions, filters, custom fields and dependencies. It works through the same tool-free Copilot Session as `template create --ai` (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)).
 
-**Grounding.** Without grounding, Copilot reviews the Template on its own. Two kinds of grounding make the proposal fit your project:
+**Grounding.** Without grounding, Copilot reviews the Template on its own. With `--ground`, it also gets your project's work item types, states, field reference names and allowed values, saved queries, and area and iteration paths, and uses only these names when it proposes conditions, custom fields or queries. In an interactive run without `--ground`, Atomize asks whether to ground the improvement. The profile's token is used only to read from Azure DevOps and is never sent to Copilot. To tell Copilot where the Template doesn't fit how your team works, say so in `--guidance` (for example "we always end up adding a security review") or give it your written process as a [Reference Document](./Template-Creation.md#reference-documents).
 
-- **Project metadata** (`--ground`): your project's work item types, states, field reference names and allowed values, saved queries, and area and iteration paths. Copilot uses only these names when it proposes conditions, custom fields or queries.
-- **Stories the Template was applied to** (`--from-stories`): each Story with the Tasks it ended up with. Tasks people added, removed, renamed or re-estimated show Copilot where the Template doesn't fit how your team works. Learning from Stories always brings project metadata too.
-
-In an interactive run without these flags, Atomize asks whether to learn from Stories this Template was applied to, enter Story IDs, use project metadata only, or skip grounding. Learning from Stories opens a picker listing the newest Stories the Template's filter matches that already have Tasks (up to 30). The Template's `excludeIfHasTasks` is ignored here, since it would hide exactly these Stories. Type an ID or part of a title to filter, and pick several. To find other Stories, choose **Search all Stories instead…** and narrow by area path and iteration.
-
-By default only titles, states, estimates and Task activity are sent. Story and Task descriptions and acceptance criteria can contain customer, personal or internal details, so they're sent only when you pass `--include-sensitive-ai-context` or say yes when asked. That choice applies to one run and is never saved. The profile's token is used only to read from Azure DevOps and is never sent to Copilot.
-
-If grounding you asked for can't be loaded (for example, a Story has no Tasks or the token has expired), an interactive run lets you retry, continue without grounding, or cancel. A non-interactive run stops with an error rather than improving without it.
+If grounding you asked for can't be loaded (for example, the token has expired), an interactive run lets you retry, continue without grounding, or cancel. A non-interactive run stops with an error rather than improving without it.
 
 **Inherited Templates stay intact.** For a Template that uses `extends` or Mixins, Copilot sees the composed Template so it doesn't suggest Tasks the parent already has. The proposal never changes `extends`, `mixins` or `origin`, and never copies inherited Tasks into the Template. Where an inherited Task deserves a change, Copilot says so in its notes instead, so you can change the parent or Mixin yourself. The proposal is validated composed with its parent, exactly as it will run.
 
@@ -589,8 +580,6 @@ If the proposal still fails validation after Copilot's repair attempts (or has w
 | `validation` | `valid`, `errors`, and `warnings` |
 | `notes` | Copilot's notes on what it changed and why |
 | `guidance` | The guidance used, or `null` |
-| `groundingStoryIds` | The Stories the improvement learned from |
-| `sensitiveContextIncluded` | Whether Story descriptions or acceptance criteria were sent |
 | `referenceDocuments` | Each Reference Document sent (`ref`, `title`), and whether it was shortened to fit (`truncated`, `originalLength`, `sentLength`) |
 | `saved` | What was saved (`overwrite`, `save-as`, or `draft`) and where, or `null` |
 
@@ -603,8 +592,8 @@ atomize template improve template:backend-api
 # Focus the improvement, and save it as a new Template
 atomize template improve template:backend-api --guidance "add security reviews" --save-as backend-api-secure
 
-# Learn from Stories the Template was applied to
-atomize template improve template:backend-api --from-stories 1234,1240 --profile work-ado
+# Ground the improvement in your project and your written process
+atomize template improve template:backend-api --ground --reference docs/how-we-work.md --profile work-ado
 
 # Gate an improvement in CI without saving
 atomize template improve ./templates/backend.atomize.yaml --dry-run --strict --output improve-report.json

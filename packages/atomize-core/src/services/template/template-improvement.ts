@@ -3,7 +3,6 @@ import type { TaskDefinition, TaskTemplate } from "../../templates/schema";
 import { buildProjectGroundingSection, buildReferenceDocumentsSection } from "./llm-template-generator";
 import { type ProjectGrounding, projectGroundingForPrompt } from "./project-grounding";
 import type { DocumentGrounding } from "./reference-documents";
-import { type StoryGrounding, storyGroundingForPrompt } from "./story-grounding";
 
 /** The top-level key a Template Improvement's notes travel under in the model's YAML. */
 export const IMPROVEMENT_NOTES_KEY = "improvementNotes";
@@ -18,8 +17,6 @@ export interface ImproveRequest {
   /** Optional prose steering the improvement, e.g. "focus on estimates". */
   guidance?: string | null;
   projectGrounding?: ProjectGrounding | null;
-  /** Stories the Template was applied to and the Tasks they ended up with. */
-  storyGrounding?: StoryGrounding | null;
   /** The team's Reference Documents, fitted to the limit. */
   documentGrounding?: DocumentGrounding | null;
   /** Composes a proposal with its parent and Mixins so it's validated as it will run; omit for a plain Template. */
@@ -34,7 +31,7 @@ export function buildImprovePrompt(request: ImproveRequest, prevErrors?: string[
   const sections = [
     "Improve this existing Atomize task template. Return the complete revised template as YAML, following every rule above.",
     "Look for clearer task titles and descriptions, estimation percentages that fit the work, missing test, review, or documentation tasks, and useful conditions, filters, custom fields, dependencies, and acceptance criteria. Keep what already works: don't change things just to change them.",
-    "Keep the template's allocation: when its estimationPercent values, or the Stories or reference documents, add up to more than 100, that's intended, so don't scale them down to 100 unless the user's focus explicitly asks for the percentages to add up to 100 or to be normalized.",
+    "Keep the template's allocation: when its estimationPercent values, or the reference documents, add up to more than 100, that's intended, so don't scale them down to 100 unless the user's focus explicitly asks for the percentages to add up to 100 or to be normalized.",
   ];
 
   const guidance = request.guidance?.trim();
@@ -46,13 +43,6 @@ export function buildImprovePrompt(request: ImproveRequest, prevErrors?: string[
     sections.push(
       `This template inherits from a parent Template or Mixins (extends/mixins). Its fully composed form is below, for context only:\n${stringify(request.resolvedTemplate)}\n` +
         "Tasks that appear only in the composed form are inherited. Never copy them into the template's own tasks, and never change extends, mixins, or origin. If an inherited task deserves a change, say so in improvementNotes instead.",
-    );
-  }
-
-  if (request.storyGrounding?.stories.length) {
-    sections.push(
-      `Stories this template was applied to, with the Tasks each one ended up with (JSON):\n${storyGroundingForPrompt(request.storyGrounding).text}\n` +
-        "Compare them with the template. Tasks people added, removed, renamed, split, or re-estimated show where the template doesn't fit how this team works; let that evidence drive your changes. Don't copy Story-specific details into the template.",
     );
   }
 

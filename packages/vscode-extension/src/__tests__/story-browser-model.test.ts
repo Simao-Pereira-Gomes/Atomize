@@ -32,7 +32,6 @@ describe('story browser model', () => {
 
 	it('names the mode in the title and lists every Search filter in effect', () => {
 		expect(browserTitle('Atomize: Generate', 'sprint', emptyFilters(false))).toBe('Atomize: Generate · Current and next sprint, no Tasks yet');
-		expect(browserTitle('Atomize: Improve', 'applied', emptyFilters(true))).toBe('Atomize: Improve · Stories this Template was applied to');
 		expect(browserTitle('Atomize: Generate', 'search', emptyFilters(false))).toBe('Atomize: Generate · Search');
 		expect(browserTitle('Atomize: Generate', 'search', {
 			...emptyFilters(true), workItemTypes: ['Bug'], states: ['Active'], areaPaths: ['P\\Team A'], iterations: ['P\\Sprint 3'],
@@ -71,8 +70,7 @@ describe('story browser model', () => {
 	});
 
 	it('says where the mode button goes and that Search filters only apply in Search', () => {
-		expect(switchModeTooltip('sprint', 'sprint')).toStartWith('Search all Stories');
-		expect(switchModeTooltip('search', 'sprint')).toBe('Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied');
-		expect(switchModeTooltip('search', 'applied')).toBe('Back to Stories this Template was applied to. Your Search filters are kept but not applied');
+		expect(switchModeTooltip('sprint')).toStartWith('Search all Stories');
+		expect(switchModeTooltip('search')).toBe('Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied');
 	});
 });

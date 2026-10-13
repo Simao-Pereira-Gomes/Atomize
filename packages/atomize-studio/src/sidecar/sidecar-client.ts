@@ -111,24 +111,12 @@ export async function listWikiPages(profile: string, wiki: string, call: Sidecar
   catch (error) { throw sidecarError(error); }
 }
 
-/** Runs a Story Search for the Story Browser's Search mode; Rust injects the profile's token. */
-export async function searchStories(profile: string, search: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
-  try { return await call("stories_search", { profile, search }); }
-  catch (error) { throw sidecarError(error); }
-}
-
-/** Loads Story Grounding for chosen Stories; descriptions and acceptance criteria only when opted in. */
-export async function loadStoryGrounding(profile: string, storyIds: string[], includeSensitive: boolean, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
-  try { return await call("story_grounding_load", { profile, storyIds, includeSensitive }); }
-  catch (error) { throw sidecarError(error); }
-}
-
 /** Asks Copilot for a Template Improvement of the open Template; progress and cancellation share the AI draft channel. */
 export async function improveTemplateWithAI(
   draftId: string,
   template: unknown,
   guidance?: string,
-  grounding?: { project?: unknown; stories?: unknown; documents?: unknown },
+  grounding?: { project?: unknown; documents?: unknown },
   call: SidecarInvoker = tauriInvoke,
 ): Promise<unknown> {
   try {
@@ -137,15 +125,9 @@ export async function improveTemplateWithAI(
       template,
       guidance: guidance?.trim() || null,
       grounding: grounding?.project ?? null,
-      storyGrounding: grounding?.stories ?? null,
       documentGrounding: grounding?.documents ?? null,
     });
   } catch (error) { throw sidecarError(error); }
-}
-
-export async function listAppliedStories(profile: string, templateFilter: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
-  try { return await call("stories_applied", { profile, templateFilter }); }
-  catch (error) { throw sidecarError(error); }
 }
 
 export async function cancelAIDraft(draftId: string, call: SidecarInvoker = tauriInvoke): Promise<void> {

@@ -3,17 +3,12 @@ import { type Accessor, createSignal } from "solid-js";
 import { SidecarRequestError } from "../sidecar/sidecar-client";
 import { toAIDraftTemplate } from "../starting-paths/ai-draft";
 import { createAIDraftLifecycle } from "../starting-paths/ai-draft-lifecycle";
-import type { StoryRow } from "../stories/story-browser-model";
 
 /** What the user chose for an improvement: guidance, and its Grounding (ADR-0069). */
 export type ImproveChoices = {
   guidance: string;
   /** The Work Project to ground in; empty for no grounding. */
   profile: string;
-  /** Stories the Template was applied to, to learn from; none keeps it to project metadata. */
-  stories: StoryRow[];
-  /** Sensitive AI Context, for this improvement only. */
-  includeSensitive: boolean;
 };
 
 /** Where an "Improve with AI" request stands, from asking for guidance to reviewing the proposal. */
@@ -33,7 +28,7 @@ export interface ImproveProposal {
   problems: string[];
 }
 
-export type ImproveGrounding = { project?: unknown; stories?: unknown };
+export type ImproveGrounding = { project?: unknown };
 
 export interface ImproveSessionDeps {
   /** The Template currently in the Authoring Store, the baseline the proposal is compared with; throws while it's incomplete. */
@@ -42,7 +37,7 @@ export interface ImproveSessionDeps {
   apply: (template: TaskTemplate) => void;
   improve: (draftId: string, template: TaskTemplate, guidance: string, grounding?: ImproveGrounding) => Promise<unknown>;
   cancel: (draftId: string) => Promise<void>;
-  /** Loads the chosen Work Project's metadata and, when Stories were chosen, their Story Grounding. */
+  /** Loads the chosen Work Project's metadata. */
   loadGrounding?: (choices: ImproveChoices) => Promise<ImproveGrounding>;
   /** Subscribes to streamed progress; resolves to an unsubscribe function. */
   listenProgress?: (onProgress: (progress: { draftId: string; length: number }) => void) => Promise<() => void>;
@@ -71,7 +66,7 @@ export function createImproveSession(deps: ImproveSessionDeps) {
   const choices = (): ImproveChoices => {
     const current = state();
     return current.phase === "closed"
-      ? { guidance: "", profile: deps.defaultProfile?.() ?? "", stories: [], includeSensitive: false }
+      ? { guidance: "", profile: deps.defaultProfile?.() ?? "" }
       : current.choices;
   };
   const updateForm = (change: Partial<ImproveChoices>) => {
@@ -143,10 +138,7 @@ export function createImproveSession(deps: ImproveSessionDeps) {
     open: () => setState({ phase: "form", choices: choices() }),
     close: () => setState({ phase: "closed" }),
     setGuidance: (guidance: string) => updateForm({ guidance }),
-    /** Choosing another Work Project clears the Stories chosen from the previous one. */
-    setProfile: (profile: string) => updateForm({ profile, stories: [], includeSensitive: false }),
-    setStories: (stories: StoryRow[]) => updateForm({ stories, ...(stories.length === 0 ? { includeSensitive: false } : {}) }),
-    setIncludeSensitive: (includeSensitive: boolean) => updateForm({ includeSensitive }),
+    setProfile: (profile: string) => updateForm({ profile }),
     start,
     cancel,
     accept: () => {

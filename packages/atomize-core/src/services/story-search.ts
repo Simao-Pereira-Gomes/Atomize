@@ -8,11 +8,6 @@ import { ConfigurationError } from "../utils/errors";
 export const STORY_SEARCH_LIMIT = 100;
 /** The most Stories a Story Browser will list, however many times "Load more" is used. */
 export const STORY_SEARCH_MAX = 500;
-/**
- * The most Stories a list the user narrows by typing retrieves in one go, fetched page by page the
- * way a wiki's page list is — a ceiling for very large projects, not a page size.
- */
-export const STORY_LIST_MAX = 1000;
 
 /** What a Story Browser shows for each Story. */
 export interface StorySummary {
@@ -31,15 +26,6 @@ export async function searchStories(
   platform: IPlatformAdapter,
   search: Omit<StorySearch, "limit"> & { limit?: number },
 ): Promise<StorySummary[]> {
-  return runStorySearch(platform, search, Math.min(search.limit ?? STORY_SEARCH_LIMIT, STORY_SEARCH_MAX));
-}
-
-/** Every Story a search matches, newest first, up to STORY_LIST_MAX: for lists narrowed by typing, not paged. */
-export async function listAllStories(platform: IPlatformAdapter, search: Omit<StorySearch, "limit">): Promise<StorySummary[]> {
-  return runStorySearch(platform, search, STORY_LIST_MAX);
-}
-
-async function runStorySearch(platform: IPlatformAdapter, search: Omit<StorySearch, "limit">, limit: number): Promise<StorySummary[]> {
   if (!hasStorySearch(platform)) {
     throw new ConfigurationError("The selected platform cannot search Stories.");
   }
@@ -50,7 +36,7 @@ async function runStorySearch(platform: IPlatformAdapter, search: Omit<StorySear
   const stories = await platform.searchStories({
     ...search,
     excludeWorkItemTypes,
-    limit,
+    limit: Math.min(search.limit ?? STORY_SEARCH_LIMIT, STORY_SEARCH_MAX),
   });
   return stories.map(toStorySummary);
 }
