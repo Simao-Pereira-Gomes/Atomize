@@ -3,7 +3,7 @@
     "prefix": "atm-template",
     "body": [
       "# atomize-yaml",
-      "version: \"${1:1.0}\"",
+      "formatVersion: \"${1:1.0}\"",
       "name: \"${2:My Template}\"",
       "description: \"${3:What this template does.}\"",
       "",
@@ -202,17 +202,6 @@
       "  Custom.ReleaseVersion: \"{{ story.customFields['${2:Custom.ReleaseVersion}'] }}\""
     ],
     "description": "Task custom fields keyed by Azure DevOps reference name, including parent story custom-field interpolation."
-  },
-
-  "Atomize Acceptance Criteria": {
-    "prefix": "atm-acceptance-criteria",
-    "body": [
-      "acceptanceCriteria:",
-      "  - \"${1:First expected outcome}\"",
-      "  - \"${2:Second expected outcome}\"",
-      "acceptanceCriteriaAsChecklist: ${3|true,false|}"
-    ],
-    "description": "Task acceptance criteria with optional checklist rendering."
   },
 
   "Atomize Condition": {

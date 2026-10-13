@@ -59,7 +59,7 @@ Atomize YAML authoring includes:
 | `atm-estimation-percent-condition` | A conditional `estimationPercent` rule |
 | `atm-condition`, `atm-condition-field`, `atm-condition-number`, `atm-condition-custom` | Condition clauses on tags, built-in text fields, numbers (`estimation`, `priority`) or custom fields, each offering only the operators its field supports |
 | `atm-condition-all`, `atm-condition-any` | Compound AND / OR conditions |
-| `atm-validation`, `atm-custom-fields`, `atm-acceptance-criteria` | Validation rules, task custom fields, acceptance criteria |
+| `atm-validation`, `atm-custom-fields` | Validation rules and task custom fields |
 
 ### Quick Fixes
 
