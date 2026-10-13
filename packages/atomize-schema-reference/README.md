@@ -21,3 +21,16 @@ their ancestors. Clearing the search restores the previous expansion state.
 Hosts can set `data-theme="light"` or `data-theme="dark"` on the document root or
 viewer element; otherwise the stylesheet follows the system preference. The
 optional `notice` prop is for host-specific context such as development versions.
+
+Every field offers a copy-link action. Links use URL fragments such as
+`#template.tasks[].condition` and `#mixin.tasks[].id`; opening a link switches tabs,
+clears any search that could hide the target, expands its ancestors, and highlights
+the field. Fragment changes and browser Back/Forward navigate the same way.
+If clipboard access is unavailable, the action provides a selectable URL instead.
+
+The package root exports `buildPermalink(tab, path)`, `parsePermalink(fragment)`,
+and `normalizeDocumentPath(trees, documentPath, tab?)` for host integrations.
+Normalization converts concrete indices to `[]`, resolves dictionary entries to
+`*`, and falls back to the nearest existing ancestor. It defaults to Template for
+shared task fields; an explicit Mixin tab is preserved. Union alternatives share
+their owning field's permalink; shared child paths land on the first definition.

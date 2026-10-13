@@ -75,6 +75,11 @@
 .schema-reference-fields > article > header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
 .schema-reference .schema-reference-field-name { font-size: 14px; font-weight: 600; }
 .schema-reference-type { color: var(--sr-accent); font: 12px ui-monospace, monospace; }
+.schema-reference-link-control { display: inline-flex; gap: 8px; align-items: center; max-width: 100%; }
+.schema-reference-copy-link { border: 0; border-radius: 4px; background: transparent; color: var(--sr-muted); padding: 2px 6px; font-size: 12px; }
+.schema-reference-copy-link:hover { background: var(--sr-tint); color: var(--sr-accent); }
+.schema-reference-link-control input { min-width: 0; max-width: 100%; width: 220px; background: var(--sr-surface); color: var(--sr-text); border: 1px solid var(--sr-border); border-radius: 4px; padding: 4px; font: 11px ui-monospace, monospace; }
+.schema-reference-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .schema-reference-requirement { color: var(--sr-muted); font-size: 11px; margin-left: auto; }
 .schema-reference-requirement[data-kind=required] { color: var(--sr-required); }
 .schema-reference-requirement[data-kind=unless-extends] { color: var(--sr-accent); }

@@ -1,3 +1,5 @@
+import { buildPermalink } from "./permalinks";
+
 /** The JSON Schema subset consumed by the reference; extension keywords are optional. */
 export interface JsonSchema {
 	[keyword: string]: unknown;
@@ -153,7 +155,7 @@ export function buildSchemaTrees(schema: JsonSchema): SchemaTrees {
 		return {
 			name,
 			path,
-			permalink: `${tab}.${path}`,
+			permalink: buildPermalink(tab, path),
 			type: Array.isArray(types) ? [...new Set(types)].join(" | ") : types,
 			requirement,
 			...(Object.hasOwn(value, "default") ? { default: value.default } : {}),

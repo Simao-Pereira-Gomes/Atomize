@@ -1,4 +1,16 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import {
+	createMemo,
+	createSignal,
+	For,
+	onCleanup,
+	onMount,
+	Show,
+} from "solid-js";
+import {
+	buildPermalink,
+	normalizeDocumentPath,
+	parsePermalink,
+} from "./permalinks";
 import { searchSchemaTree } from "./search";
 import type { SchemaNode, SchemaTab, SchemaTrees } from "./tree";
 
@@ -66,6 +78,69 @@ function FieldFacts(props: { node: SchemaNode }) {
 	);
 }
 
+function CopyFieldLink(props: { node: SchemaNode }) {
+	const [copied, setCopied] = createSignal(false);
+	const [manualLink, setManualLink] = createSignal("");
+	let reset: ReturnType<typeof setTimeout> | undefined;
+	let disposed = false;
+	onCleanup(() => {
+		disposed = true;
+		clearTimeout(reset);
+	});
+	async function copy(event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		const url = new URL(window.location.href);
+		url.hash = props.node.permalink;
+		setCopied(false);
+		clearTimeout(reset);
+		try {
+			await navigator.clipboard.writeText(url.href);
+			if (disposed) return;
+			setCopied(true);
+			setManualLink("");
+			clearTimeout(reset);
+			reset = setTimeout(() => setCopied(false), 1800);
+		} catch {
+			if (!disposed) setManualLink(url.href);
+		}
+	}
+	return (
+		<span class="schema-reference-link-control">
+			<button
+				type="button"
+				class="schema-reference-copy-link"
+				aria-label={`Copy link to ${props.node.path}`}
+				title="Copy field link"
+				onClick={copy}
+			>
+				{copied() ? "Copied" : "#"}
+			</button>
+			<span class="schema-reference-sr-only" role="status">
+				{copied() ? `Link to ${props.node.path} copied` : ""}
+			</span>
+			<Show when={manualLink()}>
+				<input
+					type="text"
+					readOnly
+					value={manualLink()}
+					aria-label={`Permalink to ${props.node.path}`}
+					onClick={(event) => {
+						event.stopPropagation();
+						event.currentTarget.select();
+					}}
+					ref={(element) =>
+						queueMicrotask(() => {
+							element.focus();
+							element.select();
+						})
+					}
+				/>
+			</Show>
+		</span>
+	);
+}
+
 function FieldHeading(props: { node: SchemaNode }) {
 	return (
 		<>
@@ -80,6 +155,7 @@ function FieldHeading(props: { node: SchemaNode }) {
 			<Show when={props.node.deprecated}>
 				<span class="schema-reference-deprecated">Deprecated</span>
 			</Show>
+			<CopyFieldLink node={props.node} />
 		</>
 	);
 }
@@ -102,6 +178,7 @@ function NestedFields(props: FieldListProps) {
 						return (
 							<li>
 								<details
+									data-permalink={node.permalink}
 									open={props.searching}
 									ref={(element) => props.register(key(), element)}
 									classList={{
@@ -246,10 +323,33 @@ export function SchemaReference(props: SchemaReferenceProps) {
 			});
 	}
 
-	function navigate(key: string) {
+	function navigate(key: string, updateFragment = true) {
 		const target = fieldElements.get(key);
-		if (!target) return;
+		if (!target?.isConnected) return;
 		setActive(key);
+		const current = parsePermalink(window.location.hash);
+		const currentLink = current
+			? buildPermalink(current.tab, current.path)
+			: undefined;
+		if (
+			updateFragment &&
+			target.dataset.permalink &&
+			currentLink !== target.dataset.permalink
+		) {
+			const url = new URL(window.location.href);
+			url.hash = target.dataset.permalink;
+			window.history.pushState(null, "", url);
+		}
+		for (const [navKey, element] of navigationElements) {
+			if (
+				element.isConnected &&
+				(key === navKey || key.startsWith(`${navKey}.`))
+			) {
+				element.open = true;
+				const index = element.closest(".schema-reference-index");
+				index?.setAttribute("open", "");
+			}
+		}
 		if (target.matches("details")) target.setAttribute("open", "");
 		let ancestor = target.parentElement?.closest("details");
 		while (ancestor) {
@@ -267,6 +367,41 @@ export function SchemaReference(props: SchemaReferenceProps) {
 				: "smooth",
 		});
 	}
+
+	onMount(() => {
+		function openFragment() {
+			const fragment = window.location.hash;
+			const parsed = parsePermalink(fragment);
+			if (!parsed) {
+				if (!fragment) setActive("");
+				return;
+			}
+			const resolved = normalizeDocumentPath(
+				props.trees,
+				parsed.path,
+				parsed.tab,
+			);
+			setTab(parsed.tab);
+			updateQuery("");
+			queueMicrotask(() => {
+				if (window.location.hash !== fragment) return;
+				const candidates = [...fieldElements].filter(
+					([, element]) =>
+						element.isConnected && element.dataset.permalink === resolved,
+				);
+				// Union alternatives share a path: land on its owning field first.
+				candidates.sort(
+					([left], [right]) =>
+						left.split(".").length - right.split(".").length ||
+						left.localeCompare(right, undefined, { numeric: true }),
+				);
+				if (candidates[0]) navigate(candidates[0][0], false);
+			});
+		}
+		openFragment();
+		window.addEventListener("hashchange", openFragment);
+		onCleanup(() => window.removeEventListener("hashchange", openFragment));
+	});
 
 	return (
 		<section class="schema-reference" aria-label="Schema Reference">
@@ -398,6 +533,7 @@ export function SchemaReference(props: SchemaReferenceProps) {
 									const key = () => `${tab()}.${index()}`;
 									return (
 										<article
+											data-permalink={node.permalink}
 											tabIndex={-1}
 											ref={(element) => register(key(), element)}
 											classList={{
