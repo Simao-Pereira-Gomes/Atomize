@@ -46,7 +46,7 @@ async function maybeShowDeprecatedCliSettingsNotice(ctx: vscode.ExtensionContext
 	if (!hasLingeringDeprecatedCliSetting()) return;
 	await ctx.globalState.update(DEPRECATED_CLI_SETTINGS_NOTICE_KEY, true);
 	void vscode.window.showInformationMessage(
-		'Atomize: the atomize.cliPath, atomize.cli.installCommand, and atomize.cli.autoCheckUpdates settings are no longer used — Atomize now runs directly in the extension, with no CLI install required. You can remove them from your settings.',
+		'Atomize: the atomize.cliPath, atomize.cli.installCommand, and atomize.cli.autoCheckUpdates settings are no longer used. Atomize now runs directly in the extension, with no CLI install required. You can remove them from your settings.',
 	);
 }
 

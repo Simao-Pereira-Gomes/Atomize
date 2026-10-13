@@ -95,7 +95,7 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean>; groun
       setRun({ kind: "ready", result });
     } catch (error) {
       const message = error instanceof SidecarRequestError && error.code === "MOCK_STORY_INVALID"
-        ? "Your mock Story values don't look right — check them and try again."
+        ? "Your mock Story values don't look right. Check them and try again."
         : error instanceof Error ? error.message : "We could not run Mock Preview.";
       setRun({ kind: "error", message });
     }

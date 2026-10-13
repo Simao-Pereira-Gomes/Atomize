@@ -190,14 +190,14 @@ export function TemplateDiffView(props: {
         <Match when={props.state.phase === "not-in-catalog" && props.state}>
           {(state) => (
             <StatusPanel action={<RefreshButton onRefresh={props.onRefresh} disabled={!props.sidecarAvailable()} />}>
-              {`This Template records its origin as ${(state() as { ref: string }).ref}, but no such Template is in your Catalog now — it may have been removed or renamed. There is nothing to compare against.`}
+              {`This Template records its origin as ${(state() as { ref: string }).ref}, but no such Template is in your Catalog now; it may have been removed or renamed. There is nothing to compare against.`}
             </StatusPanel>
           )}
         </Match>
 
         <Match when={props.state.phase === "resolved" && !props.current()}>
           <StatusPanel tone="error">
-            This Template doesn't validate as a whole, even though every section above checks out — there's nothing to compare against until that's fixed.
+            This Template doesn't validate as a whole, even though every section above checks out. There's nothing to compare against until that's fixed.
           </StatusPanel>
         </Match>
 

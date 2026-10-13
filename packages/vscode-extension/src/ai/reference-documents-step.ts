@@ -93,10 +93,10 @@ function showStep(
 			...saved.map(entry => ({ label: entry, description: 'saved for this project', entry })),
 			...added.map(document => ({ label: document.ref, description: 'added for this run', entry: document.ref })),
 		];
-		picker.title = `${options.title} — Reference Documents`;
+		picker.title = `${options.title} · Reference Documents`;
 		picker.placeholder = items.length > 0
 			? 'Untick any to leave out of this run, add more with the buttons above, then press Enter'
-			: 'No Reference Documents yet — add a local file or wiki page with the buttons above, or press Enter to continue';
+			: 'No Reference Documents yet. Add a local file or wiki page with the buttons above, or press Enter to continue';
 		picker.canSelectMany = true;
 		picker.items = items;
 		picker.selectedItems = items.filter(item => ticked.has(item.entry));
@@ -152,7 +152,7 @@ async function addWikiPages(adapter: IPlatformAdapter | undefined): Promise<Refe
 		const pages = await vscode.window.showQuickPick(paths.map(path => ({ label: path })), {
 			canPickMany: true,
 			matchOnDescription: true,
-			placeHolder: `Pages from ${wiki.name} — only each page itself is read, not its sub-pages`,
+			placeHolder: `Pages from ${wiki.name}. Only each page itself is read, not its sub-pages`,
 		});
 		if (!pages?.length) return [];
 		return await inProgress(`Reading ${pages.length} wiki ${pages.length === 1 ? 'page' : 'pages'}…`, async () => {
@@ -172,7 +172,7 @@ async function offerToSave(root: string, documents: ReferenceDocument[], title: 
 			{ label: 'Use for this run only', save: false },
 			{ label: 'Also save for this project', description: 'Adds them to .atomize/ai.yaml, offered on every AI run', save: true },
 		],
-		{ title: `${title} — ${documents.map(document => document.ref).join(', ')}` },
+		{ title: `${title} · ${documents.map(document => document.ref).join(', ')}` },
 	);
 	if (!choice?.save) return;
 	for (const document of documents) await saveProjectReference(root, document.ref);
@@ -236,7 +236,7 @@ async function confirmFit(documents: ReferenceDocument[], title: string): Promis
 		if (choice !== 'Leave Some Out') return undefined;
 		const keep = await vscode.window.showQuickPick(
 			kept.map(document => ({ label: document.title, description: `${document.text.length.toLocaleString('en-US')} characters`, picked: true, document })),
-			{ title: `${title} — Reference Documents to keep`, canPickMany: true },
+			{ title: `${title} · Reference Documents to keep`, canPickMany: true },
 		);
 		if (!keep) return undefined;
 		kept = keep.map(item => item.document);

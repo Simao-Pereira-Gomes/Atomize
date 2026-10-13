@@ -56,7 +56,7 @@ export class TemplateSourceResolver {
 
     if (source.startsWith("mixin:")) {
       throw new Error(
-        `"${source}" is a mixin, not a template. Mixins cannot be used standalone — they are composed into templates via the mixins field.`,
+        `"${source}" is a mixin, not a template. Mixins cannot be used standalone; they are composed into templates via the mixins field.`,
       );
     }
 
@@ -113,7 +113,7 @@ export class TemplateSourceResolver {
     );
     if (override) {
       options.onNotice?.(
-        `Using ${item.scope}-scoped "${item.name}" — your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
+        `Using ${item.scope}-scoped "${item.name}"; your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
       );
     }
 

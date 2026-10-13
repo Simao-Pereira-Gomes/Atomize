@@ -182,7 +182,7 @@ describe('GeneratePanel', () => {
 		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
 		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
 
-		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate — Auth Error');
+		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate · Auth Error');
 		expect(panel.webview.html).toContain('token expired');
 	});
 
@@ -200,7 +200,7 @@ describe('GeneratePanel', () => {
 		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
 		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
 
-		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate — No Matches');
+		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate · No Matches');
 	});
 
 	it('forwards story_complete progress events to the webview during a live run', async () => {
@@ -224,7 +224,7 @@ describe('GeneratePanel', () => {
 		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate');
 
 		panel.receive?.({ type: 'createTasks', continueOnError: false });
-		await waitFor(() => htmlTitle(panel.webview.html) === 'Atomize: Generate — Done');
+		await waitFor(() => htmlTitle(panel.webview.html) === 'Atomize: Generate · Done');
 
 		expect(panel.messages).toEqual([
 			{ type: 'liveProgress', storiesCompleted: 1, totalStories: 2, tasksCreated: 2 },

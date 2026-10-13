@@ -30,7 +30,7 @@ export const fieldsListCommand = new Command("list")
       ? (msg: string) => writeManagedOutput("stderr", msg)
       : undefined;
 
-    if (!jsonMode) output.intro(" Atomize — Field Browser");
+    if (!jsonMode) output.intro(" Atomize: Field Browser");
 
     const s = createManagedSpinner();
     if (!jsonMode) s.start("Resolving configuration...");

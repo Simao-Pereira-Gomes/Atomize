@@ -273,7 +273,7 @@ export class TemplateValidator {
       warnings.push({
         path: "filter.savedQuery",
         message:
-          "savedQuery and structured filter fields are both set. Structured filter fields will be ignored — the saved query controls which items are returned.",
+          "savedQuery and structured filter fields are both set. Structured filter fields will be ignored; the saved query controls which items are returned.",
         code: FixableWarningCode.SAVED_QUERY_WITH_STRUCTURED_FILTER,
         suggestion:
           "Remove states, tags, area paths, etc. from the filter when using savedQuery. Keep workItemTypes: it declares which types the query returns.",

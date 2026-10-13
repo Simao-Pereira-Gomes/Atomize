@@ -105,13 +105,13 @@ export class LivePreviewPanel {
 			inst._fileUri = fileUri;
 			inst._mode = mode;
 			inst._lastReport = undefined;
-			inst._panel.title = `Atomize: ${fileName} (Live Preview — Dry Run)`;
+			inst._panel.title = `Atomize: ${fileName} (Live Preview · Dry Run)`;
 			inst._panel.reveal(vscode.ViewColumn.Beside, true);
 			panel = inst;
 		} else {
 			const webviewPanel = vscode.window.createWebviewPanel(
 				'atomize.livePreview',
-				`Atomize: ${fileName} (Live Preview — Dry Run)`,
+				`Atomize: ${fileName} (Live Preview · Dry Run)`,
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);

@@ -249,7 +249,7 @@ async function promptDecimal(field: ADoFieldSchema): Promise<number | null> {
   );
   const n = Number(raw);
   if (Number.isInteger(n)) {
-    log.info(`Stored as decimal — ADO will treat ${n} as ${n}.0`);
+    log.info(`Stored as decimal. ADO will treat ${n} as ${n}.0`);
   }
   return n;
 }
@@ -292,7 +292,7 @@ async function promptIdentity(field: ADoFieldSchema): Promise<string | null> {
 }
 
 async function promptString(field: ADoFieldSchema): Promise<string | null> {
-  const multilineNote = field.isMultiline ? " (multi-line — displayed as plain text in ADO)" : "";
+  const multilineNote = field.isMultiline ? " (multi-line, displayed as plain text in ADO)" : "";
   const raw = assertNotCancelled(
     await text({
       message: `Value for "${field.name}"${multilineNote}:`,

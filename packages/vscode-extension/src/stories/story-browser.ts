@@ -131,7 +131,7 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				const shownBefore = picker.items.length;
 				picker.busy = true;
 				// The busy bar alone is easy to miss, so the title says Stories are loading too.
-				picker.title = `${title} — ${more ? 'Loading more Stories…' : 'Loading Stories…'}`;
+				picker.title = `${title} · ${more ? 'Loading more Stories…' : 'Loading Stories…'}`;
 				picker.buttons = baseButtons;
 				let loaded = 0;
 				try {
@@ -202,7 +202,7 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 
 	async function enterIds(): Promise<string[] | undefined> {
 		const value = await vscode.window.showInputBox({
-			title: `${options.title} — Enter Story IDs`,
+			title: `${options.title} · Enter Story IDs`,
 			prompt: options.canPickMany ? 'Story IDs, separated by commas or spaces' : 'The Story ID',
 			placeHolder: options.canPickMany ? '123, 456, 789' : '123',
 			validateInput: (input): string | undefined => {
@@ -257,7 +257,7 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				resolve(value);
 				picker.hide();
 			};
-			picker.title = `${options.title} — ${title}`;
+			picker.title = `${options.title} · ${title}`;
 			picker.canSelectMany = true;
 			picker.busy = true;
 			picker.enabled = false;
@@ -314,7 +314,7 @@ function toItem(story: StorySummary, alwaysShow: boolean): StoryItem {
 }
 
 function loadMoreButton(shown: number): ActionButton {
-	return { action: 'loadMore', iconPath: new vscode.ThemeIcon('fold-down'), tooltip: `Load more — load the next ${STORY_SEARCH_LIMIT} Stories (showing ${shown})` };
+	return { action: 'loadMore', iconPath: new vscode.ThemeIcon('fold-down'), tooltip: `Load more: load the next ${STORY_SEARCH_LIMIT} Stories (showing ${shown})` };
 }
 
 function buttonsFor(mode: StoryBrowserModeKind, filters: StoryBrowserFilters, defaultView: DefaultView | undefined): ActionButton[] {
@@ -326,7 +326,7 @@ function buttonsFor(mode: StoryBrowserModeKind, filters: StoryBrowserFilters, de
 			tooltip: switchModeTooltip(mode, defaultView.kind),
 		});
 	}
-	buttons.push({ action: 'enterIds', iconPath: new vscode.ThemeIcon('edit'), tooltip: 'Enter Story IDs — type IDs directly instead of picking from the list' });
+	buttons.push({ action: 'enterIds', iconPath: new vscode.ThemeIcon('edit'), tooltip: 'Enter Story IDs: type IDs directly instead of picking from the list' });
 	if (mode === 'search') {
 		buttons.push(
 			{ action: 'type', iconPath: new vscode.ThemeIcon('symbol-class'), tooltip: filterTooltip('type', filters) },

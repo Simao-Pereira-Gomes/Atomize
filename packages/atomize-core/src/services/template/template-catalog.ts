@@ -415,7 +415,7 @@ export class TemplateCatalog {
     }
     if (item.scope !== "user") {
       throw Object.assign(
-        new Error(`Cannot remove "${name}" — it is a ${item.scope} ${kind} and is not user-installed.`),
+        new Error(`Cannot remove "${name}": it is a ${item.scope} ${kind} and is not user-installed.`),
         { code: "CATALOG_ITEM_NOT_USER_SCOPED" },
       );
     }

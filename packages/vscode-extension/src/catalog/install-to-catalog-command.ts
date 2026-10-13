@@ -137,7 +137,7 @@ async function chooseScope(
 	};
 	if (!folder || !library.hasProjectCatalog) {
 		const picked = await vscode.window.showQuickPick([personal], {
-			title: `${TITLE} — ${name}`,
+			title: `${TITLE} · ${name}`,
 			placeHolder: outsideProjectHint(folder),
 		});
 		return picked?.scope;
@@ -149,6 +149,6 @@ async function chooseScope(
 		scope: 'project',
 	};
 	const items = defaultCatalogScope(folder) === 'project' ? [project, personal] : [personal, project];
-	const picked = await vscode.window.showQuickPick(items, { title: `${TITLE} — ${name}`, placeHolder: `Where should this ${kind} be installed?` });
+	const picked = await vscode.window.showQuickPick(items, { title: `${TITLE} · ${name}`, placeHolder: `Where should this ${kind} be installed?` });
 	return picked?.scope;
 }

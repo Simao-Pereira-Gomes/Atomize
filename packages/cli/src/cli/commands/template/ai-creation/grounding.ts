@@ -127,8 +127,8 @@ async function askToGround(): Promise<boolean> {
     await select({
       message: "Ground the draft in your Azure DevOps project?",
       options: [
-        { label: "Yes — use the project's work item types, fields, and saved queries", value: "project" },
-        { label: "No — draft without project metadata", value: "none" },
+        { label: "Yes: use the project's work item types, fields, and saved queries", value: "project" },
+        { label: "No: draft without project metadata", value: "none" },
       ],
     }),
   ) as string;
@@ -140,7 +140,7 @@ async function askForExamples(): Promise<Examples> {
     await select({
       message: "Add example Stories your team broke down well? (optional)",
       options: [
-        { label: "No — use project metadata only", value: "none" },
+        { label: "No: use project metadata only", value: "none" },
         { label: "Pick example Stories", value: "pick" },
         { label: "Enter Story IDs", value: "enter" },
       ],

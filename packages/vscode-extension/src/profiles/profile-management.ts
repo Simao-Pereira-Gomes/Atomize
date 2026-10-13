@@ -113,7 +113,7 @@ async function importFromCli(store: ProfileStore): Promise<void> {
 
 	const picked = await vscode.window.showQuickPick(
 		cliProfiles.map(p => ({ label: p.name, detail: profileDetail(p), profile: p })),
-		{ title: 'Atomize: Import from CLI', canPickMany: true, placeHolder: 'Select profiles to import — you\'ll paste each token once' },
+		{ title: 'Atomize: Import from CLI', canPickMany: true, placeHolder: 'Select profiles to import. You\'ll paste each token once' },
 	);
 	if (!picked || picked.length === 0) return;
 

@@ -31,12 +31,12 @@ describe('story browser model', () => {
 	});
 
 	it('names the mode in the title and lists every Search filter in effect', () => {
-		expect(browserTitle('Atomize: Generate', 'sprint', emptyFilters(false))).toBe('Atomize: Generate — Current and next sprint, no Tasks yet');
-		expect(browserTitle('Atomize: Improve', 'applied', emptyFilters(true))).toBe('Atomize: Improve — Stories this Template was applied to');
-		expect(browserTitle('Atomize: Generate', 'search', emptyFilters(false))).toBe('Atomize: Generate — Search');
+		expect(browserTitle('Atomize: Generate', 'sprint', emptyFilters(false))).toBe('Atomize: Generate · Current and next sprint, no Tasks yet');
+		expect(browserTitle('Atomize: Improve', 'applied', emptyFilters(true))).toBe('Atomize: Improve · Stories this Template was applied to');
+		expect(browserTitle('Atomize: Generate', 'search', emptyFilters(false))).toBe('Atomize: Generate · Search');
 		expect(browserTitle('Atomize: Generate', 'search', {
 			...emptyFilters(true), workItemTypes: ['Bug'], states: ['Active'], areaPaths: ['P\\Team A'], iterations: ['P\\Sprint 3'],
-		})).toBe('Atomize: Generate — Search (Type: Bug · State: Active · Area: Team A · Iteration: Sprint 3 · Has Tasks)');
+		})).toBe('Atomize: Generate · Search (Type: Bug · State: Active · Area: Team A · Iteration: Sprint 3 · Has Tasks)');
 	});
 
 	it('keeps selected Stories listed first, without duplicating them in the results', () => {
@@ -64,15 +64,15 @@ describe('story browser model', () => {
 
 	it('explains on hover what each filter button narrows to and what clicking it changes', () => {
 		const filters = { ...emptyFilters(false), workItemTypes: ['Bug', 'User Story'] };
-		expect(filterTooltip('type', filters)).toBe('Type: Bug, User Story — click to change which Work Item types to search, or select none to remove this filter');
-		expect(filterTooltip('state', filters)).toBe('State: any — click to choose which States to search');
-		expect(hasTasksTooltip(false)).toBe('Has Tasks: off, any Story — click to show only Stories that already have Tasks');
-		expect(hasTasksTooltip(true)).toBe('Has Tasks: on, only Stories that already have Tasks — click to include every Story');
+		expect(filterTooltip('type', filters)).toBe('Type: Bug, User Story. Click to change which Work Item types to search, or select none to remove this filter');
+		expect(filterTooltip('state', filters)).toBe('State: any. Click to choose which States to search');
+		expect(hasTasksTooltip(false)).toBe('Has Tasks: off, any Story. Click to show only Stories that already have Tasks');
+		expect(hasTasksTooltip(true)).toBe('Has Tasks: on, only Stories that already have Tasks. Click to include every Story');
 	});
 
 	it('says where the mode button goes and that Search filters only apply in Search', () => {
 		expect(switchModeTooltip('sprint', 'sprint')).toStartWith('Search all Stories');
-		expect(switchModeTooltip('search', 'sprint')).toBe('Back to the current and next sprint (Stories with no Tasks yet) — your Search filters are kept but not applied');
-		expect(switchModeTooltip('search', 'applied')).toBe('Back to Stories this Template was applied to — your Search filters are kept but not applied');
+		expect(switchModeTooltip('search', 'sprint')).toBe('Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied');
+		expect(switchModeTooltip('search', 'applied')).toBe('Back to Stories this Template was applied to. Your Search filters are kept but not applied');
 	});
 });

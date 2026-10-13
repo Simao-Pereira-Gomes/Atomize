@@ -170,7 +170,7 @@ export function StartingPathPicker(props: {
               <div class="min-w-0">
                 <p class="font-bold text-indigo-950 dark:text-indigo-50">Continue your in-progress Template</p>
                 <p class="mt-1 truncate text-sm leading-6 text-indigo-900 dark:text-indigo-100">
-                  {props.activeDraftName?.().trim() || "Untitled Template"} is still open — pick up where you left off, or start something new below.
+                  {props.activeDraftName?.().trim() || "Untitled Template"} is still open. Pick up where you left off, or start something new below.
                 </p>
               </div>
               <button
@@ -334,7 +334,7 @@ export function StartingPathPicker(props: {
               </button>
               <button class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-indigo-400 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900" type="button" disabled={opening()} onClick={() => void openFile()}>
                 <p class="text-lg font-bold">{opening() ? "Opening…" : "Open"}</p>
-                <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Load a local Atomize YAML File — save your edits back to it, or export a separate copy.</p>
+                <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Load a local Atomize YAML File. Save your edits back to it, or export a separate copy.</p>
               </button>
               <button class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-indigo-400 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900" type="button" disabled={props.catalogAvailable?.() === false} title={props.catalogAvailable?.() === false ? "AI draft is unavailable while the companion process recovers." : undefined} onClick={() => void openAI()}><p class="text-lg font-bold">AI draft</p><p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Generate a first Template draft from a prose description.</p></button>
             </div>

@@ -104,7 +104,7 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
           ✨ Improve with AI
         </button>
         <Show when={!props.ready()}>
-          <p class="mt-2 text-xs text-violet-700 dark:text-violet-300">Works on a complete Template — finish the highlighted sections first.</p>
+          <p class="mt-2 text-xs text-violet-700 dark:text-violet-300">Works on a complete Template. Finish the highlighted sections first.</p>
         </Show>
       </section>
 
@@ -193,7 +193,7 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
               <div classList={{ hidden: state().phase !== "form" }}>
                 <div classList={{ hidden: !!drill() }}>
                   {/* Grounding first, so the focus can refer to the Stories and documents just chosen. */}
-                  <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Grounding <span class="font-normal normal-case tracking-normal">— optional</span></p>
+                  <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Grounding <span class="font-normal normal-case tracking-normal">(optional)</span></p>
                   <div class="mt-2 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
                     <GroundingRow title={DRILL_TITLES.project} summary={session.choices().profile || "None. Review the Template on its own"} onOpen={() => setDrill("project")} />
                     <GroundingRow title={DRILL_TITLES.stories} summary={session.choices().profile ? storiesSummary(session.choices().stories, session.choices().includeSensitive) : "Needs a Work Project"} disabled={!session.choices().profile} onOpen={() => setDrill("stories")} />
@@ -229,7 +229,7 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
                       value={session.choices().profile}
                       onChange={(event) => session.setProfile(event.currentTarget.value)}
                     >
-                      <option value="">No grounding — review the Template on its own</option>
+                      <option value="">No grounding: review the Template on its own</option>
                       <For each={props.grounding.profiles()}>{(item) => <option value={item.name}>{item.name}</option>}</For>
                     </select>
                   </label>

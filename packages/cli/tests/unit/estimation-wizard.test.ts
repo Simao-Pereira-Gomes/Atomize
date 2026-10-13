@@ -266,13 +266,13 @@ describe("renderConversionTable", () => {
   test("shows each value with its hours and a 20% preview, plus picklist coverage, gaps and typos", () => {
     const lines = renderConversionTable({ S: 2, L: 5, Lg: 5 }, { name: "T-shirt size", allowedValues: ["S", "M", "L"] });
 
-    expect(lines[0]).toBe("Conversion table — T-shirt size → hours   2 of 3 values covered");
+    expect(lines[0]).toBe("Conversion table: T-shirt size → hours   2 of 3 values covered");
     expect(lines).toContain("  S      2       0.4 h");
     expect(lines.some((line) => line.startsWith("  Lg") && line.endsWith("not in picklist"))).toBe(true);
-    expect(lines.at(-1)).toBe("  Missing: M — Stories with this value get blank estimates.");
+    expect(lines.at(-1)).toBe("  Missing: M. Stories with this value get blank estimates.");
   });
 
   test("says when the table is empty", () => {
-    expect(renderConversionTable({})).toEqual(["Conversion table — Story Estimate → hours", "  (no values yet)"]);
+    expect(renderConversionTable({})).toEqual(["Conversion table: Story Estimate → hours", "  (no values yet)"]);
   });
 });

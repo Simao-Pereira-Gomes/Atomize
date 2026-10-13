@@ -92,7 +92,7 @@ export async function retrieveToken(
     const kt = await getKeytar();
     if (!kt)
       throw new AuthError(
-        `keytar unavailable — cannot retrieve token for profile "${profileName}"`,
+        `keytar unavailable, so cannot retrieve token for profile "${profileName}"`,
       );
     const stored = await kt.getPassword(SERVICE_NAME, profileName);
     if (!stored)

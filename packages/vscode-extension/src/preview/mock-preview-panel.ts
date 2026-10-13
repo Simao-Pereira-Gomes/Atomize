@@ -76,7 +76,7 @@ export class PreviewPanel {
 			fields = await inspectFile(fileUri);
 		} catch (err) {
 			await vscode.window.showWarningMessage(
-				`Atomize: Failed to inspect template — ${err instanceof Error ? err.message : String(err)}`,
+				`Atomize: Failed to inspect template: ${err instanceof Error ? err.message : String(err)}`,
 			);
 			return;
 		}

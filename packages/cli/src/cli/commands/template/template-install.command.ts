@@ -64,7 +64,7 @@ export function makeTemplateInstallCommand(
       });
       const resolvedSource = preview.source;
 
-      output.intro(` Atomize — Install ${resolvedSource.kind}`);
+      output.intro(` Atomize: Install ${resolvedSource.kind}`);
       if (!options.type) {
         output.print(chalk.gray(`  Detected type: ${resolvedSource.kind}\n`));
       }

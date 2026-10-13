@@ -97,8 +97,8 @@ async function chooseGrounding(deps: DraftCommandDeps, promptDocument: vscode.Ur
  */
 async function describeInInputBox(grounding: ChosenGrounding, context: GroundingContext): Promise<string | undefined> {
 	const input = vscode.window.createInputBox();
-	input.title = `${TITLE} — ${groundingSummary(context, 'No project grounding')}`;
-	input.prompt = 'Describe the Template you need — or open an editor to write more';
+	input.title = `${TITLE} · ${groundingSummary(context, 'No project grounding')}`;
+	input.prompt = 'Describe the Template you need, or open an editor to write more';
 	input.placeholder = draftDescriptionPlaceholder(context);
 	input.value = lastDescription;
 	input.ignoreFocusOut = true;

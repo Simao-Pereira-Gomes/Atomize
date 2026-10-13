@@ -127,7 +127,7 @@ export function StoryBrowser(props: {
       label={filterProps.label}
       value={filterProps.value}
       options={filterProps.options.map((option) => ({ value: option, label: option }))}
-      placeholder={props.choices() ? "Any — type to search" : "Loading choices…"}
+      placeholder={props.choices() ? "Any (type to search)" : "Loading choices…"}
       disabled={props.disabled?.() || !props.choices()}
       clearable
       onChange={filterProps.onChange}

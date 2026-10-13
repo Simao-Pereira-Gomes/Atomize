@@ -98,7 +98,7 @@ async function choosePlan(options: ImproveGroundingOptions, interactive: boolean
         { label: "Learn from Stories this Template was applied to", value: "pick" },
         { label: "Enter Story IDs to learn from", value: "enter" },
         { label: "Use the project's metadata only", value: "project" },
-        { label: "No grounding — review the Template on its own", value: "none" },
+        { label: "No grounding: review the Template on its own", value: "none" },
       ],
     }),
   ) as string;

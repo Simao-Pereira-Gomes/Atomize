@@ -25,7 +25,7 @@ export const queriesListCommand = new Command("list")
       ? (msg: string) => writeManagedOutput("stderr", msg)
       : undefined;
 
-    if (!jsonMode) output.intro(" Atomize — Saved Queries");
+    if (!jsonMode) output.intro(" Atomize: Saved Queries");
 
     const s = createManagedSpinner();
     if (!jsonMode) s.start("Resolving configuration...");

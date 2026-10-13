@@ -226,7 +226,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               const report = (dryRun() as Extract<DryRunState, { kind: "ready" }>).report;
               return (
                 <div>
-                  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">DRY RUN — nothing has been created yet</div>
+                  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">DRY RUN: nothing has been created yet</div>
                   <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
                     <For each={report.results}>
                       {(row) => (
@@ -265,7 +265,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               </label>
               <div class="mt-4 flex gap-3">
                 <button type="button" class="rounded-lg !border-0 bg-white px-4 py-2 text-sm font-bold text-rose-700 !shadow-none hover:bg-rose-100 dark:bg-slate-900 dark:text-rose-200" onClick={() => { dispatch({ type: "cancel" }); setStep(2); }}>Cancel</button>
-                <button type="button" class="rounded-lg !border-0 bg-rose-600 px-4 py-2 text-sm font-bold text-white !shadow-none disabled:opacity-40 hover:bg-rose-700" disabled={!ack()} onClick={() => void runLiveExecution()}>Execute — create Work Items</button>
+                <button type="button" class="rounded-lg !border-0 bg-rose-600 px-4 py-2 text-sm font-bold text-white !shadow-none disabled:opacity-40 hover:bg-rose-700" disabled={!ack()} onClick={() => void runLiveExecution()}>Execute: create Work Items</button>
               </div>
             </div>
           </Match>
@@ -305,7 +305,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               return (
                 <div>
                   <div class={`rounded-xl border px-4 py-3 text-sm font-semibold ${partial ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"}`}>
-                    {partial ? `Partially completed — ${report.storiesFailed} of ${report.storiesProcessed} Stories failed.` : `Done — ${report.storiesSuccess} Stories, ${report.tasksCreated} Work Items created.`}
+                    {partial ? `Partially completed: ${report.storiesFailed} of ${report.storiesProcessed} Stories failed.` : `Done: ${report.storiesSuccess} Stories, ${report.tasksCreated} Work Items created.`}
                   </div>
                   {rowsList(report.results)}
                 </div>

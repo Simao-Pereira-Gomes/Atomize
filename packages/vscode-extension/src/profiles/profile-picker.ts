@@ -72,7 +72,7 @@ export async function pickProfile(
 				type ZeroItem = vscode.QuickPickItem & { action: 'add' };
 				const picked = await vscode.window.showQuickPick<ZeroItem>(
 					[{ label: 'Add profile...', action: 'add' }],
-					{ title: opts.title, placeHolder: `No Azure DevOps profiles configured — required for ${opts.title.replace('Atomize: ', '')}` },
+					{ title: opts.title, placeHolder: `No Azure DevOps profiles configured. One is required for ${opts.title.replace('Atomize: ', '')}` },
 				);
 				if (!picked) return null;
 				await manageProfiles(store, credentialResolver);

@@ -124,9 +124,9 @@ export function createProgressHandler(
       })
       .with({ type: "complete" }, (e) => {
         if (isTTYSession) storyProgressRef.current?.stop(
-          `Done — ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`,
+          `Done: ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`,
         );
-        else print(`Done — ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`);
+        else print(`Done: ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`);
       })
       .exhaustive();
 }

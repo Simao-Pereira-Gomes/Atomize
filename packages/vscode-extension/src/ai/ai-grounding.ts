@@ -46,7 +46,7 @@ const UNGROUNDED: AIGrounding = { projectGrounding: null, storyGrounding: null }
 export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGroundingOptions): Promise<AIGrounding | 'cancelled'> {
 	const { title } = options;
 	const profile = await pickProfile(deps.store, deps.credentialResolver, {
-		title: `${title} — Grounding`,
+		title: `${title} · Grounding`,
 		allowOffline: true,
 		defaultProfile: getDefaultProfile(options.resource),
 		offlineChoice: options.noGrounding,
@@ -117,7 +117,7 @@ async function askSensitive(title: string): Promise<boolean | undefined> {
 			{ label: "Don't send descriptions", description: 'Recommended', include: false },
 			{ label: 'Also send descriptions and acceptance criteria', description: 'They may contain customer, personal, or internal details', include: true },
 		],
-		{ title: `${title} — Story details`, placeHolder: 'Send the Stories’ descriptions and acceptance criteria to Copilot for this run?' },
+		{ title: `${title} · Story details`, placeHolder: 'Send the Stories’ descriptions and acceptance criteria to Copilot for this run?' },
 	);
 	return choice?.include;
 }

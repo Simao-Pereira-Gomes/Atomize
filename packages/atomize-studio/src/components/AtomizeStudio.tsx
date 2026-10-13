@@ -113,7 +113,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => v
                       type="button"
                       class={`flex w-full items-center gap-3 rounded-xl !border-0 px-3 py-3 text-left !shadow-none transition ${active() === section.id ? "!bg-indigo-50 font-semibold text-indigo-700 dark:!bg-indigo-950/60 dark:text-indigo-200" : "!bg-transparent text-slate-600 hover:!bg-slate-100 dark:text-slate-300 dark:hover:!bg-slate-800"}`}
                       onClick={() => setActive(section.id)}
-                      aria-label={`${section.label}${isOptional() ? " (optional)" : ""} — ${status() === "ok" ? (usesDefaults() ? "ready with defaults" : "complete") : status() === "warn" ? "needs attention" : "in progress"}`}
+                      aria-label={`${section.label}${isOptional() ? " (optional)" : ""}: ${status() === "ok" ? (usesDefaults() ? "ready with defaults" : "complete") : status() === "warn" ? "needs attention" : "in progress"}`}
                     >
                       <span
                         class={`grid size-5 shrink-0 place-items-center rounded-full border text-xs font-bold ${status() === "warn" ? "border-amber-500 bg-amber-500 text-white" : active() === section.id ? "border-indigo-600 bg-indigo-600 text-white" : status() === "ok" ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400"}`}
@@ -144,7 +144,7 @@ export function AtomizeStudio(props: { stores: SectionStores; onDiscard: () => v
           </ol>
         </aside>
         <section class="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-          <Show when={props.aiDraftReady}><div class="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">AI draft ready to review — check the highlighted fields before saving.</div></Show>
+          <Show when={props.aiDraftReady}><div class="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">AI draft ready to review. Check the highlighted fields before saving.</div></Show>
           <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6 dark:border-slate-800">
             <div>
               <p class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Template details</p>

@@ -115,10 +115,10 @@ describe("catalog.remove", () => {
   it("propagates a structured error from the catalog without string-scraping it", async () => {
     const notUserScoped: SidecarServices = {
       ...services,
-      library: { ...services.library, removeCatalogItem: async () => { throw Object.assign(new Error('Cannot remove "delivery" — it is a project template and is not user-installed.'), { code: "CATALOG_ITEM_NOT_USER_SCOPED" }); } },
+      library: { ...services.library, removeCatalogItem: async () => { throw Object.assign(new Error('Cannot remove "delivery": it is a project template and is not user-installed.'), { code: "CATALOG_ITEM_NOT_USER_SCOPED" }); } },
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":33,"method":"catalog.remove","params":{"kind":"template","name":"delivery"}}', notUserScoped))
-      .resolves.toEqual({ jsonrpc: "2.0", id: 33, error: { code: "CATALOG_ITEM_NOT_USER_SCOPED", message: 'Cannot remove "delivery" — it is a project template and is not user-installed.' } });
+      .resolves.toEqual({ jsonrpc: "2.0", id: 33, error: { code: "CATALOG_ITEM_NOT_USER_SCOPED", message: 'Cannot remove "delivery": it is a project template and is not user-installed.' } });
   });
 });
 

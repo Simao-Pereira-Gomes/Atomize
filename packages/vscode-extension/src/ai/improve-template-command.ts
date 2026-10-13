@@ -79,7 +79,7 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 	// The focus comes after the Grounding, so it can name the Stories and documents just chosen.
 	const context = groundingContext(grounding, documentGrounding);
 	const guidance = await vscode.window.showInputBox({
-		title: `${TITLE} — ${groundingSummary(context, 'No grounding')}`,
+		title: `${TITLE} · ${groundingSummary(context, 'No grounding')}`,
 		prompt: 'What should the improvement focus on? Leave blank for a general review.',
 		placeHolder: improveFocusPlaceholder(context),
 		ignoreFocusOut: true,

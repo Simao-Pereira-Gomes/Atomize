@@ -130,13 +130,13 @@ export class GeneratePanel {
 			inst._dryRunReport = undefined;
 			inst._execReport = undefined;
 			inst._continueOnError = false;
-			inst._panel.title = `Atomize: ${fileName} (Generate — Dry Run)`;
+			inst._panel.title = `Atomize: ${fileName} (Generate · Dry Run)`;
 			inst._panel.reveal(vscode.ViewColumn.Beside, true);
 			panel = inst;
 		} else {
 			const webviewPanel = vscode.window.createWebviewPanel(
 				'atomize.generate',
-				`Atomize: ${fileName} (Generate — Dry Run)`,
+				`Atomize: ${fileName} (Generate · Dry Run)`,
 				{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);
@@ -210,7 +210,7 @@ export class GeneratePanel {
 		this._isExecuting = true;
 		try {
 			const fileName = vscode.workspace.asRelativePath(this._fileUri);
-			this._panel.title = `Atomize: ${fileName} (Generate — Creating…)`;
+			this._panel.title = `Atomize: ${fileName} (Generate · Creating…)`;
 			this._panel.webview.html = renderGenerateLiveRunning(dryReport, fileName, this._profile, this._storyIds);
 
 			const outcome = await runAtomize(this._credentialResolver, this._profile, this._fileUri, {
@@ -228,7 +228,7 @@ export class GeneratePanel {
 				},
 			});
 
-			this._panel.title = `Atomize: ${fileName} (Generate — Done)`;
+			this._panel.title = `Atomize: ${fileName} (Generate · Done)`;
 
 			if ('error' in outcome) {
 				this._panel.webview.html = renderGenerateBlocked(
@@ -289,7 +289,7 @@ export class GeneratePanel {
 
 			const nTasks = report.tasksCalculated;
 			const nStories = report.storiesSuccess;
-			const coeNote = this._continueOnError ? '\n\nContinue on task failure is enabled — if a task fails to create, remaining tasks will still be attempted.' : '';
+			const coeNote = this._continueOnError ? '\n\nContinue on task failure is enabled: if a task fails to create, remaining tasks will still be attempted.' : '';
 
 			const confirmed = await vscode.window.showInformationMessage(
 				`Create ${nTasks} task${nTasks === 1 ? '' : 's'} for ${nStories} ${nStories === 1 ? 'story' : 'stories'} using profile "${this._profile}"?${coeNote}`,

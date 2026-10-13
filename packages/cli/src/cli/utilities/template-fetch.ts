@@ -87,18 +87,18 @@ function isTransientNetworkError(error: unknown): boolean {
 function statusError(res: Response, url: string): Error {
   switch (res.status) {
     case HttpStatus.NOT_FOUND:
-      return new Error(`Template not found — check the URL is correct (${url})`);
+      return new Error(`Template not found. Check the URL is correct (${url})`);
     case HttpStatus.UNAUTHORIZED:
     case HttpStatus.FORBIDDEN:
       return new Error(
-        `Access denied — this URL requires authentication, which is not supported (HTTP ${res.status})`,
+        `Access denied: this URL requires authentication, which is not supported (HTTP ${res.status})`,
       );
     case HttpStatus.TOO_MANY_REQUESTS:
-      return new Error("Rate limited — try again later");
+      return new Error("Rate limited. Try again later");
     default:
       return new Error(
         res.status >= HttpStatus.INTERNAL_SERVER_ERROR
-          ? `Server error — try again later (HTTP ${res.status})`
+          ? `Server error. Try again later (HTTP ${res.status})`
           : `Failed to fetch template: HTTP ${res.status} ${res.statusText}`,
       );
   }
@@ -167,7 +167,7 @@ export async function fetchTemplateContent(url: string, options: FetchTemplateOp
     const contentType = mimeType.trim().toLowerCase();
     if (contentType && !ALLOWED_CONTENT_TYPES.has(contentType)) {
       throw new Error(
-        `Unexpected content type "${contentType}" — the URL does not appear to point to a YAML file.`,
+        `Unexpected content type "${contentType}": the URL does not appear to point to a YAML file.`,
       );
     }
 

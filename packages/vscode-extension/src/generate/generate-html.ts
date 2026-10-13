@@ -170,7 +170,7 @@ function dryRunKpis(report: GenerateReport): string {
 <div style="margin-bottom:14px">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
     <span class="dry-run-badge">DRY RUN</span>
-    <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">Simulated — no tasks created yet</span>
+    <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">Simulated: no tasks created yet</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
     ${kpis.map(([l, v, c]) => `
@@ -193,7 +193,7 @@ function storySection(result: GenerateResult): string {
 		: `<span style="color:var(--vscode-focusBorder)">#${esc(story.id)}</span>`;
 
 	const warningHtml = skippedCount > 0
-		? `<div style="margin:4px 0 8px;padding:5px 10px;background:rgba(204,167,0,.06);border-left:2px solid rgba(204,167,0,.35);border-radius:1px;font-size:.82em;color:#cca700">${skippedCount} task${skippedCount === 1 ? '' : 's'} skipped${tasksSkipped?.[0] ? ` — ${esc(tasksSkipped[0].reason)}` : ''}</div>`
+		? `<div style="margin:4px 0 8px;padding:5px 10px;background:rgba(204,167,0,.06);border-left:2px solid rgba(204,167,0,.35);border-radius:1px;font-size:.82em;color:#cca700">${skippedCount} task${skippedCount === 1 ? '' : 's'} skipped${tasksSkipped?.[0] ? `: ${esc(tasksSkipped[0].reason)}` : ''}</div>`
 		: (!result.success && result.error
 			? `<div style="margin:4px 0 8px;padding:5px 10px;background:rgba(241,76,76,.06);border-left:2px solid rgba(241,76,76,.2);border-radius:1px;font-size:.82em;color:var(--vscode-errorForeground,#f48771)">${esc(result.error)}</div>`
 			: '');
@@ -233,7 +233,7 @@ function storySectionCompact(result: GenerateResult): string {
 		: `<span style="color:var(--vscode-focusBorder)">#${esc(story.id)}</span>`;
 
 	const warningHtml = skippedCount > 0
-		? `<div style="margin-bottom:5px;font-size:.78em;color:#cca700">⚠ ${skippedCount} task${skippedCount === 1 ? '' : 's'} skipped${tasksSkipped?.[0] ? ` — ${esc(tasksSkipped[0].reason)}` : ''}</div>`
+		? `<div style="margin-bottom:5px;font-size:.78em;color:#cca700">⚠ ${skippedCount} task${skippedCount === 1 ? '' : 's'} skipped${tasksSkipped?.[0] ? `: ${esc(tasksSkipped[0].reason)}` : ''}</div>`
 		: (!result.success && result.error
 			? `<div style="margin-bottom:5px;font-size:.78em;color:var(--vscode-errorForeground,#f48771)">✗ ${esc(result.error)}</div>`
 			: '');
@@ -533,7 +533,7 @@ export function renderGenerateLoading(fileName: string, profile: string, storyId
   <span style="font-size:.9em">Running dry run against <strong style="color:var(--vscode-editor-foreground)">${esc(profile)}</strong>…</span>
 </div>
 <div style="font-size:.8em;color:var(--vscode-descriptionForeground);padding-left:24px;margin-top:2px">${fetchingNote}</div>`;
-	return page('Atomize: Generate — Dry Run', body, '');
+	return page('Atomize: Generate · Dry Run', body, '');
 }
 
 export function renderGenerateDrySuccess(
@@ -568,7 +568,7 @@ export function renderGenerateDryWarnings(
 		: report.results.map(storySectionCompact).join('');
 	const action = report.storiesFailed === 0
 		? splitButton(report.tasksCalculated, profile)
-		: `<div class="action-zone"><span style="font-size:.84em;color:var(--vscode-descriptionForeground)">⚠ ${report.storiesFailed} ${report.storiesFailed === 1 ? 'story' : 'stories'} failed — fix errors before creating tasks.</span></div>`;
+		: `<div class="action-zone"><span style="font-size:.84em;color:var(--vscode-descriptionForeground)">⚠ ${report.storiesFailed} ${report.storiesFailed === 1 ? 'story' : 'stories'} failed. Fix errors before creating tasks.</span></div>`;
 	const body = header + kpis + stories + action;
 	return page('Atomize: Generate', body, report.storiesFailed === 0 ? SPLIT_BUTTON_SCRIPT : SWITCH_MODE_SCRIPT);
 }
@@ -587,26 +587,26 @@ export function renderGenerateBlocked(
 		const ctaHtml = `<button id="btn-manage-profiles" class="btn-primary" style="margin-top:4px">Manage Profiles</button>`;
 		const body = header + errorBubble('⚠', 'Authentication failed', detail, true, ctaHtml);
 		const script = `document.getElementById('btn-manage-profiles').addEventListener('click', function() { vscode.postMessage({ type: 'manageProfiles' }); });`;
-		return page('Atomize: Generate — Auth Error', body, script);
+		return page('Atomize: Generate · Auth Error', body, script);
 	}
 
 	if (kind === 'exec-error') {
 		const body = header + errorBubble('⚠', 'Task creation failed', detail, true, '');
-		return page('Atomize: Generate — Error', body, '');
+		return page('Atomize: Generate · Error', body, '');
 	}
 
 	if (kind === 'no-matches') {
 		const body = header
 			+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
 			+ errorBubble('○', 'No matching stories', detail, false, '');
-		return page('Atomize: Generate — No Matches', body, '');
+		return page('Atomize: Generate · No Matches', body, '');
 	}
 
 	// no-tasks
 	const body = header
 		+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
 		+ errorBubble('○', 'No tasks to create', detail, false, '');
-	return page('Atomize: Generate — No Tasks', body, '');
+	return page('Atomize: Generate · No Tasks', body, '');
 }
 
 export function renderGenerateLiveRunning(
@@ -638,7 +638,7 @@ export function renderGenerateLiveRunning(
     <span> tasks created</span>
   </div>
 </div>`;
-	return page('Atomize: Generate — Creating…', body, LIVE_PROGRESS_SCRIPT);
+	return page('Atomize: Generate · Creating…', body, LIVE_PROGRESS_SCRIPT);
 }
 
 export function renderGenerateLiveSuccess(
@@ -664,7 +664,7 @@ export function renderGenerateLiveSuccess(
   </div>
   ${stories}
 </div>`;
-	return page('Atomize: Generate — Done', body, SWITCH_MODE_SCRIPT);
+	return page('Atomize: Generate · Done', body, SWITCH_MODE_SCRIPT);
 }
 
 export function renderGenerateLivePartial(
@@ -690,5 +690,5 @@ export function renderGenerateLivePartial(
   </div>
   ${stories}
 </div>`;
-	return page('Atomize: Generate — Done', body, SWITCH_MODE_SCRIPT);
+	return page('Atomize: Generate · Done', body, SWITCH_MODE_SCRIPT);
 }

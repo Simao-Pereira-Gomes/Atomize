@@ -370,7 +370,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
             {(validation) => (
               <section class={`my-3 rounded-xl border p-4 text-sm ${resultIsOutdated() ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : validation().result.valid ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30"}`} aria-live="polite">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="font-semibold">Online Validation {resultIsOutdated() ? "— Outdated" : validation().result.valid ? "passed" : "found errors"}</p>
+                  <p class="font-semibold">Online Validation {resultIsOutdated() ? "is outdated" : validation().result.valid ? "passed" : "found errors"}</p>
                   <div class="flex items-center gap-3"><span class="font-mono text-xs opacity-75">{validation().profile}</span><button type="button" class="text-xs font-semibold underline" onClick={props.onlineValidation.dismiss} aria-label="Dismiss Online Validation result">Dismiss</button></div>
                 </div>
                 <Show when={!validation().result.requirements.needsOnlineVerification && validation().result.valid}>
@@ -435,7 +435,7 @@ export function ReviewSection(props: { store: AuthoringStore; canReview: boolean
                   {(validation) => (
                     <section class={`my-3 rounded-xl border p-4 text-sm ${resultIsOutdated() ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : validation().result.valid ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30"}`} aria-live="polite">
                       <div class="flex flex-wrap items-center justify-between gap-2">
-                        <p class="font-semibold">Online Validation {resultIsOutdated() ? "— Outdated" : validation().result.valid ? "passed" : "found errors"}</p>
+                        <p class="font-semibold">Online Validation {resultIsOutdated() ? "is outdated" : validation().result.valid ? "passed" : "found errors"}</p>
                         <div class="flex items-center gap-3"><span class="font-mono text-xs opacity-75">{validation().profile}</span><button type="button" class="text-xs font-semibold underline" onClick={props.onlineValidation.dismiss} aria-label="Dismiss Online Validation result">Dismiss</button></div>
                       </div>
                       <Show when={!validation().result.requirements.needsOnlineVerification && validation().result.valid}>

@@ -124,7 +124,7 @@ export const templateCreateCommand = new Command("create")
       resolveCommandOutputPolicy({ quiet: options.quiet, verbose: false }),
     );
     try {
-      output.intro(" Atomize — Template Creator");
+      output.intro(" Atomize: Template Creator");
       if (isInteractiveTerminal()) {
         output.print(
           chalk.gray(
@@ -195,8 +195,8 @@ async function determineCreationTarget(options: CreateOptions): Promise<Creation
     await select({
       message: "What are you creating?",
       options: [
-        { label: "Template — discoverable reusable template", value: "template" },
-        { label: "Mixin — discoverable reusable task group", value: "mixin" },
+        { label: "Template: discoverable reusable template", value: "template" },
+        { label: "Mixin: discoverable reusable task group", value: "mixin" },
       ],
     }),
   ) as string;
@@ -229,19 +229,19 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
       message: "How would you like to create your template?",
       options: [
         {
-          label: "AI-assisted — describe in natural language",
+          label: "AI-assisted: describe in natural language",
           value: "ai",
         },
         {
-          label: "Guided wizard — build step-by-step",
+          label: "Guided wizard: build step-by-step",
           value: "scratch",
         },
         {
-          label: "From template — start with a built-in or saved template",
+          label: "From template: start with a built-in or saved template",
           value: "template",
         },
         {
-          label: "From stories — learn patterns from existing examples",
+          label: "From stories: learn patterns from existing examples",
           value: "stories",
         },
       ],
@@ -312,11 +312,11 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
       message: "How do you want to use this template?",
       options: [
         {
-          label: `Inheritance link  — saves extends: "template:${templateName}" (small template, stays in sync with template updates)`,
+          label: `Inheritance link: saves extends: "template:${templateName}" (small template, stays in sync with template updates)`,
           value: "inherit",
         },
         {
-          label: "Flat copy  — saves all fields so the template is fully self-contained",
+          label: "Flat copy: saves all fields so the template is fully self-contained",
           value: "copy",
         },
       ],
@@ -1007,7 +1007,7 @@ async function saveCreatedTemplate(
     : true;
 
   if (!overwrite) {
-    throw new CancellationError("Save cancelled — catalog item not overwritten");
+    throw new CancellationError("Save cancelled. Catalog item not overwritten");
   }
 
   if (target === "mixin") {

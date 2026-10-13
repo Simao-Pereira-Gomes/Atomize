@@ -32,7 +32,7 @@ export const templateRemoveCommand = new Command("remove")
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
     try {
-      output.intro(" Atomize — Remove Template");
+      output.intro(" Atomize: Remove Template");
 
       const { kind, name } = await resolveNameArg(nameArg, options.type);
       const item = await library.findCatalogItem(kind, name);
@@ -44,7 +44,7 @@ export const templateRemoveCommand = new Command("remove")
 
       if (item.scope !== "user") {
         output.cancel(
-          `Cannot remove "${name}" — it is a ${item.scope} ${kind} and is not user-installed.`,
+          `Cannot remove "${name}": it is a ${item.scope} ${kind} and is not user-installed.`,
         );
         throw new ExitError(ExitCode.Failure);
       }

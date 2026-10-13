@@ -43,8 +43,8 @@ export function storyDescription(story: StorySummary): string {
 
 /** The QuickPick title: which mode is active and, in Search mode, every filter in effect. */
 export function browserTitle(base: string, mode: StoryBrowserModeKind, filters: StoryBrowserFilters): string {
-	if (mode === 'sprint') return `${base} — Current and next sprint, no Tasks yet`;
-	if (mode === 'applied') return `${base} — Stories this Template was applied to`;
+	if (mode === 'sprint') return `${base} · Current and next sprint, no Tasks yet`;
+	if (mode === 'applied') return `${base} · Stories this Template was applied to`;
 	const parts = [
 		filters.workItemTypes.length ? `Type: ${filters.workItemTypes.join(', ')}` : '',
 		filters.states.length ? `State: ${filters.states.join(', ')}` : '',
@@ -52,7 +52,7 @@ export function browserTitle(base: string, mode: StoryBrowserModeKind, filters: 
 		filters.iterations.length ? `Iteration: ${filters.iterations.map(lastSegment).join(', ')}` : '',
 		filters.hasTasks ? 'Has Tasks' : '',
 	].filter(Boolean);
-	return parts.length ? `${base} — Search (${parts.join(' · ')})` : `${base} — Search`;
+	return parts.length ? `${base} · Search (${parts.join(' · ')})` : `${base} · Search`;
 }
 
 export type StoryBrowserFilterKind = 'type' | 'state' | 'area' | 'iteration';
@@ -69,23 +69,23 @@ export function filterTooltip(kind: StoryBrowserFilterKind, filters: StoryBrowse
 	const { name, field, choose } = FILTER_TOOLTIPS[kind];
 	const values = field(filters);
 	return values.length
-		? `${name}: ${values.join(', ')} — click to change ${choose}, or select none to remove this filter`
-		: `${name}: any — click to choose ${choose}`;
+		? `${name}: ${values.join(', ')}. Click to change ${choose}, or select none to remove this filter`
+		: `${name}: any. Click to choose ${choose}`;
 }
 
 /** The Has Tasks button's hover text: its current setting and what clicking it switches to. */
 export function hasTasksTooltip(hasTasks: boolean): string {
 	return hasTasks
-		? 'Has Tasks: on, only Stories that already have Tasks — click to include every Story'
-		: 'Has Tasks: off, any Story — click to show only Stories that already have Tasks';
+		? 'Has Tasks: on, only Stories that already have Tasks. Click to include every Story'
+		: 'Has Tasks: off, any Story. Click to show only Stories that already have Tasks';
 }
 
 /** The mode button's hover text: which list clicking it switches to and whether the Search filters apply there. */
 export function switchModeTooltip(mode: StoryBrowserModeKind, defaultView: 'sprint' | 'applied'): string {
-	if (mode !== 'search') return 'Search all Stories — type to search and narrow with the Type, State, Area, Iteration, and Has Tasks filters';
+	if (mode !== 'search') return 'Search all Stories: type to search and narrow with the Type, State, Area, Iteration, and Has Tasks filters';
 	return defaultView === 'sprint'
-		? 'Back to the current and next sprint (Stories with no Tasks yet) — your Search filters are kept but not applied'
-		: 'Back to Stories this Template was applied to — your Search filters are kept but not applied';
+		? 'Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied'
+		: 'Back to Stories this Template was applied to. Your Search filters are kept but not applied';
 }
 
 /** Merges the current page of results with Stories already selected, selected first and without duplicates. */
