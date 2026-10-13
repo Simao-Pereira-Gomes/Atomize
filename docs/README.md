@@ -13,6 +13,7 @@ Start with the repository [README](../README.md) if you are new to Atomize. It i
 
 - [CLI Reference](./Cli-Reference.md) - Complete command and flag reference
 - [Template Reference](./Template-Reference.md) - Full Atomize YAML schema and semantics
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) - Browsable template schema, published from `main`
 - [Auth Guide](./Auth-Guide.md) - Connection profiles, credential storage, token rotation, and CI setup
 - [Validation Modes](./Validation-Modes.md) - Lenient vs strict validation
 - [Common Validation Errors](./Common-Validation-Errors.md) - How to fix common template failures
