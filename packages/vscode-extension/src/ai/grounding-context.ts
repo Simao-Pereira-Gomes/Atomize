@@ -32,8 +32,6 @@ export function groundingSummary(context: GroundingContext, ungrounded: string):
 
 /** An example description that refers to what was chosen, so it's clear the description can. */
 export function draftDescriptionPlaceholder(context: GroundingContext): string {
-	const [story] = context.stories;
-	if (story) return `e.g. Like ${story.id}, but add a security review`;
 	const [document] = context.documents;
 	if (document) return `e.g. Backend API stories, estimated the way "${document.title}" describes`;
 	return 'e.g. Backend API stories with design, implementation, and testing tasks';

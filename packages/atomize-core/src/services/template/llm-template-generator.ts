@@ -110,7 +110,7 @@ metadata:               # optional
 
 CONSTRAINTS (you must follow these):
 1. Estimation sums:
-   - Keep the allocation the user gives you. When the description, the example Stories, or the reference documents set how the work is split, use those percentages as given, even when they add up to more than 100 (for example each role estimating its own share, or reviews on top of the build work). Don't scale them down to 100, and don't add validation.totalEstimationMustBe or totalEstimationRange to force a total, unless the user explicitly asks for the percentages to add up to 100 or to be normalized. Leave estimation.normalize unset in that case: Atomize asks at generate time whether to normalize a total above 100.
+   - Keep the allocation the user gives you. When the description, the Stories, or the reference documents set how the work is split, use those percentages as given, even when they add up to more than 100 (for example each role estimating its own share, or reviews on top of the build work). Don't scale them down to 100, and don't add validation.totalEstimationMustBe or totalEstimationRange to force a total, unless the user explicitly asks for the percentages to add up to 100 or to be normalized. Leave estimation.normalize unset in that case: Atomize asks at generate time whether to normalize a total above 100.
    - When nothing sets the allocation and you choose the split yourself: in a simple template (no task-level conditions) estimationPercent values sum to exactly 100. A repeated task contributes its estimationPercent once per copy.
    - Multi-archetype templates (tasks use conditions to target different story types): each archetype's active task set should sum to ~100% independently, unless the user's allocation says otherwise. The total across all declared tasks will naturally exceed 100 — this is expected and valid.
 2. If a task uses dependsOn, all referenced IDs must exist on other tasks in the same template.
@@ -149,7 +149,7 @@ CONSTRAINTS (you must follow these):
    - repeat must be a whole number, at most 20 unless you also set validation.maxRepeat to at least that number. Only raise maxRepeat when the user explicitly asks for more than 20 copies.
    - Every copy is identical; when copies need different assignees, estimates or fields, write separate tasks instead.
 10. ITERATION: by default the template targets work items in the current iteration, so set filter.iterations: ["@CurrentIteration"] when drafting a new template.
-   - Use a different iteration only when the description, the example Stories' context, or the reference documents explicitly say so (e.g. "next sprint" → ["@CurrentIteration + 1"], a named sprint → its iteration path from the project metadata, "any iteration" or "the whole backlog" → omit filter.iterations).
+   - Use a different iteration only when the description or the reference documents explicitly say so (e.g. "next sprint" → ["@CurrentIteration + 1"], a named sprint → its iteration path from the project metadata, "any iteration" or "the whole backlog" → omit filter.iterations).
    - When the template extends a parent, set filter.iterations only if the parent doesn't already set it or the user asks for a different one.
    - When improving an existing template, keep its iteration filter as it is unless the user's focus or the reference documents ask to change it.
 
@@ -399,16 +399,11 @@ export function buildUserPrompt(
   description: string,
   projectGrounding?: string | null,
   prevErrors?: string[],
-  exampleStories?: string | null,
   referenceDocuments?: string | null,
 ): string {
   let prompt = `Generate an Atomize task template for the following:\n\n${description}`;
 
   if (referenceDocuments) prompt += `\n\n${referenceDocuments}`;
-
-  if (exampleStories) {
-    prompt += `\n\n---\nExample Stories the user picked from their team, with the Tasks each one ended up with (JSON):\n${exampleStories}\n\nFollow the team's conventions they show — how Tasks are named, how estimates are split, which review or test steps they always include — but write the template for the description above. Don't copy Story-specific details into it.\n---`;
-  }
 
   if (projectGrounding) prompt += buildProjectGroundingSection(projectGrounding);
 

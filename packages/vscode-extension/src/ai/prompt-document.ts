@@ -13,13 +13,13 @@ const INSTRUCTION = 'Describe the Template you need below, as fully as you like,
 const safe = (text: string) => text.replace(/-->/g, '->');
 
 function contextLines(context: GroundingContext): string[] {
-	if (!context.profile && context.stories.length === 0 && context.documents.length === 0) return [];
+	if (!context.profile && context.documents.length === 0) return [];
 	return [
 		'',
 		`Grounded in: ${safe(context.profile ?? 'no Work Project')}`,
-		...(context.stories.length > 0 ? [`Example Stories: ${context.stories.map(story => safe(`${story.id} ${story.title}`)).join('; ')}`] : []),
-		...(context.documents.length > 0 ? [`Reference Documents: ${context.documents.map(document => safe(document.title)).join('; ')}`] : []),
-		'Refer to them by Story ID or document name.',
+		...(context.documents.length > 0
+			? [`Reference Documents: ${context.documents.map(document => safe(document.title)).join('; ')}`, 'Refer to them by document name.']
+			: []),
 	];
 }
 

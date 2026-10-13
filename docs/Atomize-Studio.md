@@ -91,21 +91,12 @@ If you've selected a Connection Profile in the [Work Project Setting](#work-proj
 
 The AI draft form has four steps, shown as tabs you can move between freely. Each tab shows what's set so far:
 
-1. **Work Project & Stories**: optionally choose a Work Project and example Stories.
+1. **Work Project**: optionally choose a Work Project.
 2. **Reference Documents**: optionally add your team's written process (see [Reference Documents](#reference-documents)).
-3. **Brief**: describe the work and the task breakdown you want. What you chose is listed above the box, so you can refer to it by Story ID or document name, for example "like 4101, but add a security review". From steps 1 and 2, **Skip to brief** jumps straight here.
+3. **Brief**: describe the work and the task breakdown you want. The Reference Documents you chose are listed above the box, so you can refer to them by name. From steps 1 and 2, **Skip to brief** jumps straight here.
 4. **Review & create**: everything Copilot will receive, with **Edit** links back to each step. **Create draft** is here.
 
-With a Work Project chosen, you can also add **example Stories**: Stories your team broke down well. Copilot follows the conventions they show (Task naming, estimate splits, the review and test steps you always include) while writing the Template you described. The Story Browser opens in Search mode on the Work Project & Stories step:
-
-- Search by Story ID or title.
-- Narrow by type, state, area path or iteration. Area paths and iterations include everything below them.
-- Keep **Only Stories that already have Tasks** on, so only Stories that were actually broken down are listed.
-- Tick the ones you want. Ticks stay while you change the search, and **Load more** shows the next 50.
-
-By default only titles, states, estimates and Task activity are sent. Tick **Also send their descriptions and acceptance criteria** to include those for this draft only, since they can contain customer, personal or internal details. Studio never picks example Stories for you, and the profile's token stays in Studio's backend. If the Stories can't be loaded, for example because one has no Tasks, the draft stops and tells you why, so you can retry or continue without project context.
-
-Copilot keeps the task percentages your brief, example Stories or Reference Documents give, even when they add up to more than 100% (for example when each role estimates its own share). It only makes them add up to 100% when it chooses the split itself, or when you ask it to. A Template above 100% is offered for normalisation when you generate, as usual.
+Copilot keeps the task percentages your brief or Reference Documents give, even when they add up to more than 100% (for example when each role estimates its own share). It only makes them add up to 100% when it chooses the split itself, or when you ask it to. A Template above 100% is offered for normalisation when you generate, as usual.
 
 Copilot checks its draft against the Template schema and fixes problems before you see it, up to three attempts. A draft that still has problems after that enters the authoring surface with its field-level errors shown, so you can fix them yourself. Output that isn't Template-shaped at all is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
 

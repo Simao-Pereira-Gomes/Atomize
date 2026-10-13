@@ -65,9 +65,6 @@ Any YAML file authored for Atomize, either a Template or a Mixin.
 **Platform Adapter**:
 A concrete adapter that lets Atomize read, create, and link Work Items on a work-tracking platform.
 
-**Story Learner**:
-The module that derives a reusable Template from existing Stories and their child Tasks.
-
 **Mock Story**:
 A user-supplied JSON object of Story field values (using Work Item property names) used to simulate Task generation without a platform connection. Required fields (`id`, `title`, `type`, `state`) are silently defaulted if omitted.
 
@@ -93,8 +90,7 @@ Curated platform context sent to a Copilot Session alongside the user's request,
 Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. Always included when the user chooses a Connection Profile for a draft or an improvement.
 
 **Story Grounding**:
-Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to show how the team actually breaks work down. Optional evidence on top of Project Grounding: example Stories when drafting, or Stories the Template was applied to when improving. Atomize never picks the Stories itself. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
-_Avoid_: confusing Story Grounding with the Story Learner, which derives a Template from Stories deterministically, without AI.
+Grounding drawn from Stories the user selects and their child Tasks, limited to the fields needed to show how the team actually breaks work down. Optional evidence on top of Project Grounding for a Template Improvement only: Stories the Template was applied to. A draft never carries it. Atomize never picks the Stories itself. Story Grounding excludes Sensitive AI Context unless the user opts in for that run.
 
 **Reference Document**:
 A user-selected written account of how a team breaks down and estimates work — an Azure DevOps wiki page read through a Connection Profile, or a local Markdown or text file. Sent to a Copilot Session as reference material, never as instructions.

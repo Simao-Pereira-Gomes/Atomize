@@ -42,8 +42,8 @@ class PromptDocumentCodeLensProvider implements vscode.CodeLensProvider {
 }
 
 /**
- * Grounding first, then the description, so the description can refer to the Stories and
- * documents just chosen. A prompt document keeps the Grounding it was opened with.
+ * Grounding first, then the description, so the description can refer to the documents just
+ * chosen. A prompt document keeps the Grounding it was opened with.
  */
 async function draftTemplateWithAI(deps: DraftCommandDeps, promptDocument?: vscode.Uri): Promise<void> {
 	const key = promptDocument?.toString();
@@ -81,7 +81,6 @@ async function chooseGrounding(deps: DraftCommandDeps, promptDocument: vscode.Ur
 		title: TITLE,
 		resource,
 		noGrounding: { label: 'No project grounding', description: 'Draft from your description only' },
-		storyPlaceholder: 'Optionally tick example Stories your team broke down well, or press Enter with none to skip.',
 		purpose: 'The draft',
 	});
 	if (grounding === 'cancelled') return undefined;
@@ -161,7 +160,6 @@ async function runDraft(
 		const result = await draftTemplate(session, {
 			prose: description,
 			projectGrounding: grounding.projectGrounding,
-			storyGrounding: grounding.storyGrounding,
 			documentGrounding: grounding.documentGrounding,
 		}, {
 			signal: cancellation.signal,

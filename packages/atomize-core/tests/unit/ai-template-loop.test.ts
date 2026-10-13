@@ -392,25 +392,11 @@ describe("improveTemplate grounding", () => {
   });
 });
 
-describe("draftTemplate with example Stories", () => {
-  const VALID = 'version: "1.0"\nname: "X"\nfilter:\n  workItemTypes: ["User Story"]\ntasks:\n  - title: "Build"\n    estimationPercent: 100\n';
-
-  test("sends example Stories alongside Project Grounding when supplied", async () => {
-    const { session, calls } = scriptedSession([VALID]);
-    await draftTemplate(session, {
-      prose: "Bug triage",
-      projectGrounding: { workItemTypes: ["PROJECT-MARKER"] } as unknown as ProjectGrounding,
-      storyGrounding: { stories: [{ id: "7", title: "EXAMPLE-MARKER", type: "Bug", state: "Done", tasks: [] }], includesSensitiveContext: false },
-    });
-    expect(calls[0]?.userPrompt).toContain("Example Stories the user picked");
-    expect(calls[0]?.userPrompt).toContain("EXAMPLE-MARKER");
-    expect(calls[0]?.userPrompt).toContain("PROJECT-MARKER");
-  });
-
-  test("leaves the example section out without Stories", async () => {
-    const { session, calls } = scriptedSession([VALID]);
-    await draftTemplate(session, { prose: "Bug triage", storyGrounding: { stories: [], includesSensitiveContext: false } });
-    expect(calls[0]?.userPrompt).not.toContain("Example Stories");
+describe("draftTemplate and Stories", () => {
+  test("a draft never carries Story Grounding: Stories are evidence for improving only", async () => {
+    const { session, calls } = scriptedSession(['version: "1.0"\nname: "X"\nfilter:\n  workItemTypes: ["User Story"]\ntasks:\n  - title: "Build"\n    estimationPercent: 100\n']);
+    await draftTemplate(session, { prose: "Bug triage" });
+    expect(calls[0]?.userPrompt).not.toContain("Stories");
   });
 });
 

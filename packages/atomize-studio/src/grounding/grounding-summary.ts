@@ -36,9 +36,7 @@ export function documentLabel(ref: string): string {
 }
 
 /** An example AI draft brief that refers to what was chosen, so it's clear the brief can. */
-export function draftBriefPlaceholder(stories: Pick<StoryRow, "id">[], grounding: DocumentGrounding | null): string {
-  const [story] = stories;
-  if (story) return `For example: like ${story.id}, but add a security review.`;
+export function draftBriefPlaceholder(grounding: DocumentGrounding | null): string {
   const [document] = grounding?.documents ?? [];
   if (document) return `For example: a backend API feature, estimated the way "${document.title}" describes.`;
   return "For example: a backend API feature with design, implementation, tests, documentation, and review.";

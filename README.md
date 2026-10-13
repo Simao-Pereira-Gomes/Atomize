@@ -96,7 +96,7 @@ Start from an existing template unless you already know you need custom YAML.
 | Try a known pattern | **Atomize: Browse Catalog** or `atomize template list` |
 | Customize a built-in template | `atomize template create --from backend-api` |
 | Build manually | `atomize template create --scratch` or edit YAML in VS Code |
-| Capture existing team practice | `atomize template create --from-stories 123,456,789` |
+| Capture existing team practice | `atomize template create --ai --reference docs/how-we-work.md` |
 | Draft from prose | `atomize template create --ai` |
 
 Minimal template:
@@ -170,7 +170,6 @@ See [CLI Reference](./docs/Cli-Reference.md) for complete command and flag docum
 - [Validation Modes](./docs/Validation-Modes.md) - Strict vs lenient validation
 - [Common Validation Errors](./docs/Common-Validation-Errors.md) - Fix validation failures
 - [Platform Guide](./docs/Platform-Guide.md) - Azure DevOps, Mock, and platform concepts
-- [Story Learner](./docs/Story-Learner.md) - Generate templates from existing work items
 
 ## Development
 

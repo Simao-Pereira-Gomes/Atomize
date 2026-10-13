@@ -454,19 +454,15 @@ atomize tpl create [options]  # alias
 |--------|------|-------------|
 | `--type <type>` | string | Create a `template` or a `mixin` (prompted if omitted) |
 | `--from <name>` | string | Start from an existing catalog template |
-| `--from-stories <ids>` | string | Learn a template from these stories (comma-separated IDs). With `--ai`, use them instead as example Stories for the draft; implies `--ground` |
-| `--estimation-source <field>` | string | With `--from-stories`, read each Story Estimate from this field reference name (e.g. `Custom.TShirtSize`) and write it as `estimation.source`; the learned Template gets a matching conversion table or factor |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
 | `--ground` | flag | Ground AI generation in your Azure DevOps project's work item types, states, fields and allowed values, saved queries, and area and iteration paths. Uses `--profile`, or the default profile |
-| `--include-sensitive-ai-context` | flag | With `--ai --from-stories`, also send the example Stories' descriptions and acceptance criteria to Copilot, for this run only |
 | `--reference <path>` | string | With `--ai`, send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | With `--ai`, leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
 | `--scope <scope>` | string | Catalog to save to: `user` (`~/.atomize/catalog`) or `project` (`.atomize/catalog` in the project root). Default: `project` when the project root has its own `.atomize` folder, otherwise `user`. |
 | `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
-| `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
-| `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
+| `--profile <name>` | string | Named ADO profile for `--ground` and field suggestions (uses default if omitted) |
 | `-q, --quiet` | flag | Suppress non-essential output |
 
 #### Creation Modes
@@ -495,8 +491,8 @@ atomize template create --ai
 # Ground the draft in your project's real types, fields, and saved queries
 atomize template create --ai --ground --profile work-ado
 
-# Also follow the conventions of Stories your team broke down well
-atomize template create --ai --from-stories 1234,1240 --profile work-ado
+# Also follow the process your team wrote down
+atomize template create --ai --ground --reference docs/how-we-work.md --profile work-ado
 
 ```
 
@@ -504,23 +500,7 @@ Requires an active GitHub Copilot subscription. Atomize starts the bundled Copil
 
 ---
 
-**3. Learn from Multiple Stories**
-
-Analyze existing stories to detect patterns and build a higher-confidence template.
-
-```bash
-atomize template create --from-stories STORY-1,STORY-2,STORY-3
-
-atomize template create \
-  --from-stories STORY-123,STORY-456,STORY-789 \
-  --save-as api-pattern
-```
-
-See [Story Learner](./Story-Learner.md) for details.
-
----
-
-**4. Interactive Wizard (From Scratch)**
+**3. Interactive Wizard (From Scratch)**
 
 Step-by-step guided builder for full control.
 
@@ -1003,14 +983,6 @@ atomize template create --ai
 atomize template create --ai --ground --profile work-ado
 ```
 
-### Multi-Story Learning
-
-```bash
-atomize template create \
-  --from-stories STORY-1,STORY-2,STORY-3,STORY-4,STORY-5 \
-  --platform azure-devops
-```
-
 ### Using Composed Templates
 
 ```bash
@@ -1121,6 +1093,5 @@ atomize generate template:backend-api --verbose
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors
 - [Platform Guide](./Platform-Guide.md) - Platform setup and configuration
-- [Story Learner](./Story-Learner.md) - Generate templates from existing work items
 - [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows
 - [Examples](../examples/) - Real-world template examples

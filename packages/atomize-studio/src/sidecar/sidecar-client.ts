@@ -81,8 +81,8 @@ export async function cancelOnlineValidation(validationId: string, call: Sidecar
   catch (error) { throw sidecarError(error); }
 }
 
-export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, storyGrounding?: unknown, documentGrounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
-  try { return await call("ai_generate", { draftId, prose, grounding, storyGrounding, documentGrounding }); }
+export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, documentGrounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<unknown> {
+  try { return await call("ai_generate", { draftId, prose, grounding, documentGrounding }); }
   catch (error) { throw sidecarError(error); }
 }
 

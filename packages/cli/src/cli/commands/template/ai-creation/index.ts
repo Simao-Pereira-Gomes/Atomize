@@ -21,8 +21,6 @@ export interface AICreationOptions {
   ai?: boolean;
   ground?: boolean;
   profile?: string;
-  fromStories?: string;
-  includeSensitiveAiContext?: boolean;
   reference?: string[];
   projectReferences?: boolean;
 }

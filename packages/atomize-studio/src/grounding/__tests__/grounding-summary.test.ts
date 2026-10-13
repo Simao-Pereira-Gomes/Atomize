@@ -32,9 +32,8 @@ describe("Grounding summary", () => {
 
   it("suggests a brief or focus that refers to what was chosen", () => {
     const docs = grounding({ ...document("file:docs/estimation.md", false), title: "Estimation guide" });
-    expect(draftBriefPlaceholder([{ id: "4101" }], docs)).toContain("like 4101");
-    expect(draftBriefPlaceholder([], docs)).toContain('"Estimation guide"');
-    expect(draftBriefPlaceholder([], null)).toContain("backend API feature with design");
+    expect(draftBriefPlaceholder(docs)).toContain('"Estimation guide"');
+    expect(draftBriefPlaceholder(null)).toContain("backend API feature with design");
     expect(improveFocusPlaceholder([{ id: "4101" }], null)).toContain("4101");
     expect(improveFocusPlaceholder([], docs)).toContain('"Estimation guide"');
     expect(improveFocusPlaceholder([], null)).toContain("tighten the estimates");

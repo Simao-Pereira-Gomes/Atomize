@@ -22,13 +22,13 @@ export interface GenerationResult {
 export async function runGeneration(
   provider: AIProvider,
   description: string,
-  grounding: Pick<DraftGrounding, "projectGrounding" | "storyGrounding"> & { documentGrounding?: DocumentGrounding | null },
+  grounding: DraftGrounding & { documentGrounding?: DocumentGrounding | null },
 ): Promise<GenerationResult> {
   output.print(chalk.cyan("\n━━━ Generating template ━━━\n"));
   let retrySpinner: ReturnType<typeof createManagedSpinner> | undefined;
   let streamed = false;
 
-  const result = await draftTemplate(provider, { prose: description, projectGrounding: grounding.projectGrounding, storyGrounding: grounding.storyGrounding, documentGrounding: grounding.documentGrounding ?? null }, {
+  const result = await draftTemplate(provider, { prose: description, projectGrounding: grounding.projectGrounding, documentGrounding: grounding.documentGrounding ?? null }, {
     onChunk: (chunk) => {
       streamed = true;
       output.write(chalk.gray(chunk));

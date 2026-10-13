@@ -21,7 +21,6 @@ Start with the repository [README](../README.md) if you are new to Atomize. It i
 ## Advanced Features
 
 - [Template Creation](./Template-Creation.md) - Catalog, wizard, direct authoring, AI-assisted drafts, and mixins
-- [Story Learner](./Story-Learner.md) - Generate templates from existing stories and child tasks
 
 ## Compatibility Pages
 

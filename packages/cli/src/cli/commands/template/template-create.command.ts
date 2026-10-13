@@ -8,13 +8,8 @@ import { logger } from "@config/logger";
 import {
   requireProjectMetadataReader,
   requireSavedQueryReader,
-  requireStoryLearningPlatform,
 } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { EstimationDefaults } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
-import type { IPlatformAdapter, PlatformType } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
-import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
-import { StoryLearner } from "@sppg2001/atomize-core/services/template/story-learner";
-import type { MultiStoryLearningResult } from "@sppg2001/atomize-core/services/template/story-learner.types";
 import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { 
   Metadata,MixinTemplate, PartialTaskTemplate, 
@@ -67,24 +62,20 @@ interface CreateFromScratchOptions {
   profile?: string;
 }
 
-type CreationMode = "template" | "stories" | "scratch" | "ai";
+type CreationMode = "template" | "scratch" | "ai";
 type CreationTarget = "template" | "mixin";
 
 interface CreateOptions {
   type?: CreationTarget;
   from?: string;
-  fromStories?: string;
-  estimationSource?: string;
   scratch?: boolean;
   ai?: boolean;
   ground?: boolean;
-  includeSensitiveAiContext?: boolean;
   reference?: string[];
   projectReferences?: boolean;
   saveAs?: string;
   /** The Catalog to save to: user or project. */
   scope?: string;
-  platform?: string;
   profile?: string;
   quiet?: boolean;
   open?: boolean;
@@ -99,20 +90,10 @@ export const templateCreateCommand = new Command("create")
   .description("Create a new template interactively")
   .option("--type <type>", "Create as template or mixin")
   .option("--from <name>", "Start from an existing template")
-  .option(
-    "--from-stories <ids>",
-    "Learn a template from these stories (comma-separated IDs). With --ai, use them as example Stories for the draft instead; implies --ground",
-  )
-  .option(
-    "--estimation-source <field>",
-    "With --from-stories, read each Story Estimate from this field reference name (e.g. Custom.TShirtSize) and write it as estimation.source",
-  )
-  .option("-p, --platform <platform>", "Platform to use", "azure-devops")
   .option("--profile <name>", "Connect to ADO using a named profile for field suggestions (uses default profile if omitted)")
   .option("--scratch", "Create from scratch (skip mode selection)")
   .option("--ai", "Use AI-assisted generation (describe the template in natural language)")
   .option("--ground", "Ground AI generation in your Azure DevOps project's work item types, fields, and saved queries (uses --profile or the default profile)")
-  .option("--include-sensitive-ai-context", "With --ai --from-stories, also send the Stories' descriptions and acceptance criteria to Copilot")
   .option("--reference <path>", "With --ai, send this Markdown or text file in the workspace as a Reference Document (repeatable)", collect)
   .option("--no-project-references", "With --ai, leave out the Project Reference Documents saved in .atomize/ai.yaml")
   .option("--save-as <name>", "Name to save the template under")
@@ -173,7 +154,6 @@ async function createFullTemplate(options: CreateOptions): Promise<AnyTaskTempla
 
   return await match(mode)
     .with("template", async () => await createFromTemplate(options))
-    .with("stories", async () => await createFromStories(options))
     .with(
       "scratch",
       async () => await createFromScratch({ quiet: options.quiet, profile: options.profile }),
@@ -218,9 +198,7 @@ function parseCreationTarget(value: string): CreationTarget {
  */
 async function determineMode(options: CreateOptions): Promise<CreationMode> {
   if (options.from) return "template";
-  // With --ai, --from-stories names example Stories for the draft rather than asking the Story Learner.
   if (options.ai) return "ai";
-  if (options.fromStories) return "stories";
   if (options.scratch) return "scratch";
 
   // No flags - show interactive menu
@@ -239,10 +217,6 @@ async function determineMode(options: CreateOptions): Promise<CreationMode> {
         {
           label: "From template: start with a built-in or saved template",
           value: "template",
-        },
-        {
-          label: "From stories: learn patterns from existing examples",
-          value: "stories",
         },
       ],
     }),
@@ -376,242 +350,6 @@ async function configureTemplateMixins(library: TemplateLibrary): Promise<string
 
   const { items: mixins } = await library.getCatalog("mixin");
   return await promptMixinRefs(mixins);
-}
-
-/**
- * Create from multiple existing stories
- */
-/**
- * Validates that story IDs exist on the platform before running analysis.
- * Returns the filtered list of valid IDs, prompting the user if some are missing.
- * Skipped gracefully if the platform does not implement getWorkItem.
- * Throws ConfigurationError if none exist, CancellationError if user declines to continue.
- */
-async function validateStoryIds(
-  platform: IPlatformAdapter,
-  storyIds: string[],
-): Promise<string[]> {
-  if (!platform.getWorkItem) return storyIds;
-
-  const validateSpinner = createManagedSpinner();
-  validateSpinner.start(`Validating ${storyIds.length} story ID(s)...`);
-
-  const results = await Promise.all(
-    storyIds.map(async (id) => ({
-      id,
-      found: !!(await platform.getWorkItem?.(id)),
-    })),
-  );
-
-  const missing = results.filter((r) => !r.found).map((r) => r.id);
-
-  if (missing.length === storyIds.length) {
-    validateSpinner.stop("Validation failed");
-    throw new ConfigurationError(
-      `None of the provided story IDs exist: ${missing.join(", ")}. Check the IDs and try again.`,
-    );
-  }
-
-  if (missing.length > 0) {
-    validateSpinner.stop(`${missing.length} story ID(s) not found`);
-    defaultOutput.print(chalk.yellow(`  Not found: ${missing.join(", ")}`));
-
-    const proceed = assertNotCancelled(
-      await confirm({
-        message: `Continue with the ${storyIds.length - missing.length} remaining story ID(s)?`,
-        initialValue: true,
-      }),
-    );
-
-    if (!proceed) throw new CancellationError("Story ID validation cancelled");
-
-    return storyIds.filter((id) => !missing.includes(id));
-  }
-
-  validateSpinner.stop(`All ${storyIds.length} story ID(s) found ✓`);
-  return storyIds;
-}
-
-async function createFromStories(
-  options: CreateOptions,
-): Promise<TaskTemplate> {
-  defaultOutput.print(chalk.cyan("\n Learn from Multiple Stories\n"));
-
-  let storyIds: string[];
-  if (options.fromStories) {
-    storyIds = options.fromStories
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } else {
-    const storyIdsRaw = assertNotCancelled(
-      await text({
-        message: "Enter story IDs (comma-separated):",
-      }),
-    );
-    storyIds = storyIdsRaw
-      .split(",")
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-  }
-
-  if (storyIds.length === 0) {
-    throw new ConfigurationError("At least one story ID is required");
-  }
-
-  let platformType = options.platform || "azure-devops";
-  if (!options.platform) {
-    platformType = assertNotCancelled(
-      await select({
-        message: "Select platform:",
-        options: [
-          { label: "Azure DevOps", value: "azure-devops" },
-          ...(process.env.ATOMIZE_DEV === "true"
-            ? [{ label: "Mock Platform (for testing)", value: "mock" }]
-            : []),
-        ],
-      }),
-    ) as string;
-  }
-
-  const connectSpinner = createManagedSpinner();
-  connectSpinner.start(`Connecting to ${platformType}...`);
-
-  let platform: IPlatformAdapter | null = null;
-  if (platformType === "azure-devops") {
-    const { resolveAzureConfig } = await import("@config/profile-resolver");
-    const config = await resolveAzureConfig(options.profile);
-    platform = PlatformFactory.create("azure-devops", config);
-  } else {
-    platform = PlatformFactory.create(platformType as PlatformType);
-  }
-
-  await platform.authenticate();
-  connectSpinner.stop("Connected ✓");
-
-  storyIds = await validateStoryIds(platform, storyIds);
-
-  const learningPlatform = requireStoryLearningPlatform(platform);
-  const learner = new StoryLearner(learningPlatform);
-  const learnSpinner = createManagedSpinner();
-  learnSpinner.start(`Learning from ${storyIds.length} stories...`);
-  const result = await learner.learnFromStories(storyIds, { estimationSource: options.estimationSource });
-  learnSpinner.stop(`Analyzed ${result.analyses.length} stories ✓`);
-
-  displayMultiStoryResults(result);
-
-  if (result.variations.length > 1) {
-    const choice = assertNotCancelled(
-      await select({
-        message: "Select template variation:",
-        options: [
-          {
-            label: `Learned template (confidence: ${result.confidence.level} - ${result.confidence.overall}%)`,
-            value: "merged",
-          },
-          ...result.variations.map((v, i) => ({
-            label: `${v.name} (confidence: ${v.confidence.level} - ${v.confidence.overall}%)`,
-            value: `variation-${i}`,
-          })),
-        ],
-      }),
-    );
-
-    if (choice !== "merged") {
-      const index = Number.parseInt(
-        (choice as string).replace("variation-", ""),
-        10,
-      );
-      const variation = result.variations[index];
-      if (variation) {
-        return variation.template;
-      }
-    }
-  }
-
-  return result.template;
-}
-
-/**
- * Display multi-story learning results
- */
-function displayMultiStoryResults(result: MultiStoryLearningResult): void {
-  defaultOutput.print(
-    chalk.green(
-      `\nAnalyzed ${result.analyses.length} stories, skipped ${result.skipped.length}`,
-    ),
-  );
-
-  if (result.skipped.length > 0) {
-    defaultOutput.print(chalk.yellow("\nSkipped stories:"));
-    for (const s of result.skipped) {
-      defaultOutput.print(chalk.yellow(`  - ${s.storyId}: ${s.reason}`));
-    }
-  }
-
-  // Confidence
-  const confidenceColor =
-    result.confidence.level === "high"
-      ? chalk.green
-      : result.confidence.level === "medium"
-        ? chalk.yellow
-        : chalk.red;
-  defaultOutput.print(
-    confidenceColor(
-      `\nConfidence: ${result.confidence.level} (${result.confidence.overall}%)`,
-    ),
-  );
-  for (const factor of result.confidence.factors) {
-    defaultOutput.print(
-      chalk.gray(`  ${factor.name}: ${factor.score}% - ${factor.description}`),
-    );
-  }
-
-  // Patterns
-  defaultOutput.print(
-    chalk.cyan(
-      `\nPatterns: ${result.patterns.commonTasks.length} common tasks detected`,
-    ),
-  );
-  defaultOutput.print(
-    chalk.gray(`  Avg tasks/story: ${result.patterns.averageTaskCount}`),
-  );
-
-  // Learned template summary
-  defaultOutput.print(
-    chalk.green(
-      `\nLearned template: ${result.template.tasks.length} tasks`,
-    ),
-  );
-
-  // Suggestions
-  if (result.suggestions.length > 0) {
-    defaultOutput.print(chalk.cyan("\nSuggestions:"));
-    for (const s of result.suggestions) {
-      const icon =
-        s.severity === "important"
-          ? chalk.red("!")
-          : s.severity === "warning"
-            ? chalk.yellow("~")
-            : chalk.gray("-");
-      defaultOutput.print(`  ${icon} ${s.message}`);
-    }
-  }
-
-  // Outliers
-  if (result.outliers.length > 0) {
-    defaultOutput.print(chalk.yellow("\nOutliers detected:"));
-    for (const o of result.outliers) {
-      defaultOutput.print(chalk.yellow(`  - ${o.message}`));
-    }
-  }
-
-  // Variations
-  if (result.variations.length > 0) {
-    defaultOutput.print(
-      chalk.cyan(`\n${result.variations.length} template variations available`),
-    );
-  }
 }
 
 /**

@@ -54,7 +54,7 @@ export type RpcNotification =
 export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
-export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; storyGrounding?: unknown; documentGrounding?: unknown };
+export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; documentGrounding?: unknown };
 /** Where Reference Documents are looked up: a Workspace Root, discovered from a folder or file inside it. */
 export type ReferencesListParams = { startPath: string };
 export type ReferencesSaveParams = { workspaceRoot: string; entry: string };
@@ -223,7 +223,6 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
     draftTemplate(session, {
       prose: params.prose,
       projectGrounding: params.grounding as ProjectGrounding | undefined,
-      storyGrounding: params.storyGrounding as StoryGrounding | undefined,
       documentGrounding: params.documentGrounding as DocumentGrounding | undefined,
     }, options));
   if (result.ok) return { template: result.template as unknown as Record<string, unknown> };

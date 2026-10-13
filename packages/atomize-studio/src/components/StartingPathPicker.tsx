@@ -3,20 +3,18 @@ import { type Accessor, createSignal, For, type JSX, Match, Show, Switch } from 
 import { type AzureDevOpsProfile, listAzureDevOpsProfiles } from "../connections/connection-client";
 import { openLocalFile } from "../files/open";
 import { type GroundedFieldOptions, loadGroundedFieldOptions } from "../grounding/grounding-service";
-import { documentLabel, documentsSummary, draftBriefPlaceholder, shortenedDocuments, storiesSummary } from "../grounding/grounding-summary";
+import { documentLabel, documentsSummary, draftBriefPlaceholder, shortenedDocuments } from "../grounding/grounding-summary";
 import type { DocumentGrounding } from "../references/reference-documents";
-import { cancelAIDraft, checkCopilotAuthStatus, generateAIDraft, listenAIDraftProgress, loadStoryGrounding, SidecarRequestError } from "../sidecar/sidecar-client";
+import { cancelAIDraft, checkCopilotAuthStatus, generateAIDraft, listenAIDraftProgress, SidecarRequestError } from "../sidecar/sidecar-client";
 import { parseAIDraftResponse } from "../starting-paths/ai-draft";
 import { createAIDraftLifecycle } from "../starting-paths/ai-draft-lifecycle";
-import type { StoryRow } from "../stories/story-browser-model";
 import { ReferenceDocumentsPicker } from "./ReferenceDocumentsPicker";
 import { ShorteningChoice } from "./ShorteningChoice";
-import { StoryBrowser } from "./StoryBrowser";
 
 type AIState = "idle" | "form" | "grounding-error" | "generating" | "cancelling" | "auth-error" | "error";
 
-// Grounding first, so the brief can refer to the Stories and documents just chosen.
-const DRAFT_STEPS = ["Work Project & Stories", "Reference Documents", "Brief", "Review & create"] as const;
+// Grounding first, so the brief can refer to the documents just chosen.
+const DRAFT_STEPS = ["Work Project", "Reference Documents", "Brief", "Review & create"] as const;
 const PROJECT_STEP = 0;
 const DOCUMENTS_STEP = 1;
 const BRIEF_STEP = 2;
@@ -42,12 +40,9 @@ export function StartingPathPicker(props: {
   const [aiError, setAiError] = createSignal("");
   const [draftId, setDraftId] = createSignal("");
   const [streamLength, setStreamLength] = createSignal(0);
-  // Brief → Work Project & Stories → Reference Documents → Review & create; only the last step sends.
+  // Work Project → Reference Documents → Brief → Review & create; only the last step sends.
   const [step, setStep] = createSignal(0);
   const [confirmingShortened, setConfirmingShortened] = createSignal(false);
-  // Optional example Stories (ADR-0069): only when a Work Project is chosen, never picked for the user.
-  const [examples, setExamples] = createSignal<StoryRow[]>([]);
-  const [includeSensitive, setIncludeSensitive] = createSignal(false);
   const [projectChoices, setProjectChoices] = createSignal<{ profile: string; options: GroundedFieldOptions } | undefined>();
   const [groundingMessage, setGroundingMessage] = createSignal("");
   const [documents, setDocuments] = createSignal<DocumentGrounding | null>(null);
@@ -61,16 +56,14 @@ export function StartingPathPicker(props: {
   };
   const chooseProfile = (name: string) => {
     setProfile(name);
-    setExamples([]);
-    setIncludeSensitive(false);
-    // Loads the Story Browser's filter choices; a failure surfaces when the draft is created.
+    // Loads the project's field options ahead of time; a failure surfaces when the draft is created.
     if (name) void choicesFor(name).catch(() => {});
   };
   const busy = () => aiState() === "generating" || aiState() === "cancelling";
   const shortened = () => shortenedDocuments(documents());
   const stepSummary = (index: number) => {
     if (index === BRIEF_STEP) return prose().trim() ? "Written" : "Not written yet";
-    if (index === PROJECT_STEP) return profile() ? `${profile()} · ${examples().length === 0 ? "No Stories" : examples().length === 1 ? "1 Story" : `${examples().length} Stories`}` : "No Work Project";
+    if (index === PROJECT_STEP) return profile() || "No Work Project";
     if (index === DOCUMENTS_STEP) return documentsSummary(documents(), documentsLoading());
     return "";
   };
@@ -122,11 +115,7 @@ export function StartingPathPicker(props: {
     try {
       const grounding = !withoutProject && profile() ? await choicesFor(profile()) : undefined;
       if (!draftLifecycle.isActive(id)) return;
-      const storyGrounding = grounding && examples().length > 0
-        ? await loadStoryGrounding(profile(), examples().map((story) => story.id), includeSensitive())
-        : undefined;
-      if (!draftLifecycle.isActive(id)) return;
-      const result = await generateAIDraft(id, prose(), grounding, storyGrounding, documents() ?? undefined);
+      const result = await generateAIDraft(id, prose(), grounding, documents() ?? undefined);
       if (!draftLifecycle.isActive(id)) return;
       props.onAIDraft(parseAIDraftResponse(result), withoutProject ? "" : profile(), grounding);
     } catch (error) {
@@ -211,32 +200,10 @@ export function StartingPathPicker(props: {
               </div>
 
               <div class="min-h-80 p-6">
-                {/* Every step stays mounted so the Story Browser and Reference Documents keep their state. */}
+                {/* Every step stays mounted so the Reference Documents keep their state. */}
                 <div classList={{ hidden: step() !== PROJECT_STEP }}>
                   <label class="block max-w-md min-w-0 text-sm font-semibold">Work Project <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span><select class="mt-2 block w-full min-w-0 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal dark:border-slate-700 dark:bg-slate-950" value={profile()} disabled={busy()} onChange={(event) => chooseProfile(event.currentTarget.value)}><option value="">No Work Project</option><For each={profiles()}>{(item) => <option value={item.name}>{item.name}</option>}</For></select></label>
                   <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">A selected Work Project contributes curated field options.</p>
-                  <Show when={profile()} fallback={<p class="mt-6 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Choose a Work Project to add example Stories.</p>}>
-                    <section class="mt-6">
-                      <p class="text-sm font-semibold">Example Stories <span class="font-normal text-slate-500 dark:text-slate-400">(optional)</span></p>
-                      <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Stories your team broke down well. Copilot follows their Task naming, estimate splits, and review steps.</p>
-                      <div class="mt-2">
-                        <StoryBrowser
-                          profile={profile}
-                          choices={() => projectChoices()?.profile === profile() ? projectChoices()?.options : undefined}
-                          selected={examples}
-                          onChange={setExamples}
-                          hasTasksByDefault
-                          disabled={busy}
-                        />
-                      </div>
-                      <Show when={examples().length > 0}>
-                        <label class="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-700 dark:text-slate-200">
-                          <input type="checkbox" class="mt-0.5" checked={includeSensitive()} disabled={busy()} onChange={(event) => setIncludeSensitive(event.currentTarget.checked)} />
-                          Also send their descriptions and acceptance criteria. They can contain customer, personal, or internal details. Applies to this draft only.
-                        </label>
-                      </Show>
-                    </section>
-                  </Show>
                 </div>
 
                 <div classList={{ hidden: step() !== DOCUMENTS_STEP }}>
@@ -249,16 +216,15 @@ export function StartingPathPicker(props: {
 
                 <div classList={{ hidden: step() !== BRIEF_STEP }}>
                   <p class="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Describe the work and task breakdown you want. Copilot creates a reviewable first Template draft.</p>
-                  <Show when={examples().length > 0 || (documents()?.documents.length ?? 0) > 0}>
+                  <Show when={(documents()?.documents.length ?? 0) > 0}>
                     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-                      <p class="font-semibold text-slate-700 dark:text-slate-200">Refer to what you chose by Story ID or document name</p>
+                      <p class="font-semibold text-slate-700 dark:text-slate-200">Refer to what you chose by document name</p>
                       <div class="mt-2 flex flex-wrap gap-1.5">
-                        <For each={examples()}>{(story) => <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 dark:border-slate-700 dark:bg-slate-900">{story.id} · {story.title}</span>}</For>
                         <For each={documents()?.documents}>{(document) => <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 dark:border-slate-700 dark:bg-slate-900">{document.title}</span>}</For>
                       </div>
                     </div>
                   </Show>
-                  <label class="mt-4 block text-sm font-semibold">Template brief<textarea class="mt-2 min-h-72 w-full rounded-lg border border-slate-300 bg-white p-4 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950" value={prose()} disabled={busy()} onInput={(event) => setProse(event.currentTarget.value)} placeholder={draftBriefPlaceholder(examples(), documents())} /></label>
+                  <label class="mt-4 block text-sm font-semibold">Template brief<textarea class="mt-2 min-h-72 w-full rounded-lg border border-slate-300 bg-white p-4 font-normal leading-6 dark:border-slate-700 dark:bg-slate-950" value={prose()} disabled={busy()} onInput={(event) => setProse(event.currentTarget.value)} placeholder={draftBriefPlaceholder(documents())} /></label>
                   <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Your description is used only for this draft and remains private to this session.</p>
                 </div>
 
@@ -267,12 +233,6 @@ export function StartingPathPicker(props: {
                   <dl class="mt-3 divide-y divide-slate-200 dark:divide-slate-800">
                     <ReviewRow label="Work Project" onEdit={() => setStep(PROJECT_STEP)} disabled={busy()}>
                       {profile() || <span class="text-slate-500 dark:text-slate-400">None. No project field options.</span>}
-                    </ReviewRow>
-                    <ReviewRow label="Example Stories" onEdit={() => setStep(PROJECT_STEP)} disabled={busy()}>
-                      <Show when={examples().length > 0} fallback={<span class="text-slate-500 dark:text-slate-400">{storiesSummary(examples(), includeSensitive())}</span>}>
-                        <ul class="space-y-0.5"><For each={examples()}>{(story) => <li class="truncate">{story.id} · {story.title}</li>}</For></ul>
-                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{includeSensitive() ? "Titles, Tasks, descriptions and acceptance criteria" : "Titles and Tasks only"}</p>
-                      </Show>
                     </ReviewRow>
                     <ReviewRow label="Reference Documents" onEdit={() => setStep(DOCUMENTS_STEP)} disabled={busy()}>
                       <Show when={(documents()?.documents.length ?? 0) > 0 && !documentsLoading()} fallback={<span class="text-slate-500 dark:text-slate-400">{documentsSummary(documents(), documentsLoading())}</span>}>

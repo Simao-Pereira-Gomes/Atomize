@@ -123,7 +123,7 @@ describe("buildSystemPrompt iteration default", () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain("ITERATION");
     expect(prompt).toContain('set filter.iterations: ["@CurrentIteration"] when drafting a new template');
-    expect(prompt).toContain("only when the description, the example Stories' context, or the reference documents explicitly say so");
+    expect(prompt).toContain("only when the description or the reference documents explicitly say so");
   });
 
   test("its standalone examples filter on the current iteration", () => {

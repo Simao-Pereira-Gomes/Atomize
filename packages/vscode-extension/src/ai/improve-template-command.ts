@@ -68,8 +68,10 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		title: TITLE,
 		resource: doc.uri,
 		noGrounding: { label: 'No grounding', description: 'Review the Template on its own' },
-		storyView: { kind: 'applied', templateFilter: resolvedTemplate.filter },
-		storyPlaceholder: 'Tick Stories to learn from, or press Enter with none for project metadata only.',
+		stories: {
+			view: { kind: 'applied', templateFilter: resolvedTemplate.filter },
+			placeholder: 'Tick Stories to learn from, or press Enter with none for project metadata only.',
+		},
 		purpose: 'The improvement',
 	});
 	if (grounding === 'cancelled') return;

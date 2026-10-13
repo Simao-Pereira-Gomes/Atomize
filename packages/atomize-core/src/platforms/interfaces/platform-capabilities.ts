@@ -22,10 +22,6 @@ export interface ChildTaskReader {
   getChildren(parentId: string): Promise<WorkItem[]>;
 }
 
-export interface StoryLearningPlatform
-  extends Pick<WorkItemReader, "getWorkItem">,
-    ChildTaskReader {}
-
 export interface TaskWriter {
   createTasksBulk(
     parentId: string,

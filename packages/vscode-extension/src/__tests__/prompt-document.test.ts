@@ -31,11 +31,11 @@ describe('prompt document', () => {
 	});
 
 	it('lists the chosen grounding in its header, outside the description', () => {
-		const text = promptDocumentContent('Like 4101, but with a security review', grounded);
+		const text = promptDocumentContent('Estimate it the way the guide says', grounded);
 		expect(text).toContain('Grounded in: Contoso Web');
-		expect(text).toContain('Example Stories: 4101 Checkout shows tax breakdown; 4102 Export orders as CSV');
+		expect(text).not.toContain('Example Stories');
 		expect(text).toContain('Reference Documents: Estimation guide');
-		expect(promptDocumentDescription(text)).toBe('Like 4101, but with a security review');
+		expect(promptDocumentDescription(text)).toBe('Estimate it the way the guide says');
 	});
 
 	it('leaves the header alone when nothing was chosen', () => {
@@ -43,7 +43,7 @@ describe('prompt document', () => {
 	});
 
 	it('keeps a name containing a comment end inside the header', () => {
-		const text = promptDocumentContent('mine', { stories: [{ id: '1', title: 'A --> B' }], documents: [] });
+		const text = promptDocumentContent('mine', { stories: [], documents: [{ title: 'A --> B' }] });
 		expect(promptDocumentDescription(text)).toBe('mine');
 	});
 });
@@ -56,7 +56,7 @@ describe('grounding context', () => {
 	});
 
 	it('suggests a description that refers to what was chosen', () => {
-		expect(draftDescriptionPlaceholder(grounded)).toBe('e.g. Like 4101, but add a security review');
+		expect(draftDescriptionPlaceholder(grounded)).toContain('"Estimation guide"');
 		expect(draftDescriptionPlaceholder({ stories: [], documents: [{ title: 'Estimation guide' }] })).toContain('"Estimation guide"');
 		expect(draftDescriptionPlaceholder(ungrounded)).toStartWith('e.g. Backend API stories');
 		expect(improveFocusPlaceholder(grounded)).toContain('4101');

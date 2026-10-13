@@ -28,9 +28,8 @@ export interface AIGroundingOptions {
 	resource: vscode.Uri | undefined;
 	/** The choice that skips grounding, worded for the action. */
 	noGrounding: { label: string; description: string };
-	/** Where the Story Browser opens; omit to open in Story Search. */
-	storyView?: DefaultView;
-	storyPlaceholder: string;
+	/** Offers the Story Browser for Story Grounding, opening on `view`; omit to ground in project metadata only. */
+	stories?: { view: DefaultView; placeholder: string };
 	/** Says what the grounding was for, in the failure dialog, e.g. "The improvement". */
 	purpose: string;
 }
@@ -39,8 +38,8 @@ const UNGROUNDED: AIGrounding = { projectGrounding: null, storyGrounding: null }
 
 /**
  * Grounding for an AI draft or improvement (ADR-0069), always the user's explicit choice: a
- * Connection Profile brings Project Grounding, and ticking Stories adds Story Grounding on top;
- * ticking none keeps it to project metadata. Sensitive AI Context is a per-run choice. Grounding
+ * Connection Profile brings Project Grounding, and when `stories` is offered (improving only),
+ * ticking Stories adds Story Grounding on top; ticking none keeps it to project metadata. Sensitive AI Context is a per-run choice. Grounding
  * that can't load is retried, dropped, or cancelled by the user, never dropped silently.
  */
 export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGroundingOptions): Promise<AIGrounding | 'cancelled'> {
@@ -55,7 +54,7 @@ export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGround
 	if (profile === undefined) return UNGROUNDED;
 
 	let adapter: IPlatformAdapter | undefined;
-	let storyIds: string[] | undefined;
+	let storyIds: string[] | undefined = options.stories ? undefined : [];
 	let includeSensitive = false;
 
 	while (true) {
@@ -64,13 +63,13 @@ export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGround
 				{ location: vscode.ProgressLocation.Notification, title: `Connecting to "${profile}"…` },
 				() => deps.credentialResolver.resolveByName(profile),
 			);
-			if (storyIds === undefined) {
+			if (storyIds === undefined && options.stories) {
 				const picked = await browseStories({
 					title,
 					adapter,
-					...(options.storyView ? { defaultView: options.storyView } : {}),
+					defaultView: options.stories.view,
 					canPickMany: true,
-					placeholder: options.storyPlaceholder,
+					placeholder: options.stories.placeholder,
 					hasTasksByDefault: true,
 				});
 				if (picked === undefined) return 'cancelled';
@@ -83,7 +82,7 @@ export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGround
 			}
 
 			const connected = adapter;
-			const ids = storyIds;
+			const ids = storyIds ?? [];
 			return await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Notification, title: ids.length > 0 ? 'Loading project metadata and Stories…' : 'Loading project metadata…' },
 				async () => ({

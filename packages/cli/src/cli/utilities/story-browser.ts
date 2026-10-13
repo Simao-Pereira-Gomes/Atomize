@@ -11,10 +11,8 @@ const ANY = "__any__";
 
 export interface TerminalStoryBrowserOptions {
   message: string;
-  /** Opens on the Stories this Template has been applied to; omit to open straight in Story Search. */
-  templateFilter?: TemplateFilter;
-  /** Whether Story Search keeps only Stories that already have Tasks. */
-  hasTasks?: boolean;
+  /** Opens on the Stories this Template has been applied to. */
+  templateFilter: TemplateFilter;
 }
 
 /**
@@ -24,15 +22,12 @@ export interface TerminalStoryBrowserOptions {
  * Stories past the first page. Nothing is pre-selected, and at least one Story must be chosen.
  */
 export async function browseStoriesInTerminal(adapter: IPlatformAdapter, options: TerminalStoryBrowserOptions): Promise<string[]> {
-  const templateFilter = options.templateFilter;
-  if (templateFilter) {
-    const applied = await withSpinner("Loading the Stories this Template was applied to…", () => listAppliedStories(adapter, templateFilter), FOUND);
-    if (applied.length > 0) {
-      const picked = await pickStories(options.message, applied, true);
-      if (!picked.includes(SEARCH)) return picked;
-    }
+  const applied = await withSpinner("Loading the Stories this Template was applied to…", () => listAppliedStories(adapter, options.templateFilter), FOUND);
+  if (applied.length > 0) {
+    const picked = await pickStories(options.message, applied, true);
+    if (!picked.includes(SEARCH)) return picked;
   }
-  return pickStories(options.message, await searchInTerminal(adapter, options.hasTasks ?? true), false);
+  return pickStories(options.message, await searchInTerminal(adapter), false);
 }
 
 async function pickStories(message: string, stories: StorySummary[], offerSearch: boolean): Promise<string[]> {
@@ -55,7 +50,7 @@ async function pickStories(message: string, stories: StorySummary[], offerSearch
   return picked.includes(SEARCH) ? [SEARCH] : picked;
 }
 
-async function searchInTerminal(adapter: IPlatformAdapter, hasTasks: boolean): Promise<StorySummary[]> {
+async function searchInTerminal(adapter: IPlatformAdapter): Promise<StorySummary[]> {
   const metadata = requireProjectMetadataReader(adapter);
   const [areaPaths, iterations] = await withSpinner(
     "Loading the project's area paths and iterations…",
@@ -67,7 +62,7 @@ async function searchInTerminal(adapter: IPlatformAdapter, hasTasks: boolean): P
   return withSpinner("Searching Stories…", () => listAllStories(adapter, {
     ...(area ? { areaPaths: [area] } : {}),
     ...(iteration ? { iterations: [iteration] } : {}),
-    ...(hasTasks ? { hasTasks: true } : {}),
+    hasTasks: true,
   }), FOUND);
 }
 

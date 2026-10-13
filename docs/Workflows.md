@@ -177,11 +177,11 @@ Choose the creation path based on what you already have.
 |---|---|
 | Start from a known pattern | Browse the Catalog or run `atomize template create --from <name>` |
 | Build manually | Use the template wizard or edit YAML directly |
-| Capture team practice | Use Story Learner with existing stories that already have tasks |
+| Capture team practice | Use AI-assisted creation with your written process as a Reference Document |
 | Draft from prose | Use AI-assisted template creation |
 | Reuse shared task groups | Create a mixin and include it from templates |
 
-See [Template Creation](./Template-Creation.md) for creation workflows and [Story Learner](./Story-Learner.md) for the deeper pattern-learning guide.
+See [Template Creation](./Template-Creation.md) for creation workflows.
 
 ## Manage Profiles
 

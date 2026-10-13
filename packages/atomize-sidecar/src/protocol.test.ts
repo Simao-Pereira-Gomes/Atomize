@@ -605,7 +605,7 @@ describe("Story Browser and Story Grounding protocol", () => {
       .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
   });
 
-  it("sends example Stories with an AI draft", async () => {
+  it("never sends Stories with an AI draft: Story Grounding is for improving only", async () => {
     const prompts: string[] = [];
     const ai: SidecarServices = {
       ...services,
@@ -618,7 +618,7 @@ describe("Story Browser and Story Grounding protocol", () => {
     };
     const storyGrounding = { stories: [{ id: "7", title: "EXAMPLE-MARKER", type: "Bug", state: "Done", tasks: [] }], includesSensitiveContext: false };
     await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 44, method: "ai.generate", params: { draftId: "d-examples", prose: "Bug triage", storyGrounding } }), ai);
-    expect(prompts[0]).toContain("EXAMPLE-MARKER");
+    expect(prompts[0]).not.toContain("EXAMPLE-MARKER");
   });
 });
 

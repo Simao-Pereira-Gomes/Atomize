@@ -39,8 +39,8 @@ fn validation_cancel(validation_id: String, relay: tauri::State<'_, Arc<SidecarR
 }
 
 #[tauri::command]
-async fn ai_generate(draft_id: String, prose: String, grounding: Option<serde_json::Value>, story_grounding: Option<serde_json::Value>, document_grounding: Option<serde_json::Value>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    relay.request("ai.generate", json!({ "draftId": draft_id, "prose": prose, "grounding": grounding, "storyGrounding": story_grounding, "documentGrounding": document_grounding })).await
+async fn ai_generate(draft_id: String, prose: String, grounding: Option<serde_json::Value>, document_grounding: Option<serde_json::Value>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("ai.generate", json!({ "draftId": draft_id, "prose": prose, "grounding": grounding, "documentGrounding": document_grounding })).await
 }
 
 fn forget_if_rejected<T>(profile: &str, result: Result<T, sidecar::SidecarError>) -> Result<T, sidecar::SidecarError> {

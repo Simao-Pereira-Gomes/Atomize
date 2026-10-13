@@ -2,7 +2,7 @@
 
 Atomize templates define which stories match and which child tasks should be generated. This guide covers the main ways to create or customize templates.
 
-For YAML field semantics, see [Template Reference](./Template-Reference.md). For pattern learning internals, see [Story Learner](./Story-Learner.md).
+For YAML field semantics, see [Template Reference](./Template-Reference.md).
 
 ## Choose A Creation Path
 
@@ -11,7 +11,7 @@ For YAML field semantics, see [Template Reference](./Template-Reference.md). For
 | Customize a known pattern | `atomize template create --from <name>` |
 | Build with prompts | `atomize template create --scratch` |
 | Draft from prose | `atomize template create --ai` |
-| Capture existing team practice | `atomize template create --from-stories <ids>` |
+| Capture existing team practice | `atomize template create --ai --reference docs/how-we-work.md` (see [Reference Documents](#reference-documents)) |
 | Reuse task groups across templates | `atomize template create --type mixin` |
 
 Running `atomize template create` without flags opens an interactive mode selector.
@@ -138,16 +138,6 @@ With `--ground`, Atomize reads the project's work item types and states, field r
 
 If Atomize can't load the metadata, for example because the token has expired, it asks whether to retry, continue without project metadata, or cancel. It never drops the grounding you asked for without telling you. When you choose AI drafting from the `atomize template create` menu instead of passing `--ai`, Atomize asks whether to ground the draft.
 
-You can also give the draft **example Stories**: Stories your team already broke down well. Copilot follows the conventions they show (how Tasks are named, how estimates are split, which review or test steps you always include) while writing the Template you described:
-
-```bash
-atomize template create --ai --from-stories 1234,1240 --profile work-ado
-```
-
-`--from-stories` implies `--ground`. In an interactive run with grounding, Atomize asks whether to add example Stories. You can pick them from a list you can filter by ID or title, and narrow by area and iteration, or enter their IDs. By default only titles, states, estimates and Task activity are sent. Descriptions and acceptance criteria can contain customer, personal or internal details, so they're sent only with `--include-sensitive-ai-context`, or if you say yes when asked, and only for that run.
-
-Atomize never picks example Stories for you. Without `--ai`, `--from-stories` keeps its original meaning: the [Story Learner](./Story-Learner.md) derives a Template from those Stories directly, without AI.
-
 ### Reference Documents
 
 If your team writes down how it breaks down and estimates work, for example a `docs/how-we-work.md` in the repo, give it to Copilot as a **Reference Document**. Drafts and improvements then follow your written process:
@@ -187,20 +177,6 @@ Always review AI-generated templates before use:
 atomize validate template:<name> --strict
 atomize generate template:<name> --platform mock
 ```
-
-## Learn From Existing Stories
-
-Use Story Learner when your team already has well-structured stories with child tasks and you want to capture that pattern.
-
-```bash
-atomize template create --from-stories 123,456,789 --save-as backend-pattern
-```
-
-With multiple stories, Atomize detects common tasks, estimation patterns, outliers, tags, and possible conditional behavior. With one story, the result mirrors that story's task breakdown more directly.
-
-Story Learner never infers `repeat`: identical Tasks it learns from stay separate task definitions. Merge them into one [repeated task](./Template-Reference.md#repeated-tasks) yourself if they really are interchangeable.
-
-See [Story Learner](./Story-Learner.md) for confidence scoring, outlier detection, normalization, and examples.
 
 ## Create Mixins
 
