@@ -11,6 +11,7 @@ import {
   type TasksStore,
 } from "../../stores/sections";
 import { MultiSelectField, SearchableSelectField, SelectField, TextField, ToggleField } from "../fields";
+import { SchemaInfo } from "../schema-reference-navigation";
 
 type Rounding = EstimationStore["fields"]["rounding"];
 type Policy = "warn" | "skip" | "use-default";
@@ -89,7 +90,7 @@ export function EstimationSection(props: {
           when={connected()}
           fallback={
             <TextField
-              label="Story field reference name"
+              label="Story field reference name" schemaPath="estimation.source"
               value={s.fields.source}
               placeholder="Platform default, or e.g. Custom.TShirtSize"
               onInput={(v) => change("source", v)}
@@ -101,7 +102,7 @@ export function EstimationSection(props: {
             fallback={
               <div class="space-y-1">
                 <TextField
-                  label="Story field reference name"
+                  label="Story field reference name" schemaPath="estimation.source"
                   value={s.fields.source}
                   placeholder="e.g. Custom.TShirtSize"
                   onInput={(v) => change("source", v)}
@@ -114,7 +115,7 @@ export function EstimationSection(props: {
           >
             <div class="space-y-1">
               <SearchableSelectField
-                label="Story field"
+                label="Story field" schemaPath="estimation.source"
                 value={s.fields.source}
                 options={[
                   { value: "", label: "Platform default", description: "Story Points → Effort → Size" },
@@ -138,7 +139,7 @@ export function EstimationSection(props: {
 
       <Stage n={2} title="Convert it to Task hours" hint="Applied before the percentage split.">
         <Segmented<ConversionKind>
-          label="Conversion"
+          label="Conversion" schemaPath="estimation.conversion"
           value={s.fields.conversionKind}
           options={[
             { value: "none", label: "One-to-one" },
@@ -157,7 +158,7 @@ export function EstimationSection(props: {
         <div class="mt-4 space-y-4">
           <Show when={s.fields.conversionKind === "factor"}>
             <div class="max-w-xs">
-              <TextField label="Hours per unit of Story Estimate" value={s.fields.factor} error={s.errors.factor} placeholder="e.g. 4" onInput={(v) => change("factor", v)} />
+              <TextField label="Hours per unit of Story Estimate" schemaPath="estimation.conversion.factor" value={s.fields.factor} error={s.errors.factor} placeholder="e.g. 4" onInput={(v) => change("factor", v)} />
             </div>
           </Show>
           <Show when={s.fields.conversionKind === "table"}>
@@ -167,6 +168,7 @@ export function EstimationSection(props: {
                   {pickListValues().length - uncovered().length} of {pickListValues().length} {sourceField()?.name} values covered
                 </p>
               </Show>
+              <div class="flex items-center gap-2 text-sm">Conversion table <SchemaInfo path="estimation.conversion.table" /></div>
               <table class="w-full max-w-xl text-sm">
                 <thead>
                   <tr class="text-left text-xs uppercase tracking-widest text-slate-400">
@@ -233,7 +235,7 @@ export function EstimationSection(props: {
             </div>
             <Show when={Object.keys(table()).some((key) => !NUMBER_KEY.test(key))}>
               <ToggleField
-                label="Allow fractional sizes (e.g. 0.3XL)"
+                label="Allow fractional sizes (e.g. 0.3XL)" schemaPath="estimation.conversion.multipliers"
                 description={fractionalSizeExample(table())}
                 checked={s.fields.multipliers}
                 onChange={(v) => change("multipliers", v)}
@@ -245,7 +247,7 @@ export function EstimationSection(props: {
             <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Each task's hours</p>
             <div class="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
               <Segmented<Rounding>
-                label="Round to"
+                label="Round to" schemaPath="estimation.rounding"
                 inline
                 value={s.fields.rounding}
                 options={[
@@ -261,12 +263,13 @@ export function EstimationSection(props: {
                 <input class={`ui-input !w-16${s.errors.minimumTaskEstimate ? " ui-input--error" : ""}`} value={s.fields.minimumTaskEstimate} placeholder="0" inputMode="decimal" onInput={(e) => change("minimumTaskEstimate", e.currentTarget.value)} />
                 {unit()}
               </label>
+              <SchemaInfo path="estimation.minimumTaskEstimate" label="Minimum Task Estimate" />
             </div>
             <Show when={s.errors.minimumTaskEstimate}><p class="ui-error">{s.errors.minimumTaskEstimate}</p></Show>
             <div class="flex flex-wrap items-center gap-2 pt-2 text-sm">
               <span>When the tasks don't add up to 100%</span>
               <Segmented<"auto" | "always" | "never">
-                label="When the tasks don't add up to 100%"
+                label="When the tasks don't add up to 100%" schemaPath="estimation.normalize"
                 hideLabel
                 value={s.fields.normalize || "auto"}
                 options={[
@@ -299,7 +302,7 @@ export function EstimationSection(props: {
       <Stage n={4} title="When a Story's estimate can't be used" hint="Missing, or not covered by the conversion.">
         <div class="flex flex-wrap items-start gap-4">
           <Segmented<Policy>
-            label="When a Story's estimate can't be used"
+            label="When a Story's estimate can't be used" schemaPath="estimation.ifParentHasNoEstimation"
             hideLabel
             value={policy()}
             options={[
@@ -315,7 +318,7 @@ export function EstimationSection(props: {
                 when={estimateChoices().length > 0}
                 fallback={
                   <TextField
-                    label="Default Story Estimate"
+                    label="Default Story Estimate" schemaPath="estimation.defaultParentEstimation"
                     value={s.fields.defaultParentEstimation}
                     error={s.errors.defaultParentEstimation}
                     placeholder="e.g. 5 or M"
@@ -324,7 +327,7 @@ export function EstimationSection(props: {
                 }
               >
                 <SelectField
-                  label="Default Story Estimate"
+                  label="Default Story Estimate" schemaPath="estimation.defaultParentEstimation"
                   value={s.fields.defaultParentEstimation}
                   error={s.errors.defaultParentEstimation}
                   placeholder="Choose a value"
@@ -355,6 +358,7 @@ function Stage(props: { n: number; title: string; hint: string; children: JSX.El
 
 function Segmented<T extends string>(props: {
   label: string;
+  schemaPath?: string;
   value: T;
   options: Array<{ value: T; label: string }>;
   inline?: boolean;
@@ -363,7 +367,10 @@ function Segmented<T extends string>(props: {
 }) {
   return (
     <fieldset class={`min-w-0${props.inline ? " flex items-center gap-2" : ""}`} aria-label={props.label}>
-      <Show when={!props.hideLabel && props.inline}><span>{props.label}</span></Show>
+      <div class="flex items-center gap-2">
+        <Show when={!props.hideLabel}><span>{props.label}</span></Show>
+        <SchemaInfo path={props.schemaPath} label={props.label} />
+      </div>
       <div class="mode-toggle mode-toggle--compact">
         <For each={props.options}>
           {(option) => (
@@ -515,17 +522,17 @@ function WriteTarget(props: {
         <div class="grid gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-700">
           <Show
             when={workItemTypes().length > 0}
-            fallback={<TextField label="Create tasks as" value={taskType()} placeholder="e.g. Task or Sub-task" onInput={setTaskType} />}
+            fallback={<TextField label="Create tasks as" schemaPath="taskType" value={taskType()} placeholder="e.g. Task or Sub-task" onInput={setTaskType} />}
           >
             <SelectField
-              label="Create tasks as"
+              label="Create tasks as" schemaPath="taskType"
               value={taskType()}
               options={workItemTypes().map((type) => ({ value: type, label: type === defaultType() ? `${type} (platform default)` : type }))}
               onInput={setTaskType}
             />
           </Show>
           <MultiSelectField
-            label="Write the estimate to"
+            label="Write the estimate to" schemaPath="estimation.targetFields"
             selected={s.fields.targetFields}
             options={numericFields()}
             placeholder="Platform default fields"

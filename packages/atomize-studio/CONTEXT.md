@@ -27,6 +27,11 @@ Back restores the current Builder section and local inputs without changing the
 Authoring Store. It uses Studio's bundled schema and installed version, and opens
 Template Reference links in the system browser. It has no Studio Area or sidebar slot.
 
+Builder field info buttons pass explicit document paths through the shared Permalinks
+module into the embedded Schema Reference. Concrete task indices resolve to `tasks[]`.
+Studio uses host-supplied targets rather than URL fragments and hides Copy link;
+Navigation History restores the underlying task editor, inputs, focus and scroll.
+
 **Companion Process Recovery**:
 The app-level recovery surface shown only when Studio's bundled companion process cannot start or repeatedly exits. It offers Retry, preserves the current in-memory authoring session, and leaves offline authoring and native Connection Profile management available while blocking companion-dependent actions. It is distinct from normal Studio launch and never checks for or installs an external CLI.
 

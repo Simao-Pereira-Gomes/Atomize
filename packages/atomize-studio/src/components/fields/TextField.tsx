@@ -1,7 +1,9 @@
 import { createUniqueId, Show } from "solid-js";
+import { SchemaInfo } from "../schema-reference-navigation";
 
 export function TextField(props: {
   label: string;
+  schemaPath?: string;
   value: string;
   error?: string;
   placeholder?: string;
@@ -16,14 +18,17 @@ export function TextField(props: {
   const id = createUniqueId();
 
   return (
-    <div class="ui-field">
-      <label class={props.hideLabel ? "sr-only" : "ui-label"} for={id}>
-        {props.label}
-        <Show when={props.required}><span class="ui-required"> *</span></Show>
-      </label>
+    <div class="ui-field relative">
+      <div class={props.hideLabel ? "absolute right-1 top-1 flex items-center" : "flex items-center gap-2"}>
+        <label class={props.hideLabel ? "sr-only" : "ui-label"} for={id}>
+          {props.label}
+          <Show when={props.required}><span class="ui-required"> *</span></Show>
+        </label>
+        <SchemaInfo path={props.schemaPath} label={props.label} />
+      </div>
       <input
         id={id}
-        class={`ui-input${props.error ? " ui-input--error" : ""}`}
+        class={`ui-input${props.error ? " ui-input--error" : ""}${props.hideLabel && props.schemaPath ? " !pr-8" : ""}`}
         type="text"
         value={props.value}
         list={props.listId}

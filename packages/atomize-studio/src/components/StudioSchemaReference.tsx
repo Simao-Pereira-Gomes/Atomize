@@ -1,4 +1,4 @@
-import { buildSchemaTrees } from "@sppg2001/atomize-schema-reference";
+import { buildSchemaTrees, normalizeDocumentPath, type SchemaTab } from "@sppg2001/atomize-schema-reference";
 import schema from "@sppg2001/atomize-schema-reference/schema.json";
 import { SchemaReference } from "@sppg2001/atomize-schema-reference/viewer";
 import "@sppg2001/atomize-schema-reference/styles.css";
@@ -19,7 +19,9 @@ async function openInBrowser(url: string) {
 
 export const openTemplateReference = () => openInBrowser(guideUrl());
 
-export function StudioSchemaReference() {
+export const studioFieldPermalink = (path: string, tab: SchemaTab = "template") => normalizeDocumentPath(trees, path, tab);
+
+export function StudioSchemaReference(props: { permalink?: string }) {
   const [version, setVersion] = createSignal(bundledVersion);
   const [linkError, setLinkError] = createSignal("");
   onMount(() => {
@@ -40,6 +42,9 @@ export function StudioSchemaReference() {
       </Show>
       <SchemaReference
         trees={trees}
+        permalink={props.permalink}
+        syncUrl={false}
+        showPermalinks={false}
         versionLabel={`Atomize Studio ${version()}`}
         guideUrl={guideUrl}
         openExternalLink={openExternalLink}

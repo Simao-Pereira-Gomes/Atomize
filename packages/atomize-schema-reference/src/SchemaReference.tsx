@@ -1,10 +1,12 @@
 import {
+	createEffect,
 	createMemo,
 	createSignal,
 	For,
 	onCleanup,
 	onMount,
 	Show,
+	untrack,
 } from "solid-js";
 import { stringify } from "yaml";
 import {
@@ -21,6 +23,9 @@ export interface SchemaReferenceProps {
 	notice?: string;
 	guideUrl?: (anchor: string) => string;
 	openExternalLink?: (url: string) => void | Promise<void>;
+	permalink?: string;
+	syncUrl?: boolean;
+	showPermalinks?: boolean;
 }
 
 type GuideLinks = Pick<SchemaReferenceProps, "guideUrl" | "openExternalLink">;
@@ -193,7 +198,7 @@ function CopyFieldLink(props: { node: SchemaNode }) {
 	);
 }
 
-function FieldHeading(props: { node: SchemaNode }) {
+function FieldHeading(props: { node: SchemaNode; showPermalinks?: boolean }) {
 	return (
 		<>
 			<code class="schema-reference-field-name">{fieldLabel(props.node)}</code>
@@ -207,12 +212,13 @@ function FieldHeading(props: { node: SchemaNode }) {
 			<Show when={props.node.deprecated}>
 				<span class="schema-reference-deprecated">Deprecated</span>
 			</Show>
-			<CopyFieldLink node={props.node} />
+			<Show when={props.showPermalinks !== false}><CopyFieldLink node={props.node} /></Show>
 		</>
 	);
 }
 
 type FieldListProps = {
+	showPermalinks?: boolean;
 	links: GuideLinks;
 	nodes: SchemaNode[];
 	parentKey: string;
@@ -239,7 +245,7 @@ function NestedFields(props: FieldListProps) {
 									}}
 								>
 									<summary>
-										<FieldHeading node={node} />
+										<FieldHeading node={node} showPermalinks={props.showPermalinks} />
 										<span class="schema-reference-chevron" aria-hidden="true">
 											›
 										</span>
@@ -248,6 +254,7 @@ function NestedFields(props: FieldListProps) {
 										<code class="schema-reference-path">{node.path}</code>
 										<FieldFacts node={node} links={props.links} />
 										<NestedFields
+											showPermalinks={props.showPermalinks}
 											links={props.links}
 											nodes={nestedFields(node)}
 											parentKey={key()}
@@ -341,6 +348,7 @@ export function SchemaReference(props: SchemaReferenceProps) {
 	const navigationElements = new Map<string, HTMLDetailsElement>();
 	let savedFields = new Set<string>();
 	let savedNavigation = new Set<string>();
+	let navigationRequest = 0;
 	const register = (key: string, element: HTMLElement) =>
 		fieldElements.set(key, element);
 	const registerNavigation = (key: string, element: HTMLDetailsElement) =>
@@ -386,6 +394,7 @@ export function SchemaReference(props: SchemaReferenceProps) {
 			? buildPermalink(current.tab, current.path)
 			: undefined;
 		if (
+			props.syncUrl !== false &&
 			updateFragment &&
 			target.dataset.permalink &&
 			currentLink !== target.dataset.permalink
@@ -422,37 +431,44 @@ export function SchemaReference(props: SchemaReferenceProps) {
 		});
 	}
 
-	onMount(() => {
-		function openFragment() {
-			const fragment = window.location.hash;
-			const parsed = parsePermalink(fragment);
-			if (!parsed) {
-				if (!fragment) setActive("");
-				return;
-			}
-			const resolved = normalizeDocumentPath(
-				props.trees,
-				parsed.path,
-				parsed.tab,
-			);
-			setTab(parsed.tab);
-			updateQuery("");
-			queueMicrotask(() => {
-				if (window.location.hash !== fragment) return;
-				const candidates = [...fieldElements].filter(
-					([, element]) =>
-						element.isConnected && element.dataset.permalink === resolved,
-				);
-				// Union alternatives share a path: land on its owning field first.
-				candidates.sort(
-					([left], [right]) =>
-						left.split(".").length - right.split(".").length ||
-						left.localeCompare(right, undefined, { numeric: true }),
-				);
-				if (candidates[0]) navigate(candidates[0][0], false);
-			});
+	function openPermalink(fragment: string) {
+		const request = ++navigationRequest;
+		const parsed = parsePermalink(fragment);
+		if (!parsed) {
+			if (!fragment) setActive("");
+			return;
 		}
-		openFragment();
+		const resolved = normalizeDocumentPath(
+			props.trees,
+			parsed.path,
+			parsed.tab,
+		);
+		setTab(parsed.tab);
+		updateQuery("");
+		queueMicrotask(() => {
+			if (request !== navigationRequest) return;
+			if (props.syncUrl !== false && window.location.hash !== fragment && !props.permalink) return;
+			const candidates = [...fieldElements].filter(
+				([, element]) =>
+					element.isConnected && element.dataset.permalink === resolved,
+			);
+			// Union alternatives share a path: land on its owning field first.
+			candidates.sort(
+				([left], [right]) =>
+					left.split(".").length - right.split(".").length ||
+					left.localeCompare(right, undefined, { numeric: true }),
+			);
+			if (candidates[0]) navigate(candidates[0][0], false);
+		});
+	}
+	createEffect(() => {
+		const permalink = props.permalink;
+		if (permalink) untrack(() => openPermalink(permalink));
+	});
+	onMount(() => {
+		if (props.syncUrl === false) return;
+		const openFragment = () => openPermalink(window.location.hash);
+		if (!props.permalink) openFragment();
 		window.addEventListener("hashchange", openFragment);
 		onCleanup(() => window.removeEventListener("hashchange", openFragment));
 	});
@@ -595,10 +611,11 @@ export function SchemaReference(props: SchemaReferenceProps) {
 											}}
 										>
 											<header>
-												<FieldHeading node={node} />
+												<FieldHeading node={node} showPermalinks={props.showPermalinks} />
 											</header>
 												<FieldFacts node={node} links={props} />
 											<NestedFields
+													showPermalinks={props.showPermalinks}
 													links={props}
 												nodes={nestedFields(node)}
 												parentKey={key()}

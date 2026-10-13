@@ -20,7 +20,8 @@ import { dismissOverlay } from "./dismiss-overlay";
 import { GenerateArea } from "./GenerateArea";
 import { type GroundingSession, GroundingSettings } from "./GroundingSettings";
 import { StartingPathPicker } from "./StartingPathPicker";
-import { openTemplateReference, StudioSchemaReference } from "./StudioSchemaReference";
+import { openTemplateReference, StudioSchemaReference, studioFieldPermalink } from "./StudioSchemaReference";
+import { SchemaReferenceNavigation } from "./schema-reference-navigation";
 import type { OnlineValidationSession, StoredOnlineValidation } from "./sections/ReviewSection";
 
 type PendingStart =
@@ -184,6 +185,9 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
 
   const [surface, setSurface] = createSignal<"starting-paths" | "builder">(props.diagnosticInitialSection ? "builder" : "starting-paths");
   const [schemaReferenceOpen, setSchemaReferenceOpen] = createSignal(false);
+  const [schemaReferenceTarget, setSchemaReferenceTarget] = createSignal<string>();
+  let referenceReturnFocus: HTMLElement | undefined;
+  let referenceReturnScroll = 0;
   const [isAIDraft, setIsAIDraft] = createSignal(false);
   const [openFilePath, setOpenFilePath] = createSignal<string>();
   const [hasActiveDraft, setHasActiveDraft] = createSignal(!!props.diagnosticInitialSection);
@@ -247,10 +251,14 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     clearOriginBaseline();
   };
 
-  const currentLocation = () => ({ activeArea: activeArea(), surface: surface(), schemaReferenceOpen: schemaReferenceOpen() });
-  const openSchemaReference = () => {
-    if (schemaReferenceOpen()) return;
-    history.record(currentLocation());
+  const currentLocation = () => ({ activeArea: activeArea(), surface: surface(), schemaReferenceOpen: schemaReferenceOpen(), schemaReferenceTarget: schemaReferenceTarget() });
+  const openSchemaReference = (permalink?: string) => {
+    if (!schemaReferenceOpen()) {
+      referenceReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+      referenceReturnScroll = window.scrollY;
+      history.record(currentLocation());
+    }
+    setSchemaReferenceTarget(permalink);
     setSchemaReferenceOpen(true);
   };
   const navigateToArea = (id: StudioAreaId) => {
@@ -262,9 +270,15 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const goBack = () => {
     const previous = history.goBack();
     if (!previous) return;
+    const returningFromReference = schemaReferenceOpen() && !previous.schemaReferenceOpen;
     setActiveArea(previous.activeArea);
     setSurface(previous.surface);
+    setSchemaReferenceTarget(previous.schemaReferenceTarget);
     setSchemaReferenceOpen(previous.schemaReferenceOpen ?? false);
+    if (returningFromReference) requestAnimationFrame(() => {
+      if (referenceReturnFocus?.isConnected) referenceReturnFocus.focus({ preventScroll: true });
+      window.scrollTo({ top: referenceReturnScroll, behavior: "instant" });
+    });
   };
   // Entering a new draft invalidates any history accumulated by a previous one — the
   // only entry that still means anything afterward is where this draft was started from.
@@ -372,7 +386,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
         <AreaRail active={activeArea()} onSelect={navigateToArea} collapsed={railCollapsed()} onToggleCollapsed={() => setRailCollapsed((value) => !value)} canGoBack={history.canGoBack()} onBack={goBack} />
         <div class="min-w-0 flex-1">
           <Show when={schemaReferenceOpen()}>
-            <StudioSchemaReference />
+            <StudioSchemaReference permalink={schemaReferenceTarget()} />
           </Show>
           <div hidden={schemaReferenceOpen()}>
           <Show when={activeArea() === "templates"}>
@@ -391,6 +405,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
                 />
               }
             >
+              <SchemaReferenceNavigation.Provider value={{ open: (path, tab) => openSchemaReference(studioFieldPermalink(path, tab)) }}>
               <AtomizeStudio
                 stores={stores}
                 onDiscard={discardDraft}
@@ -403,6 +418,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
                 originBaseline={originBaseline}
                 onManageProjects={() => setManageProjectRequest((request) => request + 1)}
               />
+              </SchemaReferenceNavigation.Provider>
             </Show>
           </Show>
           <Show when={activeArea() === "generate"}>

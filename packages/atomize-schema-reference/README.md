@@ -28,6 +28,13 @@ clears any search that could hide the target, expands its ancestors, and highlig
 the field. Fragment changes and browser Back/Forward navigate the same way.
 If clipboard access is unavailable, the action provides a selectable URL instead.
 
+Embedded Studio and VS Code hosts should set `showPermalinks={false}` and
+`syncUrl={false}`: their internal webview URLs are not shareable links. Hosts pass
+`permalink`, such as `template.tasks[].condition`, to navigate internally without
+changing the URL. Changes to this prop select the tab, clear search, expand the
+field and its ancestors, and focus, scroll to and highlight the field. Website
+hosts keep the default copy-link and URL-fragment behaviour.
+
 The package root exports `buildPermalink(tab, path)`, `parsePermalink(fragment)`,
 and `normalizeDocumentPath(trees, documentPath, tab?)` for host integrations.
 Normalization converts concrete indices to `[]`, resolves dictionary entries to

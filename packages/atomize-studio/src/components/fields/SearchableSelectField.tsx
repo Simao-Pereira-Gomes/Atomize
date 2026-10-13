@@ -1,11 +1,13 @@
 import { Combobox } from "@kobalte/core";
 import { createMemo, createUniqueId, Show } from "solid-js";
+import { SchemaInfo } from "../schema-reference-navigation";
 
 export type SearchableOption = { value: string; label: string; description?: string };
 
 /** A single-choice select whose options can be filtered by typing; only listed options can be chosen. */
 export function SearchableSelectField(props: {
   label: string;
+  schemaPath?: string;
   value: string;
   options: SearchableOption[];
   placeholder?: string;
@@ -20,7 +22,7 @@ export function SearchableSelectField(props: {
 
   return (
     <div class="ui-field">
-      <label class="ui-label" for={id}>{props.label}</label>
+      <div class="flex items-center gap-2"><label class="ui-label" for={id}>{props.label}</label><SchemaInfo path={props.schemaPath} label={props.label} /></div>
       <Combobox.Root<SearchableOption>
         options={props.options}
         value={selected()}

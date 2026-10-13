@@ -1,9 +1,11 @@
 import { Combobox } from "@kobalte/core";
 import { createUniqueId, For, Show } from "solid-js";
+import { SchemaInfo } from "../schema-reference-navigation";
 import { SEARCHABLE_OPTIONS_THRESHOLD, shouldAddCustomValue } from "./multi-select-utils";
 
 export function MultiSelectField(props: {
   label: string;
+  schemaPath?: string;
   selected: string[];
   options: string[];
   placeholder?: string;
@@ -38,7 +40,7 @@ export function MultiSelectField(props: {
 
   return (
     <div class="ui-field">
-      <div class="ui-label">{props.label}</div>
+      <div class="flex items-center gap-2"><div class="ui-label">{props.label}</div><SchemaInfo path={props.schemaPath} label={props.label} /></div>
       <Combobox.Root<string>
         multiple
         options={listOptions()}

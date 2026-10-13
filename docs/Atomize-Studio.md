@@ -40,6 +40,13 @@ version. Field links open the Template Reference in your system browser. Use the
 persistent **Back** control to return to the previous view, including your current
 Builder section and unfinished inputs.
 
+Builder fields have an **ⓘ** button beside their label. It opens the embedded Schema
+Reference at that field, expanded and highlighted; task fields resolve to the same
+entry at any task index. Back restores the Builder, including the open task editor
+and unfinished inputs. Studio omits Copy link because its internal webview URLs
+are not shareable. Template Reference links still open behaviour explanations in
+your system browser.
+
 A single, persistent **Back** control (near the sidebar) pops a global navigation history of Studio Area, Starting-Path/Builder and Schema Reference transitions. Back never discards the Template you're authoring; it is purely navigational. If Back has nothing left to return to while a draft is still in progress, the Starting Paths screen shows a "Continue your in-progress Template" banner so the draft is never stranded.
 
 ## Templates Area

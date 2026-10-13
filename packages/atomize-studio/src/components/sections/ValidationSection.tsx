@@ -39,7 +39,7 @@ export function ValidationSection(props: { store: ValidationStore }) {
       </div>
       <section class="rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
         <SelectField
-          label="Validation mode" value={s.fields.mode}
+          label="Validation mode" schemaPath="validation.mode" value={s.fields.mode}
           options={[
             { value: "", label: "Inherit" },
             { value: "strict", label: "Strict" },
@@ -58,12 +58,12 @@ export function ValidationSection(props: { store: ValidationStore }) {
           onToggle={() => togglePolicy("estimation")}
         >
           <div class="grid gap-4 sm:grid-cols-2">
-            <TextField label="Total estimation must be (%)" value={s.fields.totalEstimationMustBe} error={s.errors.totalEstimationMustBe} onInput={(v) => { s.set("totalEstimationMustBe", v); s.validate(); }} onBlur={s.validate} placeholder="100 or 120" />
+            <TextField label="Total estimation must be (%)" schemaPath="validation.totalEstimationMustBe" value={s.fields.totalEstimationMustBe} error={s.errors.totalEstimationMustBe} onInput={(v) => { s.set("totalEstimationMustBe", v); s.validate(); }} onBlur={s.validate} placeholder="100 or 120" />
             <div />
-            <TextField label="Total range minimum (%)" value={s.fields.totalEstimationRangeMin} error={s.errors.totalEstimationRangeMin} onInput={(v) => { s.set("totalEstimationRangeMin", v); s.validate(); }} onBlur={s.validate} placeholder="0" />
-            <TextField label="Total range maximum (%)" value={s.fields.totalEstimationRangeMax} error={s.errors.totalEstimationRangeMax} onInput={(v) => { s.set("totalEstimationRangeMax", v); s.validate(); }} onBlur={s.validate} placeholder="100 or 120" />
-            <TextField label="Per-task range minimum (%)" value={s.fields.taskEstimationRangeMin} error={s.errors.taskEstimationRangeMin} onInput={(v) => { s.set("taskEstimationRangeMin", v); s.validate(); }} onBlur={s.validate} placeholder="0" />
-            <TextField label="Per-task range maximum (%)" value={s.fields.taskEstimationRangeMax} error={s.errors.taskEstimationRangeMax} onInput={(v) => { s.set("taskEstimationRangeMax", v); s.validate(); }} onBlur={s.validate} placeholder="100" />
+            <TextField label="Total range minimum (%)" schemaPath="validation.totalEstimationRange.min" value={s.fields.totalEstimationRangeMin} error={s.errors.totalEstimationRangeMin} onInput={(v) => { s.set("totalEstimationRangeMin", v); s.validate(); }} onBlur={s.validate} placeholder="0" />
+            <TextField label="Total range maximum (%)" schemaPath="validation.totalEstimationRange.max" value={s.fields.totalEstimationRangeMax} error={s.errors.totalEstimationRangeMax} onInput={(v) => { s.set("totalEstimationRangeMax", v); s.validate(); }} onBlur={s.validate} placeholder="100 or 120" />
+            <TextField label="Per-task range minimum (%)" schemaPath="validation.taskEstimationRange.min" value={s.fields.taskEstimationRangeMin} error={s.errors.taskEstimationRangeMin} onInput={(v) => { s.set("taskEstimationRangeMin", v); s.validate(); }} onBlur={s.validate} placeholder="0" />
+            <TextField label="Per-task range maximum (%)" schemaPath="validation.taskEstimationRange.max" value={s.fields.taskEstimationRangeMax} error={s.errors.taskEstimationRangeMax} onInput={(v) => { s.set("taskEstimationRangeMax", v); s.validate(); }} onBlur={s.validate} placeholder="100" />
           </div>
         </PolicyRow>
         <PolicyRow
@@ -74,9 +74,9 @@ export function ValidationSection(props: { store: ValidationStore }) {
           onToggle={() => togglePolicy("count")}
         >
           <div class="grid gap-4 sm:grid-cols-2">
-            <TextField label="Minimum tasks" value={s.fields.minTasks} error={s.errors.minTasks} onInput={(v) => { s.set("minTasks", v); s.validate(); }} onBlur={s.validate} placeholder="1" />
-            <TextField label="Maximum tasks" value={s.fields.maxTasks} error={s.errors.maxTasks} onInput={(v) => { s.set("maxTasks", v); s.validate(); }} onBlur={s.validate} placeholder="12" />
-            <TextField label="Maximum copies per task" value={s.fields.maxRepeat} error={s.errors.maxRepeat} onInput={(v) => { s.set("maxRepeat", v); s.validate(); }} onBlur={s.validate} placeholder="20" />
+            <TextField label="Minimum tasks" schemaPath="validation.minTasks" value={s.fields.minTasks} error={s.errors.minTasks} onInput={(v) => { s.set("minTasks", v); s.validate(); }} onBlur={s.validate} placeholder="1" />
+            <TextField label="Maximum tasks" schemaPath="validation.maxTasks" value={s.fields.maxTasks} error={s.errors.maxTasks} onInput={(v) => { s.set("maxTasks", v); s.validate(); }} onBlur={s.validate} placeholder="12" />
+            <TextField label="Maximum copies per task" schemaPath="validation.maxRepeat" value={s.fields.maxRepeat} error={s.errors.maxRepeat} onInput={(v) => { s.set("maxRepeat", v); s.validate(); }} onBlur={s.validate} placeholder="20" />
           </div>
         </PolicyRow>
         <PolicyRow
@@ -90,8 +90,8 @@ export function ValidationSection(props: { store: ValidationStore }) {
             <For each={s.fields.requiredTasks}>
               {(task, index) => (
                 <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-                  <TextField label="Task title" value={task.title} required error={s.errors[`requiredTasks.${index()}.title`]} onInput={(v) => { s.set("requiredTasks", index(), "title", v); s.validate(); }} onBlur={s.validate} />
-                  <TextField label="Task ID (optional)" value={task.id} onInput={(v) => s.set("requiredTasks", index(), "id", v)} />
+                  <TextField label="Task title" schemaPath="validation.requiredTasks[].title" value={task.title} required error={s.errors[`requiredTasks.${index()}.title`]} onInput={(v) => { s.set("requiredTasks", index(), "title", v); s.validate(); }} onBlur={s.validate} />
+                  <TextField label="Task ID (optional)" schemaPath="validation.requiredTasks[].id" value={task.id} onInput={(v) => s.set("requiredTasks", index(), "id", v)} />
                   <button class="btn btn--secondary" type="button" onClick={() => s.removeRequiredTask(index())}>Remove required task</button>
                 </div>
               )}

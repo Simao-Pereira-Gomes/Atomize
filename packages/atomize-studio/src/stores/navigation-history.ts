@@ -5,6 +5,7 @@ export type StudioLocation = {
   activeArea: StudioAreaId;
   surface: "starting-paths" | "builder";
   schemaReferenceOpen?: boolean;
+  schemaReferenceTarget?: string;
 };
 
 export function createNavigationHistory() {

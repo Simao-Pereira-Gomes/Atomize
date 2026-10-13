@@ -33,4 +33,15 @@ it("renders the viewer using the real generated schema", () => {
 	expect(html).toContain("conversion:\n  factor: 4");
 	expect(html).toContain('"1": 2');
 	expect(html).toContain("multipliers: true");
+	const embedded = renderToString(() => (
+		<SchemaReference
+			trees={buildSchemaTrees(schema)}
+			versionLabel="embedded version"
+			syncUrl={false}
+			showPermalinks={false}
+		/>
+	));
+	expect(html).toContain("Copy link to tasks[].condition");
+	expect(embedded).not.toContain("Copy link to");
+	expect(embedded).toContain("tasks[].condition");
 });

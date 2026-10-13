@@ -1,7 +1,9 @@
 import { createSignal, createUniqueId, For, type JSX, Show } from "solid-js";
+import { SchemaInfo } from "../schema-reference-navigation";
 
 export function TagChipInput(props: {
   label: string;
+  schemaPath?: string;
   value: string[];
   placeholder?: string;
   onChange: (v: string[]) => void;
@@ -27,7 +29,7 @@ export function TagChipInput(props: {
   return (
     <div class="ui-field">
       <div class="flex items-center justify-between">
-        <label class="ui-label" for={inputId}>{props.label}</label>
+        <div class="flex items-center gap-2"><label class="ui-label" for={inputId}>{props.label}</label><SchemaInfo path={props.schemaPath} label={props.label} /></div>
         <Show when={props.labelExtra}>{props.labelExtra}</Show>
       </div>
       <div class="sk-combobox-control tag-control">
