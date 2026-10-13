@@ -1,5 +1,5 @@
 import { parse as parseYaml } from "yaml";
-import type { TaskTemplate } from "../../templates/schema";
+import { CURRENT_TEMPLATE_FORMAT_VERSION, type TaskTemplate } from "../../templates/schema";
 import { CancellationError } from "../../utils/errors";
 import {
   buildReferenceDocumentsSection,
@@ -71,10 +71,22 @@ export async function draftTemplate(
   const documents = request.documentGrounding?.documents.length ? buildReferenceDocumentsSection(request.documentGrounding.documents) : null;
   const { result } = await runAttempts(session, {
     userPrompt: (errors) => buildUserPrompt(request.prose, projectGrounding, errors, documents),
-    interpret: async (rawOutput) => ({ check: parseAndValidate(rawOutput), notes: [] }),
-    shaped: parseTemplateShaped,
+    interpret: async (rawOutput) => {
+      const check = parseAndValidate(rawOutput);
+      return { check: check.ok ? { ok: true, template: withFormatVersion(check.template) } : check, notes: [] };
+    },
+    shaped: (rawOutput) => {
+      const parsed = parseTemplateShaped(rawOutput);
+      return parsed ? withFormatVersion(parsed) : undefined;
+    },
   }, options);
   return result;
+}
+
+/** Drafts and improvements are written in the current format whether or not the model declared it, with formatVersion first. */
+function withFormatVersion<T extends { formatVersion?: unknown }>(template: T): T {
+  const { formatVersion, ...rest } = template;
+  return { formatVersion: formatVersion ?? CURRENT_TEMPLATE_FORMAT_VERSION, ...rest } as T;
 }
 
 /** A Template Improvement: the proposal (or the last failed attempt) plus the AI's notes. */
@@ -93,7 +105,7 @@ export async function improveTemplate(
   const prepare = (value: Record<string, unknown>) => {
     const { proposal, notes } = takeImprovementNotes(value);
     const guarded = protectInheritance(proposal, request.template, request.resolvedTemplate);
-    return { proposal: guarded.proposal, notes: [...notes, ...guarded.notes] };
+    return { proposal: withFormatVersion(guarded.proposal), notes: [...notes, ...guarded.notes] };
   };
 
   const { result, notes } = await runAttempts(session, {

@@ -79,6 +79,17 @@ describe("draftTemplate", () => {
     expect(calls[0]?.userPrompt).toContain("Backend API stories");
   });
 
+  test("writes the draft in the current format, first, even when the model omits formatVersion", async () => {
+    const { session } = scriptedSession([VALID]);
+
+    const result = await draftTemplate(session, { prose: "Backend API stories" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.keys(result.template)[0]).toBe("formatVersion");
+    expect(result.template.formatVersion).toBe("1.0");
+  });
+
   test("accepts percentages that add up to more than 100 without asking for a repair", async () => {
     const overAllocated = VALID.replace("estimationPercent: 30", "estimationPercent: 60");
     const { session, calls } = scriptedSession([overAllocated, VALID]);
@@ -124,6 +135,7 @@ describe("draftTemplate", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.template).toEqual({
+      formatVersion: "1.0",
       version: "1.0",
       name: "Draft",
       filter: {},
@@ -261,6 +273,25 @@ improvementNotes:
     expect(result.template.tasks.map((t) => t.title)).toEqual(["Implement the endpoint", "Write tests", "Code review"]);
     expect(result.template).not.toHaveProperty("improvementNotes");
     expect(result.notes).toEqual(["Added a code review task.", "Renamed tasks to say what is built."]);
+  });
+
+  test("writes the proposal in the current format, first, even when the model omits formatVersion", async () => {
+    const { session } = scriptedSession([IMPROVED]);
+    const result = await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.keys(result.template)[0]).toBe("formatVersion");
+    expect(result.template.formatVersion).toBe("1.0");
+  });
+
+  test("adds formatVersion to a last failed proposal kept for editing", async () => {
+    const { session } = scriptedSession(['name: "Backend API"\nfilter: {}\ntasks:\n  - title: ""\n']);
+    const result = await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.template?.formatVersion).toBe("1.0");
   });
 
   test("includes guidance in the prompt only when given", async () => {
