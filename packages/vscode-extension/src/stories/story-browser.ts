@@ -17,11 +17,14 @@ import {
 	browserTitle,
 	canLoadMore,
 	emptyFilters,
+	filterTooltip,
+	hasTasksTooltip,
 	parseStoryIds,
 	type StoryBrowserFilters,
 	type StoryBrowserModeKind,
 	storyDescription,
 	storyLabel,
+	switchModeTooltip,
 	toStorySearch,
 	withSelectedFirst,
 } from './story-browser-model.js';
@@ -266,33 +269,27 @@ function toItem(story: StorySummary, alwaysShow: boolean): StoryItem {
 function buttonsFor(mode: StoryBrowserModeKind, filters: StoryBrowserFilters, defaultView: DefaultView | undefined): ActionButton[] {
 	const buttons: ActionButton[] = [];
 	if (defaultView) {
-		buttons.push(mode !== 'search'
-			? { action: 'switchMode', iconPath: new vscode.ThemeIcon('search'), tooltip: 'Search all Stories' }
-			: {
-				action: 'switchMode',
-				iconPath: new vscode.ThemeIcon('history'),
-				tooltip: defaultView.kind === 'sprint' ? 'Back to the current and next sprint' : 'Back to Stories this Template was applied to',
-			});
+		buttons.push({
+			action: 'switchMode',
+			iconPath: new vscode.ThemeIcon(mode !== 'search' ? 'search' : 'history'),
+			tooltip: switchModeTooltip(mode, defaultView.kind),
+		});
 	}
-	buttons.push({ action: 'enterIds', iconPath: new vscode.ThemeIcon('edit'), tooltip: 'Enter Story IDs' });
+	buttons.push({ action: 'enterIds', iconPath: new vscode.ThemeIcon('edit'), tooltip: 'Enter Story IDs — type IDs directly instead of picking from the list' });
 	if (mode === 'search') {
 		buttons.push(
-			{ action: 'type', iconPath: new vscode.ThemeIcon('symbol-class'), tooltip: filterTooltip('Type', filters.workItemTypes) },
-			{ action: 'state', iconPath: new vscode.ThemeIcon('pulse'), tooltip: filterTooltip('State', filters.states) },
-			{ action: 'area', iconPath: new vscode.ThemeIcon('folder'), tooltip: filterTooltip('Area path', filters.areaPaths) },
-			{ action: 'iteration', iconPath: new vscode.ThemeIcon('calendar'), tooltip: filterTooltip('Iteration', filters.iterations) },
+			{ action: 'type', iconPath: new vscode.ThemeIcon('symbol-class'), tooltip: filterTooltip('type', filters) },
+			{ action: 'state', iconPath: new vscode.ThemeIcon('pulse'), tooltip: filterTooltip('state', filters) },
+			{ action: 'area', iconPath: new vscode.ThemeIcon('folder'), tooltip: filterTooltip('area', filters) },
+			{ action: 'iteration', iconPath: new vscode.ThemeIcon('calendar'), tooltip: filterTooltip('iteration', filters) },
 			{
 				action: 'hasTasks',
 				iconPath: new vscode.ThemeIcon(filters.hasTasks ? 'pass-filled' : 'circle-large-outline'),
-				tooltip: filters.hasTasks ? 'Has Tasks: on (only Stories that already have Tasks)' : 'Has Tasks: off (any Story)',
+				tooltip: hasTasksTooltip(filters.hasTasks),
 			},
 		);
 	}
 	return buttons;
-}
-
-function filterTooltip(name: string, values: string[]): string {
-	return values.length ? `${name}: ${values.join(', ')}` : `Filter by ${name.toLowerCase()}`;
 }
 
 /** Project metadata for the filter sub-pickers, fetched once per Story Browser. */

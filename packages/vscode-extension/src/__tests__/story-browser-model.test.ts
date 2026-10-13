@@ -4,9 +4,12 @@ import {
 	browserTitle,
 	canLoadMore,
 	emptyFilters,
+	filterTooltip,
+	hasTasksTooltip,
 	parseStoryIds,
 	storyDescription,
 	storyLabel,
+	switchModeTooltip,
 	toStorySearch,
 	withSelectedFirst,
 } from '../stories/story-browser-model.js';
@@ -50,5 +53,19 @@ describe('story browser model', () => {
 		expect(parseStoryIds('12, #34 56,12')).toEqual({ ids: ['12', '34', '56'] });
 		expect(parseStoryIds('  ')).toEqual({ error: 'Enter at least one Story ID' });
 		expect(parseStoryIds('12, abc')).toEqual({ error: 'IDs must be numeric. Invalid: abc' });
+	});
+
+	it('explains on hover what each filter button narrows to and what clicking it changes', () => {
+		const filters = { ...emptyFilters(false), workItemTypes: ['Bug', 'User Story'] };
+		expect(filterTooltip('type', filters)).toBe('Type: Bug, User Story — click to change which Work Item types to search, or select none to remove this filter');
+		expect(filterTooltip('state', filters)).toBe('State: any — click to choose which States to search');
+		expect(hasTasksTooltip(false)).toBe('Has Tasks: off, any Story — click to show only Stories that already have Tasks');
+		expect(hasTasksTooltip(true)).toBe('Has Tasks: on, only Stories that already have Tasks — click to include every Story');
+	});
+
+	it('says where the mode button goes and that Search filters only apply in Search', () => {
+		expect(switchModeTooltip('sprint', 'sprint')).toStartWith('Search all Stories');
+		expect(switchModeTooltip('search', 'sprint')).toBe('Back to the current and next sprint (Stories with no Tasks yet) — your Search filters are kept but not applied');
+		expect(switchModeTooltip('search', 'applied')).toBe('Back to Stories this Template was applied to — your Search filters are kept but not applied');
 	});
 });

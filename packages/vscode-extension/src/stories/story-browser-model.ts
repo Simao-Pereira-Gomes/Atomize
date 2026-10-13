@@ -55,6 +55,39 @@ export function browserTitle(base: string, mode: StoryBrowserModeKind, filters: 
 	return parts.length ? `${base} — Search (${parts.join(' · ')})` : `${base} — Search`;
 }
 
+export type StoryBrowserFilterKind = 'type' | 'state' | 'area' | 'iteration';
+
+const FILTER_TOOLTIPS: Record<StoryBrowserFilterKind, { name: string; field: (filters: StoryBrowserFilters) => string[]; choose: string }> = {
+	type: { name: 'Type', field: f => f.workItemTypes, choose: 'which Work Item types to search' },
+	state: { name: 'State', field: f => f.states, choose: 'which States to search' },
+	area: { name: 'Area path', field: f => f.areaPaths, choose: 'area paths to search (each includes its sub-areas)' },
+	iteration: { name: 'Iteration', field: f => f.iterations, choose: 'iterations to search (each includes its sub-iterations)' },
+};
+
+/** A filter button's hover text: what the filter currently narrows to and what clicking it changes. */
+export function filterTooltip(kind: StoryBrowserFilterKind, filters: StoryBrowserFilters): string {
+	const { name, field, choose } = FILTER_TOOLTIPS[kind];
+	const values = field(filters);
+	return values.length
+		? `${name}: ${values.join(', ')} — click to change ${choose}, or select none to remove this filter`
+		: `${name}: any — click to choose ${choose}`;
+}
+
+/** The Has Tasks button's hover text: its current setting and what clicking it switches to. */
+export function hasTasksTooltip(hasTasks: boolean): string {
+	return hasTasks
+		? 'Has Tasks: on, only Stories that already have Tasks — click to include every Story'
+		: 'Has Tasks: off, any Story — click to show only Stories that already have Tasks';
+}
+
+/** The mode button's hover text: which list clicking it switches to and whether the Search filters apply there. */
+export function switchModeTooltip(mode: StoryBrowserModeKind, defaultView: 'sprint' | 'applied'): string {
+	if (mode !== 'search') return 'Search all Stories — type to search and narrow with the Type, State, Area, Iteration, and Has Tasks filters';
+	return defaultView === 'sprint'
+		? 'Back to the current and next sprint (Stories with no Tasks yet) — your Search filters are kept but not applied'
+		: 'Back to Stories this Template was applied to — your Search filters are kept but not applied';
+}
+
 /** Merges the current page of results with Stories already selected, selected first and without duplicates. */
 export function withSelectedFirst(results: StorySummary[], selected: Map<string, StorySummary>): StorySummary[] {
 	return [...selected.values(), ...results.filter(story => !selected.has(story.id))];
