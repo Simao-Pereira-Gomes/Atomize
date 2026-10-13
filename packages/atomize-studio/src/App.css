@@ -256,6 +256,8 @@
 }
 .filter-group-fields .ui-field { margin-bottom: 0; }
 .estimation-mode-row .ui-field { margin-bottom: 0; }
+.story-browser-filters .ui-field { margin-bottom: 0; min-width: 0; }
+.story-browser-filters .sk-combobox-input { min-width: 0; }
 
 /* More filters trigger */
 .more-filters-btn {

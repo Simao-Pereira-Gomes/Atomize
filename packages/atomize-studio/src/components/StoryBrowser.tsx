@@ -11,6 +11,7 @@ import {
   type StoryRow,
   toSearchRequest,
 } from "../stories/story-browser-model";
+import { SearchableSelectField } from "./fields";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -104,19 +105,17 @@ export function StoryBrowser(props: {
     return [...new Set(types.flatMap((type) => options.statesByWorkItemType[type] ?? []))].sort();
   };
 
+  // Projects can have hundreds of area paths and iterations, so each filter is searchable by typing.
   const FilterSelect = (filterProps: { label: string; value: string; options: string[]; onChange: (value: string) => void }) => (
-    <label class="min-w-0 text-xs font-semibold text-slate-600 dark:text-slate-300">
-      {filterProps.label}
-      <select
-        class="mt-1 block w-full min-w-0 truncate rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal dark:border-slate-700 dark:bg-slate-950"
-        value={filterProps.value}
-        disabled={props.disabled?.()}
-        onChange={(event) => filterProps.onChange(event.currentTarget.value)}
-      >
-        <option value="">Any</option>
-        <For each={filterProps.options}>{(option) => <option value={option}>{option}</option>}</For>
-      </select>
-    </label>
+    <SearchableSelectField
+      label={filterProps.label}
+      value={filterProps.value}
+      options={filterProps.options.map((option) => ({ value: option, label: option }))}
+      placeholder="Any — type to search"
+      disabled={props.disabled?.()}
+      clearable
+      onChange={filterProps.onChange}
+    />
   );
 
   return (
@@ -145,7 +144,7 @@ export function StoryBrowser(props: {
           onInput={(event) => update({ text: event.currentTarget.value })}
         />
         <Show when={mode() === "search"}>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="story-browser-filters grid grid-cols-2 gap-2">
           <FilterSelect label="Type" value={one(filters().workItemTypes)} options={props.choices()?.workItemTypes ?? []} onChange={(value) => update({ workItemTypes: value ? [value] : [], states: [] })} />
           <FilterSelect label="State" value={one(filters().states)} options={states()} onChange={(value) => update({ states: value ? [value] : [] })} />
           <FilterSelect label="Area path (and below)" value={one(filters().areaPaths)} options={props.choices()?.areaPaths ?? []} onChange={(value) => update({ areaPaths: value ? [value] : [] })} />
