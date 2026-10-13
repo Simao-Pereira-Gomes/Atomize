@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { buildSchemaTrees } from "@sppg2001/atomize-schema-reference";
 import schema from "@sppg2001/atomize-schema-reference/schema.json";
-import { SchemaReference } from "@sppg2001/atomize-schema-reference/viewer";
+import { WebsiteSchemaReference } from "../components/WebsiteSchemaReference";
 import "@sppg2001/atomize-schema-reference/styles.css";
 import logo from "../../../vscode-extension/icons/atomize-product.svg?url";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -36,7 +36,7 @@ const versionLabel = `main @ ${commit} · ${new Date().toISOString().slice(0, 10
       <ThemeToggle client:load />
     </header>
     <main>
-      <SchemaReference trees={trees} versionLabel={versionLabel} notice="You’re reading the development schema on main. The Schema Reference inside Atomize Studio and the VS Code extension matches your installed version." client:load />
+      <WebsiteSchemaReference trees={trees} versionLabel={versionLabel} notice="You’re reading the development schema on main. The Schema Reference inside Atomize Studio and the VS Code extension matches your installed version." client:load />
     </main>
   </body>
 </html>

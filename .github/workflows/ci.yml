@@ -53,6 +53,7 @@ jobs:
               - 'packages/atomize-core/**'
               - 'packages/atomize-schema/**'
             schema:
+              - 'docs/Template-Reference.md'
               - 'packages/atomize-schema/**'
               - 'packages/atomize-schema-reference/**'
               - 'packages/website/**'

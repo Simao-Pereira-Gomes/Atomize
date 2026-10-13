@@ -91,6 +91,7 @@
               "minItems": 1,
               "type": "array",
               "items": {
+                "x-atomize-guide": "conditional-tasks",
                 "$ref": "#/$defs/__schema0"
               },
               "description": "Sub-conditions that must all match (logical AND)."
@@ -108,6 +109,7 @@
               "minItems": 1,
               "type": "array",
               "items": {
+                "x-atomize-guide": "conditional-tasks",
                 "$ref": "#/$defs/__schema0"
               },
               "description": "Sub-conditions where at least one must match (logical OR)."
@@ -162,10 +164,12 @@
           "type": "object",
           "properties": {
             "team": {
+              "x-atomize-guide": "filter",
               "type": "string",
               "description": "Azure DevOps team name. Limits story selection to stories owned by this team."
             },
             "workItemTypes": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -173,6 +177,7 @@
               "description": "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate."
             },
             "states": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -180,6 +185,7 @@
               "description": "Story states to target (e.g. ['Active', 'New'])."
             },
             "statesExclude": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -187,6 +193,7 @@
               "description": "Story states to exclude from selection."
             },
             "statesWereEver": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -194,6 +201,7 @@
               "description": "Include stories that were ever in any of these states."
             },
             "tags": {
+              "x-atomize-guide": "filter",
               "type": "object",
               "properties": {
                 "include": {
@@ -215,6 +223,7 @@
               "description": "Tag-based filter — include or exclude stories by tag."
             },
             "areaPaths": {
+              "x-atomize-guide": "area-paths-exact-vs-descendants",
               "type": "array",
               "items": {
                 "anyOf": [
@@ -230,6 +239,7 @@
               "description": "Area paths to filter by. Use '@TeamAreas' to match all areas owned by the configured team."
             },
             "areaPathsUnder": {
+              "x-atomize-guide": "area-paths-exact-vs-descendants",
               "type": "array",
               "items": {
                 "type": "string"
@@ -237,6 +247,7 @@
               "description": "Include stories in these area paths and all sub-paths."
             },
             "iterations": {
+              "x-atomize-guide": "iterations-exact-vs-descendants",
               "type": "array",
               "items": {
                 "anyOf": [
@@ -252,6 +263,7 @@
               "description": "Iterations to filter by. Use '@CurrentIteration' for the active sprint."
             },
             "iterationsUnder": {
+              "x-atomize-guide": "iterations-exact-vs-descendants",
               "type": "array",
               "items": {
                 "type": "string"
@@ -259,6 +271,7 @@
               "description": "Include stories in these iterations and all sub-iterations."
             },
             "assignedTo": {
+              "x-atomize-guide": "special-values",
               "type": "array",
               "items": {
                 "anyOf": [
@@ -276,6 +289,7 @@
               "description": "Assignee filter. Accepts email addresses or '@Me' for the authenticated user."
             },
             "changedAfter": {
+              "x-atomize-guide": "date-filters",
               "type": "string",
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
@@ -283,6 +297,7 @@
               "description": "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7')."
             },
             "createdAfter": {
+              "x-atomize-guide": "date-filters",
               "type": "string",
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
@@ -290,6 +305,7 @@
               "description": "Include stories created after this date. ISO 8601 date or date macro."
             },
             "priority": {
+              "x-atomize-guide": "filter",
               "type": "object",
               "properties": {
                 "min": {
@@ -305,19 +321,23 @@
               "description": "Priority range filter for story selection."
             },
             "excludeIfHasTasks": {
+              "x-atomize-guide": "filter",
               "type": "boolean",
               "description": "If true, skips stories that already have child tasks."
             },
             "savedQuery": {
+              "x-atomize-guide": "savedquery",
               "type": "object",
               "properties": {
                 "id": {
+                  "x-atomize-guide": "savedquery",
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Azure DevOps saved query GUID."
                 },
                 "path": {
+                  "x-atomize-guide": "savedquery",
                   "type": "string",
                   "minLength": 1,
                   "description": "Path to the saved query in Azure DevOps (e.g. 'My Queries/Sprint Stories')."
@@ -332,7 +352,8 @@
             }
           },
           "additionalProperties": false,
-          "description": "Criteria used to select which stories this template applies to."
+          "description": "Criteria used to select which stories this template applies to.",
+          "x-atomize-guide": "filter"
         },
         "tasks": {
           "minItems": 1,
@@ -341,6 +362,7 @@
             "type": "object",
             "properties": {
               "id": {
+                "x-atomize-guide": "task-dependencies",
                 "type": "string",
                 "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
                 "x-atomize-rules": [
@@ -350,24 +372,29 @@
               "title": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Task title — shown as the work item title in Azure DevOps."
+                "description": "Task title — shown as the work item title in Azure DevOps.",
+                "x-atomize-guide": "variable-interpolation"
               },
               "description": {
+                "x-atomize-guide": "variable-interpolation",
                 "type": "string",
                 "description": "Additional details or notes for this task."
               },
               "estimationPercent": {
+                "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
                 "maximum": 100,
                 "description": "Percentage of the parent story's estimate assigned to this task (0–100). Requires estimation.strategy = 'percentage'."
               },
               "estimationPercentCondition": {
+                "x-atomize-guide": "conditional-estimation",
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
                     "condition": {
+                      "x-atomize-guide": "conditional-estimation",
                       "description": "Condition evaluated against the parent story. Applied when this condition matches.",
                       "$ref": "#/$defs/__schema0"
                     },
@@ -375,7 +402,8 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 100,
-                      "description": "Estimation percentage used when this condition matches (0–100)."
+                      "description": "Estimation percentage used when this condition matches (0–100).",
+                      "x-atomize-guide": "conditional-estimation"
                     }
                   },
                   "required": [
@@ -387,15 +415,18 @@
                 "description": "Conditional estimation rules evaluated in order. The first matching condition's percent is used."
               },
               "estimationFixed": {
+                "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
                 "description": "Fixed point value for this task, independent of the parent story's estimate."
               },
               "estimationFormula": {
+                "x-atomize-guide": "estimation",
                 "type": "string",
                 "description": "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time."
               },
               "tags": {
+                "x-atomize-guide": "tasks",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -403,6 +434,7 @@
                 "description": "Tags applied to the generated task."
               },
               "condition": {
+                "x-atomize-guide": "conditional-tasks",
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
                 "x-atomize-rules": [
                   "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
@@ -410,6 +442,7 @@
                 "$ref": "#/$defs/__schema0"
               },
               "dependsOn": {
+                "x-atomize-guide": "task-dependencies",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -422,6 +455,7 @@
                 ]
               },
               "repeat": {
+                "x-atomize-guide": "repeated-tasks",
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
@@ -432,18 +466,22 @@
                 ]
               },
               "assignTo": {
+                "x-atomize-guide": "assignment-patterns",
                 "type": "string",
                 "description": "Email address or alias to assign this task to."
               },
               "priority": {
+                "x-atomize-guide": "tasks",
                 "type": "number",
                 "description": "Priority value for the generated task."
               },
               "activity": {
+                "x-atomize-guide": "tasks",
                 "type": "string",
                 "description": "Azure DevOps activity type for this task (e.g. 'Development', 'Testing', 'Design')."
               },
               "acceptanceCriteria": {
+                "x-atomize-guide": "tasks",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -451,6 +489,7 @@
                 "description": "Acceptance criteria lines for this task."
               },
               "acceptanceCriteriaAsChecklist": {
+                "x-atomize-guide": "tasks",
                 "type": "boolean",
                 "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
               },
@@ -458,6 +497,7 @@
                 "x-atomize-rules": [
                   "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
                 ],
+                "x-atomize-guide": "task-custom-fields",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -477,38 +517,46 @@
             ],
             "additionalProperties": false
           },
-          "description": "Task definitions that will be generated from this template."
+          "description": "Task definitions that will be generated from this template.",
+          "x-atomize-guide": "tasks"
         },
         "taskType": {
+          "x-atomize-guide": "estimation",
           "type": "string",
           "minLength": 1,
           "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
         },
         "estimation": {
+          "x-atomize-guide": "estimation",
           "type": "object",
           "properties": {
             "strategy": {
               "default": "percentage",
               "description": "Estimation strategy. 'percentage' distributes the parent story's estimate across tasks proportionally.",
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "percentage"
               ]
             },
             "source": {
+              "x-atomize-guide": "estimation",
               "type": "string",
               "minLength": 1,
               "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
             },
             "conversion": {
+              "x-atomize-guide": "estimation",
               "type": "object",
               "properties": {
                 "factor": {
+                  "x-atomize-guide": "estimation",
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
                 },
                 "table": {
+                  "x-atomize-guide": "estimation",
                   "type": "object",
                   "propertyNames": {
                     "type": "string"
@@ -523,6 +571,7 @@
                   "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
                 },
                 "multipliers": {
+                  "x-atomize-guide": "estimation",
                   "type": "boolean",
                   "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
                   "x-atomize-rules": [
@@ -537,6 +586,7 @@
               ]
             },
             "targetFields": {
+              "x-atomize-guide": "estimation",
               "minItems": 1,
               "type": "array",
               "items": {
@@ -546,6 +596,7 @@
               "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
             },
             "normalize": {
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "auto",
@@ -557,6 +608,7 @@
             "rounding": {
               "default": "none",
               "description": "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "nearest",
@@ -566,10 +618,12 @@
               ]
             },
             "minimumTaskEstimate": {
+              "x-atomize-guide": "estimation",
               "type": "number",
               "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
             },
             "minimumTaskPoints": {
+              "x-atomize-guide": "estimation",
               "type": "number",
               "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
               "deprecated": true,
@@ -578,6 +632,7 @@
               ]
             },
             "ifParentHasNoEstimation": {
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "skip",
@@ -587,6 +642,7 @@
               "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
             },
             "defaultParentEstimation": {
+              "x-atomize-guide": "estimation",
               "anyOf": [
                 {
                   "type": "number"
@@ -606,9 +662,11 @@
           "description": "Global estimation configuration for all tasks in this template."
         },
         "validation": {
+          "x-atomize-guide": "validation",
           "type": "object",
           "properties": {
             "mode": {
+              "x-atomize-guide": "validation",
               "type": "string",
               "enum": [
                 "strict",
@@ -617,10 +675,12 @@
               "description": "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes."
             },
             "totalEstimationMustBe": {
+              "x-atomize-guide": "validation",
               "type": "number",
               "description": "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles."
             },
             "totalEstimationRange": {
+              "x-atomize-guide": "validation",
               "type": "object",
               "properties": {
                 "min": {
@@ -640,14 +700,17 @@
               "description": "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles."
             },
             "minTasks": {
+              "x-atomize-guide": "validation",
               "type": "number",
               "description": "Minimum number of tasks the template must define."
             },
             "maxTasks": {
+              "x-atomize-guide": "validation",
               "type": "number",
               "description": "Maximum number of tasks the template may define."
             },
             "maxRepeat": {
+              "x-atomize-guide": "repeated-tasks",
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991,
@@ -657,6 +720,7 @@
               ]
             },
             "taskEstimationRange": {
+              "x-atomize-guide": "validation",
               "type": "object",
               "properties": {
                 "min": {
@@ -684,6 +748,7 @@
               ]
             },
             "requiredTasks": {
+              "x-atomize-guide": "validation",
               "type": "array",
               "items": {
                 "type": "object",
@@ -712,13 +777,16 @@
           "description": "Validation rules applied when this template is used."
         },
         "metadata": {
+          "x-atomize-guide": "metadata",
           "type": "object",
           "properties": {
             "category": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "description": "Template category for discovery and grouping (e.g. 'Frontend', 'Backend', 'Infrastructure')."
             },
             "difficulty": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "enum": [
                 "beginner",
@@ -728,6 +796,7 @@
               "description": "Complexity level of the work this template targets."
             },
             "recommendedFor": {
+              "x-atomize-guide": "metadata",
               "type": "array",
               "items": {
                 "type": "string"
@@ -735,14 +804,17 @@
               "description": "Work item types or story patterns this template is optimised for (e.g. ['User Story', 'Bug'])."
             },
             "estimationGuidelines": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "description": "Human-readable guidance on how to estimate stories before using this template."
             },
             "notes": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "description": "Free-form context for the template's authors and maintainers."
             },
             "examples": {
+              "x-atomize-guide": "metadata",
               "type": "array",
               "items": {
                 "type": "string"
@@ -750,6 +822,7 @@
               "description": "Example story titles or scenarios where this template applies."
             },
             "changelog": {
+              "x-atomize-guide": "metadata",
               "type": "array",
               "items": {
                 "type": "object",
@@ -781,10 +854,12 @@
           "description": "Additional metadata for template discovery and documentation."
         },
         "extends": {
+          "x-atomize-guide": "inheritance-extends",
           "type": "string",
           "description": "Name or path of a parent template this one inherits from. Resolved by the Template Library."
         },
         "mixins": {
+          "x-atomize-guide": "mixins-mixins",
           "type": "array",
           "items": {
             "type": "string"
@@ -843,10 +918,12 @@
           "type": "object",
           "properties": {
             "team": {
+              "x-atomize-guide": "filter",
               "type": "string",
               "description": "Azure DevOps team name. Limits story selection to stories owned by this team."
             },
             "workItemTypes": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -854,6 +931,7 @@
               "description": "Work item types to include (e.g. ['User Story', 'Bug']). With savedQuery, declares which types the query returns: it doesn't filter, but tells Atomize which fields to look up and validate."
             },
             "states": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -861,6 +939,7 @@
               "description": "Story states to target (e.g. ['Active', 'New'])."
             },
             "statesExclude": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -868,6 +947,7 @@
               "description": "Story states to exclude from selection."
             },
             "statesWereEver": {
+              "x-atomize-guide": "filter",
               "type": "array",
               "items": {
                 "type": "string"
@@ -875,6 +955,7 @@
               "description": "Include stories that were ever in any of these states."
             },
             "tags": {
+              "x-atomize-guide": "filter",
               "type": "object",
               "properties": {
                 "include": {
@@ -896,6 +977,7 @@
               "description": "Tag-based filter — include or exclude stories by tag."
             },
             "areaPaths": {
+              "x-atomize-guide": "area-paths-exact-vs-descendants",
               "type": "array",
               "items": {
                 "anyOf": [
@@ -911,6 +993,7 @@
               "description": "Area paths to filter by. Use '@TeamAreas' to match all areas owned by the configured team."
             },
             "areaPathsUnder": {
+              "x-atomize-guide": "area-paths-exact-vs-descendants",
               "type": "array",
               "items": {
                 "type": "string"
@@ -918,6 +1001,7 @@
               "description": "Include stories in these area paths and all sub-paths."
             },
             "iterations": {
+              "x-atomize-guide": "iterations-exact-vs-descendants",
               "type": "array",
               "items": {
                 "anyOf": [
@@ -933,6 +1017,7 @@
               "description": "Iterations to filter by. Use '@CurrentIteration' for the active sprint."
             },
             "iterationsUnder": {
+              "x-atomize-guide": "iterations-exact-vs-descendants",
               "type": "array",
               "items": {
                 "type": "string"
@@ -940,6 +1025,7 @@
               "description": "Include stories in these iterations and all sub-iterations."
             },
             "assignedTo": {
+              "x-atomize-guide": "special-values",
               "type": "array",
               "items": {
                 "anyOf": [
@@ -957,6 +1043,7 @@
               "description": "Assignee filter. Accepts email addresses or '@Me' for the authenticated user."
             },
             "changedAfter": {
+              "x-atomize-guide": "date-filters",
               "type": "string",
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
@@ -964,6 +1051,7 @@
               "description": "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7')."
             },
             "createdAfter": {
+              "x-atomize-guide": "date-filters",
               "type": "string",
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
@@ -971,6 +1059,7 @@
               "description": "Include stories created after this date. ISO 8601 date or date macro."
             },
             "priority": {
+              "x-atomize-guide": "filter",
               "type": "object",
               "properties": {
                 "min": {
@@ -986,19 +1075,23 @@
               "description": "Priority range filter for story selection."
             },
             "excludeIfHasTasks": {
+              "x-atomize-guide": "filter",
               "type": "boolean",
               "description": "If true, skips stories that already have child tasks."
             },
             "savedQuery": {
+              "x-atomize-guide": "savedquery",
               "type": "object",
               "properties": {
                 "id": {
+                  "x-atomize-guide": "savedquery",
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Azure DevOps saved query GUID."
                 },
                 "path": {
+                  "x-atomize-guide": "savedquery",
                   "type": "string",
                   "minLength": 1,
                   "description": "Path to the saved query in Azure DevOps (e.g. 'My Queries/Sprint Stories')."
@@ -1013,7 +1106,8 @@
             }
           },
           "additionalProperties": false,
-          "description": "Criteria used to select which stories this template applies to."
+          "description": "Criteria used to select which stories this template applies to.",
+          "x-atomize-guide": "filter"
         },
         "tasks": {
           "minItems": 1,
@@ -1022,6 +1116,7 @@
             "type": "object",
             "properties": {
               "id": {
+                "x-atomize-guide": "task-dependencies",
                 "type": "string",
                 "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
                 "x-atomize-rules": [
@@ -1031,24 +1126,29 @@
               "title": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Task title — shown as the work item title in Azure DevOps."
+                "description": "Task title — shown as the work item title in Azure DevOps.",
+                "x-atomize-guide": "variable-interpolation"
               },
               "description": {
+                "x-atomize-guide": "variable-interpolation",
                 "type": "string",
                 "description": "Additional details or notes for this task."
               },
               "estimationPercent": {
+                "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
                 "maximum": 100,
                 "description": "Percentage of the parent story's estimate assigned to this task (0–100). Requires estimation.strategy = 'percentage'."
               },
               "estimationPercentCondition": {
+                "x-atomize-guide": "conditional-estimation",
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
                     "condition": {
+                      "x-atomize-guide": "conditional-estimation",
                       "description": "Condition evaluated against the parent story. Applied when this condition matches.",
                       "$ref": "#/$defs/__schema0"
                     },
@@ -1056,7 +1156,8 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 100,
-                      "description": "Estimation percentage used when this condition matches (0–100)."
+                      "description": "Estimation percentage used when this condition matches (0–100).",
+                      "x-atomize-guide": "conditional-estimation"
                     }
                   },
                   "required": [
@@ -1068,15 +1169,18 @@
                 "description": "Conditional estimation rules evaluated in order. The first matching condition's percent is used."
               },
               "estimationFixed": {
+                "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
                 "description": "Fixed point value for this task, independent of the parent story's estimate."
               },
               "estimationFormula": {
+                "x-atomize-guide": "estimation",
                 "type": "string",
                 "description": "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time."
               },
               "tags": {
+                "x-atomize-guide": "tasks",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -1084,6 +1188,7 @@
                 "description": "Tags applied to the generated task."
               },
               "condition": {
+                "x-atomize-guide": "conditional-tasks",
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
                 "x-atomize-rules": [
                   "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
@@ -1091,6 +1196,7 @@
                 "$ref": "#/$defs/__schema0"
               },
               "dependsOn": {
+                "x-atomize-guide": "task-dependencies",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -1103,6 +1209,7 @@
                 ]
               },
               "repeat": {
+                "x-atomize-guide": "repeated-tasks",
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
@@ -1113,18 +1220,22 @@
                 ]
               },
               "assignTo": {
+                "x-atomize-guide": "assignment-patterns",
                 "type": "string",
                 "description": "Email address or alias to assign this task to."
               },
               "priority": {
+                "x-atomize-guide": "tasks",
                 "type": "number",
                 "description": "Priority value for the generated task."
               },
               "activity": {
+                "x-atomize-guide": "tasks",
                 "type": "string",
                 "description": "Azure DevOps activity type for this task (e.g. 'Development', 'Testing', 'Design')."
               },
               "acceptanceCriteria": {
+                "x-atomize-guide": "tasks",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -1132,6 +1243,7 @@
                 "description": "Acceptance criteria lines for this task."
               },
               "acceptanceCriteriaAsChecklist": {
+                "x-atomize-guide": "tasks",
                 "type": "boolean",
                 "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
               },
@@ -1139,6 +1251,7 @@
                 "x-atomize-rules": [
                   "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
                 ],
+                "x-atomize-guide": "task-custom-fields",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -1158,38 +1271,46 @@
             ],
             "additionalProperties": false
           },
-          "description": "Task definitions that will be generated from this template."
+          "description": "Task definitions that will be generated from this template.",
+          "x-atomize-guide": "tasks"
         },
         "taskType": {
+          "x-atomize-guide": "estimation",
           "type": "string",
           "minLength": 1,
           "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
         },
         "estimation": {
+          "x-atomize-guide": "estimation",
           "type": "object",
           "properties": {
             "strategy": {
               "default": "percentage",
               "description": "Estimation strategy. 'percentage' distributes the parent story's estimate across tasks proportionally.",
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "percentage"
               ]
             },
             "source": {
+              "x-atomize-guide": "estimation",
               "type": "string",
               "minLength": 1,
               "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
             },
             "conversion": {
+              "x-atomize-guide": "estimation",
               "type": "object",
               "properties": {
                 "factor": {
+                  "x-atomize-guide": "estimation",
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "description": "Multiplier from the Story's unit to the Task's unit, e.g. 4 when 1 point = 4 hours."
                 },
                 "table": {
+                  "x-atomize-guide": "estimation",
                   "type": "object",
                   "propertyNames": {
                     "type": "string"
@@ -1204,6 +1325,7 @@
                   "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
                 },
                 "multipliers": {
+                  "x-atomize-guide": "estimation",
                   "type": "boolean",
                   "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
                   "x-atomize-rules": [
@@ -1218,6 +1340,7 @@
               ]
             },
             "targetFields": {
+              "x-atomize-guide": "estimation",
               "minItems": 1,
               "type": "array",
               "items": {
@@ -1227,6 +1350,7 @@
               "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
             },
             "normalize": {
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "auto",
@@ -1238,6 +1362,7 @@
             "rounding": {
               "default": "none",
               "description": "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "nearest",
@@ -1247,10 +1372,12 @@
               ]
             },
             "minimumTaskEstimate": {
+              "x-atomize-guide": "estimation",
               "type": "number",
               "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
             },
             "minimumTaskPoints": {
+              "x-atomize-guide": "estimation",
               "type": "number",
               "description": "Deprecated: use minimumTaskEstimate. Still honoured when minimumTaskEstimate is absent.",
               "deprecated": true,
@@ -1259,6 +1386,7 @@
               ]
             },
             "ifParentHasNoEstimation": {
+              "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
                 "skip",
@@ -1268,6 +1396,7 @@
               "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
             },
             "defaultParentEstimation": {
+              "x-atomize-guide": "estimation",
               "anyOf": [
                 {
                   "type": "number"
@@ -1287,9 +1416,11 @@
           "description": "Global estimation configuration for all tasks in this template."
         },
         "validation": {
+          "x-atomize-guide": "validation",
           "type": "object",
           "properties": {
             "mode": {
+              "x-atomize-guide": "validation",
               "type": "string",
               "enum": [
                 "strict",
@@ -1298,10 +1429,12 @@
               "description": "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes."
             },
             "totalEstimationMustBe": {
+              "x-atomize-guide": "validation",
               "type": "number",
               "description": "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles."
             },
             "totalEstimationRange": {
+              "x-atomize-guide": "validation",
               "type": "object",
               "properties": {
                 "min": {
@@ -1321,14 +1454,17 @@
               "description": "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles."
             },
             "minTasks": {
+              "x-atomize-guide": "validation",
               "type": "number",
               "description": "Minimum number of tasks the template must define."
             },
             "maxTasks": {
+              "x-atomize-guide": "validation",
               "type": "number",
               "description": "Maximum number of tasks the template may define."
             },
             "maxRepeat": {
+              "x-atomize-guide": "repeated-tasks",
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991,
@@ -1338,6 +1474,7 @@
               ]
             },
             "taskEstimationRange": {
+              "x-atomize-guide": "validation",
               "type": "object",
               "properties": {
                 "min": {
@@ -1365,6 +1502,7 @@
               ]
             },
             "requiredTasks": {
+              "x-atomize-guide": "validation",
               "type": "array",
               "items": {
                 "type": "object",
@@ -1393,13 +1531,16 @@
           "description": "Validation rules applied when this template is used."
         },
         "metadata": {
+          "x-atomize-guide": "metadata",
           "type": "object",
           "properties": {
             "category": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "description": "Template category for discovery and grouping (e.g. 'Frontend', 'Backend', 'Infrastructure')."
             },
             "difficulty": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "enum": [
                 "beginner",
@@ -1409,6 +1550,7 @@
               "description": "Complexity level of the work this template targets."
             },
             "recommendedFor": {
+              "x-atomize-guide": "metadata",
               "type": "array",
               "items": {
                 "type": "string"
@@ -1416,14 +1558,17 @@
               "description": "Work item types or story patterns this template is optimised for (e.g. ['User Story', 'Bug'])."
             },
             "estimationGuidelines": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "description": "Human-readable guidance on how to estimate stories before using this template."
             },
             "notes": {
+              "x-atomize-guide": "metadata",
               "type": "string",
               "description": "Free-form context for the template's authors and maintainers."
             },
             "examples": {
+              "x-atomize-guide": "metadata",
               "type": "array",
               "items": {
                 "type": "string"
@@ -1431,6 +1576,7 @@
               "description": "Example story titles or scenarios where this template applies."
             },
             "changelog": {
+              "x-atomize-guide": "metadata",
               "type": "array",
               "items": {
                 "type": "object",
@@ -1464,9 +1610,11 @@
         "extends": {
           "type": "string",
           "minLength": 1,
-          "description": "Name or path of a parent template this one inherits from. Inherited fields such as version, name, filter, and tasks may be omitted."
+          "description": "Name or path of a parent template this one inherits from. Inherited fields such as version, name, filter, and tasks may be omitted.",
+          "x-atomize-guide": "inheritance-extends"
         },
         "mixins": {
+          "x-atomize-guide": "mixins-mixins",
           "type": "array",
           "items": {
             "type": "string"
@@ -1489,9 +1637,11 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Unique display name for this mixin."
+          "description": "Unique display name for this mixin.",
+          "x-atomize-guide": "mixins-mixins"
         },
         "description": {
+          "x-atomize-guide": "mixins-mixins",
           "type": "string",
           "description": "What tasks this mixin contributes and when to include it."
         },
@@ -1502,6 +1652,7 @@
             "type": "object",
             "properties": {
               "id": {
+                "x-atomize-guide": "task-dependencies",
                 "type": "string",
                 "description": "Unique identifier for this task within the template. Referenced by 'dependsOn'.",
                 "x-atomize-rules": [
@@ -1511,24 +1662,29 @@
               "title": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Task title — shown as the work item title in Azure DevOps."
+                "description": "Task title — shown as the work item title in Azure DevOps.",
+                "x-atomize-guide": "variable-interpolation"
               },
               "description": {
+                "x-atomize-guide": "variable-interpolation",
                 "type": "string",
                 "description": "Additional details or notes for this task."
               },
               "estimationPercent": {
+                "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
                 "maximum": 100,
                 "description": "Percentage of the parent story's estimate assigned to this task (0–100). Requires estimation.strategy = 'percentage'."
               },
               "estimationPercentCondition": {
+                "x-atomize-guide": "conditional-estimation",
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
                     "condition": {
+                      "x-atomize-guide": "conditional-estimation",
                       "description": "Condition evaluated against the parent story. Applied when this condition matches.",
                       "$ref": "#/$defs/__schema0"
                     },
@@ -1536,7 +1692,8 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 100,
-                      "description": "Estimation percentage used when this condition matches (0–100)."
+                      "description": "Estimation percentage used when this condition matches (0–100).",
+                      "x-atomize-guide": "conditional-estimation"
                     }
                   },
                   "required": [
@@ -1548,15 +1705,18 @@
                 "description": "Conditional estimation rules evaluated in order. The first matching condition's percent is used."
               },
               "estimationFixed": {
+                "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
                 "description": "Fixed point value for this task, independent of the parent story's estimate."
               },
               "estimationFormula": {
+                "x-atomize-guide": "estimation",
                 "type": "string",
                 "description": "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time."
               },
               "tags": {
+                "x-atomize-guide": "tasks",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -1564,6 +1724,7 @@
                 "description": "Tags applied to the generated task."
               },
               "condition": {
+                "x-atomize-guide": "conditional-tasks",
                 "description": "Condition evaluated against the parent story. If it does not match, this task is skipped.",
                 "x-atomize-rules": [
                   "Offline Validation of a Template warns when this condition references custom fields; Online Validation is needed to verify that those fields exist on the platform."
@@ -1571,6 +1732,7 @@
                 "$ref": "#/$defs/__schema0"
               },
               "dependsOn": {
+                "x-atomize-guide": "task-dependencies",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -1583,6 +1745,7 @@
                 ]
               },
               "repeat": {
+                "x-atomize-guide": "repeated-tasks",
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
@@ -1593,18 +1756,22 @@
                 ]
               },
               "assignTo": {
+                "x-atomize-guide": "assignment-patterns",
                 "type": "string",
                 "description": "Email address or alias to assign this task to."
               },
               "priority": {
+                "x-atomize-guide": "tasks",
                 "type": "number",
                 "description": "Priority value for the generated task."
               },
               "activity": {
+                "x-atomize-guide": "tasks",
                 "type": "string",
                 "description": "Azure DevOps activity type for this task (e.g. 'Development', 'Testing', 'Design')."
               },
               "acceptanceCriteria": {
+                "x-atomize-guide": "tasks",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -1612,6 +1779,7 @@
                 "description": "Acceptance criteria lines for this task."
               },
               "acceptanceCriteriaAsChecklist": {
+                "x-atomize-guide": "tasks",
                 "type": "boolean",
                 "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
               },
@@ -1619,6 +1787,7 @@
                 "x-atomize-rules": [
                   "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
                 ],
+                "x-atomize-guide": "task-custom-fields",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -1638,7 +1807,8 @@
             ],
             "additionalProperties": false
           },
-          "description": "Task definitions contributed by this mixin."
+          "description": "Task definitions contributed by this mixin.",
+          "x-atomize-guide": "mixins-mixins"
         },
         "origin": {
           "type": "string",

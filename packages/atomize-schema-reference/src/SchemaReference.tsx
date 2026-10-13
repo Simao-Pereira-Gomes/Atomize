@@ -18,7 +18,11 @@ export interface SchemaReferenceProps {
 	trees: SchemaTrees;
 	versionLabel: string;
 	notice?: string;
+	guideUrl?: (anchor: string) => string;
+	openExternalLink?: (url: string) => void | Promise<void>;
 }
+
+type GuideLinks = Pick<SchemaReferenceProps, "guideUrl" | "openExternalLink">;
 
 const nestedFields = (node: SchemaNode) => [
 	...node.children,
@@ -33,7 +37,9 @@ const requirementLabel = (node: SchemaNode) =>
 			? "Required"
 			: "Optional";
 
-function FieldFacts(props: { node: SchemaNode }) {
+function FieldFacts(props: { node: SchemaNode; links: GuideLinks }) {
+	const guideUrl = () =>
+		props.node.guideAnchor && props.links.guideUrl?.(props.node.guideAnchor);
 	return (
 		<>
 			<Show when={props.node.description}>
@@ -81,6 +87,26 @@ function FieldFacts(props: { node: SchemaNode }) {
 				<p class="schema-reference-description">
 					Recursive structure; follows the same fields as its parent.
 				</p>
+			</Show>
+			<Show when={guideUrl()}>
+				{(url) => (
+					<p class="schema-reference-guide">
+						<a
+							href={url()}
+							target="_blank"
+							rel="noopener noreferrer"
+							aria-label={`Read about ${props.node.path} in the Template Reference`}
+							onClick={(event) => {
+								if (props.links.openExternalLink) {
+									event.preventDefault();
+									void props.links.openExternalLink(url());
+								}
+							}}
+						>
+							Template Reference <span aria-hidden="true">↗</span>
+						</a>
+					</p>
+				)}
 			</Show>
 		</>
 	);
@@ -169,6 +195,7 @@ function FieldHeading(props: { node: SchemaNode }) {
 }
 
 type FieldListProps = {
+	links: GuideLinks;
 	nodes: SchemaNode[];
 	parentKey: string;
 	active: string;
@@ -201,8 +228,9 @@ function NestedFields(props: FieldListProps) {
 									</summary>
 									<div class="schema-reference-nested-body">
 										<code class="schema-reference-path">{node.path}</code>
-										<FieldFacts node={node} />
+										<FieldFacts node={node} links={props.links} />
 										<NestedFields
+											links={props.links}
 											nodes={nestedFields(node)}
 											parentKey={key()}
 											active={props.active}
@@ -551,8 +579,9 @@ export function SchemaReference(props: SchemaReferenceProps) {
 											<header>
 												<FieldHeading node={node} />
 											</header>
-											<FieldFacts node={node} />
+												<FieldFacts node={node} links={props} />
 											<NestedFields
+													links={props}
 												nodes={nestedFields(node)}
 												parentKey={key()}
 												active={active()}

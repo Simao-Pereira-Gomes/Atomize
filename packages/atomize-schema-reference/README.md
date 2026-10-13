@@ -46,3 +46,12 @@ schema path. `buildSchemaTrees(schema, fileRules?)` attaches them at that field;
 the default list documents percentage bounds and generated Task counts on
 `template.tasks`. Passing an empty list disables these additions. Contract tests
 require every listed path to exist in the generated schema, with no ancestor fallback.
+
+Fields link to their behaviour sections through `x-atomize-guide` metadata on the
+Zod schema. Values are Template Reference heading anchors, never URLs. Hosts pass
+`guideUrl(anchor)` to resolve them and can supply `openExternalLink(url)` to open
+links through their system browser API. Without an opener the viewer uses ordinary
+browser links; without a resolver or a field anchor it omits the link. The website
+resolves anchors to the GitHub-rendered Template Reference on `main`. Its Solid
+wrapper supplies the resolver inside the Astro island so it survives hydration.
+Contract tests check every generated guide anchor against the guide's headings.
