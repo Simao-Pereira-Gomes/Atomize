@@ -96,3 +96,43 @@ export function buildAdjacencyList(
 export function formatCyclePath(cyclePath: string[]): string {
   return cyclePath.map((id) => `"${id}"`).join(" → ");
 }
+
+/** Shared dependency order: the last Task receives normalization's rounding remainder. */
+export function orderTaskDefinitions<T extends { id?: string; dependsOn?: string[] }>(tasks: readonly T[]): T[] | undefined {
+  const byId = new Map<string, T>();
+  const graph = new Map<string, Set<string>>();
+  for (const task of tasks) {
+    if (!task.id) continue;
+    byId.set(task.id, task);
+    if (!graph.has(task.id)) graph.set(task.id, new Set());
+    for (const dependency of task.dependsOn ?? []) {
+      graph.get(task.id)?.add(dependency);
+      if (!graph.has(dependency)) graph.set(dependency, new Set());
+    }
+  }
+  const degree = new Map<string, number>();
+  for (const [id, dependencies] of graph) {
+    if (!degree.has(id)) degree.set(id, 0);
+    for (const dependency of dependencies) {
+      if (!degree.has(dependency)) degree.set(dependency, 0);
+      degree.set(id, (degree.get(id) ?? 0) + 1);
+    }
+  }
+  const queue = [...degree].filter(([, count]) => count === 0).map(([id]) => id);
+  const sorted: T[] = [];
+  const visited = new Set<string>();
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i];
+    if (id === undefined) continue;
+    visited.add(id);
+    const task = byId.get(id);
+    if (task) sorted.push(task);
+    for (const [other, dependencies] of graph) {
+      if (!dependencies.delete(id)) continue;
+      degree.set(other, (degree.get(other) ?? 0) - 1);
+      if (degree.get(other) === 0 && !visited.has(other)) queue.push(other);
+    }
+  }
+  if (visited.size !== graph.size) return undefined;
+  return [...sorted, ...tasks.filter(task => !task.id)];
+}

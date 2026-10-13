@@ -63,7 +63,7 @@ VS Code provides schema-backed completions, hovers, snippets, diagnostics, CodeL
 Minimal template:
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:

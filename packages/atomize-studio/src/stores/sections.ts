@@ -1,4 +1,5 @@
 import {
+  CURRENT_TEMPLATE_FORMAT_VERSION,
   copyCount,
   type EstimationConfig,
   type FilterCriteria,
@@ -36,7 +37,7 @@ type BasicInfoFields = {
   version: string;
 };
 
-type BasicInfoAdvanced = Pick<TaskTemplate, "created" | "lastModified" | "extends" | "mixins" | "origin" | "taskType">;
+type BasicInfoAdvanced = Pick<TaskTemplate, "formatVersion" | "created" | "lastModified" | "extends" | "mixins" | "origin" | "taskType">;
 
 type FilterFields = {
   filterMode: "build" | "query";
@@ -170,7 +171,6 @@ type ValidationAdvanced = Omit<
 >;
 
 type MetadataFields = {
-  difficulty: "" | "beginner" | "intermediate" | "advanced";
   estimationGuidelines: string;
   notes: string;
 };
@@ -183,7 +183,7 @@ const defaultBasicInfo = (): BasicInfoFields => ({
   category: "",
   author: "",
   tags: [],
-  version: "1.0",
+  version: "",
 });
 
 const defaultFilter = (): FilterFields => ({
@@ -248,7 +248,6 @@ const defaultValidation = (): ValidationFields => ({
 });
 
 const defaultMetadata = (): MetadataFields => ({
-  difficulty: "",
   estimationGuidelines: "",
   notes: "",
 });
@@ -590,8 +589,7 @@ function makeMetadata() {
     clearErrors(errors, (value) => setErrors(reconcile(value)));
   };
   const validate = () => {};
-  const isValid = () =>
-    fields.difficulty === "" || ["beginner", "intermediate", "advanced"].includes(fields.difficulty);
+  const isValid = () => true;
   return { fields, set, advanced, setAdvanced, replace, errors, validate, isValid };
 }
 
@@ -749,7 +747,6 @@ function buildMetadata(store: MetadataStore, category: string): Metadata | undef
   const metadata: Metadata = {
     ...store.advanced,
     category: nonEmpty(category),
-    difficulty: store.fields.difficulty === "" ? undefined : store.fields.difficulty,
     estimationGuidelines: nonEmpty(store.fields.estimationGuidelines),
     notes: nonEmpty(store.fields.notes),
   };
@@ -803,17 +800,17 @@ export function createAuthoringStore(): AuthoringStore {
   };
 
   const loadTemplate = (template: TaskTemplate) => {
-    const { created, lastModified, extends: parent, mixins, origin, taskType } = template;
+    const { formatVersion, created, lastModified, extends: parent, mixins, origin, taskType } = template;
     basicInfo.replace(
       {
-        version: template.version,
+        version: template.version ?? "",
         name: template.name,
         description: template.description ?? "",
         category: template.metadata?.category ?? "",
         author: template.author ?? "",
         tags: template.tags ?? [],
       },
-      omitUndefined({ created, lastModified, extends: parent, mixins, origin, taskType }),
+      omitUndefined({ formatVersion, created, lastModified, extends: parent, mixins, origin, taskType }),
     );
 
     const {
@@ -909,14 +906,12 @@ export function createAuthoringStore(): AuthoringStore {
     );
 
     const {
-      difficulty,
       estimationGuidelines,
       notes,
       ...advancedMetadata
     } = template.metadata ?? {};
     metadata.replace(
       {
-        difficulty: difficulty ?? "",
         estimationGuidelines: estimationGuidelines ?? "",
         notes: notes ?? "",
       },
@@ -932,7 +927,8 @@ export function createAuthoringStore(): AuthoringStore {
     }
 
     return omitUndefined({
-      version: nonEmpty(basicInfo.fields.version) ?? "1.0",
+      formatVersion: basicInfo.advanced.formatVersion ?? CURRENT_TEMPLATE_FORMAT_VERSION,
+      version: nonEmpty(basicInfo.fields.version),
       name: basicInfo.fields.name.trim(),
       description: nonEmpty(basicInfo.fields.description),
       metadata: buildMetadata(metadata, basicInfo.fields.category),

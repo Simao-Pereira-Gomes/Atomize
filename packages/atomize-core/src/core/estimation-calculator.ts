@@ -1,4 +1,5 @@
 import { match } from "ts-pattern";
+import { taskEstimationRangeViolations } from "@sppg2001/atomize-schema";
 import { logger } from "../logger";
 import type {
   TaskDefinition as PlatformTaskDefinition,
@@ -7,8 +8,9 @@ import type {
 import type {
   EstimationConfig,
   TaskDefinition as TemplateTaskDefinition,
+  TaskTemplate,
 } from "../templates/schema";
-import { getErrorMessage } from "../utils/errors";
+import { getErrorMessage, TemplateValidationError } from "../utils/errors";
 import { ConditionEvaluator } from "./condition-evaluator.js";
 import { resolveStoryEstimate, type StoryEstimateResolution } from "./estimation-conversion";
 import { distributeActiveTaskPercentages } from "./estimation-distribution";
@@ -61,6 +63,7 @@ export class EstimationCalculator {
     estimationConfig?: EstimationConfig,
     forceNormalize = false,
     fieldMapping?: EstimationFieldMapping,
+    taskEstimationRange?: NonNullable<TaskTemplate["validation"]>["taskEstimationRange"],
   ): TaskCalculationResult {
     logger.debug(
       `EstimationCalculator: Calculating tasks for story ${story.id}`
@@ -161,6 +164,15 @@ export class EstimationCalculator {
       enableLogging: true,
       mode: estimationConfig?.normalize,
     });
+
+    const allocationErrors = taskEstimationRangeViolations(calculatedTasks, taskEstimationRange);
+    if (allocationErrors.length) {
+      const errors = allocationErrors.map(error => `${calculatedTasks[error.index]?.title ?? "Task"}: ${error.message}`);
+      throw new TemplateValidationError(
+        `Task allocation violates validation.taskEstimationRange. ${errors.join(" ")}`,
+        errors,
+      );
+    }
 
     for (const calculatedTask of calculatedTasks) {
       calculatedTask.estimation =

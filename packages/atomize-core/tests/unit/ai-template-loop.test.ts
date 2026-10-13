@@ -55,6 +55,17 @@ function scriptedSession(outputs: string[], options: { stream?: boolean } = {}) 
 }
 
 describe("draftTemplate", () => {
+  test("repairs a final allocation range failure using validation feedback", async () => {
+    const header = 'name: Bounded\nfilter: {}\nestimation:\n  normalize: always\nvalidation:\n  taskEstimationRange: { min: 10, max: 30 }\ntasks:\n';
+    const invalid = `${header}  - title: Single\n    estimationPercent: 20\n`;
+    const valid = `${header}${Array.from({ length: 4 }, (_, i) => `  - title: Task ${i}\n    estimationPercent: 50\n`).join("")}`;
+    const { session, calls } = scriptedSession([invalid, valid]);
+    const result = await draftTemplate(session, { prose: "Every final task allocation must be 10–30%." });
+    expect(result.ok).toBe(true);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.systemPrompt).toContain("AFTER normalization");
+    expect(calls[1]?.userPrompt).toContain("Final task allocation is 100%");
+  });
   test("returns the Template when the first attempt is valid", async () => {
     const { session, calls } = scriptedSession([VALID]);
 
@@ -66,6 +77,17 @@ describe("draftTemplate", () => {
     expect(result.attempts).toBe(1);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.userPrompt).toContain("Backend API stories");
+  });
+
+  test("writes the draft in the current format, first, even when the model omits formatVersion", async () => {
+    const { session } = scriptedSession([VALID]);
+
+    const result = await draftTemplate(session, { prose: "Backend API stories" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.keys(result.template)[0]).toBe("formatVersion");
+    expect(result.template.formatVersion).toBe("1.0");
   });
 
   test("accepts percentages that add up to more than 100 without asking for a repair", async () => {
@@ -113,6 +135,7 @@ describe("draftTemplate", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.template).toEqual({
+      formatVersion: "1.0",
       version: "1.0",
       name: "Draft",
       filter: {},
@@ -252,6 +275,25 @@ improvementNotes:
     expect(result.notes).toEqual(["Added a code review task.", "Renamed tasks to say what is built."]);
   });
 
+  test("writes the proposal in the current format, first, even when the model omits formatVersion", async () => {
+    const { session } = scriptedSession([IMPROVED]);
+    const result = await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.keys(result.template)[0]).toBe("formatVersion");
+    expect(result.template.formatVersion).toBe("1.0");
+  });
+
+  test("adds formatVersion to a last failed proposal kept for editing", async () => {
+    const { session } = scriptedSession(['name: "Backend API"\nfilter: {}\ntasks:\n  - title: ""\n']);
+    const result = await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.template?.formatVersion).toBe("1.0");
+  });
+
   test("includes guidance in the prompt only when given", async () => {
     const without = scriptedSession([IMPROVED]);
     await improveTemplate(without.session, { template: plain, resolvedTemplate: plain });
@@ -266,6 +308,14 @@ improvementNotes:
     const { session, calls } = scriptedSession([IMPROVED]);
     await improveTemplate(session, { template: plain, resolvedTemplate: plain });
     expect(calls[0]?.userPrompt).toContain("don't scale them down to 100");
+  });
+
+  test("doesn't invite new dependencies unless the user's focus or Reference Documents ask for them", async () => {
+    const { session, calls } = scriptedSession([IMPROVED]);
+    await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+    expect(calls[0]?.userPrompt).not.toContain("dependencies");
+    expect(calls[0]?.systemPrompt).toContain("leave dependsOn out by default");
+    expect(calls[0]?.systemPrompt).toContain("keep the dependsOn it already has");
   });
 
   test("only shows the composed form for a Template that inherits", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
+	fixDeprecatedField,
 	fixDeprecatedMinimumTaskPoints,
 	fixDuplicateMinimumTaskEstimate,
 	fixMissingTaskId,
@@ -306,5 +307,31 @@ describe('fixDuplicateMinimumTaskEstimate', () => {
 	it('does nothing when only the deprecated key is present', () => {
 		const doc = ['estimation:', '  minimumTaskPoints: 0.5'].join('\n');
 		expect(fixDuplicateMinimumTaskEstimate(doc, range(1, 2), undefined)).toBeNull();
+	});
+});
+
+
+describe('fixDeprecatedField', () => {
+	it('removes a deprecated key with its value block', () => {
+		const doc = ['metadata:', '  category: Backend', '  changelog:', '    - version: "1.1"', '      changes: x', 'tasks: []'].join('\n');
+		const edits = fixDeprecatedField(doc, range(2, 2), undefined);
+		expect(applyEdits(doc, edits)).toBe(['metadata:', '  category: Backend', 'tasks: []'].join('\n'));
+	});
+
+	it('removes the parent key when the deprecated key is its only entry', () => {
+		const doc = ['name: T', 'metadata:', '  difficulty: advanced', 'tasks: []'].join('\n');
+		const edits = fixDeprecatedField(doc, range(2, 2), undefined);
+		expect(applyEdits(doc, edits)).toBe(['name: T', 'tasks: []'].join('\n'));
+	});
+
+	it('removes a deprecated key inside a task', () => {
+		const doc = ['tasks:', '  - title: Build', '    estimationFormula: parent * 0.2', '    tags: [a]'].join('\n');
+		const edits = fixDeprecatedField(doc, range(2, 4), undefined);
+		expect(applyEdits(doc, edits)).toBe(['tasks:', '  - title: Build', '    tags: [a]'].join('\n'));
+	});
+
+	it('offers no fix when the key shares its line with the list item marker', () => {
+		const doc = ['tasks:', '  - acceptanceCriteriaAsChecklist: true', '    title: Build'].join('\n');
+		expect(fixDeprecatedField(doc, range(1, 4), undefined)).toBeNull();
 	});
 });

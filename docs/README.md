@@ -12,7 +12,8 @@ Start with the repository [README](../README.md) if you are new to Atomize. It i
 ## References
 
 - [CLI Reference](./Cli-Reference.md) - Complete command and flag reference
-- [Template Reference](./Template-Reference.md) - Full Atomize YAML schema and semantics
+- [Template Reference](./Template-Reference.md) - Behaviour, composition and worked examples
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) - Browsable template schema, published from `main`
 - [Auth Guide](./Auth-Guide.md) - Connection profiles, credential storage, token rotation, and CI setup
 - [Validation Modes](./Validation-Modes.md) - Lenient vs strict validation
 - [Common Validation Errors](./Common-Validation-Errors.md) - How to fix common template failures
@@ -43,7 +44,7 @@ These paths are kept for older links and should stay short:
 - `docs/Cli-Reference.md` is the command and flag reference.
 - `docs/VS-Code-Extension.md` is the VS Code behavior reference.
 - `docs/Atomize-Studio.md` is the Atomize Studio behavior reference.
-- `docs/Template-Reference.md` is the YAML schema and semantics reference.
+- The [Schema Reference](https://atomize-cd9.pages.dev/schema) owns field facts; `docs/Template-Reference.md` explains behaviour and worked examples.
 - `docs/Template-Creation.md` owns template creation workflows.
 - `docs/Auth-Guide.md` owns credential storage and profile behavior.
 - `docs/Releasing.md` owns the release process and release-notes generation for all three surfaces.

@@ -20,7 +20,7 @@ export function toAIDraftTemplate(value: unknown): TaskTemplate {
   }) : [];
   return {
     ...raw,
-    version: typeof raw.version === "string" ? raw.version : String(raw.version ?? ""),
+    version: raw.version === undefined ? undefined : String(raw.version),
     name: typeof raw.name === "string" ? raw.name : String(raw.name ?? ""),
     description: raw.description === undefined ? undefined : String(raw.description),
     author: raw.author === undefined ? undefined : String(raw.author),

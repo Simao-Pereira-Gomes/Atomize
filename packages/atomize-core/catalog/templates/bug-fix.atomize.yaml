@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Bug Fix"
 description: "Foundation for bug-fix templates. Extend this to inherit a standard investigation and fix task set."
 author: "Atomize"

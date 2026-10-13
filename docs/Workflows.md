@@ -51,7 +51,7 @@ VS Code authoring includes:
 Minimal template:
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:
@@ -67,7 +67,7 @@ tasks:
     estimationPercent: 20
 ```
 
-For all fields, composition, conditions, custom fields, and estimation behavior, see [Template Reference](./Template-Reference.md).
+For field shapes, defaults and constraints, see the [Schema Reference](https://atomize-cd9.pages.dev/schema). For composition, conditions, custom fields and estimation behavior, see the [Template Reference](./Template-Reference.md).
 
 ## Validate A Template
 

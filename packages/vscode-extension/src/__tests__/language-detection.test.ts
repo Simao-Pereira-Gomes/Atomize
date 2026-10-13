@@ -43,8 +43,13 @@ describe('detectAtomizeLanguage', () => {
 		});
 
 		it('returns null when filter is absent (avoids false positives on Taskfile.yml etc.)', () => {
-			const lines = ['version: "1.0"', 'tasks:', '  - id: "do-thing"'];
+			const lines = ["version: '3'", 'tasks:', '  - id: "do-thing"'];
 			expect(detectAtomizeLanguage(lines)).toBeNull();
+		});
+
+		it('returns atomize-yaml when filter and tasks are at root without version', () => {
+			const lines = ['name: "My Template"', 'filter:', '  team: "Dev"', 'tasks:', '  - title: "Build"'];
+			expect(detectAtomizeLanguage(lines)).toBe('atomize-yaml');
 		});
 
 		it('exits early once version, filter, and tasks are all found', () => {
@@ -67,6 +72,16 @@ describe('detectAtomizeLanguage', () => {
 		it('returns atomize-yaml when tasks at root and nested id present, no version', () => {
 			const lines = ['name: "My Mixin"', 'tasks:', '  - id: "update-docs"', '    title: "Update docs"'];
 			expect(detectAtomizeLanguage(lines)).toBe('atomize-yaml');
+		});
+
+		it('returns atomize-yaml for a Mixin that sets formatVersion, even alongside a revision', () => {
+			const lines = ['formatVersion: "1.0"', 'version: "3"', 'name: "My Mixin"', 'tasks:', '  - id: "update-docs"'];
+			expect(detectAtomizeLanguage(lines)).toBe('atomize-yaml');
+		});
+
+		it('returns null for a Mixin-like file with a version but no formatVersion (could be another tool)', () => {
+			const lines = ['version: "3"', 'tasks:', '  - id: "update-docs"'];
+			expect(detectAtomizeLanguage(lines)).toBeNull();
 		});
 
 		it('returns null when tasks at root but no nested id', () => {
@@ -158,6 +173,30 @@ describe('isMixinDocument', () => {
 		};
 
 		expect(isMixinDocument(doc)).toBe(true);
+	});
+
+	it('identifies a Mixin that sets formatVersion and a revision', () => {
+		const doc = { getText: () => 'formatVersion: "1.0"\nversion: "2"\nname: Documentation\ntasks:\n  - id: update-docs\n    title: Update docs' };
+
+		expect(isMixinDocument(doc)).toBe(true);
+	});
+
+	it('does not classify a Template without version as a Mixin', () => {
+		const doc = { getText: () => 'name: Backend\nfilter:\n  workItemTypes: [User Story]\ntasks:\n  - id: api' };
+
+		expect(isMixinDocument(doc)).toBe(false);
+	});
+
+	it('identifies a Mixin whose tasks have no ids', () => {
+		const doc = { getText: () => 'name: Docs\ntasks:\n  - title: Update docs' };
+
+		expect(isMixinDocument(doc)).toBe(true);
+	});
+
+	it('does not classify a Template that forgot its filter as a Mixin', () => {
+		const doc = { getText: () => 'name: Forgot filter\nestimation:\n  rounding: up\ntasks:\n  - id: build' };
+
+		expect(isMixinDocument(doc)).toBe(false);
 	});
 
 	it('does not classify a full Template as a Mixin', () => {

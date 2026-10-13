@@ -7,6 +7,7 @@ import type { TaskTemplate } from '@sppg2001/atomize-core/templates/schema';
 import { CancellationError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
+import { isAtomizeToolingDocument } from '../authoring/language-detection.js';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getAIModel } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
@@ -51,7 +52,11 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 	const doc = uri
 		? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) ?? await vscode.workspace.openTextDocument(uri)
 		: vscode.window.activeTextEditor?.document;
-	if (!doc || !deps.isRunnableTemplate(doc)) return;
+	if (!doc || !isAtomizeToolingDocument(doc)) {
+		void vscode.window.showWarningMessage('Open an Atomize Template to improve it with AI.');
+		return;
+	}
+	if (!deps.isRunnableTemplate(doc)) return;
 	if (!await deps.checkDirtyDocument(doc, 'improve')) return;
 
 	const path = resolveDocumentPath(doc.uri);

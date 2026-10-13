@@ -9,6 +9,7 @@ on:
       - packages/atomize-ai/**
       - packages/atomize-core/**
       - packages/atomize-schema/**
+      - packages/atomize-schema-reference/**
       - .github/workflows/publish-studio.yml
 
 permissions: {}
@@ -349,7 +350,7 @@ jobs:
             --new-tag "studio-v${{ needs.check-version.outputs.version }}" \
             --repo "${{ github.repository }}" \
             --surface studio \
-            --paths packages/atomize-studio,packages/atomize-sidecar,packages/atomize-core,packages/atomize-schema,packages/atomize-ai \
+            --paths packages/atomize-studio,packages/atomize-sidecar,packages/atomize-core,packages/atomize-schema,packages/atomize-schema-reference,packages/atomize-ai \
             --studio-boilerplate \
             > "$RUNNER_TEMP/release-notes.md"
       - name: Create GitHub Release

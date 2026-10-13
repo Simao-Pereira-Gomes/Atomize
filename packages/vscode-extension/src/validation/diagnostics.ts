@@ -90,7 +90,7 @@ function runValidation(request: ValidationRequest): void {
 
 		const items = [
 			...result.errors.map(e =>
-				makeDiagnostic(e.path, e.message, vscode.DiagnosticSeverity.Error, doc),
+				makeDiagnostic(e.path, e.message, vscode.DiagnosticSeverity.Error, doc, e.code),
 			),
 			...result.warnings.map(w =>
 				makeDiagnostic(w.path, w.message, vscode.DiagnosticSeverity.Warning, doc, w.code),
@@ -176,6 +176,8 @@ export function resolvePathToRange(path: string, doc: vscode.TextDocument): vsco
 	}
 
 	return findKeyRange(segments, lines, 0, lines.length)
+		?? findKeyRange(['extends'], lines, 0, lines.length)
+		?? findKeyRange(['mixins'], lines, 0, lines.length)
 		?? new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
 }
 
@@ -235,7 +237,7 @@ function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const DEPRECATED_CODES = new Set(['DEPRECATED_MINIMUM_TASK_POINTS', 'DUPLICATE_MINIMUM_TASK_ESTIMATE']);
+const DEPRECATED_CODES = new Set(['DEPRECATED_MINIMUM_TASK_POINTS', 'DUPLICATE_MINIMUM_TASK_ESTIMATE', 'DEPRECATED_FIELD', 'DEPRECATED_ACCEPTANCE_CRITERIA']);
 
 export function makeDiagnostic(
 	path: string,

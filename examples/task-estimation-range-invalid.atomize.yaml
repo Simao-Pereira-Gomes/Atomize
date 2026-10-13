@@ -1,0 +1,23 @@
+# INTENTIONALLY INVALID: open this file in VS Code to see a range error.
+# A lone written 20% share normalizes to 100%, exceeding the 30% maximum.
+# The error belongs on estimationPercent, not on this comment.
+#
+# To make it pass, change normalize from "always" to "never" and save.
+# Then its final percentage remains 20%, within the inclusive 10–30% range.
+# Validation creates no platform Tasks.
+formatVersion: "1.0"
+name: "Task Estimation Range Failing Playground"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - id: implement
+    title: "Implement"
+    estimationPercent: 50
+estimation:
+  strategy: "percentage"
+  normalize: "always"
+  rounding: "none"
+validation:
+  taskEstimationRange:
+    min: 10
+    max: 30

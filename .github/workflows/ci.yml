@@ -53,10 +53,14 @@ jobs:
               - 'packages/atomize-core/**'
               - 'packages/atomize-schema/**'
             schema:
+              - 'docs/Template-Reference.md'
               - 'packages/atomize-schema/**'
+              - 'packages/atomize-schema-reference/**'
+              - 'packages/website/**'
               - 'packages/cli/**'
             extension:
               - 'packages/vscode-extension/**'
+              - 'packages/atomize-schema-reference/**'
               - 'packages/atomize-core/**'
               - 'packages/atomize-schema/**'
             templates:
@@ -186,6 +190,26 @@ jobs:
       - name: Run tests
         run: bun run test
         working-directory: packages/atomize-schema
+
+  schema-reference:
+    name: Schema Reference
+    needs: changes
+    if: >-
+      always() &&
+      (github.event_name == 'merge_group' || needs.changes.outputs.schema == 'true' || needs.changes.outputs.shared == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck:reference
+      - run: bun run --cwd packages/atomize-schema-reference test
+      - run: bun run --cwd packages/website build
 
   vscode-extension-validation:
     name: VS Code Extension validation

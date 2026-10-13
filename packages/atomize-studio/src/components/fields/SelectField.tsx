@@ -1,10 +1,12 @@
 import { Select } from "@kobalte/core";
 import { createMemo, Show } from "solid-js";
+import { SchemaInfo } from "../schema-reference-navigation";
 
 type SelectOption = { value: string; label: string };
 
 export function SelectField(props: {
   label: string;
+  schemaPath?: string;
   value: string;
   options: SelectOption[];
   error?: string;
@@ -17,7 +19,7 @@ export function SelectField(props: {
 
   return (
     <div class="ui-field">
-      <div class={props.hideLabel ? "sr-only" : "ui-label"}>{props.label}</div>
+      <div class="flex items-center gap-2"><div class={props.hideLabel ? "sr-only" : "ui-label"}>{props.label}</div><SchemaInfo path={props.schemaPath} label={props.label} /></div>
       <Select.Root<SelectOption>
         options={props.options}
         optionValue="value"

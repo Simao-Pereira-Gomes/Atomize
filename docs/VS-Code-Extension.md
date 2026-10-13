@@ -59,7 +59,7 @@ Atomize YAML authoring includes:
 | `atm-estimation-percent-condition` | A conditional `estimationPercent` rule |
 | `atm-condition`, `atm-condition-field`, `atm-condition-number`, `atm-condition-custom` | Condition clauses on tags, built-in text fields, numbers (`estimation`, `priority`) or custom fields, each offering only the operators its field supports |
 | `atm-condition-all`, `atm-condition-any` | Compound AND / OR conditions |
-| `atm-validation`, `atm-custom-fields`, `atm-acceptance-criteria` | Validation rules, task custom fields, acceptance criteria |
+| `atm-validation`, `atm-custom-fields` | Validation rules and task custom fields |
 
 ### Quick Fixes
 
@@ -197,6 +197,14 @@ All Reference Documents together are limited to about 24,000 characters, split e
 
 Opens the Resolved Template after applying inheritance and Mixin injections. This is useful when debugging composed Templates.
 
+### Atomize: Open Schema Reference
+
+Opens the Schema Reference in an editor panel, labelled with the installed extension version. Browse Template and Mixin fields, search the format, and follow guide links in your external browser. The command is available from the Command Palette and the editor context menu for Atomize YAML Files. When run from an Atomize YAML File, it opens at the field under the cursor and selects the Template or Mixin tab to match the file. Comments, blank lines, and unrecognised fields open the tab at the top. Unknown nested paths fall back to the closest known field. From elsewhere it opens the Template tab at the top. Re-running the command navigates the existing panel.
+
+You can also **Cmd-click** an Atomize YAML field name (**Ctrl-click** on Windows/Linux) to open its Schema Reference. This follows VS Code’s standard link modifier: when the multi-cursor modifier is Ctrl/Cmd, use Alt/Option-click instead. It targets the clicked field independently of your text cursor. Comments and ordinary YAML files are not linked.
+
+Set `atomize.schemaReference.openMode` to `beside` for a wider side-by-side view, or `editor` (default) for a regular tab in the current text editor group. Changing this setting takes effect the next time you run the command, including when the reference is already open.
+
 ### Atomize: Open Settings
 
 Opens Atomize extension settings.
@@ -210,6 +218,7 @@ Opens Atomize extension settings.
 | `atomize.cli.autoCheckUpdates` | Deprecated — no longer used. |
 | `atomize.ai.model` | The Copilot model family to use for AI drafting, such as `gpt-4o`. Leave as `auto` (the default) to use the available Copilot model with the largest input limit, since grounded requests carry project metadata, Stories and Reference Documents. If the model you choose isn't available, Atomize offers to switch back to `auto`. |
 | `atomize.defaultProfile` | Workspace-scoped profile name to preselect in Validate, Live Preview, and Generate pickers. |
+| `atomize.schemaReference.openMode` | Schema Reference layout: `beside` or `editor` (default). Applies on the next command invocation. |
 | `atomize.previewLayout` | Preview panel layout: `default` or `compact`. |
 
 The workspace default profile only preselects a Connection Profile. The user still confirms the profile before connected commands run.
@@ -233,7 +242,7 @@ Atomize previews by default.
 ## Template Example
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:
@@ -248,7 +257,7 @@ tasks:
     estimationPercent: 20
 ```
 
-For complete Template syntax, see the [Template Reference](./Template-Reference.md).
+For field syntax and constraints, see the [Schema Reference](https://atomize-cd9.pages.dev/schema). For behaviour and worked examples, see the [Template Reference](./Template-Reference.md).
 
 ## Troubleshooting
 

@@ -1,0 +1,12 @@
+body { margin: 0; background: var(--vscode-editor-background); }
+body .schema-reference {
+	--sr-background: var(--vscode-editor-background);
+	--sr-surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	--sr-border: var(--vscode-panel-border, var(--vscode-widget-border));
+	--sr-text: var(--vscode-editor-foreground);
+	--sr-muted: var(--vscode-descriptionForeground);
+	--sr-accent: var(--vscode-textLink-foreground);
+	--sr-tint: var(--vscode-textBlockQuote-background, var(--vscode-editor-background));
+	--sr-required: var(--vscode-editorWarning-foreground);
+	font-family: var(--vscode-font-family);
+}

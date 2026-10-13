@@ -371,54 +371,6 @@ export async function configureTaskActivity(
 }
 
 /**
- * Configure acceptance criteria
- */
-export async function configureAcceptanceCriteria(): Promise<{
-  criteria?: string[];
-  asChecklist?: boolean;
-}> {
-  const feature = await promptOptionalFeature(
-    "Add acceptance criteria",
-    undefined,
-    false,
-  );
-
-  if (!feature.enabled) {
-    return {};
-  }
-
-  const criteria = await promptMultipleItems<{ criterion: string }>(
-    "criterion",
-    async (index) => {
-      const criterion = assertNotCancelled(
-        await text({
-          message: `Acceptance criterion #${index}:`,
-          validate: Validators.required("Criterion"),
-        }),
-      );
-      return { criterion };
-    },
-    3,
-  );
-
-  if (criteria.length === 0) {
-    return {};
-  }
-
-  const asChecklist = assertNotCancelled(
-    await confirm({
-      message: "Display as checklist?",
-      initialValue: true,
-    }),
-  );
-
-  return {
-    criteria: criteria.map((c) => c.criterion),
-    asChecklist,
-  };
-}
-
-/**
  * Configure task tags.
  * When `defaults` is supplied the prompt is pre-filled with existing values.
  */
@@ -540,13 +492,6 @@ export async function buildTaskDefinition(
     const activity = await configureTaskActivity(fieldSchemas, defaults?.activity);
     if (activity) {
       taskDef.activity = activity;
-    }
-    const acceptanceCriteria = await configureAcceptanceCriteria();
-    if (acceptanceCriteria.criteria) {
-      taskDef.acceptanceCriteria = acceptanceCriteria.criteria;
-      if (acceptanceCriteria.asChecklist !== undefined) {
-        taskDef.acceptanceCriteriaAsChecklist = acceptanceCriteria.asChecklist;
-      }
     }
     const tags = await configureTaskTags(defaults?.tags);
     if (tags) {

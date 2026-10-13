@@ -10,6 +10,76 @@ describe("TemplateValidator", () => {
 	const fixturesPath = resolve(__dirname, "../fixtures/templates");
 
 	describe("validate", () => {
+		test("rejects a formatVersion this release can't read, pointing revisions at version", () => {
+			const result = validator.validate({
+				formatVersion: "2.0",
+				name: "Test",
+				filter: {},
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			const error = result.errors.find((e) => e.path === "formatVersion");
+			expect(error?.message).toContain('Unsupported formatVersion "2.0"');
+			expect(error?.message).toContain("use version for the template's own revision");
+		});
+
+		test("accepts any revision text in version, and no formatVersion", () => {
+			const result = validator.validate({
+				version: "2026.10-rc1",
+				name: "Test",
+				filter: {},
+				tasks: [{ title: "Task", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("accepts a Mixin that sets formatVersion and a revision", () => {
+			const result = validator.validate({
+				formatVersion: "1.0",
+				version: "3",
+				name: "Docs",
+				tasks: [{ id: "docs", title: "Update docs" }],
+			});
+
+			expect(result.valid).toBe(true);
+		});
+
+		test("reports Mixin errors for a Mixin that sets formatVersion", () => {
+			const result = validator.validate({
+				formatVersion: "1.0",
+				name: "Docs",
+				tasks: [],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.map((e) => e.message)).toContain("At least one task is required");
+			expect(result.errors.some((e) => e.path === "filter")).toBe(false);
+		});
+
+		test("reports Template errors, not Mixin errors, for a file without version that extends a parent", () => {
+			const result = validator.validate({
+				name: "Child",
+				extends: "./base.yaml",
+				tasks: [{ title: "Task" }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path === "filter")).toBe(true);
+		});
+
+		test("reports Template errors for a Template that forgot its filter but has Template-only fields", () => {
+			const result = validator.validate({
+				name: "Forgot filter",
+				estimation: { rounding: "up" },
+				tasks: [{ id: "build", title: "Build", estimationPercent: 100 }],
+			});
+
+			expect(result.valid).toBe(false);
+			expect(result.errors.some((e) => e.path === "filter")).toBe(true);
+		});
+
 		test("Offline Validation rejects a conversion factor of zero or less", () => {
 			const result = validator.validate({
 				version: "1.0",
@@ -1195,6 +1265,85 @@ describe("TemplateValidator", () => {
 			expect(result.valid).toBe(true);
 			expect(result.errors).toHaveLength(0);
 			expect(result.warnings.some((w) => w.code === FixableWarningCode.DEPRECATED_MINIMUM_TASK_POINTS)).toBe(true);
+		});
+
+		test("DEPRECATED_FIELD for each deprecated Template, metadata, and task field, without failing strict mode", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				created: "2025-01-01",
+				lastModified: "2025-02-01",
+				filter: {},
+				validation: { mode: "strict" },
+				metadata: {
+					category: "Backend",
+					difficulty: "advanced",
+					recommendedFor: ["User Story"],
+					examples: ["Add login"],
+					changelog: [{ version: "1.1", date: "2025-02-01", changes: "Added review" }],
+				},
+				tasks: [
+					{ title: "Build", estimationPercent: 100, acceptanceCriteriaAsChecklist: true },
+					{ title: "Formula", estimationFormula: "parent * 0.2" },
+				],
+			});
+
+			expect(result.valid).toBe(true);
+			const deprecated = result.warnings.filter((w) => w.code === FixableWarningCode.DEPRECATED_FIELD);
+			expect(deprecated.map((w) => w.path).sort()).toEqual([
+				"created",
+				"lastModified",
+				"metadata.changelog",
+				"metadata.difficulty",
+				"metadata.examples",
+				"metadata.recommendedFor",
+				"tasks[0].acceptanceCriteriaAsChecklist",
+				"tasks[1].estimationFormula",
+			]);
+			expect(deprecated.every((w) => w.nonBlocking)).toBe(true);
+			expect(deprecated.find((w) => w.path === "tasks[1].estimationFormula")?.message).toContain("Task Estimate of 0");
+		});
+
+		test("fields that still have value produce no deprecation warning", () => {
+			const result = validator.validate({
+				version: "1.0",
+				name: "Test",
+				author: "Platform team",
+				tags: ["backend"],
+				filter: {},
+				metadata: { category: "Backend", estimationGuidelines: "Points", notes: "Owned by platform" },
+				tasks: [{ title: "Build", estimationPercent: 100 }],
+			});
+
+			expect(result.warnings.filter((w) => w.code === FixableWarningCode.DEPRECATED_FIELD)).toEqual([]);
+		});
+
+		test("DEPRECATED_ACCEPTANCE_CRITERIA points the author at description, without failing strict mode", () => {
+			const result = validator.validate({
+				name: "Test",
+				filter: {},
+				validation: { mode: "strict" },
+				tasks: [{ title: "Build", estimationPercent: 100, acceptanceCriteria: ["Works"] }],
+			});
+
+			expect(result.valid).toBe(true);
+			const warning = result.warnings.find((w) => w.path === "tasks[0].acceptanceCriteria");
+			expect(warning?.code).toBe(FixableWarningCode.DEPRECATED_ACCEPTANCE_CRITERIA);
+			expect(warning?.suggestion).toContain("description");
+			expect(warning?.nonBlocking).toBe(true);
+		});
+
+		test("DEPRECATED_FIELD for deprecated task fields in a Mixin", () => {
+			const result = validator.validate({
+				name: "Docs",
+				tasks: [{ id: "docs", title: "Docs", acceptanceCriteriaAsChecklist: false }],
+			});
+
+			expect(result.valid).toBe(true);
+			expect(result.warnings.map((w) => [w.path, w.code])).toContainEqual([
+				"tasks[0].acceptanceCriteriaAsChecklist",
+				FixableWarningCode.DEPRECATED_FIELD,
+			]);
 		});
 
 		test("non-fixable warnings have no code", () => {

@@ -1,4 +1,5 @@
 import { logger } from "../logger.js";
+import { orderTaskDefinitions } from "@sppg2001/atomize-schema";
 import type { TaskDefinition } from "../templates/schema.js";
 import { CircularDependencyError } from "../utils/errors.js";
 import { detectCycles, formatCyclePath } from "../utils/graph.js";
@@ -14,6 +15,8 @@ export class DependencyResolver {
    * @throws CircularDependencyError if circular dependencies are detected
    */
   public resolveDependencies(tasks: TaskDefinition[]): TaskDefinition[] {
+    const ordered = orderTaskDefinitions(tasks);
+    if (ordered) return ordered;
     const tasksWithIds: TaskDefinition[] = [];
     const tasksWithoutIds: TaskDefinition[] = [];
 

@@ -1,6 +1,6 @@
 {
 	"name": "@sppg2001/atomize",
-	"version": "5.0.0",
+	"version": "5.1.0",
 	"description": "Automatically generate tasks from user stories with smart templates",
 	"type": "module",
 	"main": "./dist/cli/index.js",
@@ -40,7 +40,7 @@
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100",
 		"benchmark": "bun run benchmarks/index.ts",
 		"generate-schema": "bun scripts/generate-schema.ts",
-		"check-schema": "bun run generate-schema && git diff --exit-code ../vscode-extension/schemas/"
+		"check-schema": "bun run generate-schema && git diff --exit-code ../atomize-schema-reference/schema/"
 	},
 	"keywords": [
 		"devops",
@@ -90,7 +90,7 @@
 		"semver": "^7.8.5",
 		"ts-pattern": "^5.9.0",
 		"yaml": "^2.9.0",
-		"zod": "^4.6.2"
+		"zod": "^4.6.7"
 	},
 	"overrides": {
 		"qs": "6.16.0",

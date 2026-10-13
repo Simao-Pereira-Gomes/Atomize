@@ -26,7 +26,7 @@ You can also add `# atomize-yaml` on the first line of a regular YAML file. The 
 Atomize YAML files stay on VS Code's YAML language service for schema-backed hovers and completions. The extension pack installs the Red Hat YAML extension for this.
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:
@@ -52,7 +52,10 @@ tasks:
 - **Atomize: Browse Fields** looks up platform fields for a selected Connection Profile.
 - **Atomize: Browse Queries** looks up saved queries for a selected Connection Profile.
 - **Atomize: Show Effective Template** opens the fully Resolved Template.
+- **Atomize: Open Schema Reference** opens the Template and Mixin format reference with the installed extension version. Set `atomize.schemaReference.openMode` to `beside` for a wider side-by-side view or `editor` (default) for a regular editor tab. Available from the Command Palette and the editor context menu for Atomize YAML Files. It opens at the field under your cursor and selects the file’s Template or Mixin tab; outside a field, it opens that tab at the top. Running the command again navigates the existing panel. Guide links open in your browser.
 - **Atomize: Open Settings** opens extension settings.
+
+For field lookup, **Cmd-click** an Atomize YAML field name (**Ctrl-click** on Windows/Linux) to open its Schema Reference. This uses VS Code’s standard link modifier; if your multi-cursor modifier is Ctrl/Cmd, use Alt/Option-click instead. The shortcut targets the clicked field even when your text cursor is elsewhere and uses `atomize.schemaReference.openMode`.
 
 For durable Atomize YAML files, the main file actions also appear as CodeLens commands at the top of the editor.
 
@@ -79,6 +82,7 @@ For credential scopes and platform-specific setup, see the [Auth Guide](https://
 ## Settings
 
 - `atomize.defaultProfile`: workspace-scoped profile name to preselect in the Validate, Live Preview, and Generate pickers.
+- `atomize.schemaReference.openMode`: `beside` or `editor` (default); applies when you next open the Schema Reference.
 - `atomize.previewLayout`: preview panel layout, either `default` or `compact`.
 
 > Upgrading from an earlier version? The `atomize.cliPath`, `atomize.cli.installCommand`, and `atomize.cli.autoCheckUpdates` settings are deprecated no-ops. The extension shows a one-time notice if any are still set, and you can safely remove them.

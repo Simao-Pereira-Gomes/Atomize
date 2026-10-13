@@ -57,6 +57,7 @@ export class StoryProcessor {
         template.estimation,
         options.forceNormalize,
         fieldMapping,
+        template.validation?.taskEstimationRange,
       );
 
     logger.info(

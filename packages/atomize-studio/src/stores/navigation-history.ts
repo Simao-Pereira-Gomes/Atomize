@@ -1,7 +1,12 @@
 import { createSignal } from "solid-js";
 import type { StudioAreaId } from "./studio-areas";
 
-export type StudioLocation = { activeArea: StudioAreaId; surface: "starting-paths" | "builder" };
+export type StudioLocation = {
+  activeArea: StudioAreaId;
+  surface: "starting-paths" | "builder";
+  schemaReferenceOpen?: boolean;
+  schemaReferenceTarget?: string;
+};
 
 export function createNavigationHistory() {
   const [entries, setEntries] = createSignal<StudioLocation[]>([]);

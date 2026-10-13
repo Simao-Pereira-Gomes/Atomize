@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Story-Aware Task Allocation"
 description: >
   Demonstrates estimationPercentCondition — each task's weight adapts to
@@ -139,10 +139,6 @@ tasks:
 # ── Metadata ─────────────────────────────────────────────────────────────────
 metadata:
   category: "Demo"
-  difficulty: "intermediate"
-  recommendedFor:
-    - "Demonstrating estimationPercentCondition"
-    - "Adaptive task weighting by story size or tags"
   estimationGuidelines: |
     Effective resolved percentages by scenario (before normalization):
 
@@ -161,7 +157,3 @@ metadata:
     remaining tasks already hold their *resolved* conditional percents before
     normalization runs, so the final ratio reflects the per-story adjustments
     rather than the static fallback values.
-  examples:
-    - "Small pure-backend story (2 pts, tags: [backend])"
-    - "Medium fullstack story (8 pts, tags: [fullstack])"
-    - "Large critical fullstack story (13 pts, tags: [fullstack, critical, complex-ui])"

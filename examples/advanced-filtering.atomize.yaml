@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Advanced Filtering Demo"
 description: |
   Demonstrates the full range of filter criteria: state exclusion, historical
@@ -105,7 +105,4 @@ validation:
 
 metadata:
   category: "Demo"
-  difficulty: "beginner"
-  recommendedFor:
-    - "Learning Atomize filter options"
   estimationGuidelines: "Tasks here are illustrative — adjust percentages to fit your team's workflow."

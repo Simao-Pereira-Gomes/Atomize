@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { isAtomizeToolingDocument } from './language-detection.js';
 import {
+	fixDeprecatedField,
 	fixDeprecatedMinimumTaskPoints,
 	fixDuplicateMinimumTaskEstimate,
 	fixMissingTaskId,
@@ -16,6 +17,7 @@ const FIXABLE_CODE = {
 	SINGLE_LINE_FIELD_WITH_NEWLINES: 'SINGLE_LINE_FIELD_WITH_NEWLINES',
 	DEPRECATED_MINIMUM_TASK_POINTS: 'DEPRECATED_MINIMUM_TASK_POINTS',
 	DUPLICATE_MINIMUM_TASK_ESTIMATE: 'DUPLICATE_MINIMUM_TASK_ESTIMATE',
+	DEPRECATED_FIELD: 'DEPRECATED_FIELD',
 } as const;
 
 type EditFactory = (docText: string, range: PlainRange, data: unknown) => TextEdit[] | null;
@@ -26,6 +28,7 @@ const FACTORIES = new Map<string, EditFactory>([
 	[FIXABLE_CODE.SINGLE_LINE_FIELD_WITH_NEWLINES, fixSingleLineFieldWithNewlines],
 	[FIXABLE_CODE.DEPRECATED_MINIMUM_TASK_POINTS, fixDeprecatedMinimumTaskPoints],
 	[FIXABLE_CODE.DUPLICATE_MINIMUM_TASK_ESTIMATE, fixDuplicateMinimumTaskEstimate],
+	[FIXABLE_CODE.DEPRECATED_FIELD, fixDeprecatedField],
 ]);
 
 function actionLabel(code: string): string {
@@ -40,6 +43,8 @@ function actionLabel(code: string): string {
 			return 'Atomize: Rename minimumTaskPoints to minimumTaskEstimate';
 		case FIXABLE_CODE.DUPLICATE_MINIMUM_TASK_ESTIMATE:
 			return 'Atomize: Remove deprecated minimumTaskPoints';
+		case FIXABLE_CODE.DEPRECATED_FIELD:
+			return 'Atomize: Remove deprecated field';
 		default:
 			return `Atomize: Fix ${code}`;
 	}

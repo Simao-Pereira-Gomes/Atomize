@@ -32,7 +32,22 @@ Atomize Studio has three Studio Areas, each reachable directly from the sidebar 
 
 **Global Settings** — appearance (Theme) and Connection Profile management — is reachable from any Studio Area rather than being a fourth area itself.
 
-A single, persistent **Back** control (near the sidebar) pops a global navigation history of Studio Area and Starting-Path/Builder transitions. Back never discards the Template you're authoring; it is purely navigational. If Back has nothing left to return to while a draft is still in progress, the Starting Paths screen shows a "Continue your in-progress Template" banner so the draft is never stranded.
+Open **Help (?) → Schema Reference** from any Studio Area. The compact Help menu
+beside Global Settings also links directly to the Template Reference in your browser.
+Browse or search the Template and Mixin fields, constraints, runtime rules and YAML
+examples. The reference uses Studio's bundled schema and shows the installed Studio
+version. Field links open the Template Reference in your system browser. Use the
+persistent **Back** control to return to the previous view, including your current
+Builder section and unfinished inputs.
+
+Builder fields have an **ⓘ** button beside their label. It opens the embedded Schema
+Reference at that field, expanded and highlighted; task fields resolve to the same
+entry at any task index. Back restores the Builder, including the open task editor
+and unfinished inputs. Studio omits Copy link because its internal webview URLs
+are not shareable. Template Reference links still open behaviour explanations in
+your system browser.
+
+A single, persistent **Back** control (near the sidebar) pops a global navigation history of Studio Area, Starting-Path/Builder and Schema Reference transitions. Back never discards the Template you're authoring; it is purely navigational. If Back has nothing left to return to while a draft is still in progress, the Starting Paths screen shows a "Continue your in-progress Template" banner so the draft is never stranded.
 
 ## Templates Area
 
@@ -71,7 +86,7 @@ The **Estimation** section follows the estimate in four steps, with a live previ
 
 With a Connection Profile selected, the field choices are searchable lists from your project. They are filtered to fields that can hold an estimate, using the same rules as the CLI. When the Story field is a picklist, its values seed the conversion table, and any row that isn't one of them is flagged. "Enter a reference name instead" lets you type a field that isn't listed. In the Filter section, a saved query asks which work item types it returns. Those types are used for field lookups only, and saving isn't blocked without them.
 
-In the **Tasks** section, a task's **Copies** field sets its [`repeat`](./Template-Reference.md#repeated-tasks): the task creates that many identical Tasks, and the outline shows a ×N badge. A repeated task can't have dependencies, so Studio removes its own and flags any task that depends on it. The percentage total counts every copy. **Maximum copies per task**, under Task count in the **Validation** section, raises the limit of 20.
+In the **Tasks** section, a task's **Copies** field sets its [`repeat`](https://atomize-cd9.pages.dev/schema#template.tasks[].repeat): the task creates that many identical Tasks, and the outline shows a ×N badge. A repeated task can't have dependencies, so Studio removes its own and flags any task that depends on it. The percentage total counts every copy. **Maximum copies per task**, under Task count in the **Validation** section, raises the limit of 20.
 
 **Task Auto-normalisation** is an opt-in behavior for Percentage-mode Tasks: editing one Task's percentage proportionally redistributes the remaining percentage among its valid sibling Tasks. It doesn't run while any task repeats, because rebalancing task definitions to 100% is wrong when a definition creates several Tasks. It's an in-memory authoring convenience only — never written into the Atomize YAML File.
 

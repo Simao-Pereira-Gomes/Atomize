@@ -2,6 +2,39 @@ import { describe, expect, it, mock } from 'bun:test';
 import { baseVscodeMock } from './vscode-test-helpers.js';
 
 describe('resolvePathToRange', () => {
+	it('anchors an inherited range warning to extends rather than the first line', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const { makeDiagnostic } = await import(`../validation/diagnostics.js?t=${Date.now()}-inherited-range`);
+		const { TemplateValidator } = await import('@sppg2001/atomize-core/templates/validator');
+		const text = [
+			'# Conditional Template',
+			'name: Conditional',
+			'extends: "./base.atomize.yaml"',
+			'tasks:',
+			'  - id: implement',
+			'    title: Implement',
+			'    estimationPercentCondition:',
+			'      - condition: { field: priority, operator: equals, value: 1 }',
+			'        percent: 100',
+		].join('\n');
+		const result = new TemplateValidator().validate({
+			name: 'Conditional', filter: {},
+			tasks: [{ id: 'implement', title: 'Implement', estimationPercentCondition: [
+				{ condition: { field: 'priority', operator: 'equals', value: 1 }, percent: 100 },
+			] }],
+			validation: { taskEstimationRange: { min: 10, max: 30 } },
+		});
+		const warning = result.warnings.find(item => item.path === 'validation.taskEstimationRange');
+		if (!warning) throw new Error('Expected the deferred range warning');
+		const doc = { getText: () => text, lineAt: (line: number) => ({ text: text.split('\n')[line] ?? '' }) };
+		const diagnostic = makeDiagnostic(warning.path, warning.message, 1, doc as never);
+		expect(diagnostic.range.start.line).toBe(2);
+
+		const withLocalRange = `${text}\nvalidation:\n  taskEstimationRange:\n    min: 10\n    max: 30`;
+		const localDoc = { getText: () => withLocalRange, lineAt: (line: number) => ({ text: withLocalRange.split('\n')[line] ?? '' }) };
+		expect(makeDiagnostic(warning.path, warning.message, 1, localDoc as never).range.start.line).toBe(10);
+	});
+
 	it('ignores comments and values that mention the target path before the real key', async () => {
 		mock.module('vscode', () => baseVscodeMock());
 
@@ -97,6 +130,24 @@ describe('resolvePathToRange', () => {
 });
 
 describe('makeDiagnostic', () => {
+	it('shows a final allocation range error on the task percentage field', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const { TemplateValidator } = await import('@sppg2001/atomize-core/templates/validator');
+		const { makeDiagnostic } = await import(`../validation/diagnostics.js?t=${Date.now()}-range`);
+		const text = 'tasks:\n  - title: Single\n    estimationPercent: 20';
+		const doc = { getText: () => text, lineAt: (line: number) => ({ text: text.split('\n')[line] ?? '' }) };
+		const result = new TemplateValidator().validate({
+			name: 'Range', filter: {}, tasks: [{ title: 'Single', estimationPercent: 20 }],
+			estimation: { normalize: 'always' }, validation: { taskEstimationRange: { min: 10, max: 30 } },
+		});
+		const error = result.errors.find(item => item.code === 'TASK_ESTIMATION_OUT_OF_RANGE');
+		if (!error) throw new Error('Expected a task allocation range error');
+		const diagnostic = makeDiagnostic(error.path, error.message, 0, doc as never, error.code);
+		expect(diagnostic.range.start.line).toBe(2);
+		expect(diagnostic.severity).toBe(0);
+		expect(diagnostic.code).toBe('TASK_ESTIMATION_OUT_OF_RANGE');
+		expect(diagnostic.message).toContain('Final task allocation is 100%');
+	});
 	const text = ['estimation:', '  minimumTaskPoints: 0.5'].join('\n');
 	const doc = {
 		getText: () => text,

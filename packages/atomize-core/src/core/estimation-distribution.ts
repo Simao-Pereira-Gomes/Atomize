@@ -1,8 +1,7 @@
 import { copyCount, type TaskDefinition } from "../templates/schema";
-import {
-  type EstimationPercentage,
-  normalizeEstimationPercentages,
-} from "../utils/estimation-normalizer";
+import { distributeEstimationPercentages } from "@sppg2001/atomize-schema";
+import type { EstimationPercentage } from "../utils/estimation-normalizer";
+import { logger } from "../logger";
 
 export interface EstimationDistributionOptions {
   forceNormalize?: boolean;
@@ -31,19 +30,8 @@ export function distributeActiveTaskPercentages<T extends EstimationPercentage>(
 ): EstimationDistributionResult {
   const totalBefore = totalEstimationPercent(tasks);
   const mode = options.mode ?? "auto";
-  const shouldNormalize =
-    mode === "always"
-      ? totalBefore !== 100
-      : mode === "never"
-        ? false
-        : totalBefore < 100 || (totalBefore > 100 && options.forceNormalize === true);
-  const normalized =
-    shouldNormalize
-      ? normalizeEstimationPercentages(tasks, {
-          skipIfAlreadyNormalized: false,
-          enableLogging: options.enableLogging ?? true,
-        })
-      : false;
+  const normalized = distributeEstimationPercentages(tasks, mode, options.forceNormalize);
+  if (normalized && (options.enableLogging ?? true)) logger.debug("Normalized estimation percentages");
 
   return {
     totalBefore,

@@ -6,7 +6,7 @@
 # task afterwards.
 #
 #   5-point Story × 4 = 20 hours → Implement 60% = 12 h, Test 25% = 5 h, ...
-version: "1.0"
+formatVersion: "1.0"
 name: "Points to Hours"
 description: "Converts story points to task hours with a fixed factor (1 point = 4 hours)."
 author: "Atomize"

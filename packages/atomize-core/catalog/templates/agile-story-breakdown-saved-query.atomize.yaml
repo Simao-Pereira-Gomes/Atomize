@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Agile Story Breakdown - Saved Query"
 description: "Same task breakdown as the Agile Story Breakdown template, but work item selection is delegated to an existing Azure DevOps saved query instead of a structured filter. Useful when your team already maintains a query that encodes complex area path, iteration, and tag logic."
 author: "Atomize"
@@ -201,7 +201,6 @@ estimation:
 
 metadata:
   category: "Agile Project"
-  recommendedFor: []
   estimationGuidelines: |
     Identical task breakdown to the structured-filter custom example.
     The only difference is in the filter: work item selection is handled

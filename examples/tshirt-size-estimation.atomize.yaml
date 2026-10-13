@@ -8,7 +8,7 @@
 #
 #   L Story → 20 hours → Build 60% = 12 h, Test 25% = 5 h, ...
 #   0.5XL Story → 0.5 × 40 = 20 hours
-version: "1.0"
+formatVersion: "1.0"
 name: "T-shirt Size Estimation"
 description: "Estimates tasks from a T-shirt size field (XS–XL), including fractional sizes such as 0.5XL."
 author: "Atomize"

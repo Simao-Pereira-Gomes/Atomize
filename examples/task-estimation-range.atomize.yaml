@@ -1,0 +1,35 @@
+# Playground for validation.taskEstimationRange.
+#
+# PASS: four written 50% shares normalize to 25% each (within 10–30%).
+# For an error without editing, open task-estimation-range-invalid.atomize.yaml.
+# FAIL in VS Code / Offline / Online Validation: change normalize to "never".
+# Each written 50% then exceeds the 30% maximum. Save to refresh diagnostics.
+# Restore "always" before trying the conditional companion Template.
+#
+# Validation and previews create no platform Tasks. Do not use Generate to test.
+formatVersion: "1.0"
+name: "Task Estimation Range Playground"
+description: "Four equal shares demonstrate validation after normalization."
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - id: design
+    title: "Design"
+    estimationPercent: 50
+  - id: implement
+    title: "Implement"
+    estimationPercent: 50
+  - id: test
+    title: "Test"
+    estimationPercent: 50
+  - id: review
+    title: "Review"
+    estimationPercent: 50
+estimation:
+  strategy: "percentage"
+  normalize: "always"
+  rounding: "none"
+validation:
+  taskEstimationRange:
+    min: 10
+    max: 30

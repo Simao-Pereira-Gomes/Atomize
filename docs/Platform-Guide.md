@@ -311,7 +311,7 @@ When a Story has no estimate, or its value isn't covered by the conversion, its 
 
 To write the estimate somewhere else, set `estimation.targetFields`. It replaces the default fields: the value is written as calculated, and `CompletedWork` is left alone. Target fields must be writable number fields that aren't picklists; Online Validation reports anything else as an error. The CLI wizard and Studio also leave out `System.*` fields and fields in `Microsoft.VSTS.Common.*` (priority, stack rank, business value, ...), because those don't hold effort. If you type one in, Online Validation warns.
 
-See the [estimation reference](./Template-Reference.md#estimation) for every option.
+See the [estimation field reference](https://atomize-cd9.pages.dev/schema#template.estimation) for every option.
 
 ### Troubleshooting
 
@@ -657,5 +657,6 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platf
 
 - [Auth Guide](./Auth-Guide.md) - Credential storage, profile resolution, and CI/CD setup
 - [CLI Reference](./Cli-Reference.md) - Command-line usage
-- [Template Reference](./Template-Reference.md) - Template schema
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields and constraints
+- [Template Reference](./Template-Reference.md) - Behaviour and worked examples
 - [Examples](../examples/) - Real-world examples

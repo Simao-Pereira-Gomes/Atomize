@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize: generate tasks from YAML templates",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -43,6 +43,17 @@
 					"type": "string",
 					"default": "auto",
 					"markdownDescription": "The GitHub Copilot model family Atomize uses for AI drafting, such as `gpt-4o` or `claude-sonnet-4`. Leave as `auto` to use the available Copilot model with the largest input limit, which grounded requests need. Uses the Copilot account you're signed in to in VS Code; Atomize stores no token."
+				},
+				"atomize.schemaReference.openMode": {
+					"type": "string",
+					"enum": ["beside", "editor"],
+					"enumDescriptions": [
+						"Open in a wider side-by-side editor group.",
+						"Open as a regular tab in the current text editor group."
+					],
+					"default": "editor",
+					"scope": "window",
+					"description": "Where Open Schema Reference opens the reference. Changes apply the next time you run the command."
 				},
 				"atomize.previewLayout": {
 					"type": "string",
@@ -145,6 +156,11 @@
 				"title": "Reject Improvement",
 				"category": "Atomize",
 				"icon": "$(close)"
+			},
+			{
+				"command": "atomize.openSchemaReference",
+				"title": "Open Schema Reference",
+				"category": "Atomize"
 			}
 		],
 		"menus": {
@@ -178,6 +194,13 @@
 					"command": "atomize.rejectImprovement",
 					"when": "resourceScheme == untitled && resourcePath in atomize.improvementProposals"
 				}
+			],
+			"editor/context": [
+				{
+					"command": "atomize.openSchemaReference",
+					"when": "resourcePath in atomize.schemaDocumentPaths",
+					"group": "atomize@1"
+				}
 			]
 		},
 		"grammars": [
@@ -196,15 +219,17 @@
 	},
 	"scripts": {
 		"prebuild": "bun run --cwd ../cli generate-schema",
-		"build": "bun esbuild.mjs",
+		"build": "bun esbuild.mjs && vite build --config vite.webview.config.mts",
 		"package": "vsce package --no-dependencies --baseContentUrl https://github.com/Simao-Pereira-Gomes/atomize/blob/HEAD/packages/vscode-extension --baseImagesUrl https://github.com/Simao-Pereira-Gomes/atomize/raw/HEAD/packages/vscode-extension",
 		"verify:readme-images": "node scripts/verify-readme-images.mjs",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p webview/tsconfig.json",
 		"lint": "bunx biome check --max-diagnostics 100",
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100"
 	},
 	"dependencies": {
 		"@sppg2001/atomize-core": "workspace:*",
+		"@sppg2001/atomize-schema-reference": "workspace:*",
+		"solid-js": "^1.9.17",
 		"yaml": "^2.9.0"
 	},
 	"devDependencies": {
@@ -215,6 +240,8 @@
 		"bun-types": "^1.4.2",
 		"esbuild": "^0.28.2",
 		"tailwindcss": "^4.3.3",
-		"typescript": "^7.0.2"
+		"typescript": "^7.0.2",
+		"vite": "^8.3.0",
+		"vite-plugin-solid": "^2.11.14"
 	}
 }

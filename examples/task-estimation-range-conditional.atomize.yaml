@@ -1,0 +1,22 @@
+# Conditional companion to task-estimation-range.atomize.yaml.
+#
+# Offline / Online Validation: informational warning; final check needs a Story.
+# Mock Preview with priority 2: fallback shares normalize to 25% each — PASS.
+# Mock Preview with priority 1: Implement gets 100 out of 250, or 40% — FAIL.
+# The other Tasks receive 20% each. No Tasks are created by Mock Preview.
+#
+# Mock Story JSON: {"title":"Range test","priority":2,"estimation":10}
+# Change priority to 1 to exercise the failing branch.
+formatVersion: "1.0"
+name: "Conditional Task Estimation Range Playground"
+extends: "./task-estimation-range.atomize.yaml"
+tasks:
+  - id: implement
+    title: "Implement"
+    estimationPercent: 50
+    estimationPercentCondition:
+      - condition:
+          field: priority
+          operator: equals
+          value: 1
+        percent: 100

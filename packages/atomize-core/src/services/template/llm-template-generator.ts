@@ -14,7 +14,8 @@ OUTPUT RULES (critical):
 
 SCHEMA:
 
-version: "1.0"          # required, always "1.0"
+formatVersion: "1.0"    # required, always "1.0" — the file format
+version: string         # optional — the template's own revision; omit unless the user gives one
 name: string            # required, clear descriptive name
 description: string     # optional
 author: string          # optional
@@ -58,7 +59,7 @@ tasks:                  # required, minimum 1 item
     activity: string    # optional; prefer standard values: "Design", "Development", "Testing", "Test", "Documentation", "Requirements"; use the user's exact wording if they specify something different
     tags: string[]      # optional
     id: string          # optional, required if this task is referenced in dependsOn
-    dependsOn: string[] # optional, references other task ids
+    dependsOn: string[] # optional, references other task ids — only when asked for (see rule 12)
     repeat: number      # optional, default 1 — create this many identical Tasks from this one definition (see rule 9)
     condition:          # optional — skip this task entirely when condition is false
       # Standard fields (case-sensitive, always lowercase camelCase — NOT the ADO REST field
@@ -76,7 +77,6 @@ tasks:                  # required, minimum 1 item
       any: condition[]  # ANY clause must match (OR)
     priority: number    # optional ADO priority
     assignTo: string    # optional: "@ParentAssignee" | "@Unassigned" | "@Me" | display name
-    acceptanceCriteria: string[]  # optional
 
 estimation:             # optional
   strategy: "percentage"
@@ -96,6 +96,9 @@ validation:             # optional
   minTasks: number                # each copy of a repeated task counts
   maxTasks: number
   maxRepeat: number               # optional, default 20 — the highest repeat any task may use
+  taskEstimationRange:            # optional, only when requested; preserve existing bounds on improvement
+    min: number                  # inclusive percentage, 0-100
+    max: number                  # inclusive percentage, min <= max <= 100
   totalEstimationMustBe: number   # optional — only when the user asks for a fixed total (see rule 1)
   totalEstimationRange:
     min: number
@@ -103,12 +106,11 @@ validation:             # optional
 
 metadata:               # optional
   category: string
-  difficulty: "beginner" | "intermediate" | "advanced"
-  recommendedFor: string[]
   estimationGuidelines: string
   notes: string              # optional context for template authors and maintainers
 
 CONSTRAINTS (you must follow these):
+Task percentage bounds: validation.taskEstimationRange constrains final percentages AFTER normalization and its percentage rounding, per repeated copy, not raw weights. With normalize: never, supplied percentages remain unchanged. For example, a lone 20% task becomes 100% under normalize: always and fails a 10–30% range; four 50% tasks become 25% each and pass. Fixed estimates are excluded. Story-dependent task conditions and the first matching percentage override are checked during preview/generation after resolving the active tasks. Task Estimate rounding in hours or points does not change this percentage constraint. Never silently remove or widen requested bounds to repair a validation failure; adjust allocations consistently with the user's request.
 1. Estimation sums:
    - Keep the allocation the user gives you. When the description or the reference documents set how the work is split, use those percentages as given, even when they add up to more than 100 (for example each role estimating its own share, or reviews on top of the build work). Don't scale them down to 100, and don't add validation.totalEstimationMustBe or totalEstimationRange to force a total, unless the user explicitly asks for the percentages to add up to 100 or to be normalized. Leave estimation.normalize unset in that case: Atomize asks at generate time whether to normalize a total above 100.
    - When nothing sets the allocation and you choose the split yourself: in a simple template (no task-level conditions) estimationPercent values sum to exactly 100. A repeated task contributes its estimationPercent once per copy.
@@ -152,11 +154,15 @@ CONSTRAINTS (you must follow these):
    - Use a different iteration only when the description or the reference documents explicitly say so (e.g. "next sprint" → ["@CurrentIteration + 1"], a named sprint → its iteration path from the project metadata, "any iteration" or "the whole backlog" → omit filter.iterations).
    - When the template extends a parent, set filter.iterations only if the parent doesn't already set it or the user asks for a different one.
    - When improving an existing template, keep its iteration filter as it is unless the user's focus or the reference documents ask to change it.
+11. ACCEPTANCE CRITERIA: never write acceptanceCriteria; it is deprecated and has no effect. When the description or the reference documents ask for acceptance criteria, put them in the task's description, using their wording.
+   - When improving an existing template whose tasks have acceptanceCriteria, move those criteria into the task's description and remove acceptanceCriteria.
+12. DEPENDENCIES: leave dependsOn out by default. Add it only when the description or the reference documents ask for an order between tasks (e.g. "testing starts after implementation"), and then only for the order they describe.
+   - When improving an existing template, keep the dependsOn it already has, and don't add new ones unless the user's focus or the reference documents ask for an order between tasks.
 
 EXAMPLES:
 
 Example 1 — Backend API feature:
-version: "1.0"
+formatVersion: "1.0"
 name: "Backend API Development"
 description: "Standard backend API development with database integration"
 author: "Atomize"
@@ -186,10 +192,9 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Backend"
-  difficulty: "intermediate"
 
 Example 2 — Bug fix:
-version: "1.0"
+formatVersion: "1.0"
 name: "Bug Fix"
 description: "Standard bug investigation and resolution workflow"
 filter:
@@ -214,10 +219,9 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Maintenance"
-  difficulty: "beginner"
 
 Example 3 — Multi-archetype with conditional tasks and conditional estimation:
-version: "1.0"
+formatVersion: "1.0"
 name: "Agile Dev & Test Story"
 description: "Single template covering dev-only, test-only, and mixed dev+test stories using conditional tasks and conditional estimation."
 filter:
@@ -291,7 +295,6 @@ estimation:
   rounding: "none"
 metadata:
   category: "Agile"
-  difficulty: "advanced"
   estimationGuidelines: |
     Three archetypes in one template:
     - Mixed story (no special tag): dev tasks fire (30+70=100%) and test tasks fire (60+40=100%).
@@ -299,7 +302,7 @@ metadata:
     - Dev Only: test tasks are skipped; dev tasks sum to 100%.
 
 Example 4 — Custom ADO field in conditions (customField vs field):
-version: "1.0"
+formatVersion: "1.0"
 name: "Compliance-Gated Feature"
 description: "Adds a compliance review task for stories classified as Restricted or Confidential."
 filter:
@@ -334,7 +337,6 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Feature"
-  difficulty: "intermediate"
 
 Example 5 — Extending a template (inheritance):
 extends: "template:backend-api"
@@ -362,7 +364,7 @@ tasks:
     estimationPercent: 60
 
 Example 7 — Repeated identical tasks (one review per developer):
-version: "1.0"
+formatVersion: "1.0"
 name: "Team Review"
 description: "Implementation plus one review conclusions task for each of the four developers."
 filter:
@@ -384,7 +386,6 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Agile"
-  difficulty: "beginner"
   estimationGuidelines: "60% + 4 copies × 10% = 100%."`;
 
 export function buildSystemPrompt(): string {

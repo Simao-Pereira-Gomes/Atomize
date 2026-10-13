@@ -471,7 +471,7 @@ describe("AI draft protocol", () => {
       }),
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":15,"method":"ai.generate","params":{"draftId":"draft-repair","prose":"Build something"}}', ai))
-      .resolves.toEqual({ jsonrpc: "2.0", id: 15, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
+      .resolves.toEqual({ jsonrpc: "2.0", id: 15, result: { template: { formatVersion: "1.0", version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
     expect(prompts).toHaveLength(2);
     expect(prompts[1]).toContain("Previous attempt failed validation");
   });
@@ -511,7 +511,7 @@ describe("AI draft protocol", () => {
       }),
     };
     await expect(handleLine('{"jsonrpc":"2.0","id":14,"method":"ai.generate","params":{"draftId":"draft-stream","prose":"Build something"}}', ai))
-      .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
+      .resolves.toEqual({ jsonrpc: "2.0", id: 14, result: { template: { formatVersion: "1.0", version: "1.0", name: "Draft", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] } } });
     expect(notifications).toEqual([
       { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: chunks[0].length } },
       { jsonrpc: "2.0", method: "ai.progress", params: { draftId: "draft-stream", length: template.length } },
@@ -542,7 +542,7 @@ describe("AI improve protocol", () => {
     await expect(handleLine(line, ai)).resolves.toEqual({
       jsonrpc: "2.0",
       id: 30,
-      result: { template: { version: "1.0", name: "Backend", filter: {}, tasks: [{ title: "Build", estimationPercent: 80 }, { title: "Review", estimationPercent: 20 }] }, notes: ["Added a review task."] },
+      result: { template: { formatVersion: "1.0", version: "1.0", name: "Backend", filter: {}, tasks: [{ title: "Build", estimationPercent: 80 }, { title: "Review", estimationPercent: 20 }] }, notes: ["Added a review task."] },
     });
     expect(prompts[0]).toContain("Add reviews");
     expect(prompts[0]).toContain("Template to improve");

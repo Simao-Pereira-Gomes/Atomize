@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Full-Stack Development with Conditional Tasks"
 description: "Template demonstrating conditional tasks and dependencies"
 

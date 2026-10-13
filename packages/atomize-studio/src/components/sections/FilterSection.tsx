@@ -6,6 +6,7 @@ import {
 import type { FilterStore } from "../../stores/sections";
 import { MultiSelectField, TagChipInput, ToggleField } from "../fields";
 import type { GroundingSession } from "../GroundingSettings";
+import { SchemaInfo } from "../schema-reference-navigation";
 
 function FilterModeToggle(props: { mode: "build" | "query"; onChange: (m: "build" | "query") => void }) {
   return (
@@ -37,7 +38,7 @@ const SEARCHABLE_OPTIONS_THRESHOLD = 6;
 
 type GroundedOption = { value: string; label: string };
 
-function GroundedTextField(props: { label: string; value: string; options: GroundedOption[]; placeholder: string; onInput: (value: string) => void }) {
+function GroundedTextField(props: { label: string; schemaPath?: string; value: string; options: GroundedOption[]; placeholder: string; onInput: (value: string) => void }) {
   const id = createUniqueId();
   const listId = `${id}-options`;
   const selectedLabel = () => props.options.find((option) => option.value === props.value)?.label;
@@ -49,7 +50,7 @@ function GroundedTextField(props: { label: string; value: string; options: Groun
   };
   return (
     <div class="ui-field">
-      <label class="ui-label" for={id}>{props.label}</label>
+      <div class="flex items-center gap-2"><label class="ui-label" for={id}>{props.label}</label><SchemaInfo path={props.schemaPath} label={props.label} /></div>
       <Show
         when={isSearchable()}
         fallback={<>
@@ -117,21 +118,21 @@ export function FilterSection(props: { store: FilterStore; grounding: GroundingS
           title="Primary match rules"
           description="Start with the fields teams use most often to decide whether a template applies."
         >
-          <MultiSelectField label="Work Item Types"
+          <MultiSelectField label="Work Item Types" schemaPath="filter.workItemTypes"
             selected={f.fields.workItemTypes} options={options()?.workItemTypes ?? []} allowCustom
             placeholder="All types (type to add)" onChange={(v) => f.set("workItemTypes", v)} />
-          <MultiSelectField label="States"
+          <MultiSelectField label="States" schemaPath="filter.states"
             selected={f.fields.states} options={stateOptions()} allowCustom
             placeholder="All states (type to add)" onChange={(v) => f.set("states", v)} />
-          <GroundedTextField label="Team" value={f.fields.team} options={(options()?.teams ?? []).map((team) => ({ value: team, label: team }))} placeholder="Profile default or team name" onInput={(v) => f.set("team", v)} />
-          <MultiSelectField label="Area Paths"
+          <GroundedTextField label="Team" schemaPath="filter.team" value={f.fields.team} options={(options()?.teams ?? []).map((team) => ({ value: team, label: team }))} placeholder="Profile default or team name" onInput={(v) => f.set("team", v)} />
+          <MultiSelectField label="Area Paths" schemaPath="filter.areaPaths"
             selected={f.fields.areaPaths} options={options()?.areaPaths ?? []} allowCustom
             placeholder="All areas (type to add)" onChange={(v) => f.set("areaPaths", v)} />
-          <MultiSelectField label="Sprint / Iteration"
+          <MultiSelectField label="Sprint / Iteration" schemaPath="filter.iterations"
             selected={f.fields.iterations} options={options()?.iterationPaths ?? []} allowCustom
             placeholder="All iterations (type to add)" onChange={(v) => f.set("iterations", v)} />
           <ToggleField
-            label="Exclude stories that already have tasks"
+            label="Exclude stories that already have tasks" schemaPath="filter.excludeIfHasTasks"
             description="Keeps the template from generating duplicate task sets for already-expanded stories."
             checked={f.fields.excludeIfHasTasks}
             onChange={(v) => f.set("excludeIfHasTasks", v)}
@@ -150,16 +151,16 @@ export function FilterSection(props: { store: FilterStore; grounding: GroundingS
             title="Advanced filters"
             description="Narrow the match set when a team has extra process rules."
           >
-            <MultiSelectField label="Exclude states"
+            <MultiSelectField label="Exclude states" schemaPath="filter.statesExclude"
               selected={f.fields.statesExclude} options={stateOptions()} allowCustom
               placeholder="None excluded (type to add)" onChange={(v) => f.set("statesExclude", v)} />
-            <TagChipInput label="Tags to include"
+            <TagChipInput label="Tags to include" schemaPath="filter.tags.include"
               value={f.fields.tagsInclude} placeholder="backend, needs-testing…"
               onChange={(v) => f.set("tagsInclude", v)} />
-            <TagChipInput label="Tags to exclude"
+            <TagChipInput label="Tags to exclude" schemaPath="filter.tags.exclude"
               value={f.fields.tagsExclude} placeholder="wont-fix, skip…"
               onChange={(v) => f.set("tagsExclude", v)} />
-            <MultiSelectField label="Assigned to"
+            <MultiSelectField label="Assigned to" schemaPath="filter.assignedTo"
               selected={f.fields.assignedTo} options={[]} allowCustom
               placeholder="Anyone (type to add)" onChange={(v) => f.set("assignedTo", v)} />
           </FilterGroup>
@@ -168,9 +169,9 @@ export function FilterSection(props: { store: FilterStore; grounding: GroundingS
 
       <Show when={f.fields.filterMode === "query"}>
         <p class="ui-hint">Choose a grounded saved query or enter its Azure DevOps ID manually. The ID is stamped in YAML.</p>
-        <GroundedTextField label="Saved query" value={f.fields.savedQueryIds[0] ?? ""} options={(options()?.savedQueries ?? []).map((query) => ({ value: query.id, label: query.path }))} placeholder="Saved query ID" onInput={(id) => { f.set("savedQueryIds", id === "" ? [] : [id]); f.validate(); }} />
+        <GroundedTextField label="Saved query" schemaPath="filter.savedQuery.id" value={f.fields.savedQueryIds[0] ?? ""} options={(options()?.savedQueries ?? []).map((query) => ({ value: query.id, label: query.path }))} placeholder="Saved query ID" onInput={(id) => { f.set("savedQueryIds", id === "" ? [] : [id]); f.validate(); }} />
         <Show when={f.errors.savedQueryIds}><p class="ui-error">{f.errors.savedQueryIds}</p></Show>
-        <MultiSelectField label="Work item types this query returns"
+        <MultiSelectField label="Work item types this query returns" schemaPath="filter.workItemTypes"
           selected={f.fields.workItemTypes} options={options()?.workItemTypes ?? []} allowCustom
           placeholder="Choose the types (type to add)" onChange={(v) => f.set("workItemTypes", v)} />
         <p class="ui-hint">The saved query decides which items are returned. These types only tell Atomize which fields to offer and validate.</p>

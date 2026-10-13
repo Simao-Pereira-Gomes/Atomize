@@ -91,6 +91,8 @@ These issues always block template use:
 | Invalid email format | `Invalid email: bad-email` |
 | Wrong field type | `Expected number but received string` |
 | Negative estimation | `Estimation percentage cannot be negative` |
+| Final percentage outside `taskEstimationRange` | `Final task allocation is 50%, but must be between 10% and 30%.` |
+| Inverted `taskEstimationRange` bounds | `taskEstimationRange.max must be greater than or equal to min.` |
 | Invalid custom field in Online Validation | `Field "Custom.ClientTier" not found for work item type "Task"` |
 | Tag condition with an operator other than `contains`/`not-contains` | `Field "tags" is multi-value; only "contains"/"not-contains" are supported (got "equals").` |
 | Both or neither of `conversion.factor` and `conversion.table` | `conversion must set exactly one of factor or table` |
@@ -106,7 +108,6 @@ These issues are warnings in lenient mode but become errors in strict mode:
 |-------|----------------|
 | Offline custom field verification | `1 task(s) have custom fields that could not be verified` |
 | Total estimation not 100% (no `totalEstimationMustBe` or `totalEstimationRange` configured) | `Total estimation is 70% (expected 100%)` |
-| Estimation below `taskEstimationRange.min` | `Task estimation 0.2 is below minimum 0.5` |
 | Task missing recommended field | `Task "Implementation" has no activity set` |
 | Template has no filter criteria | `No filter criteria configured — template will match all work items` |
 | Story Estimate value with no conversion (Online) | `"XXL" is a valid value of "Custom.TShirtSize" but has no conversion; Stories with it will get blank Task Estimates.` |
@@ -189,7 +190,7 @@ done
 ### Template That Passes Both Modes
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Bug Fix Workflow"
 description: "Standard bug fix process"
 
@@ -260,6 +261,7 @@ Errors:
 ## See Also
 
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific errors
-- [Template Reference](./Template-Reference.md) - Full template schema
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields and validation constraints
+- [Template Reference](./Template-Reference.md) - Behaviour and worked examples
 - [CLI Reference](./Cli-Reference.md) - `validate` command options
 - [Atomize Studio](./Atomize-Studio.md) - Offline and Online Validation in the desktop app

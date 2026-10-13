@@ -42,9 +42,30 @@ export const FixableWarningCode = {
   DEPRECATED_MINIMUM_TASK_POINTS: "DEPRECATED_MINIMUM_TASK_POINTS",
   /** Delete `estimation.minimumTaskPoints`; `minimumTaskEstimate` is also set and takes precedence. */
   DUPLICATE_MINIMUM_TASK_ESTIMATE: "DUPLICATE_MINIMUM_TASK_ESTIMATE",
+  /** Delete a deprecated field that has no effect (see DEPRECATED_TEMPLATE_FIELDS and DEPRECATED_TASK_FIELDS). */
+  DEPRECATED_FIELD: "DEPRECATED_FIELD",
+  /** No automatic fix: deleting `acceptanceCriteria` would discard text the author may want to move into `description`. */
+  DEPRECATED_ACCEPTANCE_CRITERIA: "DEPRECATED_ACCEPTANCE_CRITERIA",
 } as const;
 
+/** Deprecated fields with no effect: kept so existing files still load, each reported as a non-blocking warning. */
+const DEPRECATED_TEMPLATE_FIELDS: ReadonlyArray<{ path: string; get: (t: TaskTemplate) => unknown; reason: string }> = [
+  { path: "created", get: (t) => t.created, reason: "nothing in Atomize reads or maintains it" },
+  { path: "lastModified", get: (t) => t.lastModified, reason: "nothing in Atomize reads or maintains it" },
+  { path: "metadata.difficulty", get: (t) => t.metadata?.difficulty, reason: "nothing in Atomize reads it" },
+  { path: "metadata.recommendedFor", get: (t) => t.metadata?.recommendedFor, reason: "nothing in Atomize reads it; filter.workItemTypes declares the targeted Work Item types" },
+  { path: "metadata.examples", get: (t) => t.metadata?.examples, reason: "nothing in Atomize reads it" },
+  { path: "metadata.changelog", get: (t) => t.metadata?.changelog, reason: "nothing in Atomize reads it; keep history in version control" },
+];
+
+const DEPRECATED_TASK_FIELDS: ReadonlyArray<{ key: "estimationFormula" | "acceptanceCriteriaAsChecklist"; reason: string }> = [
+  { key: "estimationFormula", reason: "formulas were never evaluated and give the task a Task Estimate of 0; use estimationPercent or estimationFixed" },
+  { key: "acceptanceCriteriaAsChecklist", reason: "acceptance criteria are never written to the generated task" },
+];
+
 export type FixableWarningCode = (typeof FixableWarningCode)[keyof typeof FixableWarningCode];
+
+const MIXIN_KEYS: ReadonlySet<string> = new Set(Object.keys(MixinTemplateSchema.shape));
 
 export interface ValidationWarning {
   path: string;
@@ -148,6 +169,14 @@ export class TemplateValidator {
     this.validateTaskDependencies(template, warnings);
     this.validateSavedQueryConflict(template, warnings);
     this.validateDeprecatedMinimumTaskPoints(template, warnings);
+    this.validateDeprecatedFields(template, warnings);
+    if (v?.taskEstimationRange && template.tasks.some(task => task.condition || task.estimationPercentCondition?.length)) {
+      warnings.push({
+        path: "validation.taskEstimationRange",
+        message: "The per-task percentage range will be checked during preview and generation after Story conditions and normalization resolve the active allocation.",
+        nonBlocking: true,
+      });
+    }
 
     return warnings;
   }
@@ -176,21 +205,58 @@ export class TemplateValidator {
     });
   }
 
+  private validateDeprecatedFields(template: TaskTemplate, warnings: ValidationWarning[]): void {
+    for (const field of DEPRECATED_TEMPLATE_FIELDS) {
+      if (field.get(template) === undefined) continue;
+      warnings.push(this.deprecatedFieldWarning(field.path, field.reason));
+    }
+    this.validateDeprecatedTaskFields(template, warnings);
+  }
+
+  private validateDeprecatedTaskFields(template: Pick<TaskTemplate, "tasks">, warnings: ValidationWarning[]): void {
+    template.tasks.forEach((task, index) => {
+      for (const field of DEPRECATED_TASK_FIELDS) {
+        if (task[field.key] === undefined) continue;
+        warnings.push(this.deprecatedFieldWarning(`tasks[${index}].${field.key}`, field.reason));
+      }
+      if (task.acceptanceCriteria !== undefined) {
+        warnings.push({
+          path: `tasks[${index}].acceptanceCriteria`,
+          message: "acceptanceCriteria is deprecated and has no effect: acceptance criteria are never written to the generated task.",
+          suggestion: "Move the criteria into the task's description, then remove acceptanceCriteria.",
+          code: FixableWarningCode.DEPRECATED_ACCEPTANCE_CRITERIA,
+          nonBlocking: true,
+        });
+      }
+    });
+  }
+
+  private deprecatedFieldWarning(path: string, reason: string): ValidationWarning {
+    const name = path.slice(path.lastIndexOf(".") + 1);
+    return {
+      path,
+      message: `${name} is deprecated and has no effect: ${reason}.`,
+      suggestion: `Remove ${name}.`,
+      code: FixableWarningCode.DEPRECATED_FIELD,
+      nonBlocking: true,
+    };
+  }
+
   private collectMixinWarnings(mixin: MixinTemplate): ValidationWarning[] {
     const warnings: ValidationWarning[] = [];
     this.validateTaskDependencies(mixin, warnings);
+    this.validateDeprecatedTaskFields(mixin, warnings);
     return warnings;
   }
 
+  /**
+   * Whose errors to report when a file is neither a valid Template nor a valid Mixin: a Mixin's,
+   * only when it has tasks and every root key is one a Mixin allows. Any Template-only key
+   * (filter, extends, estimation, …) means the author is writing a Template.
+   */
   private looksLikeMixin(template: unknown): boolean {
-    return (
-      typeof template === "object" &&
-      template !== null &&
-      !Array.isArray(template) &&
-      "tasks" in template &&
-      !("filter" in template) &&
-      !("version" in template)
-    );
+    if (typeof template !== "object" || template === null || Array.isArray(template)) return false;
+    return "tasks" in template && Object.keys(template).every((key) => MIXIN_KEYS.has(key));
   }
 
   private validateTaskConditions(
@@ -323,6 +389,13 @@ export class TemplateValidator {
     const params = err.code === "custom" ? err.params : undefined;
     const repeatHint = params?.hasRepeats ? " Each copy of a repeated task counts toward this total." : "";
     switch (code) {
+      case "TASK_ESTIMATION_OUT_OF_RANGE":
+        if (typeof params?.min !== "number" || typeof params.max !== "number") return undefined;
+        return `Adjust the allocation so this task's final percentage after normalization is between ${params.min}% and ${params.max}%.`;
+
+      case "INVALID_TASK_ESTIMATION_RANGE":
+        return "Set validation.taskEstimationRange.min less than or equal to max.";
+
       case "INVALID_TOTAL_ESTIMATION":
         return this.withHint(repeatHint, this.handleNumericError(
           err.message,
