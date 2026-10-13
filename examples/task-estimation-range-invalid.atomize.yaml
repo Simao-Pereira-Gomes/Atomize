@@ -5,7 +5,7 @@
 # To make it pass, change normalize from "always" to "never" and save.
 # Then its final percentage remains 20%, within the inclusive 10–30% range.
 # Validation creates no platform Tasks.
-version: "1.0"
+formatVersion: "1.0"
 name: "Task Estimation Range Failing Playground"
 filter:
   workItemTypes: ["User Story"]

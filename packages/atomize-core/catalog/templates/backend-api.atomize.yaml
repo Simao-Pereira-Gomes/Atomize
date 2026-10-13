@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Backend API Development"
 description: "Standard backend API development with database integration"
 author: "Atomize"
@@ -55,6 +55,4 @@ estimation:
 
 metadata:
   category: "Backend"
-  difficulty: "intermediate"
-  recommendedFor: ["API development", "Microservices", "REST APIs"]
   estimationGuidelines: "Based on typical backend development workflows"

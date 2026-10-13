@@ -7,7 +7,7 @@
 # Restore "always" before trying the conditional companion Template.
 #
 # Validation and previews create no platform Tasks. Do not use Generate to test.
-version: "1.0"
+formatVersion: "1.0"
 name: "Task Estimation Range Playground"
 description: "Four equal shares demonstrate validation after normalization."
 filter:

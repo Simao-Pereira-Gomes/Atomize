@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Agile Story Breakdown"
 description: "Agile story breakdown template. Handles dev stories, mixed dev+test stories, and test-only stories in a single template using conditional tasks and conditional estimation."
 author: "Atomize"
@@ -206,7 +206,6 @@ estimation:
 
 metadata:
   category: "Agile Project"
-  recommendedFor: []
   estimationGuidelines: |
     Handles three story archetypes in one template:
     - Dev and Test story (no special tag): dev tasks + test tasks, base percentages apply.

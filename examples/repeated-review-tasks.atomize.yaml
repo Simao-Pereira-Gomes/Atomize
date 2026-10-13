@@ -8,7 +8,7 @@
 #
 # A repeated task can't use dependsOn, and no task can depend on it. Other
 # tasks keep their dependencies as usual.
-version: "1.0"
+formatVersion: "1.0"
 name: "Repeated Review Tasks"
 description: "Implementation plus one review conclusions Task for each of the team's four developers."
 author: "Atomize"

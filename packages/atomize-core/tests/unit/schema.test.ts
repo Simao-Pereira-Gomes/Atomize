@@ -711,7 +711,7 @@ describe("Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
-    test("should use default version", () => {
+    test("leaves version and formatVersion unset when omitted (format 1.0, no revision)", () => {
       const template = {
         name: "Test",
         filter: {},
@@ -721,8 +721,19 @@ describe("Schema Validation", () => {
       const result = TaskTemplateSchema.safeParse(template);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.version).toBe("1.0");
+        expect(result.data.version).toBeUndefined();
+        expect(result.data.formatVersion).toBeUndefined();
       }
+    });
+
+    test("rejects an unquoted formatVersion, which YAML reads as a number", () => {
+      const result = TaskTemplateSchema.safeParse({
+        formatVersion: 1.0,
+        name: "Test",
+        filter: {},
+        tasks: [{ title: "Task", estimationPercent: 100 }],
+      });
+      expect(result.success).toBe(false);
     });
 
     test("should accept extends field", () => {

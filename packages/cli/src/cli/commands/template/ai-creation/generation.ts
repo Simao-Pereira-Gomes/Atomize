@@ -60,7 +60,7 @@ export async function runGeneration(
 
 export function buildMinimalTemplate(description: string): TaskTemplate {
   return {
-    version: "1.0",
+    formatVersion: "1.0",
     name: description.slice(0, 60).trim() || "Generated Template",
     filter: { workItemTypes: ["User Story"], states: ["Active"], excludeIfHasTasks: true },
     tasks: [{ title: "Task 1", estimationPercent: 100 }],

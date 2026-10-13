@@ -127,10 +127,20 @@
     {
       "type": "object",
       "properties": {
+        "formatVersion": {
+          "type": "string",
+          "enum": [
+            "1.0"
+          ],
+          "description": "Which edition of the Atomize schema this file follows. Currently \"1.0\"; omit it to mean \"1.0\". Not the template's own revision: that's version.",
+          "x-atomize-rules": [
+            "Must be a format this release of Atomize can read: \"1.0\". Write it as a quoted string; an unquoted 1.0 is read as a number."
+          ]
+        },
         "version": {
-          "default": "1.0",
-          "description": "Schema version. Always '1.0' for the current format.",
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it."
         },
         "name": {
           "type": "string",
@@ -154,11 +164,19 @@
         },
         "created": {
           "type": "string",
-          "description": "ISO 8601 date when this template was first created."
+          "description": "Deprecated: nothing in Atomize reads or maintains it. Version control records when the file was created.",
+          "deprecated": true,
+          "x-atomize-rules": [
+            "Using this deprecated field produces a non-blocking warning, even in strict mode."
+          ]
         },
         "lastModified": {
           "type": "string",
-          "description": "ISO 8601 date of the last modification."
+          "description": "Deprecated: nothing in Atomize reads or maintains it, so it goes stale. Version control records changes.",
+          "deprecated": true,
+          "x-atomize-rules": [
+            "Using this deprecated field produces a non-blocking warning, even in strict mode."
+          ]
         },
         "filter": {
           "type": "object",
@@ -451,7 +469,11 @@
               "estimationFormula": {
                 "x-atomize-guide": "estimation",
                 "type": "string",
-                "description": "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time."
+                "description": "Deprecated: formulas were never evaluated and give the task a Task Estimate of 0. Use estimationPercent or estimationFixed.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "tags": {
                 "x-atomize-guide": "tasks",
@@ -555,12 +577,20 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Acceptance criteria lines for this task."
+                "description": "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "acceptanceCriteriaAsChecklist": {
                 "x-atomize-guide": "tasks",
                 "type": "boolean",
-                "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
+                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "customFields": {
                 "x-atomize-rules": [
@@ -893,7 +923,11 @@
                 "intermediate",
                 "advanced"
               ],
-              "description": "Complexity level of the work this template targets."
+              "description": "Deprecated: nothing in Atomize reads it. Describe the work in description instead.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "recommendedFor": {
               "x-atomize-guide": "metadata",
@@ -901,7 +935,11 @@
               "items": {
                 "type": "string"
               },
-              "description": "Work item types or story patterns this template is optimised for (e.g. ['User Story', 'Bug'])."
+              "description": "Deprecated: nothing in Atomize reads it. filter.workItemTypes already declares which Work Item types the template targets.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "estimationGuidelines": {
               "x-atomize-guide": "metadata",
@@ -919,7 +957,11 @@
               "items": {
                 "type": "string"
               },
-              "description": "Example story titles or scenarios where this template applies."
+              "description": "Deprecated: nothing in Atomize reads it. Describe when to use the template in description instead.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "changelog": {
               "x-atomize-guide": "metadata",
@@ -947,7 +989,11 @@
                 ],
                 "additionalProperties": false
               },
-              "description": "Version history for this template."
+              "description": "Deprecated: nothing in Atomize reads it. Keep the template's history in version control.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             }
           },
           "additionalProperties": false,
@@ -981,10 +1027,20 @@
     {
       "type": "object",
       "properties": {
+        "formatVersion": {
+          "type": "string",
+          "enum": [
+            "1.0"
+          ],
+          "description": "Which edition of the Atomize schema this file follows. Currently \"1.0\"; omit it to mean \"1.0\". Not the template's own revision: that's version.",
+          "x-atomize-rules": [
+            "Must be a format this release of Atomize can read: \"1.0\". Write it as a quoted string; an unquoted 1.0 is read as a number."
+          ]
+        },
         "version": {
-          "default": "1.0",
-          "description": "Schema version. Always '1.0' for the current format.",
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it."
         },
         "name": {
           "type": "string",
@@ -1008,11 +1064,19 @@
         },
         "created": {
           "type": "string",
-          "description": "ISO 8601 date when this template was first created."
+          "description": "Deprecated: nothing in Atomize reads or maintains it. Version control records when the file was created.",
+          "deprecated": true,
+          "x-atomize-rules": [
+            "Using this deprecated field produces a non-blocking warning, even in strict mode."
+          ]
         },
         "lastModified": {
           "type": "string",
-          "description": "ISO 8601 date of the last modification."
+          "description": "Deprecated: nothing in Atomize reads or maintains it, so it goes stale. Version control records changes.",
+          "deprecated": true,
+          "x-atomize-rules": [
+            "Using this deprecated field produces a non-blocking warning, even in strict mode."
+          ]
         },
         "filter": {
           "type": "object",
@@ -1305,7 +1369,11 @@
               "estimationFormula": {
                 "x-atomize-guide": "estimation",
                 "type": "string",
-                "description": "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time."
+                "description": "Deprecated: formulas were never evaluated and give the task a Task Estimate of 0. Use estimationPercent or estimationFixed.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "tags": {
                 "x-atomize-guide": "tasks",
@@ -1409,12 +1477,20 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Acceptance criteria lines for this task."
+                "description": "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "acceptanceCriteriaAsChecklist": {
                 "x-atomize-guide": "tasks",
                 "type": "boolean",
-                "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
+                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "customFields": {
                 "x-atomize-rules": [
@@ -1747,7 +1823,11 @@
                 "intermediate",
                 "advanced"
               ],
-              "description": "Complexity level of the work this template targets."
+              "description": "Deprecated: nothing in Atomize reads it. Describe the work in description instead.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "recommendedFor": {
               "x-atomize-guide": "metadata",
@@ -1755,7 +1835,11 @@
               "items": {
                 "type": "string"
               },
-              "description": "Work item types or story patterns this template is optimised for (e.g. ['User Story', 'Bug'])."
+              "description": "Deprecated: nothing in Atomize reads it. filter.workItemTypes already declares which Work Item types the template targets.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "estimationGuidelines": {
               "x-atomize-guide": "metadata",
@@ -1773,7 +1857,11 @@
               "items": {
                 "type": "string"
               },
-              "description": "Example story titles or scenarios where this template applies."
+              "description": "Deprecated: nothing in Atomize reads it. Describe when to use the template in description instead.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             },
             "changelog": {
               "x-atomize-guide": "metadata",
@@ -1801,7 +1889,11 @@
                 ],
                 "additionalProperties": false
               },
-              "description": "Version history for this template."
+              "description": "Deprecated: nothing in Atomize reads it. Keep the template's history in version control.",
+              "deprecated": true,
+              "x-atomize-rules": [
+                "Using this deprecated field produces a non-blocking warning, even in strict mode."
+              ]
             }
           },
           "additionalProperties": false,
@@ -1810,7 +1902,7 @@
         "extends": {
           "type": "string",
           "minLength": 1,
-          "description": "Name or path of a parent template this one inherits from. Inherited fields such as version, name, filter, and tasks may be omitted.",
+          "description": "Name or path of a parent template this one inherits from. Inherited fields such as name, filter, and tasks may be omitted.",
           "x-atomize-guide": "inheritance-extends"
         },
         "mixins": {
@@ -1834,6 +1926,21 @@
     {
       "type": "object",
       "properties": {
+        "formatVersion": {
+          "type": "string",
+          "enum": [
+            "1.0"
+          ],
+          "description": "Which edition of the Atomize schema this file follows. Currently \"1.0\"; omit it to mean \"1.0\". Not the template's own revision: that's version.",
+          "x-atomize-rules": [
+            "Must be a format this release of Atomize can read: \"1.0\". Write it as a quoted string; an unquoted 1.0 is read as a number."
+          ]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it."
+        },
         "name": {
           "type": "string",
           "minLength": 1,
@@ -1933,7 +2040,11 @@
               "estimationFormula": {
                 "x-atomize-guide": "estimation",
                 "type": "string",
-                "description": "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time."
+                "description": "Deprecated: formulas were never evaluated and give the task a Task Estimate of 0. Use estimationPercent or estimationFixed.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "tags": {
                 "x-atomize-guide": "tasks",
@@ -2037,12 +2148,20 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Acceptance criteria lines for this task."
+                "description": "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "acceptanceCriteriaAsChecklist": {
                 "x-atomize-guide": "tasks",
                 "type": "boolean",
-                "description": "If true, acceptance criteria are rendered as a markdown checklist in the task description."
+                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
+                "deprecated": true,
+                "x-atomize-rules": [
+                  "Using this deprecated field produces a non-blocking warning, even in strict mode."
+                ]
               },
               "customFields": {
                 "x-atomize-rules": [

@@ -47,7 +47,7 @@ If you cannot rename the file (e.g. the name is constrained by another tool or c
 
 ```yaml
 # atomize-yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "My Template"
 ...
 ```
@@ -56,7 +56,7 @@ The modeline works for any `.yaml` or `.yml` file regardless of name. The `atm-t
 
 ### Content detection fallback
 
-If a file has neither the `.atomize.yaml` extension nor the modeline, the extension will attempt to identify it by structure (Template: `version:` + `filter:` + `tasks:` at root; Mixin: `tasks:` + nested `id:`, no `version:`). When a file is matched this way, VS Code will show a warning offering to add the modeline or rename the file. Adopting one of the explicit conventions is always preferred — content detection is a fallback and cannot be as precise.
+If a file has neither the `.atomize.yaml` extension nor the modeline, the extension will attempt to identify it by structure (Template: `tasks:` with `filter:` or `formatVersion:` at root; Mixin: `tasks:` + nested `id:`, with `formatVersion:` or no `version:`). When a file is matched this way, VS Code will show a warning offering to add the modeline or rename the file. Adopting one of the explicit conventions is always preferred — content detection is a fallback and cannot be as precise.
 
 ---
 
@@ -75,7 +75,8 @@ Templates are YAML files that define how Atomize breaks down user stories into t
 ## Top-Level Fields
 
 ```yaml
-version: "1.0"          # Required. Always "1.0"
+formatVersion: "1.0"    # Optional. Atomize file format; omitted means "1.0"
+version: "1.2"          # Optional. Your own revision of this template
 name: "Template Name"   # Required. Human-readable name (max 200 chars)
 description: "..."      # Optional. What this template is for (max 500 chars)
 author: "Your Name"     # Optional. Author name or team
@@ -88,7 +89,8 @@ mixins:                 # Optional. Mix in reusable task groups
 
 | Field | Required | Type | Description |
 |-------|----------|------|-------------|
-| `version` | Yes | string | Template schema version. Use `"1.0"` |
+| `formatVersion` | No | string | Atomize file format this file follows. Only `"1.0"` exists; omitting it means `"1.0"`. Any other value is an error. Quote it: an unquoted `1.0` is read as a number |
+| `version` | No | string | Your own revision of the template, in any form (`"1.2"`, `"2026-10"`). Atomize never interprets it, and a child template doesn't inherit its parent's |
 | `name` | Yes | string | Template display name |
 | `description` | No | string | Detailed description |
 | `author` | No | string | Author name or team |
@@ -108,7 +110,7 @@ Templates can inherit from other templates and mix in reusable task groups. This
 A template that declares `extends` inherits the `filter`, `tasks`, `estimation`, `validation`, and `metadata` of its base. Fields defined in the child override the corresponding fields in the base.
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Secure Backend API"
 extends: "backend-api"        # inherits all tasks and filter from backend-api
 
@@ -126,13 +128,19 @@ The Resolved Template combines the child's `tasks` list on top of the base's, th
 A mixin is a partial template — typically a group of related tasks — that can be mixed into any template. The tasks from all listed mixins are appended to the template's own task list before validation.
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature With Release Checks"
 extends: "feature"
 mixins:
   - "security-review-tasks"
   - "release-checklist"
 ```
+
+A Mixin file may only contain `formatVersion`, `version`, `name`, `description`, `tasks`, and
+`origin`. That's also how Atomize tells a standalone file apart: a file whose root keys all belong
+to that list is validated as a Mixin; any other root key (`filter`, `extends`, `estimation`, …)
+makes it a Template. A file referenced from `mixins:` is always read as a Mixin, and one referenced
+from `extends:` as a Template.
 
 Mixins are installed and managed with the `template` commands:
 
@@ -343,9 +351,6 @@ tasks:
       operator: "contains"
       value: "backend"
     dependsOn: []
-    acceptanceCriteria:
-      - "Criteria 1"
-      - "Criteria 2"
   ```
 
 ### Task Fields
@@ -365,7 +370,6 @@ tasks:
 | `condition` | No | object | Structured condition to conditionally create this task |
 | `dependsOn` | No | string[] | IDs of tasks this task depends on |
 | `repeat` | No | number | Create this many identical Tasks from this definition (default 1). See [Repeated Tasks](#repeated-tasks) |
-| `acceptanceCriteria` | No | string[] | List of acceptance criteria |
 | `customFields` | No | object | Task-level Azure DevOps field values keyed by reference name |
 
 ### Variable Interpolation
@@ -724,30 +728,41 @@ Optional metadata to help others discover and use your template.
 ```yaml
 metadata:
   category: "Backend"
-  difficulty: "intermediate"        # beginner, intermediate, advanced
-  recommendedFor:
-    - "API development"
-    - "Microservices"
   estimationGuidelines: "Based on typical backend API workflows for 5-13 point stories."
-  examples:
-    - "Implement user authentication endpoint"
-    - "Build REST API for product catalog"
+  notes: "Owned by the platform team."
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `category` | string | Template category (e.g., `"Backend"`, `"Frontend"`) |
-| `difficulty` | string | `"beginner"`, `"intermediate"`, or `"advanced"` |
-| `recommendedFor` | string[] | Descriptions of when to use this template |
 | `estimationGuidelines` | string | Guidance on estimation sizing for this template |
-| `examples` | string[] | Example story titles this template works well for |
+| `notes` | string | Free-form context for the template's authors and maintainers |
+
+---
+
+## Deprecated Fields
+
+These fields have no effect. Atomize still reads files that use them, but each produces a
+non-blocking warning, even in strict mode. In VS Code most of them offer a quick fix that removes
+the field. They will be removed in a future file format (see ADR-0073).
+
+| Field | Instead |
+|-------|---------|
+| `tasks[].acceptanceCriteria` | Write the criteria in the task's `description` (no quick fix, so the text isn't lost) |
+| `tasks[].acceptanceCriteriaAsChecklist` | Remove it |
+| `tasks[].estimationFormula` | `estimationPercent` or `estimationFixed`. A formula was never evaluated and gave the task an estimate of 0 |
+| `created`, `lastModified` | Version control history |
+| `metadata.difficulty`, `metadata.examples` | Describe the template in `description` |
+| `metadata.recommendedFor` | `filter.workItemTypes` already declares the targeted Work Item types |
+| `metadata.changelog` | Version control history; `version` for the current revision |
+| `estimation.minimumTaskPoints` | `estimation.minimumTaskEstimate` |
 
 ---
 
 ## Complete Example
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Backend API Development"
 description: "Standard workflow for developing RESTful API endpoints"
 author: "Platform Team"
@@ -841,11 +856,6 @@ validation:
 
 metadata:
   category: "Backend"
-  difficulty: "intermediate"
-  recommendedFor:
-    - "REST API development"
-    - "Microservice endpoints"
-    - "Data service implementation"
   estimationGuidelines: "Works best with stories between 5-13 story points."
 ```
 

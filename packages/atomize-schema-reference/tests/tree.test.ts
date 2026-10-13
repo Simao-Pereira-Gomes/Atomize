@@ -211,6 +211,8 @@ describe("Schema Tree Builder", () => {
 				.map((node) => node.name),
 		).toEqual(["name", "filter", "tasks"]);
 		expect(trees.mixin.map((node) => node.name)).toEqual([
+			"formatVersion",
+			"version",
 			"name",
 			"description",
 			"tasks",

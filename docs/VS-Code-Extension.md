@@ -233,7 +233,7 @@ Atomize previews by default.
 ## Template Example
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:

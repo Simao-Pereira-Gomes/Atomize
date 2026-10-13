@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Backend API Feature"
 description: "Standard tasks for backend API development"
 author: "Atomize"
@@ -101,15 +101,6 @@ validation:
 # Metadata
 metadata:
   category: "Backend Development"
-  difficulty: "intermediate"
-  recommendedFor:
-    - "API features"
-    - "Microservices"
-    - "Backend services"
   estimationGuidelines: |
     Use this template for stories sized 3-13 points.
     For larger stories, consider breaking down first.
-  examples:
-    - "User authentication API"
-    - "Payment processing endpoint"
-    - "Data export service"

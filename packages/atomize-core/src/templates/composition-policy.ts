@@ -44,6 +44,7 @@ export function mergeTasks(
  *
  * Conflict resolution rules:
  * - Scalar fields (name, description, author, …): child wins if defined, otherwise base
+ * - version: the child's own revision, never inherited — a child is a different template from its parent
  * - filter, estimation, validation, metadata: child replaces base entirely when defined
  * - tasks: merged by id — child tasks override matching base tasks in-place, new tasks appended
  * - tags: combined and deduplicated
@@ -58,7 +59,8 @@ export function mergeTemplates(
   );
 
   return {
-    version: child.version ?? base.version,
+    formatVersion: child.formatVersion ?? base.formatVersion,
+    version: child.version,
     name: child.name ?? base.name,
     description: child.description ?? base.description,
     author: child.author ?? base.author,

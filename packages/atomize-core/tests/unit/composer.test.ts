@@ -534,3 +534,22 @@ describe("mergeTemplates taskType", () => {
     expect(mergeTemplates(base, { name: "Child", taskType: "Deliverable" }).taskType).toBe("Deliverable");
   });
 });
+
+describe("mergeTemplates version and formatVersion", () => {
+  const base = {
+    formatVersion: "1.0" as const,
+    version: "7",
+    name: "Base",
+    filter: { workItemTypes: ["User Story"] },
+    tasks: [{ title: "Task 1", estimationPercent: 100 }],
+  };
+
+  test("a child never inherits the base's revision", () => {
+    expect(mergeTemplates(base, { name: "Child" }).version).toBeUndefined();
+    expect(mergeTemplates(base, { name: "Child", version: "2" }).version).toBe("2");
+  });
+
+  test("a child without formatVersion keeps the base's format", () => {
+    expect(mergeTemplates(base, { name: "Child" }).formatVersion).toBe("1.0");
+  });
+});

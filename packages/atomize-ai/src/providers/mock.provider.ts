@@ -1,6 +1,6 @@
 import type { AIProvider } from "../provider.interface";
 
-const DEFAULT_MOCK_TEMPLATE = `version: "1.0"
+const DEFAULT_MOCK_TEMPLATE = `formatVersion: "1.0"
 name: "Mock Template"
 description: "A mock template for testing"
 filter:

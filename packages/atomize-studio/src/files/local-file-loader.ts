@@ -53,7 +53,7 @@ function toLocalFileTemplate(value: Record<string, unknown>): TaskTemplate {
     : [];
   return {
     ...value,
-    version: typeof value.version === "string" ? value.version : String(value.version ?? "1.0"),
+    version: value.version === undefined ? undefined : String(value.version),
     name: typeof value.name === "string" ? value.name : String(value.name ?? ""),
     description: value.description === undefined ? undefined : String(value.description),
     author: value.author === undefined ? undefined : String(value.author),

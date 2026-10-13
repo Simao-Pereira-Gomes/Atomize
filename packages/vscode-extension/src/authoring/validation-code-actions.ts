@@ -223,3 +223,53 @@ export function fixDuplicateMinimumTaskEstimate(docText: string, _range: PlainRa
 		newText: '',
 	}];
 }
+
+/**
+ * Deletes the deprecated key the diagnostic points at, with its value block. When that key is
+ * its block's only entry (e.g. the last field left under `metadata:`), deletes the parent key
+ * too so no empty mapping is left behind. Returns null for a key sharing a line with a list
+ * item's `- `, where deleting the line would remove the item.
+ */
+export function fixDeprecatedField(docText: string, range: PlainRange, _data: unknown): TextEdit[] | null {
+	const lc = new LineCounter();
+	const doc = parseDocument(docText, { lineCounter: lc });
+	const lines = docText.split('\n');
+
+	const keyLineOf = (pair: unknown): number | undefined => {
+		if (!isPair(pair)) return undefined;
+		const key = pair.key as ParsedNode | null;
+		return key?.range ? lc.linePos(key.range[0]).line - 1 : undefined;
+	};
+
+	let target: { line: number; ownerPairLine?: number; siblings: number } | undefined;
+	const visit = (node: unknown, ownerPairLine: number | undefined): void => {
+		if (target) return;
+		if (isSeq(node)) {
+			for (const item of node.items) visit(item, undefined);
+			return;
+		}
+		if (!isMap(node)) return;
+		for (const pair of node.items) {
+			const line = keyLineOf(pair);
+			const key = isPair(pair) ? (pair.key as ParsedNode | null) : null;
+			if (line === range.start.line && key?.range && lc.linePos(key.range[0]).col - 1 === range.start.character) {
+				target = { line, ownerPairLine, siblings: node.items.length };
+				return;
+			}
+			if (isPair(pair)) visit(pair.value, line);
+		}
+	};
+	visit(doc.contents, undefined);
+	if (!target) return null;
+
+	const removeLine = target.siblings === 1 && target.ownerPairLine !== undefined ? target.ownerPairLine : target.line;
+	const line = lines[removeLine] ?? '';
+	if (/^\s*-\s/.test(line)) return null;
+	return [{
+		startLine: removeLine,
+		startCharacter: 0,
+		endLine: blockEndLine(lines, removeLine, lineIndent(line)),
+		endCharacter: 0,
+		newText: '',
+	}];
+}

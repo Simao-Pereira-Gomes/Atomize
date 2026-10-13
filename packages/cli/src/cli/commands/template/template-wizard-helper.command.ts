@@ -1246,27 +1246,6 @@ export async function configureMetadata(defaults?: Metadata): Promise<Metadata |
     }),
   );
 
-  const difficulty = assertNotCancelled(
-    await select({
-      message: "Difficulty level:",
-      options: [
-        { label: "Beginner", value: "beginner" },
-        { label: "Intermediate", value: "intermediate" },
-        { label: "Advanced", value: "advanced" },
-      ],
-      ...(defaults?.difficulty && { initialValue: defaults.difficulty }),
-    }),
-  );
-
-  const recommendedForRaw = assertNotCancelled(
-    await text({
-      message: "Recommended for (comma-separated):",
-      placeholder: "e.g. senior developers, backend teams",
-      initialValue: defaults?.recommendedFor?.join(", ") ?? "",
-    }),
-  );
-  const recommendedFor = Filters.commaSeparated(recommendedForRaw);
-
   const estimationGuidelines = assertNotCancelled(
     await text({
       message: "Estimation guidelines:",
@@ -1284,8 +1263,6 @@ export async function configureMetadata(defaults?: Metadata): Promise<Metadata |
   );
 
   if (category) metadata.category = category;
-  if (difficulty) metadata.difficulty = difficulty as Metadata["difficulty"];
-  if (recommendedFor.length > 0) metadata.recommendedFor = recommendedFor;
   if (estimationGuidelines)
     metadata.estimationGuidelines = estimationGuidelines;
   if (notes) metadata.notes = notes;

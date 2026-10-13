@@ -319,7 +319,7 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
     const mixins = await configureTemplateMixins(library);
 
     return {
-      version: "1.0",
+      formatVersion: "1.0",
       extends: `template:${templateName}`,
       name: name.trim(),
       ...(description.trim() ? { description: description.trim() } : {}),
@@ -619,14 +619,13 @@ export async function createFromScratch(
       metadata = await configureMetadata();
     }
     const template: TaskTemplate = {
-      version: "1.0",
+      formatVersion: "1.0",
       ...(extendsRef ? { extends: extendsRef } : {}),
       ...(selectedMixins.length > 0 ? { mixins: selectedMixins } : {}),
       name: basicInfo.name,
       description: basicInfo.description,
       author: basicInfo.author,
       tags: basicInfo.tags,
-      created: new Date().toISOString(),
       filter: filterConfig,
       tasks,
       ...(taskType ? { taskType } : {}),

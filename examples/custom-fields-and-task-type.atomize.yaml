@@ -11,7 +11,7 @@
 # that the target fields exist on it and are numeric.
 #
 #   High Story → 16 hours → Analysis 20% = 3.2 h, Build 60% = 9.6 h, ...
-version: "1.0"
+formatVersion: "1.0"
 name: "Complexity to Effort (Custom Process)"
 description: "Reads a categorical complexity field and writes effort to a custom field on a custom child work item type."
 author: "Atomize"

@@ -190,7 +190,7 @@ done
 ### Template That Passes Both Modes
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Bug Fix Workflow"
 description: "Standard bug fix process"
 

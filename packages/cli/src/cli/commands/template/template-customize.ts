@@ -230,8 +230,6 @@ export async function customizeTemplate(
     storyFieldSchemas = wit ? await adapterForWizard.getFieldSchemas(wit) : [];
   }
 
-  template.created = new Date().toISOString();
-
   output.print(chalk.green("\n✓ Template customized successfully!\n"));
   output.print(chalk.gray("Review your template and choose an action below.\n"));
 

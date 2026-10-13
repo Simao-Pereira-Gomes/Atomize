@@ -34,6 +34,13 @@ A Story Estimate that is missing or that the Estimation Conversion cannot transl
 **Estimation Field Mapping**:
 Which Story field supplies the Story Estimate, which child Work Item type the Tasks are created as, and which Task fields receive the Task Estimate. Each Platform Adapter supplies a default for its platform; a Template may override it using that platform's own field names.
 
+**Format Version**:
+The edition of the Atomize schema a Template or Mixin file follows, declared by `formatVersion`. A file without one is format 1.0.
+_Avoid_: "template version" or "schema version" for this; a Template's own version is its Revision.
+
+**Revision**:
+The author's own version of a Template or Mixin, declared by `version`. Free text; Atomize displays it but never interprets it, and a child Template does not inherit its parent's.
+
 **Template Notes**:
 Optional free-form context attached to a Template for its authors and maintainers. Template Notes are distinct from estimation guidelines and from a Task's description.
 _Avoid_: using "notes" to refer to Task details.

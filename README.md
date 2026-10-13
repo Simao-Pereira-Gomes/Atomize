@@ -102,7 +102,7 @@ Start from an existing template unless you already know you need custom YAML.
 Minimal template:
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:

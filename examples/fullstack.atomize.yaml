@@ -1,4 +1,4 @@
-version: "1.0"
+formatVersion: "1.0"
 name: "Fullstack Feature"
 description: "Complete fullstack feature with frontend and backend tasks"
 author: "Atomize"
@@ -152,16 +152,7 @@ validation:
 # Metadata
 metadata:
   category: "Fullstack Development"
-  difficulty: "advanced"
-  recommendedFor:
-    - "Full features with UI and API"
-    - "Complete user flows"
-    - "End-to-end features"
   estimationGuidelines: |
     Best for stories sized 5-13 points.
     This template covers both frontend and backend.
     Adjust tasks based on complexity.
-  examples:
-    - "User registration flow"
-    - "Dashboard with data visualization"
-    - "Search and filter feature"

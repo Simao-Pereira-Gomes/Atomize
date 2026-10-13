@@ -1,5 +1,5 @@
 # atomize-yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Frontend React Feature"
 description: "Standard tasks for React component development"
 author: "Atomize"
@@ -110,15 +110,6 @@ validation:
 # Metadata
 metadata:
   category: "Frontend Development"
-  difficulty: "intermediate"
-  recommendedFor:
-    - "React components"
-    - "UI features"
-    - "User interfaces"
   estimationGuidelines: |
     Best for stories sized 3-8 points.
     Complex UIs with animations may need additional tasks.
-  examples:
-    - "User profile page"
-    - "Data table component"
-    - "Form wizard"

@@ -178,8 +178,7 @@ function parseTemplateShaped(rawOutput: string): Record<string, unknown> | undef
 function isTemplateShaped(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return typeof record.version === "string"
-    && typeof record.name === "string"
+  return typeof record.name === "string"
     && Array.isArray(record.tasks)
     && typeof record.filter === "object"
     && record.filter !== null;

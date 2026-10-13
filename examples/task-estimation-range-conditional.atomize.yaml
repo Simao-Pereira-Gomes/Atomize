@@ -7,7 +7,7 @@
 #
 # Mock Story JSON: {"title":"Range test","priority":2,"estimation":10}
 # Change priority to 1 to exercise the failing branch.
-version: "1.0"
+formatVersion: "1.0"
 name: "Conditional Task Estimation Range Playground"
 extends: "./task-estimation-range.atomize.yaml"
 tasks:

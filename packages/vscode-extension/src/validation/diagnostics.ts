@@ -237,7 +237,7 @@ function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const DEPRECATED_CODES = new Set(['DEPRECATED_MINIMUM_TASK_POINTS', 'DUPLICATE_MINIMUM_TASK_ESTIMATE']);
+const DEPRECATED_CODES = new Set(['DEPRECATED_MINIMUM_TASK_POINTS', 'DUPLICATE_MINIMUM_TASK_ESTIMATE', 'DEPRECATED_FIELD', 'DEPRECATED_ACCEPTANCE_CRITERIA']);
 
 export function makeDiagnostic(
 	path: string,

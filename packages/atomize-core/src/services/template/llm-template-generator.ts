@@ -14,7 +14,8 @@ OUTPUT RULES (critical):
 
 SCHEMA:
 
-version: "1.0"          # required, always "1.0"
+formatVersion: "1.0"    # required, always "1.0" — the file format
+version: string         # optional — the template's own revision; omit unless the user gives one
 name: string            # required, clear descriptive name
 description: string     # optional
 author: string          # optional
@@ -76,7 +77,6 @@ tasks:                  # required, minimum 1 item
       any: condition[]  # ANY clause must match (OR)
     priority: number    # optional ADO priority
     assignTo: string    # optional: "@ParentAssignee" | "@Unassigned" | "@Me" | display name
-    acceptanceCriteria: string[]  # optional
 
 estimation:             # optional
   strategy: "percentage"
@@ -106,8 +106,6 @@ validation:             # optional
 
 metadata:               # optional
   category: string
-  difficulty: "beginner" | "intermediate" | "advanced"
-  recommendedFor: string[]
   estimationGuidelines: string
   notes: string              # optional context for template authors and maintainers
 
@@ -156,11 +154,13 @@ Task percentage bounds: validation.taskEstimationRange constrains final percenta
    - Use a different iteration only when the description or the reference documents explicitly say so (e.g. "next sprint" → ["@CurrentIteration + 1"], a named sprint → its iteration path from the project metadata, "any iteration" or "the whole backlog" → omit filter.iterations).
    - When the template extends a parent, set filter.iterations only if the parent doesn't already set it or the user asks for a different one.
    - When improving an existing template, keep its iteration filter as it is unless the user's focus or the reference documents ask to change it.
+11. ACCEPTANCE CRITERIA: never write acceptanceCriteria; it is deprecated and has no effect. When the description or the reference documents ask for acceptance criteria, put them in the task's description, using their wording.
+   - When improving an existing template whose tasks have acceptanceCriteria, move those criteria into the task's description and remove acceptanceCriteria.
 
 EXAMPLES:
 
 Example 1 — Backend API feature:
-version: "1.0"
+formatVersion: "1.0"
 name: "Backend API Development"
 description: "Standard backend API development with database integration"
 author: "Atomize"
@@ -190,10 +190,9 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Backend"
-  difficulty: "intermediate"
 
 Example 2 — Bug fix:
-version: "1.0"
+formatVersion: "1.0"
 name: "Bug Fix"
 description: "Standard bug investigation and resolution workflow"
 filter:
@@ -218,10 +217,9 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Maintenance"
-  difficulty: "beginner"
 
 Example 3 — Multi-archetype with conditional tasks and conditional estimation:
-version: "1.0"
+formatVersion: "1.0"
 name: "Agile Dev & Test Story"
 description: "Single template covering dev-only, test-only, and mixed dev+test stories using conditional tasks and conditional estimation."
 filter:
@@ -295,7 +293,6 @@ estimation:
   rounding: "none"
 metadata:
   category: "Agile"
-  difficulty: "advanced"
   estimationGuidelines: |
     Three archetypes in one template:
     - Mixed story (no special tag): dev tasks fire (30+70=100%) and test tasks fire (60+40=100%).
@@ -303,7 +300,7 @@ metadata:
     - Dev Only: test tasks are skipped; dev tasks sum to 100%.
 
 Example 4 — Custom ADO field in conditions (customField vs field):
-version: "1.0"
+formatVersion: "1.0"
 name: "Compliance-Gated Feature"
 description: "Adds a compliance review task for stories classified as Restricted or Confidential."
 filter:
@@ -338,7 +335,6 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Feature"
-  difficulty: "intermediate"
 
 Example 5 — Extending a template (inheritance):
 extends: "template:backend-api"
@@ -366,7 +362,7 @@ tasks:
     estimationPercent: 60
 
 Example 7 — Repeated identical tasks (one review per developer):
-version: "1.0"
+formatVersion: "1.0"
 name: "Team Review"
 description: "Implementation plus one review conclusions task for each of the four developers."
 filter:
@@ -388,7 +384,6 @@ estimation:
   strategy: "percentage"
 metadata:
   category: "Agile"
-  difficulty: "beginner"
   estimationGuidelines: "60% + 4 copies × 10% = 100%."`;
 
 export function buildSystemPrompt(): string {

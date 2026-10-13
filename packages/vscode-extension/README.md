@@ -26,7 +26,7 @@ You can also add `# atomize-yaml` on the first line of a regular YAML file. The 
 Atomize YAML files stay on VS Code's YAML language service for schema-backed hovers and completions. The extension pack installs the Red Hat YAML extension for this.
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:

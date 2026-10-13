@@ -6,7 +6,7 @@
 # typo like 4) is not guessed: it falls back to the default Story Estimate.
 #
 #   13-point Story → 80 hours → Implement 55% = 44 h, ...
-version: "1.0"
+formatVersion: "1.0"
 name: "Fibonacci Points to Hours"
 description: "Maps Fibonacci story points to hours with a non-linear table, and adds an architecture review for large stories."
 author: "Atomize"

@@ -35,6 +35,7 @@ describe("createAuthoringStore", () => {
     });
 
     expect(serialisedObject(store)).toEqual({
+      formatVersion: "1.0",
       version: "1.0",
       name: "Frontend Feature",
       description: "Build a frontend feature.",
@@ -382,14 +383,12 @@ describe("createAuthoringStore", () => {
     const store = createAuthoringStore();
     store.loadTemplate(baseTemplate);
     store["basic-info"].set("category", "Frontend");
-    store.metadata.set("difficulty", "intermediate");
     store.metadata.set("estimationGuidelines", "Estimate the parent story before generation.");
     store.metadata.set("notes", "Use this template for product work.");
 
     expect(serialisedObject(store)).toMatchObject({
       metadata: {
         category: "Frontend",
-        difficulty: "intermediate",
         estimationGuidelines: "Estimate the parent story before generation.",
         notes: "Use this template for product work.",
       },

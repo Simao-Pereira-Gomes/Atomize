@@ -51,7 +51,7 @@ VS Code authoring includes:
 Minimal template:
 
 ```yaml
-version: "1.0"
+formatVersion: "1.0"
 name: "Feature Breakdown"
 
 filter:

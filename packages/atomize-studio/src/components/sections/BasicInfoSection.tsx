@@ -27,7 +27,7 @@ export function BasicInfoSection(props: { store: BasicInfoStore }) {
       />
       <TextField
         label="Version" schemaPath="version" value={s.fields.version}
-        onInput={(v) => s.set("version", v)}
+        onInput={(v) => s.set("version", v)} placeholder="Your own revision, e.g. 1.2"
       />
     </>
   );

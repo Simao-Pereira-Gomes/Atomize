@@ -236,8 +236,7 @@ describe("Integration Tests", () => {
 
       expect(template.metadata).toBeDefined();
       expect(template.metadata?.category).toBe("Backend Development");
-      expect(template.metadata?.difficulty).toBe("intermediate");
-      expect(template.metadata?.recommendedFor).toBeDefined();
+      expect(template.metadata?.estimationGuidelines).toContain("3-13 points");
     });
   });
 

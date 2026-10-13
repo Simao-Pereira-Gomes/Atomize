@@ -301,8 +301,11 @@ export const TaskDefinitionSchema = z.object({
   estimationFormula: z
     .string()
     .describe(
-      "Expression for dynamic estimation (e.g. 'parent * 0.2 + 1'). Evaluated at generate time.",
+      "Deprecated: formulas were never evaluated and give the task a Task Estimate of 0. Use estimationPercent or estimationFixed.",
     )
+    .meta({ deprecated: true, "x-atomize-rules": [
+      "Using this deprecated field produces a non-blocking warning, even in strict mode.",
+    ] })
     .optional().meta({ "x-atomize-guide": "estimation" }),
   tags: z
     .array(z.string())
@@ -368,13 +371,21 @@ export const TaskDefinitionSchema = z.object({
     .optional().meta({ "x-atomize-guide": "tasks" }),
   acceptanceCriteria: z
     .array(z.string())
-    .describe("Acceptance criteria lines for this task.")
+    .describe(
+      "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+    )
+    .meta({ deprecated: true, "x-atomize-rules": [
+      "Using this deprecated field produces a non-blocking warning, even in strict mode.",
+    ] })
     .optional().meta({ "x-atomize-guide": "tasks" }),
   acceptanceCriteriaAsChecklist: z
     .boolean()
     .describe(
-      "If true, acceptance criteria are rendered as a markdown checklist in the task description.",
+      "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
     )
+    .meta({ deprecated: true, "x-atomize-rules": [
+      "Using this deprecated field produces a non-blocking warning, even in strict mode.",
+    ] })
     .optional().meta({ "x-atomize-guide": "tasks" }),
   customFields: z
     .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
@@ -681,13 +692,17 @@ export const MetadataSchema = z.object({
     .optional().meta({ "x-atomize-guide": "metadata" }),
   difficulty: z
     .enum(["beginner", "intermediate", "advanced"])
-    .describe("Complexity level of the work this template targets.")
+    .describe(
+      "Deprecated: nothing in Atomize reads it. Describe the work in description instead.",
+    )
+    .meta({ deprecated: true, "x-atomize-rules": ["Using this deprecated field produces a non-blocking warning, even in strict mode."] })
     .optional().meta({ "x-atomize-guide": "metadata" }),
   recommendedFor: z
     .array(z.string())
     .describe(
-      "Work item types or story patterns this template is optimised for (e.g. ['User Story', 'Bug']).",
+      "Deprecated: nothing in Atomize reads it. filter.workItemTypes already declares which Work Item types the template targets.",
     )
+    .meta({ deprecated: true, "x-atomize-rules": ["Using this deprecated field produces a non-blocking warning, even in strict mode."] })
     .optional().meta({ "x-atomize-guide": "metadata" }),
   estimationGuidelines: z
     .string()
@@ -702,8 +717,9 @@ export const MetadataSchema = z.object({
   examples: z
     .array(z.string())
     .describe(
-      "Example story titles or scenarios where this template applies.",
+      "Deprecated: nothing in Atomize reads it. Describe when to use the template in description instead.",
     )
+    .meta({ deprecated: true, "x-atomize-rules": ["Using this deprecated field produces a non-blocking warning, even in strict mode."] })
     .optional().meta({ "x-atomize-guide": "metadata" }),
   changelog: z
     .array(
@@ -719,16 +735,40 @@ export const MetadataSchema = z.object({
           .describe("Summary of what changed in this version."),
       }).strict(),
     )
-    .describe("Version history for this template.")
+    .describe(
+      "Deprecated: nothing in Atomize reads it. Keep the template's history in version control.",
+    )
+    .meta({ deprecated: true, "x-atomize-rules": ["Using this deprecated field produces a non-blocking warning, even in strict mode."] })
     .optional().meta({ "x-atomize-guide": "metadata" }),
 }).strict();
 
+/**
+ * Format versions this release can read, oldest first. A file without formatVersion is format 1.0.
+ * Add a version here only together with the migration that reads the previous one.
+ */
+export const TEMPLATE_FORMAT_VERSIONS = ["1.0"] as const;
+export const CURRENT_TEMPLATE_FORMAT_VERSION = "1.0" satisfies (typeof TEMPLATE_FORMAT_VERSIONS)[number];
+
+const FormatVersionSchema = z
+  .enum(TEMPLATE_FORMAT_VERSIONS, {
+    error: (issue) =>
+      `Unsupported formatVersion ${JSON.stringify(issue.input)}. This release of Atomize reads ${TEMPLATE_FORMAT_VERSIONS.map((v) => `"${v}"`).join(", ")}. formatVersion is the file format; use version for the template's own revision.`,
+  })
+  .describe(
+    `Which edition of the Atomize schema this file follows. Currently "${CURRENT_TEMPLATE_FORMAT_VERSION}"; omit it to mean "1.0". Not the template's own revision: that's version.`,
+  )
+  .meta({ "x-atomize-rules": [
+    `Must be a format this release of Atomize can read: ${TEMPLATE_FORMAT_VERSIONS.map((v) => `"${v}"`).join(", ")}. Write it as a quoted string; an unquoted 1.0 is read as a number.`,
+  ] });
+
+const RevisionSchema = z
+  .string()
+  .min(1)
+  .describe("The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it.");
+
 const TaskTemplateBaseSchema = z.object({
-    version: z
-      .string()
-      .optional()
-      .default("1.0")
-      .describe("Schema version. Always '1.0' for the current format."),
+    formatVersion: FormatVersionSchema.optional(),
+    version: RevisionSchema.optional(),
     name: z
       .string()
       .min(1, "Template name is required")
@@ -747,11 +787,17 @@ const TaskTemplateBaseSchema = z.object({
       .optional(),
     created: z
       .string()
-      .describe("ISO 8601 date when this template was first created.")
+      .describe(
+        "Deprecated: nothing in Atomize reads or maintains it. Version control records when the file was created.",
+      )
+      .meta({ deprecated: true, "x-atomize-rules": ["Using this deprecated field produces a non-blocking warning, even in strict mode."] })
       .optional(),
     lastModified: z
       .string()
-      .describe("ISO 8601 date of the last modification.")
+      .describe(
+        "Deprecated: nothing in Atomize reads or maintains it, so it goes stale. Version control records changes.",
+      )
+      .meta({ deprecated: true, "x-atomize-rules": ["Using this deprecated field produces a non-blocking warning, even in strict mode."] })
       .optional(),
 
     filter: FilterCriteriaSchema.describe(
@@ -801,7 +847,6 @@ const TaskTemplateBaseSchema = z.object({
 
 export const ExtendingTaskTemplateSchema = TaskTemplateBaseSchema
   .partial({
-    version: true,
     name: true,
     filter: true,
     tasks: true,
@@ -811,7 +856,7 @@ export const ExtendingTaskTemplateSchema = TaskTemplateBaseSchema
       .string()
       .min(1)
       .describe(
-        "Name or path of a parent template this one inherits from. Inherited fields such as version, name, filter, and tasks may be omitted.",
+        "Name or path of a parent template this one inherits from. Inherited fields such as name, filter, and tasks may be omitted.",
       ).meta({ "x-atomize-guide": "inheritance-extends" }),
   });
 
@@ -1096,6 +1141,8 @@ function reportCircularDependencies(
  */
 export const MixinTemplateSchema = z
   .object({
+    formatVersion: FormatVersionSchema.optional(),
+    version: RevisionSchema.optional(),
     name: z
       .string()
       .min(1, "Mixin name is required")
