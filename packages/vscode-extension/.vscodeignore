@@ -3,3 +3,5 @@ scripts/**
 node_modules/**
 tsconfig.json
 esbuild.mjs
+webview/**
+vite.webview.config.mts

@@ -29,7 +29,8 @@ the field. Fragment changes and browser Back/Forward navigate the same way.
 If clipboard access is unavailable, the action provides a selectable URL instead.
 
 Embedded Studio and VS Code hosts should set `showPermalinks={false}` and
-`syncUrl={false}`: their internal webview URLs are not shareable links. Hosts pass
+`syncUrl={false}`: their internal webview URLs are not shareable links. Set
+`initialTab="mixin"` to open a Mixin reference at the top without a field target. Hosts pass
 `permalink`, such as `template.tasks[].condition`, to navigate internally without
 changing the URL. Changes to this prop select the tab, clear search, expand the
 field and its ancestors, and focus, scroll to and highlight the field. Website

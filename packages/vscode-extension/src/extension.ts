@@ -23,6 +23,9 @@ import { PreviewPanel } from './preview/mock-preview-panel.js';
 import { createCredentialResolver } from './profiles/credential-resolver.js';
 import { manageProfiles } from './profiles/profile-management.js';
 import { ProfileStore } from './profiles/profile-store.js';
+import { registerOpenSchemaReferenceCommand } from './schema-reference/open-schema-reference-command.js';
+import { SchemaReferenceLinkProvider } from './schema-reference/schema-reference-authoring.js';
+import { SchemaReferencePanel } from './schema-reference/schema-reference-panel.js';
 import { clearRunState, runDiagnosticValidation } from './validation/diagnostics.js';
 import { registerValidateCommand } from './validation/validate-command.js';
 
@@ -120,7 +123,18 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 	// Seed the schema URI set for already-open Atomize YAML documents.
 	const warnedUris = new Set<string>();
 
+	function updateSchemaReferenceContext(closedDocument?: vscode.TextDocument): void {
+		void vscode.commands.executeCommand(
+			'setContext',
+			'atomize.schemaDocumentPaths',
+			vscode.workspace.textDocuments
+				.filter(doc => doc !== closedDocument && isAtomizeSchemaDocument(doc))
+				.map(doc => doc.uri.path),
+		);
+	}
+
 	function trackDocument(doc: vscode.TextDocument): void {
+		updateSchemaReferenceContext();
 		if (isAtomizeSchemaDocument(doc)) addSchemaUri(doc.uri.toString());
 		else removeSchemaUri(doc.uri.toString());
 	}
@@ -189,7 +203,10 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			trackDocument(doc);
 			validatePassive(doc);
 		}),
+		vscode.workspace.onDidChangeTextDocument(() => updateSchemaReferenceContext()),
+
 		vscode.workspace.onDidCloseTextDocument(doc => {
+			updateSchemaReferenceContext(doc);
 			diagnostics.delete(doc.uri);
 			clearRunState(doc.uri);
 			validationFailureWarnedUris.delete(doc.uri.toString());
@@ -207,6 +224,11 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
 			new ValidationCodeActionProvider(),
 			{ providedCodeActionKinds: ValidationCodeActionProvider.providedCodeActionKinds },
+		),
+
+		vscode.languages.registerDocumentLinkProvider(
+			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
+			new SchemaReferenceLinkProvider(),
 		),
 
 		registerDraftTemplateCommand({ store, credentialResolver }),
@@ -259,6 +281,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:atomize.atomize'),
 		),
 
+		registerOpenSchemaReferenceCommand(ctx),
+
 		registerBrowseFieldsCommand({ store, credentialResolver }),
 		registerBrowseQueriesCommand({ store, credentialResolver }),
 		registerBrowseCatalogCommand({ provider: catalogItemProvider }),
@@ -273,6 +297,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 }
 
 export function deactivate(): void {
+	SchemaReferencePanel.dispose();
 	AtomizePanel.dispose();
 	PreviewPanel.dispose();
 	LivePreviewPanel.dispose();

@@ -14,3 +14,9 @@ export function getPreviewLayout(resource?: vscode.Uri): 'default' | 'compact' {
 export function getAIModel(): string {
 	return vscode.workspace.getConfiguration('atomize').get<string>('ai.model', 'auto') || 'auto';
 }
+
+export function getSchemaReferenceOpenMode(resource?: vscode.Uri): 'beside' | 'editor' {
+	return vscode.workspace.getConfiguration('atomize', resource).get<string>('schemaReference.openMode', 'editor') === 'beside'
+		? 'beside'
+		: 'editor';
+}

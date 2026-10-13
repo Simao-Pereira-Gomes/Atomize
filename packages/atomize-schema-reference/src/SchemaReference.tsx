@@ -20,6 +20,7 @@ import type { SchemaNode, SchemaTab, SchemaTrees } from "./tree";
 export interface SchemaReferenceProps {
 	trees: SchemaTrees;
 	versionLabel: string;
+	initialTab?: SchemaTab;
 	notice?: string;
 	guideUrl?: (anchor: string) => string;
 	openExternalLink?: (url: string) => void | Promise<void>;
@@ -337,7 +338,7 @@ function FieldNavigation(props: {
 }
 
 export function SchemaReference(props: SchemaReferenceProps) {
-	const [tab, setTab] = createSignal<SchemaTab>("template");
+	const [tab, setTab] = createSignal<SchemaTab>(props.initialTab ?? "template");
 	const [active, setActive] = createSignal("");
 	const [query, setQuery] = createSignal("");
 	const searching = () => Boolean(query().trim());
