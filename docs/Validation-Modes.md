@@ -261,6 +261,7 @@ Errors:
 ## See Also
 
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific errors
-- [Template Reference](./Template-Reference.md) - Full template schema
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields and validation constraints
+- [Template Reference](./Template-Reference.md) - Behaviour and worked examples
 - [CLI Reference](./Cli-Reference.md) - `validate` command options
 - [Atomize Studio](./Atomize-Studio.md) - Offline and Online Validation in the desktop app

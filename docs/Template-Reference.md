@@ -1,16 +1,21 @@
 # Template Reference
 
-Complete reference for Atomize YAML template files.
+How Atomize YAML Files behave, with composition rules and worked examples.
+
+For field types, requirements, defaults, constraints, runtime rules and deprecations,
+use the [Schema Reference](https://atomize-cd9.pages.dev/schema). It has separate
+[Template](https://atomize-cd9.pages.dev/schema#template.name) and
+[Mixin](https://atomize-cd9.pages.dev/schema#mixin.name) entries. The public page
+documents `main`; the Schema Reference inside Studio and VS Code matches the installed version.
 
 ## Table of Contents
 
 - [File Naming](#file-naming)
 - [Overview](#overview)
-- [Top-Level Fields](#top-level-fields)
+- [File Identity](#file-identity)
 - [Composition](#composition)
 - [filter](#filter)
 - [tasks](#tasks)
-  - [Task Fields](#task-fields)
   - [Variable Interpolation](#variable-interpolation)
   - [Assignment Patterns](#assignment-patterns)
   - [Task Custom Fields](#task-custom-fields)
@@ -21,6 +26,7 @@ Complete reference for Atomize YAML template files.
 - [estimation](#estimation)
 - [validation](#validation)
 - [metadata](#metadata)
+- [Deprecated Fields](#deprecated-fields)
 - [Complete Example](#complete-example)
 
 ---
@@ -72,32 +78,17 @@ Templates are YAML files that define how Atomize breaks down user stories into t
 
 ---
 
-## Top-Level Fields
+## File Identity
 
-```yaml
-formatVersion: "1.0"    # Optional. Atomize file format; omitted means "1.0"
-version: "1.2"          # Optional. Your own revision of this template
-name: "Template Name"   # Required. Human-readable name (max 200 chars)
-description: "..."      # Optional. What this template is for (max 500 chars)
-author: "Your Name"     # Optional. Author name or team
-tags: ["tag1", "tag2"]  # Optional. Categorization tags
-extends: "backend-api"  # Optional. Inherit from a Catalog template
-mixins:                 # Optional. Mix in reusable task groups
-  - "security-review-tasks"
-  - "release-checklist"
-```
+A file's [Format Version](https://atomize-cd9.pages.dev/schema#template.formatVersion)
+identifies the edition of the Atomize format it follows. Its
+[Revision](https://atomize-cd9.pages.dev/schema#template.version) belongs to the author:
+Atomize displays it without interpreting or comparing it, and a child Template does
+not inherit its parent's Revision. Quote version-like strings in YAML so they remain strings.
 
-| Field | Required | Type | Description |
-|-------|----------|------|-------------|
-| `formatVersion` | No | string | Atomize file format this file follows. Only `"1.0"` exists; omitting it means `"1.0"`. Any other value is an error. Quote it: an unquoted `1.0` is read as a number |
-| `version` | No | string | Your own revision of the template, in any form (`"1.2"`, `"2026-10"`). Atomize never interprets it, and a child template doesn't inherit its parent's |
-| `name` | Yes | string | Template display name |
-| `description` | No | string | Detailed description |
-| `author` | No | string | Author name or team |
-| `tags` | No | string[] | Tags for categorization |
-| `extends` | No | string | Catalog template name or file path to inherit from |
-| `mixins` | No | string[] | Catalog mixin names or file paths to merge into this template |
-| `taskType` | No | string | Work Item type generated Tasks are created as, in the platform's own vocabulary. Defaults to the platform's type (`Task` on Azure DevOps). Online Validation checks custom fields against it. |
+Use the [Template field reference](https://atomize-cd9.pages.dev/schema#template.name)
+for identity, author and discovery fields, or the
+[Mixin reference](https://atomize-cd9.pages.dev/schema#mixin.name) when authoring a Mixin.
 
 ---
 
@@ -198,27 +189,8 @@ filter:
   excludeIfHasTasks: true
 ```
 
-### Filter Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `team` | string | Override the team from the selected Azure DevOps profile for this template |
-| `workItemTypes` | string[] | Work item types to match (e.g., `"User Story"`, `"Bug"`) |
-| `states` | string[] | Work item states to include (e.g., `"New"`, `"Active"`) |
-| `statesExclude` | string[] | Work item states to exclude (e.g., `"Done"`, `"Removed"`) |
-| `statesWereEver` | string[] | Match items that were ever in these states |
-| `tags.include` | string[] | Must have at least one of these tags |
-| `tags.exclude` | string[] | Must not have any of these tags |
-| `areaPaths` | string[] | Area paths to match exactly (case-sensitive). Use `"@TeamAreas"` for the team's areas |
-| `areaPathsUnder` | string[] | Area paths — matches the path and all descendants (UNDER query) |
-| `iterations` | string[] | Iteration paths to match. Use `"@CurrentIteration"` for the team's current sprint |
-| `iterationsUnder` | string[] | Iteration paths — matches the iteration and all descendants (UNDER query) |
-| `assignedTo` | string[] | Assigned user emails, or `"@Me"` for the current user |
-| `changedAfter` | string | Only match items changed on or after this date. Supports `@Today` macros |
-| `createdAfter` | string | Only match items created on or after this date. Supports `@Today` macros |
-| `priority.min` | number | Minimum priority (1 = highest) |
-| `priority.max` | number | Maximum priority |
-| `excludeIfHasTasks` | boolean | Skip work items that already have child tasks |
+See the [filter field reference](https://atomize-cd9.pages.dev/schema#template.filter)
+for each criterion's shape, requirements and allowed values.
 
 ### Special Values
 
@@ -351,26 +323,10 @@ tasks:
       operator: "contains"
       value: "backend"
     dependsOn: []
-  ```
+```
 
-### Task Fields
-
-| Field | Required | Type | Description |
-|-------|----------|------|-------------|
-| `title` | Yes | string | Task title (max 500 chars). Supports variable interpolation |
-| `id` | No | string | Unique identifier for dependencies (max 30 chars) |
-| `description` | No | string | Task description (max 2000 chars) |
-| `estimationPercent` | No | number | Percentage of parent story points (0-100) |
-| `estimationFixed` | No | number | Fixed point value regardless of parent estimation |
-| `estimationPercentCondition` | No | array | Conditional estimation rules (see below) |
-| `activity` | No | string | Activity type (e.g., `"Development"`, `"Testing"`, `"Design"`) |
-| `tags` | No | string[] | Tags to apply to the task |
-| `assignTo` | No | string | Who to assign the task to (see assignment patterns) |
-| `priority` | No | number | Task priority (1-4) |
-| `condition` | No | object | Structured condition to conditionally create this task |
-| `dependsOn` | No | string[] | IDs of tasks this task depends on |
-| `repeat` | No | number | Create this many identical Tasks from this definition (default 1). See [Repeated Tasks](#repeated-tasks) |
-| `customFields` | No | object | Task-level Azure DevOps field values keyed by reference name |
+See the [Task field reference](https://atomize-cd9.pages.dev/schema#template.tasks[])
+for field types, constraints, estimation options and runtime rules.
 
 ### Variable Interpolation
 
@@ -381,7 +337,7 @@ Use story data dynamically in task titles and descriptions:
 | `${story.title}` | Story title |
 | `${story.id}` | Story ID (e.g., `STORY-123`) |
 | `${story.description}` | Story description |
-| `${story.estimation}` | Story points |
+| `${story.estimation}` | Story Estimate |
 | `${story.tags}` | Story tags (semicolon-separated) |
 
 **Example:**
@@ -445,19 +401,8 @@ tasks:
       Custom.ReleaseDate: "@Today"
 ```
 
-**Supported value types:**
-
-| ADO field type | Template value type | Notes |
-|----------------|---------------------|-------|
-| Text (single line) | string | Free-form string |
-| Text (multi-line) | string | Multi-line values are allowed |
-| Boolean | boolean | `true` or `false` |
-| Date/Time | string | ISO 8601 date/time or supported macros such as `@Today` |
-| Decimal | number | Floating-point values |
-| Identity | string | Email address or values such as `@Me` when supported by ADO |
-| Integer | number | Whole-number values |
-| Picklist (String) | string | Must match one of the allowed values |
-| Picklist (Integer) | number | Must match one of the allowed values |
+The [custom field reference](https://atomize-cd9.pages.dev/schema#template.tasks[].customFields)
+covers reference-name syntax, supported value types and platform validation rules.
 
 **Validation behavior:**
 - `atomize validate` without `--profile` checks structure only and warns that custom fields were not verified against ADO
@@ -491,14 +436,8 @@ tasks:
           value: 5
 ```
 
-**Simple clause fields:**
-
-| Property | Description |
-|----------|-------------|
-| `field` | Built-in story field such as `title`, `tags`, or `estimation` |
-| `customField` | Parent story custom field reference name such as `Custom.ClientTier` |
-| `operator` | One of `equals`, `not-equals`, `contains`, `not-contains`, `gt`, `lt`, `gte`, `lte`. `tags` is multi-value, so it accepts only `contains` and `not-contains` |
-| `value` | String, number, or boolean to compare against |
+See the [condition field reference](https://atomize-cd9.pages.dev/schema#template.tasks[].condition)
+for simple and compound clause shapes, comparison values and supported operators.
 
 `field: estimation` compares against the **raw Story Estimate**, before any `conversion`, read from `estimation.source` when one is set. Existing point-based conditions keep their meaning, and categories work with `equals`/`not-equals`, e.g. `{ field: estimation, operator: equals, value: L }`. A numeric operator (`gt`, `lt`, `gte`, `lte`) against a non-numeric Story Estimate such as `L` is an evaluation error: the task is skipped and the reason is reported.
 
@@ -577,7 +516,7 @@ tasks:
 
 **Rules:**
 - `id` is required on any task that other tasks depend on
-- `id` is required on any task that uses `dependsOn`
+- Give a task that uses `dependsOn` its own `id`; a missing ID produces a warning
 - Circular dependencies are a validation error
 - IDs must be unique within a template
 - A [repeated task](#repeated-tasks) can't use `dependsOn`, and no task can depend on one
@@ -611,7 +550,7 @@ Rules:
 
 - `repeat` is a whole number of at least 1.
 - A repeated task can't use `dependsOn`, and no task can list a repeated task in its `dependsOn`. A dependency links two single Work Items, and the copies have no single Work Item to link.
-- `repeat` can be at most 20, which guards against a typo creating many Tasks on a live platform. A template that genuinely needs more raises its own limit with [`validation.maxRepeat`](#validation).
+- `repeat` can be at most 20, which guards against a typo creating many Tasks on a live platform. A template that genuinely needs more raises its own limit with [`validation.maxRepeat`](https://atomize-cd9.pages.dev/schema#template.validation.maxRepeat).
 
 The count is a fixed number written in the template. It can't come from a Story field and can't be set at generate time.
 
@@ -627,7 +566,7 @@ The full decision record is [ADR-0067](./adr/0067-task-repeat-count-is-a-schema-
 
 ## estimation
 
-Controls how story points are distributed across tasks.
+Translates the Story Estimate into the Task's unit, then distributes it across Tasks.
 
 ```yaml
 estimation:
@@ -641,19 +580,7 @@ estimation:
   defaultParentEstimation: "M"  # Story Estimate to assume when the real one is missing
 ```
 
-| Field | Type | Default | Options | Description |
-|-------|------|---------|---------|-------------|
-| `strategy` | string | `"percentage"` | `"percentage"` | How to calculate task estimations |
-| `targetFields` | string[] | platform default (Azure DevOps: `RemainingWork` + `OriginalEstimate`, with `CompletedWork` set to 0) | one or more field reference names | Task fields that receive the Task Estimate. Replaces the default fields entirely, including the `CompletedWork` initialisation; values are written exactly as calculated. |
-| `source` | string | platform default (Azure DevOps reads `StoryPoints`, then `Effort`, then `Size`, then `OriginalEstimate`) | a Story field reference name | Story field that supplies the Story Estimate, e.g. `Custom.TShirtSize`. Replaces the platform's default fields with **no fallback**: if this field is blank, the Story Estimate is unresolvable. |
-| `conversion.factor` | number | none (one-to-one) | any number greater than 0 | Multiplies the Story Estimate into the Task's unit before it is split across tasks. With `factor: 4`, a 5-point Story becomes 20 hours and a 20% task gets 4 hours. Rounding and the minimum apply afterwards. Set either `factor` or `table`, not both. |
-| `conversion.table` | map | none | Story Estimate value → non-negative Task-unit amount | Exact lookup from Story Estimate to Task-unit total, e.g. `{ XS: 1, S: 2, M: 4, L: 5, XL: 13 }`, or numeric keys for scales that aren't linear (`{ 1: 2, 2: 4, 3: 8, 5: 16 }`). Values are matched literally, so a picklist value like `0.32L` needs its own entry. A Story Estimate missing from the table is unresolvable (see `ifParentHasNoEstimation`). |
-| `normalize` | string | `"auto"` | `auto`, `always`, `never` | What to do when the generated tasks' percentages don't add up to 100%. `auto` scales totals below 100% up (e.g. when a conditional task is skipped) and keeps totals above 100% unless you choose to normalise when the CLI asks. `always` scales to exactly 100% in both directions. `never` uses the percentages as written, so a skipped task's share is simply not allocated. The same setting applies in the CLI, VS Code and Studio, including previews. |
-| `rounding` | string | `"nearest"` | `nearest`, `up`, `down`, `none` | How to round decimal point values |
-| `minimumTaskEstimate` | number | `0` | any non-negative number | Minimum Task Estimate for any task, in the Task's unit (hours on Azure DevOps). Replaces the deprecated `minimumTaskPoints`, which is still honoured when `minimumTaskEstimate` is absent. |
-| `ifParentHasNoEstimation` | string | `"warn"` | `warn`, `skip`, `use-default` | What to do when the Story Estimate is missing or cannot be converted. `warn` creates the tasks with blank estimates (never 0) and reports a warning; `skip` creates no tasks for that Story and reports why; `use-default` uses `defaultParentEstimation` instead. |
-| `conversion.multipliers` | boolean | `false` | `true`, `false` | Also accept a number followed by a table key: with `XL: 5`, `0.3XL` (or `0.3 XL`) is 0.3 × 5 = 1.5, which is then split across tasks. An exact key always wins (so `"0.32L": 1.6` is used as-is); otherwise the longest key the value ends with is used. Only `<number><key>` is understood, so values like `XL*0.3` or `0,3XL` stay unresolvable. Requires a `table` whose keys are not all numeric, because `25` would be ambiguous between the key `25` and 2 × `5`. |
-| `defaultParentEstimation` | number or string | none | a Story Estimate, e.g. `8` or `M` | Story Estimate used with `use-default`, in the Story's unit. It goes through the same `conversion` as a real Story Estimate, so with a table it must be one of the table's keys (Offline Validation checks this). Without it, `use-default` behaves like `warn`. |
+See the [estimation field reference](https://atomize-cd9.pages.dev/schema#template.estimation) for field details, defaults and constraints.
 
 **VS Code snippets:** type `atm-estimation-factor` or `atm-estimation-table` to insert a factor or a size-table configuration, or `atm-estimation-target` for `taskType` and `targetFields`; `atm-estimation` includes the `normalize` choice.
 
@@ -663,11 +590,16 @@ estimation:
 - **Errors:** `source` is missing on a filtered Story type; `taskType` does not exist; a `targetFields` entry is missing on the child type or is not numeric.
 - **Warnings** (errors in strict mode): picklist values of `source` that `conversion.table` does not cover; table keys that are not allowed values (often typos); a `source` field that accepts free text or is a *suggested* picklist, because values outside the table leave Task Estimates blank; numeric operators on `estimation` when `source` holds text.
 
-**Rounding options:**
-- `nearest` - Round to nearest whole number (0.5 → 1, 0.4 → 0)
-- `up` - Always round up (0.1 → 1)
-- `down` - Always round down (0.9 → 0)
-- `none` - Keep decimal values
+Conversion happens before percentage distribution. For example, a 5-point Story
+with `factor: 4` becomes 20 hours; a Task weighted at 20% receives 4 hours before
+rounding and the minimum. A fixed estimate is written as supplied and bypasses
+percentage rounding and the minimum.
+
+If a conversion table cannot resolve a Story Estimate, Atomize applies the chosen
+unresolvable-estimate policy; it never guesses a size. See the
+[conversion reference](https://atomize-cd9.pages.dev/schema#template.estimation.conversion)
+and [rounding reference](https://atomize-cd9.pages.dev/schema#template.estimation.rounding)
+for lookup and rounding rules.
 
 ---
 
@@ -693,18 +625,9 @@ validation:
       id: "review"
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `mode` | string | `"lenient"` (default) or `"strict"`. In strict mode, warnings become errors |
-| `totalEstimationMustBe` | number | Total estimation percentage must equal this value. Each copy of a repeated task counts |
-| `totalEstimationRange` | object | Total estimation must fall within `min`-`max` range. Each copy of a repeated task counts |
-| `minTasks` | number | Minimum number of tasks required. Each copy of a repeated task counts |
-| `maxTasks` | number | Maximum number of tasks allowed. Each copy of a repeated task counts |
-| `maxRepeat` | number | Highest `repeat` any task may use. Default 20 |
-| `taskEstimationRange` | object | Each final task percentage after normalization must fall within the inclusive `min`–`max` bounds |
-| `requiredTasks` | array | Tasks that must exist (matched by `id` or `title`) |
+See the [validation field reference](https://atomize-cd9.pages.dev/schema#template.validation) for field details, defaults and constraints.
 
-> **Note:** `totalEstimationMustBe` and `totalEstimationRange` are mutually exclusive.
+Choose either an exact total or a range. If both are supplied, `totalEstimationMustBe` takes precedence and `totalEstimationRange` is ignored.
 
 `taskEstimationRange` bounds are percentages from 0 to 100, with `min <= max`.
 Validation checks final allocation percentages after normalization, including the
@@ -732,30 +655,25 @@ metadata:
   notes: "Owned by the platform team."
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `category` | string | Template category (e.g., `"Backend"`, `"Frontend"`) |
-| `estimationGuidelines` | string | Guidance on estimation sizing for this template |
-| `notes` | string | Free-form context for the template's authors and maintainers |
+See the [metadata field reference](https://atomize-cd9.pages.dev/schema#template.metadata) for field details, defaults and constraints.
 
 ---
 
 ## Deprecated Fields
 
-These fields have no effect. Atomize still reads files that use them, but each produces a
-non-blocking warning, even in strict mode. In VS Code most of them offer a quick fix that removes
-the field. They will be removed in a future file format (see ADR-0073).
+Deprecated fields remain readable in format 1.0 and produce non-blocking warnings,
+even in strict mode. Most offer a VS Code removal quick fix. When a field contains
+author-written text, such as acceptance criteria, move that text to the suggested
+replacement yourself so it is preserved. Removal requires a future file format,
+as recorded in [ADR-0073](./adr/0073-format-version-revision-and-field-retirement.md).
 
-| Field | Instead |
-|-------|---------|
-| `tasks[].acceptanceCriteria` | Write the criteria in the task's `description` (no quick fix, so the text isn't lost) |
-| `tasks[].acceptanceCriteriaAsChecklist` | Remove it |
-| `tasks[].estimationFormula` | `estimationPercent` or `estimationFixed`. A formula was never evaluated and gave the task an estimate of 0 |
-| `created`, `lastModified` | Version control history |
-| `metadata.difficulty`, `metadata.examples` | Describe the template in `description` |
-| `metadata.recommendedFor` | `filter.workItemTypes` already declares the targeted Work Item types |
-| `metadata.changelog` | Version control history; `version` for the current revision |
-| `estimation.minimumTaskPoints` | `estimation.minimumTaskEstimate` |
+The Schema Reference marks each deprecated field and describes its replacement:
+[task fields](https://atomize-cd9.pages.dev/schema#template.tasks[].acceptanceCriteria),
+[file timestamps](https://atomize-cd9.pages.dev/schema#template.created),
+[metadata](https://atomize-cd9.pages.dev/schema#template.metadata.difficulty), and
+[minimumTaskPoints](https://atomize-cd9.pages.dev/schema#template.estimation.minimumTaskPoints).
+The last is a compatibility fallback, so it still affects estimates when
+`minimumTaskEstimate` is absent.
 
 ---
 
@@ -863,6 +781,7 @@ metadata:
 
 ## See Also
 
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) - Field shapes, constraints, defaults and runtime rules
 - [CLI Reference](./Cli-Reference.md) - Commands for validating, installing, and using templates
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix validation failures

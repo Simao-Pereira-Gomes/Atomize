@@ -352,6 +352,7 @@ atomize generate examples/advanced-filtering.atomize.yaml --platform mock --stor
 
 ## See Also
 
-- [Template Reference](../docs/Template-Reference.md) — full template schema
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) — YAML fields and constraints
+- [Template Reference](../docs/Template-Reference.md) — behaviour and worked examples
 - [Validation Modes](../docs/Validation-Modes.md) — strict vs lenient validation
 - [CLI Reference](../docs/Cli-Reference.md) — all commands and flags

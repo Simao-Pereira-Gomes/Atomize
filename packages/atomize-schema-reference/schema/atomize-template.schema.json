@@ -140,7 +140,7 @@
         "version": {
           "type": "string",
           "minLength": 1,
-          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it."
+          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it. A child Template does not inherit its parent's Revision."
         },
         "name": {
           "type": "string",
@@ -184,7 +184,7 @@
             "team": {
               "x-atomize-guide": "filter",
               "type": "string",
-              "description": "Azure DevOps team name. Limits story selection to stories owned by this team."
+              "description": "Azure DevOps team name. Overrides the team from the selected Connection Profile for this Template, including team-scoped query macros."
             },
             "workItemTypes": {
               "x-atomize-guide": "filter",
@@ -254,7 +254,7 @@
                   }
                 ]
               },
-              "description": "Area paths to filter by. Use '@TeamAreas' to match all areas owned by the configured team."
+              "description": "Area paths to match exactly, without descendants. Use '@TeamAreas' to match all areas owned by the configured team. Matching follows the platform's query semantics."
             },
             "areaPathsUnder": {
               "x-atomize-guide": "area-paths-exact-vs-descendants",
@@ -278,7 +278,7 @@
                   }
                 ]
               },
-              "description": "Iterations to filter by. Use '@CurrentIteration' for the active sprint."
+              "description": "Iteration paths to match exactly, without descendants. Use '@CurrentIteration' for the configured team's current sprint."
             },
             "iterationsUnder": {
               "x-atomize-guide": "iterations-exact-vs-descendants",
@@ -312,7 +312,7 @@
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
               ],
-              "description": "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7')."
+              "description": "Include Stories changed on or after this date (inclusive). ISO 8601 date or date macro (e.g. '@Today-7')."
             },
             "createdAfter": {
               "x-atomize-guide": "date-filters",
@@ -320,7 +320,7 @@
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
               ],
-              "description": "Include stories created after this date. ISO 8601 date or date macro."
+              "description": "Include Stories created on or after this date (inclusive). ISO 8601 date or date macro."
             },
             "priority": {
               "x-atomize-guide": "filter",
@@ -328,7 +328,7 @@
               "properties": {
                 "min": {
                   "type": "number",
-                  "description": "Minimum priority value (inclusive)."
+                  "description": "Minimum priority value (inclusive); on Azure DevOps, 1 is the highest priority."
                 },
                 "max": {
                   "type": "number",
@@ -372,6 +372,7 @@
               "additionalProperties": false,
               "x-atomize-rules": [
                 "Set exactly one of id or path.",
+                "Only flat (Work Items) saved queries are supported; tree and one-hop queries are rejected at runtime.",
                 "State filters, tags, area or iteration paths, assignedTo, date filters or priority alongside savedQuery produce a validation warning and are ignored; the query controls the returned Stories. workItemTypes is allowed because it declares the query's Work Item types rather than filtering them."
               ],
               "description": "Reference an existing Azure DevOps saved query to select stories."
@@ -398,13 +399,13 @@
               "title": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Task title — shown as the work item title in Azure DevOps.",
+                "description": "Task title — shown as the Work Item title on the platform. Supports Story variable interpolation.",
                 "x-atomize-guide": "variable-interpolation"
               },
               "description": {
                 "x-atomize-guide": "variable-interpolation",
                 "type": "string",
-                "description": "Additional details or notes for this task."
+                "description": "Task description. Supports Story variable interpolation."
               },
               "estimationPercent": {
                 "x-atomize-guide": "estimation",
@@ -464,7 +465,7 @@
                 "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
-                "description": "Fixed point value for this task, independent of the parent story's estimate."
+                "description": "Fixed Task Estimate in the Task's unit, independent of the Story Estimate. Written as supplied; percentage rounding and the minimum do not apply."
               },
               "estimationFormula": {
                 "x-atomize-guide": "estimation",
@@ -577,7 +578,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+                "description": "Deprecated: acceptance criteria are never written to the generated task. Move the text to description yourself; no removal quick fix is offered so the text is not lost.",
                 "deprecated": true,
                 "x-atomize-rules": [
                   "Using this deprecated field produces a non-blocking warning, even in strict mode."
@@ -586,7 +587,7 @@
               "acceptanceCriteriaAsChecklist": {
                 "x-atomize-guide": "tasks",
                 "type": "boolean",
-                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
+                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect. Remove it.",
                 "deprecated": true,
                 "x-atomize-rules": [
                   "Using this deprecated field produces a non-blocking warning, even in strict mode."
@@ -594,7 +595,11 @@
               },
               "customFields": {
                 "x-atomize-rules": [
-                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
+                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier.",
+                  "Azure DevOps single-line and multi-line text fields accept strings; only multi-line fields accept newlines. Boolean fields require booleans; decimal fields require numbers; integer fields require whole numbers.",
+                  "Date/time fields accept ISO 8601 strings or supported macros such as @Today. Identity fields accept strings such as email addresses or @Me when supported by Azure DevOps.",
+                  "Picklist values must match an allowed value and its string or integer type.",
+                  "Offline Validation checks shape only. Online Validation verifies field existence, read-only status, types and allowed values; generation verifies them against live platform metadata before creating Work Items."
                 ],
                 "x-atomize-guide": "task-custom-fields",
                 "examples": [
@@ -629,7 +634,7 @@
           "x-atomize-guide": "estimation",
           "type": "string",
           "minLength": 1,
-          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
+          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Defaults to Task on Azure DevOps. Online Validation checks custom fields and targetFields against this type."
         },
         "estimation": {
           "x-atomize-guide": "estimation",
@@ -648,7 +653,7 @@
               "x-atomize-guide": "estimation",
               "type": "string",
               "minLength": 1,
-              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
+              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields with no fallback: a blank override is unresolvable. Azure DevOps defaults to StoryPoints, then Effort, Size and OriginalEstimate."
             },
             "conversion": {
               "x-atomize-guide": "estimation",
@@ -670,12 +675,12 @@
                   "x-atomize-rules": [
                     "The conversion table must contain at least one entry."
                   ],
-                  "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
+                  "description": "Story Estimate value to non-negative Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear. A value missing from the table is unresolvable unless enabled multipliers match it; ifParentHasNoEstimation decides what happens next."
                 },
                 "multipliers": {
                   "x-atomize-guide": "estimation",
                   "type": "boolean",
-                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
+                  "description": "Also accept a number followed by a table key, with optional whitespace: '0.3XL' or '0.3 XL' = 0.3 × XL. Defaults to false. Exact keys win; otherwise the longest matching suffix key wins. Forms such as 'XL*0.3' or '0,3XL' are unresolvable. Requires a table with at least one non-numeric key.",
                   "x-atomize-rules": [
                     "When multipliers is true, conversion.table must be set and at least one table key must be non-numeric."
                   ]
@@ -684,7 +689,8 @@
               "additionalProperties": false,
               "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
               "x-atomize-rules": [
-                "Set exactly one of factor or table."
+                "Set exactly one of factor or table.",
+                "Rounding and minimumTaskEstimate apply after conversion and percentage distribution."
               ],
               "examples": [
                 {
@@ -717,7 +723,7 @@
                 "type": "string",
                 "minLength": 1
               },
-              "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
+              "description": "Task fields that receive the Task Estimate, as platform field reference names. Azure DevOps defaults to Microsoft.VSTS.Scheduling.RemainingWork and Microsoft.VSTS.Scheduling.OriginalEstimate, with Microsoft.VSTS.Scheduling.CompletedWork initialised to 0. Overrides replace all default writes, including CompletedWork initialisation; values are written exactly as calculated."
             },
             "normalize": {
               "x-atomize-guide": "estimation",
@@ -731,7 +737,7 @@
             },
             "rounding": {
               "default": "none",
-              "description": "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
+              "description": "Rounding mode for percentage-based Task Estimates. Defaults to none, keeping decimal values. nearest rounds to the nearest half unit (0.5), up to the next half unit, and down to the previous half unit. Applied after conversion and distribution, before the minimum.",
               "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
@@ -744,7 +750,7 @@
             "minimumTaskEstimate": {
               "x-atomize-guide": "estimation",
               "type": "number",
-              "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
+              "description": "Minimum percentage-based Task Estimate after rounding, in the Task's unit (hours on Azure DevOps). Defaults to 0. Takes precedence over deprecated minimumTaskPoints when both are set; fixed estimates bypass it."
             },
             "minimumTaskPoints": {
               "x-atomize-guide": "estimation",
@@ -763,7 +769,7 @@
                 "warn",
                 "use-default"
               ],
-              "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
+              "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates (never 0) and reports a warning, 'skip' creates no tasks for the Story and reports why, 'use-default' uses defaultParentEstimation instead. Without a defaultParentEstimation, use-default behaves like warn."
             },
             "defaultParentEstimation": {
               "x-atomize-guide": "estimation",
@@ -796,15 +802,21 @@
                 "strict",
                 "lenient"
               ],
-              "description": "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes."
+              "description": "'strict' treats blocking validation warnings as errors; 'lenient' (default) allows warnings. Non-blocking advisories remain warnings in both modes."
             },
             "totalEstimationMustBe": {
               "x-atomize-guide": "validation",
+              "x-atomize-rules": [
+                "Choose one total constraint. If both are supplied, totalEstimationMustBe takes precedence and totalEstimationRange is ignored."
+              ],
               "type": "number",
-              "description": "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles."
+              "description": "Required total estimation percentage, counting each repeated copy. Validation checks that it is reachable between the lower and upper allocation bounds, including conditions and percentage overrides. It may exceed 100 when Tasks span roles."
             },
             "totalEstimationRange": {
               "x-atomize-guide": "validation",
+              "x-atomize-rules": [
+                "Choose one total constraint. If both are supplied, totalEstimationMustBe takes precedence and totalEstimationRange is ignored."
+              ],
               "type": "object",
               "properties": {
                 "min": {
@@ -821,17 +833,17 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles."
+              "description": "Allowed total estimation percentage range, counting each repeated copy. Must overlap the lower and upper reachable allocation bounds, including conditions and percentage overrides. Bounds may exceed 100 when Tasks span roles."
             },
             "minTasks": {
               "x-atomize-guide": "validation",
               "type": "number",
-              "description": "Minimum number of tasks the template must define."
+              "description": "Minimum generated Task count the Template must define, counting each repeated copy."
             },
             "maxTasks": {
               "x-atomize-guide": "validation",
               "type": "number",
-              "description": "Maximum number of tasks the template may define."
+              "description": "Maximum generated Task count the Template may define, counting each repeated copy."
             },
             "maxRepeat": {
               "x-atomize-guide": "repeated-tasks",
@@ -883,7 +895,7 @@
                   },
                   "id": {
                     "type": "string",
-                    "description": "Required task ID. Checked first; falls back to title match if absent."
+                    "description": "Optional required task ID, matched case-insensitively. A matching title also satisfies the requirement when this ID is absent or does not match."
                   }
                 },
                 "required": [
@@ -996,7 +1008,7 @@
         "extends": {
           "x-atomize-guide": "inheritance-extends",
           "type": "string",
-          "description": "Name or path of a parent template this one inherits from. Resolved by the Template Library."
+          "description": "Catalog Template name or file path of a parent Template to inherit from. Resolved by the Template Library."
         },
         "mixins": {
           "x-atomize-guide": "mixins-mixins",
@@ -1004,7 +1016,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Names or paths of mixins to compose into this template. Resolved by the Template Library."
+          "description": "Catalog Mixin names or file paths to compose into this Template. Resolved by the Template Library."
         },
         "origin": {
           "type": "string",
@@ -1034,7 +1046,7 @@
         "version": {
           "type": "string",
           "minLength": 1,
-          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it."
+          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it. A child Template does not inherit its parent's Revision."
         },
         "name": {
           "type": "string",
@@ -1078,7 +1090,7 @@
             "team": {
               "x-atomize-guide": "filter",
               "type": "string",
-              "description": "Azure DevOps team name. Limits story selection to stories owned by this team."
+              "description": "Azure DevOps team name. Overrides the team from the selected Connection Profile for this Template, including team-scoped query macros."
             },
             "workItemTypes": {
               "x-atomize-guide": "filter",
@@ -1148,7 +1160,7 @@
                   }
                 ]
               },
-              "description": "Area paths to filter by. Use '@TeamAreas' to match all areas owned by the configured team."
+              "description": "Area paths to match exactly, without descendants. Use '@TeamAreas' to match all areas owned by the configured team. Matching follows the platform's query semantics."
             },
             "areaPathsUnder": {
               "x-atomize-guide": "area-paths-exact-vs-descendants",
@@ -1172,7 +1184,7 @@
                   }
                 ]
               },
-              "description": "Iterations to filter by. Use '@CurrentIteration' for the active sprint."
+              "description": "Iteration paths to match exactly, without descendants. Use '@CurrentIteration' for the configured team's current sprint."
             },
             "iterationsUnder": {
               "x-atomize-guide": "iterations-exact-vs-descendants",
@@ -1206,7 +1218,7 @@
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
               ],
-              "description": "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7')."
+              "description": "Include Stories changed on or after this date (inclusive). ISO 8601 date or date macro (e.g. '@Today-7')."
             },
             "createdAfter": {
               "x-atomize-guide": "date-filters",
@@ -1214,7 +1226,7 @@
               "x-atomize-rules": [
                 "Use an ISO 8601 date (YYYY-MM-DD, optionally with a time) or @Today, @StartOfDay, @StartOfMonth, @StartOfWeek or @StartOfYear with an optional integer offset such as @Today-7."
               ],
-              "description": "Include stories created after this date. ISO 8601 date or date macro."
+              "description": "Include Stories created on or after this date (inclusive). ISO 8601 date or date macro."
             },
             "priority": {
               "x-atomize-guide": "filter",
@@ -1222,7 +1234,7 @@
               "properties": {
                 "min": {
                   "type": "number",
-                  "description": "Minimum priority value (inclusive)."
+                  "description": "Minimum priority value (inclusive); on Azure DevOps, 1 is the highest priority."
                 },
                 "max": {
                   "type": "number",
@@ -1266,6 +1278,7 @@
               "additionalProperties": false,
               "x-atomize-rules": [
                 "Set exactly one of id or path.",
+                "Only flat (Work Items) saved queries are supported; tree and one-hop queries are rejected at runtime.",
                 "State filters, tags, area or iteration paths, assignedTo, date filters or priority alongside savedQuery produce a validation warning and are ignored; the query controls the returned Stories. workItemTypes is allowed because it declares the query's Work Item types rather than filtering them."
               ],
               "description": "Reference an existing Azure DevOps saved query to select stories."
@@ -1292,13 +1305,13 @@
               "title": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Task title — shown as the work item title in Azure DevOps.",
+                "description": "Task title — shown as the Work Item title on the platform. Supports Story variable interpolation.",
                 "x-atomize-guide": "variable-interpolation"
               },
               "description": {
                 "x-atomize-guide": "variable-interpolation",
                 "type": "string",
-                "description": "Additional details or notes for this task."
+                "description": "Task description. Supports Story variable interpolation."
               },
               "estimationPercent": {
                 "x-atomize-guide": "estimation",
@@ -1358,7 +1371,7 @@
                 "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
-                "description": "Fixed point value for this task, independent of the parent story's estimate."
+                "description": "Fixed Task Estimate in the Task's unit, independent of the Story Estimate. Written as supplied; percentage rounding and the minimum do not apply."
               },
               "estimationFormula": {
                 "x-atomize-guide": "estimation",
@@ -1471,7 +1484,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+                "description": "Deprecated: acceptance criteria are never written to the generated task. Move the text to description yourself; no removal quick fix is offered so the text is not lost.",
                 "deprecated": true,
                 "x-atomize-rules": [
                   "Using this deprecated field produces a non-blocking warning, even in strict mode."
@@ -1480,7 +1493,7 @@
               "acceptanceCriteriaAsChecklist": {
                 "x-atomize-guide": "tasks",
                 "type": "boolean",
-                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
+                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect. Remove it.",
                 "deprecated": true,
                 "x-atomize-rules": [
                   "Using this deprecated field produces a non-blocking warning, even in strict mode."
@@ -1488,7 +1501,11 @@
               },
               "customFields": {
                 "x-atomize-rules": [
-                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
+                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier.",
+                  "Azure DevOps single-line and multi-line text fields accept strings; only multi-line fields accept newlines. Boolean fields require booleans; decimal fields require numbers; integer fields require whole numbers.",
+                  "Date/time fields accept ISO 8601 strings or supported macros such as @Today. Identity fields accept strings such as email addresses or @Me when supported by Azure DevOps.",
+                  "Picklist values must match an allowed value and its string or integer type.",
+                  "Offline Validation checks shape only. Online Validation verifies field existence, read-only status, types and allowed values; generation verifies them against live platform metadata before creating Work Items."
                 ],
                 "x-atomize-guide": "task-custom-fields",
                 "examples": [
@@ -1523,7 +1540,7 @@
           "x-atomize-guide": "estimation",
           "type": "string",
           "minLength": 1,
-          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default."
+          "description": "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Defaults to Task on Azure DevOps. Online Validation checks custom fields and targetFields against this type."
         },
         "estimation": {
           "x-atomize-guide": "estimation",
@@ -1542,7 +1559,7 @@
               "x-atomize-guide": "estimation",
               "type": "string",
               "minLength": 1,
-              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default."
+              "description": "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields with no fallback: a blank override is unresolvable. Azure DevOps defaults to StoryPoints, then Effort, Size and OriginalEstimate."
             },
             "conversion": {
               "x-atomize-guide": "estimation",
@@ -1564,12 +1581,12 @@
                   "x-atomize-rules": [
                     "The conversion table must contain at least one entry."
                   ],
-                  "description": "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear."
+                  "description": "Story Estimate value to non-negative Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear. A value missing from the table is unresolvable unless enabled multipliers match it; ifParentHasNoEstimation decides what happens next."
                 },
                 "multipliers": {
                   "x-atomize-guide": "estimation",
                   "type": "boolean",
-                  "description": "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
+                  "description": "Also accept a number followed by a table key, with optional whitespace: '0.3XL' or '0.3 XL' = 0.3 × XL. Defaults to false. Exact keys win; otherwise the longest matching suffix key wins. Forms such as 'XL*0.3' or '0,3XL' are unresolvable. Requires a table with at least one non-numeric key.",
                   "x-atomize-rules": [
                     "When multipliers is true, conversion.table must be set and at least one table key must be non-numeric."
                   ]
@@ -1578,7 +1595,8 @@
               "additionalProperties": false,
               "description": "Translates the Story Estimate into the Task's unit before it is split across tasks. Set exactly one of factor or table; omit for one-to-one.",
               "x-atomize-rules": [
-                "Set exactly one of factor or table."
+                "Set exactly one of factor or table.",
+                "Rounding and minimumTaskEstimate apply after conversion and percentage distribution."
               ],
               "examples": [
                 {
@@ -1611,7 +1629,7 @@
                 "type": "string",
                 "minLength": 1
               },
-              "description": "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated."
+              "description": "Task fields that receive the Task Estimate, as platform field reference names. Azure DevOps defaults to Microsoft.VSTS.Scheduling.RemainingWork and Microsoft.VSTS.Scheduling.OriginalEstimate, with Microsoft.VSTS.Scheduling.CompletedWork initialised to 0. Overrides replace all default writes, including CompletedWork initialisation; values are written exactly as calculated."
             },
             "normalize": {
               "x-atomize-guide": "estimation",
@@ -1625,7 +1643,7 @@
             },
             "rounding": {
               "default": "none",
-              "description": "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
+              "description": "Rounding mode for percentage-based Task Estimates. Defaults to none, keeping decimal values. nearest rounds to the nearest half unit (0.5), up to the next half unit, and down to the previous half unit. Applied after conversion and distribution, before the minimum.",
               "x-atomize-guide": "estimation",
               "type": "string",
               "enum": [
@@ -1638,7 +1656,7 @@
             "minimumTaskEstimate": {
               "x-atomize-guide": "estimation",
               "type": "number",
-              "description": "Minimum Task Estimate any single task can receive after rounding, in the Task's unit."
+              "description": "Minimum percentage-based Task Estimate after rounding, in the Task's unit (hours on Azure DevOps). Defaults to 0. Takes precedence over deprecated minimumTaskPoints when both are set; fixed estimates bypass it."
             },
             "minimumTaskPoints": {
               "x-atomize-guide": "estimation",
@@ -1657,7 +1675,7 @@
                 "warn",
                 "use-default"
               ],
-              "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead."
+              "description": "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates (never 0) and reports a warning, 'skip' creates no tasks for the Story and reports why, 'use-default' uses defaultParentEstimation instead. Without a defaultParentEstimation, use-default behaves like warn."
             },
             "defaultParentEstimation": {
               "x-atomize-guide": "estimation",
@@ -1690,15 +1708,21 @@
                 "strict",
                 "lenient"
               ],
-              "description": "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes."
+              "description": "'strict' treats blocking validation warnings as errors; 'lenient' (default) allows warnings. Non-blocking advisories remain warnings in both modes."
             },
             "totalEstimationMustBe": {
               "x-atomize-guide": "validation",
+              "x-atomize-rules": [
+                "Choose one total constraint. If both are supplied, totalEstimationMustBe takes precedence and totalEstimationRange is ignored."
+              ],
               "type": "number",
-              "description": "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles."
+              "description": "Required total estimation percentage, counting each repeated copy. Validation checks that it is reachable between the lower and upper allocation bounds, including conditions and percentage overrides. It may exceed 100 when Tasks span roles."
             },
             "totalEstimationRange": {
               "x-atomize-guide": "validation",
+              "x-atomize-rules": [
+                "Choose one total constraint. If both are supplied, totalEstimationMustBe takes precedence and totalEstimationRange is ignored."
+              ],
               "type": "object",
               "properties": {
                 "min": {
@@ -1715,17 +1739,17 @@
                 "max"
               ],
               "additionalProperties": false,
-              "description": "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles."
+              "description": "Allowed total estimation percentage range, counting each repeated copy. Must overlap the lower and upper reachable allocation bounds, including conditions and percentage overrides. Bounds may exceed 100 when Tasks span roles."
             },
             "minTasks": {
               "x-atomize-guide": "validation",
               "type": "number",
-              "description": "Minimum number of tasks the template must define."
+              "description": "Minimum generated Task count the Template must define, counting each repeated copy."
             },
             "maxTasks": {
               "x-atomize-guide": "validation",
               "type": "number",
-              "description": "Maximum number of tasks the template may define."
+              "description": "Maximum generated Task count the Template may define, counting each repeated copy."
             },
             "maxRepeat": {
               "x-atomize-guide": "repeated-tasks",
@@ -1777,7 +1801,7 @@
                   },
                   "id": {
                     "type": "string",
-                    "description": "Required task ID. Checked first; falls back to title match if absent."
+                    "description": "Optional required task ID, matched case-insensitively. A matching title also satisfies the requirement when this ID is absent or does not match."
                   }
                 },
                 "required": [
@@ -1890,7 +1914,7 @@
         "extends": {
           "type": "string",
           "minLength": 1,
-          "description": "Name or path of a parent template this one inherits from. Inherited fields such as name, filter, and tasks may be omitted.",
+          "description": "Catalog Template name or file path of a parent Template to inherit from. Inherited fields such as name, filter, and tasks may be omitted.",
           "x-atomize-guide": "inheritance-extends"
         },
         "mixins": {
@@ -1899,7 +1923,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Names or paths of mixins to compose into this template. Resolved by the Template Library."
+          "description": "Catalog Mixin names or file paths to compose into this Template. Resolved by the Template Library."
         },
         "origin": {
           "type": "string",
@@ -1927,7 +1951,7 @@
         "version": {
           "type": "string",
           "minLength": 1,
-          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it."
+          "description": "The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it. A child Template does not inherit its parent's Revision."
         },
         "name": {
           "type": "string",
@@ -1957,13 +1981,13 @@
               "title": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Task title — shown as the work item title in Azure DevOps.",
+                "description": "Task title — shown as the Work Item title on the platform. Supports Story variable interpolation.",
                 "x-atomize-guide": "variable-interpolation"
               },
               "description": {
                 "x-atomize-guide": "variable-interpolation",
                 "type": "string",
-                "description": "Additional details or notes for this task."
+                "description": "Task description. Supports Story variable interpolation."
               },
               "estimationPercent": {
                 "x-atomize-guide": "estimation",
@@ -2023,7 +2047,7 @@
                 "x-atomize-guide": "estimation",
                 "type": "number",
                 "minimum": 0,
-                "description": "Fixed point value for this task, independent of the parent story's estimate."
+                "description": "Fixed Task Estimate in the Task's unit, independent of the Story Estimate. Written as supplied; percentage rounding and the minimum do not apply."
               },
               "estimationFormula": {
                 "x-atomize-guide": "estimation",
@@ -2136,7 +2160,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+                "description": "Deprecated: acceptance criteria are never written to the generated task. Move the text to description yourself; no removal quick fix is offered so the text is not lost.",
                 "deprecated": true,
                 "x-atomize-rules": [
                   "Using this deprecated field produces a non-blocking warning, even in strict mode."
@@ -2145,7 +2169,7 @@
               "acceptanceCriteriaAsChecklist": {
                 "x-atomize-guide": "tasks",
                 "type": "boolean",
-                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
+                "description": "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect. Remove it.",
                 "deprecated": true,
                 "x-atomize-rules": [
                   "Using this deprecated field produces a non-blocking warning, even in strict mode."
@@ -2153,7 +2177,11 @@
               },
               "customFields": {
                 "x-atomize-rules": [
-                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier."
+                  "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier.",
+                  "Azure DevOps single-line and multi-line text fields accept strings; only multi-line fields accept newlines. Boolean fields require booleans; decimal fields require numbers; integer fields require whole numbers.",
+                  "Date/time fields accept ISO 8601 strings or supported macros such as @Today. Identity fields accept strings such as email addresses or @Me when supported by Azure DevOps.",
+                  "Picklist values must match an allowed value and its string or integer type.",
+                  "Offline Validation checks shape only. Online Validation verifies field existence, read-only status, types and allowed values; generation verifies them against live platform metadata before creating Work Items."
                 ],
                 "x-atomize-guide": "task-custom-fields",
                 "examples": [

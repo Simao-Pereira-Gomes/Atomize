@@ -145,6 +145,7 @@ export const SavedQuerySchema = z
   })
   .meta({ "x-atomize-guide": "savedquery", "x-atomize-rules": [
     "Set exactly one of id or path.",
+    "Only flat (Work Items) saved queries are supported; tree and one-hop queries are rejected at runtime.",
     "State filters, tags, area or iteration paths, assignedTo, date filters or priority alongside savedQuery produce a validation warning and are ignored; the query controls the returned Stories. workItemTypes is allowed because it declares the query's Work Item types rather than filtering them.",
   ] });
 
@@ -152,7 +153,7 @@ export const FilterCriteriaSchema = z.object({
   team: z
     .string()
     .describe(
-      "Azure DevOps team name. Limits story selection to stories owned by this team.",
+      "Azure DevOps team name. Overrides the team from the selected Connection Profile for this Template, including team-scoped query macros.",
     )
     .optional().meta({ "x-atomize-guide": "filter" }),
   workItemTypes: z
@@ -190,7 +191,7 @@ export const FilterCriteriaSchema = z.object({
   areaPaths: z
     .array(z.union([z.string(), z.literal("@TeamAreas")]))
     .describe(
-      "Area paths to filter by. Use '@TeamAreas' to match all areas owned by the configured team.",
+      "Area paths to match exactly, without descendants. Use '@TeamAreas' to match all areas owned by the configured team. Matching follows the platform's query semantics.",
     )
     .optional().meta({ "x-atomize-guide": "area-paths-exact-vs-descendants" }),
   areaPathsUnder: z
@@ -200,7 +201,7 @@ export const FilterCriteriaSchema = z.object({
   iterations: z
     .array(z.union([z.string(), z.literal("@CurrentIteration")]))
     .describe(
-      "Iterations to filter by. Use '@CurrentIteration' for the active sprint.",
+      "Iteration paths to match exactly, without descendants. Use '@CurrentIteration' for the configured team's current sprint.",
     )
     .optional().meta({ "x-atomize-guide": "iterations-exact-vs-descendants" }),
   iterationsUnder: z
@@ -214,14 +215,14 @@ export const FilterCriteriaSchema = z.object({
     )
     .optional().meta({ "x-atomize-guide": "special-values" }),
   changedAfter: DateOrMacroSchema.describe(
-    "Include stories changed after this date. ISO 8601 date or date macro (e.g. '@Today-7').",
+    "Include Stories changed on or after this date (inclusive). ISO 8601 date or date macro (e.g. '@Today-7').",
   ).optional().meta({ "x-atomize-guide": "date-filters" }),
   createdAfter: DateOrMacroSchema.describe(
-    "Include stories created after this date. ISO 8601 date or date macro.",
+    "Include Stories created on or after this date (inclusive). ISO 8601 date or date macro.",
   ).optional().meta({ "x-atomize-guide": "date-filters" }),
   priority: z
     .object({
-      min: z.number().describe("Minimum priority value (inclusive).").optional(),
+      min: z.number().describe("Minimum priority value (inclusive); on Azure DevOps, 1 is the highest priority.").optional(),
       max: z.number().describe("Maximum priority value (inclusive).").optional(),
     })
     .strict()
@@ -266,10 +267,10 @@ export const TaskDefinitionSchema = z.object({
   title: z
     .string()
     .min(1, "Task title is required")
-    .describe("Task title — shown as the work item title in Azure DevOps.").meta({ "x-atomize-guide": "variable-interpolation" }),
+    .describe("Task title — shown as the Work Item title on the platform. Supports Story variable interpolation.").meta({ "x-atomize-guide": "variable-interpolation" }),
   description: z
     .string()
-    .describe("Additional details or notes for this task.")
+    .describe("Task description. Supports Story variable interpolation.")
     .optional().meta({ "x-atomize-guide": "variable-interpolation" }),
   estimationPercent: z
     .number()
@@ -295,7 +296,7 @@ export const TaskDefinitionSchema = z.object({
     .number()
     .min(0, "Fixed estimation cannot be negative")
     .describe(
-      "Fixed point value for this task, independent of the parent story's estimate.",
+      "Fixed Task Estimate in the Task's unit, independent of the Story Estimate. Written as supplied; percentage rounding and the minimum do not apply.",
     )
     .optional().meta({ "x-atomize-guide": "estimation" }),
   estimationFormula: z
@@ -372,7 +373,7 @@ export const TaskDefinitionSchema = z.object({
   acceptanceCriteria: z
     .array(z.string())
     .describe(
-      "Deprecated: acceptance criteria are never written to the generated task. Put them in description instead.",
+      "Deprecated: acceptance criteria are never written to the generated task. Move the text to description yourself; no removal quick fix is offered so the text is not lost.",
     )
     .meta({ deprecated: true, "x-atomize-rules": [
       "Using this deprecated field produces a non-blocking warning, even in strict mode.",
@@ -381,7 +382,7 @@ export const TaskDefinitionSchema = z.object({
   acceptanceCriteriaAsChecklist: z
     .boolean()
     .describe(
-      "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect.",
+      "Deprecated: acceptance criteria are never written to the generated task, so this setting has no effect. Remove it.",
     )
     .meta({ deprecated: true, "x-atomize-rules": [
       "Using this deprecated field produces a non-blocking warning, even in strict mode.",
@@ -408,6 +409,10 @@ export const TaskDefinitionSchema = z.object({
     })
     .meta({ "x-atomize-rules": [
       "Every key must be a platform field reference in Namespace.FieldName format, such as Custom.ClientTier.",
+      "Azure DevOps single-line and multi-line text fields accept strings; only multi-line fields accept newlines. Boolean fields require booleans; decimal fields require numbers; integer fields require whole numbers.",
+      "Date/time fields accept ISO 8601 strings or supported macros such as @Today. Identity fields accept strings such as email addresses or @Me when supported by Azure DevOps.",
+      "Picklist values must match an allowed value and its string or integer type.",
+      "Offline Validation checks shape only. Online Validation verifies field existence, read-only status, types and allowed values; generation verifies them against live platform metadata before creating Work Items.",
     ] }).meta({
       "x-atomize-guide": "task-custom-fields",
       examples: [{
@@ -434,13 +439,13 @@ export const EstimationConversionSchema = z
       .refine((table) => Object.keys(table).length > 0, "conversion.table must have at least one entry")
       .meta({ "x-atomize-rules": ["The conversion table must contain at least one entry."] })
       .describe(
-        "Story Estimate value to Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear.",
+        "Story Estimate value to non-negative Task-unit amount, matched exactly, e.g. { XS: 1, S: 2, M: 4, L: 5 } or { 1: 2, 2: 4, 3: 8 } for scales that aren't linear. A value missing from the table is unresolvable unless enabled multipliers match it; ifParentHasNoEstimation decides what happens next.",
       )
       .optional().meta({ "x-atomize-guide": "estimation" }),
     multipliers: z
       .boolean()
       .describe(
-        "Also accept a number followed by a table key, e.g. '0.3XL' = 0.3 × XL. Exact keys still win. Requires a table with non-numeric keys.",
+        "Also accept a number followed by a table key, with optional whitespace: '0.3XL' or '0.3 XL' = 0.3 × XL. Defaults to false. Exact keys win; otherwise the longest matching suffix key wins. Forms such as 'XL*0.3' or '0,3XL' are unresolvable. Requires a table with at least one non-numeric key.",
       )
       .meta({ "x-atomize-rules": [
         "When multipliers is true, conversion.table must be set and at least one table key must be non-numeric.",
@@ -468,7 +473,7 @@ export const EstimationConversionSchema = z
   )
   .meta({
     "x-atomize-guide": "estimation",
-    "x-atomize-rules": ["Set exactly one of factor or table."],
+    "x-atomize-rules": ["Set exactly one of factor or table.", "Rounding and minimumTaskEstimate apply after conversion and percentage distribution."],
     examples: [
       { factor: 4 },
       { table: { "1": 2, "2": 4, "3": 8, "5": 16 } },
@@ -521,7 +526,7 @@ export const EstimationConfigSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields, with no fallback. Omit to use the platform default.",
+      "Story field that supplies the Story Estimate, as a platform field reference name (e.g. 'Custom.TShirtSize'). Replaces the platform's default fields with no fallback: a blank override is unresolvable. Azure DevOps defaults to StoryPoints, then Effort, Size and OriginalEstimate.",
     )
     .optional().meta({ "x-atomize-guide": "estimation" }),
   conversion: EstimationConversionSchema.optional().meta({ "x-atomize-guide": "estimation" }),
@@ -529,7 +534,7 @@ export const EstimationConfigSchema = z.object({
     .array(z.string().min(1))
     .min(1, "targetFields must name at least one field")
     .describe(
-      "Task fields that receive the Task Estimate, as platform field reference names. Replaces the platform's default estimate fields entirely; values are written exactly as calculated.",
+      "Task fields that receive the Task Estimate, as platform field reference names. Azure DevOps defaults to Microsoft.VSTS.Scheduling.RemainingWork and Microsoft.VSTS.Scheduling.OriginalEstimate, with Microsoft.VSTS.Scheduling.CompletedWork initialised to 0. Overrides replace all default writes, including CompletedWork initialisation; values are written exactly as calculated.",
     )
     .optional().meta({ "x-atomize-guide": "estimation" }),
   normalize: z
@@ -543,11 +548,11 @@ export const EstimationConfigSchema = z.object({
     .optional()
     .default("none")
     .describe(
-      "Rounding mode applied to calculated task estimates: 'nearest', 'up', 'down', or 'none'.",
+      "Rounding mode for percentage-based Task Estimates. Defaults to none, keeping decimal values. nearest rounds to the nearest half unit (0.5), up to the next half unit, and down to the previous half unit. Applied after conversion and distribution, before the minimum.",
     ).meta({ "x-atomize-guide": "estimation" }),
   minimumTaskEstimate: z
     .number()
-    .describe("Minimum Task Estimate any single task can receive after rounding, in the Task's unit.")
+    .describe("Minimum percentage-based Task Estimate after rounding, in the Task's unit (hours on Azure DevOps). Defaults to 0. Takes precedence over deprecated minimumTaskPoints when both are set; fixed estimates bypass it.")
     .optional().meta({ "x-atomize-guide": "estimation" }),
   minimumTaskPoints: z
     .number()
@@ -559,7 +564,7 @@ export const EstimationConfigSchema = z.object({
   ifParentHasNoEstimation: z
     .enum(["skip", "warn", "use-default"])
     .describe(
-      "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates and reports a warning, 'skip' creates no tasks for the Story, 'use-default' uses defaultParentEstimation instead.",
+      "Behaviour when the Story Estimate is missing or cannot be converted. 'warn' (default) creates the tasks with blank estimates (never 0) and reports a warning, 'skip' creates no tasks for the Story and reports why, 'use-default' uses defaultParentEstimation instead. Without a defaultParentEstimation, use-default behaves like warn.",
     )
     .optional().meta({ "x-atomize-guide": "estimation" }),
   defaultParentEstimation: z
@@ -585,18 +590,18 @@ export const EstimationConfigSchema = z.object({
 
 export const ValidationModeSchema = z
   .enum(["strict", "lenient"])
-  .describe("'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes.");
+  .describe("'strict' treats blocking validation warnings as errors; 'lenient' (default) allows warnings. Non-blocking advisories remain warnings in both modes.");
 
 export const ValidationConfigSchema = z.object({
   mode: ValidationModeSchema.describe(
-    "'strict' treats blocking validation warnings as errors; 'lenient' allows warnings. Non-blocking advisories remain warnings in both modes.",
+    "'strict' treats blocking validation warnings as errors; 'lenient' (default) allows warnings. Non-blocking advisories remain warnings in both modes.",
   ).optional().meta({ "x-atomize-guide": "validation" }),
   totalEstimationMustBe: z
     .number()
     .describe(
-      "Sum of all non-conditional task percentages must equal this value exactly. It may exceed 100 when tasks span roles.",
+      "Required total estimation percentage, counting each repeated copy. Validation checks that it is reachable between the lower and upper allocation bounds, including conditions and percentage overrides. It may exceed 100 when Tasks span roles.",
     )
-    .optional().meta({ "x-atomize-guide": "validation" }),
+    .optional().meta({ "x-atomize-guide": "validation", "x-atomize-rules": ["Choose one total constraint. If both are supplied, totalEstimationMustBe takes precedence and totalEstimationRange is ignored."] }),
   totalEstimationRange: z
     .object({
       min: z
@@ -608,16 +613,16 @@ export const ValidationConfigSchema = z.object({
     })
     .strict()
     .describe(
-      "Sum of all non-conditional task percentages must fall within this range; bounds may exceed 100 when tasks span roles.",
+      "Allowed total estimation percentage range, counting each repeated copy. Must overlap the lower and upper reachable allocation bounds, including conditions and percentage overrides. Bounds may exceed 100 when Tasks span roles.",
     )
-    .optional().meta({ "x-atomize-guide": "validation" }),
+    .optional().meta({ "x-atomize-guide": "validation", "x-atomize-rules": ["Choose one total constraint. If both are supplied, totalEstimationMustBe takes precedence and totalEstimationRange is ignored."] }),
   minTasks: z
     .number()
-    .describe("Minimum number of tasks the template must define.")
+    .describe("Minimum generated Task count the Template must define, counting each repeated copy.")
     .optional().meta({ "x-atomize-guide": "validation" }),
   maxTasks: z
     .number()
-    .describe("Maximum number of tasks the template may define.")
+    .describe("Maximum generated Task count the Template may define, counting each repeated copy.")
     .optional().meta({ "x-atomize-guide": "validation" }),
   maxRepeat: z
     .number()
@@ -669,7 +674,7 @@ export const ValidationConfigSchema = z.object({
         id: z
           .string()
           .describe(
-            "Required task ID. Checked first; falls back to title match if absent.",
+            "Optional required task ID, matched case-insensitively. A matching title also satisfies the requirement when this ID is absent or does not match.",
           )
           .optional(),
       }).strict(),
@@ -764,7 +769,7 @@ const FormatVersionSchema = z
 const RevisionSchema = z
   .string()
   .min(1)
-  .describe("The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it.");
+  .describe("The author's own revision of this file, e.g. '1.2' or '2026-10'. Free text: Atomize shows it but never interprets it. A child Template does not inherit its parent's Revision.");
 
 const TaskTemplateBaseSchema = z.object({
     formatVersion: FormatVersionSchema.optional(),
@@ -812,7 +817,7 @@ const TaskTemplateBaseSchema = z.object({
       .string()
       .min(1)
       .describe(
-        "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Omit to use the platform default.",
+        "Work Item type generated Tasks are created as, in the platform's own vocabulary (e.g. 'Task', 'Sub-task'). Defaults to Task on Azure DevOps. Online Validation checks custom fields and targetFields against this type.",
       )
       .optional().meta({ "x-atomize-guide": "estimation" }),
     estimation: EstimationConfigSchema.describe(
@@ -828,13 +833,13 @@ const TaskTemplateBaseSchema = z.object({
     extends: z
       .string()
       .describe(
-        "Name or path of a parent template this one inherits from. Resolved by the Template Library.",
+        "Catalog Template name or file path of a parent Template to inherit from. Resolved by the Template Library.",
       )
       .optional().meta({ "x-atomize-guide": "inheritance-extends" }),
     mixins: z
       .array(z.string())
       .describe(
-        "Names or paths of mixins to compose into this template. Resolved by the Template Library.",
+        "Catalog Mixin names or file paths to compose into this Template. Resolved by the Template Library.",
       )
       .optional().meta({ "x-atomize-guide": "mixins-mixins" }),
     origin: z
@@ -856,7 +861,7 @@ export const ExtendingTaskTemplateSchema = TaskTemplateBaseSchema
       .string()
       .min(1)
       .describe(
-        "Name or path of a parent template this one inherits from. Inherited fields such as name, filter, and tasks may be omitted.",
+        "Catalog Template name or file path of a parent Template to inherit from. Inherited fields such as name, filter, and tasks may be omitted.",
       ).meta({ "x-atomize-guide": "inheritance-extends" }),
   });
 

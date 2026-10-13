@@ -416,7 +416,7 @@ tasks:
 
 ## Repeat Errors
 
-These errors come from a task's [`repeat`](./Template-Reference.md#repeated-tasks) count.
+These errors come from a task's [`repeat`](https://atomize-cd9.pages.dev/schema#template.tasks[].repeat) count.
 
 ### Repeat Above the Limit
 
@@ -769,7 +769,8 @@ If you encounter an error not covered here:
 
 ## See Also
 
-- [Template Reference](./Template-Reference.md) - Complete template schema
+- [Schema Reference](https://atomize-cd9.pages.dev/schema) - Field constraints and runtime rules
+- [Template Reference](./Template-Reference.md) - Behaviour and worked examples
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Workflows](./Workflows.md) - Template validation and preview workflows
 - [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows

@@ -257,7 +257,7 @@ tasks:
     estimationPercent: 20
 ```
 
-For complete Template syntax, see the [Template Reference](./Template-Reference.md).
+For field syntax and constraints, see the [Schema Reference](https://atomize-cd9.pages.dev/schema). For behaviour and worked examples, see the [Template Reference](./Template-Reference.md).
 
 ## Troubleshooting
 
