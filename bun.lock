@@ -94,7 +94,7 @@
     },
     "packages/atomize-studio": {
       "name": "@sppg2001/atomize-studio",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "dependencies": {
         "@kobalte/core": "^0.13.14",
         "@sppg2001/atomize-schema": "workspace:*",
@@ -121,7 +121,7 @@
     },
     "packages/cli": {
       "name": "@sppg2001/atomize",
-      "version": "5.0.0",
+      "version": "5.1.0",
       "bin": {
         "atomize": "dist/cli/index.js",
         "atom": "dist/cli/index.js",
@@ -157,7 +157,7 @@
     },
     "packages/vscode-extension": {
       "name": "atomize",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "dependencies": {
         "@sppg2001/atomize-core": "workspace:*",
         "@sppg2001/atomize-schema-reference": "workspace:*",
