@@ -95,7 +95,7 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean>; groun
       setRun({ kind: "ready", result });
     } catch (error) {
       const message = error instanceof SidecarRequestError && error.code === "MOCK_STORY_INVALID"
-        ? "Your mock Story values don't look right — check them and try again."
+        ? "Your mock Story values don't look right. Check them and try again."
         : error instanceof Error ? error.message : "We could not run Mock Preview.";
       setRun({ kind: "error", message });
     }
@@ -108,7 +108,7 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean>; groun
         <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
           {generateMode() === "live"
             ? "Preview against real Stories, then execute to create real Work Items in Azure DevOps."
-            : "Run Mock Preview against a Template — offline, without connecting to a platform."}
+            : "Run Mock Preview against a Template - offline, without connecting to a platform."}
         </p>
 
         <Show when={source()}>
@@ -168,7 +168,7 @@ export function GenerateArea(props: { sidecarAvailable: Accessor<boolean>; groun
                 <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                   <p class="text-xs font-bold tracking-widest text-slate-400 uppercase">Local Template</p>
                   <h3 class="mt-1 text-base font-bold text-slate-950 dark:text-white">Choose an Atomize YAML File</h3>
-                  <p class="mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">The file is used only as this Mock Preview’s source. It is not opened in the Templates Area or installed anywhere.</p>
+                  <p class="mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">The file is used only as this Mock Preview’s source.</p>
                   <button
                     class="mt-5 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
                     type="button"

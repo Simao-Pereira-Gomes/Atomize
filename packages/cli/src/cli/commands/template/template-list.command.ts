@@ -55,7 +55,7 @@ export const templateListCommand = new Command("list")
 
       if (options.type !== undefined) {
         const type = library.parseCatalogKind(options.type);
-        if (!jsonMode) output.intro(` Atomize — ${capitalize(type)}s`);
+        if (!jsonMode) output.intro(` Atomize: ${capitalize(type)}s`);
         else logProgress?.(`Listing ${type}s...`);
 
         const { items, overrides, lineage } = await library.getCatalog(type);
@@ -87,7 +87,7 @@ export const templateListCommand = new Command("list")
         return;
       }
 
-      if (!jsonMode) output.intro(" Atomize — Templates & Mixins");
+      if (!jsonMode) output.intro(" Atomize: Templates & Mixins");
       else logProgress?.("Listing catalog...");
 
       if (jsonMode) {

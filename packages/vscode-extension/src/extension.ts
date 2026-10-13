@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { registerDraftTemplateCommand } from './ai/draft-template-command.js';
+import { registerImproveTemplateCommand } from './ai/improve-template-command.js';
 import { AtomizeCodeLensProvider } from './authoring/codelens-provider.js';
 import {
 	handleDocument,
@@ -10,6 +12,7 @@ import {
 import { ValidationCodeActionProvider } from './authoring/validation-code-action-provider.js';
 import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './authoring/yaml-schema-contributor.js';
 import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './catalog/browse-catalog-command.js';
+import { registerInstallToCatalogCommand } from './catalog/install-to-catalog-command.js';
 import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './catalog/show-resolved-template-command.js';
 import { GeneratePanel } from './generate/generate-panel.js';
 import { AtomizePanel } from './panel.js';
@@ -43,7 +46,7 @@ async function maybeShowDeprecatedCliSettingsNotice(ctx: vscode.ExtensionContext
 	if (!hasLingeringDeprecatedCliSetting()) return;
 	await ctx.globalState.update(DEPRECATED_CLI_SETTINGS_NOTICE_KEY, true);
 	void vscode.window.showInformationMessage(
-		'Atomize: the atomize.cliPath, atomize.cli.installCommand, and atomize.cli.autoCheckUpdates settings are no longer used — Atomize now runs directly in the extension, with no CLI install required. You can remove them from your settings.',
+		'Atomize: the atomize.cliPath, atomize.cli.installCommand, and atomize.cli.autoCheckUpdates settings are no longer used. Atomize now runs directly in the extension, with no CLI install required. You can remove them from your settings.',
 	);
 }
 
@@ -204,6 +207,9 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			{ providedCodeActionKinds: ValidationCodeActionProvider.providedCodeActionKinds },
 		),
 
+		registerDraftTemplateCommand({ store, credentialResolver }),
+		registerImproveTemplateCommand({ checkDirtyDocument, isRunnableTemplate, store, credentialResolver }),
+
 		registerValidateCommand({
 			diagnostics,
 			store,
@@ -254,6 +260,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		registerBrowseFieldsCommand({ store, credentialResolver }),
 		registerBrowseQueriesCommand({ store, credentialResolver }),
 		registerBrowseCatalogCommand({ provider: catalogItemProvider }),
+		registerInstallToCatalogCommand({ checkDirtyDocument }),
 		vscode.workspace.registerTextDocumentContentProvider(CATALOG_ITEM_SCHEME, catalogItemProvider),
 		vscode.workspace.registerTextDocumentContentProvider(RESOLVED_TEMPLATE_SCHEME, resolvedTemplateProvider),
 		registerShowResolvedTemplateCommand({

@@ -65,9 +65,6 @@ Any YAML file authored for Atomize, either a Template or a Mixin.
 **Platform Adapter**:
 A concrete adapter that lets Atomize read, create, and link Work Items on a work-tracking platform.
 
-**Story Learner**:
-The module that derives a reusable Template from existing Stories and their child Tasks.
-
 **Mock Story**:
 A user-supplied JSON object of Story field values (using Work Item property names) used to simulate Task generation without a platform connection. Required fields (`id`, `title`, `type`, `state`) are silently defaulted if omitted.
 
@@ -83,8 +80,44 @@ A named Azure DevOps connection record, with its non-secret fields and default s
 _Avoid_: "auth profile" or "credentials" when referring to a saved named connection; do not use Connection Profile for Copilot sign-in.
 
 **Copilot Session**:
-An ephemeral, tool-free GitHub Copilot SDK session Atomize uses to draft a Template with the user's locally signed-in Copilot account. Atomize initiates sign-in interactively when needed but stores neither a Copilot token nor a Copilot Connection Profile. Copilot Sessions use automatic model selection and are discarded after each draft.
+An ephemeral, tool-free AI session on the user's own signed-in GitHub Copilot account, used to draft or improve a Template. The CLI and Atomize Studio host it through the GitHub Copilot SDK; the VS Code extension hosts it through the editor's own language-model access. Atomize stores neither a Copilot token nor a Copilot Connection Profile, and a Copilot Session is discarded after each draft or improvement.
 _Avoid_: calling this a Connection Profile or a GitHub Models profile.
+
+**Grounding**:
+Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms — Project Grounding and Document Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
+
+**Project Grounding**:
+Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. Always included when the user chooses a Connection Profile for a draft or an improvement.
+
+**Reference Document**:
+A user-selected written account of how a team breaks down and estimates work — an Azure DevOps wiki page read through a Connection Profile, or a local Markdown or text file. Sent to a Copilot Session as reference material, never as instructions.
+_Avoid_: "context file" or "prompt file"; a Reference Document describes the team's process, it does not steer the AI the way prose guidance does.
+
+**Project Reference Documents**:
+The Reference Documents a team records for its Workspace Root, shared by everyone working in it. They are offered pre-selected on every AI draft or improvement, always visible and deselectable for that run; a wiki page is offered only when the run's Connection Profile reaches that wiki's project.
+_Avoid_: treating Project Reference Documents as automatically sent; they are a shared default the user still sees and confirms each run.
+
+**Document Grounding**:
+Grounding drawn from one or more Reference Documents. Unlike Project Grounding it needs no Connection Profile when the documents are local files, and it may accompany either AI action.
+
+**Story Browser**:
+The surface for finding and selecting one or more Stories from a platform, shared in behaviour by every Atomize surface that asks the user to pick Stories. It opens on a default list suited to the task at hand — for generation, open Stories without Tasks in the team's current and next sprint, of the Template's Work Item types — and can switch to a Story Search; Story IDs can always be entered directly.
+_Avoid_: asking users to type Story IDs blind where a Story Browser can be offered.
+
+**Story Search**:
+A Template-independent query for Stories: free text matched against a Story's ID or title, narrowed by Work Item type, state, area path, and iteration. A Story Search is never part of a Template and is distinct from a Template's filter.
+_Avoid_: calling it a filter; "filter" refers to the Template's own selection criteria.
+
+**Grounded Draft**:
+An AI draft or improvement produced with Grounding.
+_Avoid_: "connected draft" or "online draft".
+
+**Ungrounded Draft**:
+An AI draft or improvement the user explicitly chose to produce without any Grounding; only the user's request (and, for an improvement, the Template itself) reaches the Copilot Session.
+
+**Template Improvement**:
+An AI-proposed revision of an existing Template, optionally steered by the user's prose guidance, reviewed as a whole and then accepted, saved as a new Template, or rejected — never applied silently. The proposal is judged against the Resolved Template but changes only the Template's own content: it never rewrites `extends`, Mixin references, or anything inherited, and instead carries advisory notes when an inherited Task deserves attention.
+_Avoid_: "AI edit" or "AI refactor"; an improvement is a proposal until accepted.
 
 **Offline Validation**:
 Template validation that checks structure only, without connecting to any platform. Runs without credentials and produces results immediately.

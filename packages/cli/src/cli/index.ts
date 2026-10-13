@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// First, so a dependency's url.parse() deprecation warning never lands in the middle of a prompt.
+import "./silence-dependency-warnings";
 import { parseConfig } from "@config/config";
 import { configureLogger } from "@config/logger";
 import chalk from "chalk";

@@ -9,7 +9,7 @@ import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/templa
 export async function resolveTemplateRefToPath(arg: string): Promise<string> {
   if (arg.startsWith("mixin:")) {
     throw new Error(
-      `"${arg}" is a mixin, not a template. Mixins cannot be used standalone — they are composed into templates via the mixins field.`,
+      `"${arg}" is a mixin, not a template. Mixins cannot be used standalone; they are composed into templates via the mixins field.`,
     );
   }
 
@@ -27,7 +27,7 @@ export async function resolveTemplateRefToPath(arg: string): Promise<string> {
   const override = overrides.find(s => s.active.name === item.name && s.active.scope === item.scope);
   if (override) {
     log.warn(
-      `Using ${item.scope}-scoped "${item.name}" — your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
+      `Using ${item.scope}-scoped "${item.name}"; your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
     );
   }
 

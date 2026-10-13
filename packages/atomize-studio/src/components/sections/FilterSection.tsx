@@ -119,17 +119,17 @@ export function FilterSection(props: { store: FilterStore; grounding: GroundingS
         >
           <MultiSelectField label="Work Item Types"
             selected={f.fields.workItemTypes} options={options()?.workItemTypes ?? []} allowCustom
-            placeholder="All types — type to add" onChange={(v) => f.set("workItemTypes", v)} />
+            placeholder="All types (type to add)" onChange={(v) => f.set("workItemTypes", v)} />
           <MultiSelectField label="States"
             selected={f.fields.states} options={stateOptions()} allowCustom
-            placeholder="All states — type to add" onChange={(v) => f.set("states", v)} />
+            placeholder="All states (type to add)" onChange={(v) => f.set("states", v)} />
           <GroundedTextField label="Team" value={f.fields.team} options={(options()?.teams ?? []).map((team) => ({ value: team, label: team }))} placeholder="Profile default or team name" onInput={(v) => f.set("team", v)} />
           <MultiSelectField label="Area Paths"
             selected={f.fields.areaPaths} options={options()?.areaPaths ?? []} allowCustom
-            placeholder="All areas — type to add" onChange={(v) => f.set("areaPaths", v)} />
+            placeholder="All areas (type to add)" onChange={(v) => f.set("areaPaths", v)} />
           <MultiSelectField label="Sprint / Iteration"
             selected={f.fields.iterations} options={options()?.iterationPaths ?? []} allowCustom
-            placeholder="All iterations — type to add" onChange={(v) => f.set("iterations", v)} />
+            placeholder="All iterations (type to add)" onChange={(v) => f.set("iterations", v)} />
           <ToggleField
             label="Exclude stories that already have tasks"
             description="Keeps the template from generating duplicate task sets for already-expanded stories."
@@ -152,16 +152,16 @@ export function FilterSection(props: { store: FilterStore; grounding: GroundingS
           >
             <MultiSelectField label="Exclude states"
               selected={f.fields.statesExclude} options={stateOptions()} allowCustom
-              placeholder="None excluded — type to add" onChange={(v) => f.set("statesExclude", v)} />
-            <TagChipInput label="Tags — include"
+              placeholder="None excluded (type to add)" onChange={(v) => f.set("statesExclude", v)} />
+            <TagChipInput label="Tags to include"
               value={f.fields.tagsInclude} placeholder="backend, needs-testing…"
               onChange={(v) => f.set("tagsInclude", v)} />
-            <TagChipInput label="Tags — exclude"
+            <TagChipInput label="Tags to exclude"
               value={f.fields.tagsExclude} placeholder="wont-fix, skip…"
               onChange={(v) => f.set("tagsExclude", v)} />
             <MultiSelectField label="Assigned to"
               selected={f.fields.assignedTo} options={[]} allowCustom
-              placeholder="Anyone — type to add" onChange={(v) => f.set("assignedTo", v)} />
+              placeholder="Anyone (type to add)" onChange={(v) => f.set("assignedTo", v)} />
           </FilterGroup>
         </Show>
       </Show>
@@ -172,7 +172,7 @@ export function FilterSection(props: { store: FilterStore; grounding: GroundingS
         <Show when={f.errors.savedQueryIds}><p class="ui-error">{f.errors.savedQueryIds}</p></Show>
         <MultiSelectField label="Work item types this query returns"
           selected={f.fields.workItemTypes} options={options()?.workItemTypes ?? []} allowCustom
-          placeholder="Choose the types — type to add" onChange={(v) => f.set("workItemTypes", v)} />
+          placeholder="Choose the types (type to add)" onChange={(v) => f.set("workItemTypes", v)} />
         <p class="ui-hint">The saved query decides which items are returned. These types only tell Atomize which fields to offer and validate.</p>
         <Show when={f.fields.workItemTypes.length === 0}>
           <p class="text-sm text-amber-700 dark:text-amber-300">Add the types this query returns so estimation and condition fields can be listed and validated.</p>

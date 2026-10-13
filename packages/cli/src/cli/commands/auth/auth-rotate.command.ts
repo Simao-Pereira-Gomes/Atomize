@@ -55,7 +55,7 @@ export function makeAuthRotateCommand(): Command {
       }
 
       if (!usePatStdin) {
-        output.intro(" Atomize — Rotate Token");
+        output.intro(" Atomize: Rotate Token");
       }
 
       const profilesExist = await hasProfiles();
@@ -108,7 +108,7 @@ export function makeAuthRotateCommand(): Command {
 
       const needsStorageConsent = !keychainOk && !allowKeyfileStorage;
       const insecureStorageMessage =
-        "System keychain is unavailable. The token would be stored in an insecure local file fallback — " +
+        "System keychain is unavailable. The token would be stored in an insecure local file fallback: " +
         "anyone who can read ~/.atomize/ can recover it.";
 
       if (needsStorageConsent && usePatStdin) {
@@ -128,7 +128,7 @@ export function makeAuthRotateCommand(): Command {
           }),
         );
         if (!allowKeyfileStorage) {
-          output.cancel("Aborted — token not rotated.");
+          output.cancel("Aborted. Token not rotated.");
           throw new ExitError(ExitCode.Failure);
         }
       }

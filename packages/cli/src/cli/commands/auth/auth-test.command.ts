@@ -21,7 +21,7 @@ export function makeAuthTestCommand(): Command {
   .action(async (nameArg: string | undefined) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     try {
-      output.intro(" Atomize — Test Connection");
+      output.intro(" Atomize: Test Connection");
 
       const file = await readConnectionsFile();
       if (!file.profiles.some((profile) => profile.platform === "azure-devops")) {

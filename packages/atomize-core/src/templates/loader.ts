@@ -87,6 +87,14 @@ export class TemplateLoader {
   }
 
   /**
+   * Compose an in-memory raw template exactly as if it were saved at `contextPath`, resolving its
+   * `extends` and `mixins` (relative refs against that path). Used to check a proposed revision.
+   */
+  async composeRaw(raw: unknown, contextPath: string): Promise<TaskTemplate> {
+    return this.resolver.resolveRaw(raw, contextPath ? resolve(contextPath) : "");
+  }
+
+  /**
    * Load a template from a YAML string, resolving catalog refs in extends/mixins.
    * Relative file path refs are not supported since there is no base directory.
    */

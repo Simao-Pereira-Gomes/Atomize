@@ -96,11 +96,26 @@ Use this while designing a Template or checking conditional tasks and estimation
 
 Runs Live Preview against a real Story through a selected Connection Profile. It reads Story data and renders the resolved task breakdown as a dry run. It does not create Tasks.
 
+You choose the Story with the [Story Browser](#choosing-stories-the-story-browser). It opens on the current and next sprint, and you can search for any Story or type its ID.
+
 ### Atomize: Generate
 
 Runs the Generate Panel for the active Template. The panel first shows a dry-run report. Task creation requires an explicit panel action and confirmation.
 
+Before the run, the [Story Browser](#choosing-stories-the-story-browser) opens on the current and next sprint. Tick the Stories to generate for, or press Enter with none ticked to run on every Story the Template's filter matches. Picked Stories are handled exactly as typed Story IDs were before: the Template's `excludeIfHasTasks` still applies.
+
 Use Generate only when the previewed task plan is ready to create in the connected planning system.
+
+### Choosing Stories: the Story Browser
+
+Commands that need Stories use the Story Browser instead of asking you to type Story IDs. It has two modes:
+
+- **Current and next sprint** (the default) lists Stories of your Template's Work Item types that are in your team's current or next sprint, have no Tasks yet, and aren't closed. "Closed" means any state Azure DevOps puts in the *Completed* or *Removed* category, so it works for every process. This view needs the Connection Profile's team. Type to narrow the list.
+- **Search** finds any Story in the project, assigned to anyone. Type a Story ID or part of a title. The title-bar buttons narrow the results by Work Item type, state, area path and iteration (each path includes everything under it), and switch **Has Tasks** on or off. The title shows every filter in effect.
+
+Both modes list the newest Stories first, 50 at a time. Choose **Load more…** at the end of the list for the next 50, up to 500.
+
+The title-bar buttons switch modes, and the pencil button lets you **enter Story IDs** directly when a Story isn't listed. When several Stories can be picked, your ticks are kept while you search, change filters and load more, and IDs you enter are added to them.
 
 ### Atomize: Manage Profiles
 
@@ -112,6 +127,16 @@ The extension owns its own profile storage: non-secret fields live in VS Code's 
 
 Browses the Template Library Catalog and opens Templates or Mixins. Built-in Catalog items open as read-only virtual documents.
 
+### Atomize: Install to Catalog
+
+Installs the open Template or Mixin into a Catalog, so you can run and compose it by name, such as `atomize generate template:backend-api` or `extends: template:backend-api`. Run it from the **Atomize: Install to Catalog** CodeLens on a Template, or from the Command Palette for a Mixin.
+
+1. If the file has unsaved changes, choose whether to save them first or install the saved version. An unsaved AI draft installs straight from the editor.
+2. Choose **Personal Catalog** (`~/.atomize/catalog`, available in every folder) or **Project Catalog** (`.atomize/catalog` in the project the file belongs to: the nearest folder with a `.atomize` folder, otherwise its git repo's root). Each shows the file it would write, and Project names the project. Project comes first when the project already has its own `.atomize` folder. An unsaved draft belongs to the first open workspace folder's project. Outside any project, including your home folder, only Personal is offered.
+3. A saved file installs under its own file name, and a copy goes into the Catalog while your file stays where it is. An unsaved draft installs under its Template name, and installing saves it there: its untitled tab closes without asking and the installed file opens in its place. If the name is taken, you're asked before it's overwritten.
+
+Installing is always your choice: saving a file never adds it to a Catalog.
+
 ### Atomize: Browse Fields
 
 Browses platform fields for a selected Connection Profile. Use this when authoring filters, custom fields, or conditions.
@@ -119,6 +144,54 @@ Browses platform fields for a selected Connection Profile. Use this when authori
 ### Atomize: Browse Queries
 
 Browses saved platform queries for a selected Connection Profile.
+
+### Atomize: Draft Template with AI
+
+Drafts a new Template from a description, using the GitHub Copilot account you're signed in to in VS Code. Atomize stores no token, and the AI gets no tools: it can't read your files or reach other services. The first time, VS Code asks you to allow Atomize to use Copilot's language models.
+
+1. Choose how to ground the draft: a Connection Profile, with your workspace default selected first, or **No project grounding**. With a profile, Atomize reads that project's work item types, states, fields and allowed values, saved queries, and area and iteration paths, and Copilot uses only those names instead of inventing its own. The profile's token is used only to read from Azure DevOps and is never sent to Copilot. If grounding can't be loaded, you choose whether to retry, continue without grounding, or cancel. If you have no profiles yet, you can add one from here.
+2. Choose the **Reference Documents** to send, described below.
+3. Describe the Template you need. This comes after the grounding, so you can refer to the documents you chose by name. The box's title summarises the grounding, and it's pre-filled with your last description from this session. For a longer description, use the **Open in editor** button: your text moves into an untitled Markdown prompt document, where you can write as much as you like, with the chosen documents listed at the top. When you're ready, choose **Atomize: Draft Template with AI** at the top of that document. It drafts with the grounding you already chose, without asking again.
+4. Atomize writes the draft with Copilot. Copilot keeps the task percentages your brief or Reference Documents give, even when they add up to more than 100% (for example when each role estimates its own share). It only makes them add up to 100% when it chooses the split itself, or when you ask it to. A Template above 100% is offered for normalisation when you generate, as usual. Atomize checks the draft against the Template schema, and asks Copilot to fix any problems, up to three attempts. Cancel from the progress notification at any time.
+5. The draft opens as a new, unsaved Atomize YAML File, with schema hovers and completions already active. Review and edit it, then save it wherever you like. Nothing is added to your Catalog unless you use **Atomize: Install to Catalog**. If problems remain after three attempts, they're listed as comments at the top of the file.
+
+To try again, run the command again. To discard a draft, close it without saving.
+
+This command needs GitHub Copilot Chat. If it isn't installed, or you declined VS Code's permission prompt, the command tells you and offers to fix it.
+
+### Atomize: Improve Template with AI
+
+Asks Copilot to propose a revision of the open Template, and shows it in VS Code's diff editor next to your file. Run it from the **Atomize: Improve with AI** CodeLens on a Template, or from the Command Palette. It uses the same Copilot Session as drafting, with no tools and no stored token.
+
+1. If the file has unsaved changes, Atomize asks you to save first. It works from the saved file.
+2. Choose how to ground the improvement: a Connection Profile, with your workspace default selected first, or **No grounding** to review the Template on its own.
+   - With a profile, Atomize reads the project's work item types, fields and allowed values, saved queries and paths, so any conditions, custom fields or queries Copilot proposes use names that really exist.
+   - The profile's token is used only to read from Azure DevOps and is never sent to Copilot. If grounding can't be loaded, you choose whether to retry, continue without grounding, or cancel.
+3. Choose the **Reference Documents** to send, described below.
+4. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". This is where to say where the Template doesn't fit how your team works, such as "we always end up adding a security review". It comes after the grounding, so you can refer to the documents you chose by name. The box's title summarises the grounding. Leave it blank for a general review.
+5. Copilot reviews the Template. A Template whose percentages add up to more than 100% keeps that allocation unless your focus asks for it to add up to 100%. You can cancel from the progress notification.
+6. The diff opens with your file on the left and Copilot's proposal on the right. Only real changes show: your comments, key order and formatting are kept wherever the content didn't change. A notification lists Copilot's notes on what it changed and why.
+7. You can edit the right-hand side before deciding. Then use the buttons in the editor title bar:
+   - **Accept Improvement** puts the right-hand side, including your edits, into your file as a single change you can undo. The file is left unsaved, so save it when you're happy.
+   - **Save Improvement as New Template** opens the proposal as a new, unsaved Template named "*Name* (improved)", leaving your file as it was. When your file is a Catalog Template, the copy records it as its `origin`.
+   - **Reject Improvement** closes the diff and leaves your file unchanged.
+
+For a Template that uses `extends` or Mixins, Copilot sees the composed Template but never changes `extends`, Mixin references or `origin`, and never copies inherited Tasks into your file. When an inherited Task deserves a change, Copilot says so in its notes so you can change the parent or Mixin yourself. The proposal is validated composed with its parent, exactly as it will run. If Copilot can't fix every problem in its proposal, the notification lists what's left to fix.
+
+Improving never writes to your Catalog. To add an improved copy to it, use **Atomize: Install to Catalog**.
+
+### Reference Documents
+
+Draft and Improve can send your team's written process to Copilot as **Reference Documents**. Copilot treats them as reference material, never as instructions. After you choose grounding, a list shows the Project Reference Documents saved in `.atomize/ai.yaml`, all ticked. Untick any to leave them out of this run, then press Enter. The title-bar buttons add more:
+
+- **Add a local Markdown or text file**: a file dialog for `.md` and `.txt` files. They must be inside your workspace, and files reached through a link that points outside it are refused.
+- **Add an Azure DevOps wiki page**: available when you chose a Connection Profile for grounding. Pick the wiki, then filter its page paths and pick the pages. Only each page itself is read: no sub-pages, links, images or attachments.
+
+After adding documents, choose **Use for this run only** or **Also save for this project**, which adds them to `.atomize/ai.yaml` for everyone working in the repo. Editing `ai.yaml` by hand gives you completion and validation.
+
+A saved wiki page is used only when your Connection Profile reaches that wiki's project; otherwise it's left out as unavailable for that profile. If your token can't read wikis, Atomize asks you to rotate it with the optional **Wiki (Read)** scope from Manage Profiles, and local files keep working.
+
+All Reference Documents together are limited to about 24,000 characters, split evenly between them. If any have to be shortened, Atomize tells you before sending, and you can continue or leave some out.
 
 ### Atomize: Show Effective Template
 
@@ -135,6 +208,7 @@ Opens Atomize extension settings.
 | `atomize.cliPath` | Deprecated — no longer used. The extension runs Atomize in-process and no longer spawns a CLI executable. |
 | `atomize.cli.installCommand` | Deprecated — no longer used. |
 | `atomize.cli.autoCheckUpdates` | Deprecated — no longer used. |
+| `atomize.ai.model` | The Copilot model family to use for AI drafting, such as `gpt-4o`. Leave as `auto` (the default) to use the available Copilot model with the largest input limit, since grounded requests carry project metadata, Stories and Reference Documents. If the model you choose isn't available, Atomize offers to switch back to `auto`. |
 | `atomize.defaultProfile` | Workspace-scoped profile name to preselect in Validate, Live Preview, and Generate pickers. |
 | `atomize.previewLayout` | Preview panel layout: `default` or `compact`. |
 
@@ -153,6 +227,8 @@ Atomize previews by default.
 | Preview (Live) | Yes | No |
 | Generate dry run | Yes | No |
 | Generate confirmed execution | Yes | Yes |
+| Draft Template with AI | No (sends your description to Copilot) | No |
+| Improve Template with AI | No (sends the Template to Copilot) | No |
 
 ## Template Example
 

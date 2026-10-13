@@ -49,7 +49,7 @@ Scratch, Catalog Clone, and AI draft always produce a new, detached Template wit
 
 ### Open
 
-Opening a local Atomize YAML File that fails to parse, doesn't have the Template shape, or is structurally a Mixin is rejected immediately with a clear message. A file with the Template shape but invalid values still loads, showing inline errors the same way an in-progress Template would.
+Open's file picker shows hidden folders, so you can open Templates saved in a project Catalog under `.atomize/catalog/templates/` without pressing ⌘⇧. on macOS or Ctrl+H on Linux yourself. Windows already shows `.atomize` folders. On Linux desktops that route file dialogs through a system portal, such as Flatpak, the portal may still hide them; press Ctrl+H there. Opening a local Atomize YAML File that fails to parse, doesn't have the Template shape, or is structurally a Mixin is rejected immediately with a clear message. A file with the Template shape but invalid values still loads, showing inline errors the same way an in-progress Template would.
 
 If the file declares `extends` or `mixins`, Studio resolves it into its fully composed form before loading — the same composition the Template Library performs for the CLI. This requires the companion process to be reachable; a plain file with no composition loads fully offline. Resolving `extends`/`mixins` also strips those fields from the loaded Template, since leaving them declared against an already-composed task list would duplicate the parent's or mixins' tasks the next time the file is opened.
 
@@ -89,7 +89,48 @@ The AI draft Starting Path uses a **Copilot Session** — an ephemeral, tool-fre
 
 If you've selected a Connection Profile in the [Work Project Setting](#work-project-setting), Studio can ground the draft with curated Azure DevOps metadata — work item types, field names and allowed values, saved-query and path names — sent to Copilot alongside your prose. Your connection's access token itself is never sent. An explicitly ungrounded draft sends neither metadata nor credentials.
 
-An AI draft that produces valid Template shape enters the authoring surface, possibly with inline field-level errors to fix; malformed or non-Template output is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
+The AI draft form has four steps, shown as tabs you can move between freely. Each tab shows what's set so far:
+
+1. **Work Project**: optionally choose a Work Project.
+2. **Reference Documents**: optionally add your team's written process (see [Reference Documents](#reference-documents)).
+3. **Brief**: describe the work and the task breakdown you want. The Reference Documents you chose are listed above the box, so you can refer to them by name. From steps 1 and 2, **Skip to brief** jumps straight here.
+4. **Review & create**: everything Copilot will receive, with **Edit** links back to each step. **Create draft** is here.
+
+Copilot keeps the task percentages your brief or Reference Documents give, even when they add up to more than 100% (for example when each role estimates its own share). It only makes them add up to 100% when it chooses the split itself, or when you ask it to. A Template above 100% is offered for normalisation when you generate, as usual.
+
+Copilot checks its draft against the Template schema and fixes problems before you see it, up to three attempts. A draft that still has problems after that enters the authoring surface with its field-level errors shown, so you can fix them yourself. Output that isn't Template-shaped at all is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
+
+### Improve with AI
+
+**Improve with AI**, in the builder's sidebar, asks Copilot to propose a revision of the Template you're working on, whichever Starting Path it came from (Scratch, Catalog Clone, Open or AI draft). It works on a complete Template, so finish any highlighted sections first.
+
+It opens as a side panel, so the builder stays visible while you write the focus and review the proposal. Under **Grounding**, one row each for **Work Project** and **Reference Documents** summarises what's chosen. Select a row to change it, then **Done** to come back.
+
+1. Optionally choose a **Work Project** to ground the improvement in. It starts on the one selected in Global Settings, or choose **No grounding** to review the Template on its own.
+   - A Work Project brings its types, fields and saved queries, so any conditions, custom fields or queries Copilot proposes use names that really exist.
+   - Optionally add [Reference Documents](#reference-documents).
+   - The project's credentials stay in Studio's backend. If the grounding can't be loaded, Studio tells you why and lets you retry or continue without grounding.
+2. Optionally say what the improvement should focus on, such as "tighten the estimates" or "add security reviews". This is where to say where the Template doesn't fit how your team works, such as "we always end up adding a security review". The focus box comes after the Grounding, so you can refer to the documents you chose by name. Leave it empty for a general review.
+3. Copilot reviews the Template and proposes changes. You can cancel while it works.
+4. Review the proposal: the panel widens to show changed fields and Tasks added, removed, changed or moved, the same way as the Template Diff. Copilot's notes on what it changed and why, and anything it left for you to fix, sit beside them.
+5. **Accept** replaces the Template in the builder with the proposal. **Reject** leaves it exactly as it was. Nothing changes before you accept, and nothing is saved until you save as usual.
+
+A Template whose percentages add up to more than 100% keeps that allocation unless your focus asks for it to add up to 100%.
+
+If Copilot couldn't fix every problem in its proposal, the remaining problems are listed. Accepting loads the proposal anyway so you can fix them in the builder.
+
+Studio flattens a Template's `extends` and Mixins when it opens it ([ADR-0048](./adr/0048-studio-open-flattens-extends-mixins-at-load.md)), so Copilot always sees the complete Template.
+
+### Reference Documents
+
+AI drafts and Improve with AI can send your team's written process to Copilot as **Reference Documents**. Copilot treats them as reference material, never as instructions. They work from a **project folder**: for a Template opened from a file, its workspace is chosen for you, and otherwise choose one with **Choose project folder**. Studio uses the project the chosen folder belongs to: the nearest folder above it with a `.atomize` folder, otherwise its git repo's root, otherwise the folder itself. The `.atomize` folder in your home folder, which holds Atomize's own settings, never counts.
+
+- The Project Reference Documents saved in the folder's `.atomize/ai.yaml` are listed ticked. Untick any to leave them out of this request.
+- **Add local file…** adds Markdown or text files from inside the project folder.
+- **Add wiki page…**, available once a Work Project is chosen, lets you pick a wiki, filter its page paths and pick pages. Only each page itself is read: no sub-pages, links, images or attachments. Wiki pages need the optional **Wiki (Read)** scope on the connection's token.
+- **Also save for this project** writes an added document to `.atomize/ai.yaml`, so it's offered on every AI request.
+
+Studio checks the chosen documents as you pick them. All of them together are limited to about 24,000 characters, split evenly. If any have to be shortened, they're marked as shortened in the summary, and **Create draft** or **Improve** first asks you to choose: **Continue shortened**, **Leave some out** (back to the documents, to untick some), or **Cancel**. Anything that can't be used is listed, never dropped silently: a file outside the project folder, a missing file, or a wiki page this Work Project can't reach.
 
 ## Grounding
 
@@ -108,7 +149,7 @@ The header-level **Work Project Setting** chooses the Connection Profile used fo
 The Catalog Area is the single place to browse the Catalog — Templates and Mixins across Built-in, User, and Project scope.
 
 - **Clone** — on any Template row, at any scope, starts the Catalog Clone Starting Path (see [Starting Paths](#starting-paths) above). If you have an unsaved Template open in the Templates area, Studio asks for confirmation before discarding it.
-- **Catalog Install** (from the Templates area's Review step) — installs the Template you're authoring directly into your user or project Catalog, in addition to exporting a downloadable file. The install name comes from the Template's name (no separate prompt); you choose the scope at install time.
+- **Catalog Install** (from the Templates area's Review step) — installs the Template you're authoring directly into your user or project Catalog, in addition to exporting a downloadable file. The install name comes from the Template's name (no separate prompt); you choose the scope at install time. For the project Catalog you choose a folder, and Studio installs to the project it belongs to, found the same way as for Reference Documents, then shows the installed file's path. Install starts on the scope you last installed to on this computer.
 - **Catalog Remove** — removes a user-scoped Catalog item. Built-in and project-scope items can't be removed this way.
 
 ## Generate Area

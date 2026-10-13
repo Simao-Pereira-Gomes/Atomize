@@ -10,6 +10,9 @@ export function SearchableSelectField(props: {
   options: SearchableOption[];
   placeholder?: string;
   error?: string;
+  disabled?: boolean;
+  /** Offers a Clear button that resets the value to "" (nothing chosen). */
+  clearable?: boolean;
   onChange: (value: string) => void;
 }) {
   const id = createUniqueId();
@@ -26,6 +29,7 @@ export function SearchableSelectField(props: {
         optionLabel="label"
         defaultFilter="contains"
         triggerMode="focus"
+        disabled={props.disabled}
         onChange={(option) => {
           if (option) props.onChange(option.value);
         }}
@@ -39,7 +43,18 @@ export function SearchableSelectField(props: {
         )}
       >
         <Combobox.Control class={`sk-combobox-control${props.error ? " ui-input--error" : ""}`}>
-          <Combobox.Input id={id} class="sk-combobox-input" placeholder={props.placeholder ?? `Search ${props.label.toLowerCase()}…`} />
+          {/* Selecting the shown value on focus lets typing replace it to search, not append to it. */}
+          <Combobox.Input id={id} class="sk-combobox-input" placeholder={props.placeholder ?? `Search ${props.label.toLowerCase()}…`} onFocus={(event) => event.currentTarget.select()} />
+          <Show when={props.clearable && props.value && !props.disabled}>
+            <button
+              class="sk-combobox-clear"
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => { e.stopPropagation(); props.onChange(""); }}
+            >
+              Clear
+            </button>
+          </Show>
           <Combobox.Trigger class="sk-combobox-trigger-button" aria-label={`Show ${props.label.toLowerCase()}`}>
             <Combobox.Icon class="sk-combobox-icon">⌄</Combobox.Icon>
           </Combobox.Trigger>

@@ -61,7 +61,7 @@ function createFakePanel(): FakePanel {
 	return panel;
 }
 
-function setupVscodeMock(panel: FakePanel, opts: { storyIdsInput?: string; confirm?: string } = {}): void {
+function setupVscodeMock(panel: FakePanel, opts: { confirm?: string } = {}): void {
 	mock.module('vscode', () => ({
 		...baseVscodeMock(),
 		window: {
@@ -71,7 +71,6 @@ function setupVscodeMock(panel: FakePanel, opts: { storyIdsInput?: string; confi
 				reveal: () => {},
 				dispose: () => {},
 			})),
-			showInputBox: mock(async () => opts.storyIdsInput ?? ''),
 			showInformationMessage: mock(async () => opts.confirm ?? 'Create Tasks'),
 		},
 		workspace: {
@@ -82,7 +81,11 @@ function setupVscodeMock(panel: FakePanel, opts: { storyIdsInput?: string; confi
 	}));
 }
 
-function setupSupportMocks(): void {
+function setupSupportMocks(opts: { pickedStoryIds?: string[] } = {}): void {
+	mock.module('../stories/story-browser.js', () => ({
+		prepareTemplateStoryBrowser: async () => ({ adapter: {}, defaultView: { kind: 'sprint' } }),
+		browseStories: async () => opts.pickedStoryIds ?? [],
+	}));
 	mock.module('../config/atomize-configuration.js', () => ({
 		getDefaultProfile: () => undefined,
 		getPreviewLayout: () => 'default',
@@ -129,6 +132,42 @@ describe('GeneratePanel', () => {
 		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate');
 	});
 
+	it('scopes the run to the Stories picked in the Story Browser', async () => {
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks({ pickedStoryIds: ['12', '34'] });
+		mockTemplateLibrary();
+		const received: unknown[] = [];
+		mockAtomizeCore({
+			Atomizer: class {
+				async atomize(_template: unknown, options: { storyIds?: string[] }) { received.push(options.storyIds); return makeReport(); }
+			},
+		});
+
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
+
+		expect(received).toEqual([['12', '34']]);
+	});
+
+	it("uses the Template's filter when no Stories are picked", async () => {
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks({ pickedStoryIds: [] });
+		mockTemplateLibrary();
+		const received: unknown[] = [];
+		mockAtomizeCore({
+			Atomizer: class {
+				async atomize(_template: unknown, options: { storyIds?: string[] }) { received.push(options.storyIds); return makeReport(); }
+			},
+		});
+
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
+
+		expect(received).toEqual([undefined]);
+	});
+
 	it('renders an auth-error blocked state when Atomizer throws AuthError', async () => {
 		const panel = createFakePanel();
 		setupVscodeMock(panel);
@@ -143,7 +182,7 @@ describe('GeneratePanel', () => {
 		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
 		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
 
-		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate — Auth Error');
+		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate · Auth Error');
 		expect(panel.webview.html).toContain('token expired');
 	});
 
@@ -161,7 +200,7 @@ describe('GeneratePanel', () => {
 		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
 		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
 
-		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate — No Matches');
+		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate · No Matches');
 	});
 
 	it('forwards story_complete progress events to the webview during a live run', async () => {
@@ -185,7 +224,7 @@ describe('GeneratePanel', () => {
 		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate');
 
 		panel.receive?.({ type: 'createTasks', continueOnError: false });
-		await waitFor(() => htmlTitle(panel.webview.html) === 'Atomize: Generate — Done');
+		await waitFor(() => htmlTitle(panel.webview.html) === 'Atomize: Generate · Done');
 
 		expect(panel.messages).toEqual([
 			{ type: 'liveProgress', storiesCompleted: 1, totalStories: 2, tasksCreated: 2 },

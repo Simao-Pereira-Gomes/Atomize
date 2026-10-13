@@ -59,7 +59,7 @@ describe("TemplateCatalog.removeUserItem", () => {
 
     await expect(catalog.removeUserItem("template", "test-template")).rejects.toMatchObject({
       code: "CATALOG_ITEM_NOT_USER_SCOPED",
-      message: 'Cannot remove "test-template" — it is a project template and is not user-installed.',
+      message: 'Cannot remove "test-template": it is a project template and is not user-installed.',
     });
     expect(existsSync(installed.path)).toBe(true);
   });

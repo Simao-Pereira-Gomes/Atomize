@@ -220,7 +220,7 @@ export function EstimationSection(props: {
                       <tr class="border-t border-dashed border-amber-300">
                         <td class="py-2 pl-2 font-semibold text-amber-800 dark:text-amber-200">{value}</td>
                         <td colspan="3" class="py-2 text-sm text-amber-800 dark:text-amber-200">
-                          No conversion — Stories sized {value} get blank estimates.{" "}
+                          No conversion: Stories sized {value} get blank estimates.{" "}
                           <button type="button" class="font-semibold underline" onClick={() => addRow(value)}>Add hours</button>
                         </td>
                       </tr>
@@ -445,11 +445,11 @@ function WorkedExample(props: {
       <Show when={tasks().length > 0} fallback={<p class="text-slate-500">Add tasks with an estimation percentage to see how a Story's estimate is split.</p>}>
         {(() => {
           const r = result();
-          if (r.kind === "skipped") return <p class="text-amber-800 dark:text-amber-200">“{value()}” can't be converted — this Story would be skipped.</p>;
-          if (r.kind === "blank") return <p class="text-amber-800 dark:text-amber-200">“{value()}” can't be converted — tasks would be created with blank estimates.</p>;
+          if (r.kind === "skipped") return <p class="text-amber-800 dark:text-amber-200">“{value()}” can't be converted, so this Story would be skipped.</p>;
+          if (r.kind === "blank") return <p class="text-amber-800 dark:text-amber-200">“{value()}” can't be converted, so tasks would be created with blank estimates.</p>;
           return (
             <>
-              <Show when={r.usedDefault}><p class="text-amber-800 dark:text-amber-200">“{value()}” can't be converted — using the default Story Estimate.</p></Show>
+              <Show when={r.usedDefault}><p class="text-amber-800 dark:text-amber-200">“{value()}” can't be converted, so the default Story Estimate is used.</p></Show>
               <p class="font-semibold">Story total: {formatEstimateValue(r.total)}{props.unit}</p>
               <ul class="space-y-0.5">
                 <For each={r.tasks}>

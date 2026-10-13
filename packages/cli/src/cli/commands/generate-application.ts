@@ -148,8 +148,8 @@ export async function runGenerateCommandApplication(input: {
     logger.level = outputPolicy.logLevel;
   }
 
-  if (dryRun) output.info("Dry-run mode — no tasks will be created");
-  else output.warn("Live mode — tasks will be created");
+  if (dryRun) output.info("Dry-run mode: no tasks will be created");
+  else output.warn("Live mode: tasks will be created");
 
   const template = await deps.loadTemplate(templatePath, output);
   const { storyConcurrency, taskConcurrency, dependencyConcurrency } =
@@ -182,7 +182,7 @@ export async function runGenerateCommandApplication(input: {
   if (!dryRun && isTTYSession) {
     await deps.confirmLiveExecution(template, { platform }, output, storyIds);
   } else if (!dryRun && outputPolicy.showClackStatus) {
-    output.warn("Live mode — acknowledged for non-interactive execution");
+    output.warn("Live mode: acknowledged for non-interactive execution");
   }
 
   if (storyIds && options.limit !== undefined) {

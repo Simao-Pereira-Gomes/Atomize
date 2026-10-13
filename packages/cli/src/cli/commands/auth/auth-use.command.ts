@@ -16,7 +16,7 @@ export function makeAuthUseCommand(): Command {
   .action(async (nameArg: string | undefined) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     try {
-      output.intro(" Atomize — Set Default Profile");
+      output.intro(" Atomize: Set Default Profile");
 
       const file = await readConnectionsFile();
       const profiles = file.profiles.filter((profile) => profile.platform === "azure-devops");

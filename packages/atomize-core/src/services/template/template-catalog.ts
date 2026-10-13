@@ -48,6 +48,8 @@ export interface TemplateCatalogOptions {
   legacyUserRoot?: string;
   legacyProjectRoot?: string;
   invocationCwd?: string;
+  /** The home folder, for tests; defaults to the real one. */
+  homeDirectory?: string;
 }
 
 export interface MigrationResultItem {
@@ -83,11 +85,20 @@ export class TemplateCatalog {
   private readonly projectRoot: string;
   private readonly legacyUserRoot: string;
   private readonly legacyProjectRoot: string;
+  /**
+   * Whether there's a project to hold a project Catalog. From the home folder, or anywhere the
+   * Workspace Root comes out as the home folder, there isn't: its `.atomize/` is the personal state
+   * root, so a "project" Catalog there would be the personal Catalog under another name.
+   */
+  readonly hasProject: boolean;
 
   constructor(options?: TemplateCatalogOptions) {
     this.packageRoot = options?.packageRoot ?? this.findPackageRoot();
-    const userStateRoot = resolve(homedir(), ".atomize");
-    const projectStateRoot = resolve(discoverWorkspaceRoot(options?.invocationCwd), ".atomize");
+    const home = resolve(options?.homeDirectory ?? homedir());
+    const userStateRoot = resolve(home, ".atomize");
+    const workspaceRoot = resolve(discoverWorkspaceRoot(options?.invocationCwd, home));
+    this.hasProject = options?.projectRoot !== undefined || workspaceRoot !== home;
+    const projectStateRoot = resolve(workspaceRoot, ".atomize");
     this.userRoot = options?.userRoot ?? resolve(userStateRoot, "catalog");
     this.projectRoot = options?.projectRoot ?? resolve(projectStateRoot, "catalog");
     this.legacyUserRoot = options?.legacyUserRoot ?? resolve(userStateRoot, "templates");
@@ -213,24 +224,38 @@ export class TemplateCatalog {
     overwrite?: boolean;
     validate?: boolean;
   }): Promise<TemplateCatalogItem> {
+    return await this.saveTemplate({ ...input, scope: "user" });
+  }
+
+  /** Writes an in-memory Template or Mixin into the personal or project Catalog. */
+  async saveTemplate(input: {
+    kind: TemplateCatalogKind;
+    name: string;
+    template: unknown;
+    scope: Extract<TemplateCatalogScope, "user" | "project">;
+    overwrite?: boolean;
+    validate?: boolean;
+  }): Promise<TemplateCatalogItem> {
     this.assertValidName(input.name);
     if (input.validate !== false) {
       this.validateInstallPayload(input.template, input.kind);
     }
 
-    const targetPath = this.getUserTemplatePath(input.kind, input.name);
-    if (await this.destinationExists(input.kind, "user", input.name) && input.overwrite !== true) {
+    const targetPath = input.scope === "project"
+      ? this.getProjectTemplatePath(input.kind, input.name)
+      : this.getUserTemplatePath(input.kind, input.name);
+    if (await this.destinationExists(input.kind, input.scope, input.name) && input.overwrite !== true) {
       throw new Error(`A ${input.kind} named "${input.name}" already exists.`);
     }
 
     await mkdir(dirname(targetPath), { recursive: true });
     await writeFile(targetPath, stringifyYaml(input.template), "utf-8");
-    await this.cleanupLegacyDestinationFiles(input.kind, "user", input.name);
+    await this.cleanupLegacyDestinationFiles(input.kind, input.scope, input.name);
 
     const metadata = this.extractMetadata(input.template);
     return {
       kind: input.kind,
-      scope: "user",
+      scope: input.scope,
       name: input.name,
       displayName: metadata.name ?? input.name,
       description: metadata.description ?? "No description",
@@ -246,7 +271,16 @@ export class TemplateCatalog {
 
   getProjectTemplatePath(kind: TemplateCatalogKind, name: string): string {
     this.assertValidName(name);
-    return join(this.projectRoot, this.folderForKind(kind), `${name}.atomize.yaml`);
+    return join(this.requireProject(this.projectRoot), this.folderForKind(kind), `${name}.atomize.yaml`);
+  }
+
+  /** A project Catalog root, or a clear error when there's no project to hold one. */
+  private requireProject(root: string): string {
+    if (this.hasProject) return root;
+    throw Object.assign(
+      new Error("This folder isn't in a project, so there's no project Catalog. Use a folder inside a project (one with a .atomize folder, or in a git repo), or the personal Catalog."),
+      { code: "PROJECT_WORKSPACE_REQUIRED" },
+    );
   }
 
   async destinationExists(
@@ -281,8 +315,9 @@ export class TemplateCatalog {
       { scope: "builtin", root: join(this.packageRoot, "catalog") },
       { scope: "user", root: this.legacyUserRoot },
       { scope: "user", root: this.userRoot },
-      { scope: "project", root: this.legacyProjectRoot },
-      { scope: "project", root: this.projectRoot },
+      ...(this.hasProject
+        ? [{ scope: "project", root: this.legacyProjectRoot }, { scope: "project", root: this.projectRoot }] as CatalogRoot[]
+        : []),
     ];
 
     for (const { scope, root } of roots) {
@@ -380,7 +415,7 @@ export class TemplateCatalog {
     }
     if (item.scope !== "user") {
       throw Object.assign(
-        new Error(`Cannot remove "${name}" — it is a ${item.scope} ${kind} and is not user-installed.`),
+        new Error(`Cannot remove "${name}": it is a ${item.scope} ${kind} and is not user-installed.`),
         { code: "CATALOG_ITEM_NOT_USER_SCOPED" },
       );
     }
@@ -441,12 +476,12 @@ export class TemplateCatalog {
 
   private rootsForDestination(scope: Extract<TemplateCatalogScope, "user" | "project">): string[] {
     return scope === "project"
-      ? [this.projectRoot, this.legacyProjectRoot]
+      ? [this.requireProject(this.projectRoot), this.legacyProjectRoot]
       : [this.userRoot, this.legacyUserRoot];
   }
 
   private legacyRootForDestination(scope: Extract<TemplateCatalogScope, "user" | "project">): string {
-    return scope === "project" ? this.legacyProjectRoot : this.legacyUserRoot;
+    return scope === "project" ? this.requireProject(this.legacyProjectRoot) : this.legacyUserRoot;
   }
 
   async migrateLegacyItems(
@@ -517,7 +552,7 @@ export class TemplateCatalog {
     scope: Extract<TemplateCatalogScope, "user" | "project">,
     name: string,
   ): Promise<TemplateCatalogItem | undefined> {
-    const newRoot = scope === "project" ? this.projectRoot : this.userRoot;
+    const newRoot = scope === "project" ? this.requireProject(this.projectRoot) : this.userRoot;
     const items = await this.listDirectoryItems(kind, scope, join(newRoot, this.folderForKind(kind)));
     return items.find((item) => item.name === name);
   }

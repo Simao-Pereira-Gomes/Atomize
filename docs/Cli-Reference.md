@@ -14,6 +14,7 @@ Complete command-line interface documentation for Atomize.
   - [fields](#fields)
   - [validate](#validate)
   - [template create](#template-create)
+  - [template improve](#template-improve)
   - [template list](#template-list)
   - [template install](#template-install)
   - [template remove](#template-remove)
@@ -74,6 +75,7 @@ These options work with any command:
 | `validate` | - | Validate a template file |
 | `template` | `tpl` | Template management commands |
 | `template create` | - | Create a new template interactively or with AI |
+| `template improve` | - | Propose an AI improvement to an existing template and review it before saving |
 | `template list` | `template ls` | List available templates and mixins from the catalog |
 | `template install` | - | Install a template or mixin from a local file or HTTPS URL |
 | `template remove` | `template rm` | Remove a user-installed template or mixin |
@@ -452,15 +454,15 @@ atomize tpl create [options]  # alias
 |--------|------|-------------|
 | `--type <type>` | string | Create a `template` or a `mixin` (prompted if omitted) |
 | `--from <name>` | string | Start from an existing catalog template |
-| `--from-stories <ids>` | string | Learn template from multiple stories (comma-separated IDs) |
-| `--estimation-source <field>` | string | With `--from-stories`, read each Story Estimate from this field reference name (e.g. `Custom.TShirtSize`) and write it as `estimation.source`; the learned Template gets a matching conversion table or factor |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
 | `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
-| `--ground` | flag | Ground AI generation with patterns from your Azure DevOps workspace |
+| `--ground` | flag | Ground AI generation in your Azure DevOps project's work item types, states, fields and allowed values, saved queries, and area and iteration paths. Uses `--profile`, or the default profile |
+| `--reference <path>` | string | With `--ai`, send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
+| `--no-project-references` | flag | With `--ai`, leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
 | `--save-as <name>` | string | Name to save the template under in the catalog |
+| `--scope <scope>` | string | Catalog to save to: `user` (`~/.atomize/catalog`) or `project` (`.atomize/catalog` in the project root). Default: `project` when the project root has its own `.atomize` folder, otherwise `user`. |
 | `--open` | flag | Open the saved Atomize YAML file in a supported editor after successful creation |
-| `--profile <name>` | string | Named ADO profile for `--from-stories` and field suggestions (uses default if omitted) |
-| `-p, --platform <platform>` | string | Platform for `--from-stories` (default: `azure-devops`) |
+| `--profile <name>` | string | Named ADO profile for `--ground` and field suggestions (uses default if omitted) |
 | `-q, --quiet` | flag | Suppress non-essential output |
 
 #### Creation Modes
@@ -486,8 +488,11 @@ Describe the template you need in plain language and let AI generate it.
 # Basic AI generation
 atomize template create --ai
 
-# Ground with real patterns from your ADO workspace
+# Ground the draft in your project's real types, fields, and saved queries
 atomize template create --ai --ground --profile work-ado
+
+# Also follow the process your team wrote down
+atomize template create --ai --ground --reference docs/how-we-work.md --profile work-ado
 
 ```
 
@@ -495,23 +500,7 @@ Requires an active GitHub Copilot subscription. Atomize starts the bundled Copil
 
 ---
 
-**3. Learn from Multiple Stories**
-
-Analyze existing stories to detect patterns and build a higher-confidence template.
-
-```bash
-atomize template create --from-stories STORY-1,STORY-2,STORY-3
-
-atomize template create \
-  --from-stories STORY-123,STORY-456,STORY-789 \
-  --save-as api-pattern
-```
-
-See [Story Learner](./Story-Learner.md) for details.
-
----
-
-**4. Interactive Wizard (From Scratch)**
+**3. Interactive Wizard (From Scratch)**
 
 Step-by-step guided builder for full control.
 
@@ -533,6 +522,82 @@ atomize template create --type mixin --save-as security-review-tasks
 ```
 
 See [Template Reference — Composition](./Template-Reference.md#composition) for how to use mixins.
+
+---
+
+### template improve
+
+Asks Copilot to propose a revision of an existing Template, then shows you the changes before anything is saved.
+
+```bash
+atomize template improve <template> [options]
+```
+
+`<template>` is a Catalog ref (`template:<name>`) or a path to a Template file. Remote Templates must be downloaded first.
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--guidance <text>` | string | What the improvement should focus on, such as "tighten the estimates" or "add security reviews". Interactive runs ask for it when you leave it out; press Enter for a general review |
+| `--ground` | flag | Ground the improvement in your Azure DevOps project's work item types, fields and allowed values, saved queries, and paths |
+| `--profile <name>` | string | Connection Profile used for grounding (the default profile if omitted) |
+| `--reference <path>` | string | Send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
+| `--no-project-references` | flag | Leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
+| `--save-as <name>` | string | Save the improvement as a new Template, leaving the source untouched |
+| `--scope <scope>` | string | With `--save-as`, the Catalog to save to: `user` or `project`. Default: `project` when the project root has its own `.atomize` folder, otherwise `user`. |
+| `--overwrite` | flag | Replace the source Template with the improvement without asking |
+| `--dry-run` | flag | Show the proposed changes without saving anything |
+| `--strict` | flag | Treat validation warnings as errors |
+| `--output <file>` | string | Write a JSON report of the proposal |
+| `-q, --quiet` | flag | Suppress non-essential output |
+
+**What Copilot can change.** Copilot looks for clearer Task titles and descriptions, estimation percentages that fit the work, missing test, review or documentation Tasks, and useful conditions, filters, custom fields and dependencies. It works through the same tool-free Copilot Session as `template create --ai` (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)).
+
+**Grounding.** Without grounding, Copilot reviews the Template on its own. With `--ground`, it also gets your project's work item types, states, field reference names and allowed values, saved queries, and area and iteration paths, and uses only these names when it proposes conditions, custom fields or queries. In an interactive run without `--ground`, Atomize asks whether to ground the improvement. The profile's token is used only to read from Azure DevOps and is never sent to Copilot. To tell Copilot where the Template doesn't fit how your team works, say so in `--guidance` (for example "we always end up adding a security review") or give it your written process as a [Reference Document](./Template-Creation.md#reference-documents).
+
+If grounding you asked for can't be loaded (for example, the token has expired), an interactive run lets you retry, continue without grounding, or cancel. A non-interactive run stops with an error rather than improving without it.
+
+**Inherited Templates stay intact.** For a Template that uses `extends` or Mixins, Copilot sees the composed Template so it doesn't suggest Tasks the parent already has. The proposal never changes `extends`, `mixins` or `origin`, and never copies inherited Tasks into the Template. Where an inherited Task deserves a change, Copilot says so in its notes instead, so you can change the parent or Mixin yourself. The proposal is validated composed with its parent, exactly as it will run.
+
+**Reviewing and saving.** You see the proposed changes (Template fields, and Tasks added, removed, changed or moved) and Copilot's notes. Nothing is saved without your say-so:
+
+- In an interactive run, choose **Save changes to the source Template**, **Save as a new Template**, **View the full YAML**, or **Reject**.
+- `--overwrite` saves over the source. Your comments, key order and formatting are kept wherever the content didn't change.
+- `--save-as <name>` saves a new Template named "*Name* (improved)". When the source is a Catalog Template, the new one records it as its `origin`, so `template list` shows where it came from. It refuses to replace an existing Template.
+- A non-interactive run without `--overwrite` or `--save-as` saves nothing.
+- Built-in Templates can only be saved with `--save-as`.
+
+If the proposal still fails validation after Copilot's repair attempts (or has warnings with `--strict`), nothing is saved. An interactive run lets you retry, save the proposal as a draft file beside the source to fix by hand, or reject it. A non-interactive run exits with code 1.
+
+**JSON report (`--output`):**
+
+| Field | Description |
+|-------|-------------|
+| `template` | The Catalog ref or file that was improved |
+| `ok` | Whether the proposal passed validation |
+| `diff` | The proposed changes: `fieldChanges`, `taskChanges`, and `identical` |
+| `validation` | `valid`, `errors`, and `warnings` |
+| `notes` | Copilot's notes on what it changed and why |
+| `guidance` | The guidance used, or `null` |
+| `referenceDocuments` | Each Reference Document sent (`ref`, `title`), and whether it was shortened to fit (`truncated`, `originalLength`, `sentLength`) |
+| `saved` | What was saved (`overwrite`, `save-as`, or `draft`) and where, or `null` |
+
+**Examples:**
+
+```bash
+# Review an improvement, then choose what to do
+atomize template improve template:backend-api
+
+# Focus the improvement, and save it as a new Template
+atomize template improve template:backend-api --guidance "add security reviews" --save-as backend-api-secure
+
+# Ground the improvement in your project and your written process
+atomize template improve template:backend-api --ground --reference docs/how-we-work.md --profile work-ado
+
+# Gate an improvement in CI without saving
+atomize template improve ./templates/backend.atomize.yaml --dry-run --strict --output improve-report.json
+```
 
 ---
 
@@ -614,7 +679,7 @@ atomize tpl install <source> [options]  # alias
 |--------|-------------|
 | `--type <type>` | Force type: `template` or `mixin` (auto-detected from file content if omitted) |
 | `--overwrite` | Overwrite if a template with the same name already exists |
-| `--scope <scope>` | Installation scope: `user` (default, `~/.atomize`) or `project` (`.atomize` in current directory) |
+| `--scope <scope>` | Installation scope: `user` (`~/.atomize/catalog`) or `project` (`.atomize/catalog` in the project root: the nearest folder with a `.atomize` folder, otherwise the git repo root, otherwise the current directory). Without `--scope`, it's `project` when the project root has its own `.atomize` folder, meaning the team has opted in, and `user` otherwise. |
 | `--open` | Open the installed Atomize YAML file in a supported editor after successful installation |
 | `-q, --quiet` | Suppress non-essential output |
 
@@ -812,7 +877,7 @@ atomize auth use work-ado   # set as default profile
 atomize auth test work-ado
 ```
 
-AI-assisted template drafting (`template create --ai`) does not use a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+AI-assisted template drafting (`template create --ai`) talks to Copilot without a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session). Only `--ground` uses a Connection Profile, to read your project's metadata; the profile's token is never sent to Copilot.
 
 ### Environment Variables
 
@@ -903,16 +968,8 @@ atomize generate my-backend.yaml --execute
 # 1. Describe your template to the AI (signs in to GitHub Copilot when needed)
 atomize template create --ai
 
-# 2. Optionally ground it with real ADO patterns
+# 2. Optionally ground it in your project's real types, fields, and saved queries
 atomize template create --ai --ground --profile work-ado
-```
-
-### Multi-Story Learning
-
-```bash
-atomize template create \
-  --from-stories STORY-1,STORY-2,STORY-3,STORY-4,STORY-5 \
-  --platform azure-devops
 ```
 
 ### Using Composed Templates
@@ -1025,6 +1082,5 @@ atomize generate template:backend-api --verbose
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors
 - [Platform Guide](./Platform-Guide.md) - Platform setup and configuration
-- [Story Learner](./Story-Learner.md) - Generate templates from existing work items
 - [Template Creation](./Template-Creation.md) - Catalog, wizard, AI-assisted, and mixin workflows
 - [Examples](../examples/) - Real-world template examples

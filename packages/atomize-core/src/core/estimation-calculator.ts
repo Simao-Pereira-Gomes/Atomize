@@ -315,7 +315,7 @@ export class EstimationCalculator {
       if (typeof value === "string") {
         resolved[key] = interpolateValue(value, story, (referenceName) => {
           logger.warn(
-            `Story ${story.id}: custom field "${referenceName}" referenced in task template was not found on the parent story — value will be empty.`,
+            `Story ${story.id}: custom field "${referenceName}" referenced in task template was not found on the parent story, so the value will be empty.`,
           );
         });
       } else {

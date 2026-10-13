@@ -145,9 +145,9 @@ function deriveIterationMode(exact: string[], under: string[]): IterationFilterM
  */
 export async function configureFilter(ctx: FilterWizardContext, defaults?: FilterCriteria): Promise<FilterCriteria> {
   const filterOptions = [
-    { label: "Build a filter  — choose types, states, tags, etc.", value: "structured" },
+    { label: "Build a filter: choose types, states, tags, etc.", value: "structured" },
     ...(ctx.savedQueries.length > 0
-      ? [{ label: "Use a saved query  — pick from your Azure DevOps queries", value: "savedQuery" }]
+      ? [{ label: "Use a saved query: pick from your Azure DevOps queries", value: "savedQuery" }]
       : []),
   ];
 
@@ -182,13 +182,13 @@ export async function configureFilter(ctx: FilterWizardContext, defaults?: Filte
     await multiselect<AdvancedFilterGroup>({
       message: "Advanced filters (press Enter to skip):",
       options: [
-        { label: "Scope  — team, area paths, iterations", value: "scope" },
+        { label: "Scope: team, area paths, iterations", value: "scope" },
         {
-          label: "State history  — exclude states, were ever in",
+          label: "State history: exclude states, were ever in",
           value: "stateHistory",
         },
-        { label: "Assignment  — assigned-to, priority", value: "assignment" },
-        { label: "Dates  — changed after, created after", value: "dates" },
+        { label: "Assignment: assigned-to, priority", value: "assignment" },
+        { label: "Dates: changed after, created after", value: "dates" },
       ],
       initialValues: activeGroups,
       required: false,
@@ -418,7 +418,7 @@ async function promptTeam(ctx: FilterWizardContext, defaults?: string): Promise<
     ...ctx.teams.map((t) => ({ label: t, value: t })),
   ];
   const pick = await selectOrAutocomplete({
-    message: "Override team for this template? (affects @CurrentIteration and @TeamAreas) — select or press Esc to skip:",
+    message: "Override team for this template? (affects @CurrentIteration and @TeamAreas). Select or press Esc to skip:",
     options,
     placeholder: "Type to filter teams...",
   });
@@ -913,7 +913,7 @@ export function renderConversionTable(
 ): string[] {
   const allowed = source?.allowedValues ?? [];
   const entries = Object.entries(table);
-  const heading = `Conversion table — ${source?.name ?? "Story Estimate"} → hours`;
+  const heading = `Conversion table: ${source?.name ?? "Story Estimate"} → hours`;
   const lines = [allowed.length ? `${heading}   ${allowed.filter((v) => Object.hasOwn(table, v)).length} of ${allowed.length} values covered` : heading];
   if (entries.length === 0) {
     lines.push("  (no values yet)");
@@ -926,7 +926,7 @@ export function renderConversionTable(
     }
   }
   const missing = allowed.filter((value) => !Object.hasOwn(table, value));
-  if (missing.length) lines.push(`  Missing: ${missing.join(", ")} — Stories with ${missing.length === 1 ? "this value" : "these values"} get blank estimates.`);
+  if (missing.length) lines.push(`  Missing: ${missing.join(", ")}. Stories with ${missing.length === 1 ? "this value" : "these values"} get blank estimates.`);
   return lines;
 }
 

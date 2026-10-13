@@ -620,8 +620,8 @@ export async function editTasksInteractively(
     const totalLabel =
       total === 100
         ? chalk.green("100% ✓")
-        : chalk.yellow(`${total}% — doesn't sum to 100`);
-    output.print(chalk.cyan(`\nTasks (${currentTasks.length}) — total: ${totalLabel}\n`));
+        : chalk.yellow(`${total}%, doesn't sum to 100`);
+    output.print(chalk.cyan(`\nTasks (${currentTasks.length}), total: ${totalLabel}\n`));
     currentTasks.forEach((t, i) => {
       output.print(chalk.gray(`  ${i + 1}. ${t.title}${copyCount(t) > 1 ? ` ×${copyCount(t)}` : ""} [${t.estimationPercent ?? 0}%]`));
     });

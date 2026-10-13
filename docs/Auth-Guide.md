@@ -67,6 +67,8 @@ Connection Profiles are shared state: the CLI and Atomize Studio both read and w
 
 Atomize Studio supports only **OS-keyring-backed** tokens (storage tier 1 above). A profile created by the CLI using the encrypted-local-file fallback (tier 2, `--insecure-storage`) is not usable from Studio until it is rotated. Rotating a profile — from either the CLI (`atomize auth rotate`) or Studio's own Connection Profile management — always stores the new token in the keyring, so a single rotation converts it to Studio-compatible storage.
 
+Studio reads a profile's token from the keychain once per session, the first time it needs it, and keeps it in its native backend's memory (never in the app's web view). So the macOS Keychain asks for access at most once per profile per session, not on every Story search or wiki listing. Rotating or removing the profile in Studio, or Azure DevOps rejecting the token, makes Studio read it from the keychain again. A token rotated from the CLI while Studio is open is picked up when Azure DevOps rejects the old one, or when Studio restarts.
+
 The first Azure DevOps profile you create becomes the default; later default changes are explicit. Legacy GitHub Models profile records are visible from both surfaces only for cleanup — see [GitHub Models Retirement](#github-models-retirement) — they are never usable as a Connection Profile from either the CLI or Studio.
 
 ---
@@ -89,7 +91,7 @@ atomize template create --ai
 ```
 
 **Getting a PAT:**
-- Azure DevOps: `https://dev.azure.com/{org}/_usersSettings/tokens` — scopes: Work Items (Read, Write)
+- Azure DevOps: `https://dev.azure.com/{org}/_usersSettings/tokens` — scopes: Work Items (Read, Write). Add the optional **Wiki (Read)** scope if you want to use wiki pages as [Reference Documents](./Template-Creation.md#reference-documents); without it, everything else works and Atomize tells you to rotate the token when a wiki page is needed.
 - GitHub Copilot: an active Copilot subscription; Atomize uses its bundled Copilot runtime and your local sign-in.
 
 ### Verify your profiles

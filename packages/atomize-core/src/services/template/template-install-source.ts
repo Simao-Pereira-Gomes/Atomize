@@ -34,6 +34,9 @@ export interface ResolvedTemplateInstallSource {
 
 const TEMPLATE_TYPES: TemplateCatalogKind[] = ["template", "mixin"];
 
+/** A file name's Catalog name, as TemplateCatalog stores it: without `.atomize.yaml`, `.yaml` or `.yml`. */
+const catalogNameOf = (filename: string) => filename.replace(/(?:\.atomize)?\.ya?ml$/i, "");
+
 export async function resolveTemplateInstallSource(
   source: string | TemplateInstallContentSource,
   catalog: TemplateCatalog,
@@ -52,10 +55,9 @@ export async function resolveTemplateInstallSource(
   }
 
   const kind = options.type ?? await detectKindFromFile(source);
-  const ext = extname(resolve(source));
   return {
     kind,
-    name: basename(resolve(source), ext),
+    name: catalogNameOf(basename(resolve(source))),
     install: (installOptions = {}) => catalog.installFromFile(source, kind, options.scope, installOptions),
   };
 }
@@ -109,7 +111,7 @@ async function resolveRemoteInstallSource(
   const kind = options.type ?? detectKindFromContent(content);
   return {
     kind,
-    name: basename(urlFilename, urlExt),
+    name: catalogNameOf(urlFilename),
     install: (installOptions = {}) => catalog.installFromContent(content, urlFilename, kind, options.scope, installOptions),
     fromLabel: fetchUrl,
   };

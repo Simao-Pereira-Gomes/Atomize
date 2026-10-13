@@ -15,7 +15,7 @@ export function MetadataSection(props: { store: MetadataStore }) {
       <SelectField
         label="Difficulty" value={s.fields.difficulty}
         options={[
-          { value: "",             label: "— none —"      },
+          { value: "",             label: "None"      },
           { value: "beginner",     label: "Beginner"      },
           { value: "intermediate", label: "Intermediate"  },
           { value: "advanced",     label: "Advanced"      },

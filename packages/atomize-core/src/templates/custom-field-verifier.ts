@@ -216,7 +216,7 @@ async function verifyConditionFieldReferences(
     warnings.push({
       path: "tasks[*].condition",
       message:
-        "Template has task conditions referencing custom fields but no workItemTypes filter is set — cannot verify condition field references.",
+        "Template has task conditions referencing custom fields but no workItemTypes filter is set, so condition field references cannot be verified.",
     });
     return;
   }

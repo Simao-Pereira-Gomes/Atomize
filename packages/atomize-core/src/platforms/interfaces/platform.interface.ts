@@ -1,6 +1,7 @@
 import type { EstimationDefaults } from "./estimation-defaults.interface";
 import type { ADoFieldSchema } from "./field-schema.interface";
 import type { FilterCriteria, QueryResult } from "./filter.interface";
+import type { StorySearch } from "./story-search.interface";
 import type { TaskDefinition, WorkItem } from "./work-item.interface";
 
 /**
@@ -11,6 +12,14 @@ export interface SavedQueryInfo {
   name: string;
   path: string;
   isPublic: boolean;
+}
+
+/**
+ * A wiki in the project (a project wiki, or a code wiki published from a repository)
+ */
+export interface WikiInfo {
+  id: string;
+  name: string;
 }
 
 /**
@@ -68,6 +77,11 @@ export interface IPlatformAdapter {
   getWorkItem?(id: string): Promise<WorkItem | null>;
 
   /**
+   * Run a Story Search, returning matching work items newest first
+   */
+  searchStories?(search: StorySearch): Promise<WorkItem[]>;
+
+  /**
    * Create a single task
    */
   createTask(parentId: string, task: TaskDefinition): Promise<WorkItem>;
@@ -119,6 +133,21 @@ export interface IPlatformAdapter {
     dependentId: string,
     predecessorId: string
   ): Promise<void>;
+
+  /**
+   * List the project's wikis (Azure DevOps only)
+   */
+  listWikis?(): Promise<WikiInfo[]>;
+
+  /**
+   * List every page path in a wiki, e.g. "/Process/How we work"
+   */
+  listWikiPages?(wiki: string): Promise<string[]>;
+
+  /**
+   * Read one wiki page's Markdown: never its sub-pages, links, images, or attachments
+   */
+  readWikiPage?(wiki: string, pagePath: string): Promise<string>;
 
   /**
    * List saved queries in the project (Azure DevOps only).

@@ -3,7 +3,6 @@ import type { IPlatformAdapter } from "./interfaces/platform.interface";
 import type {
   ProjectMetadataReader,
   SavedQueryReader,
-  StoryLearningPlatform,
 } from "./interfaces/platform-capabilities";
 
 type PlatformCapability = keyof IPlatformAdapter;
@@ -13,12 +12,6 @@ export function hasPlatformMethod<T extends PlatformCapability>(
   method: T,
 ): platform is IPlatformAdapter & Required<Pick<IPlatformAdapter, T>> {
   return typeof platform[method] === "function";
-}
-
-export function hasStoryLearningPlatform(
-  platform: IPlatformAdapter,
-): platform is IPlatformAdapter & StoryLearningPlatform {
-  return hasPlatformMethod(platform, "getWorkItem") && hasPlatformMethod(platform, "getChildren");
 }
 
 export function hasProjectMetadataReader(
@@ -34,22 +27,24 @@ export function hasProjectMetadataReader(
   );
 }
 
+export function hasStorySearch(
+  platform: IPlatformAdapter,
+): platform is IPlatformAdapter & Required<Pick<IPlatformAdapter, "searchStories">> {
+  return hasPlatformMethod(platform, "searchStories");
+}
+
+export function hasWikiReader(
+  platform: IPlatformAdapter,
+): platform is IPlatformAdapter & Required<Pick<IPlatformAdapter, "listWikis" | "listWikiPages" | "readWikiPage">> {
+  return hasPlatformMethod(platform, "listWikis")
+    && hasPlatformMethod(platform, "listWikiPages")
+    && hasPlatformMethod(platform, "readWikiPage");
+}
+
 export function hasSavedQueryReader(
   platform: IPlatformAdapter,
 ): platform is IPlatformAdapter & Required<SavedQueryReader> {
   return hasPlatformMethod(platform, "listSavedQueries");
-}
-
-export function requireStoryLearningPlatform(
-  platform: IPlatformAdapter,
-): StoryLearningPlatform {
-  if (hasStoryLearningPlatform(platform)) {
-    return platform;
-  }
-
-  throw new ConfigurationError(
-    "The selected platform cannot learn from stories because it does not expose child tasks.",
-  );
 }
 
 export function requireProjectMetadataReader(

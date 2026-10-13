@@ -24,6 +24,10 @@ An empty `.atomize/` directory is an explicit workspace marker; a `.atomize` fil
 
 Workspace discovery is based on the invocation directory, not on install source file paths. When no `.atomize/` marker or git root exists, project writes fall back to the invocation directory.
 
+## Amendment (2026-10-12): the home folder's `.atomize/` is not a workspace marker
+
+Step 1 skips the home folder. `~/.atomize/` holds Connection Profiles and the user Catalog, so it exists for nearly every user. Counting it made the home folder the Workspace Root of every repo without its own `.atomize/`. Project-scope Catalog items then landed in the user Catalog's folder, and Project Reference Documents (ADR-0070) were saved to `~/.atomize/ai.yaml`, where teammates never see them and every repo on the machine offers them. A `.atomize/` in any other ancestor is still a marker. Run from the home folder itself, outside any repo, discovery still falls back to the invocation directory.
+
 ## Migration Compatibility
 
 During migration, the CLI reads legacy user and project paths (`~/.atomize/templates/{templates,mixins}`, `<workspace>/.atomize/templates/{templates,mixins}`) but writes only to the new `catalog` paths. Precedence within each scope favors the new path over the legacy one; scope precedence remains project → user → builtin. When a new-path and legacy-path item collide within the same scope, the new-path item wins and the legacy one is shown as overridden — the public `template list --json` contract is unchanged, since which path an item resolved from is exposed only through its `path` value, not a new field.

@@ -85,7 +85,7 @@ export const validateCommand = new Command("validate")
     });
     const output = createCommandOutput(outputPolicy);
 
-    if (!isJsonOutput) output.intro(" Atomize — Template Validator");
+    if (!isJsonOutput) output.intro(" Atomize: Template Validator");
 
     const commandLogLevel = resolveValidateLogLevel(options);
     if (commandLogLevel) logger.level = commandLogLevel;
@@ -139,8 +139,8 @@ function createValidateCommandDeps(depsOptions: { showStatus: boolean }): Valida
           await select({
             message: "Validate custom fields against ADO?",
             options: [
-              { label: "Offline — structure and format only", value: "offline" },
-              { label: "Online — connect to ADO for full field verification", value: "online" },
+              { label: "Offline: structure and format only", value: "offline" },
+              { label: "Online: connect to ADO for full field verification", value: "online" },
             ],
             initialValue: options.strict ? "online" : "offline",
           }),

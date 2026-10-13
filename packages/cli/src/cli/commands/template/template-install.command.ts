@@ -3,6 +3,7 @@ import type { TemplateCatalogKind } from "@sppg2001/atomize-core/services/templa
 import type {
   TemplateInstallScope,
 } from "@sppg2001/atomize-core/services/template/template-install-source";
+import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/workspace-root";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
@@ -41,7 +42,7 @@ export function makeTemplateInstallCommand(
   .argument("<source>", "Path to a YAML template file or an HTTPS URL")
   .option("--type <type>", "Template type: template or mixin (auto-detected if omitted)")
   .option("--overwrite", "Overwrite if a template with the same name already exists", false)
-  .option("--scope <scope>", 'Installation scope: user (displayed as "personal") or project (displayed as "your project") [default: user]')
+  .option("--scope <scope>", 'Installation scope: user (displayed as "personal") or project (displayed as "your project") [default: project when the project has its own .atomize folder, otherwise user]')
   .option("--open", "Open the installed Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
   .action(async (source: string, options: InstallOptions) => {
@@ -51,7 +52,8 @@ export function makeTemplateInstallCommand(
 
     try {
       const library = new TemplateLibrary();
-      const scope = library.parseInstallScope(options.scope ?? "user");
+      // A project's own .atomize/ folder means the team has opted in to a project Catalog.
+      const scope = library.parseInstallScope(options.scope ?? defaultCatalogScope());
       const preview = await library.previewInstall({
         source,
         kind: options.type ? library.parseCatalogKind(options.type) : undefined,
@@ -62,7 +64,7 @@ export function makeTemplateInstallCommand(
       });
       const resolvedSource = preview.source;
 
-      output.intro(` Atomize — Install ${resolvedSource.kind}`);
+      output.intro(` Atomize: Install ${resolvedSource.kind}`);
       if (!options.type) {
         output.print(chalk.gray(`  Detected type: ${resolvedSource.kind}\n`));
       }
