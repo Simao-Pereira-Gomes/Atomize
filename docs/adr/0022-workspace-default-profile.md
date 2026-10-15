@@ -7,7 +7,7 @@ Accepted
 
 ADR-0011 ruled out a workspace-level validation default setting on the grounds that "the system never chooses the validation mode silently." The concern was that silent auto-selection could run Online Validation against the wrong profile and mislead the user.
 
-As the extension grew to include Generate and Live Preview panels — each with their own profile picker — the friction of re-picking the same profile on every invocation became real. Teams working in a single ADO org pick the same profile on every command, every session.
+As the extension grew to include Generate and Live Preview panels (each with their own profile picker) the friction of re-picking the same profile on every invocation became real. Teams working in a single ADO org pick the same profile on every command, every session.
 
 The key distinction missed in ADR-0011 is between **silent selection** (the system chooses without showing the picker) and **pre-selection** (the system focuses a matching item in the picker, user still confirms with a keypress). Pre-selection does not bypass user intent.
 
@@ -26,7 +26,7 @@ Validation remains explicitly user-driven: the picker is always shown, the user 
 ## Consequences
 
 - `atomize.defaultProfile` is resource-scoped; it can be overridden at the folder level in multi-root workspaces. Committing it in `.vscode/settings.json` is safe (stores a name, not a credential).
-- Settings Sync does not carry profile names across machines (intentional — profile names are machine-local).
+- Settings Sync does not carry profile names across machines (intentional: profile names are machine-local).
 - A stale or mismatched `atomize.defaultProfile` degrades gracefully to no pre-selection.
 - `fetchAdoProfiles` is no longer duplicated across three files.
 - The Validate picker retains "Offline only"; `atomize.defaultProfile` never pre-focuses that item.

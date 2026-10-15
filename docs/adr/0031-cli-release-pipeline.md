@@ -12,7 +12,7 @@ The tag pattern uses `v[0-9]*` (not `v*`) when querying for the previous tag to 
 
 **Why delete `release.yml` and `publish.yml` rather than keep them as escape hatches?**
 
-Two publish paths create ambiguity about which is authoritative. If a publish fails mid-way, the sentinel tag won't have been created, so the automatic workflow retries on the next push to `main` — covering the recovery case without needing a manual fallback.
+Two publish paths create ambiguity about which is authoritative. If a publish fails mid-way, the sentinel tag won't have been created, so the automatic workflow retries on the next push to `main`: covering the recovery case without needing a manual fallback.
 
 **First publish behaviour.**
 

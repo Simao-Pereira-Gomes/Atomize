@@ -35,7 +35,9 @@ documents `main`; the Schema Reference inside Studio and VS Code matches the ins
 
 The VS Code extension identifies Atomize files to enable schema autocomplete, CodeLens, snippets, and diagnostics. There are two ways to opt a file in:
 
-### Option 1 — `.atomize.yaml` extension (recommended)
+<a id="option-1--atomizeyaml-extension-recommended"></a>
+
+### Option 1: `.atomize.yaml` extension (recommended)
 
 Name your file with the `.atomize.yaml` (or `.atomize.yml`) extension:
 
@@ -47,7 +49,9 @@ security-mixin.atomize.yaml
 
 The Atomize VS Code extension recognises this extension as a durable opt-in and maps it to VS Code's YAML language service so schema hovers and autocomplete work. Templates created by the CLI wizard are stored with this extension automatically.
 
-### Option 2 — Modeline
+<a id="option-2--modeline"></a>
+
+### Option 2: Modeline
 
 If you cannot rename the file (e.g. the name is constrained by another tool or convention), add `# atomize-yaml` as the very first line:
 
@@ -62,7 +66,7 @@ The modeline works for any `.yaml` or `.yml` file regardless of name. The `atm-t
 
 ### Content detection fallback
 
-If a file has neither the `.atomize.yaml` extension nor the modeline, the extension will attempt to identify it by structure (Template: `tasks:` with `filter:` or `formatVersion:` at root; Mixin: `tasks:` + nested `id:`, with `formatVersion:` or no `version:`). When a file is matched this way, VS Code will show a warning offering to add the modeline or rename the file. Adopting one of the explicit conventions is always preferred — content detection is a fallback and cannot be as precise.
+If a file has neither the `.atomize.yaml` extension nor the modeline, the extension will attempt to identify it by structure (Template: `tasks:` with `filter:` or `formatVersion:` at root; Mixin: `tasks:` + nested `id:`, with `formatVersion:` or no `version:`). When a file is matched this way, VS Code will show a warning offering to add the modeline or rename the file. Adopting one of the explicit conventions is always preferred: content detection is a fallback and cannot be as precise.
 
 ---
 
@@ -94,6 +98,8 @@ for identity, author and discovery fields, or the
 
 ## Composition
 
+<!-- atomize:section template-composition -->
+
 Composition combines reusable task breakdowns into a Resolved Template. Use a base Template for the common structure and Mixins for task groups that several Templates share. The same composition rules apply wherever Atomize resolves an Atomize YAML File.
 
 ### Inheritance (`extends`)
@@ -116,7 +122,7 @@ The Resolved Template combines the child's `tasks` list with the base's, then re
 
 ### Mixins (`mixins`)
 
-A mixin is a partial template — typically a group of related tasks — that can be mixed into any template. The tasks from all listed mixins are appended to the template's own task list before validation.
+A mixin is a partial template (typically a group of related tasks) that can be mixed into any template. The tasks from all listed mixins are appended to the template's own task list before validation.
 
 ```yaml
 formatVersion: "1.0"
@@ -158,6 +164,8 @@ Choose the workflow for the tool you use; a separate CLI installation is not req
 ### Compatibility
 
 The CLI first supported `extends` and `mixins` in version 2.0.0. That historical CLI requirement is not a minimum version for Studio or the VS Code extension, which have independent versions. Use the Schema Reference inside Studio or the extension for the format supported by your installed version. When sharing with an older tool that cannot resolve composition, upgrade it or share a flattened Resolved Template instead.
+
+<!-- /atomize:section -->
 
 ---
 
@@ -249,7 +257,7 @@ filter:
 
 Delegate query composition entirely to an existing Azure DevOps saved query. Atomize resolves the query via the ADO Queries API, executes its WIQL, and pipes the results into the standard task-creation pipeline.
 
-Reference by ID (most stable — unaffected by renames or moves):
+Reference by ID (most stable: unaffected by renames or moves):
 
 ```yaml
 filter:
@@ -267,7 +275,7 @@ filter:
 
 **Rules:**
 
-- `id` and `path` are mutually exclusive — provide exactly one.
+- `id` and `path` are mutually exclusive: provide exactly one.
 - `id` must be a valid UUID (visible in the ADO query URL).
 - Only **flat (Work Items)** queries are supported. Tree and one-hop queries are rejected at runtime with a clear error.
 - `savedQuery` takes precedence over all structured filter fields (`states`, `tags`, area paths, etc.). A validator warning is emitted if both are present.
@@ -288,7 +296,7 @@ atomize generate my-template.yaml --limit 20
 
 **Permission requirements:**
 
-The PAT used by Atomize must have **Work Items (Read)** scope on the project containing the query. Only shared queries are accessible — private queries owned by another user will return a "Query not found" error even if the ID is correct.
+The PAT used by Atomize must have **Work Items (Read)** scope on the project containing the query. Only shared queries are accessible: private queries owned by another user will return a "Query not found" error even if the ID is correct.
 
 **Permission error reference:**
 

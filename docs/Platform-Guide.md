@@ -14,7 +14,7 @@ Setup and configuration guide for different work item management platforms.
 
 ## Overview
 
-Atomize connects to two kinds of external service — work item platforms (where tasks are created) and AI providers (for template generation). Each is configured as a named profile.
+Atomize connects to two kinds of external service: work item platforms (where tasks are created) and AI providers (for template generation). Each is configured as a named profile.
 
 Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
@@ -33,7 +33,7 @@ Atomize is designed around platform adapters. Today, connected generation suppor
 |----------|--------|----------|
 | GitHub Copilot | ✅ Production | `template create --ai` |
 
-GitHub Copilot drafts Templates through an ephemeral Copilot Session with your locally signed-in Copilot account — it does not use a Connection Profile. GitHub Models, the previous AI provider, was fully retired by GitHub on 30 July 2026; see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
+GitHub Copilot drafts Templates through an ephemeral Copilot Session with your locally signed-in Copilot account: it does not use a Connection Profile. GitHub Models, the previous AI provider, was fully retired by GitHub on 30 July 2026; see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
 
 ---
 
@@ -320,7 +320,7 @@ See the [estimation field reference](https://atomize-cd9.pages.dev/schema#templa
 **Problem:** `Authentication failed: 401 Unauthorized`
 
 **Solutions:**
-1. Verify PAT hasn't expired — rotate it with `atomize auth rotate <name>`
+1. Verify PAT hasn't expired: rotate it with `atomize auth rotate <name>`
 2. Check PAT has correct scopes (Work Items Read/Write)
 3. Verify organization URL format: `https://dev.azure.com/org`
 4. Don't include project in organization URL

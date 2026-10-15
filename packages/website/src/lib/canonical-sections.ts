@@ -1,9 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import GithubSlugger from "github-slugger";
 import type { Heading, Root, RootContent } from "mdast";
-import { toString as markdownText } from "mdast-util-to-string";
 import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 import type { Plugin as VitePlugin } from "vite";
@@ -28,6 +26,14 @@ function rewriteLink(url: string, source: string) {
   return `${repositoryUrl}/blob/main/${target}${fragment ? `#${fragment}` : ""}`;
 }
 
+function sectionMarker(node: RootContent) {
+  return node.type === "html" ? /^<!--\s*atomize:section\s+([\w-]+)\s*-->$/.exec(node.value.trim())?.[1] : undefined;
+}
+
+function isSectionEnd(node: RootContent) {
+  return node.type === "html" && /^<!--\s*\/atomize:section\s*-->$/.test(node.value.trim());
+}
+
 /** Include a named section as Markdown AST, before highlighting, headings, and search indexing. */
 const canonicalSections: Plugin<[], Root> = function () {
   return async (tree, file) => {
@@ -40,22 +46,14 @@ const canonicalSections: Plugin<[], Root> = function () {
       if (!section) throw file.message(`Unknown canonical section: ${match[1]}`);
       const source = await readFile(resolve(repositoryRoot, section.source), "utf8");
       const sourceTree = this.parse(source) as Root;
-      const slugger = new GithubSlugger();
-      let heading: Heading | undefined;
-      let start = -1;
-      let end = sourceTree.children.length;
-      for (let index = 0; index < sourceTree.children.length; index++) {
-        const candidate = sourceTree.children[index];
-        if (candidate.type !== "heading") continue;
-        const slug = slugger.slug(markdownText(candidate));
-        if (start < 0 && slug === section.section) { start = index + 1; heading = candidate; }
-        else if (heading && candidate.depth <= heading.depth) { end = index; break; }
-      }
-      if (!heading) throw file.message(`Missing canonical section ${section.source}#${section.section}`);
-      const parentDepth = heading.depth;
-      const included: Root = { type: "root", children: sourceTree.children.slice(start, end) };
-      while (included.children.at(-1)?.type === "thematicBreak") included.children.pop();
-      visit(included, "heading", child => { child.depth = Math.max(2, child.depth - parentDepth + 1) as Heading["depth"]; });
+      const start = sourceTree.children.findIndex(child => sectionMarker(child) === match[1]);
+      if (start < 0) throw file.message(`Missing canonical section marker ${match[1]} in ${section.source}`);
+      const end = sourceTree.children.findIndex((child, index) => index > start && (sectionMarker(child) !== undefined || isSectionEnd(child)));
+      if (end < 0 || !isSectionEnd(sourceTree.children[end])) throw file.message(`Unclosed canonical section ${match[1]} in ${section.source}`);
+      if (sourceTree.children.some((child, index) => index > end && sectionMarker(child) === match[1])) throw file.message(`Duplicate canonical section ${match[1]} in ${section.source}`);
+      const included: Root = { type: "root", children: sourceTree.children.slice(start + 1, end) };
+      const shallowest = Math.min(...included.children.flatMap(child => child.type === "heading" ? [child.depth] : []));
+      visit(included, "heading", child => { child.depth = Math.min(6, child.depth - shallowest + 2) as Heading["depth"]; });
       visit(included, child => {
         if (child.type === "link" || child.type === "image" || child.type === "definition") {
           child.url = rewriteLink(child.url, section.source);
@@ -69,7 +67,6 @@ const canonicalSections: Plugin<[], Root> = function () {
 };
 export default canonicalSections;
 
-/** A canonical source edit must invalidate the compiled content collection in dev, too. */
 export function watchCanonicalGuides(): VitePlugin {
   const files = new Set(Object.values(sections).map(section => resolve(repositoryRoot, section.source)));
   return {

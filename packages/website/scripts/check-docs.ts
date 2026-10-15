@@ -62,6 +62,12 @@ async function checkDocs() {
   const guide = pages.get(resolve(directory, "reference/templates/composition/index.html"));
   const schemaPage = pages.get(resolve(directory, "schema/index.html"));
   if (guide?.querySelector("h1")?.textContent !== "Compose Templates") failures.push("Composition guide title is missing");
+  for (const [path, document] of pages) {
+    if (document.querySelector('a[href*="github.com/Simao-Pereira-Gomes/Atomize/edit/"]')) failures.push(`${path}: public editing link must not be published`);
+    const content = document.body?.cloneNode(true) as HTMLElement | undefined;
+    content?.querySelectorAll("script, style, noscript").forEach(element => { element.remove(); });
+    if (content?.textContent?.includes("\u2014")) failures.push(`${path}: website content must not contain em dashes`);
+  }
   for (const anchor of ["inheritance-extends", "mixins-mixins", "resolution-order", "compatibility"]) {
     if (!guide?.getElementById(anchor)) failures.push(`Composition section is missing: ${anchor}`);
   }

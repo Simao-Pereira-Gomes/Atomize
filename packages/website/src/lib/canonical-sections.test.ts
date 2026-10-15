@@ -1,9 +1,42 @@
 import { describe, expect, test } from "bun:test";
 import { createMarkdownProcessor } from "@astrojs/markdown-remark";
 import { parseHTML } from "linkedom";
+import type { Root, RootContent } from "mdast";
+import { unified } from "unified";
 import canonicalSections from "./canonical-sections";
 
+const opening: RootContent = { type: "html", value: "<!-- atomize:section template-composition -->" };
+const closing: RootContent = { type: "html", value: "<!-- /atomize:section -->" };
+
+function includeFixture(children: RootContent[]) {
+  const processor = unified().use(function () {
+    this.parser = () => structuredClone({ type: "root", children } satisfies Root);
+  }).use(canonicalSections);
+  return processor.run({ type: "root", children: [{ type: "html", value: "<!-- atomize:include template-composition -->" }] });
+}
+
 describe("canonical guide rendering", () => {
+  test("explicit boundaries survive heading renames and exclude neighbouring content", async () => {
+    const heading: RootContent = { type: "heading", depth: 2, children: [{ type: "text", value: "Renamed explanation" }] };
+    const content: RootContent = { type: "paragraph", children: [{ type: "text", value: "Shared explanation" }] };
+    const result = await includeFixture([heading, opening, content, closing, heading]);
+    expect(result.children).toEqual([content]);
+  });
+
+  test.each([
+    ["missing", [], "Missing canonical section marker"],
+    ["unclosed", [opening], "Unclosed canonical section"],
+    ["nested", [opening, opening, closing], "Unclosed canonical section"],
+    ["duplicate", [opening, closing, opening, closing], "Duplicate canonical section"],
+  ] as const)("%s section boundaries fail instead of publishing the wrong content", async (_name, children, message) => {
+    expect.assertions(1);
+    try {
+      await includeFixture([...children]);
+    } catch (error) {
+      expect(String(error)).toContain(message);
+    }
+  });
+
   test("adapts the composition section without leaking neighbouring reference sections", async () => {
     const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
     const { code } = await renderer.render("A focused introduction.\n\n<!-- atomize:include template-composition -->");
@@ -38,6 +71,13 @@ describe("canonical guide rendering", () => {
     expect(toolChoices).toContain("Show Effective Template");
     expect(toolChoices).toContain("flattened");
     expect(document.querySelector("pre code.language-bash")).toBeNull();
+  });
+
+  test("section markers stay out of the published page", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include template-composition -->");
+    expect(code).not.toContain("atomize:section");
+    expect(code).not.toContain("<hr");
   });
 
   test("an include marker inside a code example stays literal", async () => {

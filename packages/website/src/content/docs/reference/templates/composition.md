@@ -1,7 +1,7 @@
 ---
 title: Compose Templates
 description: Inherit a base Template, add reusable Mixin tasks, and inspect the Resolved Template before generating Tasks.
-editUrl: https://github.com/Simao-Pereira-Gomes/Atomize/edit/main/docs/Template-Reference.md
+editUrl: false
 tableOfContents:
   minHeadingLevel: 2
   maxHeadingLevel: 2
@@ -17,8 +17,8 @@ defaults, use the [Schema Reference](/schema).
 
 ## Look up composition fields
 
-- [`extends`](/schema#template.extends) — the base Template to inherit.
-- [`mixins`](/schema#template.mixins) — reusable task groups to compose.
+- [`extends`](/schema#template.extends): the base Template to inherit.
+- [`mixins`](/schema#template.mixins): reusable task groups to compose.
 
 Read the [complete Template Reference](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Template-Reference.md)
 for the behaviours that have not yet moved into focused portal pages.

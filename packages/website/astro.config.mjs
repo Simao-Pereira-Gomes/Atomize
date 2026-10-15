@@ -11,6 +11,7 @@ export default defineConfig({
     logo: { src: "../vscode-extension/icons/atomize-product.svg" },
     social: [{ icon: "github", label: "GitHub", href: "https://github.com/Simao-Pereira-Gomes/Atomize" }],
     customCss: ["./src/styles/portal.css"],
+    expressiveCode: { themes: ["starlight-dark", "github-light"], useStarlightUiThemeColors: true },
     components: {
       Header: "./src/components/DocumentationHeader.astro",
       PageTitle: "./src/components/DocumentationTitle.astro",

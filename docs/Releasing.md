@@ -8,7 +8,7 @@ Atomize ships three independent release surfaces, each with its own version, tag
 | VS Code extension | `packages/vscode-extension` | `vscode-v<version>` | `.github/workflows/publish-extension.yml` | VS Code Marketplace + GitHub Release |
 | Atomize Studio | `packages/atomize-studio` | `studio-v<version>` | `.github/workflows/publish-studio.yml` | GitHub Release (installers) |
 
-The four shared libraries (`atomize-schema`, `atomize-core`, `atomize-ai`, `atomize-sidecar`) are never released on their own — they ship inside whichever surface consumes them.
+The four shared libraries (`atomize-schema`, `atomize-core`, `atomize-ai`, `atomize-sidecar`) are never released on their own: they ship inside whichever surface consumes them.
 
 The website (`packages/website`, https://atomize-cd9.pages.dev/schema) isn't a release surface. It has no version or tag. `.github/workflows/deploy-website.yml` deploys it to Cloudflare Pages on every push to `main` that touches `atomize-schema`, `atomize-schema-reference` or the website (ADR-[0072](adr/0072-website-tracks-main-on-cloudflare-pages-direct-upload.md)).
 
@@ -16,11 +16,11 @@ The website (`packages/website`, https://atomize-cd9.pages.dev/schema) isn't a r
 
 Publishing is driven by a **git tag sentinel** (ADR-[0030](adr/0030-extension-release-pipeline.md), [0031](adr/0031-cli-release-pipeline.md), [0059](adr/0059-studio-release-tags-gate-publishing.md)):
 
-1. In the feature PR, bump the surface's version. For Studio, bump `packages/atomize-studio/package.json`, `packages/atomize-studio/src-tauri/tauri.conf.json` **and** `packages/atomize-studio/src-tauri/Cargo.toml` (plus its `Cargo.lock` entry) — the pipeline asserts all three match.
+1. In the feature PR, bump the surface's version. For Studio, bump `packages/atomize-studio/package.json`, `packages/atomize-studio/src-tauri/tauri.conf.json` **and** `packages/atomize-studio/src-tauri/Cargo.toml` (plus its `Cargo.lock` entry): the pipeline asserts all three match.
 2. Merge to `main`.
 3. On push to `main`, the pipeline checks whether the surface's `<tag><version>` already exists. If not, it builds, publishes, and creates the tag + GitHub Release. If the version was not bumped, the tag already exists and the publish is skipped.
 
-Merging without bumping the version silently skips publishing — that is the intended "no release this time" path.
+Merging without bumping the version silently skips publishing: that is the intended "no release this time" path.
 
 ## Release notes
 
@@ -41,7 +41,7 @@ It runs `git log <last surface tag>..HEAD --no-merges` filtered to `--paths`, wh
 | Extension | `packages/vscode-extension,packages/atomize-core,packages/atomize-schema` |
 | Studio | `packages/atomize-studio,packages/atomize-sidecar,packages/atomize-core,packages/atomize-schema,packages/atomize-ai` |
 
-Each list must stay in sync with that workflow's `on.push.paths` trigger — the two are the same set, maintained together.
+Each list must stay in sync with that workflow's `on.push.paths` trigger: the two are the same set, maintained together.
 
 A change to a shared package (e.g. `atomize-schema`) is a real change to every surface that embeds it, so it **intentionally appears in all of their release notes**.
 
@@ -51,13 +51,13 @@ Most CI/tooling commits touch only `.github/` or repo-root files and fall outsid
 
 Because releases squash-merge, the **PR title becomes the commit subject becomes the release-note line**, in every surface whose dependency closure the changed paths fall inside. So:
 
-- **Write PR titles as [Conventional Commits](https://www.conventionalcommits.org/)** that read well out of context — they are read by users in a changelog, not just by reviewers.
+- **Write PR titles as [Conventional Commits](https://www.conventionalcommits.org/)** that read well out of context: they are read by users in a changelog, not just by reviewers.
 - **When a PR touches a shared package, lead the scope with the shared package** (`fix(schema): reject empty condition operands`), not a consumer surface (`fix(studio): …`). The note then reads correctly in the CLI, extension, and Studio releases it fans out to.
 - **The version bump rides the feature PR** as a `chore(release): bump <surface> to <x.y.z>` commit (or commit trailer). This subject is filtered out of the notes.
 
 ### Per-surface wording override
 
-When one commit genuinely needs different wording per surface — or should be hidden from one surface — add a `Release-Note` trailer to the commit body:
+When one commit genuinely needs different wording per surface (or should be hidden from one surface) add a `Release-Note` trailer to the commit body:
 
 ```
 fix(studio,schema): stop Studio freezing on Review
@@ -67,9 +67,9 @@ Release-Note(extension): validate condition operators against the schema
 Release-Note(studio): stop the Review step freezing on large templates
 ```
 
-- `Release-Note: <text>` — bare, applies to every surface that lacks a scoped trailer.
-- `Release-Note(<surface>): <text>` — overrides the note for that surface only.
-- `Release-Note(<surface>): skip` — drops the commit from that surface's notes entirely.
+- `Release-Note: <text>`: bare, applies to every surface that lacks a scoped trailer.
+- `Release-Note(<surface>): <text>`: overrides the note for that surface only.
+- `Release-Note(<surface>): skip`: drops the commit from that surface's notes entirely.
 
 Absent a trailer, the commit subject is used.
 

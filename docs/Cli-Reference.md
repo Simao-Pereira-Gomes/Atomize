@@ -92,7 +92,7 @@ These options work with any command:
 
 Manage named connection profiles. Profiles store your credentials in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
 
-Azure DevOps is currently the only Connection Profile type — for `generate`, `validate`, `fields list`, `queries list`, and `template metadata`. AI-assisted template generation (`template create --ai`) does not use a Connection Profile; it authenticates through a separate Copilot Session (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)). GitHub Models profiles are retired — see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
+Azure DevOps is currently the only Connection Profile type: for `generate`, `validate`, `fields list`, `queries list`, and `template metadata`. AI-assisted template generation (`template create --ai`) does not use a Connection Profile; it authenticates through a separate Copilot Session (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)). GitHub Models profiles are retired: see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
 
 #### auth add
 
@@ -149,7 +149,7 @@ atomize auth ls   # alias
     Created:  1/3/2026, 10:00:00 AM
 ```
 
-A retired `github-models` profile, if one still exists from before the retirement, is listed too — only so you can remove it with `auth remove`; it can no longer be used for anything.
+A retired `github-models` profile, if one still exists from before the retirement, is listed too: only so you can remove it with `auth remove`; it can no longer be used for anything.
 
 ---
 
@@ -251,7 +251,7 @@ atomize gen [template] [options]  # alias
 
 #### Examples
 
-**Dry run (default — no --execute):**
+**Dry run (default: no --execute):**
 ```bash
 atomize generate template:backend-api
 ```
@@ -271,7 +271,7 @@ Use `--story` to skip the template's `filter` criteria and process explicit work
 - Processing a one-off story that does not match the template's usual filter
 - Testing the template against a known story before a full run
 
-`excludeIfHasTasks` still applies — stories that already have tasks are skipped unless you remove that flag from the template.
+`excludeIfHasTasks` still applies: stories that already have tasks are skipped unless you remove that flag from the template.
 
 **Execute for real in CI/non-interactive mode:**
 ```bash
@@ -455,7 +455,7 @@ atomize tpl create [options]  # alias
 | `--type <type>` | string | Create a `template` or a `mixin` (prompted if omitted) |
 | `--from <name>` | string | Start from an existing catalog template |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
-| `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
+| `--ai` | flag | Use AI-assisted generation: describe the template in natural language |
 | `--ground` | flag | Ground AI generation in your Azure DevOps project's work item types, states, fields and allowed values, saved queries, and area and iteration paths. Uses `--profile`, or the default profile |
 | `--reference <path>` | string | With `--ai`, send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | With `--ai`, leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
@@ -508,7 +508,7 @@ Step-by-step guided builder for full control.
 atomize template create --scratch
 ```
 
-The wizard walks through basic information, filter configuration, task configuration (including composition — inheritance and mixins), estimation settings, validation rules, and metadata.
+The wizard walks through basic information, filter configuration, task configuration (including composition: inheritance and mixins), estimation settings, validation rules, and metadata.
 
 ---
 
@@ -521,7 +521,7 @@ atomize template create --type mixin
 atomize template create --type mixin --save-as security-review-tasks
 ```
 
-See [Template Reference — Composition](./Template-Reference.md#composition) for how to use mixins.
+See [Template Reference: Composition](./Template-Reference.md#composition) for how to use mixins.
 
 ---
 
@@ -700,8 +700,8 @@ atomize template install ./templates/backend-api.yaml --overwrite
 ```
 
 **Scopes:**
-- `user` (default) — installed to `~/.atomize/catalog/`, available across all projects
-- `project` — installed to `<workspace>/.atomize/catalog/`, scoped to the discovered workspace root
+- `user` (default): installed to `~/.atomize/catalog/`, available across all projects
+- `project`: installed to `<workspace>/.atomize/catalog/`, scoped to the discovered workspace root
 
 **Editor handoff:**
 
@@ -786,7 +786,7 @@ atomize template resolve template:my-api --validate
 
 ### template metadata
 
-Read Azure DevOps project metadata as a single JSON document — work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. This is the same data source that grounds visual template-authoring surfaces such as Atomize Studio's [Grounded Field Options](./Atomize-Studio.md), but it is a normal CLI command: any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
+Read Azure DevOps project metadata as a single JSON document: work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. This is the same data source that grounds visual template-authoring surfaces such as Atomize Studio's [Grounded Field Options](./Atomize-Studio.md), but it is a normal CLI command: any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
 
 #### Usage
 
@@ -834,13 +834,13 @@ atomize template metadata --profile work-ado
 atomize template metadata --profile work-ado --json > project-metadata.json
 ```
 
-Requires a Connection Profile (see [Auth Guide](./Auth-Guide.md)) — there is no offline mode, since the output is Azure DevOps project data.
+Requires a Connection Profile (see [Auth Guide](./Auth-Guide.md)): there is no offline mode, since the output is Azure DevOps project data.
 
 ---
 
 ### queries
 
-Browse Azure DevOps saved queries — discover query paths and IDs without leaving the terminal.
+Browse Azure DevOps saved queries: discover query paths and IDs without leaving the terminal.
 
 #### queries list
 
@@ -877,7 +877,7 @@ atomize auth use work-ado   # set as default profile
 atomize auth test work-ado
 ```
 
-AI-assisted template drafting (`template create --ai`) talks to Copilot without a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session). Only `--ground` uses a Connection Profile, to read your project's metadata; the profile's token is never sent to Copilot.
+AI-assisted template drafting (`template create --ai`) talks to Copilot without a Connection Profile: see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session). Only `--ground` uses a Connection Profile, to read your project's metadata; the profile's token is never sent to Copilot.
 
 ### Environment Variables
 
@@ -1058,10 +1058,10 @@ atomize generate templates/my-template.yaml --platform mock
 
 ### AI template generation fails
 
-AI drafting authenticates through GitHub Copilot, not a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+AI drafting authenticates through GitHub Copilot, not a Connection Profile: see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
 
 ```bash
-# Non-interactive runs need Copilot already signed in on that machine —
+# Non-interactive runs need Copilot already signed in on that machine:
 # sign in once interactively, then retry:
 atomize template create --ai
 ```

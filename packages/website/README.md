@@ -37,6 +37,9 @@ errors do not block unrelated work.
 
 ## Edit shared content
 
+Do not use em dashes in documentation or website copy. Use full stops, commas,
+colons, semicolons, or parentheses as appropriate for the sentence.
+
 `docs/README.md` records canonical ownership. Update behaviour and examples in
 the owning repository guide, not a website copy. ADR-0074 records this boundary.
 Existing repository paths and heading links must remain valid.
@@ -53,13 +56,26 @@ include marker, for example:
 <!-- atomize:include template-composition -->
 ```
 
-`src/lib/documentation.ts` maps that name to a canonical Markdown file, section
-heading slug, published route, and the section's public anchors. The Markdown
-plugin includes the section's AST before normal heading, code-highlighting, and
-search processing. It stops at the next heading of equal or higher level and
-promotes child headings for the focused page. The canonical file itself stays
-readable on GitHub. Unknown sections fail the build. Canonical source content
-is part of the content-cache digest, and source changes restart dev compilation.
+The canonical guide delimits the reused content with matching section markers,
+which GitHub does not render:
+
+```md
+<!-- atomize:section template-composition -->
+
+...shared explanation...
+
+<!-- /atomize:section -->
+```
+
+Headings are not part of the contract, so retitling one in a canonical guide
+cannot move or empty a website page. Keep the markers outside the heading they
+belong to and before any trailing `---`. `src/lib/documentation.ts` maps the
+name to its canonical Markdown file, published route, and public anchors. The
+Markdown plugin includes the marked AST before normal heading,
+code-highlighting, and search processing, and promotes the shallowest included
+heading to level 2. Unknown names, missing or unclosed markers, and duplicate
+sections fail the build. Canonical source content is part of the content-cache
+digest, and source changes restart dev compilation.
 
 Relative guide links are rebased to their canonical GitHub destinations unless
 the target explanation has a published portal route. Schema links use the local
@@ -69,13 +85,15 @@ links continue to GitHub until their portal pages are delivered.
 
 ## Add a focused page
 
-1. Identify the canonical owner and section boundary. Reorganize canonical
-   sections only when useful, preserving old paths and heading links.
-2. Register its include name, source section, route, and anchors in
+1. Identify the canonical owner and section boundary, and wrap it in section
+   markers. Reorganize canonical sections only when useful, preserving old
+   paths and heading links.
+2. Register its include name, source file, route, and anchors in
    `src/lib/documentation.ts`. Extend guide-link routing when publishing a new
    explanation; field facts remain owned by the generated schema.
 3. Add a Markdown page under `src/content/docs/` with a direct title, description,
-   canonical edit link, website framing, and the include marker.
+   `editUrl: false`, website framing, and the include marker. The public portal
+   has no editing control; documentation changes use repository review.
 4. Add it to Starlight's sidebar in `astro.config.mjs`; use real destinations for
    related material, including GitHub fallbacks for guides not yet published.
 5. Extend rendered smoke checks and check every new internal link and anchor.

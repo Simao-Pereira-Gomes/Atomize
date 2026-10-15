@@ -9,13 +9,13 @@ The VS Code extension had a single `Atomize: Validate` command that always ran O
 
 Three shapes were considered:
 
-1. **Two separate commands** — `Atomize: Validate` (offline always) + `Atomize: Verify Online` (picker always). Clean intent, but splits validation across two commands.
-2. **Smart merged command** — `Atomize: Validate` runs online silently from workspace configuration when set, offline when not. First-run experience stays friction-free, but online validation becomes hidden behavior.
-3. **Always-prompt merged command** — `Atomize: Validate` always shows a picker. Maximum flexibility, maximum friction.
+1. **Two separate commands**: `Atomize: Validate` (offline always) + `Atomize: Verify Online` (picker always). Clean intent, but splits validation across two commands.
+2. **Smart merged command**: `Atomize: Validate` runs online silently from workspace configuration when set, offline when not. First-run experience stays friction-free, but online validation becomes hidden behavior.
+3. **Always-prompt merged command**: `Atomize: Validate` always shows a picker. Maximum flexibility, maximum friction.
 
 ## Decision
 
-Use a single explicit `Atomize: Validate` command. Validation Profile Selection is always user-driven — the system never chooses the validation mode silently.
+Use a single explicit `Atomize: Validate` command. Validation Profile Selection is always user-driven: the system never chooses the validation mode silently.
 
 `Atomize: Validate` fetches Azure DevOps profiles from `atomize auth list --json`:
 - **One or more ADO profiles exist** → show a picker with those profiles plus an "Offline only" option.

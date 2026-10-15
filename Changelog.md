@@ -1,6 +1,6 @@
 # Changelog
 
-> **Frozen — historical record only.** Per-release notes now live in GitHub
+> **Frozen: historical record only.** Per-release notes now live in GitHub
 > Releases, one set per surface (CLI `v*`, VS Code extension `vscode-v*`, Atomize
 > Studio `studio-v*`), generated from the commit log. See
 > [docs/Releasing.md](docs/Releasing.md). This file covers Atomize through the
@@ -13,20 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.0] - 2026-09-08 - monorepo split
 
-This release splits Atomize into a shared architecture (`atomize-core`, `atomize-schema`, `atomize-ai`) consumed by three independent surfaces — the CLI, the VS Code extension, and the new Atomize Studio desktop app — and retires GitHub Models in favor of GitHub Copilot for AI-assisted drafting. See [Contributing.md#monorepo-architecture](./Contributing.md#monorepo-architecture) for the package layout.
+This release splits Atomize into a shared architecture (`atomize-core`, `atomize-schema`, `atomize-ai`) consumed by three independent surfaces (the CLI, the VS Code extension, and the new Atomize Studio desktop app) and retires GitHub Models in favor of GitHub Copilot for AI-assisted drafting. See [Contributing.md#monorepo-architecture](./Contributing.md#monorepo-architecture) for the package layout.
 
 ### Added
-- **Atomize Studio** — new standalone desktop app (macOS, Windows, experimental Linux), the visual counterpart to the CLI and VS Code extension. Templates Area (four Starting Paths: scratch, Catalog Clone, Open, AI draft), Generate Area (Mock Preview, Live Preview, execution with confirmation), Catalog Area (install/remove), and Global Settings (Connection Profiles, Theme). See [docs/Atomize-Studio.md](./docs/Atomize-Studio.md).
-- `atomize template metadata` — reads Azure DevOps project metadata (work item types, states, fields, saved queries) as JSON, for visual template-authoring surfaces.
+- **Atomize Studio**: new standalone desktop app (macOS, Windows, experimental Linux), the visual counterpart to the CLI and VS Code extension. Templates Area (four Starting Paths: scratch, Catalog Clone, Open, AI draft), Generate Area (Mock Preview, Live Preview, execution with confirmation), Catalog Area (install/remove), and Global Settings (Connection Profiles, Theme). See [docs/Atomize-Studio.md](./docs/Atomize-Studio.md).
+- `atomize template metadata`: reads Azure DevOps project metadata (work item types, states, fields, saved queries) as JSON, for visual template-authoring surfaces.
 - `auth rotate --pat-stdin` for non-interactive PAT rotation.
 - Connection Profiles are now shared between the CLI and Atomize Studio through the same `~/.atomize/connections.json`, each surface resolving tokens through its own native OS credential manager. See [docs/Auth-Guide.md](./docs/Auth-Guide.md#shared-between-the-cli-and-atomize-studio).
 
 ### Changed
-- The VS Code extension no longer shells out to a separately-installed CLI — it embeds `atomize-core` directly and runs in-process. No CLI install is required for validation, preview, or generation.
+- The VS Code extension no longer shells out to a separately-installed CLI: it embeds `atomize-core` directly and runs in-process. No CLI install is required for validation, preview, or generation.
 - AI-assisted template drafting (`template create --ai` in the CLI; the AI draft Starting Path in Studio) now authenticates through an ephemeral GitHub Copilot SDK sign-in (a Copilot Session) instead of a stored AI Connection Profile.
 
 ### Deprecated
-- VS Code settings `atomize.cliPath`, `atomize.cli.installCommand`, and `atomize.cli.autoCheckUpdates` are no-ops — the extension no longer runs an external CLI. A one-time notice points affected users here.
+- VS Code settings `atomize.cliPath`, `atomize.cli.installCommand`, and `atomize.cli.autoCheckUpdates` are no-ops: the extension no longer runs an external CLI. A one-time notice points affected users here.
 
 ### Removed
 - **GitHub Models AI provider support**, following [GitHub's retirement of GitHub Models on 30 July 2026](https://github.blog/changelog/2026-07-01-github-models-is-being-fully-retired-on-july-30-2026/): the `github-models` Connection Profile type (`auth add`/`auth test`/`auth rotate` all reject it; existing profiles remain listed only for `auth remove`), the `--ai-profile` flag, and the `ATOMIZE_AI_PROFILE` environment variable. See [docs/github-models-retirement-assessment.md](./docs/github-models-retirement-assessment.md) for the background.
@@ -36,15 +36,15 @@ This release splits Atomize into a shared architecture (`atomize-core`, `atomize
 ## [2.0.0] - 2026-05-03
 
 ### Added
-- **`auth` command** — manage named connection profiles
+- **`auth` command**: manage named connection profiles
   - Azure DevOps profiles for task generation, validation, fields, and saved queries
   - GitHub Models profiles for AI-assisted template generation
-  - `auth add [name]` — add a profile interactively or via flags (`--org-url`, `--project`, `--team`, `--pat-stdin`, `--default`)
-  - `auth list` (`ls`) — list all saved profiles with token storage method and timestamps
-  - `auth use [name]` — set the default profile for that profile's platform
-  - `auth remove [name]` (`rm`) — remove a profile; prompts to reassign default if needed
-  - `auth test [name]` — test live connectivity for a profile
-  - `auth rotate [name]` — replace the stored PAT for a profile
+  - `auth add [name]`: add a profile interactively or via flags (`--org-url`, `--project`, `--team`, `--pat-stdin`, `--default`)
+  - `auth list` (`ls`): list all saved profiles with token storage method and timestamps
+  - `auth use [name]`: set the default profile for that profile's platform
+  - `auth remove [name]` (`rm`): remove a profile; prompts to reassign default if needed
+  - `auth test [name]`: test live connectivity for a profile
+  - `auth rotate [name]`: replace the stored PAT for a profile
   - Tokens stored in OS keychain when available, with explicit opt-in for local file fallback
   - `--profile <name>` flag on `generate` and `template create` to select a profile per-run
   - `ATOMIZE_PROFILE` environment variable as alternative to `--profile`
@@ -90,14 +90,14 @@ This release splits Atomize into a shared architecture (`atomize-core`, `atomize
 ### Added
 
 #### Conditional Estimation Percentages
-- **`estimationPercentCondition`** — new task field that lets each task's weight adapt to story properties at generation time
+- **`estimationPercentCondition`**: new task field that lets each task's weight adapt to story properties at generation time
   - Rules are evaluated in order; first matching condition wins
   - Falls back to `estimationPercent` when no condition matches
   - Resolved percentages (not static fallbacks) are used as the baseline when conditional tasks are skipped, keeping normalization accurate
   - Supports all existing condition operators: `CONTAINS`, `AND`, `OR`, `==`, `!=`, `>`, `<`, `>=`, `<=`
 
 #### Multi-Story Learning
-- **`--from-stories <ids>`** flag on `template create` — learn from multiple existing stories at once (comma-separated IDs)
+- **`--from-stories <ids>`** flag on `template create`: learn from multiple existing stories at once (comma-separated IDs)
   - Pattern detection groups similar tasks across stories
   - Confidence scoring: high (≥ 70% of stories), medium (40–69%), low (< 40%)
   - Outlier detection flags stories that differ significantly from the group
@@ -106,30 +106,30 @@ This release splits Atomize into a shared architecture (`atomize-core`, `atomize
   - Tag pattern analysis feeds into generated filter criteria
 
 #### Strict / Lenient Validation Modes
-- **`--strict`** flag on `validate` — promotes all warnings to errors; template fails if any warning exists
-- **`validation.mode`** field in template YAML — set the default mode per template (`"strict"` or `"lenient"`)
+- **`--strict`** flag on `validate`: promotes all warnings to errors; template fails if any warning exists
+- **`validation.mode`** field in template YAML: set the default mode per template (`"strict"` or `"lenient"`)
 - CLI flags override the template's `validation.mode` setting
 
 #### CLI Improvements
-- **`--story-concurrency <n>`** on `generate` — control max stories processed in parallel (default: 3, max: 10)
-- **`--task-concurrency <n>`** on `generate` — control max tasks created per story in parallel (default: 5, max: 20)
-- **`--dependency-concurrency <n>`** on `generate` — control max dependency links created in parallel (default: 5, max: 10)
-- **`-o, --output <file>`** on `generate` — write a JSON execution report to a file
-- **`-q, --quiet`** on `generate`, `validate`, and `template create` — suppress non-essential output
+- **`--story-concurrency <n>`** on `generate`: control max stories processed in parallel (default: 3, max: 10)
+- **`--task-concurrency <n>`** on `generate`: control max tasks created per story in parallel (default: 5, max: 20)
+- **`--dependency-concurrency <n>`** on `generate`: control max dependency links created in parallel (default: 5, max: 10)
+- **`-o, --output <file>`** on `generate`: write a JSON execution report to a file
+- **`-q, --quiet`** on `generate`, `validate`, and `template create`: suppress non-essential output
 
 #### Validation Improvements
 - Validation errors now include actionable suggestions (💡 hints) explaining exactly how to fix each issue
 - Exit code `1` on `generate` when one or more stories fail processing
 
 #### Documentation
-- New: [Validation Modes guide](docs/Validation-Modes.md) — full explanation of strict vs lenient, error vs warning classification, and when to use each
-- New: [Story Learner guide](docs/Story-Learner.md) — single and multi-story learning, pattern detection, confidence scoring, tips
-- Rewritten: [Template Reference](docs/Template-Reference.md) — complete schema reference (previously contained wrong content)
+- New: [Validation Modes guide](docs/Validation-Modes.md): full explanation of strict vs lenient, error vs warning classification, and when to use each
+- New: [Story Learner guide](docs/Story-Learner.md): single and multi-story learning, pattern detection, confidence scoring, tips
+- Rewritten: [Template Reference](docs/Template-Reference.md): complete schema reference (previously contained wrong content)
 - Updated: all existing docs to reflect v1.1 flags, features, and corrected command references
 
 ### Changed
 
-- **Interactive prompts** migrated from `inquirer` to `@clack/prompts` — improved UI consistency and cross-platform behaviour
+- **Interactive prompts** migrated from `inquirer` to `@clack/prompts`: improved UI consistency and cross-platform behaviour
 - **Validate command** output now distinguishes strict vs lenient context in the result header
 - **Generate command** details section shown when `--verbose` is set or there are 5 or fewer stories (previously always shown)
 - `template create --from-stories` supports both single-story and multi-story learning

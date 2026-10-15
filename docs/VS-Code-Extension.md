@@ -6,11 +6,11 @@ The extension is designed for teams that want consistent task breakdowns across 
 
 > Compatibility: Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
-> **No CLI required.** The extension embeds `@sppg2001/atomize-core` directly — it no longer spawns the Atomize CLI as a subprocess. If you're upgrading from an earlier version: the `atomize.cliPath`, `atomize.cli.installCommand`, and `atomize.cli.autoCheckUpdates` settings are deprecated no-ops. The extension shows a one-time notice if it finds any of them still set in your settings, and you can safely remove them.
+> **No CLI required.** The extension embeds `@sppg2001/atomize-core` directly: it no longer spawns the Atomize CLI as a subprocess. If you're upgrading from an earlier version: the `atomize.cliPath`, `atomize.cli.installCommand`, and `atomize.cli.autoCheckUpdates` settings are deprecated no-ops. The extension shows a one-time notice if it finds any of them still set in your settings, and you can safely remove them.
 
 ## Install
 
-Install the VS Code extension from the packaged extension or Marketplace release when available. No separate CLI install is needed — validation, preview, and generation all run in-process.
+Install the VS Code extension from the packaged extension or Marketplace release when available. No separate CLI install is needed: validation, preview, and generation all run in-process.
 
 The extension recommends the Red Hat YAML extension. Atomize YAML files stay on VS Code's YAML language service so schema hovers and completions work.
 
@@ -121,7 +121,7 @@ The title-bar buttons switch modes, and the pencil button lets you **enter Story
 
 Opens the Profile Management Surface for Connection Profiles. From VS Code, users can add, test, rotate, remove, and set a default profile.
 
-The extension owns its own profile storage: non-secret fields live in VS Code's `globalState`, secrets in VS Code's `SecretStorage` — independent of the CLI's `~/.atomize/connections.json`. If you already have CLI profiles, the empty state offers a one-time **Import from CLI** action that pre-fills a profile's non-secret fields from `~/.atomize/connections.json` (read-only, never written to); you re-enter the access token once. See the [Auth Guide](./Auth-Guide.md) for details.
+The extension owns its own profile storage: non-secret fields live in VS Code's `globalState`, secrets in VS Code's `SecretStorage`: independent of the CLI's `~/.atomize/connections.json`. If you already have CLI profiles, the empty state offers a one-time **Import from CLI** action that pre-fills a profile's non-secret fields from `~/.atomize/connections.json` (read-only, never written to); you re-enter the access token once. See the [Auth Guide](./Auth-Guide.md) for details.
 
 ### Atomize: Browse Catalog
 
@@ -213,9 +213,9 @@ Opens Atomize extension settings.
 
 | Setting | Purpose |
 |---|---|
-| `atomize.cliPath` | Deprecated — no longer used. The extension runs Atomize in-process and no longer spawns a CLI executable. |
-| `atomize.cli.installCommand` | Deprecated — no longer used. |
-| `atomize.cli.autoCheckUpdates` | Deprecated — no longer used. |
+| `atomize.cliPath` | Deprecated: no longer used. The extension runs Atomize in-process and no longer spawns a CLI executable. |
+| `atomize.cli.installCommand` | Deprecated: no longer used. |
+| `atomize.cli.autoCheckUpdates` | Deprecated: no longer used. |
 | `atomize.ai.model` | The Copilot model family to use for AI drafting, such as `gpt-4o`. Leave as `auto` (the default) to use the available Copilot model with the largest input limit, since grounded requests carry project metadata, Stories and Reference Documents. If the model you choose isn't available, Atomize offers to switch back to `auto`. |
 | `atomize.defaultProfile` | Workspace-scoped profile name to preselect in Validate, Live Preview, and Generate pickers. |
 | `atomize.schemaReference.openMode` | Schema Reference layout: `beside` or `editor` (default). Applies on the next command invocation. |
@@ -263,7 +263,7 @@ For field syntax and constraints, see the [Schema Reference](https://atomize-cd9
 
 ### Deprecated CLI Settings Notice
 
-If you see a one-time notice about `atomize.cliPath`, `atomize.cli.installCommand`, or `atomize.cli.autoCheckUpdates`, it means one of those settings is still set from an earlier version of the extension. They're no-ops now — the extension runs Atomize in-process — and can be safely removed from your settings.
+If you see a one-time notice about `atomize.cliPath`, `atomize.cli.installCommand`, or `atomize.cli.autoCheckUpdates`, it means one of those settings is still set from an earlier version of the extension. They're no-ops now (the extension runs Atomize in-process) and can be safely removed from your settings.
 
 ### Connected Commands Need A Profile
 

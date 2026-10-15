@@ -199,7 +199,7 @@ atomize auth rotate work-ado
 atomize auth remove old-profile
 ```
 
-Azure DevOps profiles have their own default, set with `atomize auth use`. AI-assisted template creation does not use a Connection Profile at all — it authenticates through a separate Copilot Session; see [Auth Guide](./Auth-Guide.md).
+Azure DevOps profiles have their own default, set with `atomize auth use`. AI-assisted template creation does not use a Connection Profile at all: it authenticates through a separate Copilot Session; see [Auth Guide](./Auth-Guide.md).
 
 ## Automate With The CLI
 
@@ -249,7 +249,7 @@ Use `--auto-approve` only in jobs where task creation is intentional. See [CLI R
 
 ### Atomize Command Not Found
 
-This applies to terminal/CI use of the CLI only — the VS Code extension runs Atomize directly and does not need the CLI installed. Install the CLI:
+This applies to terminal/CI use of the CLI only: the VS Code extension runs Atomize directly and does not need the CLI installed. Install the CLI:
 
 ```bash
 npm install -g @sppg2001/atomize

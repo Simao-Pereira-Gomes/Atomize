@@ -21,8 +21,8 @@ Atomize has two validation modes that affect how warnings are treated.
 
 | Mode | Warnings | Usage |
 |------|----------|-------|
-| **Lenient** (default) | Non-blocking — template is still valid | Development, flexible templates |
-| **Strict** | Promoted to errors — template is invalid | Production, CI/CD, team templates |
+| **Lenient** (default) | Non-blocking: template is still valid | Development, flexible templates |
+| **Strict** | Promoted to errors: template is invalid | Production, CI/CD, team templates |
 
 **Set mode via CLI:**
 ```bash
@@ -44,7 +44,7 @@ See [Validation Modes](./Validation-Modes.md) for a full explanation.
 
 ### Total Estimation Does Not Equal 100%
 
-> **Note:** Without `totalEstimationMustBe` or `totalEstimationRange` configured, a mismatched total is a **warning** (not an error) in lenient mode — the template is still usable. It only becomes an error when a strict constraint is configured, or when running in strict mode.
+> **Note:** Without `totalEstimationMustBe` or `totalEstimationRange` configured, a mismatched total is a **warning** (not an error) in lenient mode: the template is still usable. It only becomes an error when a strict constraint is configured, or when running in strict mode.
 
 **Error Message** (when `totalEstimationMustBe: 100` is set):
 ```

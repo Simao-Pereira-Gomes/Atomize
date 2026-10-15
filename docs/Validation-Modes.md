@@ -109,7 +109,7 @@ These issues are warnings in lenient mode but become errors in strict mode:
 | Offline custom field verification | `1 task(s) have custom fields that could not be verified` |
 | Total estimation not 100% (no `totalEstimationMustBe` or `totalEstimationRange` configured) | `Total estimation is 70% (expected 100%)` |
 | Task missing recommended field | `Task "Implementation" has no activity set` |
-| Template has no filter criteria | `No filter criteria configured — template will match all work items` |
+| Template has no filter criteria | `No filter criteria configured: template will match all work items` |
 | Story Estimate value with no conversion (Online) | `"XXL" is a valid value of "Custom.TShirtSize" but has no conversion; Stories with it will get blank Task Estimates.` |
 | `conversion.table` key that isn't an allowed value (Online) | `conversion.table key "XXS" is not an allowed value of "Custom.TShirtSize" and will never match.` |
 | Free-text or open picklist source field (Online) | `"Custom.Size" is a free-text field; any value not in the conversion table will leave Tasks unestimated.` |
@@ -164,17 +164,17 @@ When Azure DevOps-backed validation is needed:
 
 ### Use Lenient Mode for:
 
-- **Developing new templates** — iterate quickly without strict checks blocking you
-- **Experimental or personal templates** — where flexibility matters more than rigidity
-- **Templates with optional tasks** — where conditional tasks may cause warning-level issues
-- **Generating tasks interactively** — the default mode is appropriate for everyday use
+- **Developing new templates**: iterate quickly without strict checks blocking you
+- **Experimental or personal templates**: where flexibility matters more than rigidity
+- **Templates with optional tasks**: where conditional tasks may cause warning-level issues
+- **Generating tasks interactively**: the default mode is appropriate for everyday use
 
 ### Use Strict Mode for:
 
-- **Shared team templates** — enforce quality for templates used across the team
-- **CI/CD pipelines** — ensure templates meet all quality gates before merging
-- **Production-critical templates** — for templates that run automatically
-- **Template reviews** — catch every potential issue before releasing a template
+- **Shared team templates**: enforce quality for templates used across the team
+- **CI/CD pipelines**: ensure templates meet all quality gates before merging
+- **Production-critical templates**: for templates that run automatically
+- **Template reviews**: catch every potential issue before releasing a template
 
 ```bash
 # CI/CD example: validate all templates strictly

@@ -144,7 +144,7 @@ Want to add support for Jira, GitHub, or another platform?
 - **Bun** v1.0+ (recommended) or Node.js 18+
 - **Git**
 - **Azure DevOps account** (optional, for testing)
-- **A GitHub Copilot account** (optional, for testing AI-assisted template generation — see [docs/Auth-Guide.md](docs/Auth-Guide.md#ai-drafting-copilot-session))
+- **A GitHub Copilot account** (optional, for testing AI-assisted template generation: see [docs/Auth-Guide.md](docs/Auth-Guide.md#ai-drafting-copilot-session))
 
 ### Initial Setup
 
@@ -194,21 +194,21 @@ bun run check
 
 Atomize is a Bun workspace monorepo. `packages/` holds seven packages, split between three release surfaces and four internal shared libraries.
 
-**Release surfaces** — each ships independently with its own release pipeline. How releases are cut and how their notes are generated: [docs/Releasing.md](docs/Releasing.md).
-- `packages/cli` — the Atomize CLI, published to npm as `@sppg2001/atomize`. See [docs/adr/0031](docs/adr/0031-cli-release-pipeline.md).
-- `packages/vscode-extension` — the VS Code extension, published to the Marketplace. See [docs/adr/0030](docs/adr/0030-extension-release-pipeline.md).
-- `packages/atomize-studio` — the desktop app (Tauri), published as platform installers via GitHub Releases. See [docs/adr/0059](docs/adr/0059-studio-release-tags-gate-publishing.md).
+**Release surfaces**: each ships independently with its own release pipeline. How releases are cut and how their notes are generated: [docs/Releasing.md](docs/Releasing.md).
+- `packages/cli`: the Atomize CLI, published to npm as `@sppg2001/atomize`. See [docs/adr/0031](docs/adr/0031-cli-release-pipeline.md).
+- `packages/vscode-extension`: the VS Code extension, published to the Marketplace. See [docs/adr/0030](docs/adr/0030-extension-release-pipeline.md).
+- `packages/atomize-studio`: the desktop app (Tauri), published as platform installers via GitHub Releases. See [docs/adr/0059](docs/adr/0059-studio-release-tags-gate-publishing.md).
 
-**Shared internal libraries** — all `private: true`, workspace-linked, never published on their own:
-- `packages/atomize-schema` — Zod-based Atomize YAML schema and validation. No internal dependencies; the base of the graph.
-- `packages/atomize-core` — the shared Template Library: composition, platform adapters, services. Depends on `atomize-schema`.
-- `packages/atomize-ai` — shared AI template-drafting client, wrapping `@github/copilot-sdk`. No internal atomize dependencies.
-- `packages/atomize-sidecar` — a companion process bundled with Atomize Studio, compiled to a standalone binary (`bun build --compile`). Depends on `atomize-core` and `atomize-ai`.
+**Shared internal libraries**: all `private: true`, workspace-linked, never published on their own:
+- `packages/atomize-schema`: Zod-based Atomize YAML schema and validation. No internal dependencies; the base of the graph.
+- `packages/atomize-core`: the shared Template Library: composition, platform adapters, services. Depends on `atomize-schema`.
+- `packages/atomize-ai`: shared AI template-drafting client, wrapping `@github/copilot-sdk`. No internal atomize dependencies.
+- `packages/atomize-sidecar`: a companion process bundled with Atomize Studio, compiled to a standalone binary (`bun build --compile`). Depends on `atomize-core` and `atomize-ai`.
 
 There are two distinct ways a release surface consumes the shared libraries:
 
-1. **Direct embedding.** `cli` and `vscode-extension` both import `atomize-core` as an in-process TypeScript library (`cli` also imports `atomize-ai` directly, for its AI-assisted drafting command). `vscode-extension` moved to this pattern from shelling out to a separately-installed CLI binary — see [docs/adr/0038](docs/adr/0038-atomize-core-shared-library-replaces-cli-subprocess.md) for why.
-2. **Companion process.** `atomize-studio`'s frontend is a Tauri webview, not a Node/Bun process, so it can't import `atomize-core`/`atomize-ai` directly. Instead it stages and bundles the `atomize-sidecar` binary and talks to it as a separate OS process over a wire protocol. See [docs/adr/0042](docs/adr/0042-studio-sidecar-wire-protocol.md) and [docs/adr/0034](docs/adr/0034-template-builder-cli-bridge-via-tauri-plugin-shell.md). `atomize-studio` also depends on `atomize-schema` directly in its frontend for client-side validation — that dependency is separate from its sidecar relationship with `atomize-core`/`atomize-ai`.
+1. **Direct embedding.** `cli` and `vscode-extension` both import `atomize-core` as an in-process TypeScript library (`cli` also imports `atomize-ai` directly, for its AI-assisted drafting command). `vscode-extension` moved to this pattern from shelling out to a separately-installed CLI binary: see [docs/adr/0038](docs/adr/0038-atomize-core-shared-library-replaces-cli-subprocess.md) for why.
+2. **Companion process.** `atomize-studio`'s frontend is a Tauri webview, not a Node/Bun process, so it can't import `atomize-core`/`atomize-ai` directly. Instead it stages and bundles the `atomize-sidecar` binary and talks to it as a separate OS process over a wire protocol. See [docs/adr/0042](docs/adr/0042-studio-sidecar-wire-protocol.md) and [docs/adr/0034](docs/adr/0034-template-builder-cli-bridge-via-tauri-plugin-shell.md). `atomize-studio` also depends on `atomize-schema` directly in its frontend for client-side validation: that dependency is separate from its sidecar relationship with `atomize-core`/`atomize-ai`.
 
 ```
 atomize-schema
@@ -324,7 +324,7 @@ refactor(filter-engine): simplify WIQL query building
 ```
 
 **Scopes feed release notes.** Releases squash-merge, so the PR title becomes the
-commit subject becomes a release-note bullet — in every surface whose dependency
+commit subject becomes a release-note bullet: in every surface whose dependency
 closure the changed paths fall inside. Write titles that read well to a user out
 of context, and when a PR changes a shared package (`atomize-schema`,
 `atomize-core`, `atomize-ai`, `atomize-sidecar`), **lead the scope with the shared
@@ -503,7 +503,7 @@ export const exportCommand = new Command("export")
 5. Add tests under `packages/atomize-core/tests/`
 6. Document in Platform Guide
 
-`cli` and `vscode-extension` both consume `atomize-core` directly, so a new adapter becomes available to both once it's added there — no per-surface wiring needed. `atomize-studio` picks it up transitively through `atomize-sidecar`, which also depends on `atomize-core` (see [Monorepo Architecture](#monorepo-architecture)).
+`cli` and `vscode-extension` both consume `atomize-core` directly, so a new adapter becomes available to both once it's added there: no per-surface wiring needed. `atomize-studio` picks it up transitively through `atomize-sidecar`, which also depends on `atomize-core` (see [Monorepo Architecture](#monorepo-architecture)).
 
 See [Platform Guide - Adding New Platforms](docs/Platform-Guide.md#adding-new-platforms)
 

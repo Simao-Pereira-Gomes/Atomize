@@ -6,17 +6,17 @@ The shared AI template-drafting client. Wraps the GitHub Copilot SDK behind a sm
 
 Single entry point (`.`, built to `dist/index.js`):
 
-- `createAIProvider(config: AIProviderConfig): AIProvider` — factory. `AIProviderConfig` is `{ type: "github-copilot" }` or `{ type: "mock"; response?: string }` (the mock provider is for tests/offline use, not a retired production provider).
-- `AIProvider`, `AIDraftSession` — the provider interface types.
-- `GitHubCopilotProvider`, `CopilotAuthenticationError` — the GitHub Copilot SDK-backed implementation and its auth-failure error type.
+- `createAIProvider(config: AIProviderConfig): AIProvider`: factory. `AIProviderConfig` is `{ type: "github-copilot" }` or `{ type: "mock"; response?: string }` (the mock provider is for tests/offline use, not a retired production provider).
+- `AIProvider`, `AIDraftSession`: the provider interface types.
+- `GitHubCopilotProvider`, `CopilotAuthenticationError`: the GitHub Copilot SDK-backed implementation and its auth-failure error type.
 
-There is no `github-models` provider — AI drafting was migrated off GitHub Models onto the Copilot SDK; see [ADR-0044](../../docs/adr/0044-copilot-sdk-for-ai-template-drafting.md).
+There is no `github-models` provider: AI drafting was migrated off GitHub Models onto the Copilot SDK; see [ADR-0044](../../docs/adr/0044-copilot-sdk-for-ai-template-drafting.md).
 
 ## Consumers
 
-- `cli` — direct dependency, used by `atomize template create --ai`.
-- `atomize-sidecar` — direct dependency, used for AI drafting in Atomize Studio.
-- **Not** a dependency of `vscode-extension` — the VS Code extension has no AI-drafting surface.
+- `cli`: direct dependency, used by `atomize template create --ai`.
+- `atomize-sidecar`: direct dependency, used for AI drafting in Atomize Studio.
+- **Not** a dependency of `vscode-extension`: the VS Code extension has no AI-drafting surface.
 
 ## Scripts
 

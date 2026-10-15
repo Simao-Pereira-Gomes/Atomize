@@ -8,7 +8,7 @@
 
 **Break down stories, build up velocity.**
 
-Atomize turns stories into consistent child tasks using reusable YAML templates. Use it from VS Code for guided authoring, Atomize Studio for a standalone visual workflow, or the CLI for automation and scripting — pick the surface that fits, or mix them.
+Atomize turns stories into consistent child tasks using reusable YAML templates. Use it from VS Code for guided authoring, Atomize Studio for a standalone visual workflow, or the CLI for automation and scripting: pick the surface that fits, or mix them.
 
 Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
@@ -24,7 +24,7 @@ Atomize is designed around platform adapters. Today, connected generation suppor
 
 ## Start With VS Code
 
-1. Install the [Atomize extension](./docs/VS-Code-Extension.md) from the Marketplace or a packaged release. It runs directly in the editor — no separate CLI install needed.
+1. Install the [Atomize extension](./docs/VS-Code-Extension.md) from the Marketplace or a packaged release. It runs directly in the editor: no separate CLI install needed.
 2. Open or create an `.atomize.yaml` file.
 3. Run **Atomize: Validate**.
 4. Run **Atomize: Preview (Mock)** to test the template offline.

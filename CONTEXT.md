@@ -19,7 +19,7 @@ A child Work Item produced from a Template task definition. A definition usually
 A YAML-defined task breakdown recipe for matching Stories.
 
 **Story Estimate**:
-The size recorded on a Story, in the Story's own unit — points, a t-shirt size, hours, or any other scale the platform process uses.
+The size recorded on a Story, in the Story's own unit: points, a t-shirt size, hours, or any other scale the platform process uses.
 _Avoid_: "story points" when referring to the Story Estimate generically; points are only one possible unit.
 
 **Task Estimate**:
@@ -63,18 +63,18 @@ _Avoid_: current working directory when referring to project scope.
 A name-collision between two Catalog items of the same kind and stem name. The higher-priority source wins; the losing item is the overridden entry. Shown as `⚠ overrides:` in `atomize template list`.
 
 **Template Lineage**:
-A declared provenance relationship between a Template or Mixin and the Catalog item it was derived from, recorded in the `origin` field (`template:<name>` or `mixin:<name>`). Lineage is informational only — it does not affect how refs are resolved and does not shadow the origin item. Shown as `↖ based on:` in `atomize template list`.
+A declared provenance relationship between a Template or Mixin and the Catalog item it was derived from, recorded in the `origin` field (`template:<name>` or `mixin:<name>`). Lineage is informational only: it does not affect how refs are resolved and does not shadow the origin item. Shown as `↖ based on:` in `atomize template list`.
 _Avoid_: using "override" for lineage; lineage is derivation, not replacement.
 
 **Atomize YAML File**:
 Any YAML file authored for Atomize, either a Template or a Mixin.
 
 **Schema Reference**:
-The browsable, always-current account of what a valid Atomize YAML File may contain — every field's shape, type, requirement, default, allowed values, and the cross-field rules that apply to it — presented separately for Templates and Mixins. It answers "what is valid"; the Template Reference answers "what it means and how it behaves", and the two link to each other field by field.
+The browsable, always-current account of what a valid Atomize YAML File may contain (every field's shape, type, requirement, default, allowed values, and the cross-field rules that apply to it) presented separately for Templates and Mixins. It answers "what is valid"; the Template Reference answers "what it means and how it behaves", and the two link to each other field by field.
 _Avoid_: "schema docs" or "schema viewer" for the concept; "the JSON Schema" is only the machine-readable artifact the editor uses.
 
 **Template Reference**:
-The prose guide to how Atomize YAML Files behave — composition, interpolation, conditions, estimation semantics, and worked examples. It does not restate field-by-field facts the Schema Reference already shows.
+The prose guide to how Atomize YAML Files behave: composition, interpolation, conditions, estimation semantics, and worked examples. It does not restate field-by-field facts the Schema Reference already shows.
 
 **Platform Adapter**:
 A concrete adapter that lets Atomize read, create, and link Work Items on a work-tracking platform.
@@ -83,11 +83,11 @@ A concrete adapter that lets Atomize read, create, and link Work Items on a work
 A user-supplied JSON object of Story field values (using Work Item property names) used to simulate Task generation without a platform connection. Required fields (`id`, `title`, `type`, `state`) are silently defaulted if omitted.
 
 **Mock Preview**:
-Offline Task generation evaluated against a Mock Story. Produces a resolved Task list — including skipped conditional Tasks and estimation breakdowns — without querying or creating Work Items on any platform.
+Offline Task generation evaluated against a Mock Story. Produces a resolved Task list (including skipped conditional Tasks and estimation breakdowns) without querying or creating Work Items on any platform.
 
 **Live Preview**:
 Task generation dry-run evaluated against a real Story fetched from a Platform Adapter. Produces a resolved Task list without creating Work Items on any platform.
-_Avoid_: "live run" — Live Preview never creates Tasks.
+_Avoid_: "live run": Live Preview never creates Tasks.
 
 **Connection Profile**:
 A named Azure DevOps connection record, with its non-secret fields and default stored in the shared Atomize connections file. The CLI and Atomize Studio both read and write that file and resolve the profile's token through compatible OS credential-manager entries, using their own native credential APIs rather than a shared keychain implementation. Studio supports only OS-keyring-backed tokens: a CLI profile using the optional insecure keyfile fallback must be rotated in Studio before Studio can use it, which converts its token marker to the shared keyring strategy. The first Azure DevOps profile becomes the default, and later default changes are explicit. Legacy GitHub Models records are retained only for explicit user cleanup; they cannot be used as Connection Profiles.
@@ -98,13 +98,13 @@ An ephemeral, tool-free AI session on the user's own signed-in GitHub Copilot ac
 _Avoid_: calling this a Connection Profile or a GitHub Models profile.
 
 **Grounding**:
-Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms — Project Grounding and Document Grounding — and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
+Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms (Project Grounding and Document Grounding) and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.
 
 **Project Grounding**:
 Grounding drawn from a Connection Profile's project: Work Item types, field names and allowed values, saved query names, and area/iteration paths. Always included when the user chooses a Connection Profile for a draft or an improvement.
 
 **Reference Document**:
-A user-selected written account of how a team breaks down and estimates work — an Azure DevOps wiki page read through a Connection Profile, or a local Markdown or text file. Sent to a Copilot Session as reference material, never as instructions.
+A user-selected written account of how a team breaks down and estimates work: an Azure DevOps wiki page read through a Connection Profile, or a local Markdown or text file. Sent to a Copilot Session as reference material, never as instructions.
 _Avoid_: "context file" or "prompt file"; a Reference Document describes the team's process, it does not steer the AI the way prose guidance does.
 
 **Project Reference Documents**:
@@ -115,7 +115,7 @@ _Avoid_: treating Project Reference Documents as automatically sent; they are a 
 Grounding drawn from one or more Reference Documents. Unlike Project Grounding it needs no Connection Profile when the documents are local files, and it may accompany either AI action.
 
 **Story Browser**:
-The surface for finding and selecting one or more Stories from a platform, shared in behaviour by every Atomize surface that asks the user to pick Stories. It opens on a default list suited to the task at hand — for generation, open Stories without Tasks in the team's current and next sprint, of the Template's Work Item types — and can switch to a Story Search; Story IDs can always be entered directly.
+The surface for finding and selecting one or more Stories from a platform, shared in behaviour by every Atomize surface that asks the user to pick Stories. It opens on a default list suited to the task at hand (for generation, open Stories without Tasks in the team's current and next sprint, of the Template's Work Item types) and can switch to a Story Search; Story IDs can always be entered directly.
 _Avoid_: asking users to type Story IDs blind where a Story Browser can be offered.
 
 **Story Search**:
@@ -130,7 +130,7 @@ _Avoid_: "connected draft" or "online draft".
 An AI draft or improvement the user explicitly chose to produce without any Grounding; only the user's request (and, for an improvement, the Template itself) reaches the Copilot Session.
 
 **Template Improvement**:
-An AI-proposed revision of an existing Template, optionally steered by the user's prose guidance, reviewed as a whole and then accepted, saved as a new Template, or rejected — never applied silently. The proposal is judged against the Resolved Template but changes only the Template's own content: it never rewrites `extends`, Mixin references, or anything inherited, and instead carries advisory notes when an inherited Task deserves attention.
+An AI-proposed revision of an existing Template, optionally steered by the user's prose guidance, reviewed as a whole and then accepted, saved as a new Template, or rejected: never applied silently. The proposal is judged against the Resolved Template but changes only the Template's own content: it never rewrites `extends`, Mixin references, or anything inherited, and instead carries advisory notes when an inherited Task deserves attention.
 _Avoid_: "AI edit" or "AI refactor"; an improvement is a proposal until accepted.
 
 **Offline Validation**:
@@ -138,7 +138,7 @@ Template validation that checks structure only, without connecting to any platfo
 _Avoid_: "local validation" or "structural validation" when referring to this mode.
 
 **Online Validation**:
-Template validation that connects to Azure DevOps via a named Connection Profile to verify custom field existence, condition field references, and saved query existence — checks that Offline Validation cannot perform.
+Template validation that connects to Azure DevOps via a named Connection Profile to verify custom field existence, condition field references, and saved query existence: checks that Offline Validation cannot perform.
 _Avoid_: "connected validation" or "ADO validation" when referring to this mode.
 
 **Resolved Template**:

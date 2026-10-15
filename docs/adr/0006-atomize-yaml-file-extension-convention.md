@@ -4,9 +4,9 @@
 
 The VS Code extension needs to identify Atomize files to enable schema autocomplete, CodeLens, snippets, and diagnostics. Three mechanisms exist for this:
 
-1. **File extension** — `.atomize.yaml` / `.atomize.yml`; Atomize treats this as a durable opt-in and contributes a default `files.associations` mapping so VS Code opens it with the `yaml` language ID.
-2. **Modeline** — `# atomize-yaml` on line 1; Atomize treats this as a durable opt-in while preserving VS Code's `yaml` language ID.
-3. **Content detection** — structural heuristics scanning the first 50 lines (Template: `version:` + `filter:` + `tasks:` at root; Mixin: `tasks:` + nested `id:`, no `version:`).
+1. **File extension**: `.atomize.yaml` / `.atomize.yml`; Atomize treats this as a durable opt-in and contributes a default `files.associations` mapping so VS Code opens it with the `yaml` language ID.
+2. **Modeline**: `# atomize-yaml` on line 1; Atomize treats this as a durable opt-in while preserving VS Code's `yaml` language ID.
+3. **Content detection**: structural heuristics scanning the first 50 lines (Template: `version:` + `filter:` + `tasks:` at root; Mixin: `tasks:` + nested `id:`, no `version:`).
 
 The original Layer 1 filename pattern (`/\/atomize\/.*\.ya?ml$/i`) matched every YAML file under any parent directory named `atomize`, including the entire repo checkout path. It was removed.
 
@@ -23,15 +23,15 @@ The original Layer 1 filename pattern (`/\/atomize\/.*\.ya?ml$/i`) matched every
 
 **Catalog storage:** `saveUserTemplate`, `getUserTemplatePath`, and `getProjectTemplatePath` write new templates as `<name>.atomize.yaml`. `installFromFile` and `installFromContent` normalise the stored copy to `.atomize.yaml` regardless of the source extension. Discovery (`listDirectoryItems`) accepts both `.atomize.yaml` and plain `.yaml` for backward compatibility; when both exist for the same logical name in the same directory, `.atomize.yaml` takes precedence.
 
-**Built-in templates** under `templates/` are stored as `.atomize.yaml`. The modeline is not included — the extension handles detection, and content heuristics catch the structural signature as a further fallback.
+**Built-in templates** under `templates/` are stored as `.atomize.yaml`. The modeline is not included: the extension handles detection, and content heuristics catch the structural signature as a further fallback.
 
 ## Alternatives considered
 
-**Modeline as primary signal.** `# atomize-yaml` on line 1 works without renaming files. Rejected as the long-term primary because it requires content to be read before Atomize can classify the file — slower and less reliable than an extension match.
+**Modeline as primary signal.** `# atomize-yaml` on line 1 works without renaming files. Rejected as the long-term primary because it requires content to be read before Atomize can classify the file: slower and less reliable than an extension match.
 
 **Directory-based pattern** (`/\/atomize\/.*\.ya?ml$/i`). Collapsed to a false positive the moment the repo is checked out under a parent directory named `atomize`. Removed entirely.
 
-**Content detection as primary.** Fragile by design — generic YAML formats (Taskfile, Ansible, CI pipelines) share structural features with Atomize files. Kept as a fallback only.
+**Content detection as primary.** Fragile by design: generic YAML formats (Taskfile, Ansible, CI pipelines) share structural features with Atomize files. Kept as a fallback only.
 
 ## Consequences
 
