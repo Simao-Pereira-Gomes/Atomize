@@ -1,0 +1,17 @@
+---
+import Search from "@astrojs/starlight/components/Search.astro";
+import SiteTitle from "@astrojs/starlight/components/SiteTitle.astro";
+import SocialIcons from "@astrojs/starlight/components/SocialIcons.astro";
+import WebsiteThemeSelect from "./WebsiteThemeSelect.astro";
+---
+<div class="documentation-header">
+  <div class="documentation-brand"><SiteTitle /></div>
+  <nav class="documentation-tabs" aria-label="Documentation sections">
+    <a href="/reference/templates/composition/" aria-current={Astro.url.pathname.startsWith("/reference/") ? "page" : undefined}>Guides</a>
+    <a href="/schema">Schema Reference</a>
+  </nav>
+  <div class="documentation-header-tools">
+    <Search />
+    <div class="documentation-header-actions"><SocialIcons /><WebsiteThemeSelect /></div>
+  </div>
+</div>

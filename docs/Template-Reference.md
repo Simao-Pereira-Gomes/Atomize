@@ -94,7 +94,7 @@ for identity, author and discovery fields, or the
 
 ## Composition
 
-Templates can inherit from other templates and mix in reusable task groups. This lets you build a library of building blocks and assemble them without duplication.
+Composition combines reusable task breakdowns into a Resolved Template. Use a base Template for the common structure and Mixins for task groups that several Templates share. The same composition rules apply wherever Atomize resolves an Atomize YAML File.
 
 ### Inheritance (`extends`)
 
@@ -112,7 +112,7 @@ tasks:
     activity: "Testing"
 ```
 
-The Resolved Template combines the child's `tasks` list on top of the base's, then re-validates the combined result. Use `atomize template resolve` to see the Resolved Template before using it.
+The Resolved Template combines the child's `tasks` list with the base's, then re-validates the combined result. Inspect that result before generating Tasks so you can check both inherited and directly defined content.
 
 ### Mixins (`mixins`)
 
@@ -133,18 +133,7 @@ to that list is validated as a Mixin; any other root key (`filter`, `extends`, `
 makes it a Template. A file referenced from `mixins:` is always read as a Mixin, and one referenced
 from `extends:` as a Template.
 
-Mixins are installed and managed with the `template` commands:
-
-```bash
-# Install a mixin from a URL
-atomize template install https://example.com/mixins/security-tasks.yaml
-
-# List available mixins
-atomize template list --type mixin
-
-# Create a new mixin
-atomize template create --type mixin --save-as security-review-tasks
-```
+Templates and Mixins are both Catalog items. Make each referenced item available in the Template Library before resolving the composed Template. See [Template Creation](./Template-Creation.md) for authoring and Catalog workflows.
 
 ### Resolution order
 
@@ -154,11 +143,21 @@ When Atomize processes a composed template:
 3. Child template fields override the merged base
 4. The final result is validated as a single flat template
 
-Use `atomize template resolve <template>` to inspect the final merged YAML at any point.
+The Resolved Template is the content Atomize validates and uses for Task generation. Inspecting it does not create Tasks.
+
+### Inspect composition in your tool
+
+Choose the workflow for the tool you use; a separate CLI installation is not required by Studio or the VS Code extension.
+
+| Tool | Inspecting a composed Template |
+| --- | --- |
+| VS Code extension | Open the Atomize YAML File and run **Atomize: Show Effective Template** to see its Resolved Template. The source keeps its inheritance and Mixin declarations. See the [extension command guide](./VS-Code-Extension.md#atomize-show-effective-template). |
+| Atomize Studio | **Open** a composed Template to work on the resolved, flattened content. Inherited and Mixin Tasks become directly editable; Studio does not retain the `extends` and `mixins` declarations. Saving the opened file writes that flattened form, so it no longer picks up changes from its parent or Mixins. See [Studio Open](./Atomize-Studio.md#open). |
+| CLI | Use `atomize template resolve <template>` to print the Resolved Template without changing the source. See the [resolve command reference](./Cli-Reference.md#template-resolve) for options and exporting resolved YAML. |
 
 ### Compatibility
 
-Templates using `extends` or `mixins` require Atomize v2.0.0 or later. Older versions will reject them with a schema error. If you share composed templates with users on older versions, they must upgrade first or you can share the resolved output from `atomize template resolve --quiet > resolved.yaml`.
+The CLI first supported `extends` and `mixins` in version 2.0.0. That historical CLI requirement is not a minimum version for Studio or the VS Code extension, which have independent versions. Use the Schema Reference inside Studio or the extension for the format supported by your installed version. When sharing with an older tool that cannot resolve composition, upgrade it or share a flattened Resolved Template instead.
 
 ---
 

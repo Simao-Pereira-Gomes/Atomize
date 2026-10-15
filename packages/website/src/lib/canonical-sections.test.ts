@@ -27,6 +27,19 @@ describe("canonical guide rendering", () => {
     }
   });
 
+  test("the shared composition guide explains each surface without requiring CLI workflows", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include template-composition -->");
+    const { document } = parseHTML(code);
+    const toolChoices = document.querySelector("table")?.textContent ?? "";
+    expect(toolChoices).toContain("VS Code extension");
+    expect(toolChoices).toContain("Atomize Studio");
+    expect(toolChoices).toContain("CLI");
+    expect(toolChoices).toContain("Show Effective Template");
+    expect(toolChoices).toContain("flattened");
+    expect(document.querySelector("pre code.language-bash")).toBeNull();
+  });
+
   test("an include marker inside a code example stays literal", async () => {
     const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
     const { code } = await renderer.render("```html\n<!-- atomize:include nonexistent-section -->\n```");

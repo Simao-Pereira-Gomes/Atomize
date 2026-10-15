@@ -4,7 +4,7 @@ export const canonicalSections = {
     source: "docs/Template-Reference.md",
     section: "composition",
     route: "/reference/templates/composition/",
-    anchors: ["composition", "inheritance-extends", "mixins-mixins", "resolution-order", "compatibility"],
+    anchors: ["composition", "inheritance-extends", "mixins-mixins", "resolution-order", "inspect-composition-in-your-tool", "compatibility"],
   },
 } as const;
 

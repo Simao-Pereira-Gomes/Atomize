@@ -40,6 +40,11 @@ errors do not block unrelated work.
 `docs/README.md` records canonical ownership. Update behaviour and examples in
 the owning repository guide, not a website copy. ADR-0074 records this boundary.
 Existing repository paths and heading links must remain valid.
+Shared explanations and YAML examples must be tool-neutral. Put concrete Studio,
+VS Code, and CLI actions in a separate workflow section or their surface guide,
+and explain meaningful differences instead of defaulting every reader to CLI
+commands. Historical CLI version requirements are not minimum versions for the
+independently released desktop app or extension.
 
 A focused website page contains frontmatter, a short introduction, and a named
 include marker, for example:
