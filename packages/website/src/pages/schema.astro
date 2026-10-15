@@ -6,10 +6,24 @@ import { WebsiteSchemaReference } from "../components/WebsiteSchemaReference";
 import "@sppg2001/atomize-schema-reference/styles.css";
 import logo from "../../../vscode-extension/icons/atomize-product.svg?url";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { PortalPrototype } from "../components/PortalPrototype";
+import templateReference from "../../../../docs/Template-Reference.md?raw";
 
 const trees = buildSchemaTrees(schema);
 const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim();
 const versionLabel = `main @ ${commit} · ${new Date().toISOString().slice(0, 10)}`;
+// Throwaway UI study for #263. The existing /schema is unchanged without ?variant=.
+const composition = templateReference.split("## Composition\n")[1].split("\n---")[0];
+const inheritance = composition.split("### Inheritance (`extends`)\n")[1].split("### Mixins")[0];
+const mixins = composition.split("### Mixins (`mixins`)\n")[1].split("### Resolution order")[0];
+const prototypeContent = {
+  intro: composition.split("### Inheritance")[0].trim(),
+  inheritanceIntro: inheritance.split("```yaml")[0].trim(),
+  inheritanceExample: inheritance.split("```yaml\n")[1].split("```")[0].trim(),
+  mixinIntro: mixins.split("```yaml")[0].trim(),
+  mixinExample: mixins.split("```yaml\n")[1].split("```")[0].trim(),
+  resolution: composition.split("### Resolution order\n")[1].split("\n").filter(line => /^\d\./.test(line)).map(line => line.replace(/^\d\. /, "")),
+};
 ---
 <!doctype html>
 <html lang="en">
@@ -29,6 +43,7 @@ const versionLabel = `main @ ${commit} · ${new Date().toISOString().slice(0, 10
     <title>Schema Reference · Atomize</title>
   </head>
   <body>
+    {import.meta.env.DEV && <PortalPrototype trees={trees} versionLabel={versionLabel} content={prototypeContent} logo={logo} client:only="solid-js" />}
     <header class="site-header">
       <a class="site-brand" href="/schema"><img src={logo} width="26" height="26" alt="" />atomize<span>/ docs</span></a>
       <nav aria-label="Documentation"><span aria-current="page">Schema Reference</span><a href="https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Template-Reference.md">Template Reference ↗</a></nav>

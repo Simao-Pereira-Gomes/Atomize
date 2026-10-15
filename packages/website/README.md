@@ -1,5 +1,23 @@
 # Atomize website
 
+## Throwaway portal UI study (#263)
+
+Run `bun run prototype:portal` from the workspace root and open
+`http://localhost:4321/schema?variant=A`. Compare A (documentation sidebar),
+B (reading room with a field drawer), and C (guide and live schema side by side)
+using the floating bottom bar or left/right arrow keys. Each variant adapts the
+same composition section from the canonical Template Reference. Search is
+limited to the prototype's guide sections; the embedded Schema Reference uses
+the real viewer and its field search. Theme and other UI state stay in memory;
+the variant is carried in the URL.
+
+The study is dev-only and is not the implementation of Starlight or a completed
+issue #263. After a design is selected, preserve the variants on a throwaway
+branch and link the question, verdict, and branch from the issue before replacing
+the prototype with production code.
+
+## Existing Schema Reference
+
 Run `bun install` at the workspace root, then `bun run --cwd packages/website dev`.
 Open `http://localhost:4321/schema` to browse the shared Schema Reference.
 
