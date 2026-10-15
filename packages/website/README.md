@@ -1,9 +1,20 @@
 # Atomize documentation website
 
 The Astro + Starlight portal adapts canonical repository guides into focused
-pages. The shared Schema Reference remains at `/schema`. Both document `main`,
-not a particular CLI, extension, or Studio release. The root still redirects to
-`/schema`; the tool chooser and quickstarts are tracked separately in #264–#266.
+pages. The shared Schema Reference remains at `/schema`, inside the same portal
+layout, navigation, search, and theme controls as the guides. Both document `main`,
+not a particular CLI, extension, or Studio release. The root helps readers choose
+a tool, with a CLI quickstart at `/getting-started/cli/`. Studio and VS Code
+currently link to their canonical guides until their focused quickstarts land.
+`/releases/` links to each tool's GitHub Releases without copying release notes.
+Its tag filters include the current major release series because GitHub requires
+a version number in a tag-prefix search. Update the series when a tool releases
+a new major version; the page also links to the complete release history.
+Desktop readers can collapse the navigation to an icon rail with the button
+beside the brand; labels appear on hover and keyboard focus. The choice persists
+across pages. Small screens retain the mobile menu.
+The sidebar is the only page navigation; the header holds the brand, search,
+theme switch, and navigation toggle.
 
 ## Run and check
 
@@ -13,7 +24,7 @@ From the workspace root, install with `bun install`, then:
 bun run --cwd packages/website dev
 ```
 
-Open `http://localhost:4321/reference/templates/composition/` for the first guide,
+Open `http://localhost:4321/` for onboarding,
 or `http://localhost:4321/schema` for the shared field viewer.
 
 ```sh
@@ -82,6 +93,12 @@ the target explanation has a published portal route. Schema links use the local
 viewer; relative images retain their canonical repository raw-image URL. The
 website viewer's composition links return to the focused guide; other explanation
 links continue to GitHub until their portal pages are delivered.
+
+The home page reuses the `onboarding-overview` section in the root README; the
+CLI quickstart reuses its `cli-quickstart` section. Update shared installation,
+commands, and expected results there. Keep the chooser and next-reading framing
+in website pages. Changes to the README trigger site checks and deployment, as
+does the Template Reference source.
 
 ## Add a focused page
 

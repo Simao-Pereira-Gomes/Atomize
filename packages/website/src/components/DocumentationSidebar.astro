@@ -1,8 +1,30 @@
 ---
 import Sidebar from "@astrojs/starlight/components/Sidebar.astro";
 import { buildInfo } from "../lib/build-info";
+type Entry = (typeof Astro.locals.starlightRoute.sidebar)[number];
+type Link = Extract<Entry, { type: "link" }>;
+function flatten(entries: Entry[]): Link[] {
+  return entries.flatMap(entry => entry.type === "link" ? [entry] : flatten(entry.entries));
+}
+function icon(href: string) {
+  if (href === "/") return "m3 10 9-7 9 7M5 9v11h5v-6h4v6h5V9";
+  if (href.includes("/schema")) return "m8 4-5 8 5 8m8-16 5 8-5 8M14 3l-4 18";
+  if (href.includes("/releases")) return "M3 12a9 9 0 1 0 3-7M3 3v6h6m3-2v5l3 2";
+  if (href.includes("/composition")) return "m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5";
+  if (href.includes("cli") || href.includes("Cli-Reference")) return "m5 7 5 5-5 5m8 0h6M3 3h18v18H3Z";
+  if (href.includes("Atomize-Studio")) return "M3 4h18v13H3ZM8 21h8m-4-4v4";
+  if (href.includes("VS-Code")) return "m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18";
+  return "M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4V4Zm8 2v16";
+}
+const links = flatten(Astro.locals.starlightRoute.sidebar);
 ---
 <Sidebar><slot /></Sidebar>
+<nav class="documentation-rail" aria-label="Compact documentation navigation" data-pagefind-ignore>
+  {links.map(link => <a href={link.href} aria-label={link.label} aria-current={link.isCurrent ? "page" : undefined}>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icon(link.href)} /></svg>
+    <span class="documentation-rail-label" aria-hidden="true">{link.label}</span>
+  </a>)}
+</nav>
 <div class="documentation-build" data-pagefind-ignore>
   <span class="development-dot" aria-hidden="true"></span> main · development
   <p><a href={`https://github.com/Simao-Pereira-Gomes/Atomize/commit/${buildInfo.commit}`}>{buildInfo.commit}</a> · <time datetime={buildInfo.date}>{buildInfo.date}</time></p>

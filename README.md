@@ -8,9 +8,13 @@
 
 **Break down stories, build up velocity.**
 
-Atomize turns stories into consistent child tasks using reusable YAML templates. Use it from VS Code for guided authoring, Atomize Studio for a standalone visual workflow, or the CLI for automation and scripting: pick the surface that fits, or mix them.
+<!-- atomize:section onboarding-overview -->
 
-Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
+Atomize turns Stories into consistent child Tasks using reusable YAML Templates. Capture your team's task breakdown once, then preview and reuse it as new Stories arrive.
+
+Use Atomize Studio for a standalone visual workflow, VS Code for guided authoring in your editor, or the CLI for terminal workflows and automation. Connected generation supports Azure DevOps. Mock Preview lets you try a Template without a platform connection.
+
+<!-- /atomize:section -->
 
 ## What You Can Do
 
@@ -46,18 +50,61 @@ Full reference: [Atomize Studio](./docs/Atomize-Studio.md).
 
 ## Start With The CLI
 
+<!-- atomize:section cli-quickstart -->
+
+### Install the CLI
+
+Install [Node.js](https://nodejs.org/) 22 or later, which includes npm. Then install Atomize and check that your terminal can find it:
+
 ```bash
 npm install -g @sppg2001/atomize
+atomize --version
 ```
+
+The version command prints your installed CLI version. If your terminal cannot find `atomize`, reopen it and check that npm's global executable directory is on your `PATH`.
+
+### Use a built-in Template
+
+The `backend-api` Template is included with the CLI. You can use it directly without creating a file or installing a Catalog item:
 
 ```bash
-atomize template create --from backend-api
 atomize validate template:backend-api
-atomize generate template:backend-api            # dry run
-atomize generate template:backend-api --execute   # create tasks after confirmation
 ```
 
-Full reference: [CLI Reference](./docs/Cli-Reference.md).
+This performs Offline Validation. You do not need an Azure DevOps account or a Connection Profile.
+
+### Run your first Mock Preview
+
+Pass a small Mock Story as JSON. Single quotes keep the JSON intact in Bash, Zsh, and PowerShell:
+
+```bash
+atomize preview template:backend-api --mock-story '{"id":"123","title":"Add password reset","estimation":8}'
+```
+
+The command prints JSON containing six Tasks. The first three titles include the Mock Story's title; the remaining titles come directly from the Template. Here is a shortened transcript of the result:
+
+```text
+tasks[0].title: Design API Endpoints: Add password reset
+tasks[1].title: Database Schema: Add password reset
+tasks[2].title: Implement Core Logic: Add password reset
+tasks[3].title: Write Unit Tests
+tasks[4].title: Integration Tests & Documentation
+tasks[5].title: Code Review & Refinement
+skippedTasks: []
+estimationSummary.storyEstimation: 8
+estimationSummary.totalTaskEstimation: 8
+estimationSummary.percentageUsed: 100
+```
+
+Change `title` or `estimation` in the command and run it again to see how the breakdown changes. Mock Preview neither queries a platform nor creates Work Items. The CLI is installed from npm, but this preview runs offline using the built-in Template.
+
+### Connect when you are ready
+
+To work with real Stories, [set up an Azure DevOps Connection Profile](./docs/Auth-Guide.md#quick-setup) and follow [connected generation](./docs/Workflows.md#generate-tasks). A connected dry run reads Stories without creating Tasks. Task creation requires `--execute` and confirmation; non-interactive execution also requires `--auto-approve`.
+
+See the [CLI Reference](./docs/Cli-Reference.md#preview) for preview options, or [create your own Template](./docs/Template-Creation.md).
+
+<!-- /atomize:section -->
 
 ## Safety Model
 

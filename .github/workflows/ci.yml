@@ -53,6 +53,7 @@ jobs:
               - 'packages/atomize-core/**'
               - 'packages/atomize-schema/**'
             schema:
+              - 'README.md'
               - 'docs/Template-Reference.md'
               - 'packages/vscode-extension/icons/atomize-product.svg'
               - 'packages/atomize-schema/**'

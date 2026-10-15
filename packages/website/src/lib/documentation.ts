@@ -1,5 +1,17 @@
 /** Canonical section ownership and published routes, shared by Markdown and the viewer. */
 export const canonicalSections = {
+  "onboarding-overview": {
+    source: "README.md",
+    pageAnchor: "",
+    route: "/",
+    anchors: [],
+  },
+  "cli-quickstart": {
+    source: "README.md",
+    pageAnchor: "start-with-the-cli",
+    route: "/getting-started/cli/",
+    anchors: ["start-with-the-cli", "install-the-cli", "use-a-built-in-template", "run-your-first-mock-preview", "connect-when-you-are-ready"],
+  },
   "template-composition": {
     source: "docs/Template-Reference.md",
     pageAnchor: "composition",

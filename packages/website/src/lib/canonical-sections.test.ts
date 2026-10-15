@@ -16,6 +16,18 @@ function includeFixture(children: RootContent[]) {
 }
 
 describe("canonical guide rendering", () => {
+  test("CLI onboarding reuses README instructions and rebases next-step links", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include cli-quickstart -->");
+    const { document } = parseHTML(code);
+    expect(document.querySelector("h2#install-the-cli")).not.toBeNull();
+    expect(document.querySelector("h2#run-your-first-mock-preview")).not.toBeNull();
+    expect(document.querySelector('a[href="https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Auth-Guide.md#quick-setup"]')).not.toBeNull();
+    expect(document.querySelector('a[href="https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md#generate-tasks"]')).not.toBeNull();
+    expect(document.querySelector("h2#safety-model")).toBeNull();
+    expect(code).not.toContain("atomize:section");
+  });
+
   test("explicit boundaries survive heading renames and exclude neighbouring content", async () => {
     const heading: RootContent = { type: "heading", depth: 2, children: [{ type: "text", value: "Renamed explanation" }] };
     const content: RootContent = { type: "paragraph", children: [{ type: "text", value: "Shared explanation" }] };

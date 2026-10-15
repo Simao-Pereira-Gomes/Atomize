@@ -61,8 +61,26 @@ async function checkDocs() {
   const { failures, external, pages } = await checkInternalLinks(directory);
   const guide = pages.get(resolve(directory, "reference/templates/composition/index.html"));
   const schemaPage = pages.get(resolve(directory, "schema/index.html"));
+  const home = pages.get(resolve(directory, "index.html"));
+  const quickstart = pages.get(resolve(directory, "getting-started/cli/index.html"));
+  const releases = pages.get(resolve(directory, "releases/index.html"));
+  if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");
+  const paths = home?.querySelectorAll(".onboarding-paths > a");
+  if (paths?.length !== 3 || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push("Home must offer three working onboarding paths");
+  if (quickstart?.querySelector("h1")?.textContent !== "Try Atomize from the CLI") failures.push("CLI quickstart is missing");
+  const commands = [...(quickstart?.querySelectorAll("pre") ?? [])].map(block => block.textContent).join("\n");
+  for (const command of ["npm install -g @sppg2001/atomize", "atomize --version", "atomize validate template:backend-api", "atomize preview template:backend-api --mock-story", "Add password reset", "estimationSummary.totalTaskEstimation: 8"]) {
+    if (!commands.includes(command)) failures.push(`CLI quickstart is missing its verified command or expected result: ${command}`);
+  }
+  for (const tag of ["studio-v0", "vscode-v0", "v5"]) {
+    if (!releases?.querySelector(`a[href="https://github.com/Simao-Pereira-Gomes/Atomize/releases?q=tag%3A${tag}"]`)) failures.push(`Release notes destination is missing: ${tag}`);
+  }
+  for (const [name, page] of [["home", home], ["CLI quickstart", quickstart], ["release notes", releases]] as const) {
+    if (!page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice") || !page?.querySelector(".documentation-build time")) failures.push(`${name}: search indexing, development notice, or provenance is missing`);
+  }
   if (guide?.querySelector("h1")?.textContent !== "Compose Templates") failures.push("Composition guide title is missing");
   for (const [path, document] of pages) {
+    if (document.querySelector(".documentation-header") && !document.querySelector('atomize-sidebar-toggle button[aria-controls="starlight__sidebar"]')) failures.push(`${path}: desktop navigation toggle is missing`);
     if (document.querySelector('a[href*="github.com/Simao-Pereira-Gomes/Atomize/edit/"]')) failures.push(`${path}: public editing link must not be published`);
     const content = document.body?.cloneNode(true) as HTMLElement | undefined;
     content?.querySelectorAll("script, style, noscript").forEach(element => { element.remove(); });
@@ -75,6 +93,9 @@ async function checkDocs() {
   if (!guide?.querySelector("[data-pagefind-body]") || !(await stat(resolve(directory, "pagefind/pagefind.js")).catch(() => false))) failures.push("Documentation search index or indexed guide is missing");
   if (!guide?.getElementById("starlight__search")) failures.push("Production search UI is missing; a development-only notice must not ship");
   if (!schemaPage?.querySelector(".schema-reference")) failures.push("Shared Schema Reference is missing");
+  if (!schemaPage?.querySelector(".not-content .schema-reference")) failures.push("Schema Reference controls must be isolated from article typography");
+  if (!schemaPage?.querySelector(".documentation-header") || !schemaPage?.querySelector("nav.sidebar") || !schemaPage?.getElementById("starlight__search") || !schemaPage?.querySelector(".development-notice") || !schemaPage?.querySelector(".documentation-build time")) failures.push("Schema Reference must use the shared portal layout, navigation, search, and provenance");
+  if (!schemaPage?.querySelector('nav.sidebar a[href="/schema"][aria-current="page"]')) failures.push("Schema Reference sidebar link must be selected");
   if (!schemaPage?.querySelector(`a[href="${templateGuideUrl("inheritance-extends")}"]`)) failures.push("Schema Reference is missing its composition-guide link");
   if (!guide?.querySelector(".development-notice") || !guide?.querySelector(".documentation-build time")) failures.push("Development notice or build provenance is missing");
   if (failures.length) throw new Error(failures.join("\n"));

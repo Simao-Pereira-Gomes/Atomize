@@ -10,7 +10,7 @@ export default defineConfig({
     title: "atomize",
     logo: { src: "../vscode-extension/icons/atomize-product.svg" },
     social: [{ icon: "github", label: "GitHub", href: "https://github.com/Simao-Pereira-Gomes/Atomize" }],
-    customCss: ["./src/styles/portal.css"],
+    customCss: ["./src/styles/atomize-website.css"],
     expressiveCode: { themes: ["starlight-dark", "github-light"], useStarlightUiThemeColors: true },
     components: {
       Header: "./src/components/DocumentationHeader.astro",
@@ -23,13 +23,17 @@ export default defineConfig({
       ThemeSelect: "./src/components/WebsiteThemeSelect.astro",
     },
     sidebar: [
-      { label: "Template Reference", items: [{ label: "Compose Templates", slug: "reference/templates/composition" }] },
-      { label: "Schema Reference", link: "/schema" },
-      { label: "More guides", items: [
-        { label: "Getting started ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/README.md" },
-        { label: "Workflows ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md" },
+      { label: "Getting started", items: [
+        { label: "Choose your tool", slug: "index" },
+        { label: "CLI quickstart", slug: "getting-started/cli" },
         { label: "Atomize Studio ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Atomize-Studio.md" },
         { label: "VS Code extension ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md" },
+      ] },
+      { label: "Template Reference", items: [{ label: "Compose Templates", slug: "reference/templates/composition" }] },
+      { label: "Schema Reference", link: "/schema" },
+      { label: "Release notes", slug: "releases" },
+      { label: "More guides", items: [
+        { label: "Workflows ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md" },
         { label: "CLI ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Cli-Reference.md" },
       ] },
     ],
