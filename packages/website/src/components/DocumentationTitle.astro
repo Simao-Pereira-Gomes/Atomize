@@ -1,0 +1,7 @@
+---
+import PageTitle from "@astrojs/starlight/components/PageTitle.astro";
+const category = Astro.locals.starlightRoute.entry.id.startsWith("reference/templates/") ? "Template Reference" : "Documentation";
+---
+<p class="documentation-eyebrow">{category}</p>
+<PageTitle />
+<p class="development-notice" data-pagefind-ignore><span aria-hidden="true"></span>Development docs · main. Your installed version may differ.</p>

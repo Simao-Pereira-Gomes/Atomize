@@ -1,0 +1,9 @@
+# The documentation portal publishes the canonical repository guides
+
+Issue #101 expands the existing website to cover Atomize Studio, the VS Code extension, and the CLI. The existing Markdown guides retain their ownership as documented in `docs/README.md`; the portal uses them as its canonical content source rather than maintaining independent copies. The portal must adapt their presentation and reading flow for website readers, rather than merely render the repository documents unchanged. Website-specific onboarding pages and navigation may supplement the guides, while preserving GitHub readability. The exact adaptation mechanism remains to be decided.
+
+Keeping the guides in `docs/` preserves existing repository and product links and lets documentation changes be reviewed with product changes. Moving the guides into the website or maintaining parallel copies would either disrupt those links or introduce competing sources of truth. The generated Schema Reference continues to own field facts, while the Template Reference owns behaviour and worked examples (ADR-0071).
+
+The portal's information architecture follows user tasks rather than repository filenames: onboarding helps readers choose a surface, install it, preview, and generate Tasks; focused guides cover authoring, connections, and team workflows. Long guides are presented as focused pages, with complete CLI, surface, Template, and Schema references separately browsable. This changes how readers encounter the material without introducing a second owner for the same product behaviour.
+
+The canonical guides may be reorganized into reusable sections to support those focused pages, while preserving existing GitHub paths and heading links. Website-specific introductions may frame the reused material; shared instructions remain authored once. The extraction and composition mechanism is an implementation choice.

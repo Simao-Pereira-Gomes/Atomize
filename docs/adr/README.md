@@ -8,6 +8,8 @@ An ADR here captures one architectural decision — the context that forced it, 
 
 Decisions affecting the Template Library, Catalog, or shared packages consumed by more than one surface.
 
+- [0074 - The documentation portal publishes the canonical repository guides](./0074-documentation-portal-publishes-canonical-markdown.md) — the portal covers Studio, VS Code, and CLI using the existing Markdown guides as its source, with website-specific onboarding and navigation.
+
 - [0010 - Origin-based template lineage](./0010-origin-based-template-lineage.md) — adds an informational `origin` field recording what a Template/Mixin was derived from, shown as `↖ based on:` in `template list`.
 - [0019 - Catalog storage root and project discovery](./0019-catalog-storage-root-and-project-discovery.md) — Catalog items live under `catalog/{templates,mixins}` per scope; project scope resolves from a discovered workspace root, not raw `cwd()`.
 - [0020 - `template list --json` contract and cross-kind lineage resolution](./0020-template-list-json-contract.md) — defines the JSON contract Catalog-browsing UIs depend on, and fixes lineage resolution across template/mixin kinds.

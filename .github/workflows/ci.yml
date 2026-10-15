@@ -54,6 +54,7 @@ jobs:
               - 'packages/atomize-schema/**'
             schema:
               - 'docs/Template-Reference.md'
+              - 'packages/vscode-extension/icons/atomize-product.svg'
               - 'packages/atomize-schema/**'
               - 'packages/atomize-schema-reference/**'
               - 'packages/website/**'
@@ -209,7 +210,12 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck:reference
       - run: bun run --cwd packages/atomize-schema-reference test
+      - run: bun run --cwd packages/website test
       - run: bun run --cwd packages/website build
+      - run: bun run --cwd packages/website check:docs
+      - name: Check external documentation links (advisory)
+        continue-on-error: true
+        run: bun run --cwd packages/website check:external
 
   vscode-extension-validation:
     name: VS Code Extension validation

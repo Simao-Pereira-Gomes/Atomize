@@ -3,12 +3,21 @@ on:
   push:
     branches: [main]
     paths:
+      - docs/Template-Reference.md
+      - packages/vscode-extension/icons/atomize-product.svg
+      - package.json
+      - bun.lock
+      - .github/workflows/deploy-website.yml
       - packages/atomize-schema/**
       - packages/atomize-schema-reference/**
       - packages/website/**
   pull_request:
     branches: [main]
     paths:
+      - docs/Template-Reference.md
+      - packages/vscode-extension/icons/atomize-product.svg
+      - package.json
+      - bun.lock
       - packages/atomize-schema/**
       - packages/atomize-schema-reference/**
       - packages/website/**
@@ -63,7 +72,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - if: steps.secrets.outputs.available == 'true'
-        run: bun run --cwd packages/website build
+        name: Validate and build documentation
+        run: |
+          bun run --cwd packages/website typecheck
+          bun run --cwd packages/website test
+          bun run --cwd packages/website build
+          bun run --cwd packages/website check:docs
 
       - name: Deploy to Cloudflare Pages
         id: deploy
@@ -87,9 +101,10 @@ jobs:
           ALIAS_URL: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
         run: |
           {
-            echo "### Schema Reference deployed"
+            echo "### Atomize documentation deployed"
             echo ""
             echo "- Deployment: ${DEPLOYMENT_URL}/schema"
+            echo "- Composition guide: ${DEPLOYMENT_URL}/reference/templates/composition/"
             if [ -n "$ALIAS_URL" ]; then echo "- Alias: ${ALIAS_URL}/schema"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -107,6 +122,7 @@ jobs:
           url="${ALIAS_URL:-$DEPLOYMENT_URL}"
           body="${marker}
           **Schema Reference preview:** ${url}/schema
+          **Composition guide preview:** ${url}/reference/templates/composition/
 
           Built from ${HEAD_SHA:0:7}. This deployment: ${DEPLOYMENT_URL}/schema"
           comment_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \

@@ -1,37 +1,28 @@
 ---
-import { execFileSync } from "node:child_process";
 import { buildSchemaTrees } from "@sppg2001/atomize-schema-reference";
 import schema from "@sppg2001/atomize-schema-reference/schema.json";
 import { WebsiteSchemaReference } from "../components/WebsiteSchemaReference";
 import "@sppg2001/atomize-schema-reference/styles.css";
 import logo from "../../../vscode-extension/icons/atomize-product.svg?url";
 import { ThemeToggle } from "../components/ThemeToggle";
+import WebsiteThemeProvider from "../components/WebsiteThemeProvider.astro";
+import { versionLabel } from "../lib/build-info";
 
 const trees = buildSchemaTrees(schema);
-const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim();
-const versionLabel = `main @ ${commit} · ${new Date().toISOString().slice(0, 10)}`;
 ---
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <script is:inline>
-      (() => {
-        let saved;
-        try { saved = localStorage.getItem("atomize-theme"); } catch {}
-        const theme = saved === "light" || saved === "dark" ? saved : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-        document.documentElement.dataset.theme = theme;
-        document.documentElement.style.colorScheme = theme;
-      })();
-    </script>
+    <WebsiteThemeProvider />
     <meta name="description" content="Browse the fields, types and constraints of Atomize Templates and Mixins." />
     <title>Schema Reference · Atomize</title>
   </head>
   <body>
     <header class="site-header">
       <a class="site-brand" href="/schema"><img src={logo} width="26" height="26" alt="" />atomize<span>/ docs</span></a>
-      <nav aria-label="Documentation"><span aria-current="page">Schema Reference</span><a href="https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Template-Reference.md">Template Reference ↗</a></nav>
+      <nav aria-label="Documentation"><span aria-current="page">Schema Reference</span><a href="/reference/templates/composition/">Compose Templates</a></nav>
       <span class="site-version"><i aria-hidden="true"></i>main · development</span>
       <ThemeToggle client:load />
     </header>

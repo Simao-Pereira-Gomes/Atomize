@@ -39,6 +39,7 @@ These paths are kept for older links and should stay short:
 
 ## Documentation Ownership
 
+- The [documentation portal](https://atomize-cd9.pages.dev/reference/templates/composition/) presents focused pages adapted from these canonical guides, beginning with Template composition. Shared instructions are authored once; website introductions and navigation frame them for portal readers. See [website contributor instructions](../packages/website/README.md) and [ADR-0074](./adr/0074-documentation-portal-publishes-canonical-markdown.md).
 - `README.md` is the canonical onboarding path.
 - `docs/Workflows.md` is the canonical workflow guide.
 - `docs/Cli-Reference.md` is the command and flag reference.

@@ -1,0 +1,9 @@
+---
+import Sidebar from "@astrojs/starlight/components/Sidebar.astro";
+import { buildInfo } from "../lib/build-info";
+---
+<Sidebar><slot /></Sidebar>
+<div class="documentation-build" data-pagefind-ignore>
+  <span class="development-dot" aria-hidden="true"></span> main · development
+  <p><a href={`https://github.com/Simao-Pereira-Gomes/Atomize/commit/${buildInfo.commit}`}>{buildInfo.commit}</a> · <time datetime={buildInfo.date}>{buildInfo.date}</time></p>
+</div>
