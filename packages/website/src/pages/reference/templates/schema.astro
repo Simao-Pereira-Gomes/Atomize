@@ -1,0 +1,79 @@
+---
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+import { buildSchemaTrees } from "@sppg2001/atomize-schema-reference";
+import schema from "@sppg2001/atomize-schema-reference/schema.json";
+import { WebsiteSchemaReference } from "../../../components/WebsiteSchemaReference";
+import "@sppg2001/atomize-schema-reference/styles.css";
+import { versionLabel } from "../../../lib/build-info";
+
+const trees = buildSchemaTrees(schema);
+---
+<StarlightPage frontmatter={{
+  title: "Schema Reference",
+  description: "Browse the fields, types and constraints of Atomize Templates and Mixins.",
+  editUrl: false,
+  tableOfContents: false,
+}}>
+  <p>Everything you can put in an Atomize YAML File. Browse Templates or Mixins, search for a field, and follow its link to the Template Reference for behaviour and examples.</p>
+  <!-- Keep article typography from styling the shared viewer's interactive controls. -->
+  <div class="atomize-website-schema not-content">
+    <WebsiteSchemaReference trees={trees} versionLabel={versionLabel} client:load />
+  </div>
+</StarlightPage>
+
+<style is:global>
+  html:has(.atomize-website-schema) { --sl-content-width: 90rem; height: 100%; overflow: clip; }
+  html:has(.atomize-website-schema) body { position: fixed; inset: 0; overflow: clip; }
+  html:has(.atomize-website-schema) .main-frame { height: 100dvh; overflow: clip; }
+  html:has(.atomize-website-schema) .main-frame > div,
+  html:has(.atomize-website-schema) .main-pane { height: 100%; }
+  html:has(.atomize-website-schema) main[data-pagefind-body] { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  html:has(.atomize-website-schema) main > .content-panel { flex: none; }
+  html:has(.atomize-website-schema) main > .content-panel:last-child { flex: 1; min-height: 0; padding-block: 1rem; }
+  html:has(.atomize-website-schema) main > .content-panel:last-child > .sl-container { height: 100%; }
+  html:has(.atomize-website-schema) .sl-markdown-content { display: flex; flex-direction: column; gap: 1rem; height: 100%; min-height: 0; }
+  html:has(.atomize-website-schema) .sl-markdown-content > p { flex: none; font-size: 1rem; line-height: 1.6; }
+  html:has(.atomize-website-schema) main > .content-panel > .sl-container > footer { display: none; }
+  .atomize-website-schema { flex: 1; min-height: 0; margin-top: 0; }
+  .atomize-website-schema .schema-reference { height: 100%; font-family: var(--sl-font, var(--sl-font-system)); font-size: 1rem; }
+  .atomize-website-schema .schema-reference-breadcrumb, .atomize-website-schema .schema-reference-intro { display: none; }
+  .atomize-website-schema .schema-reference-layout { display: grid; grid-template-columns: clamp(10rem, 18vw, 220px) minmax(0, 1fr); height: 100%; max-width: none; }
+  .atomize-website-schema .schema-reference-sidebar { position: static; height: 100%; max-height: none; padding: 0 1rem 1.5rem 0; overflow-y: auto; overscroll-behavior-y: contain; }
+  .atomize-website-schema .schema-reference-tabs { margin-top: 1rem; }
+  .atomize-website-schema .schema-reference-content { min-height: 0; height: 100%; padding: 0 .5rem 2rem 2rem; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+  .atomize-website-schema .schema-reference-section-heading { margin-top: 0; }
+  .atomize-website-schema .schema-reference-fields > article, .atomize-website-schema .schema-reference-nested details { scroll-margin-top: 1rem; }
+  .atomize-website-schema .schema-reference-description { font-size: .9375rem; }
+  .atomize-website-schema .schema-reference-navigation code, .atomize-website-schema .schema-reference-search input { font-size: .875rem; }
+  @media (max-width: 49.99rem) {
+    html:has(.atomize-website-schema) main > .content-panel { padding-block: .75rem; }
+    html:has(.atomize-website-schema) h1 { font-size: 1.75rem; }
+    html:has(.atomize-website-schema) .documentation-eyebrow { display: none; }
+    html:has(.atomize-website-schema) .development-notice { margin-top: .5rem; }
+    html:has(.atomize-website-schema) .sl-markdown-content > p { font-size: .875rem; }
+    .atomize-website-schema .schema-reference-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+    .atomize-website-schema .schema-reference-sidebar { height: auto; max-height: 30dvh; padding: 0 0 .5rem; }
+    .atomize-website-schema .schema-reference-tabs { margin-top: 0; }
+    .atomize-website-schema .schema-reference-search, .atomize-website-schema .schema-reference-index { margin-top: .5rem; }
+    .atomize-website-schema .schema-reference-index > summary { margin-bottom: .25rem; }
+    .atomize-website-schema .schema-reference-index > nav { max-height: 8rem; }
+    .atomize-website-schema .schema-reference-content { padding: 1rem .25rem 0 0; }
+  }
+</style>
+
+<script>
+  const navigation = document.querySelector<HTMLElement>(".atomize-website-schema .schema-reference-sidebar");
+  const content = document.querySelector<HTMLElement>(".atomize-website-schema .schema-reference-content");
+  const index = navigation?.querySelector<HTMLDetailsElement>(".schema-reference-index");
+  if (navigation && content && index) {
+    navigation.tabIndex = 0;
+    navigation.setAttribute("aria-label", "Schema field navigation");
+    content.tabIndex = 0;
+    content.setAttribute("role", "region");
+    content.setAttribute("aria-label", "Schema fields");
+    const compact = matchMedia("(max-width: 49.99rem)");
+    const updateIndex = () => { index.open = !compact.matches; };
+    updateIndex();
+    compact.addEventListener("change", updateIndex);
+  }
+</script>

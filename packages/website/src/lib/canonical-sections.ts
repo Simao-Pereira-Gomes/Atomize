@@ -5,7 +5,7 @@ import type { Heading, Root, RootContent } from "mdast";
 import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 import type { Plugin as VitePlugin } from "vite";
-import { repositoryUrl, canonicalSections as sections, templateGuideUrl } from "./documentation";
+import { repositoryUrl, canonicalSections as sections, canonicalGuideUrl, schemaRoute } from "./documentation";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 
@@ -17,13 +17,13 @@ export async function canonicalSourceDigest() {
 function rewriteLink(url: string, source: string) {
   if (/^(?:[a-z][\w+.-]*:|\/\/)/i.test(url)) {
     const parsed = new URL(url, "https://atomize-cd9.pages.dev");
-    if (parsed.hostname === "atomize-cd9.pages.dev" && parsed.pathname === "/schema") return `/schema${parsed.hash}`;
+    if (parsed.hostname === "atomize-cd9.pages.dev" && ["/schema", schemaRoute.replace(/\/$/, "")].includes(parsed.pathname.replace(/\/$/, ""))) return `${schemaRoute}${parsed.hash}`;
     return url;
   }
   const [path, fragment = ""] = url.split("#");
   const target = path ? relative(repositoryRoot, resolve(repositoryRoot, dirname(source), path)).replaceAll("\\", "/") : source;
-  if (target === "docs/Template-Reference.md" && fragment) return templateGuideUrl(fragment);
-  return `${repositoryUrl}/blob/main/${target}${fragment ? `#${fragment}` : ""}`;
+  if (target.startsWith("packages/website/public/")) return `/${target.slice("packages/website/public/".length)}${fragment ? `#${fragment}` : ""}`;
+  return canonicalGuideUrl(target, fragment);
 }
 
 function sectionMarker(node: RootContent) {

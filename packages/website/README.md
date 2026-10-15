@@ -1,11 +1,12 @@
 # Atomize documentation website
 
 The Astro + Starlight portal adapts canonical repository guides into focused
-pages. The shared Schema Reference remains at `/schema`, inside the same portal
+pages. The shared Schema Reference lives at `/reference/templates/schema/`, inside the same website
 layout, navigation, search, and theme controls as the guides. Both document `main`,
 not a particular CLI, extension, or Studio release. The root helps readers choose
-a tool, with a CLI quickstart at `/getting-started/cli/`. Studio and VS Code
-currently link to their canonical guides until their focused quickstarts land.
+a tool, with quickstarts at `/getting-started/cli/` and
+`/getting-started/studio/`. Studio's focused authoring, file, and recovery guides
+are under `/studio/`. VS Code links to its canonical guide until its quickstart lands.
 `/releases/` links to each tool's GitHub Releases without copying release notes.
 Its tag filters include the current major release series because GitHub requires
 a version number in a tag-prefix search. Update the series when a tool releases
@@ -15,6 +16,11 @@ beside the brand; labels appear on hover and keyboard focus. The choice persists
 across pages. Small screens retain the mobile menu.
 The sidebar is the only page navigation; the header holds the brand, search,
 theme switch, and navigation toggle.
+Schema Reference sits inside the Templates section. Its field navigation and
+fields use separate scroll areas, so reading fields does not move navigation.
+The old `/schema` URL forwards to the new route with query and field fragments
+preserved. Cloudflare uses `public/_redirects`; local static previews use the
+compatibility page. Keep both when changing the published route.
 
 ## Run and check
 
@@ -25,7 +31,7 @@ bun run --cwd packages/website dev
 ```
 
 Open `http://localhost:4321/` for onboarding,
-or `http://localhost:4321/schema` for the shared field viewer.
+or `http://localhost:4321/reference/templates/schema/` for the shared field viewer.
 
 ```sh
 bun run --cwd packages/website typecheck
@@ -99,6 +105,51 @@ CLI quickstart reuses its `cli-quickstart` section. Update shared installation,
 commands, and expected results there. Keep the chooser and next-reading framing
 in website pages. Changes to the README trigger site checks and deployment, as
 does the Template Reference source.
+
+Studio pages reuse the marked sections in `docs/Atomize-Studio.md`. Published
+sections link to each other through `canonicalGuideUrl`; explanations that have
+not been adapted retain their canonical GitHub links. Screenshots have one owner
+under `public/studio/`. The canonical guide links to those files for GitHub
+readability, and the section loader rewrites those image links to local assets.
+
+## Refresh Studio screenshots
+
+The authoring and Mock Preview images were captured from the current Studio UI
+on 2026-10-15 at 1440 × 1000 in light mode. They show the built-in Backend API
+Development Template and an offline Mock Story with estimate 8. There are no
+Connection Profiles, credentials, or customer data in the captures.
+
+Start the current Studio frontend from the repository root:
+
+```sh
+bun run --cwd packages/atomize-studio vite:dev --host 127.0.0.1 --port 1423
+```
+
+In another terminal, start a dedicated Chrome instance with a fresh temporary
+profile. On macOS:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu --remote-debugging-port=9230 --user-data-dir=/tmp/atomize-docs-chrome about:blank
+```
+
+On other systems use the installed Chrome or Chromium executable with the same
+flags. Then run:
+
+```sh
+bun packages/website/scripts/capture-studio.mjs
+```
+
+The script drives the real Starting Paths, Catalog Clone, Tasks, and Generate
+components. It substitutes only the native IPC boundary, using the current
+built-in Template and inspection/preview results from `atomize-core`. It asserts
+the documented Mock Story inputs and result before capturing. It does not test
+the native installer or companion-process transport. Use a dedicated browser
+profile because the capture clears its local storage. Close it after capture.
+
+Review both PNGs, update the adjacent canonical instructions and alt text when
+labels or behaviour change, and run the website checks. If the built-in Template
+changes its six-Task example, update the quickstart and capture assertions together.
+Shared Studio Markdown changes and these media files trigger CI and deployment.
 
 ## Add a focused page
 

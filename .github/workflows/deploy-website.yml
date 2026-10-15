@@ -5,6 +5,7 @@ on:
     paths:
       - README.md
       - docs/Template-Reference.md
+      - docs/Atomize-Studio.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock
@@ -17,6 +18,7 @@ on:
     paths:
       - README.md
       - docs/Template-Reference.md
+      - docs/Atomize-Studio.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock
@@ -105,9 +107,9 @@ jobs:
           {
             echo "### Atomize documentation deployed"
             echo ""
-            echo "- Deployment: ${DEPLOYMENT_URL}/schema"
+            echo "- Deployment: ${DEPLOYMENT_URL}/reference/templates/schema/"
             echo "- Composition guide: ${DEPLOYMENT_URL}/reference/templates/composition/"
-            if [ -n "$ALIAS_URL" ]; then echo "- Alias: ${ALIAS_URL}/schema"; fi
+            if [ -n "$ALIAS_URL" ]; then echo "- Alias: ${ALIAS_URL}/reference/templates/schema/"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment preview URL on PR
@@ -123,10 +125,10 @@ jobs:
           marker="<!-- deploy-website-preview -->"
           url="${ALIAS_URL:-$DEPLOYMENT_URL}"
           body="${marker}
-          **Schema Reference preview:** ${url}/schema
+          **Schema Reference preview:** ${url}/reference/templates/schema/
           **Composition guide preview:** ${url}/reference/templates/composition/
 
-          Built from ${HEAD_SHA:0:7}. This deployment: ${DEPLOYMENT_URL}/schema"
+          Built from ${HEAD_SHA:0:7}. This deployment: ${DEPLOYMENT_URL}/reference/templates/schema/"
           comment_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"${marker}\")) | .id" | head -n 1)
           if [ -n "$comment_id" ]; then

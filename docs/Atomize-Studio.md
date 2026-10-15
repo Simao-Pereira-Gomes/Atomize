@@ -8,6 +8,8 @@ Atomize Studio is a standalone desktop application for visually authoring Templa
 
 ## Install
 
+<!-- atomize:section studio-install -->
+
 Download the installer for your platform from the project's [GitHub Releases](https://github.com/Simao-Pereira-Gomes/Atomize/releases), tagged `studio-v<version>`:
 
 - macOS: `.dmg` (separate Apple Silicon and Intel builds)
@@ -18,15 +20,56 @@ Verify your download against the release's `SHA256SUMS.txt`. Installers are not 
 
 Atomize Studio does not require the Atomize CLI to be installed. It bundles its own companion process and runs independently.
 
+<!-- /atomize:section -->
+
 ## First Workflow
 
 1. Launch Atomize Studio. It starts on the **Templates** area's Starting Paths screen.
 2. Choose a Starting Path: start from scratch, clone a Catalog Template, open a local Atomize YAML File, or draft one with AI from a prose description.
 3. Work through the authoring sections and confirm every section validates in **Review**.
 4. Export a downloadable Atomize YAML File, or use **Catalog Install** to add it directly to your Catalog.
-5. Switch to the **Generate** area to run a Mock Preview, a Live Preview, or execute task creation against a real Story.
+5. Switch to the **Generate** area and choose its independent Preview Source. Run a Mock Preview offline, or review the connected dry run before confirming Task creation against real Stories.
+
+## First Mock Preview
+
+<!-- atomize:section studio-first-preview -->
+
+### Choose a Preview Source
+
+1. Launch Studio and open **Generate** from the sidebar. You do not need a Connection Profile or Copilot sign-in for a Mock Preview.
+2. Under **Preview source**, keep **Catalog** selected and choose **Backend API Development** (`template:backend-api`), the built-in Template supplied with Studio.
+3. Keep **Mock** selected for Mock Preview. The **Mock Story inputs** form is generated from the fields that the selected Template uses.
+
+Preview Source is independent of the Template in the Templates Area. Editing or cloning a Template there does not change what Generate runs. To preview your own changes, save or export the Template first, then choose that file as the Preview Source, or install it to Catalog and select that Catalog item. Use **Change** beside the current source to select another one.
+
+### Enter a small Mock Story
+
+Use these values for the built-in Backend API Development Template:
+
+| Input | Value |
+| --- | --- |
+| `estimation` | `8` |
+| `tags` | `backend` |
+| `type` | `User Story` |
+| `state` | `Active` |
+
+Studio's inputs are individual fields, not a JSON editor. Leave other optional inputs empty. Fields such as the Mock Story's title that this form does not expose use their default values; the title defaults to `Mock Story`.
+
+Choose **Run Mock Preview**. Under **Resolved Tasks**, expect six Tasks, no skipped Tasks, a Story estimate of 8 hours, a Task total of 8 hours, and 100% allocated. The first Task is **Design API Endpoints: Mock Story**. Change the estimate and run again to see the breakdown update.
+
+![Studio Generate Area with Backend API Development selected independently as the Preview Source, Mock Story inputs on the left, and six resolved Tasks on the right.](../packages/website/public/studio/mock-preview.png)
+
+Mock Preview uses the bundled companion process to evaluate the Template offline. It does not query Azure DevOps or create Work Items. No separate CLI installation is needed.
+
+### Continue from your first preview
+
+To create or adapt a Template, use the [Starting Paths](#starting-paths). To work with real Stories, add a Connection Profile in [Global Settings](#global-settings), choose its Work Project, and follow the [Generate Area](#generate-area) guide. Studio shows the connected dry run inside Live Execution Confirmation before Task creation; it has no separate Live Preview step.
+
+<!-- /atomize:section -->
 
 ## Studio Areas
+
+<!-- atomize:section studio-navigation -->
 
 Atomize Studio has three Studio Areas, each reachable directly from the sidebar rather than as a step in a linear flow: **Templates**, **Generate**, and **Catalog**. Switching between areas does not reset in-progress authoring: an unsaved Template stays in memory until you explicitly discard it or start a new Starting Path.
 
@@ -49,9 +92,13 @@ your system browser.
 
 A single, persistent **Back** control (near the sidebar) pops a global navigation history of Studio Area, Starting-Path/Builder and Schema Reference transitions. Back never discards the Template you're authoring; it is purely navigational. If Back has nothing left to return to while a draft is still in progress, the Starting Paths screen shows a "Continue your in-progress Template" banner so the draft is never stranded.
 
+<!-- /atomize:section -->
+
 ## Templates Area
 
 ### Starting Paths
+
+<!-- atomize:section studio-starting-paths -->
 
 Every Template you author begins from one of four Starting Paths:
 
@@ -62,7 +109,11 @@ Every Template you author begins from one of four Starting Paths:
 
 Scratch, Catalog Clone, and AI draft always produce a new, detached Template with no ties to any source file. Open is the exception.
 
+<!-- /atomize:section -->
+
 ### Open
+
+<!-- atomize:section studio-open-save -->
 
 Open's file picker shows hidden folders, so you can open Templates saved in a project Catalog under `.atomize/catalog/templates/` without pressing ⌘⇧. on macOS or Ctrl+H on Linux yourself. Windows already shows `.atomize` folders. On Linux desktops that route file dialogs through a system portal, such as Flatpak, the portal may still hide them; press Ctrl+H there. Opening a local Atomize YAML File that fails to parse, doesn't have the Template shape, or is structurally a Mixin is rejected immediately with a clear message. A file with the Template shape but invalid values still loads, showing inline errors the same way an in-progress Template would.
 
@@ -73,9 +124,27 @@ Once a file is open, you get two save actions:
 - **Save** writes back to the file's original path with no dialog. Available once every section validates. Because `extends`/`mixins` were already flattened at load time, saving in place: even for a single trivial edit: permanently detaches the file from its parent or mixins; it stops picking up their future changes. This is an accepted trade-off, not a bug: it's what lets you see and edit the real, composed task list.
 - **Export as copy…** writes to a new path through the same save dialog every other Starting Path's export uses, and additionally strips `origin`, since a newly detached copy shouldn't claim a Catalog relationship it no longer tracks.
 
+<!-- /atomize:section -->
+
 ### Builder Sections
 
+<!-- atomize:section studio-authoring-controls -->
+
 The authoring surface is organised into sections: Basic Info, Filter, Tasks, Estimation, Validation, Metadata, and Review. All sections must validate before you can export, install to Catalog, or (for an Open session) save.
+
+![Studio Templates Area showing a clone of Backend API Development, the Builder sections on the left, and the six task definitions in the Tasks section.](../packages/website/public/studio/template-authoring.png)
+
+| Section | What to edit |
+| --- | --- |
+| Basic Info | Name, description, category, author, tags, and Version. Version is the author's Revision, distinct from the Format Version. |
+| Filter | Which Stories the Template selects: Work Item Types, States, paths, tags, assignment, or a saved query. Enter values manually when working offline. |
+| Tasks | Add task definitions, select one to edit its title, description, estimate, conditions, dependencies, and fields, or drag its handle to change generation order. |
+| Estimation | How a Story Estimate becomes Task Estimates, including conversion and allocation. |
+| Validation | The Template's validation policy, including percentage totals and Task count constraints. |
+| Metadata | Estimation guidelines and Template Notes for the team maintaining the Template. |
+| Review | The complete YAML and actions to copy, export, save, or install it. |
+
+Use the field's **ⓘ** button for exact requirements in the Schema Reference, then **Back** to resume editing. Section status indicators show what still needs attention; you can revisit sections before Review. See the [Schema Reference](https://atomize-cd9.pages.dev/schema) for field shapes and defaults rather than copying them into this guide.
 
 The **Estimation** section follows the estimate in four steps, with a live preview that splits a sample Story Estimate across your tasks:
 
@@ -92,11 +161,33 @@ In the **Tasks** section, a task's **Copies** field sets its [`repeat`](https://
 
 When every section is valid but the Template still fails as a whole (for example a `repeat` above its limit), Review lists each problem, naming the task it's about.
 
+<!-- /atomize:section -->
+
+### Review and export
+
+<!-- atomize:section studio-review -->
+
+Open **Review** after completing Basic Info, Filter, Tasks, Estimation, Validation, and Metadata. Every authoring section must be valid before Studio can produce the complete YAML. Review lists whole-Template problems as well, naming the affected Tasks so you can return to the relevant section.
+
+- **Copy YAML** copies the complete Template to the clipboard.
+- **Export file…** writes a new Atomize YAML File through a save dialog for Scratch, Catalog Clone, and AI draft sessions.
+- For an Open session, **Save** writes to the original file and **Export as copy…** writes a detached copy. Read [Open](#open) before saving a composed Template.
+- **Install to Catalog…** makes the Template reusable in the user or project Catalog. Choose the scope; project installation also asks for a folder. The last installation scope is remembered on this computer.
+- **Validate online…** is optional and needs a Connection Profile and the companion process. It is not required to review or export a Template offline.
+
+Saving or exporting does not create Tasks. To test the saved content, switch to Generate and select the saved file or installed Catalog item as its Preview Source.
+
+<!-- /atomize:section -->
+
 ### Template Diff
+
+<!-- atomize:section studio-template-diff -->
 
 The Review section shows a read-only **Template Diff** between the Template you're authoring and the Catalog item recorded in its `origin` field: what's changed since you cloned it. It's only available when `origin` still resolves to a Catalog item, so it's unavailable for from-scratch and AI-draft Templates, for an Open session exported as a copy, and when the recorded origin has since been removed from the Catalog.
 
 The diff compares against the same raw, unresolved content Catalog Clone seeds from: not the origin's fully composed `extends`/`mixins` form. For an `extends`-based origin, this means the diff answers "what have I changed since I cloned," not "what would the origin compose to." Use [Resolved Template](./VS-Code-Extension.md#atomize-show-effective-template) or `atomize template resolve` for the composed view.
+
+<!-- /atomize:section -->
 
 ### AI Drafting
 
@@ -178,6 +269,8 @@ The Generate Area runs a Template against real or mock data.
 
 ## Global Settings
 
+<!-- atomize:section studio-settings -->
+
 Reachable from any Studio Area:
 
 - **Theme**: appearance.
@@ -185,9 +278,15 @@ Reachable from any Studio Area:
 
 Connection Profiles are shared with the Atomize CLI through the same `~/.atomize/connections.json` file. Studio supports only OS-keyring-backed tokens: if a CLI profile uses the CLI's optional insecure keyfile fallback, rotate it (in either Studio or the CLI) before Studio can use it. See the [Auth Guide](./Auth-Guide.md) for the shared profile mechanism and how it differs by surface.
 
+<!-- /atomize:section -->
+
 ## Companion Process Recovery
 
+<!-- atomize:section studio-recovery -->
+
 Atomize Studio runs its Template Library logic through a bundled companion process, launched once at startup rather than spawned per action. If that process can't start, or exits repeatedly, Studio shows a recovery surface offering **Retry**. Your current in-memory authoring session is preserved, and offline authoring plus native Connection Profile management stay available: only companion-dependent actions (Grounding, AI drafting, Catalog operations, Generate runs, and opening a Template that needs composition) are blocked until the process recovers.
+
+<!-- /atomize:section -->
 
 ## Related Docs
 

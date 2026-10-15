@@ -16,6 +16,27 @@ function includeFixture(children: RootContent[]) {
 }
 
 describe("canonical guide rendering", () => {
+  test("Studio preview keeps source selection independent and publishes local screenshots", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include studio-first-preview -->");
+    const { document } = parseHTML(code);
+    expect(document.querySelector('img[src="/studio/mock-preview.png"]')?.getAttribute("alt")).toContain("Preview Source");
+    expect(code).toContain("independent of the Template");
+    expect(document.querySelector('a[href="/studio/author-templates/#choose-a-starting-path"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/studio/settings-recovery/#global-settings"]')).not.toBeNull();
+    expect(code).not.toContain("atomize:section");
+  });
+
+  test("Studio Open preserves flattening and save semantics without importing unrelated workflows", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include studio-open-save -->");
+    const { document } = parseHTML(code);
+    expect(code).toContain("permanently detaches");
+    expect(code).toContain("Export as copy");
+    expect(document.querySelector("h2#builder-sections")).toBeNull();
+    expect(document.querySelector("h2#ai-drafting")).toBeNull();
+  });
+
   test("CLI onboarding reuses README instructions and rebases next-step links", async () => {
     const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
     const { code } = await renderer.render("<!-- atomize:include cli-quickstart -->");

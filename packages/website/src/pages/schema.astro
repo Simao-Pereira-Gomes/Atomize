@@ -1,41 +1,18 @@
 ---
-import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
-import { buildSchemaTrees } from "@sppg2001/atomize-schema-reference";
-import schema from "@sppg2001/atomize-schema-reference/schema.json";
-import { WebsiteSchemaReference } from "../components/WebsiteSchemaReference";
-import "@sppg2001/atomize-schema-reference/styles.css";
-import { versionLabel } from "../lib/build-info";
-
-const trees = buildSchemaTrees(schema);
+import { schemaRoute } from "../lib/documentation";
 ---
-<StarlightPage frontmatter={{
-  title: "Schema Reference",
-  description: "Browse the fields, types and constraints of Atomize Templates and Mixins.",
-  editUrl: false,
-  tableOfContents: false,
-}}>
-  <p>Everything you can put in an Atomize YAML File. Browse Templates or Mixins, search for a field, and follow its link to the Template Reference for behaviour and examples.</p>
-  <!-- Keep article typography from styling the shared viewer's interactive controls. -->
-  <div class="atomize-website-schema not-content">
-    <WebsiteSchemaReference trees={trees} versionLabel={versionLabel} client:load />
-  </div>
-</StarlightPage>
-
-<style is:global>
-  html:has(.atomize-website-schema) { --sl-content-width: 90rem; }
-  .atomize-website-schema .schema-reference { font-family: var(--sl-font, var(--sl-font-system)); font-size: 1rem; }
-  .atomize-website-schema .schema-reference-breadcrumb, .atomize-website-schema .schema-reference-intro { display: none; }
-  .atomize-website-schema .schema-reference-layout { grid-template-columns: 220px minmax(0, 1fr); max-width: none; }
-  .atomize-website-schema .schema-reference-sidebar { top: calc(var(--sl-nav-height) + 1rem); max-height: calc(100dvh - var(--sl-nav-height) - 2rem); padding: 0 1rem 1.5rem 0; }
-  .atomize-website-schema .schema-reference-tabs { margin-top: 1rem; }
-  .atomize-website-schema .schema-reference-content { padding: 0 0 2rem 2rem; }
-  .atomize-website-schema .schema-reference-section-heading { margin-top: 0; }
-  .atomize-website-schema .schema-reference-fields > article, .atomize-website-schema .schema-reference-nested details { scroll-margin-top: calc(var(--sl-nav-height) + 1.5rem); }
-  .atomize-website-schema .schema-reference-description { font-size: .9375rem; }
-  .atomize-website-schema .schema-reference-navigation code, .atomize-website-schema .schema-reference-search input { font-size: .875rem; }
-  @container (max-width: 760px) {
-    .atomize-website-schema .schema-reference-layout { display: block; }
-    .atomize-website-schema .schema-reference-sidebar { position: static; max-height: none; padding: 0 0 1.5rem; }
-    .atomize-website-schema .schema-reference-content { padding: 1.5rem 0 0; }
-  }
-</style>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Schema Reference has moved · Atomize</title>
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={new URL(schemaRoute, Astro.site)} />
+    <script is:inline define:vars={{ schemaRoute }}>
+      window.location.replace(schemaRoute + window.location.search + window.location.hash);
+    </script>
+    <noscript><meta http-equiv="refresh" content={`0;url=${schemaRoute}`} /></noscript>
+  </head>
+  <body data-pagefind-ignore="all"><p>The Schema Reference has moved. <a href={schemaRoute}>Open Schema Reference</a>.</p></body>
+</html>

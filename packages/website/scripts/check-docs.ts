@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSchemaTrees, type SchemaNode } from "@sppg2001/atomize-schema-reference";
 import schema from "@sppg2001/atomize-schema-reference/schema.json";
 import { parseHTML } from "linkedom";
-import { templateGuideUrl } from "../src/lib/documentation";
+import { schemaRoute, templateGuideUrl } from "../src/lib/documentation";
 
 async function htmlFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -46,7 +46,7 @@ export async function checkInternalLinks(directory: string) {
       if (!target) { failures.push(`${pagePath}: missing target: ${value}`); continue; }
       if (url.hash) {
         const anchor = decodeURIComponent(url.hash.slice(1));
-        const dynamicSchemaAnchor = /^\/schema\/?$/.test(url.pathname) && schemaPermalinks.has(anchor);
+        const dynamicSchemaAnchor = ["/schema", schemaRoute.replace(/\/$/, "")].includes(url.pathname.replace(/\/$/, "")) && schemaPermalinks.has(anchor);
         const targetDocument = pages.get(target);
         const namedAnchor = [...(targetDocument?.querySelectorAll("a[name]") ?? [])].some(element => element.getAttribute("name") === anchor);
         if (!dynamicSchemaAnchor && !targetDocument?.getElementById(anchor) && !namedAnchor) failures.push(`${pagePath}: missing anchor: ${value}`);
@@ -60,10 +60,25 @@ async function checkDocs() {
   const directory = fileURLToPath(new URL("../dist/", import.meta.url));
   const { failures, external, pages } = await checkInternalLinks(directory);
   const guide = pages.get(resolve(directory, "reference/templates/composition/index.html"));
-  const schemaPage = pages.get(resolve(directory, "schema/index.html"));
+  const schemaPage = pages.get(resolve(directory, `.${schemaRoute}index.html`));
+  const legacySchema = pages.get(resolve(directory, "schema/index.html"));
+  if (!legacySchema?.querySelector(`a[href="${schemaRoute}"]`) || !legacySchema.querySelector("script")?.textContent?.includes("window.location.hash")) failures.push("Legacy Schema Reference must preserve field fragments when forwarding");
+  const redirects = await readFile(resolve(directory, "_redirects"), "utf8");
+  if (!redirects.includes(`/schema ${schemaRoute} 301`) || !redirects.includes(`/schema/ ${schemaRoute} 301`)) failures.push("Cloudflare Schema Reference compatibility redirects are missing");
   const home = pages.get(resolve(directory, "index.html"));
   const quickstart = pages.get(resolve(directory, "getting-started/cli/index.html"));
   const releases = pages.get(resolve(directory, "releases/index.html"));
+  const studio = pages.get(resolve(directory, "getting-started/studio/index.html"));
+  if (!home?.querySelector('.onboarding-paths a[href="/getting-started/studio/"]')) failures.push("Home must link to the Studio quickstart");
+  for (const [route, title] of [["getting-started/studio", "Try Atomize Studio offline"], ["studio/author-templates", "Author Templates in Studio"], ["studio/open-save", "Open, save, and export"], ["studio/settings-recovery", "Studio settings and recovery"]]) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
+  }
+  for (const [route, image] of [["getting-started/studio", "mock-preview"], ["studio/author-templates", "template-authoring"]]) {
+    const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img[src="/studio/${image}.png"]`);
+    if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`Studio screenshot or useful alt text is missing: ${image}`);
+  }
+  if (!studio?.querySelector('a[href="/studio/author-templates/#choose-a-starting-path"]') || !studio?.querySelector('a[href="/studio/settings-recovery/#global-settings"]')) failures.push("Studio quickstart is missing working authoring and connection paths");
   if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");
   const paths = home?.querySelectorAll(".onboarding-paths > a");
   if (paths?.length !== 3 || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push("Home must offer three working onboarding paths");
@@ -89,13 +104,14 @@ async function checkDocs() {
   for (const anchor of ["inheritance-extends", "mixins-mixins", "resolution-order", "compatibility"]) {
     if (!guide?.getElementById(anchor)) failures.push(`Composition section is missing: ${anchor}`);
   }
-  if (!guide?.querySelector('a[href="/schema#template.extends"]') || !guide?.querySelector('a[href="/schema#template.mixins"]')) failures.push("Guide is missing field-specific Schema Reference links");
+  if (!guide?.querySelector(`a[href="${schemaRoute}#template.extends"]`) || !guide?.querySelector(`a[href="${schemaRoute}#template.mixins"]`)) failures.push("Guide is missing field-specific Schema Reference links");
   if (!guide?.querySelector("[data-pagefind-body]") || !(await stat(resolve(directory, "pagefind/pagefind.js")).catch(() => false))) failures.push("Documentation search index or indexed guide is missing");
   if (!guide?.getElementById("starlight__search")) failures.push("Production search UI is missing; a development-only notice must not ship");
   if (!schemaPage?.querySelector(".schema-reference")) failures.push("Shared Schema Reference is missing");
   if (!schemaPage?.querySelector(".not-content .schema-reference")) failures.push("Schema Reference controls must be isolated from article typography");
   if (!schemaPage?.querySelector(".documentation-header") || !schemaPage?.querySelector("nav.sidebar") || !schemaPage?.getElementById("starlight__search") || !schemaPage?.querySelector(".development-notice") || !schemaPage?.querySelector(".documentation-build time")) failures.push("Schema Reference must use the shared portal layout, navigation, search, and provenance");
-  if (!schemaPage?.querySelector('nav.sidebar a[href="/schema"][aria-current="page"]')) failures.push("Schema Reference sidebar link must be selected");
+  if (!schemaPage?.querySelector(`nav.sidebar a[href="${schemaRoute}"][aria-current="page"]`)) failures.push("Schema Reference sidebar link must be selected");
+  if (!schemaPage?.querySelector(`nav.sidebar a[href="${schemaRoute}"]`)?.closest("details")?.querySelector("summary")?.textContent?.includes("Templates")) failures.push("Schema Reference must be grouped inside Templates");
   if (!schemaPage?.querySelector(`a[href="${templateGuideUrl("inheritance-extends")}"]`)) failures.push("Schema Reference is missing its composition-guide link");
   if (!guide?.querySelector(".development-notice") || !guide?.querySelector(".documentation-build time")) failures.push("Development notice or build provenance is missing");
   if (failures.length) throw new Error(failures.join("\n"));

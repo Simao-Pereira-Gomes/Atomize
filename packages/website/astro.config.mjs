@@ -26,11 +26,18 @@ export default defineConfig({
       { label: "Getting started", items: [
         { label: "Choose your tool", slug: "index" },
         { label: "CLI quickstart", slug: "getting-started/cli" },
-        { label: "Atomize Studio ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Atomize-Studio.md" },
+        { label: "Studio quickstart", slug: "getting-started/studio" },
         { label: "VS Code extension ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md" },
       ] },
-      { label: "Template Reference", items: [{ label: "Compose Templates", slug: "reference/templates/composition" }] },
-      { label: "Schema Reference", link: "/schema" },
+      { label: "Atomize Studio", items: [
+        { label: "Author Templates", slug: "studio/author-templates" },
+        { label: "Open, save, and export", slug: "studio/open-save" },
+        { label: "Settings and recovery", slug: "studio/settings-recovery" },
+      ] },
+      { label: "Templates", items: [
+        { label: "Compose Templates", slug: "reference/templates/composition" },
+        { label: "Schema Reference", link: "/reference/templates/schema/" },
+      ] },
       { label: "Release notes", slug: "releases" },
       { label: "More guides", items: [
         { label: "Workflows ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md" },
