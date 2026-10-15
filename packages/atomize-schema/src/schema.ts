@@ -186,7 +186,7 @@ export const FilterCriteriaSchema = z.object({
         .optional(),
     })
     .strict()
-    .describe("Tag-based filter — include or exclude stories by tag.")
+    .describe("Include or exclude Stories by tag.")
     .optional().meta({ "x-atomize-guide": "filter" }),
   areaPaths: z
     .array(z.union([z.string(), z.literal("@TeamAreas")]))
@@ -267,7 +267,7 @@ export const TaskDefinitionSchema = z.object({
   title: z
     .string()
     .min(1, "Task title is required")
-    .describe("Task title — shown as the Work Item title on the platform. Supports Story variable interpolation.").meta({ "x-atomize-guide": "variable-interpolation" }),
+    .describe("The Work Item title shown on the platform. Supports Story variable interpolation.").meta({ "x-atomize-guide": "variable-interpolation" }),
   description: z
     .string()
     .describe("Task description. Supports Story variable interpolation.")
@@ -845,7 +845,7 @@ const TaskTemplateBaseSchema = z.object({
     origin: z
       .string()
       .describe(
-        "Catalog ref (template:<name> or mixin:<name>) this template was derived from. Informational only — does not affect ref resolution.",
+        "Catalog ref (template:<name> or mixin:<name>) this template was derived from. Informational only; does not affect ref resolution.",
       )
       .optional(),
   }).strict();
@@ -1163,7 +1163,7 @@ export const MixinTemplateSchema = z
     origin: z
       .string()
       .describe(
-        "Catalog ref (template:<name> or mixin:<name>) this mixin was derived from. Informational only — does not affect ref resolution.",
+        "Catalog ref (template:<name> or mixin:<name>) this mixin was derived from. Informational only; does not affect ref resolution.",
       )
       .optional(),
   })
