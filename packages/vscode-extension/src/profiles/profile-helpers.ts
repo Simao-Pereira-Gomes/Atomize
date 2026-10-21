@@ -12,10 +12,10 @@ export function profileDetail(profile: Pick<AzureDevOpsProfileMeta, 'organizatio
 	return `${profile.organizationUrl} · ${profile.project} · ${profile.team}`;
 }
 
+/** The workspace `atomize.defaultProfile` setting wins when it names a known profile; otherwise the stored default. */
 export function resolveDefaultProfile(
 	profiles: AzureDevOpsProfileMeta[],
 	defaultProfile: string | undefined,
 ): AzureDevOpsProfileMeta | undefined {
-	if (!defaultProfile) return undefined;
-	return profiles.find(p => p.name === defaultProfile);
+	return (defaultProfile ? profiles.find(p => p.name === defaultProfile) : undefined) ?? profiles.find(p => p.isDefault);
 }
