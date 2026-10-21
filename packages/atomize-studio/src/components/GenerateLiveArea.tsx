@@ -7,7 +7,7 @@ import type { GenerateReport, GenerateResultRow as GenerateResultRowData, Genera
 import { parseGenerateProgressEvent, parseGenerateReport, parseGenerateStories } from "../generate/live";
 import type { GenerateScope, LiveExecutionEvent } from "../generate/live-execution-confirmation";
 import { initialLiveExecutionState, transitionLiveExecution } from "../generate/live-execution-confirmation";
-import { type PreviewSource, previewSourceValue } from "../generate/preview";
+import { formatEstimateAmount, formatTaskEstimate, type PreviewSource, previewSourceValue } from "../generate/preview";
 import { cancelGenerate, listenGenerateProgress, queryGenerateStories, runGenerate, SidecarRequestError } from "../sidecar/sidecar-client";
 import { GenerateResultRow } from "./GenerateResultRow";
 
@@ -67,6 +67,11 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     }
   };
 
+  // A blank Task Estimate is unknown, so a Story's total is only shown when every planned Task has one.
+  const plannedTotal = (row: GenerateResultRowData) => row.tasksPlanned.every((task) => task.estimation !== undefined)
+    ? row.tasksPlanned.reduce((sum, task) => sum + (task.estimation ?? 0), 0)
+    : undefined;
+
   const scopeSummary = () => {
     const s = scope();
     if (!s) return "";
@@ -97,7 +102,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
       if (!event) return;
       if (event.type === "story_start" && event.story) {
         const story = event.story;
-        setExecPending((prev) => new Map(prev).set(story.id, { story, tasksCreated: [], success: false }));
+        setExecPending((prev) => new Map(prev).set(story.id, { story, tasksCreated: [], tasksPlanned: [], success: false }));
       } else if (event.type === "task_created" && event.task && event.story) {
         const story = event.story;
         const task = event.task;
@@ -110,12 +115,12 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
       } else if (event.type === "story_complete" && event.story) {
         const story = event.story;
         const pending = execPending().get(story.id);
-        setExecRows((prev) => [...prev, { story, tasksCreated: pending?.tasksCreated ?? [], success: true }]);
+        setExecRows((prev) => [...prev, { story, tasksCreated: pending?.tasksCreated ?? [], tasksPlanned: [], success: true }]);
         setExecPending((prev) => { const next = new Map(prev); next.delete(story.id); return next; });
       } else if (event.type === "story_error" && event.story) {
         const story = event.story;
         const pending = execPending().get(story.id);
-        setExecRows((prev) => [...prev, { story, tasksCreated: pending?.tasksCreated ?? [], success: false, error: event.error }]);
+        setExecRows((prev) => [...prev, { story, tasksCreated: pending?.tasksCreated ?? [], tasksPlanned: [], success: false, error: event.error }]);
         setExecPending((prev) => { const next = new Map(prev); next.delete(story.id); return next; });
       }
     });
@@ -231,13 +236,33 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     <For each={report.results}>
                       {(row) => (
                         <div class="border-b border-slate-100 p-4 last:border-0 dark:border-slate-800">
-                          <p class="font-semibold text-slate-950 dark:text-white">{row.story.id} · {row.story.title}</p>
+                          <div class="flex items-baseline justify-between gap-4">
+                            <p class="min-w-0 truncate font-semibold text-slate-950 dark:text-white">{row.story.id} · {row.story.title}</p>
+                            <Show when={row.tasksPlanned.length > 0}>
+                              <p class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                {row.tasksPlanned.length} Task{row.tasksPlanned.length === 1 ? "" : "s"}
+                                {plannedTotal(row) === undefined ? "" : ` · ${formatEstimateAmount(plannedTotal(row) as number, row.estimateUnit)}`}
+                              </p>
+                            </Show>
+                          </div>
                           <Show when={row.error}><p class="mt-1 text-xs text-rose-600">{row.error}</p></Show>
+                          <Show when={row.tasksPlanned.length > 0}>
+                            <ul class="mt-2 space-y-1">
+                              <For each={row.tasksPlanned}>
+                                {(task) => (
+                                  <li class="flex items-center justify-between gap-4 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+                                    <span class="min-w-0 truncate text-slate-950 dark:text-white">{task.title}</span>
+                                    <span class="shrink-0 text-slate-500 dark:text-slate-400">{formatTaskEstimate(task.estimation, row.estimateUnit)}</span>
+                                  </li>
+                                )}
+                              </For>
+                            </ul>
+                          </Show>
                         </div>
                       )}
                     </For>
                   </div>
-                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{report.storiesProcessed} Stories · {report.tasksCreated} Tasks total</p>
+                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{report.storiesProcessed} Stories · {report.tasksPlanned} Tasks total</p>
                   <div class="mt-4 flex gap-3">
                     <button type="button" class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={() => setStep(1)}>← Back</button>
                     <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={() => { setStep(3); confirmExecution(); }}>Continue to Execute →</button>
@@ -257,7 +282,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               <dl class="mt-3 space-y-1 text-sm text-rose-950 dark:text-rose-100">
                 <div><dt class="inline font-semibold">Scope: </dt><dd class="inline">{scopeSummary()}</dd></div>
                 <div><dt class="inline font-semibold">Platform: </dt><dd class="inline">{platformLabel()}</dd></div>
-                <div><dt class="inline font-semibold">Tasks to create: </dt><dd class="inline">{dryRun().kind === "ready" ? (dryRun() as Extract<DryRunState, { kind: "ready" }>).report.tasksCreated : "—"}</dd></div>
+                <div><dt class="inline font-semibold">Tasks to create: </dt><dd class="inline">{dryRun().kind === "ready" ? (dryRun() as Extract<DryRunState, { kind: "ready" }>).report.tasksPlanned : "—"}</dd></div>
               </dl>
               <label class="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-white/60 p-3 text-sm text-rose-950 dark:border-rose-900 dark:bg-slate-900/40 dark:text-rose-100">
                 <input type="checkbox" class="mt-0.5" checked={ack()} onChange={(e) => setAck(e.currentTarget.checked)} />

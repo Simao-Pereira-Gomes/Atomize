@@ -4,13 +4,24 @@
 
 export type GenerateWorkItem = { id: string; title: string; url?: string; type?: string; state?: string; areaPath?: string };
 
-export type GenerateResultRow = { story: GenerateWorkItem; tasksCreated: GenerateWorkItem[]; success: boolean; error?: string };
+/** A Task a dry run would create; atomize-core reports these as `tasksCalculated`, leaving `tasksCreated` empty. */
+export type GeneratePlannedTask = { title: string; estimation?: number };
+
+export type GenerateResultRow = {
+  story: GenerateWorkItem;
+  tasksCreated: GenerateWorkItem[];
+  tasksPlanned: GeneratePlannedTask[];
+  success: boolean;
+  error?: string;
+  estimateUnit?: string;
+};
 
 export type GenerateReport = {
   storiesProcessed: number;
   storiesSuccess: number;
   storiesFailed: number;
   tasksCreated: number;
+  tasksPlanned: number;
   results: GenerateResultRow[];
 };
 
@@ -58,6 +69,13 @@ export function parseGenerateStories(value: unknown): GenerateWorkItem[] {
   return parseWorkItems(value.stories);
 }
 
+function parsePlannedTasks(value: unknown): GeneratePlannedTask[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((task) => isRecord(task) && typeof task.title === "string"
+    ? [{ title: task.title, estimation: typeof task.estimation === "number" ? task.estimation : undefined }]
+    : []);
+}
+
 function parseResultRow(value: unknown): GenerateResultRow | undefined {
   if (!isRecord(value)) return undefined;
   const story = parseWorkItem(value.story);
@@ -65,8 +83,10 @@ function parseResultRow(value: unknown): GenerateResultRow | undefined {
   return {
     story,
     tasksCreated: parseWorkItems(value.tasksCreated),
+    tasksPlanned: parsePlannedTasks(value.tasksCalculated),
     success: value.success === true,
     error: typeof value.error === "string" ? value.error : undefined,
+    estimateUnit: typeof value.estimateUnit === "string" ? value.estimateUnit : undefined,
   };
 }
 
@@ -84,6 +104,7 @@ export function parseGenerateReport(value: unknown): GenerateReport {
     storiesSuccess: typeof report.storiesSuccess === "number" ? report.storiesSuccess : results.filter((row) => row.success).length,
     storiesFailed: typeof report.storiesFailed === "number" ? report.storiesFailed : results.filter((row) => !row.success).length,
     tasksCreated: typeof report.tasksCreated === "number" ? report.tasksCreated : results.reduce((sum, row) => sum + row.tasksCreated.length, 0),
+    tasksPlanned: typeof report.tasksCalculated === "number" ? report.tasksCalculated : results.reduce((sum, row) => sum + row.tasksPlanned.length, 0),
     results,
   };
 }
