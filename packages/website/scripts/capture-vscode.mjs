@@ -82,6 +82,7 @@ try {
   for (const [mode, theme] of [["light", "Catppuccin Latte"], ["dark", "Catppuccin Mocha"]]) await captureFlow(mode, theme);
   await addDocumentationProfiles();
   for (const [mode, theme] of [["light", "Catppuccin Latte"], ["dark", "Catppuccin Mocha"]]) await captureConnections(mode, theme);
+  for (const [mode, theme] of [["light", "Catppuccin Latte"], ["dark", "Catppuccin Mocha"]]) await captureGenerate(mode, theme);
 } finally {
   await cdp("Target.setAutoAttach", { autoAttach: false, waitForDebuggerOnStart: false, flatten: true });
   socket.close();
@@ -102,8 +103,7 @@ async function selectTheme(mode, theme) {
   await waitFor(`document.querySelector('.monaco-workbench')?.classList.contains(${JSON.stringify(mode === "dark" ? "vs-dark" : "vs")})`);
 }
 
-async function captureFlow(mode, theme) {
-  await selectTheme(mode, theme);
+async function openBuiltInTemplate() {
   await command("View: Close All Editors");
   await command("Atomize: Browse Catalog");
   await waitFor(`document.querySelector('.quick-input-title')?.textContent.includes('Browse Catalog')`);
@@ -111,6 +111,11 @@ async function captureFlow(mode, theme) {
   await waitFor(`!!document.querySelector('.quick-input-list .codicon-go-to-file')`);
   await evaluate(`document.querySelector('.quick-input-list .codicon-go-to-file').closest('a, button').click()`);
   await waitFor(`document.querySelector('.monaco-editor')?.textContent.replace(/\\s+/g, ' ').includes('Backend API Development')`);
+}
+
+async function captureFlow(mode, theme) {
+  await selectTheme(mode, theme);
+  await openBuiltInTemplate();
   await waitFor(`document.body.innerText.includes('Atomize: Preview (Mock)')`);
   await capture(`template-authoring-${mode}`);
   console.log(`Captured the real Catalog Template editor and CodeLens in ${theme}.`);
@@ -165,4 +170,48 @@ async function captureConnections(mode, theme) {
   await capture(`connection-profiles-${mode}`, { x: 300, y: 32, width: 840, height: 260 });
   await key("Escape", "Escape", 27);
   console.log(`Captured the real Manage Profiles actions in ${theme}.`);
+}
+
+// Requires the capture-only build from build-vscode-capture.mjs: its profiles use atomize-core's Mock
+// platform, and the capture cancels the confirmation, so nothing is created anywhere.
+async function captureGenerate(mode, theme) {
+  await selectTheme(mode, theme);
+  await command("Notifications: Clear All Notifications");
+  await openBuiltInTemplate();
+  await key("F1", "F1", 112);
+  await waitFor(`!!document.querySelector('.quick-input-widget input')?.getClientRects().length`);
+  await cdp("Input.insertText", { text: "Atomize: Generate" });
+  await waitFor(`!!${quickRow("Atomize: Generate")}`);
+  await evaluate(`${quickRow("Atomize: Generate")}.click()`);
+  await waitFor(`document.querySelector('.quick-input-title')?.textContent.includes('Atomize: Generate') && !!${quickRow("contoso-web")}`);
+  await evaluate(`${quickRow("contoso-web")}.click()`);
+  await waitFor(`document.querySelector('.quick-input-widget input')?.placeholder.includes('Tick Stories') && document.querySelectorAll('.quick-input-list .monaco-list-row').length > 0`);
+  // Tick the two Mock Stories estimated at 8, so the plan uses exactly the Story budget.
+  for (const [story, search] of [["#STORY-001 Implement user authentication API", "authentication"], ["#STORY-004 Add search functionality", "search functionality"]]) {
+    // Narrow the list first: ticks are kept while typing, and the first row takes pointer input reliably.
+    await cdp("Input.insertText", { text: search });
+    await waitFor(`document.querySelectorAll('.quick-input-list .monaco-list-row').length === 1 && !!${quickRow(story)}`);
+    const checked = `${quickRow(story)}.querySelector('[role="checkbox"]').getAttribute('aria-checked') === 'true'`;
+    // VS Code's checkbox toggles on pointer input, not a synthetic click; only click while unticked.
+    for (let attempt = 0; attempt < 5 && !(await evaluate(checked)); attempt++) {
+      const { x, y } = await evaluate(`(() => { const box = ${quickRow(story)}.querySelector('[role="checkbox"]').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; })()`);
+      for (const type of ["mousePressed", "mouseReleased"]) await cdp("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
+      await pause(300);
+    }
+    await evaluate(`(() => { const input = document.querySelector('.quick-input-widget input'); input.select(); })()`);
+    await key("Backspace", "Backspace", 8);
+  }
+  await waitFor(`document.querySelector('.quick-input-count')?.textContent.trim() === '2 Selected'`);
+  await key("Enter", "Enter", 13);
+  const panel = await webviewContext(`!!document.getElementById('btn-create')`);
+  const plan = await evaluate(`document.body.innerText`, panel);
+  if (!plan.includes("DRY RUN")) throw Error("The Generate Panel did not show its dry run before Task creation.");
+  await capture(`generate-dry-run-${mode}`);
+  await evaluate(`document.getElementById('btn-create').click()`, panel);
+  await waitFor(`(document.querySelector('.monaco-dialog-box')?.textContent ?? '').includes('Create 12 tasks for 2 stories using profile "contoso-web"?')`);
+  await capture(`generate-confirmation-${mode}`);
+  await evaluate(`[...document.querySelectorAll('.monaco-dialog-box .monaco-button')].find(button => button.textContent.trim() === 'Cancel').click()`);
+  await waitFor(`!document.querySelector('.monaco-dialog-box')`);
+  if (!(await evaluate(`document.body.innerText`, panel)).includes("DRY RUN")) throw Error("Cancelling the confirmation must leave the dry run in place.");
+  console.log(`Captured the real Generate dry run and confirmation in ${theme}.`);
 }

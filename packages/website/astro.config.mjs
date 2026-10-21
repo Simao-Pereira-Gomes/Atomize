@@ -39,6 +39,8 @@ export default defineConfig({
       { label: "VS Code", items: [
         { label: "Author Atomize YAML", slug: "vscode/author-yaml" },
         { label: "Inspect Templates", slug: "vscode/inspect-templates" },
+        { label: "Generate Tasks", slug: "vscode/generate" },
+        { label: "Browse fields and queries", slug: "vscode/project-data" },
         { label: "Validation and settings", slug: "vscode/settings-recovery" },
       ] },
       { label: "Connections", items: [

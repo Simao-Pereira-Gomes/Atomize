@@ -33,7 +33,7 @@ A Connection Profile names one Azure DevOps project and keeps its access token o
 Each tool shows the planned Tasks before it creates any:
 
 - **Studio**: [generate Tasks](/studio/generate/) from a Preview Source and Generate Scope. Studio shows a Live Preview, then Live Execution Confirmation, before creating Tasks.
-- **VS Code**: run [Preview (Live)](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md#atomize-preview-live), then [Generate](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md#atomize-generate) when the plan is ready.
+- **VS Code**: run a [Live Preview](/vscode/generate/#preview-against-a-real-story), then [generate Tasks](/vscode/generate/#generate-tasks) when the plan is ready.
 - **CLI**: follow [connected generation](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md#generate-tasks). A dry run reads Stories without creating Tasks.
 
 If a connection fails, see [Fix connection problems](/connections/troubleshooting/).

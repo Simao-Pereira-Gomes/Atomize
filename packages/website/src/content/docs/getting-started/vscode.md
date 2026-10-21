@@ -14,4 +14,4 @@ Try a complete task breakdown inside your editor before connecting a project. St
 
 ## Next steps
 
-[Author Atomize YAML](/vscode/author-yaml/) to make the recipe your own. [Inspect Templates](/vscode/inspect-templates/) covers the Catalog, composition, and field reference. [Validation, settings, and recovery](/vscode/settings-recovery/) helps you check and maintain your editor workflow.
+[Author Atomize YAML](/vscode/author-yaml/) to make the recipe your own. [Inspect Templates](/vscode/inspect-templates/) covers the Catalog, composition, and field reference. [Validation, settings, and recovery](/vscode/settings-recovery/) helps you check and maintain your editor workflow. When you are ready for real Stories, [set up a Connection Profile](/connections/profiles/#vs-code) and [generate Tasks](/vscode/generate/).

@@ -22,4 +22,4 @@ Run **Atomize: Open Settings** from the Command Palette.
 
 ## Continue with a connection
 
-Use [VS Code profile setup](/connections/profiles/#vs-code) for the extension's own Connection Profiles. Then run [Preview (Live)](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md#atomize-preview-live) before [Generate](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md#atomize-generate). [Fix connection problems](/connections/troubleshooting/) covers rejected tokens and missing permissions.
+Use [VS Code profile setup](/connections/profiles/#vs-code) for the extension's own Connection Profiles. Then run a [Live Preview](/vscode/generate/#preview-against-a-real-story) before you [generate Tasks](/vscode/generate/#generate-tasks). [Fix connection problems](/connections/troubleshooting/) covers rejected tokens and missing permissions.

@@ -56,6 +56,19 @@ describe("canonical guide rendering", () => {
     expect(document.querySelector('a[href="/studio/project-data/#work-project-setting"]')).not.toBeNull();
   });
 
+  test("VS Code Generate keeps confirmation with a pre-selected profile and shows both screenshots", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include vscode-generate -->");
+    const { document } = parseHTML(code);
+    expect(code).toContain("every execution is still confirmed");
+    expect(code).toContain("Tasks are created only after step 6");
+    expect(code).toContain("no cancel action once creation starts");
+    expect(document.querySelector('img.themed-screenshot-light[src="/vscode/generate-dry-run-light.png"]')).not.toBeNull();
+    expect(document.querySelector('img.themed-screenshot-dark[src="/vscode/generate-confirmation-dark.png"]')?.getAttribute("alt")).toContain("confirmation dialog");
+    expect(document.querySelector('a[href="/vscode/generate/#choose-stories"]')).not.toBeNull();
+    expect(document.querySelectorAll("ol").length).toBe(2);
+  });
+
   test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "when-the-keychain-is-unavailable")).toBe("/connections/profiles/#when-the-keychain-is-unavailable");
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "credential-storage")).toBe("/connections/profiles/#credential-storage");

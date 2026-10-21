@@ -195,13 +195,22 @@ VS Code pages reuse marked sections in `docs/VS-Code-Extension.md`. The images
 under `public/vscode/` were captured on 2026-10-15 from a real Extension
 Development Host running this checkout, with the built-in Backend API Development
 Template and the documented offline Mock Story. No platform credentials or AI
-sign-in are used. The native editor and extension engine are not mocked.
+sign-in are used. The native editor and extension engine are not mocked; only
+the Generate captures use Mock Stories, through the capture-only build below.
 
-Build the current extension:
+Build the current extension, then the capture-only copy:
 
 ```sh
 bun run --cwd packages/vscode-extension build
+bun packages/website/scripts/build-vscode-capture.mjs
 ```
+
+The capture copy, written to `/tmp/atomize-vscode-docs/extension` (override with
+`ATOMIZE_VSCODE_CAPTURE_BUILD`), is the same extension except that Connection
+Profiles resolve to atomize-core's Mock platform through
+`scripts/vscode-capture/credential-resolver.ts`. That lets the Generate captures
+run the real Story Browser, dry run, and confirmation against Mock Stories
+without credentials. It is never packaged or published.
 
 Use a dedicated empty workspace, user-data directory, and extensions directory
 under a temporary folder, such as `/tmp/atomize-vscode-docs/`. Keep the path short:
@@ -217,7 +226,8 @@ code --user-data-dir=/tmp/atomize-vscode-docs/user --extensions-dir=/tmp/atomize
 In that profile's `User/settings.json`, use Catppuccin Latte, which matches the
 website's light code blocks and keeps YAML keys and strings distinct. Use font
 size 16, hide the activity bar, command center, and minimap, disable workspace
-trust prompts and tips, and start without a welcome editor. Disable updates, extension auto-updates, telemetry, and SchemaStore
+trust prompts and tips, and start without a welcome editor. Use VS Code's own
+dialogs instead of native ones, so the Generate confirmation can be captured. Disable updates, extension auto-updates, telemetry, and SchemaStore
 network requests for the offline capture:
 
 ```json
@@ -235,7 +245,8 @@ network requests for the offline capture:
   "extensions.autoUpdate": "off",
   "extensions.autoCheckUpdates": false,
   "telemetry.telemetryLevel": "off",
-  "yaml.schemaStore.enable": false
+  "yaml.schemaStore.enable": false,
+  "window.dialogStyle": "custom"
 }
 ```
 
@@ -244,10 +255,11 @@ host with port 9234, using the Electron executable directly if the `code` wrappe
 does not expose the debugger. On macOS, from the repository root:
 
 ```sh
-"/Applications/Visual Studio Code.app/Contents/MacOS/Code" --user-data-dir=/tmp/atomize-vscode-docs/user --extensions-dir=/tmp/atomize-vscode-docs/extensions --extensionDevelopmentPath="$PWD/packages/vscode-extension" --remote-debugging-port=9234 --skip-welcome --skip-release-notes /tmp/atomize-vscode-docs/workspace
+LC_ALL=en_GB.UTF-8 "/Applications/Visual Studio Code.app/Contents/MacOS/Code" --user-data-dir=/tmp/atomize-vscode-docs/user --extensions-dir=/tmp/atomize-vscode-docs/extensions --extensionDevelopmentPath=/tmp/atomize-vscode-docs/extension --remote-debugging-port=9234 --skip-welcome --skip-release-notes /tmp/atomize-vscode-docs/workspace
 ```
 
-Use your installed Code executable on other platforms, then run:
+`LC_ALL` keeps the extension's number formatting British-English. Use your
+installed Code executable on other platforms, then run:
 
 ```sh
 bun packages/website/scripts/capture-vscode.mjs
@@ -263,10 +275,12 @@ runs Mock Preview with estimate 8. It drives the separate webview process to
 submit the actual form. It then adds two fictional `contoso` profiles through
 the real **Atomize: Manage Profiles** inputs, with a placeholder token that is
 never tested or sent anywhere, and captures one profile's actions cropped to the
-Quick Pick. It skips profiles that already exist in the isolated host. The captures omit the host title bar and status bar;
-their content is otherwise the unmodified editor UI. Review all six images, alt
+Quick Pick. It skips profiles that already exist in the isolated host. Finally it runs Atomize: Generate with the
+`contoso-web` profile, ticks the two Mock Stories estimated at 8 in the Story
+Browser, captures the dry run and VS Code's confirmation dialog, and cancels it. The captures omit the host title bar and status bar;
+their content is otherwise the unmodified editor UI. Review all ten images, alt
 text, and adjacent instructions after changes to the Catalog, authoring,
-preview, or profile management UI. Changes to the canonical VS Code guide and these media files trigger
+preview, profile management, or Generate UI. Changes to the canonical VS Code guide and these media files trigger
 website checks and deployment. Close the isolated host after capturing.
 
 ## Add a focused page

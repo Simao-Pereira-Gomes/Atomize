@@ -165,19 +165,58 @@ Use this while designing a Template or checking conditional tasks and estimation
 
 ### Atomize: Preview (Live)
 
+<!-- atomize:section vscode-live-preview -->
+
 Runs Live Preview against a real Story through a selected Connection Profile. It reads Story data and renders the resolved task breakdown as a dry run. It does not create Tasks.
 
-You choose the Story with the [Story Browser](#choosing-stories-the-story-browser). It opens on the current and next sprint, and you can search for any Story or type its ID.
+1. Run **Atomize: Preview (Live)** from the Template's CodeLens or the Command Palette.
+2. Choose a Connection Profile. The picker pre-selects your [default profile](#settings).
+3. Choose one Story with the [Story Browser](#choosing-stories-the-story-browser). It opens on the current and next sprint, and you can search for any Story or type its ID. If the browser can't load Stories, you're asked for a work item ID instead.
+
+The Live Preview Panel opens beside the editor and shows each resolved Task with its estimate. **Standard** and **Compact** switch the layout. If authentication fails, the panel explains why and offers **Manage Profiles**; a Story that can't be read shows **Work item not found** with the reason.
+
+<!-- /atomize:section -->
 
 ### Atomize: Generate
 
+<!-- atomize:section vscode-generate -->
+
 Runs the Generate Panel for the active Template. The panel first shows a dry-run report. Task creation requires an explicit panel action and confirmation.
 
-Before the run, the [Story Browser](#choosing-stories-the-story-browser) opens on the current and next sprint. Tick the Stories to generate for, or press Enter with none ticked to run on every Story the Template's filter matches. Picked Stories are handled exactly as typed Story IDs were before: the Template's `excludeIfHasTasks` still applies.
+1. Run **Atomize: Generate** from the Template's CodeLens or the Command Palette.
+2. Choose a Connection Profile. The picker pre-selects your [default profile](#settings), but you still choose it, and every execution is still confirmed.
+3. The [Story Browser](#choosing-stories-the-story-browser) opens on the current and next sprint. Tick the Stories to generate for, or press Enter with none ticked to run on every Story the Template's filter matches. Picked Stories are handled exactly as typed Story IDs were before: the Template's `excludeIfHasTasks` still applies.
+4. The Generate Panel opens beside the editor with a **DRY RUN** report: each Story with its resolved Tasks and estimates, and any Tasks skipped by conditions. Nothing has been created yet.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/vscode/generate-dry-run-dark.png">
+  <img alt="VS Code's Generate Panel beside a Template, showing a DRY RUN report for two Stories with 12 Tasks, 16 hours, and a 100% budget, each Task with its tags and estimate, and the Create 12 Tasks button." src="../packages/website/public/vscode/generate-dry-run-light.png">
+</picture>
+
+5. Choose **Create *N* Tasks in *profile*…**. The arrow beside it offers **Continue on task failure**, which keeps creating the remaining Tasks when one fails.
+6. Confirm in the dialog, which names the number of Tasks and Stories and the profile, by choosing **Create Tasks**. Closing the dialog creates nothing.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/vscode/generate-confirmation-dark.png">
+  <img alt="VS Code's confirmation dialog over the Generate Panel asking to create 12 tasks for 2 stories using the selected profile, with Cancel and Create Tasks buttons." src="../packages/website/public/vscode/generate-confirmation-light.png">
+</picture>
+
+Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created; there's no cancel action once creation starts. The result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.
+
+The panel won't offer creation when the dry run can't support it:
+
+- **Authentication failed**: fix the profile with **Manage Profiles**, then run Generate again.
+- **No matching stories**: none of the picked Stories were found or all were excluded by `excludeIfHasTasks`, or the Template's filter matched nothing.
+- **No tasks to create**: Stories matched, but the Template's conditions filtered out every Task.
+- A Story that fails in the dry run blocks creation until you fix the error and run Generate again.
 
 Use Generate only when the previewed task plan is ready to create in the connected planning system.
 
+<!-- /atomize:section -->
+
 ### Choosing Stories: the Story Browser
+
+<!-- atomize:section vscode-story-browser -->
 
 Commands that need Stories use the Story Browser instead of asking you to type Story IDs. It has two modes:
 
@@ -187,6 +226,8 @@ Commands that need Stories use the Story Browser instead of asking you to type S
 Both modes list the newest Stories first, 50 at a time. Choose **Load more…** at the end of the list for the next 50, up to 500.
 
 The title-bar buttons switch modes, and the pencil button lets you **enter Story IDs** directly when a Story isn't listed. When several Stories can be picked, your ticks are kept while you search, change filters and load more, and IDs you enter are added to them.
+
+<!-- /atomize:section -->
 
 ### Atomize: Manage Profiles
 
@@ -212,13 +253,19 @@ Installs the open Template or Mixin into a Catalog, so you can run and compose i
 
 Installing is always your choice: saving a file never adds it to a Catalog.
 
+<!-- atomize:section vscode-browsers -->
+
 ### Atomize: Browse Fields
 
 Browses platform fields for a selected Connection Profile. Use this when authoring filters, custom fields, or conditions.
 
+Choose a profile, then a work item type or **All work item types**. Pick a field to copy its reference name, such as `Microsoft.VSTS.Common.Priority`, to the clipboard.
+
 ### Atomize: Browse Queries
 
-Browses saved platform queries for a selected Connection Profile.
+Browses saved platform queries for a selected Connection Profile. Pick a query to copy its path to the clipboard, ready for `filter.savedQuery.path`.
+
+<!-- /atomize:section -->
 
 ### Atomize: Draft Template with AI
 
@@ -316,6 +363,8 @@ VS Code’s own `editor.codeLens` setting controls whether CodeLens is visible. 
 
 ## Safety Model
 
+<!-- atomize:section vscode-safety -->
+
 Atomize previews by default.
 
 | Surface | Connects to platform | Creates Tasks |
@@ -329,6 +378,8 @@ Atomize previews by default.
 | Generate confirmed execution | Yes | Yes |
 | Draft Template with AI | No (sends your description to Copilot) | No |
 | Improve Template with AI | No (sends the Template to Copilot) | No |
+
+<!-- /atomize:section -->
 
 ## Template Example
 

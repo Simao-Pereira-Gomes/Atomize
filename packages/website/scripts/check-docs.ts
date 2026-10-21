@@ -74,7 +74,19 @@ async function checkDocs() {
     const page = pages.get(resolve(directory, `${route}/index.html`));
     if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`VS Code page, metadata, or search indexing is missing: ${route}`);
   }
-  for (const [route, image] of [["getting-started/vscode", "mock-preview"], ["vscode/author-yaml", "template-authoring"]]) {
+  for (const [route, title] of [["vscode/generate", "Generate Tasks in VS Code"], ["vscode/project-data", "Browse fields and queries in VS Code"]]) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`VS Code page, metadata, or search indexing is missing: ${route}`);
+  }
+  const vscodeGenerate = pages.get(resolve(directory, "vscode/generate/index.html"));
+  for (const anchor of ["preview-against-a-real-story", "generate-tasks", "choose-stories", "what-connects-and-what-creates-tasks"]) {
+    if (!vscodeGenerate?.getElementById(anchor)) failures.push(`VS Code Generate guide is missing: ${anchor}`);
+  }
+  if (!vscodeGenerate?.querySelector('a[href="/connections/profiles/#vs-code"]') || !pages.get(resolve(directory, "getting-started/vscode/index.html"))?.querySelector('a[href="/vscode/generate/"]')) failures.push("VS Code Generate guide must connect to profile setup and onboarding");
+  for (const anchor of ["atomize-browse-fields", "atomize-browse-queries"]) {
+    if (!pages.get(resolve(directory, "vscode/project-data/index.html"))?.getElementById(anchor)) failures.push(`VS Code browser reference is missing: ${anchor}`);
+  }
+  for (const [route, image] of [["getting-started/vscode", "mock-preview"], ["vscode/author-yaml", "template-authoring"], ["vscode/generate", "generate-dry-run"], ["vscode/generate", "generate-confirmation"]]) {
     for (const mode of ["light", "dark"]) {
       const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img.themed-screenshot-${mode}[src="/vscode/${image}-${mode}.png"]`);
       if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`VS Code ${mode} screenshot or useful alt text is missing: ${image}`);

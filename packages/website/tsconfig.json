@@ -2,5 +2,5 @@
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": { "jsx": "preserve", "jsxImportSource": "solid-js", "types": ["bun"] },
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": ["dist", "scripts/vscode-capture"]
 }
