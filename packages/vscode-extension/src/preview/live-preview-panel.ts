@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import { Atomizer } from '@sppg2001/atomize-core';
 import type { AtomizationReport } from '@sppg2001/atomize-core/core/atomizer';
 import { AuthError } from '@sppg2001/atomize-core/utils/errors';
@@ -96,7 +97,7 @@ export class LivePreviewPanel {
 		const storyId = await pickPreviewStory(credentialResolver, profile, fileUri);
 		if (storyId === null) return;
 
-		const fileName = vscode.workspace.asRelativePath(fileUri);
+		const fileName = basename(fileUri.fsPath);
 
 		let panel: LivePreviewPanel;
 		if (LivePreviewPanel._instance) {
@@ -122,7 +123,7 @@ export class LivePreviewPanel {
 	}
 
 	private async _run(storyId: string, profile: string): Promise<void> {
-		const fileName = vscode.workspace.asRelativePath(this._fileUri);
+		const fileName = basename(this._fileUri.fsPath);
 		this._panel.webview.html = `<!DOCTYPE html><html><body style="color:var(--vscode-editor-foreground);padding:16px">Running…</body></html>`;
 
 		const outcome = await runLivePreview(this._credentialResolver, profile, this._fileUri, storyId);
@@ -142,7 +143,7 @@ export class LivePreviewPanel {
 		if (message.type === 'switchMode') {
 			this._mode = message.mode;
 			if (this._lastReport) {
-				const fileName = vscode.workspace.asRelativePath(this._fileUri);
+				const fileName = basename(this._fileUri.fsPath);
 				this._panel.webview.html = renderLivePreviewResults(this._lastReport, this._mode, fileName);
 			}
 		} else if (message.type === 'rerun') {

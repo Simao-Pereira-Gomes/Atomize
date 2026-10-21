@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import { inspectTemplate, runPreview } from '@sppg2001/atomize-core/templates/template-inspector';
 import * as vscode from 'vscode';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
@@ -81,7 +82,7 @@ export class PreviewPanel {
 			return;
 		}
 
-		const fileName = vscode.workspace.asRelativePath(fileUri);
+		const fileName = basename(fileUri.fsPath);
 
 		if (PreviewPanel._instance) {
 			const inst = PreviewPanel._instance;
@@ -105,12 +106,12 @@ export class PreviewPanel {
 
 	private _showForm(error?: string): void {
 		const stored = PreviewPanel._storedValues.get(this._fileUri.toString()) ?? {};
-		const fileName = vscode.workspace.asRelativePath(this._fileUri);
+		const fileName = basename(this._fileUri.fsPath);
 		this._panel.webview.html = renderPreviewForm(this._fields, stored, fileName, error);
 	}
 
 	private _showResults(result: Awaited<ReturnType<typeof previewFile>>): void {
-		const fileName = vscode.workspace.asRelativePath(this._fileUri);
+		const fileName = basename(this._fileUri.fsPath);
 		this._lastResult = result;
 		this._panel.webview.html = renderPreviewResults(result, this._mode, fileName);
 	}

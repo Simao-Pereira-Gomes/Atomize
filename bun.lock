@@ -157,7 +157,7 @@
     },
     "packages/vscode-extension": {
       "name": "atomize",
-      "version": "0.5.1",
+      "version": "0.5.3",
       "dependencies": {
         "@sppg2001/atomize-core": "workspace:*",
         "@sppg2001/atomize-schema-reference": "workspace:*",

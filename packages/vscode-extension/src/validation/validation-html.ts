@@ -40,9 +40,8 @@ export function renderValidationHtml(result: ValidationResult, fileName: string)
   <div class="w-4 h-4 rounded-full shrink-0 ${result.valid ? 'bg-pass' : 'bg-fail'}"></div>
   <h1 class="text-[1em] font-semibold m-0">${esc(title)}</h1>
 </div>
-<div class="group pl-[26px] font-mono text-[0.8em] text-desc mb-3 cursor-default">
-  <span class="group-hover:hidden">${esc(shortName)}</span>
-  <span class="hidden group-hover:inline break-all">${esc(fileName)}</span>
+<div class="pl-[26px] font-mono text-[0.8em] text-desc mb-3 break-all">
+  ${esc(shortName)}
 </div>
 
 <div class="flex flex-wrap items-center gap-0.5 text-[0.8em] mb-[14px]">${bannerHtml}</div>

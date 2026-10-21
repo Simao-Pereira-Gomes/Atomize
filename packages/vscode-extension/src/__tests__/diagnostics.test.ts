@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import { baseVscodeMock } from './vscode-test-helpers.js';
 
 describe('resolvePathToRange', () => {
@@ -172,4 +172,81 @@ describe('makeDiagnostic', () => {
 		const d = makeDiagnostic('filter.savedQuery', 'msg', 1, doc as never, 'SAVED_QUERY_WITH_STRUCTURED_FILTER');
 		expect(d.tags).toBeUndefined();
 	});
+});
+
+describe('passive validation recovery', () => {
+	it('contains synchronous path failures and permits another validation attempt', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const { runDiagnosticValidation } = await import(`../validation/diagnostics.js?t=${Date.now()}-path-failure`);
+		const failure = new Error('Document path unavailable');
+		const onError = mock(() => {});
+		const diagnostics = { set: mock(() => {}) };
+		const doc = {
+			uri: {
+				toString: () => 'file:///broken.atomize.yaml',
+				get fsPath(): string { throw failure; },
+			},
+		};
+
+		expect(() => runDiagnosticValidation(doc as never, diagnostics as never, undefined, onError)).not.toThrow();
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(onError).toHaveBeenCalledWith(failure);
+		expect(diagnostics.set).not.toHaveBeenCalled();
+
+		runDiagnosticValidation(doc as never, diagnostics as never, undefined, onError);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(onError).toHaveBeenCalledTimes(2);
+	});
+
+	it('keeps existing diagnostics when loading a file fails and validates a later request', async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const failure = new Error('Invalid YAML');
+		let finishLoad: ((value: unknown) => void) | undefined;
+		const loadSource = mock(() => new Promise(resolve => { finishLoad = resolve; }));
+		mock.module('../core-library.js', () => ({ createTemplateLibrary: () => ({ loadSource }) }));
+		const { runDiagnosticValidation } = await import(`../validation/diagnostics.js?t=${Date.now()}-load-failure`);
+		const doc = {
+			uri: { toString: () => 'file:///recover.atomize.yaml', fsPath: '/recover.atomize.yaml' },
+			getText: () => 'name: Recovered',
+			lineAt: () => ({ text: 'name: Recovered' }),
+		};
+		const set = mock(() => {});
+		const onError = mock(() => {});
+		const onSuccess = mock(() => {});
+		loadSource.mockImplementationOnce(() => Promise.reject(failure));
+		runDiagnosticValidation(doc as never, { set } as never, onSuccess, onError);
+		// A save while opening validation is still running must be retried.
+		runDiagnosticValidation(doc as never, { set } as never, onSuccess, onError);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(onError).toHaveBeenCalledWith(failure);
+		expect(set).not.toHaveBeenCalled();
+		expect(loadSource).toHaveBeenCalledTimes(2);
+
+		finishLoad?.({ template: { name: 'Recovered', filter: {}, tasks: [{ title: 'Implement', estimationPercent: 100 }] } });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(onSuccess).toHaveBeenCalledTimes(1);
+		expect(set).toHaveBeenCalledTimes(1);
+	});
+});
+
+it('contains errors from the validation failure notification', async () => {
+	mock.module('vscode', () => baseVscodeMock());
+	mock.module('../core-library.js', () => ({
+		createTemplateLibrary: () => { throw new Error('Library unavailable'); },
+	}));
+	const { runDiagnosticValidation } = await import(`../validation/diagnostics.js?t=${Date.now()}-notification-failure`);
+	const notificationError = new Error('Notification unavailable');
+	const onError = mock(() => { throw notificationError; });
+	const logged = spyOn(console, 'error').mockImplementation(() => {});
+	try {
+		const doc = { uri: { toString: () => 'file:///notification.atomize.yaml', fsPath: '/notification.atomize.yaml' } };
+		runDiagnosticValidation(doc as never, { set: mock(() => {}) } as never, undefined, onError);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(logged).toHaveBeenCalledWith('Atomize: could not report validation failure.', notificationError);
+		runDiagnosticValidation(doc as never, { set: mock(() => {}) } as never, undefined, onError);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(onError).toHaveBeenCalledTimes(2);
+	} finally {
+		logged.mockRestore();
+	}
 });
