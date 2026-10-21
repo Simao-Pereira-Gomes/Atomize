@@ -32,12 +32,18 @@ describe('resolveDefaultProfile', () => {
 		expect(result?.name).toBe('acme-prod');
 	});
 
-	it('returns undefined when name does not match any profile', () => {
-		expect(resolveDefaultProfile(profiles, 'unknown-profile')).toBeUndefined();
+	it('falls back to the stored default when the setting names no known profile', () => {
+		expect(resolveDefaultProfile(profiles, 'unknown-profile')?.name).toBe('acme-staging');
 	});
 
-	it('returns undefined when defaultProfile is absent or blank', () => {
-		expect(resolveDefaultProfile(profiles, undefined)).toBeUndefined();
-		expect(resolveDefaultProfile(profiles, '')).toBeUndefined();
+	it('falls back to the stored default when the setting is absent or blank', () => {
+		expect(resolveDefaultProfile(profiles, undefined)?.name).toBe('acme-staging');
+		expect(resolveDefaultProfile(profiles, '')?.name).toBe('acme-staging');
+	});
+
+	it('returns undefined when neither the setting nor a stored default applies', () => {
+		const withoutDefault = profiles.map(profile => ({ ...profile, isDefault: false }));
+		expect(resolveDefaultProfile(withoutDefault, undefined)).toBeUndefined();
+		expect(resolveDefaultProfile(withoutDefault, 'unknown-profile')).toBeUndefined();
 	});
 });

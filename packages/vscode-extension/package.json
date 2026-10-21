@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize: generate tasks from YAML templates",
-	"version": "0.5.1",
+	"version": "0.5.2",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -37,7 +37,7 @@
 					"type": "string",
 					"default": "",
 					"scope": "resource",
-					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker opens with no pre-selection. Safe to commit in .vscode/settings.json, since it stores a name, not a credential."
+					"description": "Name of the Connection Profile to pre-select in the Validate, Generate, and Live Preview pickers. If blank or the name does not match a known profile, the picker pre-selects the profile marked Set as default in Atomize: Manage Profiles. Safe to commit in .vscode/settings.json, since it stores a name, not a credential."
 				},
 				"atomize.ai.model": {
 					"type": "string",
