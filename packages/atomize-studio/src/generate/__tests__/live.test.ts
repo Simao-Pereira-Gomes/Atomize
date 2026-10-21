@@ -32,9 +32,10 @@ describe("parseGenerateReport", () => {
       storiesSuccess: 1,
       storiesFailed: 1,
       tasksCreated: 1,
+      tasksPlanned: 0,
       results: [
-        { story: { id: "1031", title: "Add OAuth login" }, tasksCreated: [{ id: "5001", title: "Design" }], success: true, error: undefined },
-        { story: { id: "1044", title: "Rework the digest job" }, tasksCreated: [], success: false, error: "TF401320: rule violation" },
+        { story: { id: "1031", title: "Add OAuth login" }, tasksCreated: [{ id: "5001", title: "Design" }], tasksPlanned: [], success: true, error: undefined, estimateUnit: undefined },
+        { story: { id: "1044", title: "Rework the digest job" }, tasksCreated: [], tasksPlanned: [], success: false, error: "TF401320: rule violation", estimateUnit: undefined },
       ],
     });
   });
@@ -42,6 +43,30 @@ describe("parseGenerateReport", () => {
   it("prefers explicit counts over derived ones when both are present", () => {
     const value = { report: { storiesProcessed: 9, storiesSuccess: 8, storiesFailed: 1, tasksCreated: 40, results: [] } };
     expect(parseGenerateReport(value)).toMatchObject({ storiesProcessed: 9, storiesSuccess: 8, storiesFailed: 1, tasksCreated: 40 });
+  });
+
+  it("reads a dry run's planned Tasks, which it reports as calculated rather than created", () => {
+    const value = {
+      report: {
+        storiesProcessed: 1, storiesSuccess: 1, storiesFailed: 0, tasksCreated: 0, tasksCalculated: 2,
+        results: [{
+          story: { id: "1031", title: "Add OAuth login" },
+          tasksCalculated: [{ title: "Design", estimation: 2 }, { title: "Review" }],
+          tasksCreated: [],
+          success: true,
+          estimateUnit: "hours",
+        }],
+      },
+    };
+    const report = parseGenerateReport(value);
+    expect(report.tasksCreated).toBe(0);
+    expect(report.tasksPlanned).toBe(2);
+    expect(report.results[0]).toMatchObject({ tasksPlanned: [{ title: "Design", estimation: 2 }, { title: "Review", estimation: undefined }], estimateUnit: "hours" });
+  });
+
+  it("derives the planned total from the Stories when the report omits it", () => {
+    const value = { report: { results: [{ story: { id: "1", title: "A" }, tasksCalculated: [{ title: "Design" }, { title: "Build" }], tasksCreated: [], success: true }] } };
+    expect(parseGenerateReport(value).tasksPlanned).toBe(2);
   });
 
   it("rejects a response with no report object", () => {
