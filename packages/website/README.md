@@ -23,8 +23,9 @@ viewer renders its Template/Mixin switch, search, and field index into the site
 sidebar in place of the page list, with a link back to all documentation, so
 field details use the full content width and the page scrolls normally. On narrow
 screens the field index is in the mobile menu, which closes when a field is
-chosen. Collapsed, the sidebar on this page keeps only a back button to all
-documentation instead of the site's icon rail. Studio and VS Code keep the viewer's own two-column layout.
+chosen. The sidebar is wider on this page and always open: it is the page's
+own navigation, so the collapse control is hidden and a collapsed preference set
+on other pages does not apply here. Studio and VS Code keep the viewer's own two-column layout.
 The old `/schema` URL forwards to the new route with query and field fragments
 preserved. Cloudflare uses `public/_redirects`; local static previews use the
 compatibility page. Keep both when changing the published route.

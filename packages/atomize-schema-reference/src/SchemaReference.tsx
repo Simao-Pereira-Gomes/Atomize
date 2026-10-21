@@ -35,10 +35,20 @@ export interface SchemaReferenceProps {
 
 type GuideLinks = Pick<SchemaReferenceProps, "guideUrl" | "openExternalLink">;
 
-const nestedFields = (node: SchemaNode) => [
-	...node.children,
-	...node.alternatives,
-];
+const arrayItem = (node: SchemaNode) => {
+	const [only, ...others] = [...node.children, ...node.alternatives];
+	return only?.name === "[]" && others.length === 0 ? only : undefined;
+};
+const nestedFields = (node: SchemaNode): SchemaNode[] => {
+	const item = arrayItem(node);
+	return item ? nestedFields(item) : [...node.children, ...node.alternatives];
+};
+const itemSummary = (node: SchemaNode) => {
+	const item = arrayItem(node);
+	if (!item) return undefined;
+	const constraints = Object.entries(item.constraints).filter(([key]) => key !== "additionalProperties");
+	return [item.type, ...constraints.map(([key, value]) => `${key} ${JSON.stringify(value)}`)].join(" · ");
+};
 const fieldLabel = (node: SchemaNode) =>
 	node.name === "[]" ? "Array item" : node.name;
 const requirementLabel = (node: SchemaNode) =>
@@ -57,6 +67,16 @@ function FieldFacts(props: { node: SchemaNode; links: GuideLinks }) {
 				<p class="schema-reference-description">{props.node.description}</p>
 			</Show>
 			<dl class="schema-reference-facts">
+				<Show when={itemSummary(props.node)}>
+					{(summary) => (
+						<div>
+							<dt>Each item</dt>
+							<dd>
+								<code>{summary()}</code>
+							</dd>
+						</div>
+					)}
+				</Show>
 				<Show when={Object.hasOwn(props.node, "default")}>
 					<div>
 						<dt>Default</dt>
@@ -296,6 +316,7 @@ function FieldNavigation(props: {
 						<button
 							type="button"
 							aria-current={props.active === key() ? "location" : undefined}
+							classList={{ "schema-reference-contains-active": props.active.startsWith(`${key()}.`) }}
 							onClick={(event) => {
 								event.preventDefault();
 								props.navigate(key());
@@ -465,11 +486,64 @@ export function SchemaReference(props: SchemaReferenceProps) {
 					left.localeCompare(right, undefined, { numeric: true }),
 			);
 			if (candidates[0]) navigate(candidates[0][0], false);
+			else if (resolved?.endsWith("[]")) {
+				// Array items are shown through their fields; land on the array itself.
+				const owner = [...fieldElements].find(([, element]) => element.isConnected && element.dataset.permalink === resolved.replace(/(\[\])+$/, ""));
+				if (owner) navigate(owner[0], false);
+			}
 		});
 	}
 	createEffect(() => {
 		const permalink = props.permalink;
 		if (permalink) untrack(() => openPermalink(permalink));
+	});
+	// Follow the reader: the active field is the last visible one whose top has passed the reading line.
+	onMount(() => {
+		let frame = 0;
+		const scrollParent = (element: Element) => {
+			for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+				const overflow = getComputedStyle(parent).overflowY;
+				if ((overflow === "auto" || overflow === "scroll") && parent.scrollHeight > parent.clientHeight) return parent;
+			}
+			return undefined;
+		};
+		const update = () => {
+			frame = 0;
+			// Fields inside a collapsed parent report stale positions, so only shown fields count.
+			const visible = [...fieldElements].filter(([, element]) => element.isConnected && element.getClientRects().length && !element.parentElement?.closest("details:not([open])"));
+			const first = visible[0];
+			if (!first) return;
+			// Measure from the container that scrolls the fields: the page, or the host's panel.
+			const container = scroller?.contains(first[1]) ? scroller : undefined;
+			const line = (container?.getBoundingClientRect().top ?? 0) + 96;
+			visible.sort(([, left], [, right]) => left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+			let current: string | undefined;
+			for (const [key, element] of visible) {
+				if (element.getBoundingClientRect().top <= line) current = key;
+				else break;
+			}
+			if (!current || current === untrack(active)) return;
+			setActive(current);
+			queueMicrotask(() => {
+				const item = document.querySelector<HTMLElement>(".schema-reference-navigation button[aria-current=location]");
+				const list = item && scrollParent(item);
+				if (!item || !list) return;
+				const box = item.getBoundingClientRect();
+				const bounds = list.getBoundingClientRect();
+				if (box.top < bounds.top || box.bottom > bounds.bottom) item.scrollIntoView({ block: "nearest" });
+			});
+		};
+		let scroller: Element | undefined;
+		const schedule = (event: Event) => {
+			if (event.target instanceof Element && !event.target.contains(fieldElements.values().next().value ?? null)) return;
+			scroller = event.target instanceof Element ? event.target : undefined;
+			if (!frame) frame = requestAnimationFrame(update);
+		};
+		document.addEventListener("scroll", schedule, { capture: true, passive: true });
+		onCleanup(() => {
+			document.removeEventListener("scroll", schedule, { capture: true });
+			cancelAnimationFrame(frame);
+		});
 	});
 	onMount(() => {
 		if (props.syncUrl === false) return;
@@ -494,8 +568,9 @@ export function SchemaReference(props: SchemaReferenceProps) {
 									}}
 								>
 									{kind === "template" ? "Template" : "Mixin"}
-									<span aria-hidden="true">
-										{kind === "template" ? "01" : "02"}
+									<span>
+										{props.trees[kind].length}
+										<span class="schema-reference-sr-only"> fields</span>
 									</span>
 								</button>
 							)}

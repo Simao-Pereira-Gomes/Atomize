@@ -18,9 +18,8 @@ export function WebsiteSchemaReference(
 	return (
 		<>
 			<Portal mount={sidebar()} ref={(element) => { element.className = "schema-reference-back"; }}>
-				<a href="/" aria-label="All documentation">
-					<span aria-hidden="true">←</span>
-					<span class="schema-reference-back-label" aria-hidden="true">All documentation</span>
+				<a href="/">
+					<span aria-hidden="true">←</span> All documentation
 				</a>
 			</Portal>
 			<SchemaReference

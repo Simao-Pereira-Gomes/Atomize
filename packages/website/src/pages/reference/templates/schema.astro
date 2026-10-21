@@ -35,14 +35,15 @@ const trees = buildSchemaTrees(schema);
   .atomize-website-schema .schema-reference-fields > article, .atomize-website-schema .schema-reference-nested details { scroll-margin-top: 1rem; }
   .atomize-website-schema .schema-reference-description { font-size: .9375rem; }
 
-  /* The sidebar holds the field index here; collapsed, it keeps only the way back to all documentation. */
+  /* The sidebar is this page's own navigation, so it is wider and stays open whatever the site-wide collapse preference. */
+  html:has(.atomize-website-schema) { --sl-sidebar-width: 22rem; }
+  html:has(.atomize-website-schema) atomize-sidebar-toggle { display: none; }
   @media (min-width: 50rem) {
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] { --sl-content-inline-start: var(--sl-sidebar-width); }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] #starlight__sidebar { width: var(--sl-sidebar-width); }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content { padding: 2rem var(--sl-sidebar-pad-x) 0; }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > :is(.schema-reference-back, .schema-reference-detached-navigation, .documentation-build) { display: block; }
     html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > .documentation-rail { display: none; }
-    html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > .schema-reference-back { display: block; }
-    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back a { justify-content: center; width: 2.75rem; height: 2.75rem; margin: 0; align-items: center; border-radius: .5rem; font-size: 1.125rem; }
-    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back a:hover { background: var(--sl-color-gray-6); }
-    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back-label { display: none; position: fixed; left: 4.5rem; z-index: var(--sl-z-index-menu); padding: .4rem .65rem; background: var(--sl-color-bg-nav); color: var(--sl-color-text); border: 1px solid var(--sl-color-hairline-light); border-radius: 5px; box-shadow: var(--sl-shadow-sm); font-size: .875rem; white-space: nowrap; pointer-events: none; }
-    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back a:is(:hover, :focus-visible) .schema-reference-back-label { display: block; }
   }
 
   /* The field navigation replaces the site's page list once the viewer has moved it into the sidebar. */
@@ -52,6 +53,8 @@ const trees = buildSchemaTrees(schema);
   .schema-reference-back a { display: inline-flex; gap: .4rem; margin-bottom: 1.25rem; color: var(--sl-color-gray-2); font-size: .875rem; text-decoration: none; }
   .schema-reference-back a:hover { color: var(--sl-color-text-accent); }
   .schema-reference-detached-navigation .schema-reference-sidebar > .schema-reference-eyebrow { display: none; }
+  /* The site's build provenance already names the branch and commit, so the viewer's copies would repeat it. */
+  .schema-reference-detached-navigation .schema-reference-source, .atomize-website-schema .schema-reference-footer { display: none; }
   .schema-reference-detached-navigation .schema-reference-tabs { margin-top: 0; }
   .schema-reference-detached-navigation .schema-reference-navigation code, .schema-reference-detached-navigation .schema-reference-search input { font-size: .875rem; }
 </style>
