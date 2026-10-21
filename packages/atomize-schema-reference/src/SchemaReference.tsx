@@ -123,6 +123,7 @@ function FieldFacts(props: { node: SchemaNode; links: GuideLinks }) {
 							onClick={(event) => {
 								if (props.links.openExternalLink) {
 									event.preventDefault();
+									event.stopPropagation();
 									void props.links.openExternalLink(url());
 								}
 							}}
