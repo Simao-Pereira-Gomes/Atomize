@@ -110,7 +110,7 @@ The VS Code extension keeps its own Connection Profiles, independent of the CLI 
 
 If you have no VS Code profiles yet and the CLI has some, **Atomize: Manage Profiles** offers **Import from CLI...**, a one-time copy that you start yourself: choose the profiles to import, and the extension pre-fills their organization URL, project, and team from `~/.atomize/connections.json` without writing to it. Paste each access token once. Later CLI or Studio changes are not synchronized.
 
-Connected commands ask you to choose a profile. The picker pre-selects the profile named in the `atomize.defaultProfile` setting. Set it in `.vscode/settings.json` so a repository pre-selects its project; the setting stores a name, not a credential.
+Connected commands ask you to choose a profile. The picker pre-selects the profile named in the `atomize.defaultProfile` setting, or the profile marked **Set as default** when the setting is blank or names an unknown profile. Set `atomize.defaultProfile` in `.vscode/settings.json` so a repository pre-selects its project; the setting stores a name, not a credential.
 
 <!-- /atomize:section -->
 
@@ -171,8 +171,8 @@ Profiles you add in Studio are also available to the CLI, and the reverse: see [
 
 1. Run **Atomize: Manage Profiles** from the Command Palette.
 2. Choose **Add profile...** and enter a profile name, organization URL, project, team, and Personal Access Token. If you already use the CLI, you can choose **Import from CLI...** instead.
-3. Select a profile to **Test**, **Rotate**, **Remove**, or **Set as default**.
-4. To pre-select a profile for a repository, set `atomize.defaultProfile` to its name in workspace settings.
+3. Select a profile to **Test**, **Rotate**, **Remove**, or **Set as default**. Connected commands pre-select the default profile.
+4. To pre-select a different profile for a repository, set `atomize.defaultProfile` to its name in workspace settings. The setting takes precedence over the default.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/vscode/connection-profiles-dark.png">

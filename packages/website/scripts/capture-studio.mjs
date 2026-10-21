@@ -77,8 +77,9 @@ try {
       if (command === 'generate_run' && args.source === 'template:backend-api') {
         // The capture stops at confirmation; anything other than a dry run of the two picked Stories is a script error.
         if (args.dryRun !== true || args.scope?.kind !== 'stories' || args.scope.storyIds.join() !== '1201,1202') throw Error('Screenshot run must be the documented dry run');
-        const results = data.stories.slice(0, 2).map(story => ({ story, success: true, tasksCreated: data.preview.tasks.map((task, index) => ({ id: story.id + '-' + index, title: task.title })) }));
-        return { report: { storiesProcessed: 2, storiesSuccess: 2, storiesFailed: 0, tasksCreated: results.length * data.preview.tasks.length, results } };
+        // atomize-core's dry-run shape: planned Tasks are reported as tasksCalculated and nothing as created.
+        const results = data.stories.slice(0, 2).map(story => ({ story, success: true, tasksCreated: [], estimateUnit: data.preview.estimateUnit, tasksCalculated: data.preview.tasks.map(task => ({ title: task.title, estimation: task.estimation })) }));
+        return { report: { storiesProcessed: 2, storiesSuccess: 2, storiesFailed: 0, tasksCreated: 0, tasksCalculated: results.length * data.preview.tasks.length, results } };
       }
       if (command === 'preview_inspect' && args.source === 'template:backend-api') return data.inspect;
       if (command === 'preview_mock_story' && args.source === 'template:backend-api') {

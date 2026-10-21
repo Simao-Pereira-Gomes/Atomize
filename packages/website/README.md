@@ -147,7 +147,8 @@ dialog with two fictional `contoso` connections returned by the substituted IPC
 boundary; no token is involved. The Live Execution Confirmation capture chooses one of
 those connections as the Work project, browses three fictional Stories, picks
 two, and stops at confirmation. The substituted boundary returns a dry-run
-report built from the built-in Template's preview and rejects anything other
+report in atomize-core's shape, with planned Tasks as `tasksCalculated` and none
+created, built from the built-in Template's preview and rejects anything other
 than that dry run, so the capture never simulates Task creation.
 
 Start the current Studio frontend from the repository root:

@@ -285,7 +285,7 @@ The Generate Area runs a Template against a Mock Story or real Stories. Its togg
 1. Choose a Connection Profile as your Work project in [Global Settings](#global-settings). See [Work Project Setting](#work-project-setting).
 2. In the Generate Area, choose a Preview Source, then switch the toggle to **🚀 Live**. Live runs move through three steps: **Scope**, **Preview**, and **Execute**.
 3. **Scope**: choose **Browse Stories** to pick specific Stories, or **Use Template filter** to run against every Story the Template's filter matches. Browse Stories lists the Stories that match the Template's filter; search by title or ID, tick the ones you want, and choose **Continue →**.
-4. **Preview**: Studio runs the Live Preview and marks it **DRY RUN: nothing has been created yet**. It lists each Story in scope, with any Story that can't be generated and why, and the total number of Stories and Tasks. Choose **← Back** to change the scope, or **Continue to Execute →**.
+4. **Preview**: Studio runs the Live Preview and marks it **DRY RUN: nothing has been created yet**. It lists each Story in scope with the Tasks it will get and their estimates, shows any Story that can't be generated and why, and totals the Stories and Tasks. Choose **← Back** to change the scope, or **Continue to Execute →**.
 5. **Execute**: Live Execution Confirmation shows the scope, the platform and Work project, and the number of Tasks to create. Tick the acknowledgement that this creates real Work Items in Azure DevOps, then choose **Execute: create Work Items**. **Cancel** returns to the Preview step without creating anything.
 
 Tasks are created only after step 5.

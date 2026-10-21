@@ -49,6 +49,7 @@ describe("canonical guide rendering", () => {
     const { document } = parseHTML(code);
     expect(code).toContain("DRY RUN: nothing has been created yet");
     expect(code).toContain("Tasks are created only after step 5");
+    expect(code).toContain("with the Tasks it will get and their estimates");
     expect(code).toContain("is not rolled back");
     expect(code).not.toContain("no separate Live Preview");
     expect(document.querySelector('img.themed-screenshot-dark[src="/studio/live-execution-confirmation-dark.png"]')?.getAttribute("alt")).toContain("Live Execution Confirmation");
