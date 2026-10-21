@@ -92,6 +92,29 @@ async function checkDocs() {
     }
   }
   if (!studio?.querySelector('a[href="/studio/author-templates/#choose-a-starting-path"]') || !studio?.querySelector('a[href="/studio/settings-recovery/#global-settings"]')) failures.push("Studio quickstart is missing working authoring and connection paths");
+  for (const [route, title] of [["connections", "Connect Azure DevOps"], ["connections/profiles", "Set up Connection Profiles"], ["connections/automation", "Use profiles in scripts and CI"], ["connections/troubleshooting", "Fix connection problems"]]) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Connection page, metadata, or search indexing is missing: ${route}`);
+  }
+  const connections = pages.get(resolve(directory, "connections/index.html"));
+  const profiles = pages.get(resolve(directory, "connections/profiles/index.html"));
+  const connectionFailures = pages.get(resolve(directory, "connections/troubleshooting/index.html"));
+  for (const scope of ["Work Items", "Project and Team", "Wiki"]) {
+    if (![...(connections?.querySelectorAll("table") ?? [])].some(table => table.textContent?.includes("PAT scope") && table.textContent.includes(scope))) failures.push(`Connection permissions are missing the ${scope} scope`);
+  }
+  for (const anchor of ["atomize-cli", "atomize-studio", "vs-code", "shared-between-the-cli-and-atomize-studio", "vs-code-profiles", "rotating-tokens"]) {
+    if (!profiles?.getElementById(anchor)) failures.push(`Connection Profile setup is missing: ${anchor}`);
+  }
+  for (const mode of ["light", "dark"]) {
+    for (const tool of ["studio", "vscode"]) {
+      const picture = profiles?.querySelector(`img.themed-screenshot-${mode}[src="/${tool}/connection-profiles-${mode}.png"]`);
+      if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`${tool} ${mode} Connection Profile screenshot or useful alt text is missing`);
+    }
+  }
+  for (const anchor of ["authentication-failed-401-unauthorized", "project-details-or-grounded-choices-do-not-load", "studio-says-a-profile-uses-cli-insecure-storage", "vs-code-says-no-stored-token-for-profile", "permission-errors"]) {
+    if (!connectionFailures?.getElementById(anchor)) failures.push(`Connection recovery is missing: ${anchor}`);
+  }
+  if (!quickstart?.querySelector('a[href="/connections/profiles/"]') || !studio?.querySelector('a[href="/connections/profiles/#atomize-studio"]') || !pages.get(resolve(directory, "getting-started/vscode/index.html"))?.querySelector('a[href="/connections/profiles/#vs-code"]')) failures.push("Quickstarts must lead to their connection setup");
   if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");
   const paths = home?.querySelectorAll(".onboarding-paths > a");
   if (paths?.length !== 3 || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push("Home must offer three working onboarding paths");

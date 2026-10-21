@@ -63,7 +63,7 @@ Mock Preview runs in-process, without querying a platform or creating Work Items
 
 ### Continue from your first preview
 
-Read [Atomize YAML Opt-In](#atomize-yaml-opt-in) to enable the full authoring surface for your own files, and [Show Effective Template](#atomize-show-effective-template) to inspect composition. For connected work, use [Manage Profiles](#atomize-manage-profiles), then [Preview (Live)](#atomize-preview-live) before [Generate](#atomize-generate). Live Preview reads a real Story without creating Tasks; Generate requires an explicit action and confirmation before creating them.
+Read [Atomize YAML Opt-In](#atomize-yaml-opt-in) to enable the full authoring surface for your own files, and [Show Effective Template](#atomize-show-effective-template) to inspect composition. For connected work, use [Manage Profiles](#atomize-manage-profiles) (see [VS Code profile setup](./Auth-Guide.md#vs-code) and [required permissions](./Auth-Guide.md#required-permissions)), then [Preview (Live)](#atomize-preview-live) before [Generate](#atomize-generate). Live Preview reads a real Story without creating Tasks; Generate requires an explicit action and confirmation before creating them.
 
 <!-- /atomize:section -->
 
@@ -192,7 +192,7 @@ The title-bar buttons switch modes, and the pencil button lets you **enter Story
 
 Opens the Profile Management Surface for Connection Profiles. From VS Code, users can add, test, rotate, remove, and set a default profile.
 
-The extension owns its own profile storage: non-secret fields live in VS Code's `globalState`, secrets in VS Code's `SecretStorage`: independent of the CLI's `~/.atomize/connections.json`. If you already have CLI profiles, the empty state offers a one-time **Import from CLI** action that pre-fills a profile's non-secret fields from `~/.atomize/connections.json` (read-only, never written to); you re-enter the access token once. See the [Auth Guide](./Auth-Guide.md) for details.
+The extension owns its own profile storage: non-secret fields live in VS Code's `globalState`, secrets in VS Code's `SecretStorage`: independent of the CLI's `~/.atomize/connections.json`. If you already have CLI profiles, the empty state offers a one-time **Import from CLI** action that pre-fills a profile's non-secret fields from `~/.atomize/connections.json` (read-only, never written to); you re-enter the access token once. See [VS Code profiles](./Auth-Guide.md#vs-code-profiles) for details.
 
 ### Atomize: Browse Catalog
 
@@ -360,7 +360,7 @@ If you see a one-time notice about `atomize.cliPath`, `atomize.cli.installComman
 
 ### Connected Commands Need A Profile
 
-Run **Atomize: Manage Profiles** to add and test a Connection Profile. For full credential setup, see the [Auth Guide](./Auth-Guide.md).
+Run **Atomize: Manage Profiles** to add and test a Connection Profile. For full credential setup, see [VS Code profile setup](./Auth-Guide.md#vs-code) and [connection troubleshooting](./Auth-Guide.md#troubleshooting).
 
 ### Schema Hovers Or Completions Are Missing
 

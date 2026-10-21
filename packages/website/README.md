@@ -7,6 +7,8 @@ not a particular CLI, extension, or Studio release. The root helps readers choos
 a tool, with quickstarts at `/getting-started/cli/`, `/getting-started/studio/`,
 and `/getting-started/vscode/`. Focused Studio and VS Code authoring, inspection,
 settings, and recovery guides are under `/studio/` and `/vscode/`.
+Connection requirements, Connection Profile setup, CLI automation, and connection
+recovery are under `/connections/`.
 `/releases/` links to each tool's GitHub Releases without copying release notes.
 Its tag filters include the current major release series because GitHub requires
 a version number in a tag-prefix search. Update the series when a tool releases
@@ -127,12 +129,22 @@ Keep exactly that shape, without blank lines. The section loader publishes both
 images, and CSS shows the one matching the portal's selected theme, which can
 differ from the operating system's. Any other `<picture>` fails the build.
 
+Connection pages reuse marked sections in `docs/Auth-Guide.md`, which owns profile
+and credential behaviour, and `docs/Platform-Guide.md`, which owns current platform
+support and Azure DevOps errors. Describe each tool's own profile surface: the CLI
+and Studio share profile records, while VS Code stores its profiles separately.
+Keep Copilot sign-in distinct from Connection Profiles, and describe only platforms
+Atomize supports today. Changes to both guides trigger site checks and deployment.
+
 ## Refresh Studio screenshots
 
 The authoring and Mock Preview images were captured from the current Studio UI
 on 2026-10-15 at 1440 × 1000 in light and dark mode. They show the built-in Backend API
 Development Template and an offline Mock Story with estimate 8. There are no
-Connection Profiles, credentials, or customer data in the captures.
+Connection Profiles, credentials, or customer data in the authoring and preview
+captures. The Connection Profile capture shows the real Manage work projects
+dialog with two fictional `contoso` connections returned by the substituted IPC
+boundary; no token is involved.
 
 Start the current Studio frontend from the repository root:
 
@@ -163,11 +175,11 @@ machine. If port 9230 is taken, start Chrome on another port and set
 The script drives the real Starting Paths, Catalog Clone, Tasks, and Generate
 components. It substitutes only the native IPC boundary, using the current
 built-in Template and inspection/preview results from `atomize-core`. It asserts
-the documented Mock Story inputs and result before capturing. It does not test
+the documented Mock Story inputs and result, and the fictional connection details, before capturing. It does not test
 the native installer or companion-process transport. Use a dedicated browser
 profile because the capture clears its local storage. Close it after capture.
 
-Review all four PNGs, update the adjacent canonical instructions and alt text when
+Review all six PNGs, update the adjacent canonical instructions and alt text when
 labels or behaviour change, and run the website checks. If the built-in Template
 changes its six-Task example, update the quickstart and capture assertions together.
 Shared Studio Markdown changes and these media files trigger CI and deployment.
@@ -243,10 +255,13 @@ taken, launch the host on another port and set `ATOMIZE_VSCODE_DEBUG_PORT`.
 The script closes editors in this dedicated host, opens the real built-in Template
 through Browse Catalog's backing-file button, captures CodeLens and YAML, and
 runs Mock Preview with estimate 8. It drives the separate webview process to
-submit the actual form. The captures omit the host title bar and status bar;
-their content is otherwise the unmodified editor UI. Review all four images, alt
-text, and adjacent instructions after changes to the Catalog, authoring, or
-preview UI. Changes to the canonical VS Code guide and these media files trigger
+submit the actual form. It then adds two fictional `contoso` profiles through
+the real **Atomize: Manage Profiles** inputs, with a placeholder token that is
+never tested or sent anywhere, and captures one profile's actions cropped to the
+Quick Pick. It skips profiles that already exist in the isolated host. The captures omit the host title bar and status bar;
+their content is otherwise the unmodified editor UI. Review all six images, alt
+text, and adjacent instructions after changes to the Catalog, authoring,
+preview, or profile management UI. Changes to the canonical VS Code guide and these media files trigger
 website checks and deployment. Close the isolated host after capturing.
 
 ## Add a focused page

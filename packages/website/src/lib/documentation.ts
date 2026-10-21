@@ -20,6 +20,19 @@ export const canonicalSections = {
   "studio-open-save": { source: "docs/Atomize-Studio.md", pageAnchor: "open", route: "/studio/open-save/", anchors: ["open"] },
   "studio-settings": { source: "docs/Atomize-Studio.md", pageAnchor: "global-settings", route: "/studio/settings-recovery/#global-settings", anchors: ["global-settings"] },
   "studio-recovery": { source: "docs/Atomize-Studio.md", pageAnchor: "companion-process-recovery", route: "/studio/settings-recovery/#companion-process-recovery", anchors: ["companion-process-recovery"] },
+  "platform-support": { source: "docs/Platform-Guide.md", pageAnchor: "overview", route: "/connections/", anchors: ["overview"] },
+  "auth-permissions": { source: "docs/Auth-Guide.md", pageAnchor: "required-permissions", route: "/connections/#required-permissions", anchors: ["required-permissions"] },
+  "auth-setup": { source: "docs/Auth-Guide.md", pageAnchor: "quick-setup", route: "/connections/profiles/", anchors: ["quick-setup", "local-development", "atomize-cli", "verify-your-profiles", "atomize-studio", "vs-code"] },
+  "auth-storage": { source: "docs/Auth-Guide.md", pageAnchor: "credential-storage", route: "/connections/profiles/#credential-storage", anchors: ["credential-storage", "when-the-keychain-is-unavailable"] },
+  "auth-shared": { source: "docs/Auth-Guide.md", pageAnchor: "shared-between-the-cli-and-atomize-studio", route: "/connections/profiles/#shared-between-the-cli-and-atomize-studio", anchors: ["shared-between-the-cli-and-atomize-studio"] },
+  "auth-vscode": { source: "docs/Auth-Guide.md", pageAnchor: "vs-code-profiles", route: "/connections/profiles/#vs-code-profiles", anchors: ["vs-code-profiles"] },
+  "auth-rotation": { source: "docs/Auth-Guide.md", pageAnchor: "rotating-tokens", route: "/connections/profiles/#rotating-tokens", anchors: ["rotating-tokens"] },
+  "auth-copilot": { source: "docs/Auth-Guide.md", pageAnchor: "ai-drafting-copilot-session", route: "/connections/profiles/#ai-drafting-copilot-session", anchors: ["ai-drafting-copilot-session"] },
+  "auth-resolution": { source: "docs/Auth-Guide.md", pageAnchor: "profile-resolution-order", route: "/connections/automation/#profile-resolution-order", anchors: ["profile-resolution-order"] },
+  "auth-multiple": { source: "docs/Auth-Guide.md", pageAnchor: "managing-multiple-profiles", route: "/connections/automation/#managing-multiple-profiles", anchors: ["managing-multiple-profiles", "switching-the-default", "removing-a-profile"] },
+  "auth-ci": { source: "docs/Auth-Guide.md", pageAnchor: "cicd-setup", route: "/connections/automation/#cicd-setup", anchors: ["cicd-setup"] },
+  "auth-troubleshooting": { source: "docs/Auth-Guide.md", pageAnchor: "troubleshooting", route: "/connections/troubleshooting/", anchors: ["troubleshooting", "authentication-failed-401-unauthorized", "project-details-or-grounded-choices-do-not-load", "keychain-unavailable", "studio-says-a-profile-uses-cli-insecure-storage", "studio-cannot-read-a-profiles-token", "vs-code-says-no-stored-token-for-profile"] },
+  "platform-troubleshooting": { source: "docs/Platform-Guide.md", pageAnchor: "troubleshooting", route: "/connections/troubleshooting/#azure-devops-errors", anchors: ["troubleshooting", "authentication-failures", "no-work-items-found", "permission-errors", "connection-timeouts"] },
   "onboarding-overview": {
     source: "README.md",
     pageAnchor: "",
@@ -50,7 +63,7 @@ export function templateGuideUrl(anchor?: string) {
 export function canonicalGuideUrl(source: string, anchor?: string) {
   const page = Object.values(canonicalSections).find(section => section.source === source && anchor && (section.anchors as readonly string[]).includes(anchor));
   if (page) {
-    return `${page.route}${anchor === page.pageAnchor ? "" : `#${anchor}`}`;
+    return anchor === page.pageAnchor ? page.route : `${page.route.split("#")[0]}#${anchor}`;
   }
   return `${repositoryUrl}/blob/main/${source}${anchor ? `#${anchor}` : ""}`;
 }

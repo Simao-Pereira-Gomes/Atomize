@@ -65,10 +65,10 @@ async function command(label) {
 }
 const directory = fileURLToPath(new URL("../public/vscode/", import.meta.url));
 await mkdir(directory, { recursive: true });
-async function capture(name) {
+async function capture(name, clip = { x: 0, y: 32, width: 1440, height: 946 }) {
   await evaluate(`[...document.querySelectorAll('.notifications-toasts .codicon-close')].forEach(icon => icon.closest('a, button')?.click())`);
   await pause(600);
-  const { data } = await cdp("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 32, width: 1440, height: 946, scale: 1 } });
+  const { data } = await cdp("Page.captureScreenshot", { format: "png", clip: { ...clip, scale: 1 } });
   await writeFile(`${directory}${name}.png`, Buffer.from(data, "base64"));
 }
 try {
@@ -80,12 +80,14 @@ try {
   if (await evaluate(`document.querySelector('.part.auxiliarybar')?.getBoundingClientRect().width > 0`)) await command("View: Toggle Secondary Side Bar Visibility");
   // The portal shows the screenshot matching its selected theme; Catppuccin matches its code blocks.
   for (const [mode, theme] of [["light", "Catppuccin Latte"], ["dark", "Catppuccin Mocha"]]) await captureFlow(mode, theme);
+  await addDocumentationProfiles();
+  for (const [mode, theme] of [["light", "Catppuccin Latte"], ["dark", "Catppuccin Mocha"]]) await captureConnections(mode, theme);
 } finally {
   await cdp("Target.setAutoAttach", { autoAttach: false, waitForDebuggerOnStart: false, flatten: true });
   socket.close();
 }
 
-async function captureFlow(mode, theme) {
+async function selectTheme(mode, theme) {
   // Recently used commands can outrank the exact match, so choose the row by its label.
   await key("F1", "F1", 112);
   await waitFor(`!!document.querySelector('.quick-input-widget input')?.getClientRects().length`);
@@ -98,6 +100,10 @@ async function captureFlow(mode, theme) {
   await waitFor(`document.querySelector('.quick-input-list .monaco-list-row.focused')?.textContent.includes(${JSON.stringify(theme)})`);
   await key("Enter", "Enter", 13);
   await waitFor(`document.querySelector('.monaco-workbench')?.classList.contains(${JSON.stringify(mode === "dark" ? "vs-dark" : "vs")})`);
+}
+
+async function captureFlow(mode, theme) {
+  await selectTheme(mode, theme);
   await command("View: Close All Editors");
   await command("Atomize: Browse Catalog");
   await waitFor(`document.querySelector('.quick-input-title')?.textContent.includes('Browse Catalog')`);
@@ -120,4 +126,43 @@ async function captureFlow(mode, theme) {
   if (!result.includes("Code Review & Refinement") || !/6\s+Tasks/.test(result) || !result.includes("8 hours") || !result.includes("100%")) throw Error("Review the expected six-Task, eight-hour result before refreshing screenshots.");
   await capture(`mock-preview-${mode}`);
   console.log(`Captured the real Mock Preview Panel using the extension's in-process engine in ${theme}.`);
+}
+
+function quickRow(label) {
+  return `[...document.querySelectorAll('.quick-input-list .monaco-list-row')].find(row => row.querySelector('.label-name')?.textContent.trim() === ${JSON.stringify(label)})`;
+}
+
+async function openManageProfiles() {
+  await command("Atomize: Manage Profiles");
+  await waitFor(`document.querySelector('.quick-input-title')?.textContent.includes('Atomize: Manage Profiles') && !!${quickRow("Add profile...")}`);
+}
+
+// Fictional profiles in the isolated host; the placeholder token is never sent anywhere, and no profile is tested.
+async function addDocumentationProfiles() {
+  for (const profile of [["contoso-web", "Website", "Web Team"], ["contoso-mobile", "Mobile", "App Team"]]) {
+    await openManageProfiles();
+    if (await evaluate(`!!${quickRow(profile[0])}`)) { await key("Escape", "Escape", 27); continue; }
+    await evaluate(`${quickRow("Add profile...")}.click()`);
+    for (const [prompt, value] of [["Profile name", profile[0]], ["Azure DevOps organization URL", "https://dev.azure.com/contoso"], ["Azure DevOps project", profile[1]], ["Azure DevOps team", profile[2]], ["Personal Access Token", "placeholder-not-a-token"]]) {
+      await waitFor(`document.querySelector('.quick-input-widget')?.textContent.includes(${JSON.stringify(prompt)}) && document.querySelector('.quick-input-widget input')?.value === ''`);
+      await cdp("Input.insertText", { text: value });
+      await pause(200);
+      await key("Enter", "Enter", 13);
+    }
+    await waitFor(`!!${quickRow(profile[0])}`);
+    await key("Escape", "Escape", 27);
+  }
+}
+
+async function captureConnections(mode, theme) {
+  await selectTheme(mode, theme);
+  await command("View: Close All Editors");
+  await command("Notifications: Clear All Notifications");
+  await openManageProfiles();
+  await evaluate(`${quickRow("contoso-mobile")}.click()`);
+  await waitFor(`document.querySelector('.quick-input-title')?.textContent.includes('Manage Profile: contoso-mobile') && !!${quickRow("Rotate")}`);
+  // The Quick Pick is the whole interaction; crop the empty workbench around it.
+  await capture(`connection-profiles-${mode}`, { x: 300, y: 32, width: 840, height: 260 });
+  await key("Escape", "Escape", 27);
+  console.log(`Captured the real Manage Profiles actions in ${theme}.`);
 }

@@ -10,6 +10,10 @@ const data = {
   catalog: [{ name: "backend-api", displayName: template.name, description: template.description, kind: "template", ref: "template:backend-api", scope: "builtin", content: template }],
   inspect: inspectTemplate(template),
   preview: runPreview(template, JSON.stringify(story)),
+  profiles: [
+    { name: "contoso-web", platform: "azure-devops", isDefault: true, organizationUrl: "https://dev.azure.com/contoso", project: "Website", team: "Web Team" },
+    { name: "contoso-mobile", platform: "azure-devops", isDefault: false, organizationUrl: "https://dev.azure.com/contoso", project: "Mobile", team: "App Team" },
+  ],
 };
 if (data.preview.tasks.length !== 6 || data.preview.estimationSummary.totalTaskEstimation !== 8) throw Error("Refresh the walkthrough: the built-in Template's expected result changed.");
 const debuggerPort = process.env.ATOMIZE_STUDIO_DEBUG_PORT ?? "9230";
@@ -60,7 +64,8 @@ try {
     const data = ${JSON.stringify(data)};
     window.__TAURI_INTERNALS__ = { invoke: async (command, args) => {
       if (command === 'sidecar_fatal') return false;
-      if (command === 'connection_list_profiles') return [];
+      // Fictional profiles, shown only in the connection capture; no token or real organization is involved.
+      if (command === 'connection_list_profiles') return sessionStorage.getItem('atomize-docs-profiles') ? data.profiles : [];
       if (command === 'catalog_list_items') return data.catalog;
       if (command === 'preview_inspect' && args.source === 'template:backend-api') return data.inspect;
       if (command === 'preview_mock_story' && args.source === 'template:backend-api') {
@@ -74,7 +79,8 @@ try {
   preloadId = preload.identifier;
   // Studio takes its initial theme from the colour scheme; the portal shows the matching capture.
   for (const mode of ["light", "dark"]) await captureFlow(mode);
-  console.log("Captured Studio authoring and Mock Preview in light and dark from current UI with core-generated offline data.");
+  for (const mode of ["light", "dark"]) await captureConnections(mode);
+  console.log("Captured Studio authoring, Mock Preview, and Connection Profile management in light and dark from current UI with core-generated offline data.");
 } finally {
   if (preloadId) await cdp("Page.removeScriptToEvaluateOnNewDocument", { identifier: preloadId });
   socket.close();
@@ -108,4 +114,20 @@ async function captureFlow(mode) {
   })()`);
   await waitFor(`document.body.innerText.includes('Design API Endpoints: Mock Story') && document.body.innerText.includes('6 tasks')`);
   await capture(`mock-preview-${mode}`);
+}
+
+async function captureConnections(mode) {
+  await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: mode }, { name: "prefers-reduced-motion", value: "reduce" }] });
+  await cdp("Page.navigate", { url: "http://127.0.0.1:1423/" });
+  await waitFor(`document.documentElement.dataset.theme === ${JSON.stringify(mode)}`);
+  await evaluate(`sessionStorage.setItem('atomize-docs-profiles', '1'); location.reload()`);
+  await waitFor(`!!sessionStorage.getItem('atomize-docs-profiles') && [...document.querySelectorAll('button')].some(button => button.textContent.includes('Global Settings'))`);
+  await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.includes('Global Settings')).click()`);
+  await waitFor(`[...document.querySelectorAll('button')].some(button => button.textContent.includes('Work project'))`);
+  await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.includes('Work project') && !button.textContent.includes('Global')).click()`);
+  await waitFor(`[...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Manage projects…')`);
+  await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Manage projects…').click()`);
+  await waitFor(`document.body.innerText.includes('Manage work projects') && document.body.innerText.includes('Change token') && document.body.innerText.includes('https://dev.azure.com/contoso')`);
+  await capture(`connection-profiles-${mode}`);
+  await evaluate(`sessionStorage.removeItem('atomize-docs-profiles')`);
 }

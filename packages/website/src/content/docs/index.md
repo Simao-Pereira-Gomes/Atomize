@@ -18,7 +18,7 @@ All three tools use Atomize YAML Files. Start with the workflow that fits your d
 
 ## Preview before creating Tasks
 
-Start with a Mock Preview to see a task breakdown without credentials. When you connect Azure DevOps, a Live Preview reads a real Story without creating Work Items. Review the plan before confirming Task creation.
+Start with a Mock Preview to see a task breakdown without credentials. When you connect Azure DevOps, a Live Preview reads a real Story without creating Work Items. Review the plan before confirming Task creation. [Connect Azure DevOps](/connections/) lists the permissions a Connection Profile needs.
 
 [Run your first CLI Mock Preview](/getting-started/cli/) using a built-in Template and a small Mock Story.
 

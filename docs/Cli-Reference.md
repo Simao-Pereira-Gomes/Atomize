@@ -92,7 +92,7 @@ These options work with any command:
 
 Manage named connection profiles. Profiles store your credentials in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
 
-Azure DevOps is currently the only Connection Profile type: for `generate`, `validate`, `fields list`, `queries list`, and `template metadata`. AI-assisted template generation (`template create --ai`) does not use a Connection Profile; it authenticates through a separate Copilot Session (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)). GitHub Models profiles are retired: see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
+Azure DevOps is currently the only Connection Profile type: for `generate`, `validate`, `fields list`, `queries list`, and `template metadata`. AI-assisted template generation (`template create --ai`) does not use a Connection Profile; it authenticates through a separate Copilot Session (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)).
 
 #### auth add
 
@@ -149,8 +149,6 @@ atomize auth ls   # alias
     Created:  1/3/2026, 10:00:00 AM
 ```
 
-A retired `github-models` profile, if one still exists from before the retirement, is listed too: only so you can remove it with `auth remove`; it can no longer be used for anything.
-
 ---
 
 #### auth use
@@ -181,7 +179,7 @@ atomize auth rm [name]   # alias
 
 #### auth test
 
-Test connectivity for a profile by executing a WIQL query against your project to verify credentials and project access. Testing a retired `github-models` profile fails with a message pointing you to remove it.
+Test connectivity for a profile by executing a WIQL query against your project to verify credentials and project access.
 
 ```bash
 atomize auth test [name]
@@ -196,7 +194,7 @@ atomize auth test            # pick interactively
 
 #### auth rotate
 
-Replace the stored PAT for a profile (e.g. after a token expires). Refuses a retired `github-models` profile and points you to `auth remove` instead.
+Replace the stored PAT for a profile (e.g. after a token expires).
 
 ```bash
 atomize auth rotate <name> [options]

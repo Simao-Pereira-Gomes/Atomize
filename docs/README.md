@@ -49,6 +49,7 @@ These paths are kept for older links and should stay short:
 - The [Schema Reference](https://atomize-cd9.pages.dev/schema) owns field facts; `docs/Template-Reference.md` explains behaviour and worked examples.
 - `docs/Template-Creation.md` owns template creation workflows.
 - `docs/Auth-Guide.md` owns credential storage and profile behavior.
+- `docs/Platform-Guide.md` owns current platform support, PAT setup, and platform-specific errors. Describe only supported platforms; do not promise future Platform Adapters.
 - `docs/Releasing.md` owns the release process and release-notes generation for all three surfaces.
 - Compatibility stubs should not grow new content.
 

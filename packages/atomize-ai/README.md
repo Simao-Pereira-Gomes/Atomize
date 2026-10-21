@@ -10,7 +10,7 @@ Single entry point (`.`, built to `dist/index.js`):
 - `AIProvider`, `AIDraftSession`: the provider interface types.
 - `GitHubCopilotProvider`, `CopilotAuthenticationError`: the GitHub Copilot SDK-backed implementation and its auth-failure error type.
 
-There is no `github-models` provider: AI drafting was migrated off GitHub Models onto the Copilot SDK; see [ADR-0044](../../docs/adr/0044-copilot-sdk-for-ai-template-drafting.md).
+AI drafting uses the Copilot SDK; see [ADR-0044](../../docs/adr/0044-copilot-sdk-for-ai-template-drafting.md).
 
 ## Consumers
 

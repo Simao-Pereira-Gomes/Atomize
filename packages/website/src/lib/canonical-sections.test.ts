@@ -4,6 +4,7 @@ import { parseHTML } from "linkedom";
 import type { Root, RootContent } from "mdast";
 import { unified } from "unified";
 import canonicalSections from "./canonical-sections";
+import { canonicalGuideUrl } from "./documentation";
 
 const opening: RootContent = { type: "html", value: "<!-- atomize:section template-composition -->" };
 const closing: RootContent = { type: "html", value: "<!-- /atomize:section -->" };
@@ -16,6 +17,37 @@ function includeFixture(children: RootContent[]) {
 }
 
 describe("canonical guide rendering", () => {
+  test("connection setup keeps VS Code storage separate and links to its portal sections", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include auth-setup -->\n\n<!-- atomize:include auth-vscode -->");
+    const { document } = parseHTML(code);
+    expect(code).toContain("Manage projects…");
+    expect(code).toContain("Studio has no separate test action");
+    expect(code).toContain("Later CLI or Studio changes are not synchronized");
+    expect(document.querySelector('a[href="/connections/#required-permissions"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/connections/profiles/#shared-between-the-cli-and-atomize-studio"]')).not.toBeNull();
+    expect(document.querySelector("h2#atomize-cli")).not.toBeNull();
+  });
+
+  test("CLI profile resolution does not describe a token fallback", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include auth-resolution -->");
+    expect(code).toContain("<code>ATOMIZE_PAT</code> is not a fallback");
+    expect(parseHTML(code).document.querySelectorAll("ol > li")).toHaveLength(3);
+  });
+
+  test("platform support describes current adapters without planned platforms", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include platform-support -->");
+    expect(code).toContain("Azure DevOps Server (on-premises) is not supported");
+    expect(code).not.toMatch(/Jira|Planned|Coming soon/);
+  });
+
+  test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {
+    expect(canonicalGuideUrl("docs/Auth-Guide.md", "when-the-keychain-is-unavailable")).toBe("/connections/profiles/#when-the-keychain-is-unavailable");
+    expect(canonicalGuideUrl("docs/Auth-Guide.md", "credential-storage")).toBe("/connections/profiles/#credential-storage");
+  });
+
   test("VS Code onboarding distinguishes opening a Catalog file from inserting its ref", async () => {
     const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
     const { code } = await renderer.render("<!-- atomize:include vscode-first-preview -->");
@@ -65,7 +97,7 @@ describe("canonical guide rendering", () => {
     const { document } = parseHTML(code);
     expect(document.querySelector("h2#install-the-cli")).not.toBeNull();
     expect(document.querySelector("h2#run-your-first-mock-preview")).not.toBeNull();
-    expect(document.querySelector('a[href="https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Auth-Guide.md#quick-setup"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/connections/profiles/"]')).not.toBeNull();
     expect(document.querySelector('a[href="https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md#generate-tasks"]')).not.toBeNull();
     expect(document.querySelector("h2#safety-model")).toBeNull();
     expect(code).not.toContain("atomize:section");

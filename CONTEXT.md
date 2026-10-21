@@ -90,12 +90,12 @@ Task generation dry-run evaluated against a real Story fetched from a Platform A
 _Avoid_: "live run": Live Preview never creates Tasks.
 
 **Connection Profile**:
-A named Azure DevOps connection record, with its non-secret fields and default stored in the shared Atomize connections file. The CLI and Atomize Studio both read and write that file and resolve the profile's token through compatible OS credential-manager entries, using their own native credential APIs rather than a shared keychain implementation. Studio supports only OS-keyring-backed tokens: a CLI profile using the optional insecure keyfile fallback must be rotated in Studio before Studio can use it, which converts its token marker to the shared keyring strategy. The first Azure DevOps profile becomes the default, and later default changes are explicit. Legacy GitHub Models records are retained only for explicit user cleanup; they cannot be used as Connection Profiles.
+A named Azure DevOps connection record, with its non-secret fields and default stored in the shared Atomize connections file. The CLI and Atomize Studio both read and write that file and resolve the profile's token through compatible OS credential-manager entries, using their own native credential APIs rather than a shared keychain implementation. Studio supports only OS-keyring-backed tokens: a CLI profile using the optional insecure keyfile fallback must be rotated in Studio before Studio can use it, which converts its token marker to the shared keyring strategy. The first Azure DevOps profile becomes the default, and later default changes are explicit.
 _Avoid_: "auth profile" or "credentials" when referring to a saved named connection; do not use Connection Profile for Copilot sign-in.
 
 **Copilot Session**:
 An ephemeral, tool-free AI session on the user's own signed-in GitHub Copilot account, used to draft or improve a Template. The CLI and Atomize Studio host it through the GitHub Copilot SDK; the VS Code extension hosts it through the editor's own language-model access. Atomize stores neither a Copilot token nor a Copilot Connection Profile, and a Copilot Session is discarded after each draft or improvement.
-_Avoid_: calling this a Connection Profile or a GitHub Models profile.
+_Avoid_: calling this a Connection Profile.
 
 **Grounding**:
 Curated platform context sent to a Copilot Session alongside the user's request, so the AI writes Templates that fit a real project. Grounding never includes credentials or raw platform payloads. It takes two forms (Project Grounding and Document Grounding) and is always an explicit user choice; when the chosen Grounding cannot be retrieved, the user decides whether to retry or continue ungrounded rather than Atomize silently dropping it.

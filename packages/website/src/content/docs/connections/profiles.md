@@ -1,0 +1,39 @@
+---
+title: Set up Connection Profiles
+description: Add, test, rotate, and remove Azure DevOps Connection Profiles in the CLI, Atomize Studio, and VS Code, and see where each tool stores tokens.
+editUrl: false
+---
+
+A Connection Profile names one Azure DevOps project and keeps its access token outside your Templates. Create the token first with the [required permissions](/connections/#required-permissions), then follow the steps for your tool.
+
+<!-- atomize:include auth-setup -->
+
+## Credential storage
+
+<!-- atomize:include auth-storage -->
+
+## Shared between the CLI and Atomize Studio
+
+<!-- atomize:include auth-shared -->
+
+## VS Code profiles
+
+<!-- atomize:include auth-vscode -->
+
+## Rotating tokens
+
+<!-- atomize:include auth-rotation -->
+
+## AI drafting: Copilot Session
+
+<!-- atomize:include auth-copilot -->
+
+## Continue with a connection
+
+Each tool shows the planned Tasks before it creates any:
+
+- **Studio**: choose a Preview Source and Generate Scope in the [Generate Area](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Atomize-Studio.md#generate-area). Live Execution Confirmation shows the dry run before Tasks are created.
+- **VS Code**: run [Preview (Live)](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md#atomize-preview-live), then [Generate](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md#atomize-generate) when the plan is ready.
+- **CLI**: follow [connected generation](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md#generate-tasks). A dry run reads Stories without creating Tasks.
+
+If a connection fails, see [Fix connection problems](/connections/troubleshooting/).

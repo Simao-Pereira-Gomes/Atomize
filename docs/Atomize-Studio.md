@@ -66,7 +66,7 @@ Mock Preview uses the bundled companion process to evaluate the Template offline
 
 ### Continue from your first preview
 
-To create or adapt a Template, use the [Starting Paths](#starting-paths). To work with real Stories, add a Connection Profile in [Global Settings](#global-settings), choose its Work Project, and follow the [Generate Area](#generate-area) guide. Studio shows the connected dry run inside Live Execution Confirmation before Task creation; it has no separate Live Preview step.
+To create or adapt a Template, use the [Starting Paths](#starting-paths). To work with real Stories, add a Connection Profile in [Global Settings](#global-settings) (see [Studio profile setup](./Auth-Guide.md#atomize-studio) and [required permissions](./Auth-Guide.md#required-permissions)), choose its Work Project, and follow the [Generate Area](#generate-area) guide. Studio shows the connected dry run inside Live Execution Confirmation before Task creation; it has no separate Live Preview step.
 
 <!-- /atomize:section -->
 
@@ -280,9 +280,9 @@ The Generate Area runs a Template against real or mock data.
 Reachable from any Studio Area:
 
 - **Theme**: appearance.
-- **Connection Profile management**: add, rotate, set default, and remove Connection Profiles.
+- **Connection Profile management**: open the **Work project** selector and choose **Manage projects…** to add, rotate, set default, and remove Connection Profiles. See [Studio profile setup](./Auth-Guide.md#atomize-studio).
 
-Connection Profiles are shared with the Atomize CLI through the same `~/.atomize/connections.json` file. Studio supports only OS-keyring-backed tokens: if a CLI profile uses the CLI's optional insecure keyfile fallback, rotate it (in either Studio or the CLI) before Studio can use it. See the [Auth Guide](./Auth-Guide.md) for the shared profile mechanism and how it differs by surface.
+Connection Profiles are shared with the Atomize CLI through the same `~/.atomize/connections.json` file. Studio supports only OS-keyring-backed tokens: if a CLI profile uses the CLI's optional insecure keyfile fallback, rotate it (in either Studio or the CLI) before Studio can use it. See [shared profiles](./Auth-Guide.md#shared-between-the-cli-and-atomize-studio) for how this differs by surface.
 
 <!-- /atomize:section -->
 

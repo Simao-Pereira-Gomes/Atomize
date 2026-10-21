@@ -39,6 +39,12 @@ export default defineConfig({
         { label: "Inspect Templates", slug: "vscode/inspect-templates" },
         { label: "Validation and settings", slug: "vscode/settings-recovery" },
       ] },
+      { label: "Connections", items: [
+        { label: "Connect Azure DevOps", slug: "connections" },
+        { label: "Connection Profiles", slug: "connections/profiles" },
+        { label: "Scripts and CI", slug: "connections/automation" },
+        { label: "Fix connection problems", slug: "connections/troubleshooting" },
+      ] },
       { label: "Templates", items: [
         { label: "Compose Templates", slug: "reference/templates/composition" },
         { label: "Schema Reference", link: "/reference/templates/schema/" },

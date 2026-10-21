@@ -11,7 +11,8 @@ function icon(href: string) {
   if (href.includes("/schema")) return "m8 4-5 8 5 8m8-16 5 8-5 8M14 3l-4 18";
   if (href.includes("/releases")) return "M3 12a9 9 0 1 0 3-7M3 3v6h6m3-2v5l3 2";
   if (href.includes("/composition")) return "m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5";
-  if (href.includes("cli") || href.includes("Cli-Reference")) return "m5 7 5 5-5 5m8 0h6M3 3h18v18H3Z";
+  if (href.includes("/connections")) return "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1";
+  if (href.includes("cli") ||href.includes("Cli-Reference")) return "m5 7 5 5-5 5m8 0h6M3 3h18v18H3Z";
   if (href.includes("/studio")) return "M3 4h18v13H3ZM8 21h8m-4-4v4";
   if (href.includes("/vscode")) return "m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18";
   return "M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4V4Zm8 2v16";
