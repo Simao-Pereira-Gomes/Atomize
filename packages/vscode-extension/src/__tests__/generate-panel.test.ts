@@ -129,6 +129,11 @@ describe('GeneratePanel', () => {
 		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
 		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
 
+		const vscode = await import('vscode');
+		expect(vscode.window.createWebviewPanel).toHaveBeenCalledWith(
+			'atomize.generate', 'Atomize: a.atomize.yaml (Generate · Dry Run)', expect.anything(), expect.anything(),
+		);
+		expect(panel.webview.html).not.toContain('/tmp/a.atomize.yaml');
 		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate');
 	});
 
