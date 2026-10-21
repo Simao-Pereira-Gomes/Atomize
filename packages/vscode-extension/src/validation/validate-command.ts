@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import * as vscode from 'vscode';
 import { isAtomizeDocument, isMixinDocument } from '../authoring/language-detection.js';
 import { getDefaultProfile } from '../config/atomize-configuration.js';
@@ -37,7 +38,7 @@ export function registerValidateCommand(deps: ValidateCommandDeps): vscode.Dispo
 		const mode = profile ? 'Online' : 'Offline';
 		runReportValidation(doc, deps.diagnostics, result => {
 			deps.onValidationSuccess(doc.uri);
-			const fileName = vscode.workspace.asRelativePath(doc.uri);
+			const fileName = basename(doc.uri.fsPath);
 			AtomizePanel.show(`Atomize: ${fileName} (${mode})`, renderValidationHtml(result, fileName));
 		}, () => { deps.onRunnerFailure(doc); }, profile, deps.credentialResolver);
 	});

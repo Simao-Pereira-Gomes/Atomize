@@ -21,3 +21,9 @@ describe('renderValidationHtml', () => {
 		expect(html).toContain('bg-fail');
 	});
 });
+
+it('shows the filename without revealing the path on hover', () => {
+	const html = renderValidationHtml({ valid: true, errors: [], warnings: [], mode: 'lenient' }, '/workspace/templates/example.atomize.yaml');
+	expect(html).toContain('example.atomize.yaml');
+	expect(html).not.toContain('/workspace/templates/');
+});

@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import { Atomizer } from '@sppg2001/atomize-core';
 import type { AtomizationReport, ProgressEvent } from '@sppg2001/atomize-core/core/atomizer';
 import { AuthError } from '@sppg2001/atomize-core/utils/errors';
@@ -117,7 +118,7 @@ export class GeneratePanel {
 		if (pickedStoryIds === undefined) return;
 		const storyIds = pickedStoryIds.length > 0 ? pickedStoryIds : undefined;
 
-		const fileName = vscode.workspace.asRelativePath(fileUri);
+		const fileName = basename(fileUri.fsPath);
 
 		let panel: GeneratePanel;
 		if (GeneratePanel._instance) {
@@ -149,7 +150,7 @@ export class GeneratePanel {
 	private async _runDryRun(): Promise<void> {
 		this._isExecuting = true;
 		try {
-			const fileName = vscode.workspace.asRelativePath(this._fileUri);
+			const fileName = basename(this._fileUri.fsPath);
 			this._panel.webview.html = renderGenerateLoading(fileName, this._profile, this._storyIds);
 
 			const outcome = await runAtomize(this._credentialResolver, this._profile, this._fileUri, {
@@ -208,7 +209,7 @@ export class GeneratePanel {
 
 		this._isExecuting = true;
 		try {
-			const fileName = vscode.workspace.asRelativePath(this._fileUri);
+			const fileName = basename(this._fileUri.fsPath);
 			this._panel.title = `Atomize: ${fileName} (Generate · Creating…)`;
 			this._panel.webview.html = renderGenerateLiveRunning(dryReport, fileName, this._profile, this._storyIds);
 
@@ -259,7 +260,7 @@ export class GeneratePanel {
 
 		if (message.type === 'switchMode') {
 			this._mode = message.mode;
-			const fileName = vscode.workspace.asRelativePath(this._fileUri);
+			const fileName = basename(this._fileUri.fsPath);
 
 			// Live phase: re-render live result
 			if (this._execReport && this._dryRunReport) {

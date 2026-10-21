@@ -72,9 +72,7 @@ export function runReportValidation(
 }
 
 function runValidation(request: ValidationRequest): void {
-	const { doc, diagnostics, kind, onError } = request;
-
-	const key = doc.uri.toString();
+	const key = request.doc.uri.toString();
 	const state = getRunState(key);
 
 	if (state.running) {
@@ -85,9 +83,15 @@ function runValidation(request: ValidationRequest): void {
 	state.running = true;
 	state.pending = undefined;
 
-	runValidationInProcess(resolveDocumentPath(doc.uri), request.profile, request.credentialResolver).then(result => {
-		state.running = false;
+	void executeValidation(request, state);
+}
 
+async function executeValidation(request: ValidationRequest, state: RunState): Promise<void> {
+	const { doc, diagnostics, kind, onError } = request;
+	try {
+		// Include setup in the error boundary: a failure while opening a document
+		// must not escape activation or leave this document marked as running.
+		const result = await runValidationInProcess(resolveDocumentPath(doc.uri), request.profile, request.credentialResolver);
 		const items = [
 			...result.errors.map(e =>
 				makeDiagnostic(e.path, e.message, vscode.DiagnosticSeverity.Error, doc, e.code),
@@ -103,13 +107,16 @@ function runValidation(request: ValidationRequest): void {
 		} else {
 			request.onSuccess?.();
 		}
-
-		runPendingValidation(state);
-	}).catch((error: Error) => {
+	} catch (error) {
+		try {
+			onError?.(error instanceof Error ? error : new Error(String(error)));
+		} catch (notificationError) {
+			console.error('Atomize: could not report validation failure.', notificationError);
+		}
+	} finally {
 		state.running = false;
-		onError?.(error);
 		runPendingValidation(state);
-	});
+	}
 }
 
 function runPendingValidation(state: RunState): void {
