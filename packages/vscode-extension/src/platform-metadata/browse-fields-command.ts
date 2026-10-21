@@ -8,15 +8,9 @@ import type { ProfileStore } from '../profiles/profile-store.js';
 
 type FieldItem = vscode.QuickPickItem & { referenceName: string };
 
-async function fetchFields(
-	credentialResolver: CredentialResolver,
-	profile: string,
-	type: string | undefined,
-): Promise<ADoFieldSchema[] | null> {
+async function fetchOrNull<T>(load: () => Promise<T>): Promise<T | null> {
 	try {
-		const adapter = await credentialResolver.resolveByName(profile);
-		const metadataReader = requireProjectMetadataReader(adapter);
-		return await metadataReader.getFieldSchemas(type);
+		return await load();
 	} catch {
 		return null;
 	}
@@ -54,16 +48,32 @@ export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vsco
 		const profile = await pickProfile(deps.store, deps.credentialResolver, { title: 'Atomize: Browse Fields', allowOffline: false, defaultProfile });
 		if (!profile) return;
 
-		const typeFilter = await vscode.window.showInputBox({
-			title: 'Atomize: Browse Fields',
-			prompt: 'Filter by work item type, or press Enter to list all fields',
-			placeHolder: 'e.g. Task, Bug',
-		});
-		if (typeFilter === undefined) return;
+		const connection = await vscode.window.withProgress(
+			{ location: vscode.ProgressLocation.Notification, title: 'Fetching work item types…', cancellable: false },
+			async () => {
+				const reader = await fetchOrNull(async () => requireProjectMetadataReader(await deps.credentialResolver.resolveByName(profile)));
+				const types = reader && await fetchOrNull(() => reader.getWorkItemTypes());
+				return reader && types ? { reader, types } : null;
+			},
+		);
+		if (!connection) {
+			void vscode.window.showErrorMessage('Could not fetch work item types. Check your connection profile.');
+			return;
+		}
+
+		const typePick = await vscode.window.showQuickPick(
+			[
+				{ label: 'All work item types', description: 'List every field in the project', type: undefined },
+				...[...connection.types].sort((a, b) => a.localeCompare(b)).map(type => ({ label: type, type })),
+			],
+			{ title: 'Atomize: Browse Fields', placeHolder: 'Filter fields by work item type' },
+		);
+		if (!typePick) return;
+		const typeFilter = typePick.type;
 
 		const fields = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Fetching fields…', cancellable: false },
-			() => fetchFields(deps.credentialResolver, profile, typeFilter || undefined),
+			() => fetchOrNull(() => connection.reader.getFieldSchemas(typeFilter)),
 		);
 
 		if (fields === null) {
