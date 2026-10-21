@@ -16,11 +16,33 @@ function includeFixture(children: RootContent[]) {
 }
 
 describe("canonical guide rendering", () => {
+  test("VS Code onboarding distinguishes opening a Catalog file from inserting its ref", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include vscode-first-preview -->");
+    const { document } = parseHTML(code);
+    expect(code).toContain("Open backing file");
+    expect(code).toContain("Pressing Enter instead copies the ref");
+    expect(document.querySelector('img.themed-screenshot-light[src="/vscode/mock-preview-light.png"]')?.getAttribute("alt")).toContain("Mock Preview Panel");
+    expect(document.querySelector('img.themed-screenshot-dark[src="/vscode/mock-preview-dark.png"]')?.getAttribute("alt")).toContain("Mock Preview Panel");
+    expect(document.querySelector('a[href="/vscode/author-yaml/#opt-your-file-into-atomize"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/vscode/inspect-templates/#inspect-the-resolved-template"]')).not.toBeNull();
+    expect(document.querySelector("h2#atomize-yaml-opt-in")).toBeNull();
+  });
+
+  test("VS Code opt-in explains the limits of content detection and preserves the modeline", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include vscode-opt-in -->");
+    expect(code).toContain("Session Atomize YAML Opt-In");
+    expect(code).toContain("does not enable CodeLens or save-time Atomize validation");
+    expect(parseHTML(code).document.querySelector("pre")?.textContent).toContain("# atomize-yaml");
+    expect(code).not.toContain("atomize:section");
+  });
+
   test("Studio preview keeps source selection independent and publishes local screenshots", async () => {
     const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
     const { code } = await renderer.render("<!-- atomize:include studio-first-preview -->");
     const { document } = parseHTML(code);
-    expect(document.querySelector('img[src="/studio/mock-preview.png"]')?.getAttribute("alt")).toContain("Preview Source");
+    expect(document.querySelector('img.themed-screenshot-light[src="/studio/mock-preview-light.png"]')?.getAttribute("alt")).toContain("Preview Source");
     expect(code).toContain("independent of the Template");
     expect(document.querySelector('a[href="/studio/author-templates/#choose-a-starting-path"]')).not.toBeNull();
     expect(document.querySelector('a[href="/studio/settings-recovery/#global-settings"]')).not.toBeNull();
@@ -111,6 +133,15 @@ describe("canonical guide rendering", () => {
     const { code } = await renderer.render("<!-- atomize:include template-composition -->");
     expect(code).not.toContain("atomize:section");
     expect(code).not.toContain("<hr");
+  });
+
+  test("a canonical picture that cannot be split into themed screenshots fails", async () => {
+    expect.assertions(1);
+    try {
+      await includeFixture([opening, { type: "html", value: '<picture>\n  <img alt="Missing dark variant" src="/studio/x-light.png">\n</picture>' }, closing]);
+    } catch (error) {
+      expect(String(error)).toContain("Canonical <picture> must contain");
+    }
   });
 
   test("an include marker inside a code example stays literal", async () => {

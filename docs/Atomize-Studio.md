@@ -57,7 +57,10 @@ Studio's inputs are individual fields, not a JSON editor. Leave other optional i
 
 Choose **Run Mock Preview**. Under **Resolved Tasks**, expect six Tasks, no skipped Tasks, a Story estimate of 8 hours, a Task total of 8 hours, and 100% allocated. The first Task is **Design API Endpoints: Mock Story**. Change the estimate and run again to see the breakdown update.
 
-![Studio Generate Area with Backend API Development selected independently as the Preview Source, Mock Story inputs on the left, and six resolved Tasks on the right.](../packages/website/public/studio/mock-preview.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/studio/mock-preview-dark.png">
+  <img alt="Studio Generate Area with Backend API Development selected independently as the Preview Source, Mock Story inputs on the left, and six resolved Tasks on the right." src="../packages/website/public/studio/mock-preview-light.png">
+</picture>
 
 Mock Preview uses the bundled companion process to evaluate the Template offline. It does not query Azure DevOps or create Work Items. No separate CLI installation is needed.
 
@@ -132,7 +135,10 @@ Once a file is open, you get two save actions:
 
 The authoring surface is organised into sections: Basic Info, Filter, Tasks, Estimation, Validation, Metadata, and Review. All sections must validate before you can export, install to Catalog, or (for an Open session) save.
 
-![Studio Templates Area showing a clone of Backend API Development, the Builder sections on the left, and the six task definitions in the Tasks section.](../packages/website/public/studio/template-authoring.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/studio/template-authoring-dark.png">
+  <img alt="Studio Templates Area showing a clone of Backend API Development, the Builder sections on the left, and the six task definitions in the Tasks section." src="../packages/website/public/studio/template-authoring-light.png">
+</picture>
 
 | Section | What to edit |
 | --- | --- |

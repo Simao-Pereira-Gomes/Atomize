@@ -4,9 +4,9 @@ The Astro + Starlight portal adapts canonical repository guides into focused
 pages. The shared Schema Reference lives at `/reference/templates/schema/`, inside the same website
 layout, navigation, search, and theme controls as the guides. Both document `main`,
 not a particular CLI, extension, or Studio release. The root helps readers choose
-a tool, with quickstarts at `/getting-started/cli/` and
-`/getting-started/studio/`. Studio's focused authoring, file, and recovery guides
-are under `/studio/`. VS Code links to its canonical guide until its quickstart lands.
+a tool, with quickstarts at `/getting-started/cli/`, `/getting-started/studio/`,
+and `/getting-started/vscode/`. Focused Studio and VS Code authoring, inspection,
+settings, and recovery guides are under `/studio/` and `/vscode/`.
 `/releases/` links to each tool's GitHub Releases without copying release notes.
 Its tag filters include the current major release series because GitHub requires
 a version number in a tag-prefix search. Update the series when a tool releases
@@ -112,10 +112,25 @@ not been adapted retain their canonical GitHub links. Screenshots have one owner
 under `public/studio/`. The canonical guide links to those files for GitHub
 readability, and the section loader rewrites those image links to local assets.
 
+Each screenshot has a light and a dark capture, named `<image>-light.png` and
+`<image>-dark.png`. Canonical guides reference both with a `<picture>`, so GitHub
+follows the reader's colour scheme:
+
+```html
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/studio/mock-preview-dark.png">
+  <img alt="Useful description of the screenshot." src="../packages/website/public/studio/mock-preview-light.png">
+</picture>
+```
+
+Keep exactly that shape, without blank lines. The section loader publishes both
+images, and CSS shows the one matching the portal's selected theme, which can
+differ from the operating system's. Any other `<picture>` fails the build.
+
 ## Refresh Studio screenshots
 
 The authoring and Mock Preview images were captured from the current Studio UI
-on 2026-10-15 at 1440 × 1000 in light mode. They show the built-in Backend API
+on 2026-10-15 at 1440 × 1000 in light and dark mode. They show the built-in Backend API
 Development Template and an offline Mock Story with estimate 8. There are no
 Connection Profiles, credentials, or customer data in the captures.
 
@@ -139,6 +154,12 @@ flags. Then run:
 bun packages/website/scripts/capture-studio.mjs
 ```
 
+The script captures every screen once with the light colour scheme and once with
+the dark one; Studio takes its initial theme from that setting. It pins the
+browser locale to `en-GB`, so number and date formats match the docs on any
+machine. If port 9230 is taken, start Chrome on another port and set
+`ATOMIZE_STUDIO_DEBUG_PORT`.
+
 The script drives the real Starting Paths, Catalog Clone, Tasks, and Generate
 components. It substitutes only the native IPC boundary, using the current
 built-in Template and inspection/preview results from `atomize-core`. It asserts
@@ -146,10 +167,87 @@ the documented Mock Story inputs and result before capturing. It does not test
 the native installer or companion-process transport. Use a dedicated browser
 profile because the capture clears its local storage. Close it after capture.
 
-Review both PNGs, update the adjacent canonical instructions and alt text when
+Review all four PNGs, update the adjacent canonical instructions and alt text when
 labels or behaviour change, and run the website checks. If the built-in Template
 changes its six-Task example, update the quickstart and capture assertions together.
 Shared Studio Markdown changes and these media files trigger CI and deployment.
+
+## Refresh VS Code screenshots
+
+VS Code pages reuse marked sections in `docs/VS-Code-Extension.md`. The images
+under `public/vscode/` were captured on 2026-10-15 from a real Extension
+Development Host running this checkout, with the built-in Backend API Development
+Template and the documented offline Mock Story. No platform credentials or AI
+sign-in are used. The native editor and extension engine are not mocked.
+
+Build the current extension:
+
+```sh
+bun run --cwd packages/vscode-extension build
+```
+
+Use a dedicated empty workspace, user-data directory, and extensions directory
+under a temporary folder, such as `/tmp/atomize-vscode-docs/`. Keep the path short:
+macOS rejects VS Code IPC sockets longer than 103 characters. Install or link
+`redhat.vscode-yaml` and `Catppuccin.catppuccin-vsc` into that extensions
+directory. For example:
+
+```sh
+mkdir -p /tmp/atomize-vscode-docs/workspace /tmp/atomize-vscode-docs/user/User
+code --user-data-dir=/tmp/atomize-vscode-docs/user --extensions-dir=/tmp/atomize-vscode-docs/extensions --install-extension redhat.vscode-yaml --install-extension Catppuccin.catppuccin-vsc
+```
+
+In that profile's `User/settings.json`, use Catppuccin Latte, which matches the
+website's light code blocks and keeps YAML keys and strings distinct. Use font
+size 16, hide the activity bar, command center, and minimap, disable workspace
+trust prompts and tips, and start without a welcome editor. Disable updates, extension auto-updates, telemetry, and SchemaStore
+network requests for the offline capture:
+
+```json
+{
+  "workbench.colorTheme": "Catppuccin Latte",
+  "editor.fontSize": 16,
+  "editor.minimap.enabled": false,
+  "workbench.activityBar.location": "hidden",
+  "window.commandCenter": false,
+  "workbench.editor.enablePreview": false,
+  "workbench.tips.enabled": false,
+  "workbench.startupEditor": "none",
+  "security.workspace.trust.enabled": false,
+  "update.mode": "none",
+  "extensions.autoUpdate": "off",
+  "extensions.autoCheckUpdates": false,
+  "telemetry.telemetryLevel": "off",
+  "yaml.schemaStore.enable": false
+}
+```
+
+Close that isolated instance after extension installation. Launch its development
+host with port 9234, using the Electron executable directly if the `code` wrapper
+does not expose the debugger. On macOS, from the repository root:
+
+```sh
+"/Applications/Visual Studio Code.app/Contents/MacOS/Code" --user-data-dir=/tmp/atomize-vscode-docs/user --extensions-dir=/tmp/atomize-vscode-docs/extensions --extensionDevelopmentPath="$PWD/packages/vscode-extension" --remote-debugging-port=9234 --skip-welcome --skip-release-notes /tmp/atomize-vscode-docs/workspace
+```
+
+Use your installed Code executable on other platforms, then run:
+
+```sh
+bun packages/website/scripts/capture-vscode.mjs
+```
+
+The script switches the host to Catppuccin Latte and then Catppuccin Mocha
+through Preferences: Color Theme, capturing each screen in both. If port 9234 is
+taken, launch the host on another port and set `ATOMIZE_VSCODE_DEBUG_PORT`.
+
+The script closes editors in this dedicated host, opens the real built-in Template
+through Browse Catalog's backing-file button, captures CodeLens and YAML, and
+runs Mock Preview with estimate 8. It drives the separate webview process to
+submit the actual form. The captures omit the host title bar and status bar;
+their content is otherwise the unmodified editor UI. Review all four images, alt
+text, and adjacent instructions after changes to the Catalog, authoring, or
+preview UI. Changes to the canonical VS Code guide and these media files trigger
+website checks and deployment. Close the isolated host after capturing.
 
 ## Add a focused page
 

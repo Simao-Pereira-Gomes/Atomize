@@ -1,5 +1,15 @@
 /** Canonical section ownership and published routes, shared by Markdown and the viewer. */
 export const canonicalSections = {
+  "vscode-install": { source: "docs/VS-Code-Extension.md", pageAnchor: "install", route: "/getting-started/vscode/#install-the-extension", anchors: ["install"] },
+  "vscode-first-preview": { source: "docs/VS-Code-Extension.md", pageAnchor: "first-mock-preview", route: "/getting-started/vscode/", anchors: ["first-mock-preview", "open-a-built-in-template", "run-mock-preview", "continue-from-your-first-preview"] },
+  "vscode-opt-in": { source: "docs/VS-Code-Extension.md", pageAnchor: "atomize-yaml-opt-in", route: "/vscode/author-yaml/#opt-your-file-into-atomize", anchors: ["atomize-yaml-opt-in"] },
+  "vscode-authoring": { source: "docs/VS-Code-Extension.md", pageAnchor: "authoring-support", route: "/vscode/author-yaml/", anchors: ["authoring-support", "snippets", "quick-fixes"] },
+  "vscode-validation": { source: "docs/VS-Code-Extension.md", pageAnchor: "atomize-validate", route: "/vscode/settings-recovery/#validate-without-a-connection", anchors: ["atomize-validate"] },
+  "vscode-catalog": { source: "docs/VS-Code-Extension.md", pageAnchor: "atomize-browse-catalog", route: "/vscode/inspect-templates/#browse-the-catalog", anchors: ["atomize-browse-catalog"] },
+  "vscode-effective": { source: "docs/VS-Code-Extension.md", pageAnchor: "atomize-show-effective-template", route: "/vscode/inspect-templates/#inspect-the-resolved-template", anchors: ["atomize-show-effective-template"] },
+  "vscode-schema": { source: "docs/VS-Code-Extension.md", pageAnchor: "atomize-open-schema-reference", route: "/vscode/inspect-templates/#open-the-installed-schema-reference", anchors: ["atomize-open-schema-reference"] },
+  "vscode-settings": { source: "docs/VS-Code-Extension.md", pageAnchor: "settings", route: "/vscode/settings-recovery/#configure-the-editor", anchors: ["settings"] },
+  "vscode-recovery": { source: "docs/VS-Code-Extension.md", pageAnchor: "troubleshooting", route: "/vscode/settings-recovery/", anchors: ["troubleshooting", "deprecated-cli-settings-notice", "connected-commands-need-a-profile", "schema-hovers-or-completions-are-missing", "codelens-actions-are-missing", "offline-commands-cannot-complete"] },
   "studio-install": { source: "docs/Atomize-Studio.md", pageAnchor: "install", route: "/getting-started/studio/#install-studio", anchors: ["install"] },
   "studio-first-preview": { source: "docs/Atomize-Studio.md", pageAnchor: "first-mock-preview", route: "/getting-started/studio/", anchors: ["first-mock-preview", "choose-a-preview-source", "enter-a-small-mock-story", "continue-from-your-first-preview"] },
   "studio-navigation": { source: "docs/Atomize-Studio.md", pageAnchor: "studio-areas", route: "/studio/author-templates/#find-your-way-around", anchors: ["studio-areas"] },

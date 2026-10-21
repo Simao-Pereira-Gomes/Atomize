@@ -13,7 +13,7 @@ function icon(href: string) {
   if (href.includes("/composition")) return "m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5";
   if (href.includes("cli") || href.includes("Cli-Reference")) return "m5 7 5 5-5 5m8 0h6M3 3h18v18H3Z";
   if (href.includes("/studio")) return "M3 4h18v13H3ZM8 21h8m-4-4v4";
-  if (href.includes("VS-Code")) return "m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18";
+  if (href.includes("/vscode")) return "m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18";
   return "M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4V4Zm8 2v16";
 }
 const links = flatten(Astro.locals.starlightRoute.sidebar);

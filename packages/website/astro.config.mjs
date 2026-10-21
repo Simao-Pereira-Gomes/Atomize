@@ -11,7 +11,7 @@ export default defineConfig({
     logo: { src: "../vscode-extension/icons/atomize-product.svg" },
     social: [{ icon: "github", label: "GitHub", href: "https://github.com/Simao-Pereira-Gomes/Atomize" }],
     customCss: ["./src/styles/atomize-website.css"],
-    expressiveCode: { themes: ["starlight-dark", "github-light"], useStarlightUiThemeColors: true },
+    expressiveCode: { themes: ["catppuccin-mocha", "catppuccin-latte"], useStarlightUiThemeColors: true },
     components: {
       Header: "./src/components/DocumentationHeader.astro",
       PageTitle: "./src/components/DocumentationTitle.astro",
@@ -27,12 +27,17 @@ export default defineConfig({
         { label: "Choose your tool", slug: "index" },
         { label: "CLI quickstart", slug: "getting-started/cli" },
         { label: "Studio quickstart", slug: "getting-started/studio" },
-        { label: "VS Code extension ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/VS-Code-Extension.md" },
+        { label: "VS Code quickstart", slug: "getting-started/vscode" },
       ] },
       { label: "Atomize Studio", items: [
         { label: "Author Templates", slug: "studio/author-templates" },
         { label: "Open, save, and export", slug: "studio/open-save" },
         { label: "Settings and recovery", slug: "studio/settings-recovery" },
+      ] },
+      { label: "VS Code", items: [
+        { label: "Author Atomize YAML", slug: "vscode/author-yaml" },
+        { label: "Inspect Templates", slug: "vscode/inspect-templates" },
+        { label: "Validation and settings", slug: "vscode/settings-recovery" },
       ] },
       { label: "Templates", items: [
         { label: "Compose Templates", slug: "reference/templates/composition" },

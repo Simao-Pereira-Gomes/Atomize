@@ -6,6 +6,7 @@ on:
       - README.md
       - docs/Template-Reference.md
       - docs/Atomize-Studio.md
+      - docs/VS-Code-Extension.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock
@@ -19,6 +20,7 @@ on:
       - README.md
       - docs/Template-Reference.md
       - docs/Atomize-Studio.md
+      - docs/VS-Code-Extension.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock

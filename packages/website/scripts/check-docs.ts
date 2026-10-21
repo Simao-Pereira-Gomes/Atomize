@@ -69,14 +69,27 @@ async function checkDocs() {
   const quickstart = pages.get(resolve(directory, "getting-started/cli/index.html"));
   const releases = pages.get(resolve(directory, "releases/index.html"));
   const studio = pages.get(resolve(directory, "getting-started/studio/index.html"));
+  if (!home?.querySelector('.onboarding-paths a[href="/getting-started/vscode/"]')) failures.push("Home must link to the VS Code quickstart");
+  for (const [route, title] of [["getting-started/vscode", "Try Atomize in VS Code"], ["vscode/author-yaml", "Author Atomize YAML in VS Code"], ["vscode/inspect-templates", "Inspect Templates in VS Code"], ["vscode/settings-recovery", "VS Code validation, settings, and recovery"]]) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`VS Code page, metadata, or search indexing is missing: ${route}`);
+  }
+  for (const [route, image] of [["getting-started/vscode", "mock-preview"], ["vscode/author-yaml", "template-authoring"]]) {
+    for (const mode of ["light", "dark"]) {
+      const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img.themed-screenshot-${mode}[src="/vscode/${image}-${mode}.png"]`);
+      if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`VS Code ${mode} screenshot or useful alt text is missing: ${image}`);
+    }
+  }
   if (!home?.querySelector('.onboarding-paths a[href="/getting-started/studio/"]')) failures.push("Home must link to the Studio quickstart");
   for (const [route, title] of [["getting-started/studio", "Try Atomize Studio offline"], ["studio/author-templates", "Author Templates in Studio"], ["studio/open-save", "Open, save, and export"], ["studio/settings-recovery", "Studio settings and recovery"]]) {
     const page = pages.get(resolve(directory, `${route}/index.html`));
     if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
   }
   for (const [route, image] of [["getting-started/studio", "mock-preview"], ["studio/author-templates", "template-authoring"]]) {
-    const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img[src="/studio/${image}.png"]`);
-    if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`Studio screenshot or useful alt text is missing: ${image}`);
+    for (const mode of ["light", "dark"]) {
+      const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img.themed-screenshot-${mode}[src="/studio/${image}-${mode}.png"]`);
+      if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`Studio ${mode} screenshot or useful alt text is missing: ${image}`);
+    }
   }
   if (!studio?.querySelector('a[href="/studio/author-templates/#choose-a-starting-path"]') || !studio?.querySelector('a[href="/studio/settings-recovery/#global-settings"]')) failures.push("Studio quickstart is missing working authoring and connection paths");
   if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");

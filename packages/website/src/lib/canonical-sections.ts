@@ -8,10 +8,10 @@ import type { Plugin as VitePlugin } from "vite";
 import { repositoryUrl, canonicalSections as sections, canonicalGuideUrl, schemaRoute } from "./documentation";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-
-/** Source edits must invalidate Astro's persisted Markdown rendering cache. */
+const renderingInputs = ["packages/website/astro.config.mjs", "packages/website/src/lib/canonical-sections.ts"];
 export async function canonicalSourceDigest() {
-  return Promise.all([...new Set(Object.values(sections).map(section => section.source))].map(source => readFile(resolve(repositoryRoot, source), "utf8")));
+  const files = new Set([...Object.values(sections).map(section => section.source), ...renderingInputs]);
+  return Promise.all([...files].map(source => readFile(resolve(repositoryRoot, source), "utf8")));
 }
 
 function rewriteLink(url: string, source: string) {
@@ -24,6 +24,24 @@ function rewriteLink(url: string, source: string) {
   const target = path ? relative(repositoryRoot, resolve(repositoryRoot, dirname(source), path)).replaceAll("\\", "/") : source;
   if (target.startsWith("packages/website/public/")) return `/${target.slice("packages/website/public/".length)}${fragment ? `#${fragment}` : ""}`;
   return canonicalGuideUrl(target, fragment);
+}
+
+const themedPicture = /^<picture>\s*<source\s+media="\(prefers-color-scheme:\s*dark\)"\s+srcset="([^"]+)"\s*\/?>\s*<img\s+alt="([^"]+)"\s+src="([^"]+)"\s*\/?>\s*<\/picture>$/;
+
+/**
+ * GitHub picks a canonical screenshot from the reader's colour scheme; the portal's own theme
+ * selector can differ from it, so both variants are published and CSS shows the selected one.
+ */
+function themedScreenshots(node: RootContent): RootContent | undefined {
+  if (node.type !== "html" || !node.value.trim().startsWith("<picture")) return undefined;
+  const match = themedPicture.exec(node.value.trim());
+  if (!match) throw Error(`Canonical <picture> must contain one dark <source> and one <img alt src>: ${node.value.trim()}`);
+  const [, dark, alt, light] = match;
+  const image = (url: string, theme: "light" | "dark") => ({
+    type: "image" as const, url, alt,
+    data: { hProperties: { className: ["themed-screenshot", `themed-screenshot-${theme}`], loading: "lazy", decoding: "async" } },
+  });
+  return { type: "paragraph", children: [image(light, "light"), image(dark, "dark")] };
 }
 
 function sectionMarker(node: RootContent) {
@@ -54,6 +72,7 @@ const canonicalSections: Plugin<[], Root> = function () {
       const included: Root = { type: "root", children: sourceTree.children.slice(start + 1, end) };
       const shallowest = Math.min(...included.children.flatMap(child => child.type === "heading" ? [child.depth] : []));
       visit(included, "heading", child => { child.depth = Math.min(6, child.depth - shallowest + 2) as Heading["depth"]; });
+      included.children = included.children.map(child => themedScreenshots(child) ?? child);
       visit(included, child => {
         if (child.type === "link" || child.type === "image" || child.type === "definition") {
           child.url = rewriteLink(child.url, section.source);

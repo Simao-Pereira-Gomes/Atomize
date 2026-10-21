@@ -1,6 +1,6 @@
 ---
 import PageTitle from "@astrojs/starlight/components/PageTitle.astro";
-const category = Astro.url.pathname.startsWith("/reference/templates/") ? "Templates" : Astro.url.pathname.startsWith("/studio/") ? "Atomize Studio" : "Documentation";
+const category = Astro.url.pathname.startsWith("/reference/templates/") ? "Templates" : Astro.url.pathname.startsWith("/studio/") ? "Atomize Studio" : Astro.url.pathname.startsWith("/vscode/") ? "VS Code" : "Documentation";
 ---
 <p class="documentation-eyebrow">{category}</p>
 <PageTitle />

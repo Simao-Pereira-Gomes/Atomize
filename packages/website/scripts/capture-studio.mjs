@@ -1,4 +1,3 @@
-// Run with Bun. Captures the real Studio frontend with deterministic, offline IPC data.
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { TemplateLibrary } from "../../atomize-core/src/templates/template-library.ts";
@@ -13,7 +12,8 @@ const data = {
   preview: runPreview(template, JSON.stringify(story)),
 };
 if (data.preview.tasks.length !== 6 || data.preview.estimationSummary.totalTaskEstimation !== 8) throw Error("Refresh the walkthrough: the built-in Template's expected result changed.");
-const targets = await (await fetch("http://127.0.0.1:9230/json")).json();
+const debuggerPort = process.env.ATOMIZE_STUDIO_DEBUG_PORT ?? "9230";
+const targets = await (await fetch(`http://127.0.0.1:${debuggerPort}/json`)).json();
 const socket = new WebSocket(targets.find(target => target.type === "page").webSocketDebuggerUrl);
 await new Promise(resolve => socket.addEventListener("open", resolve, { once: true }));
 let nextId = 0;
@@ -53,7 +53,8 @@ try {
   await cdp("Page.enable");
   await cdp("Runtime.enable");
   await cdp("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
-  await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }, { name: "prefers-reduced-motion", value: "reduce" }] });
+  // Studio formats numbers and dates in the runtime locale; pin it so captures match the British-English docs on any machine.
+  await cdp("Emulation.setLocaleOverride", { locale: "en-GB" });
   const preload = await cdp("Page.addScriptToEvaluateOnNewDocument", { source: `
     localStorage.clear();
     const data = ${JSON.stringify(data)};
@@ -71,7 +72,18 @@ try {
     }};
   ` });
   preloadId = preload.identifier;
+  // Studio takes its initial theme from the colour scheme; the portal shows the matching capture.
+  for (const mode of ["light", "dark"]) await captureFlow(mode);
+  console.log("Captured Studio authoring and Mock Preview in light and dark from current UI with core-generated offline data.");
+} finally {
+  if (preloadId) await cdp("Page.removeScriptToEvaluateOnNewDocument", { identifier: preloadId });
+  socket.close();
+}
+
+async function captureFlow(mode) {
+  await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: mode }, { name: "prefers-reduced-motion", value: "reduce" }] });
   await cdp("Page.navigate", { url: "http://127.0.0.1:1423/" });
+  await waitFor(`document.documentElement.dataset.theme === ${JSON.stringify(mode)}`);
   await waitFor(`!!document.querySelector('button[aria-label="Catalog"]')`);
   await evaluate(`document.querySelector('button[aria-label="Catalog"]').click()`);
   await waitFor(`[...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Clone')`);
@@ -79,7 +91,7 @@ try {
   await waitFor(`!!document.querySelector('button[aria-label^="Tasks:"]')`);
   await evaluate(`document.querySelector('button[aria-label^="Tasks:"]').click()`);
   await waitFor(`document.body.innerText.includes('Design API Endpoints')`);
-  await capture("template-authoring");
+  await capture(`template-authoring-${mode}`);
   await evaluate(`document.querySelector('button[aria-label="Generate"]').click()`);
   await waitFor(`[...document.querySelectorAll('button')].some(button => button.textContent.includes('Backend API Development'))`);
   await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.includes('Backend API Development')).click()`);
@@ -95,9 +107,5 @@ try {
     [...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Run Mock Preview').click();
   })()`);
   await waitFor(`document.body.innerText.includes('Design API Endpoints: Mock Story') && document.body.innerText.includes('6 tasks')`);
-  await capture("mock-preview");
-  console.log("Captured Studio authoring and Mock Preview from current UI with core-generated offline data.");
-} finally {
-  if (preloadId) await cdp("Page.removeScriptToEvaluateOnNewDocument", { identifier: preloadId });
-  socket.close();
+  await capture(`mock-preview-${mode}`);
 }
