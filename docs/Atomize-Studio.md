@@ -66,7 +66,7 @@ Mock Preview uses the bundled companion process to evaluate the Template offline
 
 ### Continue from your first preview
 
-To create or adapt a Template, use the [Starting Paths](#starting-paths). To work with real Stories, add a Connection Profile in [Global Settings](#global-settings) (see [Studio profile setup](./Auth-Guide.md#atomize-studio) and [required permissions](./Auth-Guide.md#required-permissions)), choose its Work Project, and follow the [Generate Area](#generate-area) guide. Studio shows the connected dry run inside Live Execution Confirmation before Task creation; it has no separate Live Preview step.
+To create or adapt a Template, use the [Starting Paths](#starting-paths). To work with real Stories, add a Connection Profile in [Global Settings](#global-settings) (see [Studio profile setup](./Auth-Guide.md#atomize-studio) and [required permissions](./Auth-Guide.md#required-permissions)), choose its Work Project, and follow the [Generate Area](#generate-area) guide. Studio shows a Live Preview of the connected dry run, then Live Execution Confirmation, before creating any Tasks.
 
 <!-- /atomize:section -->
 
@@ -246,6 +246,8 @@ Studio checks the chosen documents as you pick them. All of them together are li
 
 ## Grounding
 
+<!-- atomize:section studio-grounding -->
+
 Grounded Field Options are platform choices (work item types, type-dependent states, teams, area paths, iteration paths, saved queries, and Azure DevOps field schemas with their allowed values) fetched on demand through a selected Connection Profile and offered while authoring filters, custom fields, and conditions. Studio presents the same Azure DevOps-backed choices the CLI's interactive `atomize template create` flow does.
 
 Grounding never blocks manual, offline authoring: you can always type a value by hand, and a manually entered value stays after grounding, a profile change, or a refresh.
@@ -254,7 +256,9 @@ The transient profile selection used to fetch Grounded Field Options and ground 
 
 ### Work Project Setting
 
-The header-level **Work Project Setting** chooses the Connection Profile used for the current Grounding Session, an AI draft, Online Validation, and Generate area runs, across the whole app. It's not part of any Template. Its explicit ungrounded state produces an AI draft without Azure DevOps context, and an explicit profile choice is required before Online Validation or a Generate run can proceed.
+The **Work Project Setting**, the **Work project** selector in Global Settings, chooses the Connection Profile used for the current Grounding Session, an AI draft, Online Validation, and Generate area runs, across the whole app. It's not part of any Template. Its explicit ungrounded state produces an AI draft without Azure DevOps context, and an explicit profile choice is required before Online Validation or a Generate run can proceed.
+
+<!-- /atomize:section -->
 
 ## Catalog Area
 
@@ -266,12 +270,42 @@ The Catalog Area is the single place to browse the Catalog: Templates and Mixins
 
 ## Generate Area
 
-The Generate Area runs a Template against real or mock data.
+<!-- atomize:section studio-generate -->
+
+The Generate Area runs a Template against a Mock Story or real Stories. Its toggle switches between **🧪 Mock** and **🚀 Live**.
 
 - **Preview Source**: the Template a Generate run uses: a Catalog Template (browsed the same way as Catalog Clone; Mixins are excluded since they can't stand alone) or a local Atomize YAML File. It's independent of whatever you're currently authoring in the Templates area: picking a Preview Source never loads it into the authoring surface, and editing your in-progress Template has no effect on it.
-- **Generate Scope**: which Stories a run processes. You either pick specific, real, matching Stories fetched through the current Work Project Setting, or leave it unscoped to run against the Preview Source Template's own filter as a full batch. This is chosen fresh for each run.
+- **Generate Scope**: which Stories a run processes. You either pick specific Stories that match the Preview Source Template's filter, fetched through the current Work Project Setting, or run against the Template's whole filter as a full batch. This is chosen fresh for each run.
 - **Mock Preview**: runs offline against a Mock Story you supply, with no platform connection and no Task creation.
-- **Live Execution Confirmation**: shown before every execution that would create Tasks. It names the Template, Generate Scope, and platform, and renders the dry run's resolved Task list inline: Studio has no separate Live Preview step; the dry run shown here is that preview. It defaults to not proceeding, and there is no way to bypass it for the rest of the session: this mirrors the CLI's per-invocation `LIVE MODE` confirmation exactly.
+- **Live Preview**: a dry run against the real Stories in the Generate Scope. It reads Azure DevOps and creates nothing.
+- **Live Execution Confirmation**: shown before every execution that would create Tasks. It defaults to not proceeding, and there is no way to bypass it for the rest of the session: this mirrors the CLI's per-invocation `LIVE MODE` confirmation.
+
+### Generate Tasks from real Stories
+
+1. Choose a Connection Profile as your Work project in [Global Settings](#global-settings). See [Work Project Setting](#work-project-setting).
+2. In the Generate Area, choose a Preview Source, then switch the toggle to **🚀 Live**. Live runs move through three steps: **Scope**, **Preview**, and **Execute**.
+3. **Scope**: choose **Browse Stories** to pick specific Stories, or **Use Template filter** to run against every Story the Template's filter matches. Browse Stories lists the Stories that match the Template's filter; search by title or ID, tick the ones you want, and choose **Continue →**.
+4. **Preview**: Studio runs the Live Preview and marks it **DRY RUN: nothing has been created yet**. It lists each Story in scope, with any Story that can't be generated and why, and the total number of Stories and Tasks. Choose **← Back** to change the scope, or **Continue to Execute →**.
+5. **Execute**: Live Execution Confirmation shows the scope, the platform and Work project, and the number of Tasks to create. Tick the acknowledgement that this creates real Work Items in Azure DevOps, then choose **Execute: create Work Items**. **Cancel** returns to the Preview step without creating anything.
+
+Tasks are created only after step 5.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/studio/live-execution-confirmation-dark.png">
+  <img alt="Atomize Studio's Execute step showing Live Execution Confirmation with the scope, Azure DevOps platform, and number of Tasks to create, an unticked acknowledgement, and the disabled Execute: create Work Items button." src="../packages/website/public/studio/live-execution-confirmation-light.png">
+</picture>
+
+### Follow progress or cancel
+
+While Tasks are created, Studio shows which Stories are in progress and how many are done, and lists each finished Story as it completes. **Cancel run (best-effort)** stops the run at the next batch boundary. Stories already in flight still complete, and anything already created in Azure DevOps is not rolled back.
+
+### Review results and recover
+
+The result lists each Story with the Tasks created for it; Story and Task numbers link to the Work Items in Azure DevOps. A failed Story shows its error.
+
+Studio stops at the first failing Story: Stories in the same batch still finish, but later Stories are not processed, and the result reads **Partially completed**. A run that fails or is cancelled shows what was created before it stopped. **Try again** returns to the Preview step. Check the result first: Tasks that were already created stay in Azure DevOps.
+
+<!-- /atomize:section -->
 
 ## Global Settings
 

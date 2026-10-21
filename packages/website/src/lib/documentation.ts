@@ -20,6 +20,8 @@ export const canonicalSections = {
   "studio-open-save": { source: "docs/Atomize-Studio.md", pageAnchor: "open", route: "/studio/open-save/", anchors: ["open"] },
   "studio-settings": { source: "docs/Atomize-Studio.md", pageAnchor: "global-settings", route: "/studio/settings-recovery/#global-settings", anchors: ["global-settings"] },
   "studio-recovery": { source: "docs/Atomize-Studio.md", pageAnchor: "companion-process-recovery", route: "/studio/settings-recovery/#companion-process-recovery", anchors: ["companion-process-recovery"] },
+  "studio-generate": { source: "docs/Atomize-Studio.md", pageAnchor: "generate-area", route: "/studio/generate/", anchors: ["generate-area", "generate-tasks-from-real-stories", "follow-progress-or-cancel", "review-results-and-recover"] },
+  "studio-grounding": { source: "docs/Atomize-Studio.md", pageAnchor: "grounding", route: "/studio/project-data/", anchors: ["grounding", "work-project-setting"] },
   "platform-support": { source: "docs/Platform-Guide.md", pageAnchor: "overview", route: "/connections/", anchors: ["overview"] },
   "auth-permissions": { source: "docs/Auth-Guide.md", pageAnchor: "required-permissions", route: "/connections/#required-permissions", anchors: ["required-permissions"] },
   "auth-setup": { source: "docs/Auth-Guide.md", pageAnchor: "quick-setup", route: "/connections/profiles/", anchors: ["quick-setup", "local-development", "atomize-cli", "verify-your-profiles", "atomize-studio", "vs-code"] },

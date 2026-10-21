@@ -43,6 +43,18 @@ describe("canonical guide rendering", () => {
     expect(code).not.toMatch(/Jira|Planned|Coming soon/);
   });
 
+  test("Studio Generate describes the Live Preview before confirmation and when Tasks are created", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include studio-generate -->");
+    const { document } = parseHTML(code);
+    expect(code).toContain("DRY RUN: nothing has been created yet");
+    expect(code).toContain("Tasks are created only after step 5");
+    expect(code).toContain("is not rolled back");
+    expect(code).not.toContain("no separate Live Preview");
+    expect(document.querySelector('img.themed-screenshot-dark[src="/studio/live-execution-confirmation-dark.png"]')?.getAttribute("alt")).toContain("Live Execution Confirmation");
+    expect(document.querySelector('a[href="/studio/project-data/#work-project-setting"]')).not.toBeNull();
+  });
+
   test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "when-the-keychain-is-unavailable")).toBe("/connections/profiles/#when-the-keychain-is-unavailable");
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "credential-storage")).toBe("/connections/profiles/#credential-storage");

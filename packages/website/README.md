@@ -6,7 +6,7 @@ layout, navigation, search, and theme controls as the guides. Both document `mai
 not a particular CLI, extension, or Studio release. The root helps readers choose
 a tool, with quickstarts at `/getting-started/cli/`, `/getting-started/studio/`,
 and `/getting-started/vscode/`. Focused Studio and VS Code authoring, inspection,
-settings, and recovery guides are under `/studio/` and `/vscode/`.
+settings, recovery, and Studio generation guides are under `/studio/` and `/vscode/`.
 Connection requirements, Connection Profile setup, CLI automation, and connection
 recovery are under `/connections/`.
 `/releases/` links to each tool's GitHub Releases without copying release notes.
@@ -144,7 +144,11 @@ Development Template and an offline Mock Story with estimate 8. There are no
 Connection Profiles, credentials, or customer data in the authoring and preview
 captures. The Connection Profile capture shows the real Manage work projects
 dialog with two fictional `contoso` connections returned by the substituted IPC
-boundary; no token is involved.
+boundary; no token is involved. The Live Execution Confirmation capture chooses one of
+those connections as the Work project, browses three fictional Stories, picks
+two, and stops at confirmation. The substituted boundary returns a dry-run
+report built from the built-in Template's preview and rejects anything other
+than that dry run, so the capture never simulates Task creation.
 
 Start the current Studio frontend from the repository root:
 
@@ -179,7 +183,7 @@ the documented Mock Story inputs and result, and the fictional connection detail
 the native installer or companion-process transport. Use a dedicated browser
 profile because the capture clears its local storage. Close it after capture.
 
-Review all six PNGs, update the adjacent canonical instructions and alt text when
+Review all eight PNGs, update the adjacent canonical instructions and alt text when
 labels or behaviour change, and run the website checks. If the built-in Template
 changes its six-Task example, update the quickstart and capture assertions together.
 Shared Studio Markdown changes and these media files trigger CI and deployment.

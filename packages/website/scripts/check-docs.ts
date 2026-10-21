@@ -85,7 +85,17 @@ async function checkDocs() {
     const page = pages.get(resolve(directory, `${route}/index.html`));
     if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
   }
-  for (const [route, image] of [["getting-started/studio", "mock-preview"], ["studio/author-templates", "template-authoring"]]) {
+  for (const [route, title] of [["studio/generate", "Generate Tasks in Studio"], ["studio/project-data", "Use project data in Studio"]]) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
+  }
+  const studioGenerate = pages.get(resolve(directory, "studio/generate/index.html"));
+  for (const anchor of ["generate-tasks-from-real-stories", "follow-progress-or-cancel", "review-results-and-recover"]) {
+    if (!studioGenerate?.getElementById(anchor)) failures.push(`Studio Generate guide is missing: ${anchor}`);
+  }
+  if (!studioGenerate?.querySelector('a[href="/connections/profiles/#atomize-studio"]') || !studio?.querySelector('a[href="/studio/generate/"]')) failures.push("Studio Generate guide must connect to profile setup and onboarding");
+  if (!pages.get(resolve(directory, "studio/project-data/index.html"))?.getElementById("work-project-setting")) failures.push("Studio Work Project Setting is missing");
+  for (const [route, image] of [["getting-started/studio", "mock-preview"], ["studio/author-templates", "template-authoring"], ["studio/generate", "live-execution-confirmation"]]) {
     for (const mode of ["light", "dark"]) {
       const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img.themed-screenshot-${mode}[src="/studio/${image}-${mode}.png"]`);
       if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`Studio ${mode} screenshot or useful alt text is missing: ${image}`);

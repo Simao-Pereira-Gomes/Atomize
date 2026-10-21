@@ -14,4 +14,4 @@ See a repeatable task breakdown before connecting a project. Start in the Genera
 
 ## Next steps
 
-Follow [Author Templates in Studio](/studio/author-templates/) to adapt a task breakdown. Read [Open, save, and export](/studio/open-save/) before editing an existing composed file. [Settings and recovery](/studio/settings-recovery/) covers appearance, connections, and companion-process failures.
+Follow [Author Templates in Studio](/studio/author-templates/) to adapt a task breakdown. Read [Open, save, and export](/studio/open-save/) before editing an existing composed file. [Settings and recovery](/studio/settings-recovery/) covers appearance, connections, and companion-process failures. When you are ready for real Stories, [set up a Connection Profile](/connections/profiles/#atomize-studio) and [generate Tasks](/studio/generate/).

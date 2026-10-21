@@ -32,6 +32,8 @@ export default defineConfig({
       { label: "Atomize Studio", items: [
         { label: "Author Templates", slug: "studio/author-templates" },
         { label: "Open, save, and export", slug: "studio/open-save" },
+        { label: "Generate Tasks", slug: "studio/generate" },
+        { label: "Use project data", slug: "studio/project-data" },
         { label: "Settings and recovery", slug: "studio/settings-recovery" },
       ] },
       { label: "VS Code", items: [
