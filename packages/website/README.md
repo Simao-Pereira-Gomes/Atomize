@@ -18,8 +18,13 @@ beside the brand; labels appear on hover and keyboard focus. The choice persists
 across pages. Small screens retain the mobile menu.
 The sidebar is the only page navigation; the header holds the brand, search,
 theme switch, and navigation toggle.
-Schema Reference sits inside the Templates section. Its field navigation and
-fields use separate scroll areas, so reading fields does not move navigation.
+Schema Reference sits inside the Templates section. On that page the shared
+viewer renders its Template/Mixin switch, search, and field index into the site
+sidebar in place of the page list, with a link back to all documentation, so
+field details use the full content width and the page scrolls normally. On narrow
+screens the field index is in the mobile menu, which closes when a field is
+chosen. Collapsed, the sidebar on this page keeps only a back button to all
+documentation instead of the site's icon rail. Studio and VS Code keep the viewer's own two-column layout.
 The old `/schema` URL forwards to the new route with query and field fragments
 preserved. Cloudflare uses `public/_redirects`; local static previews use the
 compatibility page. Keep both when changing the published route.

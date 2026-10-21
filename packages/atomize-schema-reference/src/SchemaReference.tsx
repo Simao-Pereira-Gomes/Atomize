@@ -8,6 +8,7 @@ import {
 	Show,
 	untrack,
 } from "solid-js";
+import { Portal } from "solid-js/web";
 import { stringify } from "yaml";
 import {
 	buildPermalink,
@@ -27,6 +28,9 @@ export interface SchemaReferenceProps {
 	permalink?: string;
 	syncUrl?: boolean;
 	showPermalinks?: boolean;
+	/** Render the File kind switch, search and field index into this node instead of beside the fields.
+	 * Called during render; return undefined on the server. */
+	navigationMount?: () => Node | undefined;
 }
 
 type GuideLinks = Pick<SchemaReferenceProps, "guideUrl" | "openExternalLink">;
@@ -475,9 +479,7 @@ export function SchemaReference(props: SchemaReferenceProps) {
 		onCleanup(() => window.removeEventListener("hashchange", openFragment));
 	});
 
-	return (
-		<section class="schema-reference" aria-label="Schema Reference">
-			<div class="schema-reference-layout">
+	const navigation = () => (
 				<aside class="schema-reference-sidebar">
 					<p class="schema-reference-eyebrow">Authoring reference</p>
 					<nav class="schema-reference-tabs" aria-label="File kind">
@@ -550,6 +552,22 @@ export function SchemaReference(props: SchemaReferenceProps) {
 						<p>Generated from the schema Atomize validates with.</p>
 					</footer>
 				</aside>
+	);
+
+	return (
+		<section class="schema-reference" aria-label="Schema Reference">
+			<div
+				class="schema-reference-layout"
+				classList={{ "schema-reference-layout-detached": Boolean(props.navigationMount) }}
+			>
+				<Show when={props.navigationMount} fallback={navigation()}>
+					{(mount) => (
+						// The detached navigation keeps the viewer's root class so its theme and base styles apply.
+						<Portal mount={mount()()} ref={(element) => { element.className = "schema-reference schema-reference-detached-navigation"; }}>
+							{navigation()}
+						</Portal>
+					)}
+				</Show>
 				<div class="schema-reference-content">
 					<div class="schema-reference-breadcrumb">
 						Reference <span aria-hidden="true">/</span> Atomize YAML{" "}

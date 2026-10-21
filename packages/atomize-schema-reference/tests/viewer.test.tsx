@@ -45,3 +45,18 @@ it("renders the viewer using the real generated schema", () => {
 	expect(embedded).not.toContain("Copy link to");
 	expect(embedded).toContain("tasks[].condition");
 });
+
+it("can render its navigation elsewhere while the fields keep their layout", () => {
+	const trees = buildSchemaTrees(schema);
+	const inline = renderToString(() => <SchemaReference trees={trees} versionLabel="inline" />);
+	expect(inline).toContain("schema-reference-sidebar");
+	expect(inline).not.toContain("schema-reference-layout-detached");
+	// Hosts resolve the mount only in the browser; on the server the navigation renders nowhere.
+	const detached = renderToString(() => (
+		<SchemaReference trees={trees} versionLabel="detached" navigationMount={() => undefined} />
+	));
+	expect(detached).toContain("schema-reference-layout-detached");
+	expect(detached).not.toContain("schema-reference-sidebar");
+	expect(detached).toContain("Runtime rules");
+	expect(detached).toContain('data-permalink="template.tasks"');
+});

@@ -22,6 +22,9 @@
 .schema-reference-guide a { color: var(--sr-accent); text-underline-offset: 3px; }
 .schema-reference article:focus { outline: none; }
 .schema-reference-layout { display: grid; grid-template-columns: 265px minmax(0, 1fr); max-width: 1440px; margin: auto; }
+.schema-reference-layout-detached { grid-template-columns: minmax(0, 1fr); }
+.schema-reference-detached-navigation { container-type: normal; background: transparent; }
+.schema-reference-detached-navigation .schema-reference-sidebar { position: static; max-height: none; padding: 0; border: 0; overflow: visible; }
 .schema-reference-sidebar { min-width: 0; padding: 34px 22px; border-right: 1px solid var(--sr-border); position: sticky; top: 24px; align-self: start; max-height: calc(var(--sr-viewport-height, 100dvh) - 48px); overflow-y: auto; scrollbar-width: thin; }
 .schema-reference-eyebrow { color: var(--sr-muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.6px; }
 .schema-reference-tabs { display: flex; gap: 3px; background: var(--sr-surface); border: 1px solid var(--sr-border); border-radius: 8px; padding: 4px; margin-top: 18px; }

@@ -22,58 +22,46 @@ const trees = buildSchemaTrees(schema);
 </StarlightPage>
 
 <style is:global>
-  html:has(.atomize-website-schema) { --sl-content-width: 90rem; height: 100%; overflow: clip; }
-  html:has(.atomize-website-schema) body { position: fixed; inset: 0; overflow: clip; }
-  html:has(.atomize-website-schema) .main-frame { height: 100dvh; overflow: clip; }
-  html:has(.atomize-website-schema) .main-frame > div,
-  html:has(.atomize-website-schema) .main-pane { height: 100%; }
-  html:has(.atomize-website-schema) main[data-pagefind-body] { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  html:has(.atomize-website-schema) main > .content-panel { flex: none; }
-  html:has(.atomize-website-schema) main > .content-panel:last-child { flex: 1; min-height: 0; padding-block: 1rem; }
-  html:has(.atomize-website-schema) main > .content-panel:last-child > .sl-container { height: 100%; }
-  html:has(.atomize-website-schema) .sl-markdown-content { display: flex; flex-direction: column; gap: 1rem; height: 100%; min-height: 0; }
-  html:has(.atomize-website-schema) .sl-markdown-content > p { flex: none; font-size: 1rem; line-height: 1.6; }
+  html:has(.atomize-website-schema) { --sl-content-width: 64rem; }
+  html:has(.atomize-website-schema) main > .content-panel:first-child { padding-bottom: 1rem; }
+  html:has(.atomize-website-schema) .sl-markdown-content > p { margin: 0; color: var(--sl-color-gray-2); font-size: 1rem; line-height: 1.6; }
   html:has(.atomize-website-schema) main > .content-panel > .sl-container > footer { display: none; }
-  .atomize-website-schema { flex: 1; min-height: 0; margin-top: 0; }
-  .atomize-website-schema .schema-reference { height: 100%; font-family: var(--sl-font, var(--sl-font-system)); font-size: 1rem; }
+  .atomize-website-schema { margin-top: 1.5rem; }
+  .atomize-website-schema .schema-reference { font-family: var(--sl-font, var(--sl-font-system)); font-size: 1rem; background: transparent; }
   .atomize-website-schema .schema-reference-breadcrumb, .atomize-website-schema .schema-reference-intro { display: none; }
-  .atomize-website-schema .schema-reference-layout { display: grid; grid-template-columns: clamp(10rem, 18vw, 220px) minmax(0, 1fr); height: 100%; max-width: none; }
-  .atomize-website-schema .schema-reference-sidebar { position: static; height: 100%; max-height: none; padding: 0 1rem 1.5rem 0; overflow-y: auto; overscroll-behavior-y: contain; }
-  .atomize-website-schema .schema-reference-tabs { margin-top: 1rem; }
-  .atomize-website-schema .schema-reference-content { min-height: 0; height: 100%; padding: 0 .5rem 2rem 2rem; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+  .atomize-website-schema .schema-reference-layout { max-width: none; }
+  .atomize-website-schema .schema-reference-content { padding: 0; }
   .atomize-website-schema .schema-reference-section-heading { margin-top: 0; }
   .atomize-website-schema .schema-reference-fields > article, .atomize-website-schema .schema-reference-nested details { scroll-margin-top: 1rem; }
   .atomize-website-schema .schema-reference-description { font-size: .9375rem; }
-  .atomize-website-schema .schema-reference-navigation code, .atomize-website-schema .schema-reference-search input { font-size: .875rem; }
-  @media (max-width: 49.99rem) {
-    html:has(.atomize-website-schema) main > .content-panel { padding-block: .75rem; }
-    html:has(.atomize-website-schema) h1 { font-size: 1.75rem; }
-    html:has(.atomize-website-schema) .documentation-eyebrow { display: none; }
-    html:has(.atomize-website-schema) .development-notice { margin-top: .5rem; }
-    html:has(.atomize-website-schema) .sl-markdown-content > p { font-size: .875rem; }
-    .atomize-website-schema .schema-reference-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-    .atomize-website-schema .schema-reference-sidebar { height: auto; max-height: 30dvh; padding: 0 0 .5rem; }
-    .atomize-website-schema .schema-reference-tabs { margin-top: 0; }
-    .atomize-website-schema .schema-reference-search, .atomize-website-schema .schema-reference-index { margin-top: .5rem; }
-    .atomize-website-schema .schema-reference-index > summary { margin-bottom: .25rem; }
-    .atomize-website-schema .schema-reference-index > nav { max-height: 8rem; }
-    .atomize-website-schema .schema-reference-content { padding: 1rem .25rem 0 0; }
+
+  /* The sidebar holds the field index here; collapsed, it keeps only the way back to all documentation. */
+  @media (min-width: 50rem) {
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > .documentation-rail { display: none; }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > .schema-reference-back { display: block; }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back a { justify-content: center; width: 2.75rem; height: 2.75rem; margin: 0; align-items: center; border-radius: .5rem; font-size: 1.125rem; }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back a:hover { background: var(--sl-color-gray-6); }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back-label { display: none; position: fixed; left: 4.5rem; z-index: var(--sl-z-index-menu); padding: .4rem .65rem; background: var(--sl-color-bg-nav); color: var(--sl-color-text); border: 1px solid var(--sl-color-hairline-light); border-radius: 5px; box-shadow: var(--sl-shadow-sm); font-size: .875rem; white-space: nowrap; pointer-events: none; }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .schema-reference-back a:is(:hover, :focus-visible) .schema-reference-back-label { display: block; }
   }
+
+  /* The field navigation replaces the site's page list once the viewer has moved it into the sidebar. */
+  html:has(.schema-reference-detached-navigation) .sidebar-content > sl-sidebar-state-persist { display: none; }
+  .sidebar-content > .schema-reference-back { order: -2; }
+  .sidebar-content > .schema-reference-detached-navigation { order: -1; font-family: var(--sl-font, var(--sl-font-system)); font-size: .9375rem; }
+  .schema-reference-back a { display: inline-flex; gap: .4rem; margin-bottom: 1.25rem; color: var(--sl-color-gray-2); font-size: .875rem; text-decoration: none; }
+  .schema-reference-back a:hover { color: var(--sl-color-text-accent); }
+  .schema-reference-detached-navigation .schema-reference-sidebar > .schema-reference-eyebrow { display: none; }
+  .schema-reference-detached-navigation .schema-reference-tabs { margin-top: 0; }
+  .schema-reference-detached-navigation .schema-reference-navigation code, .schema-reference-detached-navigation .schema-reference-search input { font-size: .875rem; }
 </style>
 
 <script>
-  const navigation = document.querySelector<HTMLElement>(".atomize-website-schema .schema-reference-sidebar");
-  const content = document.querySelector<HTMLElement>(".atomize-website-schema .schema-reference-content");
-  const index = navigation?.querySelector<HTMLDetailsElement>(".schema-reference-index");
-  if (navigation && content && index) {
-    navigation.tabIndex = 0;
-    navigation.setAttribute("aria-label", "Schema field navigation");
-    content.tabIndex = 0;
-    content.setAttribute("role", "region");
-    content.setAttribute("aria-label", "Schema fields");
-    const compact = matchMedia("(max-width: 49.99rem)");
-    const updateIndex = () => { index.open = !compact.matches; };
-    updateIndex();
-    compact.addEventListener("change", updateIndex);
-  }
+  // On narrow screens the field navigation lives in the mobile menu: close it once a field is chosen.
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest(".schema-reference-detached-navigation .schema-reference-navigation button")) return;
+    const menu = document.getElementById("starlight__sidebar");
+    if (menu?.matches(":popover-open")) menu.hidePopover();
+  });
 </script>
