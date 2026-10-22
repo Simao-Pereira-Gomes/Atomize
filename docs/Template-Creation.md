@@ -120,9 +120,11 @@ For the full breakdown of Studio's authoring surface, Grounded Field Options, an
 
 ## AI-Assisted Drafts
 
-Use AI-assisted creation when you can describe the desired workflow but do not want to write the initial YAML. This is available both from the CLI and as the **AI draft** Starting Path in [Atomize Studio](./Atomize-Studio.md).
+<!-- atomize:section creation-ai -->
 
-Create a draft. Atomize starts GitHub Copilot sign-in when needed and uses your active Copilot subscription: see [Auth Guide](./Auth-Guide.md) for how this Copilot sign-in works and how it differs from a saved connection profile:
+Use AI-assisted creation when you can describe the desired workflow but do not want to write the initial YAML. This section covers the CLI. Atomize Studio offers the same as its [AI draft](./Atomize-Studio.md#ai-drafting) Starting Path, and the VS Code extension as [Atomize: Draft Template with AI](./VS-Code-Extension.md#atomize-draft-template-with-ai).
+
+Create a draft. Atomize starts GitHub Copilot sign-in when needed and uses your active Copilot subscription: see [Auth Guide](./Auth-Guide.md#ai-drafting-copilot-session) for how this Copilot sign-in works and how it differs from a saved connection profile:
 
 ```bash
 atomize template create --ai
@@ -136,7 +138,7 @@ atomize template create --ai --ground --profile work-ado
 
 With `--ground`, Atomize reads the project's work item types and states, field reference names and allowed values, saved queries, and area and iteration paths through the Connection Profile, and tells Copilot to use only those names instead of inventing its own. The profile's token is used only to read that metadata and is never sent to Copilot. Use `--ground` when your project has custom fields, non-standard work item types, or saved queries you want the Template to use.
 
-If Atomize can't load the metadata, for example because the token has expired, it asks whether to retry, continue without project metadata, or cancel. It never drops the grounding you asked for without telling you. When you choose AI drafting from the `atomize template create` menu instead of passing `--ai`, Atomize asks whether to ground the draft.
+If Atomize can't load the metadata, for example because the token has expired, it asks whether to retry, continue without project metadata, or cancel. It never drops the grounding you asked for without telling you. When you choose AI drafting from the `atomize template create` menu instead of passing `--ai`, Atomize asks whether to ground the draft. A non-interactive run stops with an error instead of drafting without the grounding you asked for.
 
 ### Reference Documents
 
@@ -169,7 +171,23 @@ Wiki pages are saved the same way, as `wiki:<wiki>/<page path>` entries. Every A
 
 All Reference Documents together are limited to about 24,000 characters, split evenly between them. Space a short document doesn't use goes to the others. If a document has to be shortened, Atomize tells you before anything is sent: an interactive run lets you continue, leave documents out, or cancel. A non-interactive run prints a warning, and `template improve --output` records it.
 
-When you ask for several identical Tasks, such as "one review task per developer, 4 developers", the draft uses a single [repeated task](./Template-Reference.md#repeated-tasks) instead of four copies. Atomize Studio's AI draft path grounds the same way, through whichever connection profile is selected in its header.
+### Review The Draft
+
+After the grounding and Reference Documents, Atomize asks you to describe the Template, then writes the draft with Copilot. It checks the draft against the Template schema and asks Copilot to fix any problems, up to three attempts.
+
+When you ask for several identical Tasks, such as "one review task per developer, 4 developers", the draft uses a single [repeated task](./Template-Reference.md#repeated-tasks) instead of four copies.
+
+Atomize shows a preview of the draft and asks what to do next:
+
+- **Save template** saves it to the Catalog.
+- **View full YAML** prints the draft, then asks again.
+- **Edit template (opens wizard)** opens the draft in the interactive wizard.
+- **Regenerate** starts the draft again from the beginning.
+- **Cancel** discards the draft.
+
+If the draft still has problems after three attempts, Atomize lists them with Copilot's raw output. Choose **Edit manually (opens wizard)** to continue in the wizard from what Copilot produced, or **Cancel**.
+
+To improve an existing Template rather than start a new one, use [`atomize template improve`](./Cli-Reference.md#template-improve).
 
 Always review AI-generated templates before use:
 
@@ -177,6 +195,8 @@ Always review AI-generated templates before use:
 atomize validate template:<name> --strict
 atomize generate template:<name> --platform mock
 ```
+
+<!-- /atomize:section -->
 
 ## Create Mixins
 

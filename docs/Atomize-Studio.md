@@ -195,6 +195,8 @@ The diff compares against the same raw, unresolved content Catalog Clone seeds f
 
 <!-- /atomize:section -->
 
+<!-- atomize:section studio-ai -->
+
 ### AI Drafting
 
 The AI draft Starting Path uses a **Copilot Session**: an ephemeral, tool-free GitHub Copilot SDK session tied to your locally signed-in Copilot account. Studio never stores a Copilot token, and each draft uses automatic model selection and is discarded once it finishes. This is a different mechanism from a Connection Profile; see the [Auth Guide](./Auth-Guide.md) for the full picture.
@@ -211,6 +213,11 @@ The AI draft form has four steps, shown as tabs you can move between freely. Eac
 Copilot keeps the task percentages your brief or Reference Documents give, even when they add up to more than 100% (for example when each role estimates its own share). It only makes them add up to 100% when it chooses the split itself, or when you ask it to. A Template above 100% is offered for normalisation when you generate, as usual.
 
 Copilot checks its draft against the Template schema and fixes problems before you see it, up to three attempts. A draft that still has problems after that enters the authoring surface with its field-level errors shown, so you can fix them yourself. Output that isn't Template-shaped at all is rejected before handoff. You can cancel an in-flight draft; Studio waits for the cancellation to be acknowledged before restoring your original prose, so a dismissed draft doesn't keep consuming your Copilot usage in the background.
+
+Your description is kept if a draft can't start:
+
+- If the Work Project's details can't be loaded, choose **Retry connection** or **Draft without project context**. Studio never drafts without the project you chose unless you say so.
+- If GitHub Copilot isn't signed in, run `gh auth login` in a terminal on this computer, then choose **Retry after sign-in**.
 
 ### Improve with AI
 
@@ -243,6 +250,8 @@ AI drafts and Improve with AI can send your team's written process to Copilot as
 - **Also save for this project** writes an added document to `.atomize/ai.yaml`, so it's offered on every AI request.
 
 Studio checks the chosen documents as you pick them. All of them together are limited to about 24,000 characters, split evenly. If any have to be shortened, they're marked as shortened in the summary, and **Create draft** or **Improve** first asks you to choose: **Continue shortened**, **Leave some out** (back to the documents, to untick some), or **Cancel**. Anything that can't be used is listed, never dropped silently: a file outside the project folder, a missing file, or a wiki page this Work Project can't reach.
+
+<!-- /atomize:section -->
 
 ## Grounding
 

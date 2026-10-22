@@ -150,6 +150,19 @@ async function checkDocs() {
     for (const anchor of anchors) if (!reference(route)?.getElementById(anchor)) failures.push(`CLI reference is missing ${anchor} on ${route}`);
   }
   if (!quickstart?.querySelector('a[href="/cli/generate/"]')) failures.push("CLI quickstart must lead to connected generation");
+  for (const [route, title, anchors] of [
+    ["studio/ai", "Draft and improve with AI in Studio", ["before-you-start", "ai-drafting", "improve-with-ai", "reference-documents"]],
+    ["vscode/ai", "Draft and improve with AI in VS Code", ["before-you-start", "atomize-draft-template-with-ai", "atomize-improve-template-with-ai", "reference-documents"]],
+    ["cli/ai", "Draft and improve with AI from the CLI", ["before-you-start", "draft-a-template", "reference-documents", "review-the-draft", "template-improve"]],
+  ] as const) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`AI page, metadata, or search indexing is missing: ${route}`);
+    for (const anchor of anchors) if (!page?.getElementById(anchor)) failures.push(`AI guide is missing ${anchor} on ${route}`);
+    if (!page?.querySelector('a[href="/connections/profiles/#ai-drafting-copilot-session"]')) failures.push(`AI guide must explain the Copilot Session: ${route}`);
+    if (page?.body?.textContent?.includes("GitHub Models")) failures.push(`AI guide must not mention retired GitHub Models setup: ${route}`);
+  }
+  if (!pages.get(resolve(directory, "cli/reference/templates/index.html"))?.querySelector('a[href="/cli/ai/#template-improve"]')) failures.push("template reference must point to template improve");
+  if (!pages.get(resolve(directory, "connections/profiles/index.html"))?.body?.textContent?.includes("gh auth login")) failures.push("Copilot Session must explain sign-in recovery");
   if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");
   const paths = home?.querySelectorAll(".onboarding-paths:not(.reference-paths) > a");
   if (!home?.querySelector(`.reference-paths a[href="${schemaRoute}"]`) || !home?.querySelector('.reference-paths a[href="/cli/reference/"]')) failures.push("Home must point to the Schema and CLI references");

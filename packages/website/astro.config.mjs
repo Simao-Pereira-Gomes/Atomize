@@ -34,6 +34,7 @@ export default defineConfig({
         { label: "Open, save, and export", slug: "studio/open-save" },
         { label: "Generate Tasks", slug: "studio/generate" },
         { label: "Use project data", slug: "studio/project-data" },
+        { label: "Draft and improve with AI", slug: "studio/ai" },
         { label: "Settings and recovery", slug: "studio/settings-recovery" },
       ] },
       { label: "VS Code", items: [
@@ -41,10 +42,12 @@ export default defineConfig({
         { label: "Inspect Templates", slug: "vscode/inspect-templates" },
         { label: "Generate Tasks", slug: "vscode/generate" },
         { label: "Browse fields and queries", slug: "vscode/project-data" },
+        { label: "Draft and improve with AI", slug: "vscode/ai" },
         { label: "Validation and settings", slug: "vscode/settings-recovery" },
       ] },
       { label: "CLI", items: [
         { label: "Generate Tasks", slug: "cli/generate" },
+        { label: "Draft and improve with AI", slug: "cli/ai" },
         { label: "Automate the CLI", slug: "cli/automation" },
         { label: "Command reference", slug: "cli/reference" },
         { label: "auth", slug: "cli/reference/auth" },

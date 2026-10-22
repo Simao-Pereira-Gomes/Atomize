@@ -567,7 +567,11 @@ atomize template create --type mixin --save-as security-review-tasks
 
 See [Template Reference: Composition](./Template-Reference.md#composition) for how to use mixins.
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-template-improve -->
 
 ### template improve
 
@@ -643,7 +647,11 @@ atomize template improve template:backend-api --ground --reference docs/how-we-w
 atomize template improve ./templates/backend.atomize.yaml --dry-run --strict --output improve-report.json
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-template-manage -->
 
 ### template list
 
@@ -1144,11 +1152,16 @@ atomize generate templates/my-template.yaml --platform mock
 
 ### AI template generation fails
 
-AI drafting authenticates through GitHub Copilot, not a Connection Profile: see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+AI drafts and improvements authenticate through GitHub Copilot, not a Connection Profile: see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+
+- **"GitHub Copilot is not signed in"**: an interactive run starts sign-in for you. A non-interactive run can't, so run `gh auth login` in a terminal on that machine, then retry.
+- **Project metadata or a wiki page can't be loaded**: check the Connection Profile with `atomize auth test`. An interactive run lets you retry, continue without grounding, or cancel. Reading wiki pages needs the optional **Wiki (Read)** scope; rotate the token with `atomize auth rotate` to add it.
+- **A Reference Document is refused**: it must be a `.md` or `.txt` file inside the workspace. A document you named with `--reference` that can't be read stops the run.
+- **The draft or proposal is still invalid after three attempts**: in an interactive run, a draft can continue in the wizard, and an improvement can be retried or saved as a draft file beside the source. See [template improve](#template-improve).
 
 ```bash
-# Non-interactive runs need Copilot already signed in on that machine:
-# sign in once interactively, then retry:
+# Sign in to Copilot on this machine, then retry
+gh auth login
 atomize template create --ai
 ```
 

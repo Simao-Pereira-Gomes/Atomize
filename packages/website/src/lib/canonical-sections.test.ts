@@ -83,9 +83,19 @@ describe("canonical guide rendering", () => {
 
   test("the CLI reference documents every registered generate and template command", async () => {
     const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
-    const { code } = await renderer.render("<!-- atomize:include cli-generate -->\n\n<!-- atomize:include cli-template -->");
+    const { code } = await renderer.render("<!-- atomize:include cli-generate -->\n\n<!-- atomize:include cli-template -->\n\n<!-- atomize:include cli-template-improve -->\n\n<!-- atomize:include cli-template-manage -->");
     for (const flag of ["--json-stream", "--auto-approve", "--include-sensitive-report-data"]) expect(code).toContain(flag);
     expect(parseHTML(code).document.querySelector("h2#template-migrate")).not.toBeNull();
+  });
+
+  test("AI guides keep Grounding an explicit choice and link Reference Documents to the CLI guide", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include creation-ai -->\n\n<!-- atomize:include studio-ai -->\n\n<!-- atomize:include vscode-ai -->\n\n<!-- atomize:include cli-template-improve -->");
+    for (const choice of ["Draft without project context", "Retry after sign-in", "continue without grounding", "Save Improvement as New Template", "Install GitHub Copilot Chat", "--no-project-references"]) expect(code).toContain(choice);
+    expect(code).not.toContain("GitHub Models");
+    expect(parseHTML(code).document.querySelector('a[href="/cli/ai/#reference-documents"]')).not.toBeNull();
+    expect(canonicalGuideUrl("docs/Cli-Reference.md", "template-improve")).toBe("/cli/ai/#template-improve");
+    expect(canonicalGuideUrl("docs/Template-Creation.md", "ai-assisted-drafts")).toBe("/cli/ai/");
   });
 
   test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {

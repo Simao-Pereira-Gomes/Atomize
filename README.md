@@ -23,7 +23,7 @@ Use Atomize Studio for a standalone visual workflow, VS Code for guided authorin
 - Run live dry-runs against Azure DevOps stories before creating anything.
 - Generate child tasks only after reviewing the plan and confirming execution.
 - Reuse built-in, user, and project-scoped templates and mixins.
-- Create templates from the catalog, from scratch, from existing stories, or from an AI-assisted draft.
+- Create templates from the catalog, from scratch, or from an AI-assisted draft, and ask AI to propose improvements to existing ones.
 - Automate validation and generation from the CLI in CI/CD.
 
 ## Start With VS Code
@@ -211,7 +211,7 @@ See [CLI Reference](./docs/Cli-Reference.md) for complete command and flag docum
 - [VS Code Extension](./docs/VS-Code-Extension.md) - Editor behavior, commands, settings, and troubleshooting
 - [Atomize Studio](./docs/Atomize-Studio.md) - Desktop app behavior reference
 - [CLI Reference](./docs/Cli-Reference.md) - Complete command and flag reference
-- [Template Creation](./docs/Template-Creation.md) - Create templates from catalog, wizard, AI, or existing stories
+- [Template Creation](./docs/Template-Creation.md) - Create templates from the catalog, the wizard, or an AI-assisted draft
 - [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields, constraints and defaults
 - [Template Reference](./docs/Template-Reference.md) - Behaviour, composition and worked examples
 - [Auth Guide](./docs/Auth-Guide.md) - Credential storage, profiles, and CI/CD setup

@@ -267,6 +267,8 @@ Browses saved platform queries for a selected Connection Profile. Pick a query t
 
 <!-- /atomize:section -->
 
+<!-- atomize:section vscode-ai -->
+
 ### Atomize: Draft Template with AI
 
 Drafts a new Template from a description, using the GitHub Copilot account you're signed in to in VS Code. Atomize stores no token, and the AI gets no tools: it can't read your files or reach other services. The first time, VS Code asks you to allow Atomize to use Copilot's language models.
@@ -279,7 +281,12 @@ Drafts a new Template from a description, using the GitHub Copilot account you'r
 
 To try again, run the command again. To discard a draft, close it without saving.
 
-This command needs GitHub Copilot Chat. If it isn't installed, or you declined VS Code's permission prompt, the command tells you and offers to fix it.
+This command needs GitHub Copilot Chat. If Copilot can't be used, the command tells you why and offers the fix:
+
+- GitHub Copilot Chat isn't installed or signed in: **Install GitHub Copilot Chat**.
+- You declined VS Code's permission prompt: **Try Again**.
+- The model in `atomize.ai.model` isn't available: **Use Automatic** or **Open Settings**.
+- The request is too large for the model: leave out some Reference Documents, or choose a model with a larger limit in `atomize.ai.model`.
 
 ### Atomize: Improve Template with AI
 
@@ -314,6 +321,8 @@ After adding documents, choose **Use for this run only** or **Also save for this
 A saved wiki page is used only when your Connection Profile reaches that wiki's project; otherwise it's left out as unavailable for that profile. If your token can't read wikis, Atomize asks you to rotate it with the optional **Wiki (Read)** scope from Manage Profiles, and local files keep working.
 
 All Reference Documents together are limited to about 24,000 characters, split evenly between them. If any have to be shortened, Atomize tells you before sending, and you can continue or leave some out.
+
+<!-- /atomize:section -->
 
 ### Atomize: Show Effective Template
 

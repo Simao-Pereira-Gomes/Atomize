@@ -189,15 +189,20 @@ VS Code profiles are stored separately: see [VS Code Profiles](#vs-code-profiles
 
 <!-- atomize:section auth-copilot -->
 
-`atomize template create --ai` and Atomize Studio's AI draft Starting Path both draft a Template using an ephemeral, tool-free **Copilot Session**: a GitHub Copilot SDK session running with your locally signed-in Copilot account.
+AI drafts and Template Improvements run in an ephemeral, tool-free **Copilot Session** on your own signed-in GitHub Copilot account. The CLI (`atomize template create --ai` and `atomize template improve`) and Atomize Studio (the AI draft Starting Path and **Improve with AI**) use the GitHub Copilot SDK. The VS Code extension uses the Copilot account you're signed in to in VS Code.
 
-- Atomize stores neither a Copilot token nor a Copilot Connection Profile. There is nothing to add, list, rotate, or remove with `atomize auth`.
-- Sign-in is interactive: Atomize initiates it when needed for an interactive run. A non-interactive run (a script, a CI job) requires Copilot to already be signed in on that machine: Atomize cannot complete an interactive sign-in there.
-- Each session uses automatic model selection and is discarded after the draft completes; nothing persists between drafts.
 - An active GitHub Copilot subscription is required.
-- The VS Code extension uses the Copilot account you are signed in to in VS Code, through VS Code's language model access. The `atomize.ai.model` setting chooses the model.
+- Atomize stores neither a Copilot token nor a Copilot Connection Profile. There is nothing to add, list, rotate, or remove with `atomize auth`.
+- Each session is discarded after the draft or improvement finishes, and nothing persists between runs. The CLI and Studio use automatic model selection. In VS Code, the `atomize.ai.model` setting chooses the model.
+- Copilot receives your request, the Template being improved, and the Grounding you chose for that run. It never receives a Connection Profile's token, and it never receives Stories or other work items.
 
-A Copilot Session is not a Connection Profile: it never appears in `atomize auth list`, has no default, and is unrelated to the Azure DevOps profile resolution below. Grounded drafts use both: Copilot writes the draft, and a Connection Profile supplies the project details.
+Sign in for each tool:
+
+- **CLI:** an interactive run starts GitHub Copilot sign-in when needed. A non-interactive run (a script, a CI job) can't complete sign-in, so it stops and asks you to run `gh auth login` in a terminal on that machine first.
+- **Atomize Studio:** if Copilot isn't signed in, Studio asks you to run `gh auth login` in a terminal on that computer. Your draft description or improvement focus is kept, so retry once you've signed in.
+- **VS Code:** install GitHub Copilot Chat and sign in to Copilot in VS Code. The first time, VS Code asks you to allow Atomize to use Copilot's language models.
+
+A Copilot Session is not a Connection Profile: it never appears in `atomize auth list`, has no default, and is unrelated to the Azure DevOps profile resolution below. Grounded runs use both: Copilot writes the Template, and a Connection Profile supplies the project details and any Azure DevOps wiki pages.
 
 <!-- /atomize:section -->
 

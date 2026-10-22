@@ -61,6 +61,7 @@ jobs:
               - 'docs/Platform-Guide.md'
               - 'docs/Workflows.md'
               - 'docs/Cli-Reference.md'
+              - 'docs/Template-Creation.md'
               - 'packages/vscode-extension/icons/atomize-product.svg'
               - 'packages/atomize-schema/**'
               - 'packages/atomize-schema-reference/**'
