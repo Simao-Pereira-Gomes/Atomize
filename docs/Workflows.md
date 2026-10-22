@@ -348,6 +348,8 @@ See the [CLI Reference](./Cli-Reference.md#commands-overview) for every command 
 
 ## Troubleshooting
 
+<!-- atomize:section workflow-troubleshooting -->
+
 ### Atomize Command Not Found
 
 This applies to terminal/CI use of the CLI only: the VS Code extension runs Atomize directly and does not need the CLI installed. Install the CLI:
@@ -384,4 +386,6 @@ Run strict validation for clearer failures:
 atomize validate my-template.atomize.yaml --strict
 ```
 
-Common causes include estimation percentages that do not sum to 100, invalid dependency IDs, missing task titles, and custom fields that need online validation.
+Common causes include estimation percentages that do not sum to 100, invalid dependency IDs, missing task titles, and custom fields that need [Online Validation](./Validation-Modes.md#offline-and-online-validation). See [Common Validation Errors](./Common-Validation-Errors.md) for each message and its fix.
+
+<!-- /atomize:section -->

@@ -79,6 +79,11 @@ export default defineConfig({
         { label: "Validation and metadata", slug: "reference/templates/validation" },
         { label: "Complete example", slug: "reference/templates/example" },
       ] },
+      { label: "Validate and troubleshoot", items: [
+        { label: "Validate Templates", slug: "validation" },
+        { label: "Fix validation errors", slug: "validation/errors" },
+        { label: "Troubleshooting", slug: "troubleshooting" },
+      ] },
       { label: "Release notes", slug: "releases" },
       { label: "More guides", items: [
         { label: "Workflows ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md" },

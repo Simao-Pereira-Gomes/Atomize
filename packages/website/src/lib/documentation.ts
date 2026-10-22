@@ -91,6 +91,16 @@ export const canonicalSections = {
   "studio-catalog": { source: "docs/Atomize-Studio.md", pageAnchor: "catalog-area", route: "/catalog/manage/#in-atomize-studio", anchors: ["catalog-area"] },
   "catalog-team": { source: "docs/Template-Creation.md", pageAnchor: "share-templates-with-your-team", route: "/catalog/team/", anchors: ["share-templates-with-your-team"] },
   "creation-checklist": { source: "docs/Template-Creation.md", pageAnchor: "post-creation-checklist", route: "/catalog/team/#post-creation-checklist", anchors: ["post-creation-checklist"] },
+  "validation-choices": { source: "docs/Validation-Modes.md", pageAnchor: "two-separate-choices", route: "/validation/", anchors: ["two-separate-choices"] },
+  "validation-online": { source: "docs/Validation-Modes.md", pageAnchor: "offline-and-online-validation", route: "/validation/#offline-and-online-validation", anchors: ["offline-and-online-validation"] },
+  "validation-tools": { source: "docs/Validation-Modes.md", pageAnchor: "run-validation-in-your-tool", route: "/validation/#run-validation-in-your-tool", anchors: ["run-validation-in-your-tool"] },
+  "validation-strictness": { source: "docs/Validation-Modes.md", pageAnchor: "overview", route: "/validation/#lenient-and-strict", anchors: ["overview", "lenient-mode", "strict-mode"] },
+  "validation-setting": { source: "docs/Validation-Modes.md", pageAnchor: "how-to-set-the-mode", route: "/validation/#how-to-set-the-mode", anchors: ["how-to-set-the-mode", "via-cli-flags-recommended", "via-template-yaml", "precedence", "when-to-use-each-mode", "examples", "template-that-passes-both-modes", "template-that-passes-lenient-but-fails-strict"] },
+  "validation-findings": { source: "docs/Validation-Modes.md", pageAnchor: "errors-vs-warnings", route: "/validation/errors/#errors-vs-warnings", anchors: ["errors-vs-warnings", "always-errors-both-modes", "warnings-errors-in-strict-mode"] },
+  "validation-errors": { source: "docs/Common-Validation-Errors.md", pageAnchor: "estimation-errors", route: "/validation/errors/#estimation-errors", anchors: ["estimation-errors", "task-count-errors", "dependency-errors", "repeat-errors", "condition-errors", "schema-errors"] },
+  "validation-messages": { source: "docs/Common-Validation-Errors.md", pageAnchor: "understanding-error-messages", route: "/validation/errors/#understanding-error-messages", anchors: ["understanding-error-messages"] },
+  "validation-quick-reference": { source: "docs/Common-Validation-Errors.md", pageAnchor: "quick-reference", route: "/validation/errors/#quick-reference", anchors: ["quick-reference", "getting-help"] },
+  "workflow-troubleshooting": { source: "docs/Workflows.md", pageAnchor: "troubleshooting", route: "/troubleshooting/", anchors: ["troubleshooting", "atomize-command-not-found", "no-stories-found", "authentication-failed", "validation-failed"] },
   "template-composition": {
     source: "docs/Template-Reference.md",
     pageAnchor: "composition",
@@ -117,7 +127,14 @@ export function templateGuideUrl(anchor?: string) {
   return canonicalGuideUrl("docs/Template-Reference.md", anchor);
 }
 
+/** Guides published whole on the portal, so a link to the document itself opens its portal page. */
+const documentRoutes: Record<string, string> = {
+  "docs/Validation-Modes.md": "/validation/",
+  "docs/Common-Validation-Errors.md": "/validation/errors/",
+};
+
 export function canonicalGuideUrl(source: string, anchor?: string) {
+  if (!anchor && documentRoutes[source]) return documentRoutes[source];
   const page = Object.values(canonicalSections).find(section => section.source === source && anchor && (section.anchors as readonly string[]).includes(anchor));
   if (page && !isHiddenPage(page.route)) {
     return anchor === page.pageAnchor ? page.route : `${page.route.split("#")[0]}#${anchor}`;

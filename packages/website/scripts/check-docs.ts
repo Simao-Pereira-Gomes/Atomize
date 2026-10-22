@@ -250,6 +250,21 @@ async function checkDocs() {
   }
   const catalogConcepts = pages.get(resolve(directory, "catalog/index.html"))?.body?.textContent ?? "";
   for (const text of ["~/.atomize/catalog", "⚠ overrides", "↖ based on"]) if (!catalogConcepts.includes(text)) failures.push(`Catalog concepts are missing ${text}`);
+  for (const [route, title, anchors] of [
+    ["validation", "Validate Templates", ["two-separate-choices", "offline-and-online-validation", "run-validation-in-your-tool", "lenient-mode", "strict-mode", "how-to-set-the-mode"]],
+    ["validation/errors", "Fix validation errors", ["errors-vs-warnings", "estimation-errors", "task-count-errors", "dependency-errors", "repeat-errors", "condition-errors", "schema-errors", "understanding-error-messages", "quick-reference"]],
+    ["troubleshooting", "Troubleshooting", ["atomize-command-not-found", "no-stories-found", "authentication-failed", "validation-failed"]],
+  ] as const) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Validation page, metadata, or search indexing is missing: ${route}`);
+    for (const anchor of anchors) if (!page?.getElementById(anchor)) failures.push(`Validation guide is missing ${anchor} on ${route}`);
+  }
+  const validationGuide = pages.get(resolve(directory, "validation/index.html"))?.body?.textContent ?? "";
+  for (const text of ["Could not validate project references against ADO", "Field assistance is not validation", "atomize validate \"$template\" --strict"]) if (!validationGuide.includes(text)) failures.push(`Validation guide is missing: ${text}`);
+  const troubleshooting = pages.get(resolve(directory, "troubleshooting/index.html"));
+  for (const href of ["/connections/troubleshooting/", "/validation/errors/", "/cli/reference/#ai-template-generation-fails", "/vscode/settings-recovery/#troubleshoot-the-offline-workflow"]) {
+    if (!troubleshooting?.querySelector(`a[href="${href}"]`)) failures.push(`Troubleshooting must link to ${href}`);
+  }
   const estimationTerms = [...(pages.get(resolve(directory, "reference/templates/estimation/index.html"))?.querySelectorAll("table") ?? [])].find(table => table.textContent?.includes("Set with"))?.textContent ?? "";
   for (const term of ["Story Estimate", "Task Estimate", "Estimation Conversion", "Unresolvable Story Estimate", "Estimation Field Mapping"]) {
     if (!estimationTerms.includes(term)) failures.push(`Estimation terms are missing ${term}`);

@@ -1,9 +1,12 @@
 # Validation Modes
 
-Atomize supports two validation modes that control how strictly templates are checked: **lenient** (default) and **strict**.
+Atomize supports two validation modes that control how strictly templates are checked: **lenient** (default) and **strict**. Separately, Offline or Online Validation decides whether the checks that need your Azure DevOps project run at all.
 
 ## Table of Contents
 
+- [Two Separate Choices](#two-separate-choices)
+- [Offline And Online Validation](#offline-and-online-validation)
+- [Run Validation In Your Tool](#run-validation-in-your-tool)
 - [Overview](#overview)
 - [Lenient Mode](#lenient-mode)
 - [Strict Mode](#strict-mode)
@@ -14,7 +17,86 @@ Atomize supports two validation modes that control how strictly templates are ch
 
 ---
 
+<!-- atomize:section validation-choices -->
+
+## Two Separate Choices
+
+Every validation run makes two independent choices. Don't confuse them: connecting to Azure DevOps doesn't make validation stricter, and strict mode doesn't connect.
+
+| Choice | Options | What it decides |
+| --- | --- | --- |
+| Where the checks run | **Offline Validation** (default) or **Online Validation** | Whether Atomize also checks the Template's references against your Azure DevOps project |
+| How strict it is | **Lenient** (default) or **strict** | Whether warnings fail validation |
+
+Errors always fail validation. In lenient mode, warnings are reported but the Template is still valid. In strict mode, every warning becomes an error.
+
+<!-- /atomize:section -->
+
+---
+
+<!-- atomize:section validation-online -->
+
+## Offline And Online Validation
+
+**Offline Validation** checks the Template on its own: its structure and field types, task counts and estimation totals, dependencies and repetition, conditions, the estimation configuration, and its composition with any parent and Mixins. It needs no Connection Profile and finishes immediately, so every tool runs it while you author.
+
+**Online Validation** runs those checks and also connects through a Connection Profile to check what only your project can confirm:
+
+- custom field reference names, whether each is read-only, its type, and picklist values;
+- fields named in conditions;
+- the saved query in `filter.savedQuery`;
+- the estimation settings: whether `estimation.source`, `taskType`, and each `targetFields` entry exist and can hold the value, and whether `conversion.table` covers the source field's allowed values.
+
+Without a connection, those checks can't run. Offline Validation reports a warning such as `1 task(s) have custom fields that could not be verified` instead, so a strict run fails until you validate online.
+
+Online Validation needs a Connection Profile whose token has the [Work Items scope](./Auth-Guide.md#required-permissions). If Atomize can't connect, it reports `Could not validate project references against ADO: …` as a warning and finishes the offline checks. A lenient run still passes; a strict run fails. Fix the connection with [connection troubleshooting](./Auth-Guide.md#troubleshooting) and validate again.
+
+**Field assistance is not validation.** Field and query browsers, field suggestions in the CLI wizard<!-- atomize:feature studio -->, and Studio's Grounded Field Options<!-- /atomize:feature --> help you pick names that exist while you author. They only cover the value you're choosing. Online Validation checks every reference in the Template, including ones typed by hand or copied from another project, so run it before you share a Template or generate from it.
+
+<!-- /atomize:section -->
+
+---
+
+<!-- atomize:section validation-tools -->
+
+## Run Validation In Your Tool
+
+**CLI.** `atomize validate` validates one Template, by file path, Catalog ref, or HTTPS URL:
+
+```bash
+atomize validate my-template.atomize.yaml            # Offline Validation, lenient unless the Template sets strict
+atomize validate my-template.atomize.yaml --strict   # warnings become errors
+atomize validate template:backend-api --profile work-ado   # Online Validation through a profile
+atomize validate my-template.atomize.yaml --output json    # a ValidationResult object, with suggested fixes
+```
+
+In an interactive terminal, a Template that has references only Online Validation can check asks whether to validate offline or online; `--strict` selects Online first. The command exits with `0` when the Template is valid and `1` when it isn't. See [`validate`](./Cli-Reference.md#validate) for every option.
+
+**VS Code.** Saving an Atomize YAML File runs Offline Validation and updates the Problems panel without opening anything. Run **Atomize: Validate** to choose Offline or Online Validation and open a Validation Report that lists each error and warning with its suggested fix. See [Atomize: Validate](./VS-Code-Extension.md#atomize-validate).
+
+<!-- atomize:feature studio -->
+
+**Atomize Studio.** Each authoring section validates as you edit, and **Review** lists whole-Template problems with the Tasks they affect. **Validate online…** in Review runs Online Validation through the selected Work Project. See [Review and export](./Atomize-Studio.md#review-and-export).
+
+<!-- /atomize:feature -->
+
+VS Code<!-- atomize:feature studio --> and Studio<!-- /atomize:feature --> use the Template's own `validation.mode`. To validate strictly there, set `mode: "strict"` in the Template, or run `atomize validate --strict`.
+
+To validate several Templates in a script or CI job, run `atomize validate` once per file:
+
+```bash
+for template in templates/*.atomize.yaml; do
+  atomize validate "$template" --strict || exit 1
+done
+```
+
+<!-- /atomize:section -->
+
+---
+
 ## Overview
+
+<!-- atomize:section validation-strictness -->
 
 | | Lenient | Strict |
 |--|---------|--------|
@@ -68,7 +150,11 @@ Errors:
 Fix the errors above and try again.
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section validation-findings -->
 
 ## Errors vs Warnings
 
@@ -118,9 +204,13 @@ These issues are warnings in lenient mode but become errors in strict mode:
 
 Some warnings stay warnings in strict mode, because the Template still works as intended. One example is the deprecated `minimumTaskPoints` key, which is used as `minimumTaskEstimate`.
 
+<!-- /atomize:section -->
+
 ---
 
 ## How to Set the Mode
+
+<!-- atomize:section validation-setting -->
 
 ### Via CLI Flags (Recommended)
 
@@ -255,6 +345,8 @@ Template validation failed [Strict]
 Errors:
   • tasks[*].customFields: 1 task(s) have custom fields that could not be verified.
 ```
+
+<!-- /atomize:section -->
 
 ---
 

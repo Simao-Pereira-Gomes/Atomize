@@ -12,6 +12,8 @@ on:
       - docs/Workflows.md
       - docs/Cli-Reference.md
       - docs/Template-Creation.md
+      - docs/Validation-Modes.md
+      - docs/Common-Validation-Errors.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock
@@ -31,6 +33,8 @@ on:
       - docs/Workflows.md
       - docs/Cli-Reference.md
       - docs/Template-Creation.md
+      - docs/Validation-Modes.md
+      - docs/Common-Validation-Errors.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock

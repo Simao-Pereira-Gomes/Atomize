@@ -122,6 +122,15 @@ describe("canonical guide rendering", () => {
     expect(canonicalGuideUrl("docs/Template-Creation.md", "post-creation-checklist")).toBe("/catalog/team/#post-creation-checklist");
   });
 
+  test("the validation guide separates connectivity from strictness and links whole validation guides to the portal", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include validation-choices -->\n\n<!-- atomize:include validation-online -->\n\n<!-- atomize:include template-validation -->");
+    for (const text of ["Offline Validation", "Online Validation", "doesn't make validation stricter", "Could not validate project references against ADO"]) expect(code).toContain(text);
+    expect(parseHTML(code).document.querySelector('a[href="/validation/"]')).not.toBeNull();
+    expect(canonicalGuideUrl("docs/Common-Validation-Errors.md")).toBe("/validation/errors/");
+    expect(canonicalGuideUrl("docs/Workflows.md", "no-stories-found")).toBe("/troubleshooting/#no-stories-found");
+  });
+
   test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "when-the-keychain-is-unavailable")).toBe("/connections/profiles/#when-the-keychain-is-unavailable");
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "credential-storage")).toBe("/connections/profiles/#credential-storage");
