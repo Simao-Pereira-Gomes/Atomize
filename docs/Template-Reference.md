@@ -3,9 +3,9 @@
 How Atomize YAML Files behave, with composition rules and worked examples.
 
 For field types, requirements, defaults, constraints, runtime rules and deprecations,
-use the [Schema Reference](https://atomize-cd9.pages.dev/schema). It has separate
-[Template](https://atomize-cd9.pages.dev/schema#template.name) and
-[Mixin](https://atomize-cd9.pages.dev/schema#mixin.name) entries. The public page
+use the [Schema Reference](https://atomize-docs.pages.dev/schema). It has separate
+[Template](https://atomize-docs.pages.dev/schema#template.name) and
+[Mixin](https://atomize-docs.pages.dev/schema#mixin.name) entries. The public page
 documents `main`; the Schema Reference inside Studio and VS Code matches the installed version.
 
 ## Table of Contents
@@ -95,17 +95,17 @@ Templates are YAML files that define how Atomize breaks down user stories into t
 
 ## File Identity
 
-A file's [Format Version](https://atomize-cd9.pages.dev/schema#template.formatVersion)
+A file's [Format Version](https://atomize-docs.pages.dev/schema#template.formatVersion)
 identifies the edition of the Atomize format it follows. A file without
 `formatVersion` is format 1.0, and a release of Atomize that can't read a file's
 Format Version reports an error naming the versions it reads. Its
-[Revision](https://atomize-cd9.pages.dev/schema#template.version) belongs to the author:
+[Revision](https://atomize-docs.pages.dev/schema#template.version) belongs to the author:
 Atomize displays it without interpreting or comparing it, and a child Template does
 not inherit its parent's Revision. Quote version-like strings in YAML so they remain strings.
 
-Use the [Template field reference](https://atomize-cd9.pages.dev/schema#template.name)
+Use the [Template field reference](https://atomize-docs.pages.dev/schema#template.name)
 for identity, author and discovery fields, or the
-[Mixin reference](https://atomize-cd9.pages.dev/schema#mixin.name) when authoring a Mixin.
+[Mixin reference](https://atomize-docs.pages.dev/schema#mixin.name) when authoring a Mixin.
 
 <!-- /atomize:section -->
 
@@ -213,7 +213,7 @@ filter:
   excludeIfHasTasks: true
 ```
 
-See the [filter field reference](https://atomize-cd9.pages.dev/schema#template.filter)
+See the [filter field reference](https://atomize-docs.pages.dev/schema#template.filter)
 for each criterion's shape, requirements and allowed values.
 
 ### Special Values
@@ -353,7 +353,7 @@ tasks:
     dependsOn: []
 ```
 
-See the [Task field reference](https://atomize-cd9.pages.dev/schema#template.tasks[])
+See the [Task field reference](https://atomize-docs.pages.dev/schema#template.tasks[])
 for field types, constraints, estimation options and runtime rules.
 
 ### Variable Interpolation
@@ -429,7 +429,7 @@ tasks:
       Custom.ReleaseDate: "@Today"
 ```
 
-The [custom field reference](https://atomize-cd9.pages.dev/schema#template.tasks[].customFields)
+The [custom field reference](https://atomize-docs.pages.dev/schema#template.tasks[].customFields)
 covers reference-name syntax, supported value types and platform validation rules.
 
 **Validation behavior:**
@@ -468,7 +468,7 @@ tasks:
           value: 5
 ```
 
-See the [condition field reference](https://atomize-cd9.pages.dev/schema#template.tasks[].condition)
+See the [condition field reference](https://atomize-docs.pages.dev/schema#template.tasks[].condition)
 for simple and compound clause shapes, comparison values and supported operators.
 
 `field: estimation` compares against the **raw Story Estimate**, before any `conversion`, read from `estimation.source` when one is set. Existing point-based conditions keep their meaning, and categories work with `equals`/`not-equals`, e.g. `{ field: estimation, operator: equals, value: L }`. A numeric operator (`gt`, `lt`, `gte`, `lte`) against a non-numeric Story Estimate such as `L` is an evaluation error: the task is skipped and the reason is reported.
@@ -590,7 +590,7 @@ Rules:
 
 - `repeat` is a whole number of at least 1.
 - A repeated task can't use `dependsOn`, and no task can list a repeated task in its `dependsOn`. A dependency links two single Work Items, and the copies have no single Work Item to link.
-- `repeat` can be at most 20, which guards against a typo creating many Tasks on a live platform. A template that genuinely needs more raises its own limit with [`validation.maxRepeat`](https://atomize-cd9.pages.dev/schema#template.validation.maxRepeat).
+- `repeat` can be at most 20, which guards against a typo creating many Tasks on a live platform. A template that genuinely needs more raises its own limit with [`validation.maxRepeat`](https://atomize-docs.pages.dev/schema#template.validation.maxRepeat).
 
 The count is a fixed number written in the template. It can't come from a Story field and can't be set at generate time.
 
@@ -624,7 +624,7 @@ estimation:
   defaultParentEstimation: "M"  # Story Estimate to assume when the real one is missing
 ```
 
-See the [estimation field reference](https://atomize-cd9.pages.dev/schema#template.estimation) for field details, defaults and constraints.
+See the [estimation field reference](https://atomize-docs.pages.dev/schema#template.estimation) for field details, defaults and constraints.
 
 **VS Code snippets:** type `atm-estimation-factor` or `atm-estimation-table` to insert a factor or a size-table configuration, or `atm-estimation-target` for `taskType` and `targetFields`; `atm-estimation` includes the `normalize` choice.
 
@@ -654,8 +654,8 @@ with `factor: 4` becomes 20 hours; a Task weighted at 20% receives 4 hours befor
 rounding and the minimum. A fixed estimate is written as supplied and bypasses
 percentage rounding and the minimum.
 
-See the [conversion reference](https://atomize-cd9.pages.dev/schema#template.estimation.conversion)
-and [rounding reference](https://atomize-cd9.pages.dev/schema#template.estimation.rounding)
+See the [conversion reference](https://atomize-docs.pages.dev/schema#template.estimation.conversion)
+and [rounding reference](https://atomize-docs.pages.dev/schema#template.estimation.rounding)
 for lookup and rounding rules.
 
 ### Unresolvable Story Estimates
@@ -715,7 +715,7 @@ validation:
       id: "review"
 ```
 
-See the [validation field reference](https://atomize-cd9.pages.dev/schema#template.validation) for field details, defaults and constraints.
+See the [validation field reference](https://atomize-docs.pages.dev/schema#template.validation) for field details, defaults and constraints.
 
 Choose either an exact total or a range. If both are supplied, `totalEstimationMustBe` takes precedence and `totalEstimationRange` is ignored.
 
@@ -745,7 +745,7 @@ metadata:
   notes: "Owned by the platform team."
 ```
 
-See the [metadata field reference](https://atomize-cd9.pages.dev/schema#template.metadata) for field details, defaults and constraints.
+See the [metadata field reference](https://atomize-docs.pages.dev/schema#template.metadata) for field details, defaults and constraints.
 
 ---
 
@@ -758,10 +758,10 @@ replacement yourself so it is preserved. Removal requires a future file format<!
 as recorded in [ADR-0073](./adr/0073-format-version-revision-and-field-retirement.md)<!-- /atomize:feature -->.
 
 The Schema Reference marks each deprecated field and describes its replacement:
-[task fields](https://atomize-cd9.pages.dev/schema#template.tasks[].acceptanceCriteria),
-[file timestamps](https://atomize-cd9.pages.dev/schema#template.created),
-[metadata](https://atomize-cd9.pages.dev/schema#template.metadata.difficulty), and
-[minimumTaskPoints](https://atomize-cd9.pages.dev/schema#template.estimation.minimumTaskPoints).
+[task fields](https://atomize-docs.pages.dev/schema#template.tasks[].acceptanceCriteria),
+[file timestamps](https://atomize-docs.pages.dev/schema#template.created),
+[metadata](https://atomize-docs.pages.dev/schema#template.metadata.difficulty), and
+[minimumTaskPoints](https://atomize-docs.pages.dev/schema#template.estimation.minimumTaskPoints).
 The last is a compatibility fallback, so it still affects estimates when
 `minimumTaskEstimate` is absent.
 
@@ -877,7 +877,7 @@ metadata:
 
 ## See Also
 
-- [Schema Reference](https://atomize-cd9.pages.dev/schema) - Field shapes, constraints, defaults and runtime rules
+- [Schema Reference](https://atomize-docs.pages.dev/schema) - Field shapes, constraints, defaults and runtime rules
 - [CLI Reference](./Cli-Reference.md) - Commands for validating, installing, and using templates
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix validation failures

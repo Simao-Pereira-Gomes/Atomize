@@ -165,7 +165,7 @@ tasks:
     estimationPercent: 20
 ```
 
-See [Template Creation](./docs/Template-Creation.md) for creation workflows and [Schema Reference](https://atomize-cd9.pages.dev/schema) for YAML field details. The [Template Reference](./docs/Template-Reference.md) explains behaviour and composition.
+See [Template Creation](./docs/Template-Creation.md) for creation workflows and [Schema Reference](https://atomize-docs.pages.dev/schema) for YAML field details. The [Template Reference](./docs/Template-Reference.md) explains behaviour and composition.
 
 ## Connect Azure DevOps
 
@@ -212,7 +212,7 @@ See [CLI Reference](./docs/Cli-Reference.md) for complete command and flag docum
 - [Atomize Studio](./docs/Atomize-Studio.md) - Desktop app behavior reference
 - [CLI Reference](./docs/Cli-Reference.md) - Complete command and flag reference
 - [Template Creation](./docs/Template-Creation.md) - Create templates from the catalog, the wizard, or an AI-assisted draft
-- [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields, constraints and defaults
+- [Schema Reference](https://atomize-docs.pages.dev/schema) - YAML fields, constraints and defaults
 - [Template Reference](./docs/Template-Reference.md) - Behaviour, composition and worked examples
 - [Auth Guide](./docs/Auth-Guide.md) - Credential storage, profiles, and CI/CD setup
 - [Validation Modes](./docs/Validation-Modes.md) - Strict vs lenient validation

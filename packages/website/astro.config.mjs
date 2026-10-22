@@ -6,7 +6,7 @@ import canonicalSections, { watchCanonicalGuides } from "./src/lib/canonical-sec
 import { features } from "./src/lib/features.ts";
 
 export default defineConfig({
-  site: "https://atomize-cd9.pages.dev",
+  site: "https://atomize-docs.pages.dev",
   integrations: [solid(), starlight({
     title: "atomize",
     logo: { src: "../vscode-extension/icons/atomize-product.svg" },

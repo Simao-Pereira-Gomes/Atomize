@@ -69,7 +69,7 @@ tasks:
     estimationPercent: 20
 ```
 
-For field shapes, defaults and constraints, see the [Schema Reference](https://atomize-cd9.pages.dev/schema). For composition, conditions, custom fields and estimation behavior, see the [Template Reference](./Template-Reference.md).
+For field shapes, defaults and constraints, see the [Schema Reference](https://atomize-docs.pages.dev/schema). For composition, conditions, custom fields and estimation behavior, see the [Template Reference](./Template-Reference.md).
 
 ## Validate A Template
 

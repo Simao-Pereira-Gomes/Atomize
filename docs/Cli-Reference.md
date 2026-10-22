@@ -1180,7 +1180,7 @@ atomize generate template:backend-api --verbose
 ## See Also
 
 - [Auth Guide](./Auth-Guide.md) - Credential storage, profile resolution, and CI/CD setup
-- [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields, defaults and constraints
+- [Schema Reference](https://atomize-docs.pages.dev/schema) - YAML fields, defaults and constraints
 - [Template Reference](./Template-Reference.md) - Behaviour and composition
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors

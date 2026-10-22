@@ -150,7 +150,7 @@ The authoring surface is organised into sections: Basic Info, Filter, Tasks, Est
 | Metadata | Estimation guidelines and Template Notes for the team maintaining the Template. |
 | Review | The complete YAML and actions to copy, export, save, or install it. |
 
-Use the field's **ⓘ** button for exact requirements in the Schema Reference, then **Back** to resume editing. Section status indicators show what still needs attention; you can revisit sections before Review. See the [Schema Reference](https://atomize-cd9.pages.dev/schema) for field shapes and defaults rather than copying them into this guide.
+Use the field's **ⓘ** button for exact requirements in the Schema Reference, then **Back** to resume editing. Section status indicators show what still needs attention; you can revisit sections before Review. See the [Schema Reference](https://atomize-docs.pages.dev/schema) for field shapes and defaults rather than copying them into this guide.
 
 The **Estimation** section follows the estimate in four steps, with a live preview that splits a sample Story Estimate across your tasks:
 
@@ -161,7 +161,7 @@ The **Estimation** section follows the estimate in four steps, with a live previ
 
 With a Connection Profile selected, the field choices are searchable lists from your project. They are filtered to fields that can hold an estimate, using the same rules as the CLI. When the Story field is a picklist, its values seed the conversion table, and any row that isn't one of them is flagged. "Enter a reference name instead" lets you type a field that isn't listed. In the Filter section, a saved query asks which work item types it returns. Those types are used for field lookups only, and saving isn't blocked without them.
 
-In the **Tasks** section, a task's **Copies** field sets its [`repeat`](https://atomize-cd9.pages.dev/schema#template.tasks[].repeat): the task creates that many identical Tasks, and the outline shows a ×N badge. A repeated task can't have dependencies, so Studio removes its own and flags any task that depends on it. The percentage total counts every copy. **Maximum copies per task**, under Task count in the **Validation** section, raises the limit of 20.
+In the **Tasks** section, a task's **Copies** field sets its [`repeat`](https://atomize-docs.pages.dev/schema#template.tasks[].repeat): the task creates that many identical Tasks, and the outline shows a ×N badge. A repeated task can't have dependencies, so Studio removes its own and flags any task that depends on it. The percentage total counts every copy. **Maximum copies per task**, under Task count in the **Validation** section, raises the limit of 20.
 
 **Task Auto-normalisation** is an opt-in behavior for Percentage-mode Tasks: editing one Task's percentage proportionally redistributes the remaining percentage among its valid sibling Tasks. It doesn't run while any task repeats, because rebalancing task definitions to 100% is wrong when a definition creates several Tasks. It's an in-memory authoring convenience only: never written into the Atomize YAML File.
 

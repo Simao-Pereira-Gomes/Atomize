@@ -52,7 +52,7 @@ describe("Documentation reference contracts", () => {
 		let links = 0;
 		for (const file of markdownFiles(root)) {
 			const text = readFileSync(file, "utf8");
-			for (const match of text.matchAll(/https:\/\/atomize-cd9\.pages\.dev\/schema#([^\s)<>"`]+)/g)) {
+			for (const match of text.matchAll(/https:\/\/atomize-docs\.pages\.dev\/schema#([^\s)<>"`]+)/g)) {
 				const permalink = parsePermalink(match[1]);
 				const label = `${relative(root, file)}: ${match[0]}`;
 				expect(permalink, label).toBeDefined();

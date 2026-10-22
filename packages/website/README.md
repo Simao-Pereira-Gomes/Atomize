@@ -372,8 +372,8 @@ website checks and deployment. Close the isolated host after capturing.
 
 ## Publishing
 
-Cloudflare Pages hosts the site at `https://atomize-cd9.pages.dev` (project
-`atomize`, ADR-0072). GitHub Actions validates and builds before production
+Cloudflare Pages hosts the site at `https://atomize-docs.pages.dev` (project
+`atomize-docs`, ADR-0072). GitHub Actions validates and builds before production
 deployments from `main`; relevant PRs get advisory previews. Fork PRs and runs
 without Cloudflare secrets skip deployment but still receive normal CI checks.
 Publishing uses `CLOUDFLARE_API_TOKEN` (Account → Cloudflare Pages → Edit) and

@@ -18,8 +18,8 @@ export async function canonicalSourceDigest() {
 
 function rewriteLink(url: string, source: string) {
   if (/^(?:[a-z][\w+.-]*:|\/\/)/i.test(url)) {
-    const parsed = new URL(url, "https://atomize-cd9.pages.dev");
-    if (parsed.hostname === "atomize-cd9.pages.dev" && ["/schema", schemaRoute.replace(/\/$/, "")].includes(parsed.pathname.replace(/\/$/, ""))) return `${schemaRoute}${parsed.hash}`;
+    const parsed = new URL(url, "https://atomize-docs.pages.dev");
+    if (parsed.hostname === "atomize-docs.pages.dev" && ["/schema", schemaRoute.replace(/\/$/, "")].includes(parsed.pathname.replace(/\/$/, ""))) return `${schemaRoute}${parsed.hash}`;
     return url;
   }
   const [path, fragment = ""] = url.split("#");

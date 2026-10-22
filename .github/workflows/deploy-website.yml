@@ -51,7 +51,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  CLOUDFLARE_PROJECT: atomize
+  CLOUDFLARE_PROJECT: atomize-docs
 
 jobs:
   deploy:

@@ -13,7 +13,7 @@ Start with the repository [README](../README.md) if you are new to Atomize. It i
 
 - [CLI Reference](./Cli-Reference.md) - Complete command and flag reference
 - [Template Reference](./Template-Reference.md) - Behaviour, composition and worked examples
-- [Schema Reference](https://atomize-cd9.pages.dev/schema) - Browsable template schema, published from `main`
+- [Schema Reference](https://atomize-docs.pages.dev/schema) - Browsable template schema, published from `main`
 - [Auth Guide](./Auth-Guide.md) - Connection profiles, credential storage, token rotation, and CI setup
 - [Validation Modes](./Validation-Modes.md) - Lenient vs strict validation
 - [Common Validation Errors](./Common-Validation-Errors.md) - How to fix common template failures
@@ -40,13 +40,13 @@ These paths are kept for older links and should stay short:
 ## Documentation Ownership
 
 - Do not use em dashes in documentation or website copy. Choose punctuation that fits the sentence, and preserve existing heading links when changing titles.
-- The [documentation portal](https://atomize-cd9.pages.dev/) presents onboarding, a CLI quickstart, and focused pages adapted from these canonical guides. Shared instructions are authored once; website introductions and navigation frame them for portal readers. Content between `<!-- atomize:section name -->` and `<!-- /atomize:section -->` markers is published on the portal; keep the markers when editing it. The root README owns the shared onboarding overview and CLI quickstart. See [website contributor instructions](../packages/website/README.md) and [ADR-0074](./adr/0074-documentation-portal-publishes-canonical-markdown.md).
+- The [documentation portal](https://atomize-docs.pages.dev/) presents onboarding, a CLI quickstart, and focused pages adapted from these canonical guides. Shared instructions are authored once; website introductions and navigation frame them for portal readers. Content between `<!-- atomize:section name -->` and `<!-- /atomize:section -->` markers is published on the portal; keep the markers when editing it. The root README owns the shared onboarding overview and CLI quickstart. See [website contributor instructions](../packages/website/README.md) and [ADR-0074](./adr/0074-documentation-portal-publishes-canonical-markdown.md).
 - `README.md` is the canonical onboarding path.
 - `docs/Workflows.md` is the canonical workflow guide.
 - `docs/Cli-Reference.md` is the command and flag reference.
 - `docs/VS-Code-Extension.md` is the VS Code behavior reference.
 - `docs/Atomize-Studio.md` is the Atomize Studio behavior reference.
-- The [Schema Reference](https://atomize-cd9.pages.dev/schema) owns field facts; `docs/Template-Reference.md` explains behaviour and worked examples.
+- The [Schema Reference](https://atomize-docs.pages.dev/schema) owns field facts; `docs/Template-Reference.md` explains behaviour and worked examples.
 - `docs/Template-Creation.md` owns template creation workflows.
 - `docs/Auth-Guide.md` owns credential storage and profile behavior.
 - `docs/Platform-Guide.md` owns current platform support, PAT setup, and platform-specific errors. Describe only supported platforms; do not promise future Platform Adapters.

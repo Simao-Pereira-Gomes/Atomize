@@ -10,7 +10,7 @@ Atomize ships three independent release surfaces, each with its own version, tag
 
 The four shared libraries (`atomize-schema`, `atomize-core`, `atomize-ai`, `atomize-sidecar`) are never released on their own: they ship inside whichever surface consumes them.
 
-The website (`packages/website`, https://atomize-cd9.pages.dev/schema) isn't a release surface. It has no version or tag. `.github/workflows/deploy-website.yml` deploys it to Cloudflare Pages on every push to `main` that touches `atomize-schema`, `atomize-schema-reference` or the website (ADR-[0072](adr/0072-website-tracks-main-on-cloudflare-pages-direct-upload.md)).
+The website (`packages/website`, https://atomize-docs.pages.dev/schema) isn't a release surface. It has no version or tag. `.github/workflows/deploy-website.yml` deploys it to Cloudflare Pages on every push to `main` that touches `atomize-schema`, `atomize-schema-reference` or the website (ADR-[0072](adr/0072-website-tracks-main-on-cloudflare-pages-direct-upload.md)).
 
 ## Cutting a release
 
