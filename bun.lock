@@ -121,7 +121,7 @@
     },
     "packages/cli": {
       "name": "@sppg2001/atomize",
-      "version": "5.1.1",
+      "version": "5.1.2",
       "bin": {
         "atomize": "dist/cli/index.js",
         "atom": "dist/cli/index.js",
