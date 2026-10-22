@@ -57,11 +57,21 @@ export function getNonInteractiveLiveExecutionError(options: {
   );
 }
 
+/**
+ * The exit code for a finished run, the same in every output mode: no matching Stories is
+ * NoMatch, any failed Story is Failure, otherwise Success.
+ * @internal Exported for testing
+ */
+export function reportExitCode(report: AtomizationReport): number {
+  if (report.storiesProcessed === 0) return ExitCode.NoMatch;
+  return report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success;
+}
+
 /** @internal Exported for testing */
 export function buildJsonOutput(report: AtomizationReport): { stdout: string; exitCode: number } {
   return {
     stdout: JSON.stringify(report),
-    exitCode: report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success,
+    exitCode: reportExitCode(report),
   };
 }
 
@@ -69,7 +79,7 @@ export function buildJsonOutput(report: AtomizationReport): { stdout: string; ex
 export function buildJsonStreamReportLine(report: AtomizationReport): { line: string; exitCode: number } {
   return {
     line: JSON.stringify({ event: "report", data: report }),
-    exitCode: report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success,
+    exitCode: reportExitCode(report),
   };
 }
 
@@ -365,7 +375,7 @@ export function printReport(
         output.print(chalk.gray("  Check your template's filter configuration (types, states, tags).\n"));
       }
     }
-    return ExitCode.NoMatch;
+    return reportExitCode(report);
   }
 
   if (options.quiet) {
@@ -482,7 +492,7 @@ export function printReport(
     output.print(chalk.red("No tasks were created.\n"));
   }
 
-  return report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success;
+  return reportExitCode(report);
 }
 
 function renderFilterCriteria(input: {
@@ -586,8 +596,8 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
     "Apply this template's task definitions and estimation rules to specific stories by ID, bypassing the template's story filter. excludeIfHasTasks still applies.",
   )
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
-  .option("--json", "Emit AtomizationReport as JSON to stdout; implies dry-run and --quiet", false)
-  .option("--json-stream", "Emit NDJSON progress events then final report to stdout; implies --quiet", false)
+  .option("--json", "Emit AtomizationReport as JSON to stdout; implies --quiet. Runs a dry run unless --execute is passed", false)
+  .option("--json-stream", "Emit NDJSON progress events then final report to stdout; implies --quiet. Runs a dry run unless --execute is passed", false)
   .action(async (templateArg: string | undefined, options) => {
       try {
       const isJson = options.json === true;

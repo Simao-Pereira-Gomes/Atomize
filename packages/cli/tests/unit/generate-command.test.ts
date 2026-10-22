@@ -10,7 +10,9 @@ import {
   getJsonStreamConflictError,
   getNonInteractiveLiveExecutionError,
   parseConcurrency,
+  makeGenerateCommand,
   printReport,
+  reportExitCode,
   resolveCommandLogLevel,
   resolveGenerateOutputPolicy,
 } from "@/cli/commands/generate.command";
@@ -464,6 +466,32 @@ describe("buildJsonOutput", () => {
 
   test("returns exit code 1 when stories failed", () => {
     expect(buildJsonOutput(makeReport({ storiesFailed: 2 })).exitCode).toBe(ExitCode.Failure);
+  });
+});
+
+describe("no-match exit code across output modes (#286)", () => {
+  test("every output mode exits NoMatch when no Stories matched", () => {
+    const report = makeReport({ storiesProcessed: 0, storiesSuccess: 0, tasksCalculated: 0, tasksCreated: 0 });
+    expect(reportExitCode(report)).toBe(ExitCode.NoMatch);
+    expect(buildJsonOutput(report).exitCode).toBe(ExitCode.NoMatch);
+    expect(buildJsonStreamReportLine(report).exitCode).toBe(ExitCode.NoMatch);
+  });
+
+  test("failed Stories still exit Failure in every output mode", () => {
+    const report = makeReport({ storiesProcessed: 2, storiesFailed: 1 });
+    expect(buildJsonOutput(report).exitCode).toBe(ExitCode.Failure);
+    expect(buildJsonStreamReportLine(report).exitCode).toBe(ExitCode.Failure);
+  });
+});
+
+describe("JSON output help text (#286)", () => {
+  test("--json and --json-stream say they run a dry run unless --execute is passed", () => {
+    const command = makeGenerateCommand(() => { throw new Error("not run"); }, {} as never, {} as never);
+    for (const flag of ["--json", "--json-stream"]) {
+      const description = command.options.find(option => option.long === flag)?.description ?? "";
+      expect(description).toContain("Runs a dry run unless --execute is passed");
+      expect(description).not.toContain("implies dry-run");
+    }
   });
 });
 

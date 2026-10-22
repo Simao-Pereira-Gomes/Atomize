@@ -336,7 +336,7 @@ Create a short-lived Connection Profile in the job from your secrets store, and 
 | `2` | No Stories matched the filter or `--story` IDs | |
 | `3` | Authentication failed | |
 
-With `--json` or `--json-stream`, `generate` reports no matching Stories as `0` with `storiesProcessed: 0` in the report; check that field when an empty run matters.
+The exit codes are the same with `--json` and `--json-stream`. A run with no matching Stories exits `2` and still prints its report, with `storiesProcessed: 0`.
 
 - By default `generate` stops after the first failing Story. `--continue-on-error` processes the rest and still exits `1` if any failed.
 - Test against a few items with `--limit <n>` before a full `--execute` run.

@@ -344,7 +344,7 @@ Do not use it in shared CI pipelines where the report artifact may be visible to
 | `2` | No stories matched the filter or `--story` IDs |
 | `3` | Authentication failed |
 
-With `--json` or `--json-stream`, a run with no matching stories exits `0` and reports `storiesProcessed: 0`.
+The exit codes are the same with `--json` and `--json-stream`. A run with no matching stories exits `2` and still prints its report, with `storiesProcessed: 0`.
 
 <!-- /atomize:section -->
 
