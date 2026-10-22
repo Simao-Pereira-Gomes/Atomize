@@ -290,7 +290,7 @@ This command needs GitHub Copilot Chat. If Copilot can't be used, the command te
 - GitHub Copilot Chat isn't installed or signed in: **Install GitHub Copilot Chat**.
 - You declined VS Code's permission prompt: **Try Again**.
 - The model in `atomize.ai.model` isn't available: **Use Automatic** or **Open Settings**.
-- The request is too large for the model: leave out some Reference Documents, or choose a model with a larger limit in `atomize.ai.model`.
+- The request is too large for the model: leave out some Reference Documents, run without project grounding, or choose a model with a larger limit in `atomize.ai.model`.
 
 ### Atomize: Improve Template with AI
 

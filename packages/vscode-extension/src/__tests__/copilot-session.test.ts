@@ -168,6 +168,7 @@ describe('Copilot Lm session', () => {
 		const session = await openCopilotSession(languageModels([model('gpt-4o', [], failure)]), 'auto');
 		const error = await rejection(session.generate('S', 'U'));
 		expect(error.reason).toBe('too-large');
-		expect(error.message).toContain('fewer Reference Documents or Stories');
+		expect(error.message).toContain('fewer Reference Documents or without project grounding');
+		expect(error.message).not.toContain('Stories');
 	});
 });

@@ -10,7 +10,7 @@ const JUSTIFICATION = 'Atomize sends your description to Copilot to draft or imp
 
 export type AIUnavailableReason = 'no-models' | 'model-unavailable' | 'no-permission' | 'blocked' | 'too-large' | 'failed';
 
-const TOO_LARGE_ADVICE = 'Try again with fewer Reference Documents or Stories, or choose a Copilot model with a larger limit in atomize.ai.model.';
+const TOO_LARGE_ADVICE = 'Try again with fewer Reference Documents or without project grounding, or choose a Copilot model with a larger limit in atomize.ai.model.';
 
 /** Why AI can't be used right now, so the command can offer the matching action. */
 export class AIUnavailableError extends Error {
@@ -36,7 +36,7 @@ export interface LanguageModelRuntime {
 
 /**
  * Picks the Copilot model named by `atomize.ai.model` (a model family, or "auto") and opens a
- * session on it. Grounded requests carry project metadata, Stories, and Reference Documents, so
+ * session on it. Grounded requests carry project metadata and Reference Documents, so
  * "auto" chooses the available model with the largest input limit rather than whichever is listed first.
  */
 export async function openCopilotSession(lm: LanguageModelRuntime, modelPreference: string): Promise<CopilotLmSession> {
