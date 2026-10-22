@@ -20,5 +20,4 @@ defaults, use the [Schema Reference](/reference/templates/schema/).
 - [`extends`](/reference/templates/schema/#template.extends): the base Template to inherit.
 - [`mixins`](/reference/templates/schema/#template.mixins): reusable task groups to compose.
 
-Read the [complete Template Reference](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Template-Reference.md)
-for the behaviours that have not yet moved into focused portal pages.
+A file's own fields are explained in [Template structure](/reference/templates/), [filters](/reference/templates/filter/), [tasks](/reference/templates/tasks/), and [estimation](/reference/templates/estimation/).

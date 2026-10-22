@@ -14,8 +14,14 @@ async function htmlFiles(directory: string): Promise<string[]> {
 }
 
 const schemaPermalinks = new Set<string>();
+const schemaGuideAnchors = new Set<string>();
 function collect(nodes: SchemaNode[]) {
-  for (const node of nodes) { schemaPermalinks.add(node.permalink); collect(node.children); collect(node.alternatives); }
+  for (const node of nodes) {
+    schemaPermalinks.add(node.permalink);
+    if (node.guideAnchor) schemaGuideAnchors.add(node.guideAnchor);
+    collect(node.children);
+    collect(node.alternatives);
+  }
 }
 const trees = buildSchemaTrees(schema);
 collect(trees.template); collect(trees.mixin);
@@ -212,6 +218,30 @@ async function checkDocs() {
   if (!sidebarHrefs("vscode/generate/").includes("/cli/reference/auth/") || !sidebarHrefs("cli/reference/auth/").includes("/vscode/generate/") || (features.studio && !sidebarHrefs("cli/reference/auth/").includes("/studio/generate/"))) failures.push("Guide sidebars must list every tool's guides and reference pages, including the CLI reference");
   if (pages.get(resolve(directory, "vscode/generate/index.html"))?.querySelectorAll(".documentation-sections-mobile a").length !== 2) failures.push("Section tabs must be available in the mobile menu");
   if (!schemaPage?.querySelector(`a[href="${templateGuideUrl("inheritance-extends")}"]`)) failures.push("Schema Reference is missing its composition-guide link");
+  // Every field's "guide" link must land on a portal page and heading, not on GitHub.
+  for (const anchor of schemaGuideAnchors) {
+    const [route, fragment] = templateGuideUrl(anchor).split("#");
+    const page = route.startsWith("/") ? pages.get(resolve(directory, `${route.slice(1)}index.html`)) : undefined;
+    if (!page || (fragment && !page.getElementById(fragment))) failures.push(`Schema field guide link does not reach a portal page: ${anchor}`);
+  }
+  for (const [route, title, anchors] of [
+    ["reference/templates", "Template structure", ["overview", "file-identity", "file-naming"]],
+    ["reference/templates/filter", "Choose Stories with filters", ["special-values", "date-filters", "savedquery"]],
+    ["reference/templates/tasks", "Define Tasks", ["variable-interpolation", "assignment-patterns", "task-custom-fields", "task-dependencies", "repeated-tasks"]],
+    ["reference/templates/conditions", "Add conditions", ["conditional-tasks", "conditional-estimation"]],
+    ["reference/templates/estimation", "Estimate Tasks", ["estimation-terms", "from-story-estimate-to-task-estimate", "unresolvable-story-estimates", "estimation-field-mapping", "check-estimation-against-your-project", "task-creation"]],
+    ["reference/templates/validation", "Validation, metadata, and retired fields", ["metadata", "deprecated-fields"]],
+    ["reference/templates/example", "Complete example", []],
+  ] as const) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Template guide, metadata, or search indexing is missing: ${route}`);
+    for (const anchor of anchors) if (!page?.getElementById(anchor)) failures.push(`Template guide is missing ${anchor} on ${route}`);
+    if (!page?.querySelector(`a[href^="${schemaRoute}#"]`)) failures.push(`Template guide must link to Schema Reference fields: ${route}`);
+  }
+  const estimationTerms = [...(pages.get(resolve(directory, "reference/templates/estimation/index.html"))?.querySelectorAll("table") ?? [])].find(table => table.textContent?.includes("Set with"))?.textContent ?? "";
+  for (const term of ["Story Estimate", "Task Estimate", "Estimation Conversion", "Unresolvable Story Estimate", "Estimation Field Mapping"]) {
+    if (!estimationTerms.includes(term)) failures.push(`Estimation terms are missing ${term}`);
+  }
   if (!guide?.querySelector(".development-notice") || !guide?.querySelector(".documentation-build time")) failures.push("Development notice or build provenance is missing");
   if (failures.length) throw new Error(failures.join("\n"));
   console.log(`Documentation checks passed: ${pages.size} HTML pages, internal links, anchors, guide, schema, and search index.`);

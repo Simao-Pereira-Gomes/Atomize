@@ -39,7 +39,7 @@ Start with a Mock Preview to see a task breakdown without credentials. When you 
 
 ## Make the breakdown your team's own
 
-Use [Template composition](/reference/templates/composition/) to share a base Template and reusable task groups.
+Learn how a [Template is structured](/reference/templates/), from [filters](/reference/templates/filter/) to [estimation](/reference/templates/estimation/). Use [Template composition](/reference/templates/composition/) to share a base Template and reusable task groups.
 
 ## Look it up
 

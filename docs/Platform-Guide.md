@@ -271,6 +271,8 @@ filter:
 - `Microsoft.VSTS.Common.Activity` - Activity type
 - `Microsoft.VSTS.Common.BacklogPriority` - Backlog priority
 
+<!-- atomize:section platform-task-creation -->
+
 ### Task Creation
 
 When creating tasks, Atomize sets these fields:
@@ -306,9 +308,11 @@ Tasks are created as the `Task` work item type unless the Template sets `taskTyp
 
 When a Story has no estimate, or its value isn't covered by the conversion, its tasks are still created with blank estimates and a warning is reported. Set `ifParentHasNoEstimation: skip` to skip the Story instead, or `use-default` together with `defaultParentEstimation`.
 
-To write the estimate somewhere else, set `estimation.targetFields`. It replaces the default fields: the value is written as calculated, and `CompletedWork` is left alone. Target fields must be writable number fields that aren't picklists; Online Validation reports anything else as an error. The CLI wizard and Studio also leave out `System.*` fields and fields in `Microsoft.VSTS.Common.*` (priority, stack rank, business value, ...), because those don't hold effort. If you type one in, Online Validation warns.
+To write the estimate somewhere else, set `estimation.targetFields`. It replaces the default fields: the value is written as calculated, and `CompletedWork` is left alone. Target fields must be writable number fields that aren't picklists; Online Validation reports anything else as an error. When you pick target fields in the CLI wizard<!-- atomize:feature studio --> or Studio<!-- /atomize:feature -->, `System.*` fields and fields in `Microsoft.VSTS.Common.*` (priority, stack rank, business value, ...) are left out, because those don't hold effort. If you type one in, Online Validation warns.
 
 See the [estimation field reference](https://atomize-cd9.pages.dev/schema#template.estimation) for every option.
+
+<!-- /atomize:section -->
 
 ### Troubleshooting
 

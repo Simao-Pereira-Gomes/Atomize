@@ -104,6 +104,16 @@ describe("canonical guide rendering", () => {
     expect(canonicalGuideUrl("docs/Template-Creation.md", "ai-assisted-drafts")).toBe("/cli/ai/");
   });
 
+  test("the estimation guide distinguishes the estimation terms and each unresolvable-estimate policy", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include template-estimation -->");
+    const { document } = parseHTML(code);
+    for (const term of ["Story Estimate", "Task Estimate", "Estimation Conversion", "Unresolvable Story Estimate", "Estimation Field Mapping"]) expect(code).toContain(term);
+    for (const policy of ["warn", "skip", "use-default"]) expect([...document.querySelectorAll("td code")].some(cell => cell.textContent === policy)).toBe(true);
+    expect(document.querySelector('a[href="/reference/templates/estimation/#task-creation"]')).not.toBeNull();
+    expect(canonicalGuideUrl("docs/Template-Reference.md", "repeated-tasks")).toBe("/reference/templates/tasks/#repeated-tasks");
+  });
+
   test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "when-the-keychain-is-unavailable")).toBe("/connections/profiles/#when-the-keychain-is-unavailable");
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "credential-storage")).toBe("/connections/profiles/#credential-storage");

@@ -24,12 +24,19 @@ documents `main`; the Schema Reference inside Studio and VS Code matches the ins
   - [Task Dependencies](#task-dependencies)
   - [Repeated Tasks](#repeated-tasks)
 - [estimation](#estimation)
+  - [Estimation Terms](#estimation-terms)
+  - [From Story Estimate To Task Estimate](#from-story-estimate-to-task-estimate)
+  - [Unresolvable Story Estimates](#unresolvable-story-estimates)
+  - [Estimation Field Mapping](#estimation-field-mapping)
+  - [Check Estimation Against Your Project](#check-estimation-against-your-project)
 - [validation](#validation)
 - [metadata](#metadata)
 - [Deprecated Fields](#deprecated-fields)
 - [Complete Example](#complete-example)
 
 ---
+
+<!-- atomize:section template-file-naming -->
 
 ## File Naming
 
@@ -68,7 +75,11 @@ The modeline works for any `.yaml` or `.yml` file regardless of name. The `atm-t
 
 If a file has neither the `.atomize.yaml` extension nor the modeline, the extension will attempt to identify it by structure (Template: `tasks:` with `filter:` or `formatVersion:` at root; Mixin: `tasks:` + nested `id:`, with `formatVersion:` or no `version:`). When a file is matched this way, VS Code will show a warning offering to add the modeline or rename the file. Adopting one of the explicit conventions is always preferred: content detection is a fallback and cannot be as precise.
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section template-overview -->
 
 ## Overview
 
@@ -85,7 +96,9 @@ Templates are YAML files that define how Atomize breaks down user stories into t
 ## File Identity
 
 A file's [Format Version](https://atomize-cd9.pages.dev/schema#template.formatVersion)
-identifies the edition of the Atomize format it follows. Its
+identifies the edition of the Atomize format it follows. A file without
+`formatVersion` is format 1.0, and a release of Atomize that can't read a file's
+Format Version reports an error naming the versions it reads. Its
 [Revision](https://atomize-cd9.pages.dev/schema#template.version) belongs to the author:
 Atomize displays it without interpreting or comparing it, and a child Template does
 not inherit its parent's Revision. Quote version-like strings in YAML so they remain strings.
@@ -93,6 +106,8 @@ not inherit its parent's Revision. Quote version-like strings in YAML so they re
 Use the [Template field reference](https://atomize-cd9.pages.dev/schema#template.name)
 for identity, author and discovery fields, or the
 [Mixin reference](https://atomize-cd9.pages.dev/schema#mixin.name) when authoring a Mixin.
+
+<!-- /atomize:section -->
 
 ---
 
@@ -170,6 +185,8 @@ The CLI first supported `extends` and `mixins` in version 2.0.0. That historical
 ---
 
 ## filter
+
+<!-- atomize:section template-filter -->
 
 Defines which work items this template applies to. All criteria are combined with AND logic.
 
@@ -279,7 +296,7 @@ filter:
 - `id` must be a valid UUID (visible in the ADO query URL).
 - Only **flat (Work Items)** queries are supported. Tree and one-hop queries are rejected at runtime with a clear error.
 - `savedQuery` takes precedence over all structured filter fields (`states`, `tags`, area paths, etc.). A validator warning is emitted if both are present.
-- `workItemTypes` is the exception: alongside `savedQuery` it declares **which types the query returns**. It never filters the query's results, but Atomize uses it to look up fields: the estimation `source` and condition field pickers, and Online Validation of those fields. The CLI wizard asks for it when you pick a saved query, and Studio shows it next to the saved query.
+- `workItemTypes` is the exception: alongside `savedQuery` it declares **which types the query returns**. It never filters the query's results, but Atomize uses it to look up fields: the estimation `source` and condition field pickers, and Online Validation of those fields. The CLI wizard asks for it when you pick a saved query<!-- atomize:feature studio -->, and Studio shows it next to the saved query<!-- /atomize:feature -->.
 
 **Post-processing still applies:** `excludeIfHasTasks` still applies to the query results after resolution, and you can still cap execution with the CLI `--limit` option.
 
@@ -309,9 +326,13 @@ The PAT used by Atomize must have **Work Items (Read)** scope on the project con
 
 **Tip:** Use `atomize queries list` to browse available query paths and IDs without leaving the terminal.
 
+<!-- /atomize:section -->
+
 ---
 
 ## tasks
+
+<!-- atomize:section template-tasks -->
 
 Defines the tasks to create for each matching work item. Tasks are created as child items.
 
@@ -418,6 +439,10 @@ covers reference-name syntax, supported value types and platform validation rule
 
 Use `atomize fields list` to browse available field names and types for a project before authoring templates.
 
+<!-- /atomize:section -->
+
+<!-- atomize:section template-conditional-tasks -->
+
 ### Conditional Tasks
 
 Tasks with a `condition` are only created when the condition evaluates to `true`. Conditions are structured objects evaluated against the parent story at generate time. When a conditional task is skipped, its estimation is redistributed to other tasks proportionally.
@@ -463,6 +488,10 @@ tasks:
       value: "Enterprise"
 ```
 
+<!-- /atomize:section -->
+
+<!-- atomize:section template-conditional-estimation -->
+
 ### Conditional Estimation
 
 Use `estimationPercentCondition` to adapt a task's percentage based on story properties. Rules are evaluated in order; the first matching rule wins. The `estimationPercent` field serves as the fallback.
@@ -494,6 +523,10 @@ tasks:
 - If no condition matches, `estimationPercent` is used
 - Normalization uses the resolved percentages (including skipped tasks)
 - Conditional percentages participate correctly in the 100% distribution
+
+<!-- /atomize:section -->
+
+<!-- atomize:section template-dependencies -->
 
 ### Task Dependencies
 
@@ -563,15 +596,19 @@ The count is a fixed number written in the template. It can't come from a Story 
 
 **Authoring:**
 - **CLI wizard:** the advanced task options ask how many identical Tasks to create.
-- **Atomize Studio:** use the task's **Copies** field.
+- **Atomize Studio:** use the task's **Copies** field. <!-- atomize:feature studio -->
 - **VS Code:** type `atm-task-repeat`.
 - **AI drafts:** a request such as "one review task per developer" produces a repeated task.
 
 The full decision record is [ADR-0067](./adr/0067-task-repeat-count-is-a-schema-field.md).
 
+<!-- /atomize:section -->
+
 ---
 
 ## estimation
+
+<!-- atomize:section template-estimation -->
 
 Translates the Story Estimate into the Task's unit, then distributes it across Tasks.
 
@@ -593,24 +630,70 @@ See the [estimation field reference](https://atomize-cd9.pages.dev/schema#templa
 
 **Examples:** [points-to-hours](../examples/points-to-hours.atomize.yaml) (factor), [fibonacci-hours-table](../examples/fibonacci-hours-table.atomize.yaml) (numeric table), [tshirt-size-estimation](../examples/tshirt-size-estimation.atomize.yaml) (size field, fractional sizes) and [custom-fields-and-task-type](../examples/custom-fields-and-task-type.atomize.yaml) (`taskType` and `targetFields`); see the [examples README](../examples/README.md) for what each produces.
 
-**Online Validation** (`atomize validate --profile <name>`, or Online in VS Code and Studio) checks estimation overrides against the project:
-- **Errors:** `source` is missing on a filtered Story type; `taskType` does not exist; a `targetFields` entry is missing on the child type or is not numeric.
-- **Warnings** (errors in strict mode): picklist values of `source` that `conversion.table` does not cover; table keys that are not allowed values (often typos); a `source` field that accepts free text or is a *suggested* picklist, because values outside the table leave Task Estimates blank; numeric operators on `estimation` when `source` holds text.
+### Estimation Terms
+
+| Term | Meaning | Set with |
+| --- | --- | --- |
+| **Story Estimate** | The size recorded on a Story, in the Story's own unit: points, a T-shirt size, hours, or any other scale your process uses. | `source` chooses the Story field. |
+| **Task Estimate** | The effort Atomize writes on each generated Task, in the Task's own unit (hours on Azure DevOps). | `estimationPercent` or `estimationFixed` on each task. |
+| **Estimation Conversion** | The rule that translates a Story Estimate into the Task's unit before it is distributed: a `factor` or a value-by-value `table`. Without one, the Story Estimate is used one-to-one. | `conversion` |
+| **Unresolvable Story Estimate** | A Story Estimate that is missing, or that the conversion can't translate. Atomize never guesses one. | `ifParentHasNoEstimation` and `defaultParentEstimation` |
+| **Estimation Field Mapping** | Which Story field supplies the Story Estimate, which Work Item type the Tasks are created as, and which Task fields receive the Task Estimate. | `source`, `taskType` and `targetFields` |
+
+### From Story Estimate To Task Estimate
+
+For each Story, Atomize:
+
+1. Reads the Story Estimate from the `source` field, or from the platform's default fields when `source` is not set.
+2. Converts it to the Task's unit with `conversion`. A `table` matches values exactly; with `multipliers: true`, a value such as `0.3XL` is also accepted as 0.3 × the `XL` entry.
+3. Splits the result across the active tasks by their percentages. When the percentages don't add up to 100%, `normalize` decides whether they are scaled.
+4. Applies `rounding`, then `minimumTaskEstimate`.
 
 Conversion happens before percentage distribution. For example, a 5-point Story
 with `factor: 4` becomes 20 hours; a Task weighted at 20% receives 4 hours before
 rounding and the minimum. A fixed estimate is written as supplied and bypasses
 percentage rounding and the minimum.
 
-If a conversion table cannot resolve a Story Estimate, Atomize applies the chosen
-unresolvable-estimate policy; it never guesses a size. See the
-[conversion reference](https://atomize-cd9.pages.dev/schema#template.estimation.conversion)
+See the [conversion reference](https://atomize-cd9.pages.dev/schema#template.estimation.conversion)
 and [rounding reference](https://atomize-cd9.pages.dev/schema#template.estimation.rounding)
 for lookup and rounding rules.
+
+### Unresolvable Story Estimates
+
+If a Story has no estimate, or a conversion table cannot resolve it, Atomize applies
+the chosen unresolvable-estimate policy; it never guesses a size.
+
+| `ifParentHasNoEstimation` | What happens |
+| --- | --- |
+| `warn` (default) | The Story's Tasks are created with blank Task Estimates, never 0, and a warning is reported. |
+| `skip` | No Tasks are created for that Story, and the reason is reported. |
+| `use-default` | Atomize uses `defaultParentEstimation` as the Story Estimate, in the Story's unit, and converts it like a real one. Without a `defaultParentEstimation`, it behaves like `warn`. |
+
+A `defaultParentEstimation` must itself be convertible: a number when there is no table, or a table key (including an enabled multiple).
+
+### Estimation Field Mapping
+
+Each platform supplies a default mapping, and a Template can override each part using the platform's own field names:
+
+- `source`: the Story field that holds the Story Estimate. It replaces the default fields, with no fallback, so a Story with that field blank has an Unresolvable Story Estimate.
+- `taskType`: the Work Item type Tasks are created as.
+- `targetFields`: the Task fields that receive the Task Estimate. They replace all the default writes, and values are written exactly as calculated.
+
+On Azure DevOps, the Story Estimate defaults to the first of `Microsoft.VSTS.Scheduling.StoryPoints`, `Effort`, `Size` and `OriginalEstimate` that has a value; Tasks are created as `Task`; and the Task Estimate is written to `RemainingWork` and `OriginalEstimate`, with `CompletedWork` set to 0. See [Task Creation](./Platform-Guide.md#task-creation) for every field Atomize writes on Azure DevOps.
+
+### Check Estimation Against Your Project
+
+**Online Validation** (`atomize validate --profile <name>`, or Online in VS Code<!-- atomize:feature studio --> and Studio<!-- /atomize:feature -->) checks estimation overrides against the project:
+- **Errors:** `source` is missing on a filtered Story type; `taskType` does not exist; a `targetFields` entry is missing on the child type or is not numeric.
+- **Warnings** (errors in strict mode): picklist values of `source` that `conversion.table` does not cover; table keys that are not allowed values (often typos); a `source` field that accepts free text or is a *suggested* picklist, because values outside the table leave Task Estimates blank; numeric operators on `estimation` when `source` holds text.
+
+<!-- /atomize:section -->
 
 ---
 
 ## validation
+
+<!-- atomize:section template-validation -->
 
 Optional rules that validate the template before use. See [Validation Modes](./Validation-Modes.md) for details on strict vs lenient behavior.
 
@@ -682,9 +765,13 @@ The Schema Reference marks each deprecated field and describes its replacement:
 The last is a compatibility fallback, so it still affects estimates when
 `minimumTaskEstimate` is absent.
 
+<!-- /atomize:section -->
+
 ---
 
 ## Complete Example
+
+<!-- atomize:section template-example -->
 
 ```yaml
 formatVersion: "1.0"
@@ -783,6 +870,8 @@ metadata:
   category: "Backend"
   estimationGuidelines: "Works best with stories between 5-13 story points."
 ```
+
+<!-- /atomize:section -->
 
 ---
 

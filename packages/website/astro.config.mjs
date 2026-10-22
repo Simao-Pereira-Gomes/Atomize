@@ -64,7 +64,14 @@ export default defineConfig({
         { label: "Fix connection problems", slug: "connections/troubleshooting" },
       ] },
       { label: "Templates", items: [
+        { label: "Template structure", slug: "reference/templates" },
+        { label: "Choose Stories with filters", slug: "reference/templates/filter" },
+        { label: "Define Tasks", slug: "reference/templates/tasks" },
+        { label: "Add conditions", slug: "reference/templates/conditions" },
+        { label: "Estimate Tasks", slug: "reference/templates/estimation" },
         { label: "Compose Templates", slug: "reference/templates/composition" },
+        { label: "Validation and metadata", slug: "reference/templates/validation" },
+        { label: "Complete example", slug: "reference/templates/example" },
       ] },
       { label: "Release notes", slug: "releases" },
       { label: "More guides", items: [
