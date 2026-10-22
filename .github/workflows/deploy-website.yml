@@ -129,9 +129,10 @@ jobs:
           {
             echo "### Atomize documentation deployed"
             echo ""
-            echo "- Deployment: ${DEPLOYMENT_URL}/reference/templates/schema/"
+            echo "- Documentation: ${DEPLOYMENT_URL}/"
+            echo "- Schema Reference: ${DEPLOYMENT_URL}/reference/templates/schema/"
             echo "- Composition guide: ${DEPLOYMENT_URL}/reference/templates/composition/"
-            if [ -n "$ALIAS_URL" ]; then echo "- Alias: ${ALIAS_URL}/reference/templates/schema/"; fi
+            if [ -n "$ALIAS_URL" ]; then echo "- Alias: ${ALIAS_URL}/"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment preview URL on PR
@@ -147,10 +148,11 @@ jobs:
           marker="<!-- deploy-website-preview -->"
           url="${ALIAS_URL:-$DEPLOYMENT_URL}"
           body="${marker}
+          **Documentation preview:** ${url}/
           **Schema Reference preview:** ${url}/reference/templates/schema/
           **Composition guide preview:** ${url}/reference/templates/composition/
 
-          Built from ${HEAD_SHA:0:7}. This deployment: ${DEPLOYMENT_URL}/reference/templates/schema/"
+          Built from ${HEAD_SHA:0:7}. This deployment: ${DEPLOYMENT_URL}/"
           comment_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"${marker}\")) | .id" | head -n 1)
           if [ -n "$comment_id" ]; then
