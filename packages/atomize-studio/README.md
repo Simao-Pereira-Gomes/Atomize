@@ -2,7 +2,15 @@
 
 Standalone desktop application for visually authoring Atomize Templates, generating Tasks, and managing the Catalog and Connection Profiles. Templates start from one of four Starting Paths (scratch, Catalog Clone, Open (a local Atomize YAML File), or AI draft from prose) all converging on the same visual authoring surface. Produces a downloadable Atomize YAML File, or installs directly into the Catalog. See [docs/Atomize-Studio.md](../../docs/Atomize-Studio.md) for the full behavior reference.
 
-## Prerequisites
+## Install and use Studio
+
+Download an installer for your operating system from [Studio releases](https://github.com/Simao-Pereira-Gomes/Atomize/releases?q=tag%3Astudio-v0). See the [installation guide](../../docs/Atomize-Studio.md#install) for platform requirements and your first steps.
+
+The [Atomize website](https://atomize-docs.pages.dev/) covers shared Template concepts, the Schema Reference, and CLI and VS Code workflows. Studio-specific instructions are currently in the [Studio guide](../../docs/Atomize-Studio.md).
+
+Studio ships as a desktop application. Its workspace package is private and is not published to npm. The prerequisites and commands below are for building Studio from source.
+
+## Development prerequisites
 
 ### All platforms
 
