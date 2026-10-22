@@ -123,13 +123,13 @@ async function captureFlow(mode, theme) {
   await command("Atomize: Preview (Mock)");
   const formContext = await webviewContext(`!!document.querySelector('input[data-field="estimation"]')`);
   await evaluate(`(() => {
-    const values = { estimation: '8', tags: 'backend', type: 'User Story', state: 'Active' };
+    const values = { estimation: '8', type: 'User Story' };
     for(const [name,value] of Object.entries(values)) document.querySelector('[data-field="'+name+'"]').value = value;
     document.querySelector('form').requestSubmit();
   })()`, formContext);
-  const resultsContext = await webviewContext(`document.body.innerText.includes('Design API Endpoints: Mock Story')`);
+  const resultsContext = await webviewContext(`document.body.innerText.includes('Define API Behavior: Mock Story')`);
   const result = await evaluate(`document.body.innerText`, resultsContext);
-  if (!result.includes("Code Review & Refinement") || !/6\s+Tasks/.test(result) || !result.includes("8 hours") || !result.includes("100%")) throw Error("Review the expected six-Task, eight-hour result before refreshing screenshots.");
+  if (!result.includes("Verify API Behavior") || !/3\s+Tasks/.test(result) || !result.includes("32 hours") || !result.includes("100%")) throw Error("Review the expected three-Task, 32-hour result before refreshing screenshots.");
   await capture(`mock-preview-${mode}`);
   console.log(`Captured the real Mock Preview Panel using the extension's in-process engine in ${theme}.`);
 }
@@ -209,7 +209,7 @@ async function captureGenerate(mode, theme) {
   if (!plan.includes("DRY RUN")) throw Error("The Generate Panel did not show its dry run before Task creation.");
   await capture(`generate-dry-run-${mode}`);
   await evaluate(`document.getElementById('btn-create').click()`, panel);
-  await waitFor(`(document.querySelector('.monaco-dialog-box')?.textContent ?? '').includes('Create 12 tasks for 2 stories using profile "contoso-web"?')`);
+  await waitFor(`(document.querySelector('.monaco-dialog-box')?.textContent ?? '').includes('Create 6 tasks for 2 stories using profile "contoso-web"?')`);
   await capture(`generate-confirmation-${mode}`);
   await evaluate(`[...document.querySelectorAll('.monaco-dialog-box .monaco-button')].find(button => button.textContent.trim() === 'Cancel').click()`);
   await waitFor(`!document.querySelector('.monaco-dialog-box')`);

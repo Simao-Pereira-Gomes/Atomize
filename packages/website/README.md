@@ -207,8 +207,10 @@ To publish Studio, set `ATOMIZE_PUBLISH_STUDIO: "true"` for production in
 ## Refresh Studio screenshots
 
 The authoring and Mock Preview images were captured from the current Studio UI
-on 2026-10-15 at 1440 × 1000 in light and dark mode. They show the built-in Backend API
-Development Template and an offline Mock Story with estimate 8. There are no
+on 2026-10-22 at 1440 × 1000 in light and dark mode. They show the built-in Backend API
+Development Template and an offline Mock Story with estimate 8 and type User Story.
+The Template converts that estimate to 32 hours and splits it across three Tasks
+(6.5, 16, and 9.5 hours). There are no
 Connection Profiles, credentials, or customer data in the authoring and preview
 captures. The Connection Profile capture shows the real Manage work projects
 dialog with two fictional `contoso` connections returned by the substituted IPC
@@ -254,13 +256,15 @@ profile because the capture clears its local storage. Close it after capture.
 
 Review all eight PNGs, update the adjacent canonical instructions and alt text when
 labels or behaviour change, and run the website checks. If the built-in Template
-changes its six-Task example, update the quickstart and capture assertions together.
+changes its example, update the quickstart, contract tests, and capture assertions together.
+`bun run --cwd packages/website test` checks the documented inputs, task titles,
+and converted totals against the current built-in Template.
 Shared Studio Markdown changes and these media files trigger CI and deployment.
 
 ## Refresh VS Code screenshots
 
 VS Code pages reuse marked sections in `docs/VS-Code-Extension.md`. The images
-under `public/vscode/` were captured on 2026-10-15 from a real Extension
+under `public/vscode/` were captured on 2026-10-22 from a real Extension
 Development Host running this checkout, with the built-in Backend API Development
 Template and the documented offline Mock Story. No platform credentials or AI
 sign-in are used. The native editor and extension engine are not mocked; only
@@ -339,13 +343,14 @@ taken, launch the host on another port and set `ATOMIZE_VSCODE_DEBUG_PORT`.
 
 The script closes editors in this dedicated host, opens the real built-in Template
 through Browse Catalog's backing-file button, captures CodeLens and YAML, and
-runs Mock Preview with estimate 8. It drives the separate webview process to
+runs Mock Preview with estimate 8 and type User Story, asserting three Tasks and
+a converted total of 32 hours. It drives the separate webview process to
 submit the actual form. It then adds two fictional `contoso` profiles through
 the real **Atomize: Manage Profiles** inputs, with a placeholder token that is
 never tested or sent anywhere, and captures one profile's actions cropped to the
 Quick Pick. It skips profiles that already exist in the isolated host. Finally it runs Atomize: Generate with the
 `contoso-web` profile, ticks the two Mock Stories estimated at 8 in the Story
-Browser, captures the dry run and VS Code's confirmation dialog, and cancels it. The captures omit the host title bar and status bar;
+Browser, captures the dry run (six Tasks and 64 hours) and VS Code's confirmation dialog, and cancels it. The captures omit the host title bar and status bar;
 their content is otherwise the unmodified editor UI. Review all ten images, alt
 text, and adjacent instructions after changes to the Catalog, authoring,
 preview, profile management, or Generate UI. Changes to the canonical VS Code guide and these media files trigger

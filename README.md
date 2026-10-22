@@ -81,18 +81,15 @@ Pass a small Mock Story as JSON. Single quotes keep the JSON intact in Bash, Zsh
 atomize preview template:backend-api --mock-story '{"id":"123","title":"Add password reset","estimation":8}'
 ```
 
-The command prints JSON containing six Tasks. The first three titles include the Mock Story's title; the remaining titles come directly from the Template. Here is a shortened transcript of the result:
+The command prints JSON containing three Tasks, each using the Mock Story's title. The Template converts the input Story Estimate of 8 into a 32-hour budget using its example conversion factor of 4, then splits it 20% / 50% / 30%. Here is a shortened transcript of the result:
 
 ```text
-tasks[0].title: Design API Endpoints: Add password reset
-tasks[1].title: Database Schema: Add password reset
-tasks[2].title: Implement Core Logic: Add password reset
-tasks[3].title: Write Unit Tests
-tasks[4].title: Integration Tests & Documentation
-tasks[5].title: Code Review & Refinement
+tasks[0].title: Define API Behavior: Add password reset
+tasks[1].title: Implement API Change: Add password reset
+tasks[2].title: Verify API Behavior: Add password reset
 skippedTasks: []
-estimationSummary.storyEstimation: 8
-estimationSummary.totalTaskEstimation: 8
+estimationSummary.storyEstimation: 32
+estimationSummary.totalTaskEstimation: 32
 estimationSummary.percentageUsed: 100
 ```
 

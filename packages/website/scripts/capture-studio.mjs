@@ -6,7 +6,7 @@ import { resolveResponse } from "./capture-protocol.mjs";
 
 const source = fileURLToPath(new URL("../../atomize-core/catalog/templates/backend-api.atomize.yaml", import.meta.url));
 const { template } = await new TemplateLibrary().loadSource(source);
-const story = { estimation: 8, tags: ["backend"], type: "User Story", state: "Active" };
+const story = { estimation: 8, type: "User Story" };
 const data = {
   catalog: [{ name: "backend-api", displayName: template.name, description: template.description, kind: "template", ref: "template:backend-api", scope: "builtin", content: template }],
   inspect: inspectTemplate(template),
@@ -21,7 +21,7 @@ const data = {
     { name: "contoso-mobile", platform: "azure-devops", isDefault: false, organizationUrl: "https://dev.azure.com/contoso", project: "Mobile", team: "App Team" },
   ],
 };
-if (data.preview.tasks.length !== 6 || data.preview.estimationSummary.totalTaskEstimation !== 8) throw Error("Refresh the walkthrough: the built-in Template's expected result changed.");
+if (data.preview.tasks.length !== 3 || data.preview.estimationSummary.totalTaskEstimation !== 32) throw Error("Refresh the walkthrough: the built-in Template's expected result changed.");
 const debuggerPort = process.env.ATOMIZE_STUDIO_DEBUG_PORT ?? "9230";
 const targets = await (await fetch(`http://127.0.0.1:${debuggerPort}/json`)).json();
 const socket = new WebSocket(targets.find(target => target.type === "page").webSocketDebuggerUrl);
@@ -85,7 +85,7 @@ try {
       if (command === 'preview_inspect' && args.source === 'template:backend-api') return data.inspect;
       if (command === 'preview_mock_story' && args.source === 'template:backend-api') {
         const story = JSON.parse(args.mockStory);
-        if(story.estimation !== 8 || story.type !== 'User Story' || story.state !== 'Active' || story.tags?.[0] !== 'backend') throw Error('Screenshot inputs do not match the documented Mock Story');
+        if(story.estimation !== 8 || story.type !== 'User Story') throw Error('Screenshot inputs do not match the documented Mock Story');
         return data.preview;
       }
       throw Error('Unexpected screenshot IPC command: ' + command);
@@ -112,7 +112,7 @@ async function captureFlow(mode) {
   await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Clone').click()`);
   await waitFor(`!!document.querySelector('button[aria-label^="Tasks:"]')`);
   await evaluate(`document.querySelector('button[aria-label^="Tasks:"]').click()`);
-  await waitFor(`document.body.innerText.includes('Design API Endpoints')`);
+  await waitFor(`document.body.innerText.includes('Define API Behavior')`);
   await capture(`template-authoring-${mode}`);
   await evaluate(`document.querySelector('button[aria-label="Generate"]').click()`);
   await waitFor(`[...document.querySelectorAll('button')].some(button => button.textContent.includes('Backend API Development'))`);
@@ -128,7 +128,7 @@ async function captureFlow(mode) {
     }
     [...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Run Mock Preview').click();
   })()`);
-  await waitFor(`document.body.innerText.includes('Design API Endpoints: Mock Story') && document.body.innerText.includes('6 tasks')`);
+  await waitFor(`document.body.innerText.includes('Define API Behavior: Mock Story') && document.body.innerText.includes('3 tasks')`);
   await capture(`mock-preview-${mode}`);
 }
 
@@ -182,7 +182,7 @@ async function captureLiveConfirmation(mode) {
   })()`);
   await waitFor(`document.body.innerText.includes('2 selected')`);
   await clickButton("Continue →");
-  await waitFor(`document.body.innerText.includes('DRY RUN: nothing has been created yet') && document.body.innerText.includes('2 Stories · 12 Tasks total')`);
+  await waitFor(`document.body.innerText.includes('DRY RUN: nothing has been created yet') && document.body.innerText.includes('2 Stories · 6 Tasks total')`);
   await clickButton("Continue to Execute");
   await waitFor(`document.body.textContent.includes('Live Execution Confirmation') && document.body.textContent.includes('2 Stories selected')`);
   await capture(`live-execution-confirmation-${mode}`);
