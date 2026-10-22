@@ -219,8 +219,13 @@ jobs:
       - run: bun run typecheck:reference
       - run: bun run --cwd packages/atomize-schema-reference test
       - run: bun run --cwd packages/website test
+      # Checks the production shape: Studio documentation stays unpublished until the app is signed.
       - run: bun run --cwd packages/website build
+        env:
+          ATOMIZE_PUBLISH_STUDIO: "false"
       - run: bun run --cwd packages/website check:docs
+        env:
+          ATOMIZE_PUBLISH_STUDIO: "false"
       - name: Check external documentation links (advisory)
         continue-on-error: true
         run: bun run --cwd packages/website check:external

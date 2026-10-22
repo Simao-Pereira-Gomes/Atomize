@@ -3,6 +3,7 @@ import solid from "@astrojs/solid-js";
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import canonicalSections, { watchCanonicalGuides } from "./src/lib/canonical-sections.ts";
+import { features } from "./src/lib/features.ts";
 
 export default defineConfig({
   site: "https://atomize-cd9.pages.dev",
@@ -26,17 +27,17 @@ export default defineConfig({
       { label: "Getting started", items: [
         { label: "Choose your tool", slug: "index" },
         { label: "CLI quickstart", slug: "getting-started/cli" },
-        { label: "Studio quickstart", slug: "getting-started/studio" },
+        ...(features.studio ? [{ label: "Studio quickstart", slug: "getting-started/studio" }] : []),
         { label: "VS Code quickstart", slug: "getting-started/vscode" },
       ] },
-      { label: "Atomize Studio", items: [
+      ...(features.studio ? [{ label: "Atomize Studio", items: [
         { label: "Author Templates", slug: "studio/author-templates" },
         { label: "Open, save, and export", slug: "studio/open-save" },
         { label: "Generate Tasks", slug: "studio/generate" },
         { label: "Use project data", slug: "studio/project-data" },
         { label: "Draft and improve with AI", slug: "studio/ai" },
         { label: "Settings and recovery", slug: "studio/settings-recovery" },
-      ] },
+      ] }] : []),
       { label: "VS Code", items: [
         { label: "Author Atomize YAML", slug: "vscode/author-yaml" },
         { label: "Inspect Templates", slug: "vscode/inspect-templates" },

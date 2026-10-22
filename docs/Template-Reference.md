@@ -153,17 +153,17 @@ The Resolved Template is the content Atomize validates and uses for Task generat
 
 ### Inspect composition in your tool
 
-Choose the workflow for the tool you use; a separate CLI installation is not required by Studio or the VS Code extension.
+Choose the workflow for the tool you use; a separate CLI installation is not required by <!-- atomize:feature studio -->Studio or <!-- /atomize:feature -->the VS Code extension.
 
 | Tool | Inspecting a composed Template |
 | --- | --- |
 | VS Code extension | Open the Atomize YAML File and run **Atomize: Show Effective Template** to see its Resolved Template. The source keeps its inheritance and Mixin declarations. See the [extension command guide](./VS-Code-Extension.md#atomize-show-effective-template). |
-| Atomize Studio | **Open** a composed Template to work on the resolved, flattened content. Inherited and Mixin Tasks become directly editable; Studio does not retain the `extends` and `mixins` declarations. Saving the opened file writes that flattened form, so it no longer picks up changes from its parent or Mixins. See [Studio Open](./Atomize-Studio.md#open). |
+| <!-- atomize:feature studio -->Atomize Studio | **Open** a composed Template to work on the resolved, flattened content. Inherited and Mixin Tasks become directly editable; Studio does not retain the `extends` and `mixins` declarations. Saving the opened file writes that flattened form, so it no longer picks up changes from its parent or Mixins. See [Studio Open](./Atomize-Studio.md#open). |
 | CLI | Use `atomize template resolve <template>` to print the Resolved Template without changing the source. See the [resolve command reference](./Cli-Reference.md#template-resolve) for options and exporting resolved YAML. |
 
 ### Compatibility
 
-The CLI first supported `extends` and `mixins` in version 2.0.0. That historical CLI requirement is not a minimum version for Studio or the VS Code extension, which have independent versions. Use the Schema Reference inside Studio or the extension for the format supported by your installed version. When sharing with an older tool that cannot resolve composition, upgrade it or share a flattened Resolved Template instead.
+The CLI first supported `extends` and `mixins` in version 2.0.0. That historical CLI requirement is not a minimum version for the VS Code extension<!-- atomize:feature studio --> or Studio<!-- /atomize:feature -->: each tool has its own version. Use the Schema Reference inside <!-- atomize:feature studio -->Studio or <!-- /atomize:feature -->the extension for the format supported by your installed version. When sharing with an older tool that cannot resolve composition, upgrade it or share a flattened Resolved Template instead.
 
 <!-- /atomize:section -->
 

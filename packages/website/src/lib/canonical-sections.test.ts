@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createMarkdownProcessor } from "@astrojs/markdown-remark";
 import { parseHTML } from "linkedom";
 import type { Root, RootContent } from "mdast";
 import { unified } from "unified";
-import canonicalSections from "./canonical-sections";
+import canonicalSections, { applyFeatureMarkers } from "./canonical-sections";
 import { canonicalGuideUrl } from "./documentation";
+import { features } from "./features";
 
 const opening: RootContent = { type: "html", value: "<!-- atomize:section template-composition -->" };
 const closing: RootContent = { type: "html", value: "<!-- /atomize:section -->" };
@@ -17,6 +18,11 @@ function includeFixture(children: RootContent[]) {
 }
 
 describe("canonical guide rendering", () => {
+  // These guides describe Studio, so they render as a build that publishes it.
+  const studio = features.studio;
+  beforeAll(() => { features.studio = true; });
+  afterAll(() => { features.studio = studio; });
+
   test("connection setup keeps VS Code storage separate and links to its portal sections", async () => {
     const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
     const { code } = await renderer.render("<!-- atomize:include auth-setup -->\n\n<!-- atomize:include auth-vscode -->");
@@ -237,4 +243,69 @@ describe("canonical guide rendering", () => {
     const { code } = await renderer.render("```html\n<!-- atomize:include nonexistent-section -->\n```");
     expect(parseHTML(code).document.querySelector("pre")?.textContent).toContain("atomize:include nonexistent-section");
   });
+});
+
+describe("feature markers", () => {
+  const render = async (markdown: string, published: boolean) => {
+    const features = () => (tree: Root) => applyFeatureMarkers(tree, message => { throw new Error(message); }, () => published);
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [features] });
+    return (await renderer.render(markdown)).code;
+  };
+  const source = [
+    "Use the CLI<!-- atomize:feature studio --> or Studio<!-- /atomize:feature --> today.",
+    "",
+    "- CLI",
+    "- Studio settings <!-- atomize:feature studio -->",
+    "",
+    "| Tool | Notes |",
+    "| --- | --- |",
+    "| <!-- atomize:feature studio -->Studio | desktop |",
+    "| CLI | terminal |",
+    "",
+    "<!-- atomize:feature studio -->",
+    "",
+    "## Studio section",
+    "",
+    "<!-- /atomize:feature -->",
+    "",
+    "<!-- atomize:feature !studio -->",
+    "",
+    "Two tools.",
+    "",
+    "<!-- /atomize:feature -->",
+  ].join("\n");
+
+  test("a hidden feature removes its words, items, rows, and blocks, and shows the alternative", async () => {
+    const output = await render(source, false);
+    const { document } = parseHTML(output);
+    expect(output).not.toContain("Studio");
+    expect(output).not.toContain("atomize:feature");
+    expect(output).toContain("Use the CLI today.");
+    expect(document.querySelectorAll("li")).toHaveLength(1);
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(output).toContain("Two tools.");
+  });
+
+  test("a published feature keeps its content, drops the alternative, and leaves no markers", async () => {
+    const output = await render(source, true);
+    const { document } = parseHTML(output);
+    for (const text of ["or Studio today", "Studio settings"]) expect(output).toContain(text);
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(document.querySelector("h2")?.textContent).toBe("Studio section");
+    expect(output).not.toContain("Two tools.");
+    expect(output).not.toContain("atomize:feature");
+  });
+
+  test("a marker that starts a line of text is rejected instead of silently publishing raw Markdown", async () => {
+    await expect(render("<!-- atomize:feature studio -->In Studio, do this.", false)).rejects.toThrow("cannot start a line");
+  });
+
+  test("an unclosed region is rejected", async () => {
+    await expect(render("<!-- atomize:feature studio -->\n\nText", false)).rejects.toThrow("Unclosed feature marker");
+  });
+});
+
+test("links to an unpublished feature's sections fall back to the GitHub guide", () => {
+  expect(features.studio).toBe(false);
+  expect(canonicalGuideUrl("docs/Atomize-Studio.md", "ai-drafting")).toBe("https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Atomize-Studio.md#ai-drafting");
 });

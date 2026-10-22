@@ -1,3 +1,4 @@
+import { isHiddenPage } from "./features";
 /** Canonical section ownership and published routes, shared by Markdown and the viewer. */
 export const canonicalSections = {
   "vscode-install": { source: "docs/VS-Code-Extension.md", pageAnchor: "install", route: "/getting-started/vscode/#install-the-extension", anchors: ["install"] },
@@ -97,7 +98,7 @@ export function templateGuideUrl(anchor?: string) {
 
 export function canonicalGuideUrl(source: string, anchor?: string) {
   const page = Object.values(canonicalSections).find(section => section.source === source && anchor && (section.anchors as readonly string[]).includes(anchor));
-  if (page) {
+  if (page && !isHiddenPage(page.route)) {
     return anchor === page.pageAnchor ? page.route : `${page.route.split("#")[0]}#${anchor}`;
   }
   return `${repositoryUrl}/blob/main/${source}${anchor ? `#${anchor}` : ""}`;

@@ -16,10 +16,10 @@ You can author Templates and run Mock Preview without any connection. Connect a 
 
 ## Set up your tool
 
-Each tool manages Connection Profiles in its own place. The CLI and Atomize Studio share the same profiles, while VS Code keeps its own.
+Each tool manages Connection Profiles in its own place.<!-- atomize:feature studio --> The CLI and Atomize Studio share the same profiles, while VS Code keeps its own.<!-- /atomize:feature -->
 
-- [Atomize Studio](/connections/profiles/#atomize-studio): add a work project from Global Settings.
+- [Atomize Studio](/connections/profiles/#atomize-studio): add a work project from Global Settings. <!-- atomize:feature studio -->
 - [VS Code](/connections/profiles/#vs-code): run **Atomize: Manage Profiles**, or import your CLI profiles once.
 - [CLI](/connections/profiles/#atomize-cli): run `atomize auth add`, then [use profiles in scripts and CI](/connections/automation/).
 
-Not connected yet? Start with a Mock Preview in [Studio](/getting-started/studio/), [VS Code](/getting-started/vscode/), or the [CLI](/getting-started/cli/).
+Not connected yet? Start with a Mock Preview in <!-- atomize:feature studio -->[Studio](/getting-started/studio/), <!-- /atomize:feature -->[VS Code](/getting-started/vscode/), or the [CLI](/getting-started/cli/).

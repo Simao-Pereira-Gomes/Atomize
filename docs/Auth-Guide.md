@@ -38,7 +38,7 @@ A Connection Profile holds an Azure DevOps organization URL, project, team, and 
 | PAT scope | Access | When you need it |
 |-----------|--------|------------------|
 | **Work Items** | Read & write | Always. Atomize reads Stories and work item metadata, and creates Tasks. |
-| **Project and Team** | Read | Grounding: project-backed field choices in Studio and grounded AI drafts and improvements in every tool. Grounding lists the project's teams and fails without this scope. |
+| **Project and Team** | Read | Grounding: <!-- atomize:feature studio -->project-backed field choices in Studio and <!-- /atomize:feature -->grounded AI drafts and improvements in every tool. Grounding lists the project's teams and fails without this scope. |
 | **Wiki** | Read | Only to use wiki pages as [Reference Documents](./Template-Creation.md#reference-documents). Without it, everything else works and Atomize tells you to rotate the token when a wiki page is needed. |
 
 Your Azure DevOps account also needs permission to create work items in the project, for example through the Contributors group. Atomize can only do what both the token's scopes and your account allow.
@@ -61,7 +61,7 @@ The CLI stores tokens in the most secure available location, trying each tier in
 | 2 | **Encrypted local file**: AES-256-GCM, stored at `~/.atomize/`, opt-in only | When keychain is unavailable and `--insecure-storage` is passed |
 | 3 | **Refuse to persist** | When neither is available and `--insecure-storage` was not passed |
 
-`auth list` shows which tier is in use for each profile: `[keychain]` or `[file]`. Atomize Studio only uses tier 1, and VS Code uses its own storage: see [Shared Between the CLI and Atomize Studio](#shared-between-the-cli-and-atomize-studio) and [VS Code Profiles](#vs-code-profiles).
+`auth list` shows which tier is in use for each profile: `[keychain]` or `[file]`. <!-- atomize:feature studio -->Atomize Studio only uses tier 1: see [Shared Between the CLI and Atomize Studio](#shared-between-the-cli-and-atomize-studio). <!-- /atomize:feature -->VS Code uses its own storage: see [VS Code Profiles](#vs-code-profiles).
 
 ### When the keychain is unavailable
 
@@ -106,9 +106,9 @@ The first Azure DevOps profile you create becomes the default; later default cha
 
 <!-- atomize:section auth-vscode -->
 
-The VS Code extension keeps its own Connection Profiles, independent of the CLI and Studio. Non-secret fields live in VS Code's `globalState` and tokens in VS Code's `SecretStorage`. The extension never reads or writes `~/.atomize/connections.json` during normal use, so adding, rotating, or removing a profile in VS Code does not change the CLI or Studio, and their changes do not appear in VS Code.
+The VS Code extension keeps its own Connection Profiles, independent of the CLI<!-- atomize:feature studio --> and Studio<!-- /atomize:feature -->. Non-secret fields live in VS Code's `globalState` and tokens in VS Code's `SecretStorage`. The extension never reads or writes `~/.atomize/connections.json` during normal use, so adding, rotating, or removing a profile in VS Code does not change the CLI's profiles<!-- atomize:feature studio --> or Studio's<!-- /atomize:feature -->, and changes made there do not appear in VS Code.
 
-If you have no VS Code profiles yet and the CLI has some, **Atomize: Manage Profiles** offers **Import from CLI...**, a one-time copy that you start yourself: choose the profiles to import, and the extension pre-fills their organization URL, project, and team from `~/.atomize/connections.json` without writing to it. Paste each access token once. Later CLI or Studio changes are not synchronized.
+If you have no VS Code profiles yet and the CLI has some, **Atomize: Manage Profiles** offers **Import from CLI...**, a one-time copy that you start yourself: choose the profiles to import, and the extension pre-fills their organization URL, project, and team from `~/.atomize/connections.json` without writing to it. Paste each access token once. Later CLI<!-- atomize:feature studio --> or Studio<!-- /atomize:feature --> changes are not synchronized.
 
 Connected commands ask you to choose a profile. The picker pre-selects the profile named in the `atomize.defaultProfile` setting, or the profile marked **Set as default** when the setting is blank or names an unknown profile. Set `atomize.defaultProfile` in `.vscode/settings.json` so a repository pre-selects its project; the setting stores a name, not a credential.
 
@@ -153,6 +153,8 @@ atomize auth list
 
 Change the default with `atomize auth use <name>` and remove a profile with `atomize auth remove <name>`. AI drafting has no profile to list: it authenticates through a Copilot Session instead (see [AI Drafting: Copilot Session](#ai-drafting-copilot-session)).
 
+<!-- atomize:feature studio -->
+
 ### Atomize Studio
 
 1. Open **Global Settings** from any Studio Area, open the **Work project** selector, and choose **Manage projects…** to open the connection list.
@@ -166,6 +168,8 @@ Change the default with `atomize auth use <name>` and remove a profile with `ato
 </picture>
 
 Profiles you add in Studio are also available to the CLI, and the reverse: see [Shared Between the CLI and Atomize Studio](#shared-between-the-cli-and-atomize-studio).
+
+<!-- /atomize:feature -->
 
 ### VS Code
 
@@ -189,17 +193,17 @@ VS Code profiles are stored separately: see [VS Code Profiles](#vs-code-profiles
 
 <!-- atomize:section auth-copilot -->
 
-AI drafts and Template Improvements run in an ephemeral, tool-free **Copilot Session** on your own signed-in GitHub Copilot account. The CLI (`atomize template create --ai` and `atomize template improve`) and Atomize Studio (the AI draft Starting Path and **Improve with AI**) use the GitHub Copilot SDK. The VS Code extension uses the Copilot account you're signed in to in VS Code.
+AI drafts and Template Improvements run in an ephemeral, tool-free **Copilot Session** on your own signed-in GitHub Copilot account. The GitHub Copilot SDK hosts it for the CLI (`atomize template create --ai` and `atomize template improve`)<!-- atomize:feature studio --> and Atomize Studio (the AI draft Starting Path and **Improve with AI**)<!-- /atomize:feature -->. The VS Code extension uses the Copilot account you're signed in to in VS Code.
 
 - An active GitHub Copilot subscription is required.
 - Atomize stores neither a Copilot token nor a Copilot Connection Profile. There is nothing to add, list, rotate, or remove with `atomize auth`.
-- Each session is discarded after the draft or improvement finishes, and nothing persists between runs. The CLI and Studio use automatic model selection. In VS Code, the `atomize.ai.model` setting chooses the model.
+- Each session is discarded after the draft or improvement finishes, and nothing persists between runs. Automatic model selection applies in the CLI<!-- atomize:feature studio --> and Studio<!-- /atomize:feature -->. In VS Code, the `atomize.ai.model` setting chooses the model.
 - Copilot receives your request, the Template being improved, and the Grounding you chose for that run. It never receives a Connection Profile's token, and it never receives Stories or other work items.
 
 Sign in for each tool:
 
 - **CLI:** an interactive run starts GitHub Copilot sign-in when needed. A non-interactive run (a script, a CI job) can't complete sign-in, so it stops and asks you to run `gh auth login` in a terminal on that machine first.
-- **Atomize Studio:** if Copilot isn't signed in, Studio asks you to run `gh auth login` in a terminal on that computer. Your draft description or improvement focus is kept, so retry once you've signed in.
+- **Atomize Studio:** if Copilot isn't signed in, Studio asks you to run `gh auth login` in a terminal on that computer. Your draft description or improvement focus is kept, so retry once you've signed in. <!-- atomize:feature studio -->
 - **VS Code:** install GitHub Copilot Chat and sign in to Copilot in VS Code. The first time, VS Code asks you to allow Atomize to use Copilot's language models.
 
 A Copilot Session is not a Connection Profile: it never appears in `atomize auth list`, has no default, and is unrelated to the Azure DevOps profile resolution below. Grounded runs use both: Copilot writes the Template, and a Connection Profile supplies the project details and any Azure DevOps wiki pages.
@@ -220,7 +224,7 @@ When a CLI command needs Azure DevOps credentials, Atomize chooses a profile in 
 
 If none of these names a profile, the command stops and tells you to run `atomize auth add`. `ATOMIZE_PAT` is not a fallback for connected commands: it only supplies the token when `atomize auth add` creates a profile.
 
-This order applies to CLI commands that read Azure DevOps, such as a connected `generate`, Online Validation with `validate`, `fields list`, `queries list`, and grounded AI drafts and improvements. The Copilot Session itself does not use profile resolution: see [AI Drafting: Copilot Session](#ai-drafting-copilot-session). Studio uses its Work Project Setting, and VS Code asks you to choose a profile for each connected command.
+This order applies to CLI commands that read Azure DevOps, such as a connected `generate`, Online Validation with `validate`, `fields list`, `queries list`, and grounded AI drafts and improvements. The Copilot Session itself does not use profile resolution: see [AI Drafting: Copilot Session](#ai-drafting-copilot-session). <!-- atomize:feature studio -->Studio uses its Work Project Setting. <!-- /atomize:feature -->VS Code asks you to choose a profile for each connected command.
 
 <!-- /atomize:section -->
 
@@ -252,7 +256,7 @@ atomize auth use              # pick interactively
 atomize auth use work-ado     # set by name
 ```
 
-Azure DevOps is currently the only profile type with a default to set. Because the CLI and Studio share profile records, changing the default in either changes it in both.
+Azure DevOps is currently the only profile type with a default to set.<!-- atomize:feature studio --> Because the CLI and Studio share profile records, changing the default in either changes it in both.<!-- /atomize:feature -->
 
 ### Removing a profile
 
@@ -341,7 +345,7 @@ After rotating, verify the connection:
 atomize auth test work-ado
 ```
 
-In Studio, open **Manage projects…**, select the connection, and choose **Change token**. The CLI and Studio share the profile, so rotating in either updates both. In VS Code, run **Atomize: Manage Profiles**, select the profile, and choose **Rotate**, then **Test**. Rotating a VS Code profile does not change the CLI or Studio profile with the same name.
+In VS Code, run **Atomize: Manage Profiles**, select the profile, and choose **Rotate**, then **Test**. Rotating a VS Code profile does not change the CLI<!-- atomize:feature studio --> or Studio<!-- /atomize:feature --> profile with the same name.<!-- atomize:feature studio --> In Studio, open **Manage projects…**, select the connection, and choose **Change token**. The CLI and Studio share the profile, so rotating in either updates both.<!-- /atomize:feature -->
 
 <!-- /atomize:section -->
 
@@ -361,7 +365,7 @@ atomize auth use
 
 ### "Authentication failed: 401 Unauthorized"
 
-- The PAT has expired: rotate it: `atomize auth rotate <name>`, **Change token** in Studio, or **Rotate** in VS Code
+- The PAT has expired: rotate it: `atomize auth rotate <name>`<!-- atomize:feature studio -->, **Change token** in Studio,<!-- /atomize:feature --> or **Rotate** in VS Code
 - The PAT does not have the required scopes (Work Items Read/Write)
 - The org URL, project, or team name is wrong: remove the profile and re-add it
 
@@ -376,8 +380,10 @@ Use your Azure DevOps Services organization URL, such as `https://dev.azure.com/
 ### "Keychain unavailable"
 
 The OS keychain could not be accessed. Options:
-- In the CLI, re-run with `--insecure-storage` to fall back to an encrypted local file. Studio cannot use a file-stored profile.
+- In the CLI, re-run with `--insecure-storage` to fall back to an encrypted local file.<!-- atomize:feature studio --> Studio cannot use a file-stored profile.<!-- /atomize:feature -->
 - In CI, create a short-lived profile from your secrets store: see [CI/CD Setup](#cicd-setup)
+
+<!-- atomize:feature studio -->
 
 ### Studio says a profile uses CLI insecure storage
 
@@ -388,9 +394,11 @@ The profile was created with the CLI's `--insecure-storage` fallback. Select it 
 - "This Connection Profile has no token in your operating system's credential store": the keychain entry is missing. Choose **Change token** to store a new one.
 - "Studio could not read this profile's token from your operating system's credential store": allow Studio's keychain access request, unlock the keychain, or on Linux make sure a secret service is running, then retry.
 
+<!-- /atomize:feature -->
+
 ### VS Code says "No stored token for profile"
 
-VS Code has the profile's fields but not its token. Run **Atomize: Manage Profiles**, remove the profile, and add it again. Tokens are not shared with the CLI or Studio, so a CLI profile with the same name does not fix it.
+VS Code has the profile's fields but not its token. Run **Atomize: Manage Profiles**, remove the profile, and add it again. Tokens are not shared with the CLI<!-- atomize:feature studio --> or Studio<!-- /atomize:feature -->, so a CLI profile with the same name does not fix it.
 
 ### "Profile not found: <name>"
 

@@ -14,4 +14,4 @@ Find the message you see, then follow its fix. Connection problems never affect 
 
 ## Still stuck
 
-Check the [required permissions](/connections/#required-permissions), then follow your tool's [profile setup](/connections/profiles/) again. Studio companion-process failures are covered in [Studio settings and recovery](/studio/settings-recovery/#companion-process-recovery), and editor issues in [VS Code troubleshooting](/vscode/settings-recovery/#troubleshoot-the-offline-workflow).
+Check the [required permissions](/connections/#required-permissions), then follow your tool's [profile setup](/connections/profiles/) again. <!-- atomize:feature studio -->Studio companion-process failures are covered in [Studio settings and recovery](/studio/settings-recovery/#companion-process-recovery), and editor issues in<!-- /atomize:feature --><!-- atomize:feature !studio -->Editor issues are covered in<!-- /atomize:feature --> [VS Code troubleshooting](/vscode/settings-recovery/#troubleshoot-the-offline-workflow).

@@ -4,7 +4,7 @@ description: Choose a CLI Connection Profile per command, manage several profile
 editUrl: false
 ---
 
-These steps apply to the CLI. Studio and VS Code ask you to choose a profile in their own interface; see [Set up Connection Profiles](/connections/profiles/).
+These steps apply to the CLI. <!-- atomize:feature studio -->Studio and VS Code ask you to choose a profile in their own interface<!-- /atomize:feature --><!-- atomize:feature !studio -->VS Code asks you to choose a profile in its own interface<!-- /atomize:feature -->; see [Set up Connection Profiles](/connections/profiles/).
 
 ## Profile resolution order
 

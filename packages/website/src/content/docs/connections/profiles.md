@@ -1,6 +1,6 @@
 ---
 title: Set up Connection Profiles
-description: Add, test, rotate, and remove Azure DevOps Connection Profiles in the CLI, Atomize Studio, and VS Code, and see where each tool stores tokens.
+description: Add, test, rotate, and remove Azure DevOps Connection Profiles in each Atomize tool, and see where each tool stores tokens.
 editUrl: false
 ---
 
@@ -12,9 +12,13 @@ A Connection Profile names one Azure DevOps project and keeps its access token o
 
 <!-- atomize:include auth-storage -->
 
+<!-- atomize:feature studio -->
+
 ## Shared between the CLI and Atomize Studio
 
 <!-- atomize:include auth-shared -->
+
+<!-- /atomize:feature -->
 
 ## VS Code profiles
 
@@ -32,7 +36,7 @@ A Connection Profile names one Azure DevOps project and keeps its access token o
 
 Each tool shows the planned Tasks before it creates any:
 
-- **Studio**: [generate Tasks](/studio/generate/) from a Preview Source and Generate Scope. Studio shows a Live Preview, then Live Execution Confirmation, before creating Tasks.
+- **Studio**: [generate Tasks](/studio/generate/) from a Preview Source and Generate Scope. Studio shows a Live Preview, then Live Execution Confirmation, before creating Tasks. <!-- atomize:feature studio -->
 - **VS Code**: run a [Live Preview](/vscode/generate/#preview-against-a-real-story), then [generate Tasks](/vscode/generate/#generate-tasks) when the plan is ready.
 - **CLI**: follow [connected generation](/cli/generate/). A dry run reads Stories without creating Tasks.
 

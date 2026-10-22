@@ -87,8 +87,12 @@ jobs:
       - if: steps.secrets.outputs.available == 'true'
         run: bun install --frozen-lockfile
 
+      # Previews publish Studio documentation for review; production keeps it
+      # unpublished until the app is signed. CI checks the production shape.
       - if: steps.secrets.outputs.available == 'true'
         name: Validate and build documentation
+        env:
+          ATOMIZE_PUBLISH_STUDIO: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
         run: |
           bun run --cwd packages/website typecheck
           bun run --cwd packages/website test

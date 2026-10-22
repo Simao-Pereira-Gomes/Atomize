@@ -1,17 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Heading, Root, RootContent } from "mdast";
+import type { Heading, Parent, Root, RootContent } from "mdast";
 import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 import type { Plugin as VitePlugin } from "vite";
 import { repositoryUrl, canonicalSections as sections, canonicalGuideUrl, schemaRoute } from "./documentation";
+import { features, isPublished } from "./features";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-const renderingInputs = ["packages/website/astro.config.mjs", "packages/website/src/lib/canonical-sections.ts"];
+const renderingInputs = ["packages/website/astro.config.mjs", "packages/website/src/lib/canonical-sections.ts", "packages/website/src/lib/features.ts"];
 export async function canonicalSourceDigest() {
   const files = new Set([...Object.values(sections).map(section => section.source), ...renderingInputs]);
-  return Promise.all([...files].map(source => readFile(resolve(repositoryRoot, source), "utf8")));
+  return [JSON.stringify(features), ...await Promise.all([...files].map(source => readFile(resolve(repositoryRoot, source), "utf8")))];
 }
 
 function rewriteLink(url: string, source: string) {
@@ -52,6 +53,92 @@ function isSectionEnd(node: RootContent) {
   return node.type === "html" && /^<!--\s*\/atomize:section\s*-->$/.test(node.value.trim());
 }
 
+const featureStart = /^<!--\s*atomize:feature\s+(!?)([\w-]+)\s*-->$/;
+const featureEnd = /^<!--\s*\/atomize:feature\s*-->$/;
+
+type Published = (feature: string) => boolean;
+
+/**
+ * Applies feature markers (see features.ts): block regions are kept or removed whole, an inline
+ * start and end pair keeps or removes the words between them, and a lone inline start marker
+ * keeps or removes the list item, table row, or paragraph that holds it.
+ */
+export function applyFeatureMarkers(tree: Root, fail: (message: string) => never = message => { throw new Error(message); }, published: Published = isPublished) {
+  const shown = (negated: string, feature: string) => published(feature) !== (negated === "!");
+  applyFeatureSpans(tree, shown);
+  const scoped = new Set(["listItem", "tableRow", "paragraph", "heading"]);
+  const filter = (parent: Parent) => {
+    const kept: RootContent[] = [];
+    let region: boolean | undefined;
+    for (const child of parent.children as RootContent[]) {
+      const value = child.type === "html" ? child.value.trim() : "";
+      const start = featureStart.exec(value);
+      if (!start && /^<!--\s*\/?atomize:feature/.test(value) && !featureEnd.test(value)) fail(`Feature markers need a blank line around them, and an inline marker cannot start a line: ${value.split("\n")[0]}`);
+      if (start) {
+        if (region !== undefined) fail(`Nested feature marker: ${value}`);
+        region = shown(start[1], start[2]);
+        continue;
+      }
+      if (featureEnd.test(value)) {
+        if (region === undefined) fail("Feature end marker without a start");
+        region = undefined;
+        continue;
+      }
+      if (region === false) continue;
+      if (scoped.has(child.type)) {
+        const marker = inlineMarker(child as Parent);
+        if (marker && !shown(marker[1], marker[2])) continue;
+      }
+      if ("children" in child) filter(child as Parent);
+      kept.push(child);
+    }
+    if (region !== undefined) fail("Unclosed feature marker");
+    parent.children = kept as Parent["children"];
+  };
+  filter(tree);
+}
+
+/** The first inline feature marker directly inside a scoped node (not inside a nested scoped node), removed from the tree. */
+const inlineParents = new Set(["paragraph", "tableCell", "heading"]);
+
+/** Inline start and end markers in the same run of text keep or remove just the words between them. */
+function applyFeatureSpans(tree: Root, shown: (negated: string, feature: string) => boolean) {
+  visit(tree, node => {
+    if (!("children" in node) || !["paragraph", "tableCell", "heading", "emphasis", "strong", "link"].includes(node.type)) return;
+    const children = (node as Parent).children as RootContent[];
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const start = child.type === "html" ? featureStart.exec(child.value.trim()) : null;
+      if (!start) continue;
+      const end = children.findIndex((candidate, j) => j > i && candidate.type === "html" && featureEnd.test(candidate.value.trim()));
+      if (end < 0) continue;
+      children.splice(i, end - i + 1, ...(shown(start[1], start[2]) ? children.slice(i + 1, end) : []));
+      i--;
+    }
+  });
+}
+
+function inlineMarker(node: Parent): RegExpExecArray | undefined {
+  const search = (parent: Parent): RegExpExecArray | undefined => {
+    for (const [index, child] of (parent.children as RootContent[]).entries()) {
+      if (child.type === "html" && inlineParents.has(parent.type)) {
+        const match = featureStart.exec(child.value.trim());
+        if (match) {
+          parent.children.splice(index, 1);
+          return match;
+        }
+      }
+      if (child.type === "list" || child.type === "listItem" || child.type === "tableRow") continue;
+      if ("children" in child) {
+        const match = search(child as Parent);
+        if (match) return match;
+      }
+    }
+    return undefined;
+  };
+  return search(node);
+}
+
 /** Include a named section as Markdown AST, before highlighting, headings, and search indexing. */
 const canonicalSections: Plugin<[], Root> = function () {
   return async (tree, file) => {
@@ -82,6 +169,7 @@ const canonicalSections: Plugin<[], Root> = function () {
       tree.children.splice(i, 1, ...included.children as RootContent[]);
       i += included.children.length - 1;
     }
+    applyFeatureMarkers(tree, message => { throw file.message(message); });
   };
 };
 export default canonicalSections;

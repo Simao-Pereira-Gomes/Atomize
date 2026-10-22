@@ -839,7 +839,7 @@ atomize template resolve template:my-api --validate
 
 ### template metadata
 
-Read Azure DevOps project metadata as a single JSON document: work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. This is the same data source that grounds visual template-authoring surfaces such as Atomize Studio's [Grounded Field Options](./Atomize-Studio.md#grounding), but it is a normal CLI command: any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
+Read Azure DevOps project metadata as a single JSON document: work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. <!-- atomize:feature studio -->This is the same data source that grounds Atomize Studio's [Grounded Field Options](./Atomize-Studio.md#grounding). <!-- /atomize:feature -->Any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
 
 #### Usage
 

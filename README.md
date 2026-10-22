@@ -12,7 +12,7 @@
 
 Atomize turns Stories into consistent child Tasks using reusable YAML Templates. Capture your team's task breakdown once, then preview and reuse it as new Stories arrive.
 
-Use Atomize Studio for a standalone visual workflow, VS Code for guided authoring in your editor, or the CLI for terminal workflows and automation. Connected generation supports Azure DevOps. Mock Preview lets you try a Template without a platform connection.
+Use <!-- atomize:feature studio -->Atomize Studio for a standalone visual workflow, <!-- /atomize:feature -->VS Code for guided authoring in your editor<!-- atomize:feature studio -->,<!-- /atomize:feature --> or the CLI for terminal workflows and automation. Connected generation supports Azure DevOps. Mock Preview lets you try a Template without a platform connection.
 
 <!-- /atomize:section -->
 

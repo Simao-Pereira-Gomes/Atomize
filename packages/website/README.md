@@ -149,6 +149,47 @@ and Studio share profile records, while VS Code stores its profiles separately.
 Keep Copilot sign-in distinct from Connection Profiles, and describe only platforms
 Atomize supports today. Changes to both guides trigger site checks and deployment.
 
+## Unpublished Studio documentation
+
+Atomize Studio's documentation stays off the portal until the app is signed.
+Builds leave out its pages, sidebar entries, home card, and every mention of
+Studio unless `ATOMIZE_PUBLISH_STUDIO=true`. Pull request previews publish it,
+so the pages can be written and reviewed; production deploys from `main` and CI
+build without it. To work on Studio pages locally:
+
+```sh
+ATOMIZE_PUBLISH_STUDIO=true bun run --cwd packages/website dev
+```
+
+Mark Studio content in canonical guides and portal pages with feature markers
+(see `src/lib/features.ts`):
+
+```md
+<!-- atomize:feature studio -->
+
+### Atomize Studio
+
+Blocks shown only when Studio is published.
+
+<!-- /atomize:feature -->
+
+Profiles are shared by the CLI<!-- atomize:feature studio --> and Atomize Studio<!-- /atomize:feature -->.
+
+- A list item, table row, or paragraph about Studio only. <!-- atomize:feature studio -->
+```
+
+`<!-- atomize:feature !studio -->` wraps text shown only while Studio is hidden.
+Prefer marking words so removing them leaves a correct sentence: GitHub ignores
+the markers and shows every variant. An inline marker cannot start a line,
+because Markdown would then read the whole line as raw HTML; the build rejects
+it. With Studio hidden, `check:docs` fails on any built Studio page, any link to
+Studio documentation, and any mention of Studio. Links from canonical guides to
+Studio sections fall back to the guide on GitHub.
+
+To publish Studio, set `ATOMIZE_PUBLISH_STUDIO: "true"` for production in
+`.github/workflows/deploy-website.yml` and in the website job of
+`.github/workflows/ci.yml`.
+
 ## Refresh Studio screenshots
 
 The authoring and Mock Preview images were captured from the current Studio UI

@@ -1,12 +1,14 @@
 ---
 title: Turn Stories into repeatable Tasks
-description: Capture your team's task breakdown in a Template, then choose Atomize Studio, VS Code, or the CLI to preview and reuse it.
+description: Capture your team's task breakdown in a Template, then preview and reuse it from the Atomize tool that fits how you work.
 editUrl: false
 ---
 
 <!-- atomize:include onboarding-overview -->
 
 ## Choose where you work
+
+<!-- atomize:feature studio -->
 
 All three tools use Atomize YAML Files. Start with the workflow that fits your day.
 
@@ -15,6 +17,19 @@ All three tools use Atomize YAML Files. Start with the workflow that fits your d
 <a href="/getting-started/vscode/"><strong>VS Code</strong><span>Author YAML with completions, validation, and preview in your editor.</span><small>Try VS Code offline <span aria-hidden="true">→</span></small></a>
 <a href="/getting-started/cli/"><strong>CLI</strong><span>Preview a built-in Template in your terminal, then automate your workflow.</span><small>Try the CLI <span aria-hidden="true">→</span></small></a>
 </div>
+
+<!-- /atomize:feature -->
+
+<!-- atomize:feature !studio -->
+
+VS Code and the CLI both use Atomize YAML Files. Start with the workflow that fits your day.
+
+<div class="onboarding-paths">
+<a href="/getting-started/vscode/"><strong>VS Code</strong><span>Author YAML with completions, validation, and preview in your editor.</span><small>Try VS Code offline <span aria-hidden="true">→</span></small></a>
+<a href="/getting-started/cli/"><strong>CLI</strong><span>Preview a built-in Template in your terminal, then automate your workflow.</span><small>Try the CLI <span aria-hidden="true">→</span></small></a>
+</div>
+
+<!-- /atomize:feature -->
 
 ## Preview before creating Tasks
 

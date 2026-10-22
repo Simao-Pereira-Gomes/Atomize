@@ -23,7 +23,7 @@ Atomize reads Stories and creates Tasks through a Platform Adapter. Connected wo
 | Azure DevOps Services | Live Preview, Online Validation, Grounding, and Task creation | Required |
 | Mock | Mock Preview, plus CLI dry runs against sample Stories | Not needed |
 
-Mock Preview runs offline in the CLI, Atomize Studio, and VS Code against a Mock Story you enter. It never connects to a platform or creates Tasks. In the CLI, `atomize generate <template> --platform mock` also dry-runs a Template against built-in sample Stories: see [Mock Platform](#mock-platform).
+Mock Preview runs offline in VS Code<!-- atomize:feature studio -->, Atomize Studio,<!-- /atomize:feature --> and the CLI against a Mock Story you enter. It never connects to a platform or creates Tasks. In the CLI, `atomize generate <template> --platform mock` also dry-runs a Template against built-in sample Stories: see [Mock Platform](#mock-platform).
 
 GitHub Copilot drafts and improves Templates. It is not a work item platform and does not use a Connection Profile: Atomize uses your locally signed-in Copilot account.
 

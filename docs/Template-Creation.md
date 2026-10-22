@@ -122,7 +122,7 @@ For the full breakdown of Studio's authoring surface, Grounded Field Options, an
 
 <!-- atomize:section creation-ai -->
 
-Use AI-assisted creation when you can describe the desired workflow but do not want to write the initial YAML. This section covers the CLI. Atomize Studio offers the same as its [AI draft](./Atomize-Studio.md#ai-drafting) Starting Path, and the VS Code extension as [Atomize: Draft Template with AI](./VS-Code-Extension.md#atomize-draft-template-with-ai).
+Use AI-assisted creation when you can describe the desired workflow but do not want to write the initial YAML. This section covers the CLI. The VS Code extension offers the same as [Atomize: Draft Template with AI](./VS-Code-Extension.md#atomize-draft-template-with-ai)<!-- atomize:feature studio -->, and Atomize Studio as its [AI draft](./Atomize-Studio.md#ai-drafting) Starting Path<!-- /atomize:feature -->.
 
 Create a draft. Atomize starts GitHub Copilot sign-in when needed and uses your active Copilot subscription: see [Auth Guide](./Auth-Guide.md#ai-drafting-copilot-session) for how this Copilot sign-in works and how it differs from a saved connection profile:
 

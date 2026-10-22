@@ -5,6 +5,7 @@ import { buildSchemaTrees, type SchemaNode } from "@sppg2001/atomize-schema-refe
 import schema from "@sppg2001/atomize-schema-reference/schema.json";
 import { parseHTML } from "linkedom";
 import { schemaRoute, templateGuideUrl } from "../src/lib/documentation";
+import { features, isHiddenPage } from "../src/lib/features";
 
 async function htmlFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -92,28 +93,30 @@ async function checkDocs() {
       if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`VS Code ${mode} screenshot or useful alt text is missing: ${image}`);
     }
   }
-  if (!home?.querySelector('.onboarding-paths a[href="/getting-started/studio/"]')) failures.push("Home must link to the Studio quickstart");
-  for (const [route, title] of [["getting-started/studio", "Try Atomize Studio offline"], ["studio/author-templates", "Author Templates in Studio"], ["studio/open-save", "Open, save, and export"], ["studio/settings-recovery", "Studio settings and recovery"]]) {
-    const page = pages.get(resolve(directory, `${route}/index.html`));
-    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
-  }
-  for (const [route, title] of [["studio/generate", "Generate Tasks in Studio"], ["studio/project-data", "Use project data in Studio"]]) {
-    const page = pages.get(resolve(directory, `${route}/index.html`));
-    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
-  }
-  const studioGenerate = pages.get(resolve(directory, "studio/generate/index.html"));
-  for (const anchor of ["generate-tasks-from-real-stories", "follow-progress-or-cancel", "review-results-and-recover"]) {
-    if (!studioGenerate?.getElementById(anchor)) failures.push(`Studio Generate guide is missing: ${anchor}`);
-  }
-  if (!studioGenerate?.querySelector('a[href="/connections/profiles/#atomize-studio"]') || !studio?.querySelector('a[href="/studio/generate/"]')) failures.push("Studio Generate guide must connect to profile setup and onboarding");
-  if (!pages.get(resolve(directory, "studio/project-data/index.html"))?.getElementById("work-project-setting")) failures.push("Studio Work Project Setting is missing");
-  for (const [route, image] of [["getting-started/studio", "mock-preview"], ["studio/author-templates", "template-authoring"], ["studio/generate", "live-execution-confirmation"]]) {
-    for (const mode of ["light", "dark"]) {
-      const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img.themed-screenshot-${mode}[src="/studio/${image}-${mode}.png"]`);
-      if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`Studio ${mode} screenshot or useful alt text is missing: ${image}`);
+  if (features.studio) {
+    if (!home?.querySelector('.onboarding-paths a[href="/getting-started/studio/"]')) failures.push("Home must link to the Studio quickstart");
+    for (const [route, title] of [["getting-started/studio", "Try Atomize Studio offline"], ["studio/author-templates", "Author Templates in Studio"], ["studio/open-save", "Open, save, and export"], ["studio/settings-recovery", "Studio settings and recovery"]]) {
+      const page = pages.get(resolve(directory, `${route}/index.html`));
+      if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
     }
+    for (const [route, title] of [["studio/generate", "Generate Tasks in Studio"], ["studio/project-data", "Use project data in Studio"]]) {
+      const page = pages.get(resolve(directory, `${route}/index.html`));
+      if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Studio page, metadata, or search indexing is missing: ${route}`);
+    }
+    const studioGenerate = pages.get(resolve(directory, "studio/generate/index.html"));
+    for (const anchor of ["generate-tasks-from-real-stories", "follow-progress-or-cancel", "review-results-and-recover"]) {
+      if (!studioGenerate?.getElementById(anchor)) failures.push(`Studio Generate guide is missing: ${anchor}`);
+    }
+    if (!studioGenerate?.querySelector('a[href="/connections/profiles/#atomize-studio"]') || !studio?.querySelector('a[href="/studio/generate/"]')) failures.push("Studio Generate guide must connect to profile setup and onboarding");
+    if (!pages.get(resolve(directory, "studio/project-data/index.html"))?.getElementById("work-project-setting")) failures.push("Studio Work Project Setting is missing");
+    for (const [route, image] of [["getting-started/studio", "mock-preview"], ["studio/author-templates", "template-authoring"], ["studio/generate", "live-execution-confirmation"]]) {
+      for (const mode of ["light", "dark"]) {
+        const picture = pages.get(resolve(directory, `${route}/index.html`))?.querySelector(`img.themed-screenshot-${mode}[src="/studio/${image}-${mode}.png"]`);
+        if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`Studio ${mode} screenshot or useful alt text is missing: ${image}`);
+      }
+    }
+    if (!studio?.querySelector('a[href="/studio/author-templates/#choose-a-starting-path"]') || !studio?.querySelector('a[href="/studio/settings-recovery/#global-settings"]')) failures.push("Studio quickstart is missing working authoring and connection paths");
   }
-  if (!studio?.querySelector('a[href="/studio/author-templates/#choose-a-starting-path"]') || !studio?.querySelector('a[href="/studio/settings-recovery/#global-settings"]')) failures.push("Studio quickstart is missing working authoring and connection paths");
   for (const [route, title] of [["connections", "Connect Azure DevOps"], ["connections/profiles", "Set up Connection Profiles"], ["connections/automation", "Use profiles in scripts and CI"], ["connections/troubleshooting", "Fix connection problems"]]) {
     const page = pages.get(resolve(directory, `${route}/index.html`));
     if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Connection page, metadata, or search indexing is missing: ${route}`);
@@ -124,19 +127,19 @@ async function checkDocs() {
   for (const scope of ["Work Items", "Project and Team", "Wiki"]) {
     if (![...(connections?.querySelectorAll("table") ?? [])].some(table => table.textContent?.includes("PAT scope") && table.textContent.includes(scope))) failures.push(`Connection permissions are missing the ${scope} scope`);
   }
-  for (const anchor of ["atomize-cli", "atomize-studio", "vs-code", "shared-between-the-cli-and-atomize-studio", "vs-code-profiles", "rotating-tokens"]) {
+  for (const anchor of ["atomize-cli", ...(features.studio ? ["atomize-studio", "shared-between-the-cli-and-atomize-studio"] : []), "vs-code", "vs-code-profiles", "rotating-tokens"]) {
     if (!profiles?.getElementById(anchor)) failures.push(`Connection Profile setup is missing: ${anchor}`);
   }
   for (const mode of ["light", "dark"]) {
-    for (const tool of ["studio", "vscode"]) {
+    for (const tool of features.studio ? ["studio", "vscode"] : ["vscode"]) {
       const picture = profiles?.querySelector(`img.themed-screenshot-${mode}[src="/${tool}/connection-profiles-${mode}.png"]`);
       if ((picture?.getAttribute("alt")?.length ?? 0) < 30) failures.push(`${tool} ${mode} Connection Profile screenshot or useful alt text is missing`);
     }
   }
-  for (const anchor of ["authentication-failed-401-unauthorized", "project-details-or-grounded-choices-do-not-load", "studio-says-a-profile-uses-cli-insecure-storage", "vs-code-says-no-stored-token-for-profile", "permission-errors"]) {
+  for (const anchor of ["authentication-failed-401-unauthorized", "project-details-or-grounded-choices-do-not-load", ...(features.studio ? ["studio-says-a-profile-uses-cli-insecure-storage"] : []), "vs-code-says-no-stored-token-for-profile", "permission-errors"]) {
     if (!connectionFailures?.getElementById(anchor)) failures.push(`Connection recovery is missing: ${anchor}`);
   }
-  if (!quickstart?.querySelector('a[href="/connections/profiles/"]') || !studio?.querySelector('a[href="/connections/profiles/#atomize-studio"]') || !pages.get(resolve(directory, "getting-started/vscode/index.html"))?.querySelector('a[href="/connections/profiles/#vs-code"]')) failures.push("Quickstarts must lead to their connection setup");
+  if (!quickstart?.querySelector('a[href="/connections/profiles/"]') || (features.studio && !studio?.querySelector('a[href="/connections/profiles/#atomize-studio"]')) || !pages.get(resolve(directory, "getting-started/vscode/index.html"))?.querySelector('a[href="/connections/profiles/#vs-code"]')) failures.push("Quickstarts must lead to their connection setup");
   for (const [route, title] of [["cli/generate", "Generate Tasks from the CLI"], ["cli/automation", "Automate the CLI"], ["cli/reference", "CLI reference"], ["cli/reference/auth", "auth commands"], ["cli/reference/generate", "generate command"], ["cli/reference/preview-validate", "preview and validate commands"], ["cli/reference/templates", "template commands"], ["cli/reference/fields-queries", "fields and queries commands"]]) {
     const page = pages.get(resolve(directory, `${route}/index.html`));
     if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`CLI page, metadata, or search indexing is missing: ${route}`);
@@ -151,7 +154,7 @@ async function checkDocs() {
   }
   if (!quickstart?.querySelector('a[href="/cli/generate/"]')) failures.push("CLI quickstart must lead to connected generation");
   for (const [route, title, anchors] of [
-    ["studio/ai", "Draft and improve with AI in Studio", ["before-you-start", "ai-drafting", "improve-with-ai", "reference-documents"]],
+    ...(features.studio ? [["studio/ai", "Draft and improve with AI in Studio", ["before-you-start", "ai-drafting", "improve-with-ai", "reference-documents"]] as const] : []),
     ["vscode/ai", "Draft and improve with AI in VS Code", ["before-you-start", "atomize-draft-template-with-ai", "atomize-improve-template-with-ai", "reference-documents"]],
     ["cli/ai", "Draft and improve with AI from the CLI", ["before-you-start", "draft-a-template", "reference-documents", "review-the-draft", "template-improve"]],
   ] as const) {
@@ -166,13 +169,14 @@ async function checkDocs() {
   if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");
   const paths = home?.querySelectorAll(".onboarding-paths:not(.reference-paths) > a");
   if (!home?.querySelector(`.reference-paths a[href="${schemaRoute}"]`) || !home?.querySelector('.reference-paths a[href="/cli/reference/"]')) failures.push("Home must point to the Schema and CLI references");
-  if (paths?.length !== 3 || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push("Home must offer three working onboarding paths");
+  const onboardingPaths = features.studio ? 3 : 2;
+  if (paths?.length !== onboardingPaths || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push(`Home must offer ${onboardingPaths} working onboarding paths`);
   if (quickstart?.querySelector("h1")?.textContent !== "Try Atomize from the CLI") failures.push("CLI quickstart is missing");
   const commands = [...(quickstart?.querySelectorAll("pre") ?? [])].map(block => block.textContent).join("\n");
   for (const command of ["npm install -g @sppg2001/atomize", "atomize --version", "atomize validate template:backend-api", "atomize preview template:backend-api --mock-story", "Add password reset", "estimationSummary.totalTaskEstimation: 8"]) {
     if (!commands.includes(command)) failures.push(`CLI quickstart is missing its verified command or expected result: ${command}`);
   }
-  for (const tag of ["studio-v0", "vscode-v0", "v5"]) {
+  for (const tag of [...(features.studio ? ["studio-v0"] : []), "vscode-v0", "v5"]) {
     if (!releases?.querySelector(`a[href="https://github.com/Simao-Pereira-Gomes/Atomize/releases?q=tag%3A${tag}"]`)) failures.push(`Release notes destination is missing: ${tag}`);
   }
   for (const [name, page] of [["home", home], ["CLI quickstart", quickstart], ["release notes", releases]] as const) {
@@ -186,6 +190,13 @@ async function checkDocs() {
     const content = document.body?.cloneNode(true) as HTMLElement | undefined;
     content?.querySelectorAll("script, style, noscript").forEach(element => { element.remove(); });
     if (content?.textContent?.includes("\u2014")) failures.push(`${path}: website content must not contain em dashes`);
+    if (!features.studio) {
+      const page = relative(directory, path).replaceAll("\\", "/").replace(/(?:^|\/)index\.html$/, "");
+      const description = document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "";
+      if (isHiddenPage(page)) failures.push(`${path}: unpublished Studio page was built`);
+      if (/(?<!Visual )Studio/.test(`${content?.textContent ?? ""} ${description} ${document.title}`)) failures.push(`${path}: mentions Studio while its documentation is unpublished; mark it with <!-- atomize:feature studio -->`);
+      if (content?.querySelector('a[href*="/studio/"], a[href*="getting-started/studio"], a[href*="Atomize-Studio.md"]')) failures.push(`${path}: links to Studio documentation while it is unpublished`);
+    }
   }
   for (const anchor of ["inheritance-extends", "mixins-mixins", "resolution-order", "compatibility"]) {
     if (!guide?.getElementById(anchor)) failures.push(`Composition section is missing: ${anchor}`);
@@ -198,8 +209,8 @@ async function checkDocs() {
   if (!schemaPage?.querySelector(".documentation-header") || !schemaPage?.querySelector("nav.sidebar") || !schemaPage?.getElementById("starlight__search") || !schemaPage?.querySelector(".development-notice") || !schemaPage?.querySelector(".documentation-build time")) failures.push("Schema Reference must use the shared portal layout, navigation, search, and provenance");
   if (!schemaPage?.querySelector(`.documentation-sections a[href="${schemaRoute}"][aria-current="page"]`)) failures.push("Schema Reference header tab must be selected");
   const sidebarHrefs = (route: string) => [...(pages.get(resolve(directory, `${route}index.html`))?.querySelectorAll("nav.sidebar a[href]") ?? [])].map(link => link.getAttribute("href"));
-  if (!sidebarHrefs("studio/generate/").includes("/cli/reference/auth/") || !sidebarHrefs("cli/reference/auth/").includes("/studio/generate/")) failures.push("Guide sidebars must list every tool's guides and reference pages, including the CLI reference");
-  if (pages.get(resolve(directory, "studio/generate/index.html"))?.querySelectorAll(".documentation-sections-mobile a").length !== 2) failures.push("Section tabs must be available in the mobile menu");
+  if (!sidebarHrefs("vscode/generate/").includes("/cli/reference/auth/") || !sidebarHrefs("cli/reference/auth/").includes("/vscode/generate/") || (features.studio && !sidebarHrefs("cli/reference/auth/").includes("/studio/generate/"))) failures.push("Guide sidebars must list every tool's guides and reference pages, including the CLI reference");
+  if (pages.get(resolve(directory, "vscode/generate/index.html"))?.querySelectorAll(".documentation-sections-mobile a").length !== 2) failures.push("Section tabs must be available in the mobile menu");
   if (!schemaPage?.querySelector(`a[href="${templateGuideUrl("inheritance-extends")}"]`)) failures.push("Schema Reference is missing its composition-guide link");
   if (!guide?.querySelector(".development-notice") || !guide?.querySelector(".documentation-build time")) failures.push("Development notice or build provenance is missing");
   if (failures.length) throw new Error(failures.join("\n"));
