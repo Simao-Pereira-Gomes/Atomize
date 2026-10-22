@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { TemplateLibrary } from "../../atomize-core/src/templates/template-library.ts";
 import { inspectTemplate, runPreview } from "../../atomize-core/src/templates/template-inspector.ts";
+import { resolveResponse } from "./capture-protocol.mjs";
 
 const source = fileURLToPath(new URL("../../atomize-core/catalog/templates/backend-api.atomize.yaml", import.meta.url));
 const { template } = await new TemplateLibrary().loadSource(source);
@@ -29,7 +30,7 @@ let nextId = 0;
 const pending = new Map();
 socket.addEventListener("message", event => {
   const message = JSON.parse(event.data);
-  if (message.id) { pending.get(message.id)?.(message); pending.delete(message.id); }
+  resolveResponse(pending, message);
 });
 async function cdp(method, params = {}) {
   const id = ++nextId;

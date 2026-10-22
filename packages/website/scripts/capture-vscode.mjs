@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { codeLiteral, resolveResponse } from "./capture-protocol.mjs";
 
 const debuggerPort = process.env.ATOMIZE_VSCODE_DEBUG_PORT ?? "9234";
 const targets = await (await fetch(`http://127.0.0.1:${debuggerPort}/json`)).json();
@@ -12,7 +13,7 @@ const pending = new Map();
 const contexts = new Map();
 socket.addEventListener("message", event => {
   const message = JSON.parse(event.data);
-  if (message.id) { pending.get(message.id)?.(message); pending.delete(message.id); }
+  resolveResponse(pending, message);
   const session = message.sessionId ?? "root";
   if (message.method === "Runtime.executionContextCreated") contexts.set(`${session}:${message.params.context.id}`, { ...message.params.context, sessionId: message.sessionId });
   if (message.method === "Runtime.executionContextDestroyed") contexts.delete(`${session}:${message.params.executionContextId}`);
@@ -134,7 +135,7 @@ async function captureFlow(mode, theme) {
 }
 
 function quickRow(label) {
-  return `[...document.querySelectorAll('.quick-input-list .monaco-list-row')].find(row => row.querySelector('.label-name')?.textContent.trim() === ${JSON.stringify(label)})`;
+  return `[...document.querySelectorAll('.quick-input-list .monaco-list-row')].find(row => row.querySelector('.label-name')?.textContent.trim() === ${codeLiteral(label)})`;
 }
 
 async function openManageProfiles() {

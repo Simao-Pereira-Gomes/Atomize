@@ -332,7 +332,14 @@ describe("feature markers", () => {
   });
 });
 
-test("links to an unpublished feature's sections fall back to the GitHub guide", () => {
-  expect(features.studio).toBe(false);
-  expect(canonicalGuideUrl("docs/Atomize-Studio.md", "ai-drafting")).toBe("https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Atomize-Studio.md#ai-drafting");
+test.each([false, true])("Studio guide links match publication state %s", published => {
+  const studio = features.studio;
+  try {
+    features.studio = published;
+    expect(canonicalGuideUrl("docs/Atomize-Studio.md", "ai-drafting")).toBe(published
+      ? "/studio/ai/"
+      : "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Atomize-Studio.md#ai-drafting");
+  } finally {
+    features.studio = studio;
+  }
 });
