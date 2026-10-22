@@ -271,7 +271,6 @@ describe("TemplateCatalog discovery", () => {
     expect(backend?.displayName).toBe("Backend API Development");
     expect(templates.map((item) => item.ref)).toEqual(expect.arrayContaining([
       "template:agile-story-breakdown",
-      "template:agile-story-breakdown-saved-query",
       "template:bug-fix",
       "template:feature-development",
     ]));

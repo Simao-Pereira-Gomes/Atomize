@@ -1,5 +1,7 @@
+formatVersion: "1.0"
 name: "Documentation Tasks"
-description: "Standard documentation tasks. Mix into any template to ensure docs are part of the definition of done."
+description: "Example documentation tasks. Add the tasks relevant to your change and adapt their estimates."
+# Illustrative percentages add to the consuming Template; rebalance its total.
 tasks:
   - id: "update-docs"
     title: "Update Documentation: ${story.title}"
@@ -13,4 +15,4 @@ tasks:
     description: "Add a clear, user-focused entry to the project changelog describing what changed and why."
     estimationPercent: 5
     activity: "Documentation"
-    assignTo: "@ParentAssignee"
+    assignTo: "@Unassigned"

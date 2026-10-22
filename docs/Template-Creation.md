@@ -94,7 +94,18 @@ Atomize asks how to use the source:
 atomize template create --from backend-api --save-as my-backend-api
 ```
 
-Built-in catalog items are good starting points. Personal and project-scoped templates can also be used as sources.
+Built-in Templates and Mixins are examples of task breakdowns and Atomize features, rather than recommended team processes. Copy one and adapt its Work Item types, tasks, dependencies, conditions, and estimates. Activities, assignment choices, validation limits, and estimates are illustrative. Match activity names and Work Item types to your project. Mixin percentages add to the consuming Template, so rebalance the combined total and any validation limits.
+
+| Built-in Template | Demonstrates |
+| --- | --- |
+| `feature-development` | Percentage estimates, dependencies, activities, parent-assignee and unassigned tokens, and percentage-total validation |
+| `bug-fix` | Fixed Task Estimates independent of the Story Estimate, and Task Estimate range validation |
+| `agile-story-breakdown` | Conditional tasks and percentages, with a commented saved-query selection alternative |
+| `backend-api` | Factor conversion before percentage distribution and rounding, with a commented non-linear table alternative |
+
+The schema supports `strategy: percentage`; fixed Task Estimates use `estimationFixed` on individual tasks. Conversion factors and tables translate the Story Estimate before its percentage distribution. Replace the saved-query path before enabling that alternative.
+
+Personal and project-scoped templates can also be used as sources.
 
 ## Build With The Wizard
 
