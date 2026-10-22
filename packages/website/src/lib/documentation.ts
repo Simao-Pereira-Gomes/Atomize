@@ -101,6 +101,11 @@ export const canonicalSections = {
   "validation-messages": { source: "docs/Common-Validation-Errors.md", pageAnchor: "understanding-error-messages", route: "/validation/errors/#understanding-error-messages", anchors: ["understanding-error-messages"] },
   "validation-quick-reference": { source: "docs/Common-Validation-Errors.md", pageAnchor: "quick-reference", route: "/validation/errors/#quick-reference", anchors: ["quick-reference", "getting-help"] },
   "workflow-troubleshooting": { source: "docs/Workflows.md", pageAnchor: "troubleshooting", route: "/troubleshooting/", anchors: ["troubleshooting", "atomize-command-not-found", "no-stories-found", "authentication-failed", "validation-failed"] },
+  "workflow-basics": { source: "docs/Workflows.md", pageAnchor: "try-atomize-without-credentials", route: "/workflows/#try-atomize-without-credentials", anchors: ["try-atomize-without-credentials", "author-a-template", "validate-a-template", "preview-generated-tasks", "connect-azure-devops"] },
+  "workflow-vscode-generate": { source: "docs/Workflows.md", pageAnchor: "generate-in-vs-code", route: "/workflows/#generate-in-vs-code", anchors: ["generate-tasks", "generate-in-vs-code"] },
+  "workflow-customize": { source: "docs/Workflows.md", pageAnchor: "create-or-customize-templates", route: "/workflows/#create-or-customize-templates", anchors: ["create-or-customize-templates", "manage-profiles"] },
+  "platform-mock": { source: "docs/Platform-Guide.md", pageAnchor: "mock-platform", route: "/connections/#mock-platform", anchors: ["mock-platform", "usage", "features", "sample-data", "testing-workflows"] },
+  "examples-guide": { source: "examples/README.md", pageAnchor: "files", route: "/reference/templates/examples/", anchors: ["files", "running-all-examples"] },
   "template-composition": {
     source: "docs/Template-Reference.md",
     pageAnchor: "composition",
@@ -131,10 +136,27 @@ export function templateGuideUrl(anchor?: string) {
 const documentRoutes: Record<string, string> = {
   "docs/Validation-Modes.md": "/validation/",
   "docs/Common-Validation-Errors.md": "/validation/errors/",
+  "docs/Workflows.md": "/workflows/",
+  "docs/Template-Creation.md": "/catalog/create/",
+  "docs/Auth-Guide.md": "/connections/profiles/",
+  "docs/Template-Reference.md": "/reference/templates/",
+  "examples/README.md": "/reference/templates/examples/",
+  "docs/Atomize-Studio.md": "/studio/author-templates/",
 };
 
+export const examplesRoute = "/reference/templates/examples/";
+
+/** The heading id of an example file's section on the examples page, matching its README anchor. */
+export function exampleAnchor(file: string) {
+  return file.toLowerCase().replace(/[^a-z0-9_ -]/g, "").replaceAll(" ", "-");
+}
+
 export function canonicalGuideUrl(source: string, anchor?: string) {
-  if (!anchor && documentRoutes[source]) return documentRoutes[source];
+  if (!anchor && documentRoutes[source] && !isHiddenPage(documentRoutes[source])) return documentRoutes[source];
+  const example = /^examples\/([^/]+\.ya?ml)$/.exec(source);
+  if (example) return `${examplesRoute}#${exampleAnchor(example[1])}`;
+  // The examples README is published whole on the examples page, so its headings keep their anchors there.
+  if (source === "examples/README.md" && anchor) return `${examplesRoute}#${anchor}`;
   const page = Object.values(canonicalSections).find(section => section.source === source && anchor && (section.anchors as readonly string[]).includes(anchor));
   if (page && !isHiddenPage(page.route)) {
     return anchor === page.pageAnchor ? page.route : `${page.route.split("#")[0]}#${anchor}`;

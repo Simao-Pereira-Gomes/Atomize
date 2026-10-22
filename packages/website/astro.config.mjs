@@ -29,6 +29,7 @@ export default defineConfig({
         { label: "CLI quickstart", slug: "getting-started/cli" },
         ...(features.studio ? [{ label: "Studio quickstart", slug: "getting-started/studio" }] : []),
         { label: "VS Code quickstart", slug: "getting-started/vscode" },
+        { label: "Everyday workflows", slug: "workflows" },
       ] },
       ...(features.studio ? [{ label: "Atomize Studio", items: [
         { label: "Author Templates", slug: "studio/author-templates" },
@@ -78,16 +79,14 @@ export default defineConfig({
         { label: "Compose Templates", slug: "reference/templates/composition" },
         { label: "Validation and metadata", slug: "reference/templates/validation" },
         { label: "Complete example", slug: "reference/templates/example" },
+        { label: "Example Templates", slug: "reference/templates/examples" },
       ] },
-      { label: "Validate and troubleshoot", items: [
+      { label: "Validation", items: [
         { label: "Validate Templates", slug: "validation" },
         { label: "Fix validation errors", slug: "validation/errors" },
-        { label: "Troubleshooting", slug: "troubleshooting" },
       ] },
+      { label: "Troubleshooting", slug: "troubleshooting" },
       { label: "Release notes", slug: "releases" },
-      { label: "More guides", items: [
-        { label: "Workflows ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md" },
-      ] },
     ],
   })],
   markdown: { processor: unified({ remarkPlugins: [canonicalSections] }) },

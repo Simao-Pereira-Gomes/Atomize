@@ -64,6 +64,7 @@ jobs:
               - 'docs/Template-Creation.md'
               - 'docs/Validation-Modes.md'
               - 'docs/Common-Validation-Errors.md'
+              - 'examples/**'
               - 'packages/vscode-extension/icons/atomize-product.svg'
               - 'packages/atomize-schema/**'
               - 'packages/atomize-schema-reference/**'

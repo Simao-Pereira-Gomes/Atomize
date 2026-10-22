@@ -1,6 +1,6 @@
 # Atomize Workflows
 
-This guide is organized by the work users are trying to do. Each workflow starts with the VS Code path and gives the CLI equivalent where useful. For the same workflows in Atomize Studio's desktop authoring surfaces, see [Atomize Studio](./Atomize-Studio.md).
+This guide is organized by the work users are trying to do. Each workflow starts with the VS Code path and gives the CLI equivalent where useful.<!-- atomize:feature studio --> For the same workflows in Atomize Studio's desktop authoring surfaces, see [Atomize Studio](./Atomize-Studio.md).<!-- /atomize:feature -->
 
 Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
 
@@ -16,6 +16,8 @@ Atomize is designed around platform adapters. Today, connected generation suppor
 - [Manage Profiles](#manage-profiles)
 - [Automate With The CLI](#automate-with-the-cli)
 - [Troubleshooting](#troubleshooting)
+
+<!-- atomize:section workflow-basics -->
 
 ## Try Atomize Without Credentials
 
@@ -137,18 +139,26 @@ atomize auth use work-ado
 
 Your Azure DevOps PAT needs Work Items read/write access. See [Auth Guide](./Auth-Guide.md) for storage, profile resolution, token rotation, and CI setup.
 
+<!-- /atomize:section -->
+
 ## Generate Tasks
 
 Generation is intentionally split into preview and creation.
+
+<!-- atomize:section workflow-vscode-generate -->
 
 ### Generate In VS Code
 
 1. Run **Atomize: Generate**.
 2. Select a connection profile.
-3. Optionally enter specific story IDs.
-4. Review the generated dry-run report.
-5. Use the panel action to create tasks only when the plan is correct.
+3. Tick Stories in the Story Browser, or press Enter with none ticked to use every Story the Template's filter matches.
+4. Review the dry-run report in the Generate Panel.
+5. Choose **Create *N* Tasks** only when the plan is correct.
 6. Confirm the final VS Code prompt.
+
+See [Atomize: Generate](./VS-Code-Extension.md#atomize-generate) for what each step shows and how failures are reported.
+
+<!-- /atomize:section -->
 
 ### Generate From The CLI
 
@@ -233,6 +243,8 @@ See [Automate With The CLI](#automate-with-the-cli) for scripts and CI, and the 
 
 <!-- /atomize:section -->
 
+<!-- atomize:section workflow-customize -->
+
 ## Create Or Customize Templates
 
 Choose the creation path based on what you already have.
@@ -264,6 +276,8 @@ atomize auth remove old-profile
 ```
 
 Azure DevOps profiles have their own default, set with `atomize auth use`. AI-assisted template creation does not use a Connection Profile at all: it authenticates through a separate Copilot Session; see [Auth Guide](./Auth-Guide.md).
+
+<!-- /atomize:section -->
 
 ## Automate With The CLI
 

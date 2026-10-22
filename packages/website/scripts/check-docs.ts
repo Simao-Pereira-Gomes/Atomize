@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSchemaTrees, type SchemaNode } from "@sppg2001/atomize-schema-reference";
 import schema from "@sppg2001/atomize-schema-reference/schema.json";
 import { parseHTML } from "linkedom";
-import { schemaRoute, templateGuideUrl } from "../src/lib/documentation";
+import { exampleAnchor, schemaRoute, templateGuideUrl } from "../src/lib/documentation";
 import { features, isHiddenPage } from "../src/lib/features";
 
 async function htmlFiles(directory: string): Promise<string[]> {
@@ -192,6 +192,7 @@ async function checkDocs() {
   for (const [path, document] of pages) {
     if (document.querySelector(".documentation-header") && !document.querySelector('atomize-sidebar-toggle button[aria-controls="starlight__sidebar"]')) failures.push(`${path}: desktop navigation toggle is missing`);
     if (document.querySelector('a[href*="github.com/Simao-Pereira-Gomes/Atomize/edit/"]')) failures.push(`${path}: public editing link must not be published`);
+    if (document.querySelector('a[href*="github.com/Simao-Pereira-Gomes/Atomize/blob/"], a[href*="github.com/Simao-Pereira-Gomes/Atomize/tree/"]')) failures.push(`${path}: links to a GitHub document; publish it on the portal or mark it <!-- atomize:feature github -->`);
     if (document.querySelector(".documentation-header") && (!document.querySelector(`.documentation-sections a[href="${schemaRoute}"]`) || document.querySelectorAll('.documentation-sections a[aria-current="page"]').length !== 1)) failures.push(`${path}: header section tabs are missing or select more than one section`);
     const content = document.body?.cloneNode(true) as HTMLElement | undefined;
     content?.querySelectorAll("script, style, noscript").forEach(element => { element.remove(); });
@@ -265,6 +266,15 @@ async function checkDocs() {
   for (const href of ["/connections/troubleshooting/", "/validation/errors/", "/cli/reference/#ai-template-generation-fails", "/vscode/settings-recovery/#troubleshoot-the-offline-workflow"]) {
     if (!troubleshooting?.querySelector(`a[href="${href}"]`)) failures.push(`Troubleshooting must link to ${href}`);
   }
+  for (const [route, title] of [["workflows", "Everyday workflows"], ["reference/templates/examples", "Example Templates"]] as const) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]")) failures.push(`Page, metadata, or search indexing is missing: ${route}`);
+  }
+  const examplesPage = pages.get(resolve(directory, "reference/templates/examples/index.html"));
+  for (const file of ["backend.atomize.yaml", "points-to-hours.atomize.yaml", "repeated-review-tasks.atomize.yaml"]) {
+    if (!examplesPage?.querySelector(`[id="${exampleAnchor(file)}"]`) || !examplesPage.body?.textContent?.includes(`examples/${file}`)) failures.push(`Example Templates page is missing ${file}`);
+  }
+  if (!pages.get(resolve(directory, "connections/index.html"))?.getElementById("mock-platform")) failures.push("Connect Azure DevOps must describe the Mock platform");
   const estimationTerms = [...(pages.get(resolve(directory, "reference/templates/estimation/index.html"))?.querySelectorAll("table") ?? [])].find(table => table.textContent?.includes("Set with"))?.textContent ?? "";
   for (const term of ["Story Estimate", "Task Estimate", "Estimation Conversion", "Unresolvable Story Estimate", "Estimation Field Mapping"]) {
     if (!estimationTerms.includes(term)) failures.push(`Estimation terms are missing ${term}`);

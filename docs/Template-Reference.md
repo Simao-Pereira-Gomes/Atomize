@@ -600,7 +600,7 @@ The count is a fixed number written in the template. It can't come from a Story 
 - **VS Code:** type `atm-task-repeat`.
 - **AI drafts:** a request such as "one review task per developer" produces a repeated task.
 
-The full decision record is [ADR-0067](./adr/0067-task-repeat-count-is-a-schema-field.md).
+The full decision record is [ADR-0067](./adr/0067-task-repeat-count-is-a-schema-field.md). <!-- atomize:feature github -->
 
 <!-- /atomize:section -->
 
@@ -754,8 +754,8 @@ See the [metadata field reference](https://atomize-cd9.pages.dev/schema#template
 Deprecated fields remain readable in format 1.0 and produce non-blocking warnings,
 even in strict mode. Most offer a VS Code removal quick fix. When a field contains
 author-written text, such as acceptance criteria, move that text to the suggested
-replacement yourself so it is preserved. Removal requires a future file format,
-as recorded in [ADR-0073](./adr/0073-format-version-revision-and-field-retirement.md).
+replacement yourself so it is preserved. Removal requires a future file format<!-- atomize:feature github -->,
+as recorded in [ADR-0073](./adr/0073-format-version-revision-and-field-retirement.md)<!-- /atomize:feature -->.
 
 The Schema Reference marks each deprecated field and describes its replacement:
 [task fields](https://atomize-cd9.pages.dev/schema#template.tasks[].acceptanceCriteria),

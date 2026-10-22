@@ -149,6 +149,20 @@ and Studio share profile records, while VS Code stores its profiles separately.
 Keep Copilot sign-in distinct from Connection Profiles, and describe only platforms
 Atomize supports today. Changes to both guides trigger site checks and deployment.
 
+## Keep readers on the portal
+
+Published pages never link to documents on GitHub; `check:docs` fails if one does.
+Relative links between canonical guides open the portal page that publishes the
+target section, and a link to a whole guide opens its main portal page. When you
+link to something the portal doesn't publish, publish it, or mark the sentence
+with `<!-- atomize:feature github -->` (see below) so only GitHub readers see it.
+Links to design records (ADRs) use that marker.
+
+The example Templates page reuses `examples/README.md`. A
+`<!-- atomize:example <file> -->` marker there publishes that file from
+`examples/` as a YAML code block, and links to an example file open its section
+on that page.
+
 ## Unpublished Studio documentation
 
 Atomize Studio's documentation stays off the portal until the app is signed.

@@ -379,6 +379,8 @@ See [Template Creation - AI-Assisted Drafts](./Template-Creation.md#ai-assisted-
 
 ---
 
+<!-- atomize:section platform-mock -->
+
 ## Mock Platform
 
 The mock platform provides sample data for testing and development.
@@ -463,6 +465,8 @@ atomize generate test-template.yaml --platform mock
       atomize generate "$template" --platform mock
     done
 ```
+
+<!-- /atomize:section -->
 
 ---
 

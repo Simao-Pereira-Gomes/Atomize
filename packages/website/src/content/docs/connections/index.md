@@ -10,6 +10,8 @@ You can author Templates and run Mock Preview without any connection. Connect a 
 
 <!-- atomize:include platform-support -->
 
+<!-- atomize:include platform-mock -->
+
 ## Required permissions
 
 <!-- atomize:include auth-permissions -->

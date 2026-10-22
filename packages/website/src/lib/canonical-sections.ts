@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Heading, Parent, Root, RootContent } from "mdast";
@@ -9,10 +9,11 @@ import { repositoryUrl, canonicalSections as sections, canonicalGuideUrl, schema
 import { features, isPublished } from "./features";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-const renderingInputs = ["packages/website/astro.config.mjs", "packages/website/src/lib/canonical-sections.ts", "packages/website/src/lib/features.ts"];
+const renderingInputs = ["packages/website/astro.config.mjs", "packages/website/src/lib/canonical-sections.ts", "packages/website/src/lib/features.ts", "packages/website/src/lib/documentation.ts"];
 export async function canonicalSourceDigest() {
   const files = new Set([...Object.values(sections).map(section => section.source), ...renderingInputs]);
-  return [JSON.stringify(features), ...await Promise.all([...files].map(source => readFile(resolve(repositoryRoot, source), "utf8")))];
+  const examples = (await readdir(resolve(repositoryRoot, "examples"))).filter(name => /\.ya?ml$/.test(name)).sort().map(name => `examples/${name}`);
+  return [JSON.stringify(features), ...await Promise.all([...files, ...examples].map(source => readFile(resolve(repositoryRoot, source), "utf8")))];
 }
 
 function rewriteLink(url: string, source: string) {
@@ -139,6 +140,21 @@ function inlineMarker(node: Parent): RegExpExecArray | undefined {
   return search(node);
 }
 
+const exampleMarker = /^<!--\s*atomize:example\s+([\w.-]+\.ya?ml)\s*-->$/;
+
+/** Replaces `<!-- atomize:example <file> -->` with that file from `examples/` as a YAML code block. */
+async function insertExampleFiles(tree: Root, fail: (message: string) => never) {
+  const markers: { parent: Parent; index: number; name: string }[] = [];
+  visit(tree, "html", (node, index, parent) => {
+    const name = exampleMarker.exec(node.value.trim())?.[1];
+    if (name && parent && index !== undefined) markers.push({ parent: parent as Parent, index, name });
+  });
+  for (const { parent, index, name } of markers.reverse()) {
+    const value = await readFile(resolve(repositoryRoot, "examples", name), "utf8").catch(() => fail(`Missing example file: examples/${name}`));
+    parent.children.splice(index, 1, { type: "code", lang: "yaml", meta: `title="examples/${name}"`, value: value.trimEnd() } as RootContent);
+  }
+}
+
 /** Include a named section as Markdown AST, before highlighting, headings, and search indexing. */
 const canonicalSections: Plugin<[], Root> = function () {
   return async (tree, file) => {
@@ -169,6 +185,7 @@ const canonicalSections: Plugin<[], Root> = function () {
       tree.children.splice(i, 1, ...included.children as RootContent[]);
       i += included.children.length - 1;
     }
+    await insertExampleFiles(tree, message => { throw file.message(message); });
     applyFeatureMarkers(tree, message => { throw file.message(message); });
   };
 };

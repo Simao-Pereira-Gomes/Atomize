@@ -63,7 +63,7 @@ Mock Preview runs in-process, without querying a platform or creating Work Items
 
 ### Continue from your first preview
 
-Read [Atomize YAML Opt-In](#atomize-yaml-opt-in) to enable the full authoring surface for your own files, and [Show Effective Template](#atomize-show-effective-template) to inspect composition. For connected work, use [Manage Profiles](#atomize-manage-profiles) (see [VS Code profile setup](./Auth-Guide.md#vs-code) and [required permissions](./Auth-Guide.md#required-permissions)), then [Preview (Live)](#atomize-preview-live) before [Generate](#atomize-generate). Live Preview reads a real Story without creating Tasks; Generate requires an explicit action and confirmation before creating them.
+Read [Atomize YAML Opt-In](#atomize-yaml-opt-in) to enable the full authoring surface for your own files, and [Show Effective Template](#atomize-show-effective-template) to inspect composition. For connected work, set up a profile with [Manage Profiles](./Auth-Guide.md#vs-code) and the [required permissions](./Auth-Guide.md#required-permissions), then [Preview (Live)](#atomize-preview-live) before [Generate](#atomize-generate). Live Preview reads a real Story without creating Tasks; Generate requires an explicit action and confirmation before creating them.
 
 <!-- /atomize:section -->
 

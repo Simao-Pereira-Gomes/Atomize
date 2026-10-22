@@ -16,7 +16,7 @@ Download the installer for your platform from the project's [GitHub Releases](ht
 - Windows: `.exe` or `.msi`
 - Linux (experimental): `.AppImage` or `.deb`, when that build succeeds
 
-Verify your download against the release's `SHA256SUMS.txt`. Installers are not notarised (macOS) or signed (Windows): your OS may show a security warning before allowing the app to run. See [Studio Releases](./Studio-Releases.md) for the full publishing and security model.
+Verify your download against the release's `SHA256SUMS.txt`. Installers are not notarised (macOS) or signed (Windows): your OS may show a security warning before allowing the app to run.<!-- atomize:feature github --> See [Studio Releases](./Studio-Releases.md) for the full publishing and security model.<!-- /atomize:feature -->
 
 Atomize Studio does not require the Atomize CLI to be installed. It bundles its own companion process and runs independently.
 
@@ -238,7 +238,7 @@ A Template whose percentages add up to more than 100% keeps that allocation unle
 
 If Copilot couldn't fix every problem in its proposal, the remaining problems are listed. Accepting loads the proposal anyway so you can fix them in the builder.
 
-Studio flattens a Template's `extends` and Mixins when it opens it ([ADR-0048](./adr/0048-studio-open-flattens-extends-mixins-at-load.md)), so Copilot always sees the complete Template.
+Studio flattens a Template's `extends` and Mixins when it opens it<!-- atomize:feature github --> ([ADR-0048](./adr/0048-studio-open-flattens-extends-mixins-at-load.md))<!-- /atomize:feature -->, so Copilot always sees the complete Template.
 
 ### Reference Documents
 

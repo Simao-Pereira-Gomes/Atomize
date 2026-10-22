@@ -14,6 +14,8 @@
  */
 export const features = {
   studio: process.env.ATOMIZE_PUBLISH_STUDIO === "true",
+  /** Content for GitHub readers only, such as links to design records; never published on the portal. */
+  github: false,
 };
 
 export type Feature = keyof typeof features;
@@ -21,6 +23,7 @@ export type Feature = keyof typeof features;
 /** Pages each feature owns, as content ids and route prefixes. */
 const featurePages: Record<Feature, string[]> = {
   studio: ["studio/", "getting-started/studio"],
+  github: [],
 };
 
 export function isPublished(feature: string): boolean {

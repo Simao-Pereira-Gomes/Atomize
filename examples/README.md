@@ -1,5 +1,7 @@
 # Examples
 
+<!-- atomize:section examples-guide -->
+
 Real-world Atomize template examples. Each file is a working template you can validate immediately and dry-run against either matching work items or explicit mock stories.
 
 ## Files
@@ -41,6 +43,8 @@ atomize validate examples/backend.atomize.yaml
 atomize generate examples/backend.atomize.yaml --platform mock
 ```
 
+<!-- atomize:example backend.atomize.yaml -->
+
 ---
 
 ## frontend.yaml
@@ -62,6 +66,8 @@ A React component development template covering the full UI lifecycle including 
 atomize validate examples/frontend.yaml
 atomize generate examples/frontend.yaml --platform mock
 ```
+
+<!-- atomize:example frontend.yaml -->
 
 ---
 
@@ -87,6 +93,8 @@ A combined backend + frontend template for end-to-end features. Uses a branching
 atomize validate examples/fullstack.atomize.yaml
 atomize generate examples/fullstack.atomize.yaml --platform mock --story STORY-004
 ```
+
+<!-- atomize:example fullstack.atomize.yaml -->
 
 ---
 
@@ -122,6 +130,8 @@ Demonstrates **conditional tasks**: tasks that are only created when a story mee
 atomize validate examples/conditional-dependencies-template.atomize.yaml
 atomize generate examples/conditional-dependencies-template.atomize.yaml --platform mock --story STORY-004
 ```
+
+<!-- atomize:example conditional-dependencies-template.atomize.yaml -->
 
 ---
 
@@ -164,6 +174,8 @@ atomize validate examples/conditional-percentage-template.atomize.yaml
 atomize generate examples/conditional-percentage-template.atomize.yaml --platform mock
 ```
 
+<!-- atomize:example conditional-percentage-template.atomize.yaml -->
+
 ---
 
 ## advanced-filtering.atomize.yaml
@@ -199,6 +211,8 @@ for f in examples/points-to-hours.atomize.yaml examples/fibonacci-hours-table.at
 done
 ```
 
+<!-- atomize:example advanced-filtering.atomize.yaml -->
+
 ---
 
 ## custom-location.atomize.yaml
@@ -216,6 +230,8 @@ Demonstrates that the `.atomize.yaml` file extension alone is a durable Atomize 
 atomize validate examples/custom-location.atomize.yaml
 atomize generate examples/custom-location.atomize.yaml --platform mock
 ```
+
+<!-- atomize:example custom-location.atomize.yaml -->
 
 ---
 
@@ -236,6 +252,8 @@ atomize validate examples/points-to-hours.atomize.yaml
 atomize generate examples/points-to-hours.atomize.yaml --platform mock --story STORY-003 STORY-005
 ```
 
+<!-- atomize:example points-to-hours.atomize.yaml -->
+
 ---
 
 ## fibonacci-hours-table.atomize.yaml
@@ -252,6 +270,8 @@ For teams whose hours grow faster than their points. A numeric `conversion.table
 atomize validate examples/fibonacci-hours-table.atomize.yaml
 atomize generate examples/fibonacci-hours-table.atomize.yaml --platform mock --story STORY-003 STORY-005
 ```
+
+<!-- atomize:example fibonacci-hours-table.atomize.yaml -->
 STORY-003 (13 points) becomes 80 hours and gets the Architecture review; STORY-005 (3 points) becomes 8 hours without it.
 
 ---
@@ -281,6 +301,8 @@ Run Online Validation (`--profile <name>`) to check that the table covers every 
 atomize validate examples/tshirt-size-estimation.atomize.yaml
 atomize generate examples/tshirt-size-estimation.atomize.yaml --platform mock --story STORY-003
 ```
+
+<!-- atomize:example tshirt-size-estimation.atomize.yaml -->
 The mock Stories have no T-shirt size field, so this dry run shows the fallback: each Story is treated as `M` (8 hours) and a warning explains why.
 
 ---
@@ -302,6 +324,8 @@ Online Validation checks that `Deliverable` exists in the project and that `Cust
 atomize validate examples/custom-fields-and-task-type.atomize.yaml
 atomize generate examples/custom-fields-and-task-type.atomize.yaml --platform mock --story STORY-003 STORY-005
 ```
+
+<!-- atomize:example custom-fields-and-task-type.atomize.yaml -->
 STORY-003 (`Very High`) converts to 32 and STORY-005 (`Medium`) to 8.
 
 ---
@@ -325,6 +349,8 @@ atomize validate examples/repeated-review-tasks.atomize.yaml
 atomize generate examples/repeated-review-tasks.atomize.yaml --platform mock --story STORY-003
 ```
 
+<!-- atomize:example repeated-review-tasks.atomize.yaml -->
+
 ---
 
 ## Running All Examples
@@ -347,6 +373,8 @@ atomize generate examples/fullstack.atomize.yaml --platform mock --story STORY-0
 atomize generate examples/conditional-dependencies-template.atomize.yaml --platform mock --story STORY-004
 atomize generate examples/advanced-filtering.atomize.yaml --platform mock --story STORY-001
 ```
+
+<!-- /atomize:section -->
 
 ---
 

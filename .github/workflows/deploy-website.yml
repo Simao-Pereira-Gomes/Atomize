@@ -14,6 +14,7 @@ on:
       - docs/Template-Creation.md
       - docs/Validation-Modes.md
       - docs/Common-Validation-Errors.md
+      - examples/**
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock
@@ -35,6 +36,7 @@ on:
       - docs/Template-Creation.md
       - docs/Validation-Modes.md
       - docs/Common-Validation-Errors.md
+      - examples/**
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock
