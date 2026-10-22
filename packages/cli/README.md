@@ -1,10 +1,22 @@
 # Atomize CLI
 
-Atomize CLI turns stories into consistent child tasks using reusable YAML templates. It supports template validation, safe previews, confirmed task generation, connection profile management, template catalog operations, and CI/CD automation.
+**Break down stories, build up velocity.**
 
-Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
+Atomize turns Stories into consistent child Tasks using reusable YAML Templates. Capture your team's task breakdown once, then validate, preview, and reuse it from your terminal or CI/CD pipeline.
+
+- Try built-in Templates offline with Mock Stories.
+- Customize task titles, descriptions, conditions, dependencies, and estimation rules in YAML.
+- Reuse Templates and Mixins from built-in, user, and project Catalogs.
+- Draft and improve Templates with your GitHub Copilot account.
+- Preview real Azure DevOps Stories before confirming task creation.
+
+Connected generation currently supports **Azure DevOps**. Offline Validation and Mock Preview require no platform account or Connection Profile.
+
+[Website and documentation](https://atomize-docs.pages.dev/) · [CLI quickstart](https://atomize-docs.pages.dev/getting-started/cli/) · [Source and issues](https://github.com/Simao-Pereira-Gomes/atomize)
 
 ## Install
+
+Requires [Node.js](https://nodejs.org/) **22 or later** and npm.
 
 ```bash
 npm install -g @sppg2001/atomize
@@ -25,21 +37,28 @@ npx @sppg2001/atomize --help
 
 ## Quick Start
 
-Try Atomize without credentials:
+### Try it offline
+
+The `backend-api` Template ships with the CLI. Validate it, then preview a task breakdown using a Mock Story:
 
 ```bash
 atomize validate template:backend-api
-atomize generate template:backend-api --platform mock
+atomize preview template:backend-api \
+  --mock-story '{"id":"123","title":"Add password reset","estimation":8}'
 ```
 
-Connect Azure DevOps:
+The preview returns three Tasks: define API behavior, implement the change, and verify it. The example Template converts the Story Estimate of 8 into a 32-hour budget and splits it 20% / 50% / 30%. Change the title or estimate and run it again to see the breakdown change. No Work Items are created.
+
+### Connect Azure DevOps
+
+Add a Connection Profile using an Azure DevOps PAT with **Work Items read/write** access:
 
 ```bash
 atomize auth add work-ado
 atomize auth test work-ado
 ```
 
-Preview and then create tasks:
+Preview real Stories, then create Tasks after reviewing the plan:
 
 ```bash
 # Dry run, no tasks created
@@ -48,6 +67,8 @@ atomize generate template:backend-api --profile work-ado
 # Create tasks after confirmation
 atomize generate template:backend-api --profile work-ado --execute
 ```
+
+Use `--story 123 456` to select specific Stories. See the [Auth Guide](https://atomize-docs.pages.dev/connections/profiles/) for PAT permissions, credential storage, and profile setup.
 
 ## Safety Model
 
@@ -103,6 +124,20 @@ atomize fields list --type Task
 atomize queries list
 ```
 
+## AI-Assisted Authoring
+
+Use your signed-in GitHub Copilot account to draft a Template from prose or review a proposed improvement to an existing one:
+
+```bash
+atomize template create --ai
+atomize template improve template:backend-api
+
+# Draft with your team's written process as reference material
+atomize template create --ai --reference docs/how-we-work.md
+```
+
+AI authoring uses a separate Copilot Session; it does not require an Azure DevOps Connection Profile. You can explicitly add project context with `--ground --profile work-ado`. See [AI authoring](https://atomize-docs.pages.dev/cli/ai/) for sign-in, Reference Documents, and review workflows.
+
 ## CI/CD
 
 Validate first, then run live generation with explicit acknowledgement:
@@ -134,22 +169,23 @@ Validate first, then run live generation with explicit acknowledgement:
       --output report.json
 ```
 
-## VS Code Extension
+## Desktop and Editor Workflows
 
-Prefer an editor workflow? Atomize also has a VS Code extension for YAML authoring, validation, mock/live preview, profile management, catalog browsing, and confirmed generation.
+- **[Atomize Studio](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Atomize-Studio.md)** is a standalone desktop app for visual Template authoring, Catalog management, and confirmed task generation. Download an installer via [Studio Releases](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Studio-Releases.md).
+- **[VS Code extension](https://atomize-docs.pages.dev/getting-started/vscode/)** provides YAML completions, schema hovers, diagnostics, Mock and Live Preview, and confirmed generation in your editor.
 
-See the [VS Code Extension Guide](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/VS-Code-Extension.md).
+The CLI and Studio share Connection Profile metadata and compatible OS-keyring-backed tokens. VS Code manages its own profiles. See the [Auth Guide](https://atomize-docs.pages.dev/connections/profiles/#shared-between-the-cli-and-atomize-studio) for details.
 
 ## Documentation
 
-- [Product README](https://github.com/Simao-Pereira-Gomes/atomize#readme) - VS Code-first onboarding and product overview
-- [Documentation Index](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/README.md)
-- [Workflows](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Workflows.md)
-- [CLI Reference](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Cli-Reference.md)
-- [Template Creation](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Template-Creation.md)
-- [Template Reference](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Template-Reference.md)
-- [Auth Guide](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Auth-Guide.md)
-- [Platform Guide](https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Platform-Guide.md)
+- [Website and Documentation](https://atomize-docs.pages.dev/)
+- [Workflows](https://atomize-docs.pages.dev/workflows/)
+- [CLI Reference](https://atomize-docs.pages.dev/cli/reference/)
+- [Template Creation](https://atomize-docs.pages.dev/catalog/create/)
+- [Schema Reference](https://atomize-docs.pages.dev/reference/templates/schema/)
+- [Template Reference](https://atomize-docs.pages.dev/reference/templates/)
+- [Auth Guide](https://atomize-docs.pages.dev/connections/profiles/)
+- [Platform Guide](https://atomize-docs.pages.dev/connections/)
 
 ## License
 
