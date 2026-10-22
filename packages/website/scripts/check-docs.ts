@@ -151,7 +151,7 @@ async function checkDocs() {
     if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`CLI page, metadata, or search indexing is missing: ${route}`);
   }
   const cliGenerate = pages.get(resolve(directory, "cli/generate/index.html"))?.body?.textContent ?? "";
-  for (const text of ["Dry run complete. No tasks were created.", "This will CREATE tasks in your work tracking system.", "Refusing live execution without confirmation", "Created 6 tasks for 1 story."]) {
+  for (const text of ["Dry run complete. No tasks were created.", "This will CREATE tasks in your work tracking system.", "Refusing live execution without confirmation", "Created 3 tasks for 1 story."]) {
     if (!cliGenerate.includes(text)) failures.push(`CLI generate guide is missing its transcript: ${text}`);
   }
   const reference = (route: string) => pages.get(resolve(directory, `cli/reference/${route}/index.html`));
@@ -179,7 +179,7 @@ async function checkDocs() {
   if (paths?.length !== onboardingPaths || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push(`Home must offer ${onboardingPaths} working onboarding paths`);
   if (quickstart?.querySelector("h1")?.textContent !== "Try Atomize from the CLI") failures.push("CLI quickstart is missing");
   const commands = [...(quickstart?.querySelectorAll("pre") ?? [])].map(block => block.textContent).join("\n");
-  for (const command of ["npm install -g @sppg2001/atomize", "atomize --version", "atomize validate template:backend-api", "atomize preview template:backend-api --mock-story", "Add password reset", "estimationSummary.totalTaskEstimation: 8"]) {
+  for (const command of ["npm install -g @sppg2001/atomize", "atomize --version", "atomize validate template:backend-api", "atomize preview template:backend-api --mock-story", "Add password reset", "estimationSummary.totalTaskEstimation: 32"]) {
     if (!commands.includes(command)) failures.push(`CLI quickstart is missing its verified command or expected result: ${command}`);
   }
   for (const tag of [...(features.studio ? ["studio-v0"] : []), "vscode-v0", "v5"]) {

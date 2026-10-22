@@ -48,15 +48,13 @@ Use these values in the generated form:
 | Input | Value |
 | --- | --- |
 | Estimation | `8` |
-| Tags | `backend` |
 | Type | `User Story` |
-| State | `Active` |
 
-Select **Run Preview**. Expect six Tasks and a total Task Estimate of 8 hours, with 100% allocated. The first Task is **Design API Endpoints: Mock Story**. The form shows the fields the Template references; other Mock Story values use defaults, including the title `Mock Story`. Choose **Edit mock story** to return to the form, change the estimate, and run again to see a different allocation.
+Select **Run Preview**. The Template converts the input estimate of 8 to a 32-hour budget using its example factor of 4. In the result, expect **3 Tasks** and a total Task Estimate of **32 hours**, with 100% allocated. The first Task is **Define API Behavior: Mock Story**. The Task Estimates are 6.5, 16, and 9.5 hours after rounding to half-hour increments. The form shows the fields the Template references; other Mock Story values use defaults, including the title `Mock Story`. Choose **Edit mock story** to return to the form, change the estimate, and run again to see a different allocation.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/vscode/mock-preview-dark.png">
-  <img alt="VS Code with Backend API Development open on the left and the Mock Preview Panel on the right showing six Tasks and an 8-hour total from offline Mock Story values." src="../packages/website/public/vscode/mock-preview-light.png">
+  <img alt="VS Code with Backend API Development open on the left and the Mock Preview Panel on the right showing three Tasks and a 32-hour total from offline Mock Story values." src="../packages/website/public/vscode/mock-preview-light.png">
 </picture>
 
 Mock Preview runs in-process, without querying a platform or creating Work Items. It uses the saved Template content. When a local file has unsaved edits, the command asks whether to save first or preview its saved version; cancel if neither is what you intend.
@@ -190,7 +188,7 @@ Runs the Generate Panel for the active Template. The panel first shows a dry-run
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/vscode/generate-dry-run-dark.png">
-  <img alt="VS Code's Generate Panel beside a Template, showing a DRY RUN report for two Stories with 12 Tasks, 16 hours, and a 100% budget, each Task with its tags and estimate, and the Create 12 Tasks button." src="../packages/website/public/vscode/generate-dry-run-light.png">
+  <img alt="VS Code's Generate Panel beside a Template, showing a DRY RUN report for two Stories with 6 Tasks, 64 hours, and a 100% budget, each Task with its estimate, and the Create 6 Tasks button." src="../packages/website/public/vscode/generate-dry-run-light.png">
 </picture>
 
 5. Choose **Create *N* Tasks in *profile*…**. The arrow beside it offers **Continue on task failure**, which keeps creating the remaining Tasks when one fails.
@@ -198,7 +196,7 @@ Runs the Generate Panel for the active Template. The panel first shows a dry-run
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/vscode/generate-confirmation-dark.png">
-  <img alt="VS Code's confirmation dialog over the Generate Panel asking to create 12 tasks for 2 stories using the selected profile, with Cancel and Create Tasks buttons." src="../packages/website/public/vscode/generate-confirmation-light.png">
+  <img alt="VS Code's confirmation dialog over the Generate Panel asking to create 6 tasks for 2 stories using the selected profile, with Cancel and Create Tasks buttons." src="../packages/website/public/vscode/generate-confirmation-light.png">
 </picture>
 
 Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created; there's no cancel action once creation starts. The result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.

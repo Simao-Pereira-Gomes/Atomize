@@ -189,15 +189,15 @@ Found 1 stories
 
  Summary:
   Stories processed: 1
-  Tasks calculated:  6
+  Tasks calculated:  3
   Tasks created:     0
 
 ✓ STORY-001: Implement user authentication API
-  Distribution: 8 hours (100%)
+  Distribution: 32 hours (100%)
   Task breakdown:
-    - Design API Endpoints: Implement user authentication API: 1 hours (15%)
-    - Implement Core Logic: Implement user authentication API: 3 hours (35%)
-    ...
+    - Define API Behavior: Implement user authentication API: 6.5 hours (20%)
+    - Implement API Change: Implement user authentication API: 16 hours (50%)
+    - Verify API Behavior: Implement user authentication API: 9.5 hours (30%)
 
 Dry run complete. No tasks were created.
   Run with --execute to create tasks for real.
@@ -223,10 +223,10 @@ After you confirm, the summary reports the Tasks created:
  Summary:
   Stories processed: 1
   Stories success:   1
-  Tasks calculated:  6
-  Tasks created:     6
+  Tasks calculated:  3
+  Tasks created:     3
 
-Created 6 tasks for 1 story.
+Created 3 tasks for 1 story.
 ```
 
 Without an interactive terminal (a script or CI job), `--execute` refuses to run unless you also pass `--auto-approve`, which acknowledges that Tasks will be created without a prompt:

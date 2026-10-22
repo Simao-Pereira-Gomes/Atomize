@@ -49,17 +49,15 @@ Use these values for the built-in Backend API Development Template:
 | Input | Value |
 | --- | --- |
 | `estimation` | `8` |
-| `tags` | `backend` |
 | `type` | `User Story` |
-| `state` | `Active` |
 
 Studio's inputs are individual fields, not a JSON editor. Leave other optional inputs empty. Fields such as the Mock Story's title that this form does not expose use their default values; the title defaults to `Mock Story`.
 
-Choose **Run Mock Preview**. Under **Resolved Tasks**, expect six Tasks, no skipped Tasks, a Story estimate of 8 hours, a Task total of 8 hours, and 100% allocated. The first Task is **Design API Endpoints: Mock Story**. Change the estimate and run again to see the breakdown update.
+Choose **Run Mock Preview**. The Template converts the input estimate of 8 to a 32-hour budget using its example factor of 4. Under **Resolved Tasks**, expect **3 Tasks**, no skipped Tasks, a converted Story budget and Task total of **32 hours**, and 100% allocated. The first Task is **Define API Behavior: Mock Story**. The Task Estimates are 6.5, 16, and 9.5 hours after rounding to half-hour increments. Change the estimate and run again to see the breakdown update.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/studio/mock-preview-dark.png">
-  <img alt="Studio Generate Area with Backend API Development selected independently as the Preview Source, Mock Story inputs on the left, and six resolved Tasks on the right." src="../packages/website/public/studio/mock-preview-light.png">
+  <img alt="Studio Generate Area with Backend API Development selected independently as the Preview Source, Mock Story inputs on the left, and three resolved Tasks on the right." src="../packages/website/public/studio/mock-preview-light.png">
 </picture>
 
 Mock Preview uses the bundled companion process to evaluate the Template offline. It does not query Azure DevOps or create Work Items. No separate CLI installation is needed.
@@ -137,7 +135,7 @@ The authoring surface is organised into sections: Basic Info, Filter, Tasks, Est
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/studio/template-authoring-dark.png">
-  <img alt="Studio Templates Area showing a clone of Backend API Development, the Builder sections on the left, and the six task definitions in the Tasks section." src="../packages/website/public/studio/template-authoring-light.png">
+  <img alt="Studio Templates Area showing a clone of Backend API Development, the Builder sections on the left, and the three task definitions in the Tasks section." src="../packages/website/public/studio/template-authoring-light.png">
 </picture>
 
 | Section | What to edit |

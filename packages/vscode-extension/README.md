@@ -14,14 +14,14 @@ Draft Templates with GitHub Copilot, review proposed improvements in a diff, and
 
 1. Run **Atomize: Browse Catalog** and open the built-in **Backend API Development** Template, or create your own `.atomize.yaml` file.
 2. Run **Atomize: Validate** and choose **Offline Validation** to check the Template.
-3. Run **Atomize: Preview (Mock)** to simulate Tasks without connecting to a platform. For the built-in Template, enter estimate `8`, tags `backend`, type `User Story`, and state `Active`, then select **Run Preview**.
+3. Run **Atomize: Preview (Mock)** to simulate Tasks without connecting to a platform. For the built-in Template, enter estimate `8` and type `User Story`, then select **Run Preview**.
 4. Configure a Connection Profile with **Atomize: Manage Profiles** when you are ready to use connected workflows.
 5. Run **Atomize: Preview (Live)** to preview against a real Story.
 6. Run **Atomize: Generate** to review the plan and create Tasks only after confirmation.
 
-Atomize previews by default. Creating Tasks requires the Generate flow and an explicit confirmation.
+The built-in example converts an estimate of 8 into a 32-hour budget using its factor of 4, split across three Tasks. Atomize previews by default. Creating Tasks requires the Generate flow and an explicit confirmation.
 
-![Mock Preview beside the built-in Backend API Development Template, showing six Tasks, eight hours, and 100% allocation](./images/screenshots/03-mock-preview.png)
+![Mock Preview beside the built-in Backend API Development Template, showing three Tasks, 32 hours, and 100% allocation](./images/screenshots/03-mock-preview.png)
 
 ## Atomize YAML
 
@@ -94,11 +94,11 @@ See [Draft and improve with AI](https://atomize-docs.pages.dev/vscode/ai/) for s
 
 Run **Atomize: Generate**, choose a Connection Profile, and select Stories in the Story Browser or enter their IDs. Review the **DRY RUN** report, including each Story's planned Tasks and estimates.
 
-![Generate Panel showing a dry run for two sample Stories with 12 planned Tasks, 16 hours, and no Tasks created](./images/screenshots/07-generate-dry-run.png)
+![Generate Panel showing a dry run for two sample Stories with 6 planned Tasks, 64 hours, and no Tasks created](./images/screenshots/07-generate-dry-run.png)
 
 Choose **Create Tasks**, then confirm the Story count, Task count, and profile in VS Code's confirmation dialog. Cancel to keep reviewing without creating anything.
 
-![Confirmation dialog asking to create 12 Tasks for two Stories using the selected Connection Profile](./images/screenshots/05-generate-confirmation.png)
+![Confirmation dialog asking to create 6 Tasks for two Stories using the selected Connection Profile](./images/screenshots/05-generate-confirmation.png)
 
 Screenshots use fictional profiles and Stories and show the workflow before Task creation.
 
