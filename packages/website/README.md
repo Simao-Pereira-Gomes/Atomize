@@ -20,11 +20,14 @@ a new major version; the page also links to the complete release history.
 Desktop readers can collapse the navigation to an icon rail with the button
 beside the brand; labels appear on hover and keyboard focus. The choice persists
 across pages. Small screens retain the mobile menu.
-The sidebar is the only page navigation; the header holds the brand, search,
+The header's section tabs switch between Guides and the Schema Reference, the
+one reference shared by every tool; the Schema Reference brings its own field
+navigation, and each tool's reference pages stay with its guides. On narrow
+screens the tabs move to the top of the mobile menu. The header also holds the brand, search,
 theme switch, and navigation toggle.
 Schema Reference sits inside the Templates section. On that page the shared
 viewer renders its Template/Mixin switch, search, and field index into the site
-sidebar in place of the page list, with a link back to all documentation, so
+sidebar in place of the page list, so
 field details use the full content width and the page scrolls normally. On narrow
 screens the field index is in the mobile menu, which closes when a field is
 chosen. The sidebar is wider on this page and always open: it is the page's

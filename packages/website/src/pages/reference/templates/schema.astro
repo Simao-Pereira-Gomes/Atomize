@@ -42,16 +42,13 @@ const trees = buildSchemaTrees(schema);
     html:has(.atomize-website-schema)[data-sidebar-collapsed] { --sl-content-inline-start: var(--sl-sidebar-width); }
     html:has(.atomize-website-schema)[data-sidebar-collapsed] #starlight__sidebar { width: var(--sl-sidebar-width); }
     html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content { padding: 2rem var(--sl-sidebar-pad-x) 0; }
-    html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > :is(.schema-reference-back, .schema-reference-detached-navigation, .documentation-build) { display: block; }
+    html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > :is(.schema-reference-detached-navigation, .documentation-build) { display: block; }
     html:has(.atomize-website-schema)[data-sidebar-collapsed] .sidebar-content > .documentation-rail { display: none; }
   }
 
   /* The field navigation replaces the site's page list once the viewer has moved it into the sidebar. */
   html:has(.schema-reference-detached-navigation) .sidebar-content > sl-sidebar-state-persist { display: none; }
-  .sidebar-content > .schema-reference-back { order: -2; }
   .sidebar-content > .schema-reference-detached-navigation { order: -1; font-family: var(--sl-font, var(--sl-font-system)); font-size: .9375rem; }
-  .schema-reference-back a { display: inline-flex; gap: .4rem; margin-bottom: 1.25rem; color: var(--sl-color-gray-2); font-size: .875rem; text-decoration: none; }
-  .schema-reference-back a:hover { color: var(--sl-color-text-accent); }
   .schema-reference-detached-navigation .schema-reference-sidebar > .schema-reference-eyebrow { display: none; }
   /* The site's build provenance already names the branch and commit, so the viewer's copies would repeat it. */
   .schema-reference-detached-navigation .schema-reference-source, .atomize-website-schema .schema-reference-footer { display: none; }

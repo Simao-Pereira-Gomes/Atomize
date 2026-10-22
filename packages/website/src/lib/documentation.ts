@@ -75,6 +75,17 @@ export const canonicalSections = {
 export const repositoryUrl = "https://github.com/Simao-Pereira-Gomes/Atomize";
 export const schemaRoute = "/reference/templates/schema/";
 
+/** The header tabs switch between the guides and the shared Schema Reference, which brings its own navigation. */
+export type DocumentationSection = "guides" | "schema";
+export const sectionTabs: { key: DocumentationSection; label: string; href: string }[] = [
+  { key: "guides", label: "Guides", href: "/" },
+  { key: "schema", label: "Schema Reference", href: schemaRoute },
+];
+export function documentationSection(pathname: string): DocumentationSection {
+  const path = pathname.replace(/\/?$/, "/");
+  return path === schemaRoute || path === "/schema/" ? "schema" : "guides";
+}
+
 export function templateGuideUrl(anchor?: string) {
   return canonicalGuideUrl("docs/Template-Reference.md", anchor);
 }

@@ -1,6 +1,7 @@
 ---
 import Sidebar from "@astrojs/starlight/components/Sidebar.astro";
 import { buildInfo } from "../lib/build-info";
+import { documentationSection, sectionTabs } from "../lib/documentation";
 type Entry = (typeof Astro.locals.starlightRoute.sidebar)[number];
 type Link = Extract<Entry, { type: "link" }>;
 function flatten(entries: Entry[]): Link[] {
@@ -17,8 +18,12 @@ function icon(href: string) {
   if (href.includes("/vscode")) return "m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18";
   return "M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4V4Zm8 2v16";
 }
+const section = documentationSection(Astro.url.pathname);
 const links = flatten(Astro.locals.starlightRoute.sidebar);
 ---
+<nav class="documentation-sections-mobile" aria-label="Documentation sections">
+  {sectionTabs.map(tab => <a href={tab.href} aria-current={section === tab.key ? "page" : undefined}>{tab.label}</a>)}
+</nav>
 <Sidebar><slot /></Sidebar>
 <nav class="documentation-rail" aria-label="Compact documentation navigation" data-pagefind-ignore>
   {links.map(link => <a href={link.href} aria-label={link.label} aria-current={link.isCurrent ? "page" : undefined}>

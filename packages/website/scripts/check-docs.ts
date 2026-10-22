@@ -151,7 +151,8 @@ async function checkDocs() {
   }
   if (!quickstart?.querySelector('a[href="/cli/generate/"]')) failures.push("CLI quickstart must lead to connected generation");
   if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");
-  const paths = home?.querySelectorAll(".onboarding-paths > a");
+  const paths = home?.querySelectorAll(".onboarding-paths:not(.reference-paths) > a");
+  if (!home?.querySelector(`.reference-paths a[href="${schemaRoute}"]`) || !home?.querySelector('.reference-paths a[href="/cli/reference/"]')) failures.push("Home must point to the Schema and CLI references");
   if (paths?.length !== 3 || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push("Home must offer three working onboarding paths");
   if (quickstart?.querySelector("h1")?.textContent !== "Try Atomize from the CLI") failures.push("CLI quickstart is missing");
   const commands = [...(quickstart?.querySelectorAll("pre") ?? [])].map(block => block.textContent).join("\n");
@@ -168,6 +169,7 @@ async function checkDocs() {
   for (const [path, document] of pages) {
     if (document.querySelector(".documentation-header") && !document.querySelector('atomize-sidebar-toggle button[aria-controls="starlight__sidebar"]')) failures.push(`${path}: desktop navigation toggle is missing`);
     if (document.querySelector('a[href*="github.com/Simao-Pereira-Gomes/Atomize/edit/"]')) failures.push(`${path}: public editing link must not be published`);
+    if (document.querySelector(".documentation-header") && (!document.querySelector(`.documentation-sections a[href="${schemaRoute}"]`) || document.querySelectorAll('.documentation-sections a[aria-current="page"]').length !== 1)) failures.push(`${path}: header section tabs are missing or select more than one section`);
     const content = document.body?.cloneNode(true) as HTMLElement | undefined;
     content?.querySelectorAll("script, style, noscript").forEach(element => { element.remove(); });
     if (content?.textContent?.includes("\u2014")) failures.push(`${path}: website content must not contain em dashes`);
@@ -181,8 +183,10 @@ async function checkDocs() {
   if (!schemaPage?.querySelector(".schema-reference")) failures.push("Shared Schema Reference is missing");
   if (!schemaPage?.querySelector(".not-content .schema-reference")) failures.push("Schema Reference controls must be isolated from article typography");
   if (!schemaPage?.querySelector(".documentation-header") || !schemaPage?.querySelector("nav.sidebar") || !schemaPage?.getElementById("starlight__search") || !schemaPage?.querySelector(".development-notice") || !schemaPage?.querySelector(".documentation-build time")) failures.push("Schema Reference must use the shared portal layout, navigation, search, and provenance");
-  if (!schemaPage?.querySelector(`nav.sidebar a[href="${schemaRoute}"][aria-current="page"]`)) failures.push("Schema Reference sidebar link must be selected");
-  if (!schemaPage?.querySelector(`nav.sidebar a[href="${schemaRoute}"]`)?.closest("details")?.querySelector("summary")?.textContent?.includes("Templates")) failures.push("Schema Reference must be grouped inside Templates");
+  if (!schemaPage?.querySelector(`.documentation-sections a[href="${schemaRoute}"][aria-current="page"]`)) failures.push("Schema Reference header tab must be selected");
+  const sidebarHrefs = (route: string) => [...(pages.get(resolve(directory, `${route}index.html`))?.querySelectorAll("nav.sidebar a[href]") ?? [])].map(link => link.getAttribute("href"));
+  if (!sidebarHrefs("studio/generate/").includes("/cli/reference/auth/") || !sidebarHrefs("cli/reference/auth/").includes("/studio/generate/")) failures.push("Guide sidebars must list every tool's guides and reference pages, including the CLI reference");
+  if (pages.get(resolve(directory, "studio/generate/index.html"))?.querySelectorAll(".documentation-sections-mobile a").length !== 2) failures.push("Section tabs must be available in the mobile menu");
   if (!schemaPage?.querySelector(`a[href="${templateGuideUrl("inheritance-extends")}"]`)) failures.push("Schema Reference is missing its composition-guide link");
   if (!guide?.querySelector(".development-notice") || !guide?.querySelector(".documentation-build time")) failures.push("Development notice or build provenance is missing");
   if (failures.length) throw new Error(failures.join("\n"));

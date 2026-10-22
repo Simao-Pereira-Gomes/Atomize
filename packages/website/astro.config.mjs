@@ -61,7 +61,6 @@ export default defineConfig({
       ] },
       { label: "Templates", items: [
         { label: "Compose Templates", slug: "reference/templates/composition" },
-        { label: "Schema Reference", link: "/reference/templates/schema/" },
       ] },
       { label: "Release notes", slug: "releases" },
       { label: "More guides", items: [

@@ -24,6 +24,13 @@ Start with a Mock Preview to see a task breakdown without credentials. When you 
 
 ## Make the breakdown your team's own
 
-Use [Template composition](/reference/templates/composition/) to share a base Template and reusable task groups. Look up exact fields, types, and defaults in the [Schema Reference](/reference/templates/schema/).
+Use [Template composition](/reference/templates/composition/) to share a base Template and reusable task groups.
+
+## Look it up
+
+<div class="onboarding-paths reference-paths">
+<a href="/reference/templates/schema/"><strong>Schema Reference</strong><span>Every Template and Mixin field, with types, defaults, constraints, and YAML examples.</span><small>Browse fields <span aria-hidden="true">→</span></small></a>
+<a href="/cli/reference/"><strong>CLI reference</strong><span>Every Atomize command and flag, with exit codes and machine-readable output.</span><small>Browse commands <span aria-hidden="true">→</span></small></a>
+</div>
 
 Looking for changes in an installed version? [Find release notes for your tool](/releases/).
