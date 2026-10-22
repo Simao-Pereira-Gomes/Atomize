@@ -9,6 +9,8 @@ on:
       - docs/VS-Code-Extension.md
       - docs/Auth-Guide.md
       - docs/Platform-Guide.md
+      - docs/Workflows.md
+      - docs/Cli-Reference.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock
@@ -25,6 +27,8 @@ on:
       - docs/VS-Code-Extension.md
       - docs/Auth-Guide.md
       - docs/Platform-Guide.md
+      - docs/Workflows.md
+      - docs/Cli-Reference.md
       - packages/vscode-extension/icons/atomize-product.svg
       - package.json
       - bun.lock

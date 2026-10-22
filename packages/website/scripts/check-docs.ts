@@ -137,6 +137,19 @@ async function checkDocs() {
     if (!connectionFailures?.getElementById(anchor)) failures.push(`Connection recovery is missing: ${anchor}`);
   }
   if (!quickstart?.querySelector('a[href="/connections/profiles/"]') || !studio?.querySelector('a[href="/connections/profiles/#atomize-studio"]') || !pages.get(resolve(directory, "getting-started/vscode/index.html"))?.querySelector('a[href="/connections/profiles/#vs-code"]')) failures.push("Quickstarts must lead to their connection setup");
+  for (const [route, title] of [["cli/generate", "Generate Tasks from the CLI"], ["cli/automation", "Automate the CLI"], ["cli/reference", "CLI reference"], ["cli/reference/auth", "auth commands"], ["cli/reference/generate", "generate command"], ["cli/reference/preview-validate", "preview and validate commands"], ["cli/reference/templates", "template commands"], ["cli/reference/fields-queries", "fields and queries commands"]]) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`CLI page, metadata, or search indexing is missing: ${route}`);
+  }
+  const cliGenerate = pages.get(resolve(directory, "cli/generate/index.html"))?.body?.textContent ?? "";
+  for (const text of ["Dry run complete. No tasks were created.", "This will CREATE tasks in your work tracking system.", "Refusing live execution without confirmation", "Created 6 tasks for 1 story."]) {
+    if (!cliGenerate.includes(text)) failures.push(`CLI generate guide is missing its transcript: ${text}`);
+  }
+  const reference = (route: string) => pages.get(resolve(directory, `cli/reference/${route}/index.html`));
+  for (const [route, anchors] of [["auth", ["auth-add", "auth-list", "auth-use", "auth-remove", "auth-test", "auth-rotate"]], ["generate", ["generate"]], ["preview-validate", ["preview", "validate"]], ["templates", ["template-create", "template-improve", "template-list", "template-install", "template-remove", "template-resolve", "template-metadata", "template-migrate"]], ["fields-queries", ["fields-list", "queries-list"]]] as const) {
+    for (const anchor of anchors) if (!reference(route)?.getElementById(anchor)) failures.push(`CLI reference is missing ${anchor} on ${route}`);
+  }
+  if (!quickstart?.querySelector('a[href="/cli/generate/"]')) failures.push("CLI quickstart must lead to connected generation");
   if (home?.querySelector("h1")?.textContent !== "Turn Stories into repeatable Tasks" || home.querySelector('meta[http-equiv="refresh"]')) failures.push("Documentation home is missing or still redirects");
   const paths = home?.querySelectorAll(".onboarding-paths > a");
   if (paths?.length !== 3 || !home?.querySelector('.onboarding-paths a[href="/getting-started/cli/"]')) failures.push("Home must offer three working onboarding paths");

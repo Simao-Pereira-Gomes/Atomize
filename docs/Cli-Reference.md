@@ -20,6 +20,7 @@ Complete command-line interface documentation for Atomize.
   - [template remove](#template-remove)
   - [template resolve](#template-resolve)
   - [template metadata](#template-metadata)
+  - [template migrate](#template-migrate)
   - [queries list](#queries-list)
 - [Configuration](#configuration)
 - [Interactive Prompts & Navigation](#interactive-prompts--navigation)
@@ -27,6 +28,8 @@ Complete command-line interface documentation for Atomize.
 - [Troubleshooting](#troubleshooting)
 
 ---
+
+<!-- atomize:section cli-overview -->
 
 ## Installation
 
@@ -81,12 +84,17 @@ These options work with any command:
 | `template remove` | `template rm` | Remove a user-installed template or mixin |
 | `template resolve` | - | Resolve a composed template and print the merged result |
 | `template metadata` | - | Read Azure DevOps project metadata as JSON, for visual template authoring surfaces |
+| `template migrate` | - | Move catalog items from the legacy storage folder to the current catalog |
 | `queries` | - | Browse Azure DevOps saved queries |
 | `queries list` | `queries ls` | List saved queries with paths and IDs |
+
+<!-- /atomize:section -->
 
 ---
 
 ## Command Reference
+
+<!-- atomize:section cli-auth -->
 
 ### auth
 
@@ -135,9 +143,13 @@ Profile names may contain letters, numbers, hyphens, and underscores.
 List all saved connection profiles.
 
 ```bash
-atomize auth list
+atomize auth list [options]
 atomize auth ls   # alias
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Print results as JSON to stdout; progress messages go to stderr |
 
 **Output:**
 ```
@@ -171,9 +183,14 @@ atomize auth use            # pick interactively
 Remove a saved connection profile.
 
 ```bash
-atomize auth remove [name]
+atomize auth remove [name] [options]
 atomize auth rm [name]   # alias
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--confirm` | Remove without asking for confirmation |
+| `--new-default <name>` | Profile to make the default when the removed profile was the default |
 
 ---
 
@@ -197,7 +214,7 @@ atomize auth test            # pick interactively
 Replace the stored PAT for a profile (e.g. after a token expires).
 
 ```bash
-atomize auth rotate <name> [options]
+atomize auth rotate [name] [options]
 ```
 
 | Option | Description |
@@ -209,7 +226,11 @@ atomize auth rotate <name> [options]
 echo "$NEW_PAT" | atomize auth rotate work-ado --pat-stdin
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-generate -->
 
 ### generate
 
@@ -246,6 +267,10 @@ atomize gen [template] [options]  # alias
 | `-o, --output <file>` | string | - | Write a JSON report to this file path (for CI/CD) |
 | `--include-sensitive-report-data` | flag | - | Include descriptions, custom fields, and platform-specific work item data in the JSON report (`--output` only) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
+| `--json` | flag | - | Print the JSON report to stdout instead of the human-readable output. Runs a dry run unless `--execute` is also passed. Implies `--quiet` |
+| `--json-stream` | flag | - | Print newline-delimited JSON progress events, then a final report event, to stdout. Implies `--quiet`; cannot be combined with `--json` |
+
+The concurrency options are hidden from `atomize generate --help`.
 
 #### Examples
 
@@ -314,10 +339,18 @@ Do not use it in shared CI pipelines where the report artifact may be visible to
 
 | Code | Meaning |
 |------|---------|
-| `0` | All stories processed successfully |
-| `1` | One or more stories failed |
+| `0` | All stories processed successfully, including a dry run |
+| `1` | One or more stories failed, or live execution was refused |
+| `2` | No stories matched the filter or `--story` IDs |
+| `3` | Authentication failed |
+
+With `--json` or `--json-stream`, a run with no matching stories exits `0` and reports `storiesProcessed: 0`.
+
+<!-- /atomize:section -->
 
 ---
+
+<!-- atomize:section cli-preview -->
 
 ### preview
 
@@ -354,7 +387,11 @@ atomize preview template:backend-api \
   --mock-story '{"id":"123","title":"Add password reset","estimation":8,"tags":["backend"]}'
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-validate -->
 
 ### validate
 
@@ -379,6 +416,7 @@ atomize validate <template> [options]
 | `-s, --strict` | flag | - | Use strict mode: warnings are treated as errors |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 | `--profile <name>` | string | - | Connect to ADO using a named profile for live saved-query and custom-field validation |
+| `--output json` | string | - | Print the validation result as JSON to stdout and suppress human-readable output |
 
 > See [Validation Modes](./Validation-Modes.md) for a full explanation of strict vs lenient behavior.
 
@@ -404,7 +442,11 @@ atomize validate https://example.com/templates/shared.yaml
 | `0` | Template is valid |
 | `1` | Template validation failed |
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-fields -->
 
 ### fields
 
@@ -433,7 +475,11 @@ atomize fields list --type Task --custom-only
 atomize fields list --type Task --json > task-fields.json
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-template -->
 
 ### template create
 
@@ -616,6 +662,7 @@ atomize tpl ls        # alias
 | Option | Description |
 |--------|-------------|
 | `--type <type>` | Filter by type: `template` or `mixin` |
+| `--json` | Print results as JSON to stdout; progress messages go to stderr |
 
 #### Output
 
@@ -784,7 +831,7 @@ atomize template resolve template:my-api --validate
 
 ### template metadata
 
-Read Azure DevOps project metadata as a single JSON document: work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. This is the same data source that grounds visual template-authoring surfaces such as Atomize Studio's [Grounded Field Options](./Atomize-Studio.md), but it is a normal CLI command: any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
+Read Azure DevOps project metadata as a single JSON document: work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. This is the same data source that grounds visual template-authoring surfaces such as Atomize Studio's [Grounded Field Options](./Atomize-Studio.md#grounding), but it is a normal CLI command: any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
 
 #### Usage
 
@@ -832,9 +879,42 @@ atomize template metadata --profile work-ado
 atomize template metadata --profile work-ado --json > project-metadata.json
 ```
 
-Requires a Connection Profile (see [Auth Guide](./Auth-Guide.md)): there is no offline mode, since the output is Azure DevOps project data.
+Requires a Connection Profile (see [Auth Guide](./Auth-Guide.md#quick-setup)): there is no offline mode, since the output is Azure DevOps project data.
 
 ---
+
+### template migrate
+
+Move catalog items from the legacy `.atomize/templates` folder into the current `.atomize/catalog` folder.
+
+#### Usage
+
+```bash
+atomize template migrate [options]
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--scope <scope>` | `user` (default, `~/.atomize`), `project` (the current project's `.atomize`), or `all` |
+| `--dry-run` | Report what would move without writing or deleting files |
+| `--cleanup-dirs` | Remove the empty legacy folders after migration |
+
+Items whose names already exist in the current catalog are skipped and reported. Each migrated item is copied to the current catalog and its legacy file removed.
+
+#### Examples
+
+```bash
+atomize template migrate --dry-run
+atomize template migrate --scope all --cleanup-dirs
+```
+
+<!-- /atomize:section -->
+
+---
+
+<!-- atomize:section cli-queries -->
 
 ### queries
 
@@ -861,7 +941,11 @@ atomize queries list --folder "Shared Queries/Teams/Backend"
 atomize queries list --json | jq '.[] | select(.isPublic) | .path'
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-configuration -->
 
 ## Configuration
 
@@ -930,7 +1014,11 @@ ATOMIZE_PROFILE=work-ado
 | `Space` | Toggle selection (in multi-select prompts) |
 | `Ctrl+C` | Cancel the current operation and exit |
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-examples -->
 
 ## Examples
 
@@ -1070,6 +1158,8 @@ atomize template create --ai
 export LOG_LEVEL="debug"
 atomize generate template:backend-api --verbose
 ```
+
+<!-- /atomize:section -->
 
 ---
 

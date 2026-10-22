@@ -69,6 +69,25 @@ describe("canonical guide rendering", () => {
     expect(document.querySelectorAll("ol").length).toBe(2);
   });
 
+  test("CLI generation states when Tasks are created and what automation must acknowledge", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include workflow-cli-generate -->\n\n<!-- atomize:include workflow-cli-automation -->");
+    const { document } = parseHTML(code);
+    expect(code).toContain("only with <code>--execute</code>, and only after you confirm or pass <code>--auto-approve</code>");
+    expect(code).toContain("It runs a dry run unless you also pass <code>--execute</code>");
+    expect(document.querySelector('a[href="/connections/profiles/"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/connections/automation/#cicd-setup"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/cli/reference/generate/"]')).not.toBeNull();
+    expect([...document.querySelectorAll("td")].some(cell => cell.textContent === "Authentication failed")).toBe(true);
+  });
+
+  test("the CLI reference documents every registered generate and template command", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include cli-generate -->\n\n<!-- atomize:include cli-template -->");
+    for (const flag of ["--json-stream", "--auto-approve", "--include-sensitive-report-data"]) expect(code).toContain(flag);
+    expect(parseHTML(code).document.querySelector("h2#template-migrate")).not.toBeNull();
+  });
+
   test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "when-the-keychain-is-unavailable")).toBe("/connections/profiles/#when-the-keychain-is-unavailable");
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "credential-storage")).toBe("/connections/profiles/#credential-storage");
@@ -124,7 +143,8 @@ describe("canonical guide rendering", () => {
     expect(document.querySelector("h2#install-the-cli")).not.toBeNull();
     expect(document.querySelector("h2#run-your-first-mock-preview")).not.toBeNull();
     expect(document.querySelector('a[href="/connections/profiles/"]')).not.toBeNull();
-    expect(document.querySelector('a[href="https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md#generate-tasks"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/cli/generate/"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/cli/reference/preview-validate/#preview"]')).not.toBeNull();
     expect(document.querySelector("h2#safety-model")).toBeNull();
     expect(code).not.toContain("atomize:section");
   });

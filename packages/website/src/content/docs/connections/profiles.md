@@ -34,6 +34,6 @@ Each tool shows the planned Tasks before it creates any:
 
 - **Studio**: [generate Tasks](/studio/generate/) from a Preview Source and Generate Scope. Studio shows a Live Preview, then Live Execution Confirmation, before creating Tasks.
 - **VS Code**: run a [Live Preview](/vscode/generate/#preview-against-a-real-story), then [generate Tasks](/vscode/generate/#generate-tasks) when the plan is ready.
-- **CLI**: follow [connected generation](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md#generate-tasks). A dry run reads Stories without creating Tasks.
+- **CLI**: follow [connected generation](/cli/generate/). A dry run reads Stories without creating Tasks.
 
 If a connection fails, see [Fix connection problems](/connections/troubleshooting/).

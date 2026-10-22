@@ -43,6 +43,16 @@ export default defineConfig({
         { label: "Browse fields and queries", slug: "vscode/project-data" },
         { label: "Validation and settings", slug: "vscode/settings-recovery" },
       ] },
+      { label: "CLI", items: [
+        { label: "Generate Tasks", slug: "cli/generate" },
+        { label: "Automate the CLI", slug: "cli/automation" },
+        { label: "Command reference", slug: "cli/reference" },
+        { label: "auth", slug: "cli/reference/auth" },
+        { label: "generate", slug: "cli/reference/generate" },
+        { label: "preview and validate", slug: "cli/reference/preview-validate" },
+        { label: "template", slug: "cli/reference/templates" },
+        { label: "fields and queries", slug: "cli/reference/fields-queries" },
+      ] },
       { label: "Connections", items: [
         { label: "Connect Azure DevOps", slug: "connections" },
         { label: "Connection Profiles", slug: "connections/profiles" },
@@ -56,7 +66,6 @@ export default defineConfig({
       { label: "Release notes", slug: "releases" },
       { label: "More guides", items: [
         { label: "Workflows ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md" },
-        { label: "CLI ↗", link: "https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Cli-Reference.md" },
       ] },
     ],
   })],

@@ -20,4 +20,4 @@ These steps apply to the CLI. Studio and VS Code ask you to choose a profile in 
 
 ## Next steps
 
-Rotate expired tokens with the [rotation steps](/connections/profiles/#rotating-tokens). For connected commands and their options, see [connected generation](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Workflows.md#automate-with-the-cli) and the [CLI Reference](https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Cli-Reference.md).
+Rotate expired tokens with the [rotation steps](/connections/profiles/#rotating-tokens). For machine-readable output, exit codes, and failure handling, see [Automate the CLI](/cli/automation/); every command is in the [CLI reference](/cli/reference/).

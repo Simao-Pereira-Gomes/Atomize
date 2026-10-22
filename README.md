@@ -100,7 +100,7 @@ Change `title` or `estimation` in the command and run it again to see how the br
 
 ### Connect when you are ready
 
-To work with real Stories, [set up an Azure DevOps Connection Profile](./docs/Auth-Guide.md#quick-setup) and follow [connected generation](./docs/Workflows.md#generate-tasks). A connected dry run reads Stories without creating Tasks. Task creation requires `--execute` and confirmation; non-interactive execution also requires `--auto-approve`.
+To work with real Stories, [set up an Azure DevOps Connection Profile](./docs/Auth-Guide.md#quick-setup) and follow [connected generation](./docs/Workflows.md#generate-from-the-cli). A connected dry run reads Stories without creating Tasks. Task creation requires `--execute` and confirmation; non-interactive execution also requires `--auto-approve`.
 
 See the [CLI Reference](./docs/Cli-Reference.md#preview) for preview options, or [create your own Template](./docs/Template-Creation.md).
 

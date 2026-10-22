@@ -9,6 +9,10 @@ and `/getting-started/vscode/`. Focused Studio and VS Code authoring, inspection
 settings, recovery, and Studio generation guides are under `/studio/` and `/vscode/`.
 Connection requirements, Connection Profile setup, CLI automation, and connection
 recovery are under `/connections/`.
+CLI connected generation, automation, and the command reference are under
+`/cli/`; they reuse marked sections of `docs/Workflows.md` and
+`docs/Cli-Reference.md`. CLI transcripts come from real runs against the Mock
+platform, so re-run them when command output changes.
 `/releases/` links to each tool's GitHub Releases without copying release notes.
 Its tag filters include the current major release series because GitHub requires
 a version number in a tag-prefix search. Update the series when a tool releases
