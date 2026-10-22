@@ -243,6 +243,8 @@ Browses the Template Library Catalog. Choose a row with Enter to copy its ref, o
 
 <!-- /atomize:section -->
 
+<!-- atomize:section vscode-catalog-install -->
+
 ### Atomize: Install to Catalog
 
 Installs the open Template or Mixin into a Catalog, so you can run and compose it by name, such as `atomize generate template:backend-api` or `extends: template:backend-api`. Run it from the **Atomize: Install to Catalog** CodeLens on a Template, or from the Command Palette for a Mixin.
@@ -252,6 +254,8 @@ Installs the open Template or Mixin into a Catalog, so you can run and compose i
 3. A saved file installs under its own file name, and a copy goes into the Catalog while your file stays where it is. An unsaved draft installs under its Template name, and installing saves it there: its untitled tab closes without asking and the installed file opens in its place. If the name is taken, you're asked before it's overwritten.
 
 Installing is always your choice: saving a file never adds it to a Catalog.
+
+<!-- /atomize:section -->
 
 <!-- atomize:section vscode-browsers -->
 

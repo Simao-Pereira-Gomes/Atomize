@@ -6,6 +6,8 @@ For YAML field semantics, see [Template Reference](./Template-Reference.md).
 
 ## Choose A Creation Path
 
+<!-- atomize:section creation-paths -->
+
 | Goal | Use |
 |---|---|
 | Customize a known pattern | `atomize template create --from <name>` |
@@ -16,9 +18,65 @@ For YAML field semantics, see [Template Reference](./Template-Reference.md).
 
 Running `atomize template create` without flags opens an interactive mode selector.
 
-Every path in this table is also available visually in **Atomize Studio**, Atomize's desktop app: see [Create In Atomize Studio](#create-in-atomize-studio) below.
+In VS Code, write the YAML yourself with schema support: see [Author Directly In VS Code](#author-directly-in-vs-code).<!-- atomize:feature studio --> Every path in this table is also available visually in **Atomize Studio**, Atomize's desktop app: see [Create In Atomize Studio](#create-in-atomize-studio) below.<!-- /atomize:feature -->
+
+<!-- /atomize:section -->
+
+## Understand The Catalog
+
+<!-- atomize:section catalog-concepts -->
+
+The **Catalog** is the named inventory of Templates and Mixins you use by ref, such as `template:backend-api` or `mixin:documentation`. Every Atomize tool reads it through the same Template Library, from three scopes:
+
+| Scope | Where it lives | Shown as | Who changes it |
+| --- | --- | --- | --- |
+| Built-in | Ships with Atomize | `built-in` | Nobody: it's read-only |
+| Personal (`--scope user`) | `~/.atomize/catalog` | `personal` | You, on this computer |
+| Project (`--scope project`) | `.atomize/catalog` in the Workspace Root | `your project` | Anyone who changes the repository |
+
+Each scope keeps Templates in a `templates` folder and Mixins in a `mixins` folder. A Template is runnable: you preview and generate with it, and it can `extends` another Template. A Mixin only contributes tasks to the Templates that list it under `mixins:`, so it can't be previewed or generated on its own. See [Composition](./Template-Reference.md#composition).
+
+### Workspace Root
+
+Project scope belongs to the **Workspace Root**: the nearest folder above where you're working that has a `.atomize` folder, otherwise the git repository's root, otherwise the folder itself. The `.atomize` folder in your home folder never counts, because it holds your Connection Profiles and personal Catalog.
+
+A Workspace Root with its own `.atomize` folder has opted in to a project Catalog. There, the CLI installs and saves to project scope by default, and VS Code offers the Project Catalog first. Without that folder, they default to your personal Catalog.
+
+### Precedence And Catalog Overrides
+
+When two items of the same kind share a name, project scope wins over personal, and personal wins over built-in. The winner is what `template:<name>` or `mixin:<name>` resolves to, and the other item is overridden. `atomize template list` and VS Code's **Atomize: Browse Catalog** mark the winner with `⚠ overrides` and the overridden item's scope and path:
+
+```text
+  backend-api
+    Backend API (Contoso)
+    Standard backend API development with database integration
+    ref: template:backend-api  scope: your project
+    path: ~/src/contoso-app/.atomize/catalog/templates/backend-api.atomize.yaml
+    ⚠ overrides: built-in at <Atomize>/catalog/templates/backend-api.atomize.yaml (read-only)
+```
+
+Override on purpose, for example to adapt a built-in Template for one project without renaming it. Give the item its own name when you want to keep both.
+
+### Template Lineage
+
+A Template or Mixin's `origin` field records the Catalog item it was derived from, as `template:<name>` or `mixin:<name>`. Lineage is informational: it never changes how refs resolve, and the derived item doesn't override its origin. Lists show it as `↖ based on`:
+
+```text
+  mobile-feature
+    Mobile Feature
+    Feature breakdown with device testing
+    ref: template:mobile-feature  scope: your project
+    path: ~/src/contoso-app/.atomize/catalog/templates/mobile-feature.atomize.yaml
+    ↖ based on: built-in template:feature-development
+```
+
+A flat copy from `atomize template create --from`, `atomize template improve --save-as`, and VS Code's **Save Improvement as New Template** record `origin` for you.<!-- atomize:feature studio --> So does Studio's Catalog Clone.<!-- /atomize:feature -->
+
+<!-- /atomize:section -->
 
 ## Start From The Catalog
+
+<!-- atomize:section creation-manual -->
 
 This is usually the fastest path for a first team-specific template.
 
@@ -27,13 +85,16 @@ atomize template list
 atomize template create --from backend-api
 ```
 
-The wizard opens with the source template pre-filled. Review the filter, tasks, estimation, validation rules, and metadata, then save under a new name.
+Atomize asks how to use the source:
+
+- **Inheritance link** saves a small Template with `extends: "template:backend-api"`, your name and description, and any Mixins you choose. It picks up later changes to the source each time it's resolved.
+- **Flat copy** saves every field, so the Template is self-contained. You can customize it in the wizard first. It records the source as its [`origin`](#template-lineage), but no longer changes when the source does.
 
 ```bash
 atomize template create --from backend-api --save-as my-backend-api
 ```
 
-Built-in catalog items are good starting points. User and project-scoped templates can also be used as sources.
+Built-in catalog items are good starting points. Personal and project-scoped templates can also be used as sources.
 
 ## Build With The Wizard
 
@@ -99,7 +160,11 @@ atomize validate my-template.atomize.yaml --strict
 atomize generate my-template.atomize.yaml --platform mock
 ```
 
+<!-- /atomize:section -->
+
 ## Create In Atomize Studio
+
+<!-- atomize:section creation-studio -->
 
 [Atomize Studio](./Atomize-Studio.md) is Atomize's standalone desktop app: the visual counterpart to the CLI wizard and VS Code authoring. Its Templates Area offers four **Starting Paths** into the same authoring surface:
 
@@ -117,6 +182,8 @@ atomize generate my-template.atomize.yaml --platform mock
 In Studio's task editor, the **Copies** field sets a task's `repeat`; the **Validation** section's **Maximum copies per task** sets `validation.maxRepeat`.
 
 For the full breakdown of Studio's authoring surface, Grounded Field Options, and how it authenticates AI drafts, see the [Atomize Studio reference](./Atomize-Studio.md).
+
+<!-- /atomize:section -->
 
 ## AI-Assisted Drafts
 
@@ -200,6 +267,8 @@ atomize generate template:<name> --platform mock
 
 ## Create Mixins
 
+<!-- atomize:section creation-mixins -->
+
 Mixins are reusable groups of tasks that templates can include through the `mixins:` field.
 
 ```bash
@@ -217,7 +286,85 @@ atomize template resolve template:my-feature --validate
 
 See [Template Reference - Composition](./Template-Reference.md#composition).
 
+<!-- /atomize:section -->
+
+## Manage The Catalog
+
+<!-- atomize:section catalog-manage -->
+
+### Install Templates And Mixins
+
+Installing copies an Atomize YAML File into your personal or project Catalog, so you can use it by name. Your source file stays where it is. Atomize detects whether the file is a Template or a Mixin from its root keys.
+
+```bash
+# Install into the default scope (project when the Workspace Root has its own .atomize folder)
+atomize template install ./templates/mobile-feature.atomize.yaml
+
+# Choose the scope, or install a file published at an HTTPS URL
+atomize template install ./templates/release-checks.atomize.yaml --scope user
+atomize template install https://example.com/templates/security-review.yaml --scope project
+```
+
+In VS Code, run **Atomize: Install to Catalog** from the CodeLens on a Template, or from the Command Palette for a Mixin.<!-- atomize:feature studio --> In Studio, use **Catalog Install** from the Templates area's Review step.<!-- /atomize:feature --> VS Code asks before it overwrites an item with the same name, and the CLI refuses unless you pass `--overwrite`.
+
+### Update An Installed Item
+
+A Catalog item is a copy, so changing your source file doesn't change it. To update it, either:
+
+- install the changed source again: `atomize template install <file> --overwrite`, or **Atomize: Install to Catalog** again in VS Code; or
+- edit the installed file itself, at the path `atomize template list` shows. Personal and project items are ordinary Atomize YAML Files; built-in items are read-only.
+
+Templates that `extends` the item, and Templates that list a Mixin, use the new content the next time they're resolved. A flat copy keeps its own content and only records where it came from.
+
+### Remove Items
+
+`atomize template remove` deletes a personal Catalog item:
+
+```bash
+atomize template remove template:my-api-template
+atomize template remove mixin:security-tasks --force
+```
+
+Built-in items can't be removed. Project items are files in the repository, so the command refuses them:
+
+```text
+Cannot remove "mobile-feature": it is a project template and is not user-installed.
+```
+
+Delete a project item's file through your team's usual review instead. Removing an item that wins a [Catalog Override](#precedence-and-catalog-overrides) makes the overridden item active again.<!-- atomize:feature studio --> Studio's **Catalog Remove** also removes personal items only.<!-- /atomize:feature -->
+
+### Move Legacy Catalog Folders
+
+Earlier versions kept Catalog items in `.atomize/templates`. Atomize still reads that folder, and `atomize template migrate` moves its items into `.atomize/catalog`:
+
+```bash
+atomize template migrate --dry-run
+atomize template migrate --scope all --cleanup-dirs
+```
+
+Items whose names already exist in the current Catalog are skipped and reported.
+
+<!-- /atomize:section -->
+
+## Share Templates With Your Team
+
+<!-- atomize:section catalog-team -->
+
+Keep the task breakdowns your team agrees on in the repository, next to the code they describe, and change them the way you change code.
+
+1. **Opt the repository in.** Create a `.atomize` folder at the repository root. It marks the Workspace Root and makes project scope the default for installing and saving.
+2. **Install the shared items.** Run `atomize template install <file>` from the repository, or choose **Project Catalog** in VS Code's **Atomize: Install to Catalog**. Items land in `.atomize/catalog`.
+3. **Commit `.atomize/catalog`.** Everyone working in the repository can then use `template:<name>` and `mixin:<name>` from any Atomize tool. Commit `.atomize/ai.yaml` too if you share [Project Reference Documents](#reference-documents).
+4. **Review changes like code.** Propose a new or changed Template in a pull request, and run the [checklist](#post-creation-checklist) before merging.
+5. **Evolve without copying.** Put task groups that several Templates share in a Mixin, and build variants with `extends`, so one change reaches every Template that uses it. To adapt a built-in Template, extend it to stay in sync with updates, or [override it by name](#precedence-and-catalog-overrides).
+
+To share outside one repository, publish the file at an HTTPS URL and install it with `atomize template install <url>`. Installing copies it, so publish and install again when it changes.
+
+<!-- /atomize:section -->
+
 ## Post-Creation Checklist
+
+<!-- atomize:section creation-checklist -->
 
 Before sharing a template with a team:
 
@@ -237,3 +384,5 @@ atomize generate template:<name> --platform mock
 atomize generate template:<name> --profile work-ado --story 123
 atomize template install ./templates/my-template.atomize.yaml --scope project
 ```
+
+<!-- /atomize:section -->

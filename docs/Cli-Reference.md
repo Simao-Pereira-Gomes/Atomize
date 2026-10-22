@@ -655,7 +655,7 @@ atomize template improve ./templates/backend.atomize.yaml --dry-run --strict --o
 
 ### template list
 
-List available templates and mixins from the catalog (built-in and user-installed).
+List the Templates and Mixins in the Catalog, from built-in, personal, and project scope. Each item shows its ref, scope, and path, and any [Catalog Override](./Template-Creation.md#precedence-and-catalog-overrides) or [Template Lineage](./Template-Creation.md#template-lineage).
 
 #### Usage
 
@@ -674,37 +674,36 @@ atomize tpl ls        # alias
 
 #### Output
 
-```
-Built-in Templates
-
-  agile-story-breakdown
-    Agile Story Breakdown
-    Agile story breakdown template
-
-  agile-story-breakdown-saved-query
-    Agile Story Breakdown - Saved Query
-    Agile story breakdown template driven by a saved query
+```text
+  Templates
 
   backend-api
-    Backend API Development
+    Backend API (Contoso)
     Standard backend API development with database integration
+    ref: template:backend-api  scope: your project
+    path: ~/src/contoso-app/.atomize/catalog/templates/backend-api.atomize.yaml
+    ⚠ overrides: built-in at <Atomize>/catalog/templates/backend-api.atomize.yaml (read-only)
 
-  bug-fix
-    Bug Fix
-    Foundation for bug-fix templates
+  mobile-feature
+    Mobile Feature
+    Feature breakdown with device testing
+    ref: template:mobile-feature  scope: your project
+    path: ~/src/contoso-app/.atomize/catalog/templates/mobile-feature.atomize.yaml
+    ↖ based on: built-in template:feature-development
 
   feature-development
     Feature Development
-    Foundation for feature development templates
+    Foundation for feature development templates. Extend this to inherit a standard task set and filter.
+    ref: template:feature-development  scope: built-in
+    path: <Atomize>/catalog/templates/feature-development.atomize.yaml (read-only)
 
-User Templates
+  Mixins
 
-  my-api-template
-    My API Template
-    (no description)
-
-Use with: atomize generate template:<name>
-         atomize template create --from <name>
+  documentation
+    Documentation Tasks
+    Standard documentation tasks. Mix into any template to ensure docs are part of the definition of done.
+    ref: mixin:documentation  scope: built-in
+    path: <Atomize>/catalog/mixins/documentation.atomize.yaml (read-only)
 ```
 
 ---
@@ -753,8 +752,10 @@ atomize template install ./templates/backend-api.yaml --overwrite
 ```
 
 **Scopes:**
-- `user` (default): installed to `~/.atomize/catalog/`, available across all projects
-- `project`: installed to `<workspace>/.atomize/catalog/`, scoped to the discovered workspace root
+- `user` (shown as "personal"): installed to `~/.atomize/catalog/`, available across all projects
+- `project` (shown as "your project"): installed to `<workspace>/.atomize/catalog/`, scoped to the discovered [Workspace Root](./Template-Creation.md#workspace-root)
+
+Without `--scope`, `project` is used when the Workspace Root has its own `.atomize` folder, and `user` otherwise.
 
 **Editor handoff:**
 
@@ -764,7 +765,7 @@ Pass `--open` to `template create` or `template install` to open the saved Atomi
 
 ### template remove
 
-Remove a user-installed template or mixin from the catalog. Built-in templates cannot be removed.
+Remove a template or mixin from your personal Catalog. Built-in items cannot be removed, and project items are files in the repository: delete them through your team's review instead.
 
 #### Usage
 

@@ -63,6 +63,12 @@ export default defineConfig({
         { label: "Scripts and CI", slug: "connections/automation" },
         { label: "Fix connection problems", slug: "connections/troubleshooting" },
       ] },
+      { label: "Catalog and sharing", items: [
+        { label: "How the Catalog works", slug: "catalog" },
+        { label: "Create Templates", slug: "catalog/create" },
+        { label: "Install and manage", slug: "catalog/manage" },
+        { label: "Share with your team", slug: "catalog/team" },
+      ] },
       { label: "Templates", items: [
         { label: "Template structure", slug: "reference/templates" },
         { label: "Choose Stories with filters", slug: "reference/templates/filter" },

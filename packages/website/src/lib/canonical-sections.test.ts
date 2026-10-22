@@ -114,6 +114,14 @@ describe("canonical guide rendering", () => {
     expect(canonicalGuideUrl("docs/Template-Reference.md", "repeated-tasks")).toBe("/reference/templates/tasks/#repeated-tasks");
   });
 
+  test("the Catalog guide explains scopes, overrides, and lineage, and the CLI reference links to it", async () => {
+    const renderer = await createMarkdownProcessor({ remarkPlugins: [canonicalSections] });
+    const { code } = await renderer.render("<!-- atomize:include catalog-concepts -->\n\n<!-- atomize:include cli-template-manage -->");
+    for (const text of ["~/.atomize/catalog", "--scope user", "⚠ overrides", "↖ based on"]) expect(code).toContain(text);
+    expect(parseHTML(code).document.querySelector('a[href="/catalog/#precedence-and-catalog-overrides"]')).not.toBeNull();
+    expect(canonicalGuideUrl("docs/Template-Creation.md", "post-creation-checklist")).toBe("/catalog/team/#post-creation-checklist");
+  });
+
   test("a sub-anchor of a section published at a fragment route keeps one fragment", () => {
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "when-the-keychain-is-unavailable")).toBe("/connections/profiles/#when-the-keychain-is-unavailable");
     expect(canonicalGuideUrl("docs/Auth-Guide.md", "credential-storage")).toBe("/connections/profiles/#credential-storage");

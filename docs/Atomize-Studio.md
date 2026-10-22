@@ -271,11 +271,15 @@ The **Work Project Setting**, the **Work project** selector in Global Settings, 
 
 ## Catalog Area
 
+<!-- atomize:section studio-catalog -->
+
 The Catalog Area is the single place to browse the Catalog: Templates and Mixins across Built-in, User, and Project scope.
 
 - **Clone**: on any Template row, at any scope, starts the Catalog Clone Starting Path (see [Starting Paths](#starting-paths) above). If you have an unsaved Template open in the Templates area, Studio asks for confirmation before discarding it.
 - **Catalog Install** (from the Templates area's Review step): installs the Template you're authoring directly into your user or project Catalog, in addition to exporting a downloadable file. The install name comes from the Template's name (no separate prompt); you choose the scope at install time. For the project Catalog you choose a folder, and Studio installs to the project it belongs to, found the same way as for Reference Documents, then shows the installed file's path. Install starts on the scope you last installed to on this computer.
 - **Catalog Remove**: removes a user-scoped Catalog item. Built-in and project-scope items can't be removed this way.
+
+<!-- /atomize:section -->
 
 ## Generate Area
 

@@ -238,6 +238,18 @@ async function checkDocs() {
     for (const anchor of anchors) if (!page?.getElementById(anchor)) failures.push(`Template guide is missing ${anchor} on ${route}`);
     if (!page?.querySelector(`a[href^="${schemaRoute}#"]`)) failures.push(`Template guide must link to Schema Reference fields: ${route}`);
   }
+  for (const [route, title, anchors] of [
+    ["catalog", "How the Catalog works", ["workspace-root", "precedence-and-catalog-overrides", "template-lineage"]],
+    ["catalog/create", "Create Templates", ["start-from-the-catalog", "build-with-the-wizard", "author-directly-in-vs-code", "create-mixins", ...(features.studio ? ["create-in-atomize-studio"] : [])]],
+    ["catalog/manage", "Install and manage Catalog items", ["install-templates-and-mixins", "update-an-installed-item", "remove-items", "move-legacy-catalog-folders", "atomize-install-to-catalog", ...(features.studio ? ["in-atomize-studio"] : [])]],
+    ["catalog/team", "Share Templates with your team", ["post-creation-checklist"]],
+  ] as const) {
+    const page = pages.get(resolve(directory, `${route}/index.html`));
+    if (page?.querySelector("h1")?.textContent !== title || !page?.querySelector("[data-pagefind-body]") || !page?.querySelector(".development-notice")) failures.push(`Catalog page, metadata, or search indexing is missing: ${route}`);
+    for (const anchor of anchors) if (!page?.getElementById(anchor)) failures.push(`Catalog guide is missing ${anchor} on ${route}`);
+  }
+  const catalogConcepts = pages.get(resolve(directory, "catalog/index.html"))?.body?.textContent ?? "";
+  for (const text of ["~/.atomize/catalog", "⚠ overrides", "↖ based on"]) if (!catalogConcepts.includes(text)) failures.push(`Catalog concepts are missing ${text}`);
   const estimationTerms = [...(pages.get(resolve(directory, "reference/templates/estimation/index.html"))?.querySelectorAll("table") ?? [])].find(table => table.textContent?.includes("Set with"))?.textContent ?? "";
   for (const term of ["Story Estimate", "Task Estimate", "Estimation Conversion", "Unresolvable Story Estimate", "Estimation Field Mapping"]) {
     if (!estimationTerms.includes(term)) failures.push(`Estimation terms are missing ${term}`);
