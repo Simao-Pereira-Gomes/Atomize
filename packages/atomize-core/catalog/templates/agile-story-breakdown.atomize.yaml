@@ -1,214 +1,63 @@
 formatVersion: "1.0"
 name: "Agile Story Breakdown"
-description: "Agile story breakdown template. Handles dev stories, mixed dev+test stories, and test-only stories in a single template using conditional tasks and conditional estimation."
+description: "Example of conditional tasks and estimates. Adapt the tasks and illustrative tag to your team's workflow."
 author: "Atomize"
-tags: []
 
 filter:
+  # Change this to the Work Item type used by your project.
   workItemTypes: ["User Story"]
-  states: ["Ready for Sprint"]
-  tags:
-    exclude:
-      - "TestGen"
   excludeIfHasTasks: true
-  areaPaths:
-    - EA-RSP-Platform\Release 2 Team
-  iterations:
-    - "@CurrentIteration"
+  # Alternative: let an existing Azure DevOps query select the Stories.
+  # Uncomment savedQuery and replace its path with a query in your project.
+  # workItemTypes then declares the types returned; it does not filter the query.
+  # savedQuery:
+  #   path: "Shared Queries/Example"
 
 tasks:
-  - title: "Analysis & Playback"
-    estimationPercent: 20
+  - id: "implement"
+    title: "Implement: ${story.title}"
+    description: "Make the changes needed to meet the acceptance criteria."
+    estimationPercent: 60
     activity: "Development"
-    tags: []
     assignTo: "@ParentAssignee"
+    # Example convention: this tag selects verification work only.
     condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
+      field: tags
+      operator: not-contains
+      value: verification-only
 
-  - title: "Build"
-    estimationPercent: 50
-    activity: "Development"
-    tags: []
-    assignTo: "@ParentAssignee"
-    condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
-
-  - title: "Developer Test"
-    estimationPercent: 25
-    activity: "Development"
-    tags: []
-    assignTo: "@ParentAssignee"
-    condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
-
-  - title: "QA Smoke Test"
-    estimationPercent: 0
-    activity: "Development"
-    tags: []
-    assignTo: "@ParentAssignee"
-    condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
-
-  - title: "Wiki"
-    estimationPercent: 5
-    activity: "Development"
-    tags: []
-    assignTo: "@ParentAssignee"
-    condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
-
-  - title: "Code Review "
-    estimationPercent: 0
-    activity: "Development"
-    tags: []
-    assignTo: "@Unassigned"
-    condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
-
-  - title: "Physical Data Model Updated"
-    estimationPercent: 0
-    activity: "Development"
-    tags: []
-    assignTo: "@ParentAssignee"
-    condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
-
-  - title: "Test Preparation"
+  - id: "verify"
+    title: "Verify: ${story.title}"
+    description: "Check the outcome against the acceptance criteria."
     estimationPercent: 40
+    activity: "Testing"
+    assignTo: "@Unassigned"
     estimationPercentCondition:
       - condition:
-          any:
-            - field: tags
-              operator: contains
-              value: Testing Only
-            - field: tags
-              operator: contains
-              value: Test Only
-        percent: 59.70
-    activity: "Testing"
-    tags: []
-    condition:
-      field: tags
-      operator: not-contains
-      value: Dev Only
-    assignTo: "@Unassigned"
-
-  - title: "Test Execution"
-    estimationPercent: 27
-    estimationPercentCondition:
-      - condition:
-          any:
-            - field: tags
-              operator: contains
-              value: Testing Only
-            - field: tags
-              operator: contains
-              value: Test Only
-        percent: 40.30
-    activity: "Testing"
-    tags: []
-    condition:
-      field: tags
-      operator: not-contains
-      value: Dev Only
-    assignTo: "@Unassigned"
-
-  - title: "Automation Testing"
-    estimationPercent: 0
-    activity: "Test Automation"
-    tags: []
-    condition:
-      field: tags
-      operator: not-contains
-      value: Dev Only
-    assignTo: "@Unassigned"
-
-  - title: "Test Review"
-    estimationPercent: 0
-    activity: "Testing"
-    tags: []
-    condition:
-      field: tags
-      operator: not-contains
-      value: Dev Only
-    assignTo: "@Unassigned"
-
-  - title: "Release Notes"
-    estimationPercent: 0
-    activity: "Testing"
-    tags: []
-    condition:
-      field: tags
-      operator: not-contains
-      value: Dev Only
-    assignTo: "@Unassigned"
-
-  - title: "Merge to Stable"
-    estimationPercent: 10
-    activity: "Development"
-    tags: []
-    assignTo: "@ParentAssignee"
-    condition:
-      all:
-        - field: tags
-          operator: not-contains
-          value: Testing Only
-        - field: tags
-          operator: not-contains
-          value: Test Only
+          field: tags
+          operator: contains
+          value: verification-only
+        percent: 100
 
 estimation:
   strategy: "percentage"
   rounding: "none"
-  minimumTaskEstimate: 0
+  ifParentHasNoEstimation: "warn"
+
+# These are authoring checks, not a count of tasks after conditions run.
+validation:
+  totalEstimationMustBe: 100
+  minTasks: 1
+  maxTasks: 5
 
 metadata:
-  category: "Agile Project"
+  category: "Examples"
   estimationGuidelines: |
-    Handles three story archetypes in one template:
-    - Dev and Test story (no special tag): dev tasks + test tasks, base percentages apply.
-    - Testing Only / Test Only story: dev tasks skipped; Test Preparation gets 59.70%
-      and Test Execution gets 40.30%.
-    - Dev Only story: test tasks skipped
+    The 60/40 split is illustrative. A Story tagged verification-only generates
+    just the verification Task with 100% of the converted Story Estimate.
+    Replace the tag and percentages to suit your own work.
+  notes: |
+    This example demonstrates conditions, not a required delivery process.
+    Copy it into your Catalog and adapt the Work Item type, tasks, and estimates.
+    Activities and assignment tokens are illustrative; adapt them to your
+    project. The commented saved-query alternative demonstrates query selection.

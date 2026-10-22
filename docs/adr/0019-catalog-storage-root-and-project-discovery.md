@@ -30,9 +30,9 @@ Step 1 skips the home folder. `~/.atomize/` holds Connection Profiles and the us
 
 ## Migration Compatibility
 
-During migration, the CLI reads legacy user and project paths (`~/.atomize/templates/{templates,mixins}`, `<workspace>/.atomize/templates/{templates,mixins}`) but writes only to the new `catalog` paths. Precedence within each scope favors the new path over the legacy one; scope precedence remains project → user → builtin. When a new-path and legacy-path item collide within the same scope, the new-path item wins and the legacy one is shown as overridden — the public `template list --json` contract is unchanged, since which path an item resolved from is exposed only through its `path` value, not a new field.
+During migration, the CLI reads legacy user and project paths (`~/.atomize/templates/{templates,mixins}`, `<workspace>/.atomize/templates/{templates,mixins}`) but writes only to the new `catalog` paths. Precedence within each scope favors the new path over the legacy one; scope precedence remains project → user → builtin. When a new-path and legacy-path item collide within the same scope, the new-path item wins and the legacy one is shown as overridden: the public `template list --json` contract is unchanged, since which path an item resolved from is exposed only through its `path` value, not a new field.
 
-Writes to a same-named item fail without explicit overwrite when the destination scope already holds that item under either path; overwrite writes the new path and removes the same-stem legacy files, leaving other scopes and unrelated files untouched. `template remove` removes only the resolved active user item (new or legacy path) — it does not sweep hidden legacy duplicates or other scopes.
+Writes to a same-named item fail without explicit overwrite when the destination scope already holds that item under either path; overwrite writes the new path and removes the same-stem legacy files, leaving other scopes and unrelated files untouched. `template remove` removes only the resolved active user item (new or legacy path): it does not sweep hidden legacy duplicates or other scopes.
 
 Built-in catalog assets move to `packages/cli/catalog/{templates,mixins}`; the package no longer ships the old `templates/{templates,mixins}` layout, so built-in discovery hard-switches rather than falling back.
 

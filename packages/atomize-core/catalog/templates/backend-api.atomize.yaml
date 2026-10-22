@@ -1,58 +1,57 @@
 formatVersion: "1.0"
 name: "Backend API Development"
-description: "Standard backend API development with database integration"
+description: "Example API task breakdown with Story Estimate conversion. Adapt it to your interface, implementation, and verification needs."
 author: "Atomize"
-tags: ["backend", "api", "database"]
+tags: ["example", "api"]
 
 filter:
+  # Change this to the Work Item type used by your project.
   workItemTypes: ["User Story"]
-  states: ["New", "Active", "Approved"]
-  tags:
-    include: ["backend", "api"]
   excludeIfHasTasks: true
 
 tasks:
-  - title: "Design API Endpoints: ${story.title}"
-    description: "Design REST API endpoints, request/response schemas, and error handling"
-    estimationPercent: 15
+  - id: "design"
+    title: "Define API Behavior: ${story.title}"
+    description: "Describe the inputs, outputs, and expected behavior relevant to this change."
+    estimationPercent: 20
     activity: "Design"
-    tags: ["design", "api"]
+    assignTo: "@ParentAssignee"
 
-  - title: "Database Schema: ${story.title}"
-    description: "Design and create database tables, migrations, and relationships"
-    estimationPercent: 15
-    activity: "Design"
-    tags: ["database", "migration"]
-
-  - title: "Implement Core Logic: ${story.title}"
-    description: "Implement business logic, data validation, and error handling"
-    estimationPercent: 35
+  - id: "implement"
+    title: "Implement API Change: ${story.title}"
+    description: "Make the changes needed for the agreed behavior."
+    estimationPercent: 50
     activity: "Development"
-    tags: ["implementation"]
+    assignTo: "@ParentAssignee"
+    dependsOn: ["design"]
 
-  - title: "Write Unit Tests"
-    description: "Unit tests for services, repositories, and utilities"
-    estimationPercent: 15
+  - id: "verify"
+    title: "Verify API Behavior: ${story.title}"
+    description: "Check expected results, error cases, and compatibility where relevant."
+    estimationPercent: 30
     activity: "Testing"
-    tags: ["testing", "unit-tests"]
-
-  - title: "Integration Tests & Documentation"
-    description: "API integration tests and OpenAPI/Swagger documentation"
-    estimationPercent: 10
-    activity: "Testing"
-    tags: ["testing", "documentation"]
-
-  - title: "Code Review & Refinement"
-    description: "Address code review feedback and refactor as needed"
-    estimationPercent: 10
-    activity: "Documentation"
-    tags: ["review"]
+    assignTo: "@Unassigned"
+    dependsOn: ["implement"]
 
 estimation:
   strategy: "percentage"
+  # Example: one Story Estimate unit becomes four Task Estimate units.
+  conversion:
+    factor: 4
+  # Alternative for a discrete or non-linear scale: replace factor with a table.
+  # conversion:
+  #   table: { "1": 2, "2": 5, "3": 8, "5": 16 }
   rounding: "nearest"
-  minimumTaskEstimate: 0
+  ifParentHasNoEstimation: "warn"
+
+validation:
+  totalEstimationMustBe: 100
 
 metadata:
-  category: "Backend"
-  estimationGuidelines: "Based on typical backend development workflows"
+  category: "Examples"
+  estimationGuidelines: "The factor of 4 and 20/50/30 split are illustrative. Convert the Story Estimate first, distribute it, then round to the nearest half Task unit. Use the commented table alternative for a non-linear scale."
+  notes: |
+    Copy and adapt this example. It assumes no particular API style, database,
+    test framework, documentation tool, or workflow state. Activity names and
+    assignment choices are illustrative; adapt them to your project.
+    Change the Work Item type and add or remove tasks to fit your project.

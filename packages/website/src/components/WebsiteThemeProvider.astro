@@ -1,0 +1,12 @@
+<script is:inline>
+  (() => {
+    let saved;
+    try { saved = localStorage.getItem("atomize-theme"); } catch {}
+    const theme = saved === "light" || saved === "dark" ? saved : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    try {
+      document.documentElement.toggleAttribute("data-sidebar-collapsed", localStorage.getItem("atomize-sidebar-collapsed") === "true");
+    } catch {}
+  })();
+</script>

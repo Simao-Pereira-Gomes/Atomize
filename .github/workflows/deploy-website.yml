@@ -3,12 +3,43 @@ on:
   push:
     branches: [main]
     paths:
+      - README.md
+      - docs/Template-Reference.md
+      - docs/Atomize-Studio.md
+      - docs/VS-Code-Extension.md
+      - docs/Auth-Guide.md
+      - docs/Platform-Guide.md
+      - docs/Workflows.md
+      - docs/Cli-Reference.md
+      - docs/Template-Creation.md
+      - docs/Validation-Modes.md
+      - docs/Common-Validation-Errors.md
+      - examples/**
+      - packages/vscode-extension/icons/atomize-product.svg
+      - package.json
+      - bun.lock
+      - .github/workflows/deploy-website.yml
       - packages/atomize-schema/**
       - packages/atomize-schema-reference/**
       - packages/website/**
   pull_request:
     branches: [main]
     paths:
+      - README.md
+      - docs/Template-Reference.md
+      - docs/Atomize-Studio.md
+      - docs/VS-Code-Extension.md
+      - docs/Auth-Guide.md
+      - docs/Platform-Guide.md
+      - docs/Workflows.md
+      - docs/Cli-Reference.md
+      - docs/Template-Creation.md
+      - docs/Validation-Modes.md
+      - docs/Common-Validation-Errors.md
+      - examples/**
+      - packages/vscode-extension/icons/atomize-product.svg
+      - package.json
+      - bun.lock
       - packages/atomize-schema/**
       - packages/atomize-schema-reference/**
       - packages/website/**
@@ -20,7 +51,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  CLOUDFLARE_PROJECT: atomize
+  CLOUDFLARE_PROJECT: atomize-docs
 
 jobs:
   deploy:
@@ -62,8 +93,17 @@ jobs:
       - if: steps.secrets.outputs.available == 'true'
         run: bun install --frozen-lockfile
 
+      # Previews publish Studio documentation for review; production keeps it
+      # unpublished until the app is signed. CI checks the production shape.
       - if: steps.secrets.outputs.available == 'true'
-        run: bun run --cwd packages/website build
+        name: Validate and build documentation
+        env:
+          ATOMIZE_PUBLISH_STUDIO: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+        run: |
+          bun run --cwd packages/website typecheck
+          bun run --cwd packages/website test
+          bun run --cwd packages/website build
+          bun run --cwd packages/website check:docs
 
       - name: Deploy to Cloudflare Pages
         id: deploy
@@ -87,10 +127,12 @@ jobs:
           ALIAS_URL: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
         run: |
           {
-            echo "### Schema Reference deployed"
+            echo "### Atomize documentation deployed"
             echo ""
-            echo "- Deployment: ${DEPLOYMENT_URL}/schema"
-            if [ -n "$ALIAS_URL" ]; then echo "- Alias: ${ALIAS_URL}/schema"; fi
+            echo "- Documentation: ${DEPLOYMENT_URL}/"
+            echo "- Schema Reference: ${DEPLOYMENT_URL}/reference/templates/schema/"
+            echo "- Composition guide: ${DEPLOYMENT_URL}/reference/templates/composition/"
+            if [ -n "$ALIAS_URL" ]; then echo "- Alias: ${ALIAS_URL}/"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment preview URL on PR
@@ -106,9 +148,11 @@ jobs:
           marker="<!-- deploy-website-preview -->"
           url="${ALIAS_URL:-$DEPLOYMENT_URL}"
           body="${marker}
-          **Schema Reference preview:** ${url}/schema
+          **Documentation preview:** ${url}/
+          **Schema Reference preview:** ${url}/reference/templates/schema/
+          **Composition guide preview:** ${url}/reference/templates/composition/
 
-          Built from ${HEAD_SHA:0:7}. This deployment: ${DEPLOYMENT_URL}/schema"
+          Built from ${HEAD_SHA:0:7}. This deployment: ${DEPLOYMENT_URL}/"
           comment_id=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"${marker}\")) | .id" | head -n 1)
           if [ -n "$comment_id" ]; then

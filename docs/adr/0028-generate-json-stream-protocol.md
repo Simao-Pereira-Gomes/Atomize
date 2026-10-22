@@ -1,8 +1,8 @@
 # Generate JSON stream protocol
 
-> No longer applicable per ADR-0038/#142: the Generate panel now calls `Atomizer.atomize()` in-process and passes its `onProgress` callback straight to `panel.webview.postMessage`. There is no CLI subprocess and no stdout to frame NDJSON over, so the envelope this ADR describes doesn't exist anymore — nothing replaced it, the process boundary that motivated it is simply gone.
+> No longer applicable per ADR-0038/#142: the Generate panel now calls `Atomizer.atomize()` in-process and passes its `onProgress` callback straight to `panel.webview.postMessage`. There is no CLI subprocess and no stdout to frame NDJSON over, so the envelope this ADR describes doesn't exist anymore: nothing replaced it, the process boundary that motivated it is simply gone.
 
-The VS Code Generate panel shows no progress during live task creation — the webview stays frozen on a spinner until the CLI exits and emits its final JSON blob. To show live counters (stories completed, tasks created), the CLI gains a `--json-stream` flag that emits NDJSON to stdout during execution.
+The VS Code Generate panel shows no progress during live task creation: the webview stays frozen on a spinner until the CLI exits and emits its final JSON blob. To show live counters (stories completed, tasks created), the CLI gains a `--json-stream` flag that emits NDJSON to stdout during execution.
 
 ## Decision
 
@@ -13,7 +13,7 @@ The VS Code Generate panel shows no progress during live task creation — the w
 { "event": "report",   "data": <AtomizationReport> }
 ```
 
-The existing `--json` flag is unchanged — it continues to emit a single JSON blob on exit. `--json` covers dry-run calls from the extension; `--json-stream` covers live-execution calls.
+The existing `--json` flag is unchanged: it continues to emit a single JSON blob on exit. `--json` covers dry-run calls from the extension; `--json-stream` covers live-execution calls.
 
 Progress events emitted are `story_start`, `story_complete`, `story_error`, and `task_created`. Per-task events require an `onTaskCreated?: (task: WorkItem) => void` callback added to `createTasksBulk` on the `GenerationPlatform` interface, threaded through `TaskMaterializer` → `StoryProcessor` → `StoryBatchProcessor` → `Atomizer`.
 
@@ -29,4 +29,4 @@ Stderr is already treated as an error signal by the extension's `spawnJson` erro
 
 ## Why dry run is excluded
 
-The dry-run latency is dominated by a single `queryWorkItems` call — there is no per-story write loop to observe. A loading spinner is sufficient. Keeping dry run on `--json` avoids changing a stable, tested code path.
+The dry-run latency is dominated by a single `queryWorkItems` call: there is no per-story write loop to observe. A loading spinner is sufficient. Keeping dry run on `--json` avoids changing a stable, tested code path.

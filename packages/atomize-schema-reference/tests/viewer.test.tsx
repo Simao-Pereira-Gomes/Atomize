@@ -45,3 +45,38 @@ it("renders the viewer using the real generated schema", () => {
 	expect(embedded).not.toContain("Copy link to");
 	expect(embedded).toContain("tasks[].condition");
 });
+
+it("can render its navigation elsewhere while the fields keep their layout", () => {
+	const trees = buildSchemaTrees(schema);
+	const inline = renderToString(() => <SchemaReference trees={trees} versionLabel="inline" />);
+	expect(inline).toContain("schema-reference-sidebar");
+	expect(inline).not.toContain("schema-reference-layout-detached");
+	// Hosts resolve the mount only in the browser; on the server the navigation renders nowhere.
+	const detached = renderToString(() => (
+		<SchemaReference trees={trees} versionLabel="detached" navigationMount={() => undefined} />
+	));
+	expect(detached).toContain("schema-reference-layout-detached");
+	expect(detached).not.toContain("schema-reference-sidebar");
+	expect(detached).toContain("Runtime rules");
+	expect(detached).toContain('data-permalink="template.tasks"');
+});
+
+it("shows an array's item fields directly, with the item type as a fact", () => {
+	const html = renderToString(() => <SchemaReference trees={buildSchemaTrees(schema)} versionLabel="items" />);
+	expect(html).not.toContain(">Array item<");
+	// tasks lists its Task fields, which keep their own permalinks.
+	expect(html).toContain('data-permalink="template.tasks[].title"');
+	expect(html).toContain("Each item");
+	expect(html).toContain("string · minLength 1");
+	expect(html).not.toMatch(/Each item<\/dt><dd[^>]*><code[^>]*>object · additionalProperties/);
+});
+
+it("labels the file kinds with their field counts", () => {
+	const trees = buildSchemaTrees(schema);
+	const html = renderToString(() => <SchemaReference trees={trees} versionLabel="counts" />);
+	// Server rendering adds hydration markers between the count and its hidden label.
+	const counted = (count: number) => new RegExp(`>${count}(<!--[^>]*-->)*<span class="schema-reference-sr-only"> fields</span>`);
+	expect(html).toMatch(counted(trees.template.length));
+	expect(html).toMatch(counted(trees.mixin.length));
+	expect(html).not.toMatch(/>0[12]</);
+});

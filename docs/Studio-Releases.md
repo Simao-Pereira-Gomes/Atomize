@@ -1,6 +1,6 @@
 # Atomize Studio releases
 
-How a Studio release is cut (version bump, `studio-v<version>` tag sentinel, generated release notes) is the same tag-sentinel flow as the other surfaces — see [Releasing.md](Releasing.md). Studio's version bump must land in **both** `packages/atomize-studio/package.json` and `packages/atomize-studio/src-tauri/tauri.conf.json`; the pipeline asserts they match. This page covers what is specific to Studio.
+How a Studio release is cut (version bump, `studio-v<version>` tag sentinel, generated release notes) is the same tag-sentinel flow as the other surfaces: see [Releasing.md](Releasing.md). Studio's version bump must land in **both** `packages/atomize-studio/package.json` and `packages/atomize-studio/src-tauri/tauri.conf.json`; the pipeline asserts they match. This page covers what is specific to Studio.
 
 ## Builds and checks
 

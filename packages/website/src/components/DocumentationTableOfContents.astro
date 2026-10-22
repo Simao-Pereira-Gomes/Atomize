@@ -1,0 +1,42 @@
+---
+interface Props { mobile?: boolean }
+const { mobile = false } = Astro.props;
+const { toc } = Astro.locals.starlightRoute;
+type Item = { slug: string; text: string; children: Item[] };
+function flatten(items: Item[], depth = 0): { slug: string; text: string; depth: number }[] {
+  return items.flatMap(item => [{ slug: item.slug, text: item.text, depth }, ...flatten(item.children, depth + 1)]);
+}
+const items = toc ? flatten(toc.items) : [];
+const labelId = mobile ? "starlight__on-this-page--mobile" : "starlight__on-this-page";
+---
+{toc && <atomize-toc class="documentation-toc" data-mobile={mobile ? "true" : undefined}>
+  <nav aria-labelledby={labelId}>
+    {mobile ? <details>
+      <summary id={labelId}><span>On this page <span aria-hidden="true">⌄</span></span><span data-current-label>Overview</span></summary>
+      <ul>{items.map(item => <li><a href={`#${encodeURIComponent(item.slug)}`} style={`--toc-depth:${item.depth}`}><span>{item.text}</span></a></li>)}</ul>
+    </details> : <>
+      <h2 id={labelId}>On this page</h2>
+      <ul>{items.map(item => <li><a href={`#${encodeURIComponent(item.slug)}`} style={`--toc-depth:${item.depth}`}><span>{item.text}</span></a></li>)}</ul>
+    </>}
+  </nav>
+</atomize-toc>}
+<script>
+  import "./contents-tracker";
+</script>
+<style>
+  .documentation-toc { display: block; }
+  h2 { font-size: 1rem; font-weight: 600; line-height: 1.5; margin: 0 0 .7rem; color: var(--sl-color-white); }
+  ul { list-style: none; padding: 0; margin: 0; }
+  a { display: block; text-decoration: none; font-size: .875rem; line-height: 1.45; padding: .3rem .75rem .3rem calc(.75rem + 1rem * var(--toc-depth)); color: var(--sl-color-gray-3); border-left: 1px solid var(--sl-color-hairline-light); }
+  a:hover { color: var(--sl-color-white); }
+  a[aria-current="true"] { color: var(--sl-color-text-accent); border-left-color: var(--sl-color-text-accent); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 2px; }
+  [data-mobile] nav { position: fixed; z-index: var(--sl-z-index-toc); top: calc(var(--sl-nav-height) - 1px); inset-inline: 0; border-block: 1px solid var(--sl-color-hairline-light); background: var(--sl-color-bg-nav); }
+  summary { display: flex; align-items: center; gap: 1rem; height: var(--sl-mobile-toc-height); padding: .5rem 1rem; font-size: .875rem; cursor: pointer; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary > span:first-child { flex-shrink: 0; display: flex; align-items: center; gap: .75rem; padding: .35rem .65rem; border: 1px solid var(--sl-color-hairline-light); border-radius: 6px; }
+  [data-current-label] { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  [data-mobile] ul { max-height: calc(75dvh - var(--sl-nav-height)); overflow-y: auto; padding: .5rem; border-top: 1px solid var(--sl-color-hairline-light); box-shadow: var(--sl-shadow-sm); }
+  [data-mobile] a { padding-block: .65rem; }
+  @media (min-width: 50rem) { [data-mobile] nav { inset-inline-start: var(--sl-content-inline-start, 0); } }
+</style>

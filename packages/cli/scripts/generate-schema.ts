@@ -60,7 +60,7 @@ function dropStringPropertyNames(node: unknown): void {
 const output = {
   $schema: $schema ?? "https://json-schema.org/draft/2020-12/schema",
   $comment:
-    "Auto-generated from src/templates/schema.ts — do not edit manually. " +
+    "Auto-generated from src/templates/schema.ts. Do not edit manually. " +
     "Cross-field constraints (cycle detection, unique task IDs, estimation totals) are enforced at runtime only.",
   "x-generated-from": "src/templates/schema.ts",
   ...rest,

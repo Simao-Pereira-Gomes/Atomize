@@ -11,10 +11,10 @@ When producing a PR, commit, or version bump, follow these rules so the generate
 3. **Version bump rides the feature PR** as a `chore(release): bump <surface> to <x.y.z>` commit. That subject is filtered out of the notes. For Studio, bump both `packages/atomize-studio/package.json` and `packages/atomize-studio/src-tauri/tauri.conf.json`.
 
 4. **Per-surface wording:** when one commit needs different wording per surface, or must be hidden from one, add trailers to the commit body:
-   - `Release-Note(<surface>): <text>` — override for `cli` | `extension` | `studio`.
-   - `Release-Note(<surface>): skip` — drop from that surface's notes.
-   - `Release-Note: <text>` — bare, applies to any surface without a scoped trailer.
+   - `Release-Note(<surface>): <text>`: override for `cli` | `extension` | `studio`.
+   - `Release-Note(<surface>): skip`: drop from that surface's notes.
+   - `Release-Note: <text>`: bare, applies to any surface without a scoped trailer.
 
-5. **Do not** reach for PR labels or GitHub's native release-notes generator for this — ADR-0063 rejected both. Paths, not labels, decide which release a change appears in.
+5. **Do not** reach for PR labels or GitHub's native release-notes generator for this: ADR-0063 rejected both. Paths, not labels, decide which release a change appears in.
 
 6. **Keeping paths in sync:** each `publish-*.yml` passes `--paths` to the script; that list must equal the workflow's own `on.push.paths`. If you change one, change the other.

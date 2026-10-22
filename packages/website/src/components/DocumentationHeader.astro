@@ -1,0 +1,20 @@
+---
+import Search from "@astrojs/starlight/components/Search.astro";
+import SiteTitle from "@astrojs/starlight/components/SiteTitle.astro";
+import SocialIcons from "@astrojs/starlight/components/SocialIcons.astro";
+import WebsiteThemeSelect from "./WebsiteThemeSelect.astro";
+import DocumentationSidebarToggle from "./DocumentationSidebarToggle.astro";
+import { documentationSection, sectionTabs } from "../lib/documentation";
+
+const section = documentationSection(Astro.url.pathname);
+---
+<div class="documentation-header">
+  <div class="documentation-brand"><DocumentationSidebarToggle /><SiteTitle /></div>
+  <nav class="documentation-sections" aria-label="Documentation sections">
+    {sectionTabs.map(tab => <a href={tab.href} aria-current={section === tab.key ? "page" : undefined}>{tab.label}</a>)}
+  </nav>
+  <div class="documentation-header-tools">
+    <Search />
+    <div class="documentation-header-actions"><SocialIcons /><WebsiteThemeSelect /></div>
+  </div>
+</div>

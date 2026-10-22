@@ -41,4 +41,4 @@ If a needed concept is not in either glossary, reconsider whether it belongs to 
 
 If output contradicts an existing ADR, surface it explicitly rather than silently overriding it:
 
-> _Contradicts ADR-0007 — but worth reopening because…_
+> _Contradicts ADR-0007, but worth reopening because…_

@@ -21,8 +21,8 @@ Atomize has two validation modes that affect how warnings are treated.
 
 | Mode | Warnings | Usage |
 |------|----------|-------|
-| **Lenient** (default) | Non-blocking — template is still valid | Development, flexible templates |
-| **Strict** | Promoted to errors — template is invalid | Production, CI/CD, team templates |
+| **Lenient** (default) | Non-blocking: template is still valid | Development, flexible templates |
+| **Strict** | Promoted to errors: template is invalid | Production, CI/CD, team templates |
 
 **Set mode via CLI:**
 ```bash
@@ -36,15 +36,17 @@ validation:
   mode: "strict"   # or "lenient"
 ```
 
-See [Validation Modes](./Validation-Modes.md) for a full explanation.
+See [Validation Modes](./Validation-Modes.md) for a full explanation, including when you need [Online Validation](./Validation-Modes.md#offline-and-online-validation).
 
 ---
+
+<!-- atomize:section validation-errors -->
 
 ## Estimation Errors
 
 ### Total Estimation Does Not Equal 100%
 
-> **Note:** Without `totalEstimationMustBe` or `totalEstimationRange` configured, a mismatched total is a **warning** (not an error) in lenient mode — the template is still usable. It only becomes an error when a strict constraint is configured, or when running in strict mode.
+> **Note:** Without `totalEstimationMustBe` or `totalEstimationRange` configured, a mismatched total is a **warning** (not an error) in lenient mode: the template is still usable. It only becomes an error when a strict constraint is configured, or when running in strict mode.
 
 **Error Message** (when `totalEstimationMustBe: 100` is set):
 ```
@@ -209,7 +211,7 @@ Field "Microsoft.VSTS.Common.BacklogPriority" holds a ranking or value, not effo
 ```
 
 **Solutions:**
-- Check the reference names of `estimation.source`, `taskType` and `targetFields`. The CLI wizard and Studio list the valid fields when connected.
+- Check the reference names of `estimation.source`, `taskType` and `targetFields`. When connected, the valid fields are offered by the CLI wizard<!-- atomize:feature studio --> and Studio<!-- /atomize:feature -->.
 - Write Task Estimates only to writable number fields that aren't picklists, such as `Microsoft.VSTS.Scheduling.RemainingWork` or a custom decimal field.
 - Make `conversion.table` keys match the field's allowed values exactly, and add a row for every value your Stories use.
 - With a saved-query filter, declare `workItemTypes` so the source field is checked against the right type.
@@ -416,7 +418,7 @@ tasks:
 
 ## Repeat Errors
 
-These errors come from a task's [`repeat`](https://atomize-cd9.pages.dev/schema#template.tasks[].repeat) count.
+These errors come from a task's [`repeat`](https://atomize-docs.pages.dev/schema#template.tasks[].repeat) count.
 
 ### Repeat Above the Limit
 
@@ -663,41 +665,46 @@ tasks:
     estimationPercent: 50    # ✅ Number
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section validation-messages -->
 
 ## Understanding Error Messages
 
 ### Error Message Format
 
-Validation errors now include actionable suggestions:
+Each finding names the part of the Template it's about, followed by the message:
 
 ```
-[Error Path]: [Error Message]
-   💡 [Suggestion]
+Template validation failed [Lenient]
+
+Errors:
+  • tasks: Total estimation is 70%, but must be 100%.
+  • tasks.0.dependsOn: Task depends on non-existent task ID: "design".
+
+Fix the errors above and try again.
 ```
 
-**Example:**
-```
-tasks: Total estimation is 70%, but must be 100%.
-   💡 Add 30% to existing tasks or create a new task with 30% estimation.
+`tasks.0` is the first task. Most findings also carry a suggested fix. The VS Code Validation Report shows it under each finding, and `atomize validate --output json` includes it as `suggestion`:
+
+```json
+{"path":"tasks","message":"Total estimation is 70%, but must be 100%.","code":"INVALID_TOTAL_ESTIMATION","suggestion":"Add 30% to existing tasks or create a new task with 30% estimation."}
 ```
 
 ### Error vs Warning
 
-- **Errors** (❌): Block template from being used. Must be fixed.
-- **Warnings** (⚠️): Non-blocking issues. Template can still be used but may not work as expected.
+- **Errors** block the Template from being used. Fix them.
+- **Warnings** don't block it in lenient mode, but the Template may not behave as you expect. In strict mode they are errors too.
 
-**Example Output:**
+A valid Template with warnings reports them after its summary:
+
 ```
-Template validation failed:
-
-Errors:
- - tasks: Total estimation is 70%, but must be 100%.
-   💡 Add 30% to existing tasks or create a new task with 30% estimation.
+Template is valid! [Lenient]
 
 Warnings:
- tasks[0].condition: Condition must be a structured object
-   💡 Example: `condition: { field: "tags", operator: "contains", value: "backend" }`
+  • tasks[*].customFields: 1 task(s) have custom fields that could not be verified. Run with --profile <name> (or choose Online when prompted) to validate field names, types, and picklist values.
 ```
 
 ### Validation Commands
@@ -712,19 +719,19 @@ atomize validate my-template.yaml
 atomize validate my-template.yaml --strict
 ```
 
-**Validation in CI/CD:**
+**Validation in CI/CD:** `atomize validate` checks one Template per run and exits with `0` when it's valid and `1` when it isn't.
 ```bash
-# Exit code 0 = valid, 1 = invalid
-atomize validate templates/*.yaml
-if [ $? -eq 0 ]; then
-  echo "All templates valid!"
-else
-  echo "Validation failed!"
-  exit 1
-fi
+for template in templates/*.atomize.yaml; do
+  atomize validate "$template" --strict || exit 1
+done
+echo "All templates valid!"
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section validation-quick-reference -->
 
 ## Quick Reference
 
@@ -765,11 +772,13 @@ If you encounter an error not covered here:
 - GitHub: https://github.com/Simao-Pereira-Gomes/Atomize/issues
 - Include: Error message, template YAML, and validation output
 
+<!-- /atomize:section -->
+
 ---
 
 ## See Also
 
-- [Schema Reference](https://atomize-cd9.pages.dev/schema) - Field constraints and runtime rules
+- [Schema Reference](https://atomize-docs.pages.dev/schema) - Field constraints and runtime rules
 - [Template Reference](./Template-Reference.md) - Behaviour and worked examples
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Workflows](./Workflows.md) - Template validation and preview workflows

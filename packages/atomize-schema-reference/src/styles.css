@@ -22,6 +22,11 @@
 .schema-reference-guide a { color: var(--sr-accent); text-underline-offset: 3px; }
 .schema-reference article:focus { outline: none; }
 .schema-reference-layout { display: grid; grid-template-columns: 265px minmax(0, 1fr); max-width: 1440px; margin: auto; }
+.schema-reference-layout-detached { grid-template-columns: minmax(0, 1fr); }
+.schema-reference-detached-navigation { container-type: normal; background: transparent; }
+.schema-reference-detached-navigation .schema-reference-sidebar { position: static; max-height: none; padding: 0; border: 0; overflow: visible; }
+.schema-reference-detached-navigation .schema-reference-index > summary { display: none; }
+@container (min-width: 761px) { .schema-reference-index > summary { display: none; } }
 .schema-reference-sidebar { min-width: 0; padding: 34px 22px; border-right: 1px solid var(--sr-border); position: sticky; top: 24px; align-self: start; max-height: calc(var(--sr-viewport-height, 100dvh) - 48px); overflow-y: auto; scrollbar-width: thin; }
 .schema-reference-eyebrow { color: var(--sr-muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.6px; }
 .schema-reference-tabs { display: flex; gap: 3px; background: var(--sr-surface); border: 1px solid var(--sr-border); border-radius: 8px; padding: 4px; margin-top: 18px; }
@@ -46,15 +51,16 @@
 .schema-reference-index > summary > span:nth-child(2) { margin-left: auto; font: 10px ui-monospace, monospace; }
 .schema-reference-chevron { display: inline-block; font: 17px/1 ui-monospace, monospace; color: var(--sr-muted); flex-shrink: 0; transition: transform .12s; }
 .schema-reference details[open] > summary > .schema-reference-chevron { transform: rotate(90deg); }
-.schema-reference-navigation li { margin: 2px 0; }
+.schema-reference-navigation li { margin: 1px 0; }
 .schema-reference-navigation summary { display: flex; align-items: center; gap: 2px; }
 .schema-reference-navigation summary > .schema-reference-chevron { width: 12px; }
-.schema-reference-navigation button { border: 0; background: transparent; display: flex; justify-content: space-between; align-items: center; text-align: left; gap: 8px; min-width: 0; width: 100%; border-radius: 5px; padding: 7px 8px; color: var(--sr-muted); }
+.schema-reference-navigation button { border: 0; background: transparent; display: flex; justify-content: space-between; align-items: center; text-align: left; gap: 8px; min-width: 0; width: 100%; border-radius: 5px; padding: 3px 8px; color: var(--sr-muted); line-height: 1.5; }
 .schema-reference-navigation > li > button { padding-left: 22px; }
 .schema-reference-navigation button > span { font: 9px ui-monospace, monospace; flex-shrink: 0; }
 .schema-reference-navigation code { font-size: 12px; }
 .schema-reference-navigation button:hover { background: var(--sr-surface); color: var(--sr-text); }
 .schema-reference-navigation button[aria-current=location] { background: var(--sr-tint); color: var(--sr-accent); }
+.schema-reference-navigation button.schema-reference-contains-active { color: var(--sr-accent); }
 .schema-reference-navigation .schema-reference-navigation { margin-left: 13px; padding-left: 5px; border-left: 1px solid var(--sr-border); }
 .schema-reference-source { margin-top: 28px; border-top: 1px solid var(--sr-border); padding-top: 22px; }
 .schema-reference-source > code { display: block; margin-top: 10px; color: var(--sr-muted); font-size: 10px; }

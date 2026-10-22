@@ -20,6 +20,7 @@ Complete command-line interface documentation for Atomize.
   - [template remove](#template-remove)
   - [template resolve](#template-resolve)
   - [template metadata](#template-metadata)
+  - [template migrate](#template-migrate)
   - [queries list](#queries-list)
 - [Configuration](#configuration)
 - [Interactive Prompts & Navigation](#interactive-prompts--navigation)
@@ -27,6 +28,8 @@ Complete command-line interface documentation for Atomize.
 - [Troubleshooting](#troubleshooting)
 
 ---
+
+<!-- atomize:section cli-overview -->
 
 ## Installation
 
@@ -81,18 +84,23 @@ These options work with any command:
 | `template remove` | `template rm` | Remove a user-installed template or mixin |
 | `template resolve` | - | Resolve a composed template and print the merged result |
 | `template metadata` | - | Read Azure DevOps project metadata as JSON, for visual template authoring surfaces |
+| `template migrate` | - | Move catalog items from the legacy storage folder to the current catalog |
 | `queries` | - | Browse Azure DevOps saved queries |
 | `queries list` | `queries ls` | List saved queries with paths and IDs |
+
+<!-- /atomize:section -->
 
 ---
 
 ## Command Reference
 
+<!-- atomize:section cli-auth -->
+
 ### auth
 
 Manage named connection profiles. Profiles store your credentials in the OS keychain when available. If the keychain is unavailable, `--insecure-storage` opts into an insecure local file fallback at `~/.atomize/`.
 
-Azure DevOps is currently the only Connection Profile type — for `generate`, `validate`, `fields list`, `queries list`, and `template metadata`. AI-assisted template generation (`template create --ai`) does not use a Connection Profile; it authenticates through a separate Copilot Session (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)). GitHub Models profiles are retired — see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
+Azure DevOps is currently the only Connection Profile type: for `generate`, `validate`, `fields list`, `queries list`, and `template metadata`. AI-assisted template generation (`template create --ai`) does not use a Connection Profile; it authenticates through a separate Copilot Session (see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session)).
 
 #### auth add
 
@@ -135,9 +143,13 @@ Profile names may contain letters, numbers, hyphens, and underscores.
 List all saved connection profiles.
 
 ```bash
-atomize auth list
+atomize auth list [options]
 atomize auth ls   # alias
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Print results as JSON to stdout; progress messages go to stderr |
 
 **Output:**
 ```
@@ -148,8 +160,6 @@ atomize auth ls   # alias
     Token:    [keychain]
     Created:  1/3/2026, 10:00:00 AM
 ```
-
-A retired `github-models` profile, if one still exists from before the retirement, is listed too — only so you can remove it with `auth remove`; it can no longer be used for anything.
 
 ---
 
@@ -173,15 +183,20 @@ atomize auth use            # pick interactively
 Remove a saved connection profile.
 
 ```bash
-atomize auth remove [name]
+atomize auth remove [name] [options]
 atomize auth rm [name]   # alias
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--confirm` | Remove without asking for confirmation |
+| `--new-default <name>` | Profile to make the default when the removed profile was the default |
 
 ---
 
 #### auth test
 
-Test connectivity for a profile by executing a WIQL query against your project to verify credentials and project access. Testing a retired `github-models` profile fails with a message pointing you to remove it.
+Test connectivity for a profile by executing a WIQL query against your project to verify credentials and project access.
 
 ```bash
 atomize auth test [name]
@@ -196,10 +211,10 @@ atomize auth test            # pick interactively
 
 #### auth rotate
 
-Replace the stored PAT for a profile (e.g. after a token expires). Refuses a retired `github-models` profile and points you to `auth remove` instead.
+Replace the stored PAT for a profile (e.g. after a token expires).
 
 ```bash
-atomize auth rotate <name> [options]
+atomize auth rotate [name] [options]
 ```
 
 | Option | Description |
@@ -211,7 +226,11 @@ atomize auth rotate <name> [options]
 echo "$NEW_PAT" | atomize auth rotate work-ado --pat-stdin
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-generate -->
 
 ### generate
 
@@ -248,10 +267,14 @@ atomize gen [template] [options]  # alias
 | `-o, --output <file>` | string | - | Write a JSON report to this file path (for CI/CD) |
 | `--include-sensitive-report-data` | flag | - | Include descriptions, custom fields, and platform-specific work item data in the JSON report (`--output` only) |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
+| `--json` | flag | - | Print the JSON report to stdout instead of the human-readable output. Runs a dry run unless `--execute` is also passed. Implies `--quiet` |
+| `--json-stream` | flag | - | Print newline-delimited JSON progress events, then a final report event, to stdout. Implies `--quiet`; cannot be combined with `--json` |
+
+The concurrency options are hidden from `atomize generate --help`.
 
 #### Examples
 
-**Dry run (default — no --execute):**
+**Dry run (default: no --execute):**
 ```bash
 atomize generate template:backend-api
 ```
@@ -271,7 +294,7 @@ Use `--story` to skip the template's `filter` criteria and process explicit work
 - Processing a one-off story that does not match the template's usual filter
 - Testing the template against a known story before a full run
 
-`excludeIfHasTasks` still applies — stories that already have tasks are skipped unless you remove that flag from the template.
+`excludeIfHasTasks` still applies: stories that already have tasks are skipped unless you remove that flag from the template.
 
 **Execute for real in CI/non-interactive mode:**
 ```bash
@@ -316,10 +339,18 @@ Do not use it in shared CI pipelines where the report artifact may be visible to
 
 | Code | Meaning |
 |------|---------|
-| `0` | All stories processed successfully |
-| `1` | One or more stories failed |
+| `0` | All stories processed successfully, including a dry run |
+| `1` | One or more stories failed, or live execution was refused |
+| `2` | No stories matched the filter or `--story` IDs |
+| `3` | Authentication failed |
+
+The exit codes are the same with `--json` and `--json-stream`. A run with no matching stories exits `2` and still prints its report, with `storiesProcessed: 0`.
+
+<!-- /atomize:section -->
 
 ---
+
+<!-- atomize:section cli-preview -->
 
 ### preview
 
@@ -356,7 +387,11 @@ atomize preview template:backend-api \
   --mock-story '{"id":"123","title":"Add password reset","estimation":8,"tags":["backend"]}'
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-validate -->
 
 ### validate
 
@@ -381,6 +416,7 @@ atomize validate <template> [options]
 | `-s, --strict` | flag | - | Use strict mode: warnings are treated as errors |
 | `-q, --quiet` | flag | - | Suppress non-essential output |
 | `--profile <name>` | string | - | Connect to ADO using a named profile for live saved-query and custom-field validation |
+| `--output json` | string | - | Print the validation result as JSON to stdout and suppress human-readable output |
 
 > See [Validation Modes](./Validation-Modes.md) for a full explanation of strict vs lenient behavior.
 
@@ -406,7 +442,11 @@ atomize validate https://example.com/templates/shared.yaml
 | `0` | Template is valid |
 | `1` | Template validation failed |
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-fields -->
 
 ### fields
 
@@ -435,7 +475,11 @@ atomize fields list --type Task --custom-only
 atomize fields list --type Task --json > task-fields.json
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-template -->
 
 ### template create
 
@@ -455,7 +499,7 @@ atomize tpl create [options]  # alias
 | `--type <type>` | string | Create a `template` or a `mixin` (prompted if omitted) |
 | `--from <name>` | string | Start from an existing catalog template |
 | `--scratch` | flag | Jump directly to the interactive wizard (skips mode selection) |
-| `--ai` | flag | Use AI-assisted generation — describe the template in natural language |
+| `--ai` | flag | Use AI-assisted generation: describe the template in natural language |
 | `--ground` | flag | Ground AI generation in your Azure DevOps project's work item types, states, fields and allowed values, saved queries, and area and iteration paths. Uses `--profile`, or the default profile |
 | `--reference <path>` | string | With `--ai`, send a [Reference Document](./Template-Creation.md#reference-documents): a Markdown or text file in the workspace, or `wiki:<wiki>/<page path>` for an Azure DevOps wiki page read through `--profile`. Repeatable |
 | `--no-project-references` | flag | With `--ai`, leave out the Project Reference Documents saved in `.atomize/ai.yaml` |
@@ -508,7 +552,7 @@ Step-by-step guided builder for full control.
 atomize template create --scratch
 ```
 
-The wizard walks through basic information, filter configuration, task configuration (including composition — inheritance and mixins), estimation settings, validation rules, and metadata.
+The wizard walks through basic information, filter configuration, task configuration (including composition: inheritance and mixins), estimation settings, validation rules, and metadata.
 
 ---
 
@@ -521,9 +565,13 @@ atomize template create --type mixin
 atomize template create --type mixin --save-as security-review-tasks
 ```
 
-See [Template Reference — Composition](./Template-Reference.md#composition) for how to use mixins.
+See [Template Reference: Composition](./Template-Reference.md#composition) for how to use mixins.
+
+<!-- /atomize:section -->
 
 ---
+
+<!-- atomize:section cli-template-improve -->
 
 ### template improve
 
@@ -599,11 +647,15 @@ atomize template improve template:backend-api --ground --reference docs/how-we-w
 atomize template improve ./templates/backend.atomize.yaml --dry-run --strict --output improve-report.json
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-template-manage -->
 
 ### template list
 
-List available templates and mixins from the catalog (built-in and user-installed).
+List the Templates and Mixins in the Catalog, from built-in, personal, and project scope. Each item shows its ref, scope, and path, and any [Catalog Override](./Template-Creation.md#precedence-and-catalog-overrides) or [Template Lineage](./Template-Creation.md#template-lineage).
 
 #### Usage
 
@@ -618,40 +670,40 @@ atomize tpl ls        # alias
 | Option | Description |
 |--------|-------------|
 | `--type <type>` | Filter by type: `template` or `mixin` |
+| `--json` | Print results as JSON to stdout; progress messages go to stderr |
 
 #### Output
 
-```
-Built-in Templates
-
-  agile-story-breakdown
-    Agile Story Breakdown
-    Agile story breakdown template
-
-  agile-story-breakdown-saved-query
-    Agile Story Breakdown - Saved Query
-    Agile story breakdown template driven by a saved query
+```text
+  Templates
 
   backend-api
-    Backend API Development
+    Backend API (Contoso)
     Standard backend API development with database integration
+    ref: template:backend-api  scope: your project
+    path: ~/src/contoso-app/.atomize/catalog/templates/backend-api.atomize.yaml
+    ⚠ overrides: built-in at <Atomize>/catalog/templates/backend-api.atomize.yaml (read-only)
 
-  bug-fix
-    Bug Fix
-    Foundation for bug-fix templates
+  mobile-feature
+    Mobile Feature
+    Feature breakdown with device testing
+    ref: template:mobile-feature  scope: your project
+    path: ~/src/contoso-app/.atomize/catalog/templates/mobile-feature.atomize.yaml
+    ↖ based on: built-in template:feature-development
 
   feature-development
     Feature Development
-    Foundation for feature development templates
+    Foundation for feature development templates. Extend this to inherit a standard task set and filter.
+    ref: template:feature-development  scope: built-in
+    path: <Atomize>/catalog/templates/feature-development.atomize.yaml (read-only)
 
-User Templates
+  Mixins
 
-  my-api-template
-    My API Template
-    (no description)
-
-Use with: atomize generate template:<name>
-         atomize template create --from <name>
+  documentation
+    Documentation Tasks
+    Standard documentation tasks. Mix into any template to ensure docs are part of the definition of done.
+    ref: mixin:documentation  scope: built-in
+    path: <Atomize>/catalog/mixins/documentation.atomize.yaml (read-only)
 ```
 
 ---
@@ -700,8 +752,10 @@ atomize template install ./templates/backend-api.yaml --overwrite
 ```
 
 **Scopes:**
-- `user` (default) — installed to `~/.atomize/catalog/`, available across all projects
-- `project` — installed to `<workspace>/.atomize/catalog/`, scoped to the discovered workspace root
+- `user` (shown as "personal"): installed to `~/.atomize/catalog/`, available across all projects
+- `project` (shown as "your project"): installed to `<workspace>/.atomize/catalog/`, scoped to the discovered [Workspace Root](./Template-Creation.md#workspace-root)
+
+Without `--scope`, `project` is used when the Workspace Root has its own `.atomize` folder, and `user` otherwise.
 
 **Editor handoff:**
 
@@ -711,7 +765,7 @@ Pass `--open` to `template create` or `template install` to open the saved Atomi
 
 ### template remove
 
-Remove a user-installed template or mixin from the catalog. Built-in templates cannot be removed.
+Remove a template or mixin from your personal Catalog. Built-in items cannot be removed, and project items are files in the repository: delete them through your team's review instead.
 
 #### Usage
 
@@ -786,7 +840,7 @@ atomize template resolve template:my-api --validate
 
 ### template metadata
 
-Read Azure DevOps project metadata as a single JSON document — work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. This is the same data source that grounds visual template-authoring surfaces such as Atomize Studio's [Grounded Field Options](./Atomize-Studio.md), but it is a normal CLI command: any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
+Read Azure DevOps project metadata as a single JSON document: work item types, states, area paths, iteration paths, teams, saved queries, and task field schemas. <!-- atomize:feature studio -->This is the same data source that grounds Atomize Studio's [Grounded Field Options](./Atomize-Studio.md#grounding). <!-- /atomize:feature -->Any user or script can call it directly for the same JSON, for example to build custom tooling around a project's Azure DevOps schema.
 
 #### Usage
 
@@ -834,13 +888,46 @@ atomize template metadata --profile work-ado
 atomize template metadata --profile work-ado --json > project-metadata.json
 ```
 
-Requires a Connection Profile (see [Auth Guide](./Auth-Guide.md)) — there is no offline mode, since the output is Azure DevOps project data.
+Requires a Connection Profile (see [Auth Guide](./Auth-Guide.md#quick-setup)): there is no offline mode, since the output is Azure DevOps project data.
 
 ---
 
+### template migrate
+
+Move catalog items from the legacy `.atomize/templates` folder into the current `.atomize/catalog` folder.
+
+#### Usage
+
+```bash
+atomize template migrate [options]
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--scope <scope>` | `user` (default, `~/.atomize`), `project` (the current project's `.atomize`), or `all` |
+| `--dry-run` | Report what would move without writing or deleting files |
+| `--cleanup-dirs` | Remove the empty legacy folders after migration |
+
+Items whose names already exist in the current catalog are skipped and reported. Each migrated item is copied to the current catalog and its legacy file removed.
+
+#### Examples
+
+```bash
+atomize template migrate --dry-run
+atomize template migrate --scope all --cleanup-dirs
+```
+
+<!-- /atomize:section -->
+
+---
+
+<!-- atomize:section cli-queries -->
+
 ### queries
 
-Browse Azure DevOps saved queries — discover query paths and IDs without leaving the terminal.
+Browse Azure DevOps saved queries: discover query paths and IDs without leaving the terminal.
 
 #### queries list
 
@@ -863,7 +950,11 @@ atomize queries list --folder "Shared Queries/Teams/Backend"
 atomize queries list --json | jq '.[] | select(.isPublic) | .path'
 ```
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-configuration -->
 
 ## Configuration
 
@@ -877,7 +968,7 @@ atomize auth use work-ado   # set as default profile
 atomize auth test work-ado
 ```
 
-AI-assisted template drafting (`template create --ai`) talks to Copilot without a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session). Only `--ground` uses a Connection Profile, to read your project's metadata; the profile's token is never sent to Copilot.
+AI-assisted template drafting (`template create --ai`) talks to Copilot without a Connection Profile: see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session). Only `--ground` uses a Connection Profile, to read your project's metadata; the profile's token is never sent to Copilot.
 
 ### Environment Variables
 
@@ -932,7 +1023,11 @@ ATOMIZE_PROFILE=work-ado
 | `Space` | Toggle selection (in multi-select prompts) |
 | `Ctrl+C` | Cancel the current operation and exit |
 
+<!-- /atomize:section -->
+
 ---
+
+<!-- atomize:section cli-examples -->
 
 ## Examples
 
@@ -1058,11 +1153,16 @@ atomize generate templates/my-template.yaml --platform mock
 
 ### AI template generation fails
 
-AI drafting authenticates through GitHub Copilot, not a Connection Profile — see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+AI drafts and improvements authenticate through GitHub Copilot, not a Connection Profile: see [Auth Guide - AI Drafting: Copilot Session](./Auth-Guide.md#ai-drafting-copilot-session).
+
+- **"GitHub Copilot is not signed in"**: an interactive run starts sign-in for you. A non-interactive run can't, so run `gh auth login` in a terminal on that machine, then retry.
+- **Project metadata or a wiki page can't be loaded**: check the Connection Profile with `atomize auth test`. An interactive run lets you retry, continue without grounding, or cancel. Reading wiki pages needs the optional **Wiki (Read)** scope; rotate the token with `atomize auth rotate` to add it.
+- **A Reference Document is refused**: it must be a `.md` or `.txt` file inside the workspace. A document you named with `--reference` that can't be read stops the run.
+- **The draft or proposal is still invalid after three attempts**: in an interactive run, a draft can continue in the wizard, and an improvement can be retried or saved as a draft file beside the source. See [template improve](#template-improve).
 
 ```bash
-# Non-interactive runs need Copilot already signed in on that machine —
-# sign in once interactively, then retry:
+# Sign in to Copilot on this machine, then retry
+gh auth login
 atomize template create --ai
 ```
 
@@ -1073,12 +1173,14 @@ export LOG_LEVEL="debug"
 atomize generate template:backend-api --verbose
 ```
 
+<!-- /atomize:section -->
+
 ---
 
 ## See Also
 
 - [Auth Guide](./Auth-Guide.md) - Credential storage, profile resolution, and CI/CD setup
-- [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields, defaults and constraints
+- [Schema Reference](https://atomize-docs.pages.dev/schema) - YAML fields, defaults and constraints
 - [Template Reference](./Template-Reference.md) - Behaviour and composition
 - [Validation Modes](./Validation-Modes.md) - Strict vs lenient validation explained
 - [Common Validation Errors](./Common-Validation-Errors.md) - Fix specific validation errors

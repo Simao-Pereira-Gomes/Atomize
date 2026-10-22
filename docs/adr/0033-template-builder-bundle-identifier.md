@@ -1,6 +1,6 @@
 # Template Builder: Tauri bundle identifier as GitHub namespace
 
-Tauri requires a `identifier` in `tauri.conf.json` — the macOS bundle ID and Windows AppUserModelID. This value is set once; changing it after release breaks OS-level app identity (keychain entries, installer upgrade paths, macOS app sandboxing).
+Tauri requires a `identifier` in `tauri.conf.json`: the macOS bundle ID and Windows AppUserModelID. This value is set once; changing it after release breaks OS-level app identity (keychain entries, installer upgrade paths, macOS app sandboxing).
 
 Two namespacing approaches were considered:
 

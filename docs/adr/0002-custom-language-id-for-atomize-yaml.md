@@ -1,6 +1,6 @@
 # YAML language service for Atomize YAML files
 
-Atomize YAML files (Templates and Mixins) share a structure that doesn't exist in generic YAML — `version:`, `tasks:`, `filter:`, `estimation:`. Atomize needs a reliable opt-in signal for schema association, CodeLens, diagnostics, and future code actions without leaking behavior into generic YAML files.
+Atomize YAML files (Templates and Mixins) share a structure that doesn't exist in generic YAML: `version:`, `tasks:`, `filter:`, `estimation:`. Atomize needs a reliable opt-in signal for schema association, CodeLens, diagnostics, and future code actions without leaking behavior into generic YAML files.
 
 Atomize files remain on VS Code's built-in `yaml` language ID so Red Hat YAML provides schema hover descriptions and completions. The extension scopes Atomize behavior with its own document predicates: durable opt-in markers (`.atomize.yaml`, `.atomize.yml`, or first-line `# atomize-yaml`) enable full Atomize editor tooling, while content detection enables schema-backed authoring support and durable opt-in prompting only.
 

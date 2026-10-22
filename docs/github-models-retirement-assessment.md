@@ -1,6 +1,6 @@
 # GitHub Models retirement assessment
 
-**Status:** resolved — implemented via [ADR-0044](./adr/0044-copilot-sdk-for-ai-template-drafting.md). AI-assisted template drafting now authenticates through a GitHub Copilot SDK sign-in (a Copilot Session, see [Auth Guide](./Auth-Guide.md#ai-drafting-copilot-session)) instead of a GitHub Models Connection Profile. Kept below as the original decision input for issue #147.
+**Status:** resolved: implemented via [ADR-0044](./adr/0044-copilot-sdk-for-ai-template-drafting.md). AI-assisted template drafting now authenticates through a GitHub Copilot SDK sign-in (a Copilot Session, see [Auth Guide](./Auth-Guide.md#ai-drafting-copilot-session)) instead of a GitHub Models Connection Profile. Kept below as the original decision input for issue #147.
 **Assessed:** 2026-08-13
 **Scope:** Atomize's current AI-template-generation provider only. No production changes are made by this assessment.
 
@@ -44,7 +44,7 @@ All three services below can meet Atomize's narrow text-generation and streaming
 ## Decision implications for #147
 
 1. Make provider configuration explicitly provider-specific. A generic `AIProviderConfig` should not preserve the `github-models` variant as a supported runtime option.
-2. Select one initial production provider—recommend **Microsoft Foundry/OpenAI-v1 with API-key credentials**—and retain `mock` only for deterministic tests/development. Entra ID should be a separately designed credential flow, not silently treated as an API key.
+2. Select one initial production provider (recommend **Microsoft Foundry/OpenAI-v1 with API-key credentials**) and retain `mock` only for deterministic tests/development. Entra ID should be a separately designed credential flow, not silently treated as an API key.
 3. Define saved-profile migration before implementation: either automatically reject legacy `github-models` profiles with an actionable reconfigure message, or introduce a versioned migration to a new Foundry profile. Do not attempt to reuse a GitHub PAT as an Azure credential.
 4. Keep the exported provider abstraction (`AIProvider`, `AIProviderConfig`, `createAIProvider`) and root-only package surface decided during grilling. It now isolates the inevitable Foundry/OpenAI implementation differences from CLI and Studio consumers.
 5. Update connection-profile prompts, validation, model selection, connectivity tests, CLI text, and documentation together. Foundry does not provide a universal anonymous catalog lookup equivalent to the former GitHub Models `/models` request; selection should be based on the configured deployment, with any discovery flow designed against the chosen Foundry resource/authentication mode.

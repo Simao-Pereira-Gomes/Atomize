@@ -1,6 +1,6 @@
 # Platform Guide
 
-Setup and configuration guide for different work item management platforms.
+Setup and configuration guide for the work item platforms Atomize supports.
 
 ## Table of Contents
 
@@ -14,26 +14,20 @@ Setup and configuration guide for different work item management platforms.
 
 ## Overview
 
-Atomize connects to two kinds of external service — work item platforms (where tasks are created) and AI providers (for template generation). Each is configured as a named profile.
+<!-- atomize:section platform-support -->
 
-Atomize is designed around platform adapters. Today, connected generation supports Azure DevOps. Mock is available for offline testing.
+Atomize reads Stories and creates Tasks through a Platform Adapter. Connected workflows currently support **Azure DevOps Services**, at `https://dev.azure.com/{organization}` or `https://{organization}.visualstudio.com`. Azure DevOps Server (on-premises) is not supported.
 
-**Work item platforms:**
+| Platform | Use it for | Connection Profile |
+|----------|------------|--------------------|
+| Azure DevOps Services | Live Preview, Online Validation, Grounding, and Task creation | Required |
+| Mock | Mock Preview, plus CLI dry runs against sample Stories | Not needed |
 
-| Platform | Status | Features |
-|----------|--------|----------|
-| Azure DevOps | ✅ Production | Full support with WIQL queries |
-| Mock | ✅ Production | Testing and development |
-| Jira | 🚧 Planned | Coming soon |
-| GitHub Issues | 🚧 Planned | Coming soon |
+Mock Preview runs offline in VS Code<!-- atomize:feature studio -->, Atomize Studio,<!-- /atomize:feature --> and the CLI against a Mock Story you enter. It never connects to a platform or creates Tasks. In the CLI, `atomize generate <template> --platform mock` also dry-runs a Template against built-in sample Stories: see [Mock Platform](#mock-platform).
 
-**AI providers:**
+GitHub Copilot drafts and improves Templates. It is not a work item platform and does not use a Connection Profile: Atomize uses your locally signed-in Copilot account.
 
-| Provider | Status | Used for |
-|----------|--------|----------|
-| GitHub Copilot | ✅ Production | `template create --ai` |
-
-GitHub Copilot drafts Templates through an ephemeral Copilot Session with your locally signed-in Copilot account — it does not use a Connection Profile. GitHub Models, the previous AI provider, was fully retired by GitHub on 30 July 2026; see [Auth Guide - GitHub Models Retirement](./Auth-Guide.md#github-models-retirement).
+<!-- /atomize:section -->
 
 ---
 
@@ -133,7 +127,10 @@ Your Personal Access Token needs these scopes:
 |-------|--------------|----------|
 | Work Items | Read | ✅ Yes |
 | Work Items | Write | ✅ Yes |
-| Project and Team | Read | ⚪ Optional |
+| Project and Team | Read | For Grounding |
+| Wiki | Read | For wiki Reference Documents |
+
+See [Auth Guide - Required Permissions](./Auth-Guide.md#required-permissions) for when each scope is needed.
 
 **Minimum permissions:**
 - Read work items
@@ -274,6 +271,8 @@ filter:
 - `Microsoft.VSTS.Common.Activity` - Activity type
 - `Microsoft.VSTS.Common.BacklogPriority` - Backlog priority
 
+<!-- atomize:section platform-task-creation -->
+
 ### Task Creation
 
 When creating tasks, Atomize sets these fields:
@@ -309,18 +308,22 @@ Tasks are created as the `Task` work item type unless the Template sets `taskTyp
 
 When a Story has no estimate, or its value isn't covered by the conversion, its tasks are still created with blank estimates and a warning is reported. Set `ifParentHasNoEstimation: skip` to skip the Story instead, or `use-default` together with `defaultParentEstimation`.
 
-To write the estimate somewhere else, set `estimation.targetFields`. It replaces the default fields: the value is written as calculated, and `CompletedWork` is left alone. Target fields must be writable number fields that aren't picklists; Online Validation reports anything else as an error. The CLI wizard and Studio also leave out `System.*` fields and fields in `Microsoft.VSTS.Common.*` (priority, stack rank, business value, ...), because those don't hold effort. If you type one in, Online Validation warns.
+To write the estimate somewhere else, set `estimation.targetFields`. It replaces the default fields: the value is written as calculated, and `CompletedWork` is left alone. Target fields must be writable number fields that aren't picklists; Online Validation reports anything else as an error. When you pick target fields in the CLI wizard<!-- atomize:feature studio --> or Studio<!-- /atomize:feature -->, `System.*` fields and fields in `Microsoft.VSTS.Common.*` (priority, stack rank, business value, ...) are left out, because those don't hold effort. If you type one in, Online Validation warns.
 
-See the [estimation field reference](https://atomize-cd9.pages.dev/schema#template.estimation) for every option.
+See the [estimation field reference](https://atomize-docs.pages.dev/schema#template.estimation) for every option.
+
+<!-- /atomize:section -->
 
 ### Troubleshooting
+
+<!-- atomize:section platform-troubleshooting -->
 
 #### Authentication Failures
 
 **Problem:** `Authentication failed: 401 Unauthorized`
 
 **Solutions:**
-1. Verify PAT hasn't expired — rotate it with `atomize auth rotate <name>`
+1. Verify PAT hasn't expired: rotate it with `atomize auth rotate <name>`
 2. Check PAT has correct scopes (Work Items Read/Write)
 3. Verify organization URL format: `https://dev.azure.com/org`
 4. Don't include project in organization URL
@@ -355,8 +358,9 @@ See the [estimation field reference](https://atomize-cd9.pages.dev/schema#templa
 **Solutions:**
 1. Check network connectivity
 2. Verify organization URL is accessible
-3. Check if behind corporate proxy (configure proxy settings)
-4. Try with increased timeout
+3. Check whether a corporate proxy or firewall blocks your Azure DevOps organization
+
+<!-- /atomize:section -->
 
 ---
 
@@ -374,6 +378,8 @@ atomize template create --ai --ground --profile work-ado  # grounded with ADO co
 See [Template Creation - AI-Assisted Drafts](./Template-Creation.md#ai-assisted-drafts) for the full workflow.
 
 ---
+
+<!-- atomize:section platform-mock -->
 
 ## Mock Platform
 
@@ -459,6 +465,8 @@ atomize generate test-template.yaml --platform mock
       atomize generate "$template" --platform mock
     done
 ```
+
+<!-- /atomize:section -->
 
 ---
 
@@ -641,15 +649,15 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platf
 
 ## Platform Comparison
 
-| Feature | Azure DevOps | Mock | Jira | GitHub |
-|---------|--------------|------|------|--------|
-| Authentication | PAT | None | API Token | PAT |
-| Work Items | ✅ | ✅ | 🚧 | 🚧 |
-| Custom Fields | ✅ | ✅ | 🚧 | 🚧 |
-| Bulk Creation | ✅ | ✅ | 🚧 | 🚧 |
-| Work Item Links | ✅ | ✅ | 🚧 | 🚧 |
-| Query Language | WIQL | Simple | JQL | - |
-| Real-time | ✅ | ✅ | 🚧 | 🚧 |
+| Feature | Azure DevOps | Mock |
+|---------|--------------|------|
+| Authentication | PAT | None |
+| Work Items | ✅ | ✅ |
+| Custom Fields | ✅ | ✅ |
+| Bulk Creation | ✅ | ✅ |
+| Work Item Links | ✅ | ✅ |
+| Query Language | WIQL | Simple |
+| Real-time | ✅ | ✅ |
 
 ---
 
@@ -657,6 +665,6 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on submitting new platf
 
 - [Auth Guide](./Auth-Guide.md) - Credential storage, profile resolution, and CI/CD setup
 - [CLI Reference](./Cli-Reference.md) - Command-line usage
-- [Schema Reference](https://atomize-cd9.pages.dev/schema) - YAML fields and constraints
+- [Schema Reference](https://atomize-docs.pages.dev/schema) - YAML fields and constraints
 - [Template Reference](./Template-Reference.md) - Behaviour and worked examples
 - [Examples](../examples/) - Real-world examples

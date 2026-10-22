@@ -1,32 +1,25 @@
 formatVersion: "1.0"
 name: "Bug Fix"
-description: "Foundation for bug-fix templates. Extend this to inherit a standard investigation and fix task set."
+description: "Example fixed Task Estimates for investigation, fix, and verification. Copy or extend it to fit how your team handles bugs."
 author: "Atomize"
-tags: ["template", "bug"]
+tags: ["example", "bug"]
 
 filter:
   workItemTypes: ["Bug"]
-  states: ["New", "Active", "Committed"]
   excludeIfHasTasks: true
 
 tasks:
   - id: "investigate"
     title: "Investigate: ${story.title}"
     description: "Reproduce the bug, identify the root cause, and document findings."
-    estimationPercent: 30
+    estimationFixed: 1
     activity: "Requirements"
     assignTo: "@ParentAssignee"
-    estimationPercentCondition:
-      - condition:
-          field: "Priority"
-          operator: "lte"
-          value: 2
-        percent: 40
 
   - id: "fix"
     title: "Fix: ${story.title}"
     description: "Implement the fix for the identified root cause."
-    estimationPercent: 40
+    estimationFixed: 2
     activity: "Development"
     assignTo: "@ParentAssignee"
     dependsOn: ["investigate"]
@@ -34,21 +27,32 @@ tasks:
   - id: "verify"
     title: "Verify Fix: ${story.title}"
     description: "Verify the fix resolves the issue and does not introduce regressions."
-    estimationPercent: 20
+    estimationFixed: 1
     activity: "Testing"
+    assignTo: "@Unassigned"
     dependsOn: ["fix"]
 
   - id: "close"
-    title: "Close & Document: ${story.title}"
-    description: "Update documentation, close the bug, and notify stakeholders."
-    estimationPercent: 10
+    title: "Record Outcome: ${story.title}"
+    description: "Record the outcome and any follow-up information useful to your team."
+    estimationFixed: 0.5
     activity: "Documentation"
+    assignTo: "@ParentAssignee"
     dependsOn: ["verify"]
 
-estimation:
-  strategy: "percentage"
-  rounding: "none"
-  ifParentHasNoEstimation: "warn"
-
+# Fixed estimates use the Task's unit and do not depend on a Story Estimate.
+# These example limits check the fixed estimates, rather than a percentage total.
 validation:
-  totalEstimationMustBe: 100
+  minTasks: 1
+  maxTasks: 10
+  taskEstimationRange:
+    min: 0.5
+    max: 8
+
+metadata:
+  category: "Examples"
+  estimationGuidelines: "Fixed values are illustrative, in the Task unit (typically hours). They are independent of the Story Estimate and bypass percentage rounding."
+  notes: |
+    Copy and adapt the Work Item type, tasks, dependencies, and estimates.
+    Adapt the activity names to your project. Assignment tokens illustrate
+    inheriting the Story assignee and leaving verification unassigned.

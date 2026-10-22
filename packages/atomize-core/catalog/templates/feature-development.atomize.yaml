@@ -1,18 +1,17 @@
 formatVersion: "1.0"
 name: "Feature Development"
-description: "Foundation for feature development templates. Extend this to inherit a standard task set and filter."
+description: "Example feature task breakdown with dependencies. Copy or extend it and adapt the steps to your work."
 author: "Atomize"
-tags: ["template", "feature"]
+tags: ["example", "feature"]
 
 filter:
   workItemTypes: ["User Story"]
-  states: ["New", "Active", "Approved"]
   excludeIfHasTasks: true
 
 tasks:
   - id: "design"
     title: "Design: ${story.title}"
-    description: "Define the solution design, including API contracts, data models, and UI wireframes."
+    description: "Describe the intended outcome and an approach suited to this change."
     estimationPercent: 15
     activity: "Design"
     assignTo: "@ParentAssignee"
@@ -26,10 +25,11 @@ tasks:
     dependsOn: ["design"]
 
   - id: "review"
-    title: "Code Review: ${story.title}"
-    description: "Review the implementation for quality, maintainability, and adherence to standards."
+    title: "Review: ${story.title}"
+    description: "Review the change and address feedback relevant to your project."
     estimationPercent: 10
     activity: "Development"
+    assignTo: "@Unassigned"
     dependsOn: ["implement"]
 
   - id: "test"
@@ -37,13 +37,15 @@ tasks:
     description: "Write and execute tests to validate the feature against acceptance criteria."
     estimationPercent: 20
     activity: "Testing"
+    assignTo: "@Unassigned"
     dependsOn: ["implement"]
 
   - id: "deploy"
-    title: "Deploy: ${story.title}"
-    description: "Deploy to the target environment and verify the feature is live."
+    title: "Deliver: ${story.title}"
+    description: "Complete the handoff or release steps relevant to this change."
     estimationPercent: 5
     activity: "Development"
+    assignTo: "@ParentAssignee"
     dependsOn: ["test", "review"]
 
 estimation:
@@ -51,5 +53,17 @@ estimation:
   rounding: "none"
   ifParentHasNoEstimation: "warn"
 
+# Example authoring checks; adjust when adding or removing tasks or Mixins.
 validation:
   totalEstimationMustBe: 100
+  minTasks: 1
+  maxTasks: 10
+
+metadata:
+  category: "Examples"
+  estimationGuidelines: "The percentages are illustrative; adjust them to reflect your work."
+  notes: |
+    These steps demonstrate task dependencies, not a required delivery process.
+    Copy and adapt the Work Item type, tasks, dependencies, and estimates.
+    Activities and assignment tokens are examples. Match activities to your
+    project and choose which tasks inherit the Story assignee or stay unassigned.

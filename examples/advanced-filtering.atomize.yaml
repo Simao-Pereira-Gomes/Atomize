@@ -6,7 +6,7 @@ description: |
   team override.
 author: "Atomize"
 tags: ["demo", "filtering", "advanced"]
-# Each option below is independent — in a real template you would only use
+# Each option below is independent; in a real template you would only use
 # the subset that makes sense for your workflow.
 filter:
   # Override the team from the selected Azure DevOps profile
@@ -105,4 +105,4 @@ validation:
 
 metadata:
   category: "Demo"
-  estimationGuidelines: "Tasks here are illustrative — adjust percentages to fit your team's workflow."
+  estimationGuidelines: "Tasks here are illustrative: adjust percentages to fit your team's workflow."
