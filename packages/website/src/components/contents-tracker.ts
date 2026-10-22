@@ -1,4 +1,4 @@
-import { currentSection } from "../lib/current-section";
+import { currentSection, readingLineFor } from "../lib/current-section";
 
 /** The desktop list and mobile summary follow the same navigation and scroll rules. */
 class DocumentationContents extends HTMLElement {
@@ -22,11 +22,24 @@ class DocumentationContents extends HTMLElement {
       frame = 0;
       const headerHeight = document.querySelector("header")?.getBoundingClientRect().height ?? 0;
       const mobileHeight = document.querySelector('atomize-toc[data-mobile] summary')?.getBoundingClientRect().height ?? 0;
-      const atBottom = scrollY > 0 && Math.ceil(scrollY + innerHeight) >= document.documentElement.scrollHeight - 2;
-      const id = currentSection(sections.map(({ heading }) => ({ id: heading.id, top: heading.getBoundingClientRect().top })), headerHeight + mobileHeight + 32, atBottom, destination);
+      const distanceToBottom = document.documentElement.scrollHeight - innerHeight - scrollY;
+      const atBottom = scrollY > 0 && distanceToBottom <= 2;
+      const readingLine = scrollY > 0 ? readingLineFor(headerHeight + mobileHeight + 32, innerHeight, distanceToBottom, document.documentElement.scrollHeight - innerHeight) : headerHeight + mobileHeight + 32;
+      const id = currentSection(sections.map(({ heading }) => ({ id: heading.id, top: heading.getBoundingClientRect().top })), readingLine, atBottom, destination);
+      let changed: HTMLAnchorElement | undefined;
       for (const { link, heading } of sections) {
-        if (heading.id === id) link.setAttribute("aria-current", "true");
-        else link.removeAttribute("aria-current");
+        if (heading.id === id) {
+          if (link.getAttribute("aria-current") !== "true") changed = link;
+          link.setAttribute("aria-current", "true");
+        } else link.removeAttribute("aria-current");
+      }
+      // A long list scrolls inside its column; keep the highlighted item in view without moving the page.
+      const column = changed?.closest<HTMLElement>(".right-sidebar");
+      if (changed && column && column.scrollHeight > column.clientHeight) {
+        const item = changed.getBoundingClientRect();
+        const bounds = column.getBoundingClientRect();
+        if (item.bottom > bounds.bottom - 24) column.scrollTop += item.bottom - bounds.bottom + 24;
+        else if (item.top < bounds.top + headerHeight + 24) column.scrollTop -= bounds.top + headerHeight + 24 - item.top;
       }
       const label = this.querySelector("[data-current-label]");
       if (label) label.textContent = sections.find(section => section.heading.id === id)?.link.textContent ?? "";

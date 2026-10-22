@@ -57,7 +57,9 @@ h1 { letter-spacing: -.035em; }
 .documentation-build { font-size: .8125rem; color: var(--sl-color-gray-3); padding: 1rem .5rem 1.5rem; border-top: 1px solid var(--sl-color-hairline-light); margin-top: auto; }
 .documentation-build p { font-size: .75rem; margin-top: .25rem; }
 .documentation-build a { color: inherit; text-underline-offset: 3px; }
-.documentation-field-link { font-size: .875rem; padding: 1.25rem 0; margin: 1rem var(--sl-sidebar-pad-x); border-top: 1px solid var(--sl-color-hairline-light); }
+/* Line "On this page" up with the page's eyebrow label, and keep the reference note inside the column. */
+@media (min-width: 72rem) { .right-sidebar-panel { padding-top: 1.4rem; } }
+.documentation-field-link { max-width: calc(var(--sl-sidebar-width) - 2 * var(--sl-sidebar-pad-x)); font-size: .875rem; padding: 1.25rem 0; margin: 1rem var(--sl-sidebar-pad-x); border-top: 1px solid var(--sl-color-hairline-light); }
 .documentation-field-link a { display: block; margin-block: .5rem; color: var(--sl-color-text-accent); text-underline-offset: 3px; }
 .documentation-field-link small { display: block; color: var(--sl-color-gray-3); font-size: .75rem; }
 .sidebar-content { padding-top: 2rem; }
