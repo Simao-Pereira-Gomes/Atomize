@@ -149,4 +149,7 @@ jobs:
       - name: Run Bun audit
         # braces 3.0.3 is the latest release and remains required by the Tailwind CLI.
         # Remove this exception when https://github.com/micromatch/braces/issues/73 is resolved.
-        run: bun audit --audit-level=moderate --ignore GHSA-vfj7-8cjw-p6xm
+        # minimatch <11.0.1 (GHSA-g3hv-75wg-m249) is required by @vscode/vsce, whose latest release (4.1.0)
+        # still pins ^10. vsce only globs this repo's own files when packaging the extension.
+        # Remove this exception when @vscode/vsce accepts minimatch >=11.0.1.
+        run: bun audit --audit-level=moderate --ignore GHSA-vfj7-8cjw-p6xm --ignore GHSA-g3hv-75wg-m249
