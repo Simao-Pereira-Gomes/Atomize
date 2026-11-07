@@ -157,7 +157,8 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
         run: |
           echo "changes: $CHANGES_RESULT, Test & Lint matrix: $TEST_RESULT"
-          [ "$CHANGES_RESULT" = success ] || exit 1
+          # `changes` only runs on pull requests, so it is skipped for merge_group runs.
+          case "$CHANGES_RESULT" in success|skipped) ;; *) exit 1 ;; esac
           case "$TEST_RESULT" in success|skipped) ;; *) exit 1 ;; esac
 
   atomize-core:

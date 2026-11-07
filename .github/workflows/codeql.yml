@@ -21,6 +21,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect Rust changes
+    # The Rust scan takes minutes and only Studio's src-tauri crate is Rust, so a PR that doesn't
+    # touch it skips the scan. Pushes, merge groups and the weekly schedule always scan.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'packages/atomize-studio/src-tauri/**'
+              - '.github/workflows/codeql.yml'
+
   analyze:
     name: Analyze TypeScript
     runs-on: ubuntu-latest
@@ -49,6 +69,11 @@ jobs:
 
   analyze-rust:
     name: Analyze Rust
+    needs: changes
+    # Scan unless this is a PR whose change detection succeeded and found no Rust changes.
+    if: >-
+      always() &&
+      (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.rust == 'true')
     runs-on: ubuntu-latest
     permissions:
       security-events: write
