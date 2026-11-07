@@ -30,7 +30,7 @@ jobs:
           - name: Windows
             runner: windows-latest
           - name: macOS
-            runner: macos-14
+            runner: macos-15
     defaults:
       run:
         working-directory: packages/atomize-studio/src-tauri
