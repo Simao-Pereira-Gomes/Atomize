@@ -308,13 +308,13 @@ Tasks are created only after step 5.
 
 ### Follow progress or cancel
 
-While Tasks are created, Studio shows which Stories are in progress and how many are done, and lists each finished Story as it completes. **Cancel run (best-effort)** stops the run at the next batch boundary. Stories already in flight still complete, and anything already created in Azure DevOps is not rolled back.
+While Tasks are created, Studio shows which Stories are in progress and how many are done, and lists each finished Story as it completes. **Cancel run (best-effort)** stops the run as soon as the requests already sent come back: no further Story or Task is started. A Story that was being processed when you cancelled keeps the Tasks it already has, and the run's warnings say how many of its Tasks were created. Anything already created in Azure DevOps is not rolled back.
 
 ### Review results and recover
 
 The result lists each Story with the Tasks created for it; Story and Task numbers link to the Work Items in Azure DevOps. A failed Story shows its error.
 
-Studio stops at the first failing Story: Stories in the same batch still finish, but later Stories are not processed, and the result reads **Partially completed**. A run that fails or is cancelled shows what was created before it stopped. **Try again** returns to the Preview step. Check the result first: Tasks that were already created stay in Azure DevOps.
+Studio stops at the first failing Story: Stories already being processed still finish, but no further Story is started, and the result reads **Partially completed**. A run that fails or is cancelled shows what was created before it stopped. **Try again** returns to the Preview step. Check the result first: Tasks that were already created stay in Azure DevOps.
 
 <!-- /atomize:section -->
 

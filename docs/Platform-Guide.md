@@ -537,7 +537,7 @@ If the platform throttles clients, handle it inside the adapter so every request
 - Retry HTTP 429 after the `Retry-After` delay.
 - Retry 503 only for reads, because a write can return 503 after it was applied, and retrying it could create a duplicate Task.
 - Treat `Retry-After` on a successful response as a signal to slow down.
-- Once throttled, lower the number of requests in flight for the rest of the run.
+- Once throttled, lower the number of requests in flight until the platform has been quiet for a while (five minutes for Azure DevOps, matching its sliding rate-limit window). Hosts that reuse an adapter across runs carry that state over, which is intended: the limit is per user, not per run.
 
 ### Steps to Add a Platform
 

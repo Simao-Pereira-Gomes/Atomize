@@ -81,7 +81,7 @@ export interface AtomizationOptions {
   /** Fetch these specific work item IDs directly, bypassing the template filter (excludeIfHasTasks still applies) */
   storyIds?: string[];
 
-  /** Batch-level cancellation: checked between story batches and before each story starts. In-flight batches still complete — see ADR-0057. */
+  /** Cancels the run: no further Story or Task starts once aborted; requests already sent finish and created Tasks are kept (see ADR-0057). */
   signal?: AbortSignal;
 
   /**
@@ -254,7 +254,6 @@ export class Atomizer {
     );
     logger.debug(`Resolved ${orderedTasks.length} tasks in dependency order`);
 
-    // Process stories in parallel batches
     const storyConcurrency = options.storyConcurrency ?? 3;
     logger.info(
       `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,

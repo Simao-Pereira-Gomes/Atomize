@@ -435,8 +435,8 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
  * Wraps `Atomizer.atomize` for the Generate Area — one call for both Live Preview (`dryRun: true`)
  * and Execute (`dryRun: false`), see ADR-0055. The per-request `signal` (routed by Rust as a raw
  * `$/cancelRequest`, mirroring `validation.online`/`validation.cancel`) is passed straight into
- * `atomize()`'s options, so a caller-initiated cancel stops at the next batch boundary — see
- * ADR-0057. Stories whose batch was already in flight when cancel was requested still complete.
+ * `atomize()`'s options, so a caller-initiated cancel starts no further Story or Task — see
+ * ADR-0057. Requests already sent finish, and Tasks already created are kept.
  */
 export async function runGenerate(params: GenerateRunParams, library: SidecarTemplateLibrary, notify: SidecarServices["notify"], signal: AbortSignal): Promise<{ report: AtomizationReport }> {
   const template = await resolveGenerateTemplate(params.source, library);
