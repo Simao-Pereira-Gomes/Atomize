@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import {
-  applyProposalToYaml,
-  deriveImprovedCopy,
-} from "@sppg2001/atomize-core/services/template/template-writeback";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { TemplateDocument } from "@sppg2001/atomize-core/templates/template-document";
 import { parse } from "yaml";
 
 const SOURCE = `# Backend API Template — owned by the platform team
@@ -29,9 +26,9 @@ tasks:
 
 const source = parse(SOURCE) as TaskTemplate;
 
-describe("applyProposalToYaml", () => {
+describe("TemplateDocument.withValue", () => {
   test("returns the source text unchanged when the proposal changes nothing", () => {
-    expect(applyProposalToYaml(SOURCE, structuredClone(source))).toBe(SOURCE);
+    expect(TemplateDocument.parse(SOURCE).withValue(structuredClone(source)).toString()).toBe(SOURCE);
   });
 
   test("changes only the values that changed, keeping comments, quoting, and key order", () => {
@@ -39,7 +36,7 @@ describe("applyProposalToYaml", () => {
     proposal.tasks[0] = { ...proposal.tasks[0], title: "Implement the endpoint", estimationPercent: 60 } as TaskTemplate["tasks"][number];
     proposal.tasks[1] = { ...proposal.tasks[1], estimationPercent: 40 } as TaskTemplate["tasks"][number];
 
-    const text = applyProposalToYaml(SOURCE, proposal);
+    const text = TemplateDocument.parse(SOURCE).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text).toContain("# Backend API Template — owned by the platform team");
@@ -56,7 +53,7 @@ describe("applyProposalToYaml", () => {
     proposal.tasks.push({ id: "review", title: "Code review", estimationPercent: 10 } as TaskTemplate["tasks"][number]);
     proposal.tags = ["backend"];
 
-    const text = applyProposalToYaml(SOURCE, proposal);
+    const text = TemplateDocument.parse(SOURCE).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text).not.toContain("description:");
@@ -67,7 +64,7 @@ describe("applyProposalToYaml", () => {
     const proposal = structuredClone(source);
     proposal.tasks.reverse();
 
-    const text = applyProposalToYaml(SOURCE, proposal);
+    const text = TemplateDocument.parse(SOURCE).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text.indexOf("# Never skip this")).toBeLessThan(text.indexOf("# The core of the work"));
@@ -77,7 +74,7 @@ describe("applyProposalToYaml", () => {
     const fourSpaces = 'version: "1.0"\nname: X\nfilter:\n    workItemTypes:\n        - Bug\ntasks:\n    - title: A\n      estimationPercent: 100\n';
     const proposal = parse(fourSpaces) as TaskTemplate;
     proposal.name = "Y";
-    expect(applyProposalToYaml(fourSpaces, proposal)).toBe(fourSpaces.replace("name: X", "name: Y"));
+    expect(TemplateDocument.parse(fourSpaces).withValue(proposal).toString()).toBe(fourSpaces.replace("name: X", "name: Y"));
   });
 });
 
@@ -115,7 +112,7 @@ tasks:
     proposal.tasks[0] = { ...proposal.tasks[0], estimationPercent: 55 } as TaskTemplate["tasks"][number];
     proposal.tasks[1] = { ...proposal.tasks[1], estimationPercent: 25 } as TaskTemplate["tasks"][number];
 
-    const text = applyProposalToYaml(ANCHORED, proposal);
+    const text = TemplateDocument.parse(ANCHORED).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text).toContain("condition: &security");
@@ -127,7 +124,7 @@ tasks:
     conditionOf(proposal, 1).value = "auth";
     conditionOf(proposal, 2).value = "auth";
 
-    const text = applyProposalToYaml(ANCHORED, proposal);
+    const text = TemplateDocument.parse(ANCHORED).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text).toContain("condition: *security");
@@ -137,7 +134,7 @@ tasks:
     const proposal = fresh();
     conditionOf(proposal, 2).value = "auth";
 
-    const text = applyProposalToYaml(ANCHORED, proposal);
+    const text = TemplateDocument.parse(ANCHORED).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text).toContain("condition: &security");
@@ -148,7 +145,7 @@ tasks:
     const proposal = fresh();
     proposal.tasks = [taskAt(proposal, 0), taskAt(proposal, 2), taskAt(proposal, 1)];
 
-    const text = applyProposalToYaml(ANCHORED, proposal);
+    const text = TemplateDocument.parse(ANCHORED).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text).not.toContain("*security");
@@ -158,25 +155,73 @@ tasks:
     const proposal = fresh();
     proposal.tasks.splice(1, 1);
 
-    const text = applyProposalToYaml(ANCHORED, proposal);
+    const text = TemplateDocument.parse(ANCHORED).withValue(proposal).toString();
 
     expect(parse(text)).toEqual(proposal);
     expect(text).not.toContain("*security");
   });
 });
 
-describe("deriveImprovedCopy", () => {
-  const proposal = { ...source, origin: "template:base" } as TaskTemplate;
+describe("TemplateDocument round trip", () => {
+  const TEXT = `# Shared settings
+name: Round trip # trailing comment
+defaults: &defaults
+  priority: 2
+  tags: [api]
+tasks:
+  - id: a
+    title: A
+    estimationPercent: 50
+    extra: *defaults
+  - id: b
+    title: B
+    estimationPercent: 50
+    <<: *defaults
+`;
 
-  test("names the copy as improved and records the Catalog source as its origin", () => {
-    const copy = deriveImprovedCopy(proposal, { catalogRef: "template:backend-api" });
-    expect(copy.name).toBe("Backend API (improved)");
-    expect(copy.origin).toBe("template:backend-api");
+  test("serializes an unchanged document as the original text", () => {
+    expect(TemplateDocument.parse(TEXT).toString()).toBe(TEXT);
   });
 
-  test("leaves out origin for a standalone file", () => {
-    const copy = deriveImprovedCopy(proposal, {});
-    expect(copy).not.toHaveProperty("origin");
-    expect(copy.name).toBe("Backend API (improved)");
+  test("reads the value as YAML 1.2, keeping a merge key as an ordinary key", () => {
+    const value = TemplateDocument.parse(TEXT).toValue() as { tasks: Array<Record<string, unknown>> };
+    expect(value.tasks[0]?.extra).toEqual({ priority: 2, tags: ["api"] });
+    expect(value.tasks[1]?.["<<"]).toEqual({ priority: 2, tags: ["api"] });
+  });
+
+  test("writes a changed value while anchors, aliases, merge keys and comments survive", () => {
+    const value = TemplateDocument.parse(TEXT).toValue() as { name: string; tasks: Array<Record<string, unknown>> };
+    value.name = "Renamed";
+    (value.tasks[1] as Record<string, unknown>).estimationPercent = 40;
+    (value.tasks[0] as Record<string, unknown>).estimationPercent = 60;
+
+    const text = TemplateDocument.parse(TEXT).withValue(value).toString();
+
+    expect(text).toContain("name: Renamed # trailing comment");
+    expect(text).toContain("# Shared settings");
+    expect(text).toContain("defaults: &defaults");
+    expect(text).toContain("extra: *defaults");
+    expect(text).toContain("<<: *defaults");
+    expect(TemplateDocument.parse(text).toValue()).toEqual(value);
+  });
+
+  test("withValue leaves the original document unchanged", () => {
+    const original = TemplateDocument.parse(TEXT);
+    const value = original.toValue() as { name: string };
+    value.name = "Other";
+
+    original.withValue(value);
+
+    expect(original.toString()).toBe(TEXT);
+    expect((original.toValue() as { name: string }).name).toBe("Round trip");
+  });
+
+  test("throws on text that isn't valid YAML", () => {
+    expect(() => TemplateDocument.parse("name: [unclosed")).toThrow();
+  });
+
+  test("creates a document from a value for a file that doesn't exist yet", () => {
+    const text = TemplateDocument.create({ name: "New", tasks: [{ title: "A", estimationPercent: 100 }] }).toString();
+    expect(TemplateDocument.parse(text).toValue()).toEqual({ name: "New", tasks: [{ title: "A", estimationPercent: 100 }] });
   });
 });

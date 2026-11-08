@@ -1,4 +1,4 @@
-import { deriveImprovedCopy } from '@sppg2001/atomize-core/services/template/template-writeback';
+import { deriveImprovedCopy } from '@sppg2001/atomize-core/services/template/template-improvement';
 import type { TaskTemplate } from '@sppg2001/atomize-core/templates/schema';
 import { parse, stringify } from 'yaml';
 import { ATOMIZE_YAML_MODELINE } from './draft-document.js';

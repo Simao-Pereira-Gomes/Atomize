@@ -3,9 +3,10 @@ import { select, text } from "@clack/prompts";
 import { type AITemplateSession, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
 import { MAX_ATTEMPTS } from "@sppg2001/atomize-core/services/template/llm-template-generator";
 import type { DocumentGrounding } from "@sppg2001/atomize-core/services/template/reference-documents";
-import { applyProposalToYaml, deriveImprovedCopy } from "@sppg2001/atomize-core/services/template/template-writeback";
+import { deriveImprovedCopy } from "@sppg2001/atomize-core/services/template/template-improvement";
 import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { TemplateDocument } from "@sppg2001/atomize-core/templates/template-document";
 import { parseInstallScope, type TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
@@ -277,7 +278,7 @@ async function overwriteSource(proposal: TaskTemplate, ctx: SaveContext): Promis
   if (ctx.builtin) {
     throw new ConfigurationError("Built-in Templates can't be changed. Use --save-as <name> to save the improvement as a new Template.");
   }
-  await writeFile(ctx.sourcePath, applyProposalToYaml(ctx.sourceText, proposal), "utf8");
+  await writeFile(ctx.sourcePath, TemplateDocument.parse(ctx.sourceText).withValue(proposal).toString(), "utf8");
   output.success(`Saved the improvement to ${ctx.sourcePath}`);
   return { action: "overwrite", path: ctx.sourcePath };
 }

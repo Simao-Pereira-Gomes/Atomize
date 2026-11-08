@@ -69,6 +69,10 @@ _Avoid_: using "override" for lineage; lineage is derivation, not replacement.
 **Atomize YAML File**:
 Any YAML file authored for Atomize, either a Template or a Mixin.
 
+**Template Document**:
+An Atomize YAML File held as its YAML text rather than as the plain parsed object, so a changed value can be written back while its anchors, aliases, comments, quoting, key order and indentation survive.
+_Avoid_: re-stringifying the parsed object to save a Template; that drops all of the above.
+
 **Schema Reference**:
 The browsable, always-current account of what a valid Atomize YAML File may contain (every field's shape, type, requirement, default, allowed values, and the cross-field rules that apply to it) presented separately for Templates and Mixins. It answers "what is valid"; the Template Reference answers "what it means and how it behaves", and the two link to each other field by field.
 _Avoid_: "schema docs" or "schema viewer" for the concept; "the JSON Schema" is only the machine-readable artifact the editor uses.

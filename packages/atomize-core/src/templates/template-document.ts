@@ -1,32 +1,59 @@
-import { type Alias, type Document, isAlias, isMap, isScalar, isSeq, type Node, parseDocument, visit } from "yaml";
-import type { TaskTemplate } from "../../templates/schema";
+import { type Alias, Document, isAlias, isMap, isScalar, isSeq, type Node, parseDocument, visit } from "yaml";
 
-/**
- * Writes a Template Improvement back onto the Template's own YAML text. Unchanged content keeps its
- * comments, quoting, key order, and indentation; Tasks are matched by `id` (else `title`) so a Task
- * keeps its comment even when it moves, and an alias keeps pointing at its anchor while the proposal
- * still matches it. A proposal that changes nothing returns the text untouched.
- */
-export function applyProposalToYaml(sourceYaml: string, proposal: TaskTemplate): string {
-  const doc = parseDocument(sourceYaml);
-  if (deepEqual(doc.toJS(), proposal)) return sourceYaml;
-  const aliases = new Map<Alias, unknown>();
-  doc.contents = merge(doc, doc.contents, proposal, aliases) as typeof doc.contents;
-  expandStaleAliases(doc, aliases);
-  return doc.toString(detectIndentation(sourceYaml));
+interface Indentation {
+  indent: number;
+  indentSeq: boolean;
 }
 
 /**
- * The Template that "Save as new" writes: named as improved, with `origin` pointing at the source
- * when it is a Catalog item, and none for a standalone file (ADR-0010, ADR-0037).
+ * An Atomize YAML File held as its YAML document (see CONTEXT.md, Template Document), so a new value can
+ * be written back without losing what the plain parsed object drops: anchors and aliases, comments,
+ * quoting, key order and indentation.
+ *
+ * `withValue` changes only what differs: Tasks are matched by `id` (else `title`), so a Task keeps its
+ * comment even when it moves, and an alias keeps pointing at its anchor while the new value still
+ * matches it. A document whose value didn't change serializes as its original text. Atomize reads
+ * YAML 1.2, so a merge key (`<<`) is an ordinary key and is kept as written.
  */
-export function deriveImprovedCopy(proposal: TaskTemplate, source: { catalogRef?: string }): TaskTemplate {
-  const { origin: _origin, ...rest } = proposal;
-  return {
-    ...rest,
-    name: `${proposal.name} (improved)`,
-    ...(source.catalogRef ? { origin: source.catalogRef } : {}),
-  } as TaskTemplate;
+export class TemplateDocument {
+  private constructor(
+    private readonly doc: Document,
+    /** The text this document was parsed from, while its value hasn't changed. */
+    private readonly sourceText: string | undefined,
+    private readonly indentation: Indentation,
+  ) {}
+
+  /** Parses Atomize YAML File text, throwing the first YAML error, as `yaml.parse` does. */
+  static parse(text: string): TemplateDocument {
+    const doc = parseDocument(text);
+    const [error] = doc.errors;
+    if (error) throw error;
+    return new TemplateDocument(doc, text, detectIndentation(text));
+  }
+
+  /** A document for a value with no source text yet, such as a new Template. */
+  static create(value: unknown): TemplateDocument {
+    return new TemplateDocument(new Document(value), undefined, { indent: 2, indentSeq: true });
+  }
+
+  /** The document's content as plain values, with aliases resolved. */
+  toValue(): unknown {
+    return this.doc.toJS();
+  }
+
+  /** A document holding `value`, keeping this document's anchors, aliases and comments wherever they still apply. */
+  withValue(value: unknown): TemplateDocument {
+    if (deepEqual(this.toValue(), value)) return this;
+    const doc = this.doc.clone();
+    const aliases = new Map<Alias, unknown>();
+    doc.contents = merge(doc, doc.contents, value, aliases) as typeof doc.contents;
+    expandStaleAliases(doc, aliases);
+    return new TemplateDocument(doc, undefined, this.indentation);
+  }
+
+  toString(): string {
+    return this.sourceText ?? this.doc.toString(this.indentation);
+  }
 }
 
 function merge(doc: Document, node: unknown, value: unknown, aliases: Map<Alias, unknown>): Node {
@@ -77,8 +104,8 @@ function merge(doc: Document, node: unknown, value: unknown, aliases: Map<Alias,
 }
 
 /**
- * Keeps an alias (`*name`) only where its anchor still comes before it and still reads as the
- * proposed value, so a shared condition stays shared. Any other alias is written out in full.
+ * Keeps an alias (`*name`) only where its anchor still comes before it and still reads as the new
+ * value, so a shared condition stays shared. Any other alias is written out in full.
  */
 function expandStaleAliases(doc: Document, aliases: Map<Alias, unknown>): void {
   if (aliases.size === 0) return;
@@ -97,7 +124,7 @@ function expandStaleAliases(doc: Document, aliases: Map<Alias, unknown>): void {
   });
 }
 
-/** Whether an existing sequence item is the same item as a proposed one: same Task `id` or `title`, or same scalar. */
+/** Whether an existing sequence item is the same item as a new one: same Task `id` or `title`, or same scalar. */
 function sameItem(node: unknown, value: unknown): boolean {
   if (isScalar(node)) return node.value === value;
   if (!isMap(node) || !isPlainObject(value)) return false;
@@ -105,7 +132,7 @@ function sameItem(node: unknown, value: unknown): boolean {
   return value.title !== undefined && node.get("title") === value.title;
 }
 
-function detectIndentation(text: string): { indent: number; indentSeq: boolean } {
+function detectIndentation(text: string): Indentation {
   const lines = text.split(/\r?\n/);
   const firstIndented = lines.find((line) => /^ +\S/.test(line) && !line.trimStart().startsWith("#"));
   const indent = firstIndented ? firstIndented.length - firstIndented.trimStart().length : 2;
