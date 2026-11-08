@@ -353,7 +353,18 @@ export class Atomizer {
         onProgress?.({ type: "story_start", storyIndex, totalStories: stories.length, story });
 
         const onTaskCreated = onProgress
-          ? (task: WorkItem) => onProgress({ type: "task_created", task, story, storyIndex, totalStories: stories.length })
+          ? (task: WorkItem) => {
+              totalTasksCreated++;
+              onProgress({
+                type: "task_created",
+                task,
+                story,
+                storyIndex,
+                totalStories: stories.length,
+                completedStories,
+                tasksCreated: totalTasksCreated,
+              });
+            }
           : undefined;
 
         try {
@@ -367,7 +378,6 @@ export class Atomizer {
           );
           results[storyIndex] = result;
           completedStories++;
-          totalTasksCreated += result.tasksCreated.length;
 
           onProgress?.({
             type: "story_complete",

@@ -114,7 +114,7 @@ export function createProgressHandler(
         if (isTTYSession && storyProgressRef.current) {
           storyProgressRef.current.advance(
             0,
-            `${e.completedStories}/${e.totalStories} stories · ${e.tasksCreated} task${e.tasksCreated === 1 ? "" : "s"} created`,
+            `${e.completedStories ?? 0}/${e.totalStories} stories · ${e.tasksCreated ?? 0} task${e.tasksCreated === 1 ? "" : "s"} created`,
           );
         }
       })
@@ -146,7 +146,8 @@ export async function runAtomization(
         output.print,
         log.success,
         log.error,
-        (total) => progress({ max: total, style: "block" }),
+        // A narrower bar keeps the line within 80 columns; a wrapped line leaves stale copies behind.
+        (total) => progress({ max: total, style: "block", size: 30 }),
       );
 
   const report = await atomizer.atomize(template, {

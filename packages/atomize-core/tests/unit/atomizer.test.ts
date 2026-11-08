@@ -362,6 +362,23 @@ describe("Atomizer", () => {
       expect(createdTasks.length).toBeGreaterThan(0);
     });
 
+    test("task_created carries the running counts of completed Stories and created Tasks", async () => {
+      await platform.authenticate();
+
+      const events: Array<{ type: string; completedStories?: number; tasksCreated?: number }> = [];
+      const report = await atomizer.atomize(basicTemplate, {
+        dryRun: false,
+        storyConcurrency: 1,
+        onProgress: (event) => events.push(event),
+      });
+
+      const taskEvents = events.filter((event) => event.type === "task_created");
+      expect(taskEvents.map((event) => event.tasksCreated)).toEqual(taskEvents.map((_, index) => index + 1));
+      expect(taskEvents.every((event) => typeof event.completedStories === "number")).toBe(true);
+      const lastComplete = events.filter((event) => event.type === "story_complete").at(-1);
+      expect(lastComplete?.tasksCreated).toBe(report.tasksCreated);
+    });
+
     describe("storyIds option", () => {
       const minimalTemplate: TaskTemplate = {
         version: "1.0",
