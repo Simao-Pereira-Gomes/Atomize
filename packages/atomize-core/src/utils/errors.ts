@@ -82,10 +82,13 @@ export class CancellationError extends AtomizeError {
   }
 }
 
-/** A Generation Run hit its deadline; no new Story or Task work started after it. */
+/** A Generation Run made no progress for its stall deadline; no new Story or Task work started after it. */
 export class GenerationTimeoutError extends AtomizeError {
-  constructor(public readonly timeoutMs: number) {
-    super(AtomizeErrorCode.GenerationTimeoutError, `Generation timed out after ${formatDuration(timeoutMs)}. No new work was started after that.`);
+  constructor(public readonly stallTimeoutMs: number) {
+    super(
+      AtomizeErrorCode.GenerationTimeoutError,
+      `Generation timed out: no progress for ${formatDuration(stallTimeoutMs)}. No new work was started after that, and Tasks already created were kept.`,
+    );
   }
 }
 

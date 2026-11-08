@@ -3,7 +3,7 @@ import { logger } from "@config/logger";
 import {
   type AtomizationReport,
   Atomizer,
-  DEFAULT_GENERATION_TIMEOUT_MS,
+  DEFAULT_GENERATION_STALL_TIMEOUT_MS,
   type ProgressEvent,
 } from "@sppg2001/atomize-core/core/atomizer";
 import type {
@@ -151,7 +151,7 @@ export async function runAtomization(
       );
 
   const report = await atomizer.atomize(template, {
-    timeoutMs: DEFAULT_GENERATION_TIMEOUT_MS,
+    stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS,
     dryRun: opts.dryRun,
     continueOnError: opts.continueOnError,
     limit: opts.limit,

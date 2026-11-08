@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 import { Atomizer } from '@sppg2001/atomize-core';
-import { type AtomizationReport, DEFAULT_GENERATION_TIMEOUT_MS } from '@sppg2001/atomize-core/core/atomizer';
+import { type AtomizationReport, DEFAULT_GENERATION_STALL_TIMEOUT_MS } from '@sppg2001/atomize-core/core/atomizer';
 import { AuthError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
@@ -55,7 +55,7 @@ async function runLivePreview(
 		const adapter = await credentialResolver.resolveByName(profile);
 		const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
 		const atomizer = new Atomizer(adapter);
-		const report = await atomizer.atomize(template, { dryRun: true, storyIds: [storyId], timeoutMs: DEFAULT_GENERATION_TIMEOUT_MS });
+		const report = await atomizer.atomize(template, { dryRun: true, storyIds: [storyId], stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS });
 		return { report };
 	} catch (err) {
 		if (err instanceof AuthError) {

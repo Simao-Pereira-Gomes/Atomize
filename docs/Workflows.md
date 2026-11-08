@@ -235,7 +235,7 @@ Without an interactive terminal (a script or CI job), `--execute` refuses to run
 └  Refusing live execution without confirmation in non-interactive mode. Re-run with --auto-approve to acknowledge task creation.
 ```
 
-**When Tasks are created:** only with `--execute`, and only after you confirm or pass `--auto-approve`. Press Ctrl+C at any prompt to cancel. Once creation has started, interrupting the process stops it, but Tasks already created stay in Azure DevOps. A run that takes longer than five minutes stops the same way: no further Task is started, and `generate` reports the timeout.
+**When Tasks are created:** only with `--execute`, and only after you confirm or pass `--auto-approve`. Press Ctrl+C at any prompt to cancel. Once creation has started, interrupting the process stops it, but Tasks already created stay in Azure DevOps. A run that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops the same way: no further Task is started, and `generate` reports the timeout. A long run that keeps creating Tasks is never cut off.
 
 **Results and exit codes:** `generate` exits `0` when every Story succeeded (including a dry run), `1` when one or more Stories failed or the run was refused, `2` when no Stories matched, and `3` when authentication failed. By default the run stops after the first failing Story; pass `--continue-on-error` to keep processing the rest. To retry only the Stories that failed, re-run with `--story`; with `excludeIfHasTasks: true` in the Template, Stories that already received Tasks are skipped.
 

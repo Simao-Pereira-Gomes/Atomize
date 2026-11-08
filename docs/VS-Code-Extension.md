@@ -199,7 +199,7 @@ Runs the Generate Panel for the active Template. The panel first shows a dry-run
   <img alt="VS Code's confirmation dialog over the Generate Panel asking to create 6 tasks for 2 stories using the selected profile, with Cancel and Create Tasks buttons." src="../packages/website/public/vscode/generate-confirmation-light.png">
 </picture>
 
-Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created; there's no cancel action once creation starts. A run that takes longer than five minutes stops: no further Task is started, and the panel reports the timeout. The result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.
+Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created; there's no cancel action once creation starts. A long run is never cut off while it keeps creating Tasks; one that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops: no further Task is started, and the panel reports the timeout. The result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.
 
 The panel won't offer creation when the dry run can't support it:
 

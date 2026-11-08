@@ -85,10 +85,12 @@ export interface AtomizationOptions {
   signal?: AbortSignal;
 
   /**
-   * Deadline for the whole run. When it passes, the run's signal is aborted (so no new Story or
-   * Task work starts) and `atomize` rejects with a GenerationTimeoutError. No deadline when omitted.
+   * How long the run may go without progress (a Story query, Story or Task finishing) before it is
+   * given up as stuck: the run's signal is aborted, so no new Story or Task work starts, and `atomize`
+   * rejects with a GenerationTimeoutError. A run that keeps making progress never times out, however
+   * long it takes. No deadline when omitted.
    */
-  timeoutMs?: number;
+  stallTimeoutMs?: number;
 }
 
 /** What every Story in one run is processed with. */
@@ -103,8 +105,12 @@ interface StoryRun {
 /** Which Stories a run covers: specific Story IDs, or the Template's filter. */
 export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit">;
 
-/** The deadline surfaces use for an interactive Generation Run. */
-export const DEFAULT_GENERATION_TIMEOUT_MS = 5 * 60 * 1_000;
+/**
+ * The stall deadline surfaces use for an interactive Generation Run. Longer than the longest wait
+ * the Azure DevOps throttle makes before retrying (five minutes), so a throttled run isn't taken
+ * for a stuck one.
+ */
+export const DEFAULT_GENERATION_STALL_TIMEOUT_MS = 6 * 60 * 1_000;
 
 /**
  * Result for a single story
@@ -198,23 +204,36 @@ export class Atomizer {
     template: TaskTemplate,
     options: AtomizationOptions = {},
   ): Promise<AtomizationReport> {
-    const { timeoutMs } = options;
-    if (timeoutMs === undefined) return await this.run(template, options);
+    const { stallTimeoutMs } = options;
+    if (stallTimeoutMs === undefined) return await this.run(template, options);
 
     const deadline = new AbortController();
     const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const timedOut = new Promise<never>((_, reject) => {
+    let rejectStalled: (error: Error) => void = () => undefined;
+    const stalled = new Promise<never>((_, reject) => {
+      rejectStalled = reject;
+    });
+    // Every progress event pushes the deadline back, so only a run that has stopped moving times out.
+    const restartDeadline = () => {
+      if (deadline.signal.aborted) return;
+      clearTimeout(timer);
       timer = setTimeout(() => {
         deadline.abort();
-        reject(new GenerationTimeoutError(timeoutMs));
-      }, timeoutMs);
-    });
-    const run = this.run(template, { ...options, signal });
+        rejectStalled(new GenerationTimeoutError(stallTimeoutMs));
+      }, stallTimeoutMs);
+    };
+    const onProgress = (event: ProgressEvent) => {
+      restartDeadline();
+      options.onProgress?.(event);
+    };
+
+    restartDeadline();
+    const run = this.run(template, { ...options, signal, onProgress });
     // A run still winding down after the deadline settles later; its outcome is no longer reported.
     run.catch(() => undefined);
     try {
-      return await Promise.race([run, timedOut]);
+      return await Promise.race([run, stalled]);
     } finally {
       clearTimeout(timer);
     }
