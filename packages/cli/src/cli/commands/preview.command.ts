@@ -35,7 +35,7 @@ export const previewCommand = new Command("preview")
       if (options.inspect) {
         process.stdout.write(`${JSON.stringify(inspectTemplate(template), null, 2)}\n`);
       } else {
-        process.stdout.write(`${JSON.stringify(runPreview(template, options.mockStory??""), null, 2)}\n`);
+        process.stdout.write(`${JSON.stringify(await runPreview(template, options.mockStory ?? ""), null, 2)}\n`);
       }
     } catch (error) {
       process.stderr.write(

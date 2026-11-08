@@ -19,6 +19,9 @@ import type {
   WorkItem,
 } from "../../interfaces/work-item.interface";
 import { getMockStoryById, mockUserStories } from "./mock-data";
+import { MOCK_ESTIMATION_DEFAULTS } from "./mock-story.platform";
+
+export { MOCK_ESTIMATION_DEFAULTS };
 
 /** The mock team's current and next sprint, standing in for `@CurrentIteration` and `@CurrentIteration + 1`. */
 export const MOCK_CURRENT_AND_NEXT_SPRINT = ["Sprint 23", "Sprint 24"];
@@ -33,13 +36,6 @@ export const MOCK_WIKI_PAGES: Record<string, Record<string, string>> = {
   },
 };
 
-/** Mock Stories carry their Story Estimate in the platform-free `estimation` property. */
-export const MOCK_ESTIMATION_DEFAULTS: EstimationDefaults = {
-  storyEstimateFields: ["estimation"],
-  taskWorkItemType: "Task",
-  taskEstimateFields: ["estimation"],
-  unitLabel: "hours",
-};
 
 /**
  * Mock platform adapter for testing

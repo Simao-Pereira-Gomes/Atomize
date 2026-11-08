@@ -7,7 +7,7 @@ import { TemplateLibrary } from "../../atomize-core/src/templates/template-libra
 const root = new URL("../../../", import.meta.url);
 const { template } = await new TemplateLibrary().loadSource(fileURLToPath(new URL("packages/atomize-core/catalog/templates/backend-api.atomize.yaml", root)));
 const mock = { title: "Add password reset", estimation: 8, type: "User Story" };
-const preview = runPreview(template, JSON.stringify(mock));
+const preview = await runPreview(template, JSON.stringify(mock));
 const read = (path: string) => readFile(new URL(path, root), "utf8");
 
 test("CLI quickstart transcript matches the current built-in Template", async () => {
@@ -37,7 +37,7 @@ test("VS Code generation screenshot captions match two Stories with estimate 8",
 
 test("CLI dry-run transcript matches the current Task titles, estimates, and allocation", async () => {
   const markdown = await read("docs/Workflows.md");
-  const result = runPreview(template, JSON.stringify({ ...mock, title: "Implement user authentication API" }));
+  const result = await runPreview(template, JSON.stringify({ ...mock, title: "Implement user authentication API" }));
   expect(markdown).toContain(`Tasks calculated:  ${result.tasks.length}`);
   expect(markdown).toContain(`Tasks created:     ${result.tasks.length}`);
   expect(markdown).toContain(`Created ${result.tasks.length} tasks for 1 story.`);

@@ -116,6 +116,8 @@ export interface StoryAtomizationResult {
   error?: string;
   /** Present when the Story was skipped because its Story Estimate could not be resolved. */
   skipReason?: string;
+  /** Why the Story Estimate could not be resolved, and whether Task Estimates were left blank or the Story skipped. */
+  unresolvedEstimate?: { action: "blank" | "skip"; reason: string };
   /** Unit of the Task Estimates when they go to the platform's default fields (e.g. "hours"); absent when the unit is unknown. */
   estimateUnit?: string;
   /** The raw Story Estimate as read through the effective source (e.g. "L" from an overridden size field); absent when the Story has none. */

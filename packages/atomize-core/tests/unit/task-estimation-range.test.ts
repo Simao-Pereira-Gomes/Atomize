@@ -30,7 +30,7 @@ const issues = (tasks: unknown[], validation?: unknown) => {
 };
 
 describe("taskEstimationRange", () => {
-	test("rejects a supplied task percentage below or above its configured range", () => {
+	test("rejects a supplied task percentage below or above its configured range", async () => {
 		const errors = issues([
 			{ title: "Too small", estimationPercent: 5 },
 			{ title: "Too large", estimationPercent: 50 },
@@ -48,7 +48,7 @@ describe("taskEstimationRange", () => {
 		).toBe(true);
 	});
 
-	test("accepts inclusive bounds, fractional percentages, zero and 100", () => {
+	test("accepts inclusive bounds, fractional percentages, zero and 100", async () => {
 		expect(
 			issues([
 				{ title: "Minimum", estimationPercent: 10 },
@@ -72,7 +72,7 @@ describe("taskEstimationRange", () => {
 		).toEqual([]);
 	});
 
-	test("defers conditional overrides until the active allocation is known", () => {
+	test("defers conditional overrides until the active allocation is known", async () => {
 		const errors = issues([
 			{
 				title: "Variable",
@@ -86,7 +86,7 @@ describe("taskEstimationRange", () => {
 		expect(errors).toEqual([]);
 	});
 
-	test("does not reject a fallback that may not be used", () => {
+	test("does not reject a fallback that may not be used", async () => {
 		const errors = issues([
 			{
 				title: "Conditional",
@@ -98,7 +98,7 @@ describe("taskEstimationRange", () => {
 		expect(errors).toEqual([]);
 	});
 
-	test("does not invent percentages for unestimated or fixed-estimate tasks", () => {
+	test("does not invent percentages for unestimated or fixed-estimate tasks", async () => {
 		expect(
 			issues([
 				{ title: "Unestimated" },
@@ -111,7 +111,7 @@ describe("taskEstimationRange", () => {
 		).toEqual([]);
 	});
 
-	test("applies bounds to each repeated copy rather than multiplying its percentage", () => {
+	test("applies bounds to each repeated copy rather than multiplying its percentage", async () => {
 		expect(
 			issues([{ title: "Copies", estimationPercent: 20, repeat: 3 }]),
 		).toEqual([]);
@@ -122,7 +122,7 @@ describe("taskEstimationRange", () => {
 		).toEqual([["tasks", 0, "estimationPercent"]]);
 	});
 
-	test("remains opt-in and leaves Mixin checks to the composing Template", () => {
+	test("remains opt-in and leaves Mixin checks to the composing Template", async () => {
 		expect(issues([{ title: "Large", estimationPercent: 50 }], {})).toEqual([]);
 		expect(
 			MixinTemplateSchema.safeParse({
@@ -132,7 +132,7 @@ describe("taskEstimationRange", () => {
 		).toBe(true);
 	});
 
-	test("rejects a written 20% normalized to 100% and accepts four 50% tasks normalized to 25%", () => {
+	test("rejects a written 20% normalized to 100% and accepts four 50% tasks normalized to 25%", async () => {
 		const invalid = {
 			...template([{ title: "In range", estimationPercent: 20 }]),
 			estimation: { normalize: "always" },
@@ -155,7 +155,7 @@ describe("taskEstimationRange", () => {
 		).toBe(true);
 	});
 
-	test("checks the percentage rounding remainder for every repeated copy", () => {
+	test("checks the percentage rounding remainder for every repeated copy", async () => {
 		const result = TaskTemplateSchema.safeParse({
 			...template([{ title: "Copies", estimationPercent: 20, repeat: 3 }], {
 				taskEstimationRange: { min: 33, max: 33 },
@@ -185,7 +185,7 @@ describe("taskEstimationRange", () => {
 		}
 	});
 
-	test("preview checks the matching override after normalization and ignores skipped tasks", () => {
+	test("preview checks the matching override after normalization and ignores skipped tasks", async () => {
 		const input = TaskTemplateSchema.parse(
 			template([
 				{
@@ -200,15 +200,13 @@ describe("taskEstimationRange", () => {
 				},
 			]),
 		);
-		expect(() =>
-			runPreview(input, '{"priority":1,"estimation":10}'),
-		).not.toThrow();
+		await expect(runPreview(input, '{"priority":1,"estimation":10}')).resolves.toBeDefined();
 		input.estimation = {
 			strategy: "percentage",
 			rounding: "none",
 			normalize: "always",
 		};
-		expect(() => runPreview(input, '{"priority":1,"estimation":10}')).toThrow(
+		await expect(runPreview(input, '{"priority":1,"estimation":10}')).rejects.toThrow(
 			"Task allocation violates",
 		);
 		const validator = new TemplateValidator().validate(input, {
@@ -224,7 +222,7 @@ describe("taskEstimationRange", () => {
 		).toBe(true);
 	});
 
-	test("runtime applies the caller's normalization choice before checking bounds", () => {
+	test("runtime applies the caller's normalization choice before checking bounds", async () => {
 		const calc = new EstimationCalculator();
 		const tasks = Array.from({ length: 4 }, (_, i) => ({
 			title: `Task ${i}`,
@@ -279,7 +277,7 @@ describe("taskEstimationRange", () => {
 		expect(materializations).toBe(0);
 	});
 
-	test("authoring validation and preview use the same dependency order for percentage rounding", () => {
+	test("authoring validation and preview use the same dependency order for percentage rounding", async () => {
 		const input = template(
 			[
 				{ title: "Without ID", estimationPercent: 1 },
@@ -301,7 +299,7 @@ describe("taskEstimationRange", () => {
 			]);
 	});
 
-	test("rejects negative bounds, bounds above 100 and an inverted range", () => {
+	test("rejects negative bounds, bounds above 100 and an inverted range", async () => {
 		for (const range of [
 			{ min: -1, max: 20 },
 			{ min: 10, max: 101 },
@@ -314,7 +312,7 @@ describe("taskEstimationRange", () => {
 		}
 	});
 
-	test("Offline Validation rejects out-of-range percentages in either mode and provides a useful suggestion", () => {
+	test("Offline Validation rejects out-of-range percentages in either mode and provides a useful suggestion", async () => {
 		for (const mode of ["lenient", "strict"] as const) {
 			const result = new TemplateValidator().validate(
 				template([{ title: "Too large", estimationPercent: 50 }]),

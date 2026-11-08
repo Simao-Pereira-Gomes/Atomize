@@ -1,11 +1,9 @@
+import { Atomizer } from "../core/atomizer";
 import {
   extractCustomFieldRefs,
   extractStandardFieldRefs,
 } from "../core/condition-evaluator";
-import { DependencyResolver } from "../core/dependency-resolver";
-import { EstimationCalculator } from "../core/estimation-calculator";
-import { resolveEstimationFieldMapping } from "../core/estimation-field-mapping";
-import { MOCK_ESTIMATION_DEFAULTS } from "../platforms/adapters/mock/mock.adapter";
+import { MockStoryPlatform } from "../platforms/adapters/mock/mock-story.platform";
 import type { WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { FilterCriteria, TaskTemplate } from "./schema";
 
@@ -170,50 +168,47 @@ export function parseMockStory(json: string): WorkItem {
   return { ...MOCK_DEFAULTS, ...(parsed as Record<string, unknown>) } as WorkItem;
 }
 
-export function runPreview(template: TaskTemplate, mockStoryJson: string): PreviewResult {
+/**
+ * Mock Preview: a dry Generation Run of the Template against the Mock Story, so it produces
+ * the same Tasks, skipped Tasks and estimates a Live Preview of the same Story would.
+ */
+export async function runPreview(template: TaskTemplate, mockStoryJson: string): Promise<PreviewResult> {
   const story = parseMockStory(mockStoryJson);
-  const orderedTasks = new DependencyResolver().resolveDependencies(template.tasks);
-  const calc = new EstimationCalculator();
-
-  const fieldMapping = resolveEstimationFieldMapping(MOCK_ESTIMATION_DEFAULTS, {
-    source: template.estimation?.source,
-    targetFields: template.estimation?.targetFields,
+  const report = await new Atomizer(new MockStoryPlatform(story)).atomize(template, {
+    dryRun: true,
+    storyIds: [story.id],
   });
-  const { calculatedTasks, skippedTasks, unresolvedEstimate } = calc.calculateTasksWithSkipped(
-    story,
-    "",
-    orderedTasks,
-    template.estimation,
-    false,
-    fieldMapping,
-    template.validation?.taskEstimationRange,
-  );
+  const result = report.results[0];
+  if (!result) {
+    throw new Error("Mock Preview did not process the Mock Story.");
+  }
+  if (!result.success) {
+    throw new Error(result.error ?? "Mock Preview failed.");
+  }
 
-  const summary = calc.getEstimationSummary(story, calculatedTasks, template.estimation, fieldMapping);
-
-  const tasks: PreviewTask[] = calculatedTasks.map((task) => {
-    const result: PreviewTask = { title: task.title };
-    if (task.estimation !== undefined) result.estimation = task.estimation;
-    if (task.estimationPercent !== undefined) result.estimationPercent = task.estimationPercent;
-    if (task.dependsOn?.length) result.dependsOn = task.dependsOn;
-    if (task.tags?.length) result.tags = task.tags;
-    if (task.priority !== undefined) result.priority = task.priority;
-    if (task.activity !== undefined) result.activity = task.activity;
-    return result;
+  const tasks: PreviewTask[] = result.tasksCalculated.map((task) => {
+    const preview: PreviewTask = { title: task.title };
+    if (task.estimation !== undefined) preview.estimation = task.estimation;
+    if (task.estimationPercent !== undefined) preview.estimationPercent = task.estimationPercent;
+    if (task.dependsOn?.length) preview.dependsOn = task.dependsOn;
+    if (task.tags?.length) preview.tags = task.tags;
+    if (task.priority !== undefined) preview.priority = task.priority;
+    if (task.activity !== undefined) preview.activity = task.activity;
+    return preview;
   });
 
   return {
     tasks,
-    skippedTasks: skippedTasks.map((s) => ({
-      title: s.templateTask.title,
-      reason: s.reason,
+    skippedTasks: (result.tasksSkipped ?? []).map((skipped) => ({
+      title: skipped.templateTask.title,
+      reason: skipped.reason,
     })),
-    ...(unresolvedEstimate ? { unresolvedEstimate } : {}),
-    ...(fieldMapping.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
+    ...(result.unresolvedEstimate ? { unresolvedEstimate: result.unresolvedEstimate } : {}),
+    ...(result.estimateUnit ? { estimateUnit: result.estimateUnit } : {}),
     estimationSummary: {
-      storyEstimation: summary.storyEstimation,
-      totalTaskEstimation: summary.totalTaskEstimation,
-      percentageUsed: summary.percentageUsed,
+      storyEstimation: result.estimationSummary?.storyEstimation ?? 0,
+      totalTaskEstimation: result.estimationSummary?.totalTaskEstimation ?? 0,
+      percentageUsed: result.estimationSummary?.percentageUsed ?? 0,
     },
   };
 }
