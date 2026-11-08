@@ -103,7 +103,7 @@ tasks:
   // A proposal arrives as JSON, so its conditions never share an object the way parse() makes them.
   const fresh = () => JSON.parse(JSON.stringify(anchored)) as TaskTemplate;
   type Condition = { value: string };
-  const valueOf = (task: TaskTemplate["tasks"][number]) => (task.condition as unknown as Condition);
+  const conditionOf = (task: TaskTemplate["tasks"][number]) => (task.condition as unknown as Condition);
 
   test("keeps an alias the proposal doesn't change", () => {
     const proposal = fresh();
@@ -119,8 +119,8 @@ tasks:
 
   test("keeps the alias when the anchored value changes and the alias follows it", () => {
     const proposal = fresh();
-    valueOf(proposal.tasks[1]!).value = "auth";
-    valueOf(proposal.tasks[2]!).value = "auth";
+    conditionOf(proposal.tasks[1]!).value = "auth";
+    conditionOf(proposal.tasks[2]!).value = "auth";
 
     const text = applyProposalToYaml(ANCHORED, proposal);
 
@@ -130,7 +130,7 @@ tasks:
 
   test("writes an alias out in full when only that use changes", () => {
     const proposal = fresh();
-    valueOf(proposal.tasks[2]!).value = "auth";
+    conditionOf(proposal.tasks[2]!).value = "auth";
 
     const text = applyProposalToYaml(ANCHORED, proposal);
 

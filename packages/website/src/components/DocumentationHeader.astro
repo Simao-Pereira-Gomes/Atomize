@@ -2,9 +2,9 @@
 import Search from "@astrojs/starlight/components/Search.astro";
 import SiteTitle from "@astrojs/starlight/components/SiteTitle.astro";
 import SocialIcons from "@astrojs/starlight/components/SocialIcons.astro";
-import WebsiteThemeSelect from "./WebsiteThemeSelect.astro";
-import DocumentationSidebarToggle from "./DocumentationSidebarToggle.astro";
 import { documentationSection, sectionTabs } from "../lib/documentation";
+import DocumentationSidebarToggle from "./DocumentationSidebarToggle.astro";
+import WebsiteThemeSelect from "./WebsiteThemeSelect.astro";
 
 const section = documentationSection(Astro.url.pathname);
 ---

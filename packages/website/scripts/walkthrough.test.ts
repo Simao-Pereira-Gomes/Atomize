@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { TemplateLibrary } from "../../atomize-core/src/templates/template-library.ts";
 import { inspectTemplate, runPreview } from "../../atomize-core/src/templates/template-inspector.ts";
+import { TemplateLibrary } from "../../atomize-core/src/templates/template-library.ts";
 
 const root = new URL("../../../", import.meta.url);
 const { template } = await new TemplateLibrary().loadSource(fileURLToPath(new URL("packages/atomize-core/catalog/templates/backend-api.atomize.yaml", root)));

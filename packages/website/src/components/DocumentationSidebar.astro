@@ -2,6 +2,7 @@
 import Sidebar from "@astrojs/starlight/components/Sidebar.astro";
 import { buildInfo } from "../lib/build-info";
 import { documentationSection, sectionTabs } from "../lib/documentation";
+
 type Entry = (typeof Astro.locals.starlightRoute.sidebar)[number];
 type Link = Extract<Entry, { type: "link" }>;
 function flatten(entries: Entry[]): Link[] {

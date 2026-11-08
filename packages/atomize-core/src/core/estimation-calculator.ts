@@ -1,5 +1,5 @@
-import { match } from "ts-pattern";
 import { taskEstimationRangeViolations } from "@sppg2001/atomize-schema";
+import { match } from "ts-pattern";
 import { logger } from "../logger";
 import type {
   TaskDefinition as PlatformTaskDefinition,
@@ -7,8 +7,8 @@ import type {
 } from "../platforms/interfaces/work-item.interface";
 import type {
   EstimationConfig,
-  TaskDefinition as TemplateTaskDefinition,
   TaskTemplate,
+  TaskDefinition as TemplateTaskDefinition,
 } from "../templates/schema";
 import { getErrorMessage, TemplateValidationError } from "../utils/errors";
 import { ConditionEvaluator } from "./condition-evaluator.js";

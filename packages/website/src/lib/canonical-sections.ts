@@ -5,7 +5,7 @@ import type { Heading, Parent, Root, RootContent } from "mdast";
 import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 import type { Plugin as VitePlugin } from "vite";
-import { repositoryUrl, canonicalSections as sections, canonicalGuideUrl, schemaRoute } from "./documentation";
+import { canonicalGuideUrl, repositoryUrl, schemaRoute, canonicalSections as sections } from "./documentation";
 import { features, isPublished } from "./features";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
