@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
@@ -142,5 +143,24 @@ describe("TemplateCatalog project root discovery", () => {
 
     const items = await catalog.listTemplates();
     expect(items.map((item) => item.name)).toContain("team");
+  });
+});
+
+describe("a home folder reached through a symlink", () => {
+  test("is still the home folder, so it is never taken for a project", async () => {
+    const base = await mkdtemp(join(tmpdir(), "atomize-symlinked-home-"));
+    try {
+      const realHome = join(base, "real-home");
+      const linkedHome = join(base, "linked-home");
+      await mkdir(join(realHome, ".atomize", "catalog"), { recursive: true });
+      await symlink(realHome, linkedHome);
+
+      // HOME names the symlink; the shell's working directory is the real folder behind it.
+      expect(realpathSync(discoverWorkspaceRoot(realHome, linkedHome))).toBe(realpathSync(linkedHome));
+      expect(defaultCatalogScope(realHome, linkedHome)).toBe("user");
+      expect(new TemplateCatalog({ invocationCwd: realHome, homeDirectory: linkedHome }).hasProject).toBe(false);
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
   });
 });

@@ -31,6 +31,14 @@ describe("template list", () => {
     expect(byRef.get("mixin:proj-docs")?.template).toBeUndefined();
   });
 
+  test("--json from the home folder lists no project items, whatever path the home folder is reached by", async () => {
+    const { json, exitCode } = await ws.runJson<ListItem[]>(["template", "list", "--json"], { cwd: ws.home });
+
+    expect(exitCode).toBe(0);
+    expect(json.filter((item) => item.scope === "project").map((item) => item.ref)).toEqual([]);
+    expect(json.find((item) => item.ref === "template:user-child")?.scope).toBe("user");
+  });
+
   test("--type mixin lists only Mixins", async () => {
     const { json } = await ws.runJson<ListItem[]>(["template", "list", "--json", "--type", "mixin"]);
     expect(json.length).toBeGreaterThan(0);

@@ -10,7 +10,7 @@ import {
 } from "../../templates/schema";
 import { TemplateDocument } from "../../templates/template-document";
 import { loadYamlFile } from "../../templates/template-file";
-import { discoverWorkspaceRoot } from "./workspace-root";
+import { canonicalPath, discoverWorkspaceRoot } from "./workspace-root";
 
 export type TemplateCatalogKind = "template" | "mixin";
 export type TemplateCatalogScope = "builtin" | "user" | "project";
@@ -97,7 +97,7 @@ export class TemplateCatalog {
     const home = resolve(options?.homeDirectory ?? homedir());
     const userStateRoot = resolve(home, ".atomize");
     const workspaceRoot = resolve(discoverWorkspaceRoot(options?.invocationCwd, home));
-    this.hasProject = options?.projectRoot !== undefined || workspaceRoot !== home;
+    this.hasProject = options?.projectRoot !== undefined || canonicalPath(workspaceRoot) !== canonicalPath(home);
     const projectStateRoot = resolve(workspaceRoot, ".atomize");
     this.userRoot = options?.userRoot ?? resolve(userStateRoot, "catalog");
     this.projectRoot = options?.projectRoot ?? resolve(projectStateRoot, "catalog");
