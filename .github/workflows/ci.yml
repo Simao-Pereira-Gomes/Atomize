@@ -141,6 +141,26 @@ jobs:
           path: packages/cli/dist/
           retention-days: 7
 
+  # The ruleset requires this one check instead of the per-OS names: a skipped matrix job reports a
+  # single unexpanded "Test & Lint (${{ matrix.os }})" check, which would leave docs-only PRs blocked.
+  test-summary:
+    name: Test & Lint
+    needs: [changes, test]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    timeout-minutes: 5
+    steps:
+      - name: Check Test & Lint matrix result
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          echo "changes: $CHANGES_RESULT, Test & Lint matrix: $TEST_RESULT"
+          # `changes` only runs on pull requests, so it is skipped for merge_group runs.
+          case "$CHANGES_RESULT" in success|skipped) ;; *) exit 1 ;; esac
+          case "$TEST_RESULT" in success|skipped) ;; *) exit 1 ;; esac
+
   atomize-core:
     name: Atomize Core
     needs: changes
