@@ -331,3 +331,16 @@ describe("RequestThrottle recovery", () => {
     expect(throttle.currentLimit).toBe(Number.POSITIVE_INFINITY);
   });
 });
+
+describe("RequestThrottle unauthorized responses", () => {
+  test("reports a 401 without retrying it", async () => {
+    let unauthorized = 0;
+    const clock = fakeClock();
+    const throttle = new RequestThrottle({ sleep: clock.sleep, now: clock.now, onUnauthorized: () => unauthorized++ });
+
+    await expect(throttle.run(async () => { throw httpError(401); })).rejects.toThrow("HTTP 401");
+    await expect(throttle.run(async () => { throw httpError(403); })).rejects.toThrow("HTTP 403");
+
+    expect(unauthorized).toBe(1);
+  });
+});

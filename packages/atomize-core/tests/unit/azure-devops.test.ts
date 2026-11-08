@@ -227,6 +227,18 @@ describe("AzureDevOpsAdapter", () => {
       expect(mockWorkItemTrackingApi.queryByWiql).not.toHaveBeenCalled();
     });
 
+    test("stops reporting itself connected once a request comes back 401", async () => {
+      const adapter = new AzureDevOpsAdapter(validConfig);
+      await adapter.authenticate();
+      mockWorkItemTrackingApi.queryByWiql.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("TF400813: The user is not authorized"), { statusCode: 401 });
+      });
+
+      await expect(adapter.queryWorkItems({})).rejects.toThrow();
+
+      expect(adapter.getPlatformMetadata().connected).toBe(false);
+    });
+
     test("fails authentication when Azure DevOps rejects the credentials", async () => {
       mockWebApi.connect.mockImplementationOnce(async () => {
         throw Object.assign(new Error("TF400813: The user is not authorized"), { statusCode: 401 });

@@ -16,7 +16,8 @@ export interface AuthenticatedAdapterCacheOptions {
  * skips authentication's round trips and keeps the adapter's field-schema and state caches warm.
  *
  * A changed token, organization, project or team gets a fresh adapter, a failed authentication isn't
- * kept, and an adapter is re-authenticated after `ttlMs`. The token is hashed, never stored as a key.
+ * kept, and an adapter is re-authenticated after `ttlMs`, or as soon as it reports it's no longer
+ * connected (the Azure DevOps adapter does after any 401, such as a revoked PAT). The token is hashed, never stored as a key.
  */
 export class AuthenticatedAdapterCache {
   private readonly entries = new Map<string, { adapter: Promise<IPlatformAdapter>; createdAt: number }>();
@@ -30,10 +31,15 @@ export class AuthenticatedAdapterCache {
     this.create = options.create ?? ((config) => PlatformFactory.create("azure-devops", config));
   }
 
-  get(config: AzureDevOpsConfig): Promise<IPlatformAdapter> {
+  async get(config: AzureDevOpsConfig): Promise<IPlatformAdapter> {
     const key = cacheKey(config);
     const existing = this.entries.get(key);
-    if (existing && this.now() - existing.createdAt < this.ttlMs) return existing.adapter;
+    if (existing && this.now() - existing.createdAt < this.ttlMs) {
+      const adapter = await existing.adapter;
+      if (adapter.getPlatformMetadata?.().connected !== false) return adapter;
+      if (this.entries.get(key) === existing) this.entries.delete(key);
+      return this.get(config);
+    }
 
     const adapter = (async () => {
       const created = this.create(config);

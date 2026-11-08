@@ -17,6 +17,8 @@ export interface RequestThrottleOptions {
   maxRetryDelayMs?: number;
   /** After this long without a throttle signal the limit is lifted again (default 5 minutes). */
   recoverAfterMs?: number;
+  /** Called when Azure DevOps answers 401: the credentials were rejected (an expired or revoked PAT). */
+  onUnauthorized?: () => void;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
 }
@@ -52,6 +54,7 @@ export class RequestThrottle {
   private readonly baseRetryDelayMs: number;
   private readonly maxRetryDelayMs: number;
   private readonly recoverAfterMs: number;
+  private readonly onUnauthorized: (() => void) | undefined;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
 
@@ -60,6 +63,7 @@ export class RequestThrottle {
     this.baseRetryDelayMs = options.baseRetryDelayMs ?? 1000;
     this.maxRetryDelayMs = options.maxRetryDelayMs ?? 5 * 60_000;
     this.recoverAfterMs = options.recoverAfterMs ?? 5 * 60_000;
+    this.onUnauthorized = options.onUnauthorized;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? Date.now;
   }
@@ -79,6 +83,7 @@ export class RequestThrottle {
         return result;
       } catch (error) {
         const status = statusCodeOf(error);
+        if (status === 401) this.onUnauthorized?.();
         if (status === undefined || !retryStatuses.has(status) || attempt >= this.maxRetries) throw error;
         const delayMs = this.retryAfterMsOf(error) ?? this.baseRetryDelayMs * 2 ** attempt;
         this.onThrottled(cutsAtStart, delayMs);

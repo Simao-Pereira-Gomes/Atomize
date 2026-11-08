@@ -94,3 +94,30 @@ describe("AuthenticatedAdapterCache", () => {
     expect(cache.keys().some((key) => key.includes("secret-pat-value"))).toBe(false);
   });
 });
+
+describe("AuthenticatedAdapterCache after Azure DevOps rejects the credentials", () => {
+  test("authenticates again once a cached adapter reports it's no longer connected", async () => {
+    let authentications = 0;
+    const adapters: Array<{ connected: boolean }> = [];
+    const cache = new AuthenticatedAdapterCache({
+      create: () => {
+        const state = { connected: false };
+        adapters.push(state);
+        return {
+          authenticate: async () => {
+            authentications++;
+            state.connected = true;
+          },
+          getPlatformMetadata: () => ({ name: "Azure DevOps", version: "7.0", connected: state.connected }),
+        } as unknown as IPlatformAdapter;
+      },
+    });
+
+    const first = await cache.get(config());
+    (adapters[0] as { connected: boolean }).connected = false; // a request came back 401
+    const second = await cache.get(config());
+
+    expect(second).not.toBe(first);
+    expect(authentications).toBe(2);
+  });
+});

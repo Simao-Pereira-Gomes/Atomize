@@ -73,7 +73,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
   private connection?: azdev.WebApi;
   /** Shared by every Work Item Tracking request this adapter sends, so throttling slows the whole run. */
-  private readonly throttle = new RequestThrottle();
+  private readonly throttle = new RequestThrottle({
+    onUnauthorized: () => {
+      this.credentialsRejected = true;
+    },
+  });
+  /** Set when a request comes back 401, so a cache holding this adapter authenticates a fresh one. */
+  private credentialsRejected = false;
   private witApi?: IWorkItemTrackingApi;
   private authenticated = false;
   /** Read from the connection data fetched during authenticate(). */
@@ -439,7 +445,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       name: "Azure DevOps",
       version: "7.0",
       features: ["query", "create", "update", "delete", "relations"],
-      connected: this.authenticated,
+      connected: this.authenticated && !this.credentialsRejected,
     };
   }
 
