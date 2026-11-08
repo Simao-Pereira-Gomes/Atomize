@@ -165,3 +165,27 @@ function curate(grounding: ProjectGrounding, budget: (typeof BUDGETS)[number]) {
       : prompt,
   };
 }
+
+/** What the user chose after Project Grounding failed to load. */
+export type GroundingFailureChoice = "retry" | "ungrounded" | "cancel";
+
+/**
+ * Loads Grounding the user asked for, which never disappears silently (ADR-0069): when an attempt
+ * fails, `onFailure` gets the user-facing error and chooses to retry, continue ungrounded (null) or
+ * cancel (undefined). A caller that can't ask, such as a non-interactive run, throws from onFailure.
+ * `attempt` is one try (connect and fetch), wrapped in the surface's own progress UI.
+ */
+export async function withGroundingRecovery<T>(
+  attempt: () => Promise<T>,
+  onFailure: (error: ProjectGroundingError) => Promise<GroundingFailureChoice>,
+): Promise<T | null | undefined> {
+  while (true) {
+    try {
+      return await attempt();
+    } catch (error) {
+      const choice = await onFailure(toProjectGroundingError(error));
+      if (choice === "ungrounded") return null;
+      if (choice === "cancel") return undefined;
+    }
+  }
+}
