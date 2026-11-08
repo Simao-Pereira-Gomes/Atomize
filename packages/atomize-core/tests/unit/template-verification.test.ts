@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
+import { MOCK_ESTIMATION_DEFAULTS, MockPlatformAdapter } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 
@@ -91,5 +91,38 @@ describe("verifyTemplate", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.code === "SAVED_QUERY_NOT_FOUND"))
       .toBe(true);
+  });
+
+  test("reports project-reference issues on their own, apart from structural ones", async () => {
+    const template = withCustomField({ tasks: [{ title: "", estimationPercent: 100, customFields: { "Custom.ClientTier": "Enterprise" } }] });
+    const result = await verifyTemplate(template, {
+      project: {
+        mode: "online",
+        platform: { getFieldSchemas: async () => [], listSavedQueries: async () => [], getEstimationDefaults: () => MOCK_ESTIMATION_DEFAULTS },
+      },
+    });
+
+    expect(result.project?.errors.map((e) => e.code)).toEqual(["CUSTOM_FIELD_NOT_FOUND"]);
+    expect(result.errors.length).toBeGreaterThan(result.project?.errors.length ?? 0);
+  });
+
+  test("has no project section when project references were not checked", async () => {
+    expect((await verifyTemplate(makeTemplate())).project).toBeUndefined();
+  });
+
+  test("Online Validation against the Mock adapter flags a saved query and custom field the project lacks", async () => {
+    const template = withCustomField({ filter: { workItemTypes: ["User Story"], savedQuery: { path: "Shared Queries/Missing" } } });
+    const result = await verifyTemplate(template, { project: { mode: "online", platform: new MockPlatformAdapter() } });
+
+    expect(result.valid).toBe(false);
+    expect(result.project?.errors.map((e) => e.code).sort()).toEqual(["CUSTOM_FIELD_NOT_FOUND", "SAVED_QUERY_NOT_FOUND"]);
+  });
+
+  test("Offline Validation reports what it could not check without failing", async () => {
+    const template = withCustomField({ filter: { workItemTypes: ["User Story"], savedQuery: { path: "Shared Queries/Missing" } } });
+    const result = await verifyTemplate(template, { project: { mode: "offline" } });
+
+    expect(result.valid).toBe(true);
+    expect(result.project?.warnings.map((w) => w.path)).toContain("filter.savedQuery");
   });
 });

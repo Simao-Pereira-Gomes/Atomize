@@ -1,11 +1,8 @@
 import { logger } from "@config/logger";
 import type { EstimationDefaultsProvider } from "@sppg2001/atomize-core/platforms/interfaces/estimation-defaults.interface";
 import type { ProjectMetadataReader } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
-import {
-  analyzeTemplateProjectVerification,
-  verifyTemplateProject,
-} from "@sppg2001/atomize-core/templates/project-verifier";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { analyzeTemplateProjectVerification, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import chalk from "chalk";
 import {
   createCommandOutput,
@@ -31,10 +28,9 @@ export async function validateCustomFieldsPreFlight(
   const spinner = createManagedSpinner();
   spinner.start("Validating custom fields against ADO schema...");
 
-  const result = await verifyTemplateProject(template, {
-    mode: "online",
-    platform,
-  });
+  // The Template was validated when it was loaded; only its project references are new here.
+  const verification = await verifyTemplate(template, { project: { mode: "online", platform } });
+  const result = verification.project ?? { errors: [], warnings: [] };
 
   if (result.errors.length > 0) {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));

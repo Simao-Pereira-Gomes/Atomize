@@ -1,11 +1,13 @@
 import { logger } from "@config/logger";
-import type { CustomFieldVerificationSummary } from "@sppg2001/atomize-core/templates/custom-field-verifier";
-import { getCustomFieldVerificationSummary } from "@sppg2001/atomize-core/templates/custom-field-verifier";
-import { analyzeTemplateProjectVerification } from "@sppg2001/atomize-core/templates/project-verifier";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import type { CompositionMeta, ResolvedTemplateSource } from "@sppg2001/atomize-core/templates/template-library";
-import type { TemplateVerificationOptions } from "@sppg2001/atomize-core/templates/template-verification";
-import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
+import {
+  analyzeTemplateProjectVerification,
+  type CustomFieldVerificationSummary,
+  getCustomFieldVerificationSummary,
+  type TemplateVerificationOptions,
+  verifyTemplate,
+} from "@sppg2001/atomize-core/templates/template-verification";
 import type { ValidationOptions, ValidationResult, ValidationWarning } from "@sppg2001/atomize-core/templates/validator";
 import chalk from "chalk";
 import type { CommandOutput } from "@/cli/utilities/command-output";
