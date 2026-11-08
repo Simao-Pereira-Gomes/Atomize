@@ -3,6 +3,7 @@ import {
   extractCustomFieldRefs,
   extractStandardFieldRefs,
 } from "../core/condition-evaluator";
+import { silently } from "../logger";
 import { MockStoryPlatform } from "../platforms/adapters/mock/mock-story.platform";
 import type { WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { FilterCriteria, TaskTemplate } from "./schema";
@@ -174,10 +175,10 @@ export function parseMockStory(json: string): WorkItem {
  */
 export async function runPreview(template: TaskTemplate, mockStoryJson: string): Promise<PreviewResult> {
   const story = parseMockStory(mockStoryJson);
-  const report = await new Atomizer(new MockStoryPlatform(story)).atomize(template, {
-    dryRun: true,
-    storyIds: [story.id],
-  });
+  // The preview reports warnings and failures in its result, so the run's own log stays quiet.
+  const report = await silently(() =>
+    new Atomizer(new MockStoryPlatform(story)).atomize(template, { dryRun: true, storyIds: [story.id] }),
+  );
   const result = report.results[0];
   if (!result) {
     throw new Error("Mock Preview did not process the Mock Story.");

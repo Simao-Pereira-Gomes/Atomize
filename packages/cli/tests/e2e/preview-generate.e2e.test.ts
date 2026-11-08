@@ -42,9 +42,11 @@ async function generate(file: string, ...flags: string[]): Promise<{ report: Rep
 
 describe("preview --mock-story", () => {
   test("converts, distributes, repeats, conditions and fixes Task Estimates; stdout is only JSON", async () => {
-    const { json, exitCode } = await preview("features.atomize.yaml", { estimation: 5, tags: ["frontend", "security"], assignedTo: "dev@example.com" });
+    const { json, exitCode, stderr } = await preview("features.atomize.yaml", { estimation: 5, tags: ["frontend", "security"], assignedTo: "dev@example.com" });
 
     expect(exitCode).toBe(0);
+    // These Task Estimates add up to 21 of 20 hours, which a real run warns about; a preview stays quiet.
+    expect(stderr).toBe("");
     expect(estimates(json.tasks)).toEqual([
       ["Design Checkout", 4],
       ["Review (1)", 1],
@@ -112,7 +114,9 @@ describe("preview --mock-story", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
-    expect(result.stderr).toContain("taskEstimationRange");
+    // Only the error itself, not the run's own "Error processing story" log lines.
+    expect(result.stderr.trim().split("\n")).toHaveLength(1);
+    expect(result.stderr).toContain("Error: Task allocation violates validation.taskEstimationRange");
   });
 
   test("rejects a Mock Story that isn't a JSON object", async () => {
