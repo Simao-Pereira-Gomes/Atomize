@@ -19,13 +19,15 @@ export type ImproveState =
   | { phase: "cancelling"; choices: ImproveChoices }
   | { phase: "auth-error"; choices: ImproveChoices }
   | { phase: "grounding-error"; choices: ImproveChoices; message: string }
-  | { phase: "review"; choices: ImproveChoices; base: TaskTemplate; proposal: TaskTemplate; notes: string[]; problems: string[] };
+  | { phase: "review"; choices: ImproveChoices; base: TaskTemplate; proposal: TaskTemplate; notes: string[]; problems: string[]; warnings: string[] };
 
 export interface ImproveProposal {
   template: TaskTemplate;
   notes: string[];
   /** Problems Copilot couldn't fix; the proposal stays editable, like an AI draft (ADR-0062). */
   problems: string[];
+  /** Verification warnings on a valid proposal; worth a look but they don't block Accept. */
+  warnings: string[];
 }
 
 export type ImproveGrounding = { project?: unknown };
@@ -50,7 +52,7 @@ export function parseImproveResponse(value: unknown): ImproveProposal {
   const response = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
   if (!("template" in response)) throw new Error("The improvement response did not contain a Template.");
   const strings = (list: unknown) => (Array.isArray(list) ? list.filter((item): item is string => typeof item === "string") : []);
-  return { template: toAIDraftTemplate(response.template), notes: strings(response.notes), problems: strings(response.errors) };
+  return { template: toAIDraftTemplate(response.template), notes: strings(response.notes), problems: strings(response.errors), warnings: strings(response.warnings) };
 }
 
 /**
@@ -106,7 +108,7 @@ export function createImproveSession(deps: ImproveSessionDeps) {
       }
       const proposal = parseImproveResponse(await deps.improve(id, base, chosen.guidance, grounding));
       if (!lifecycle.isActive(id)) return;
-      setState({ phase: "review", choices: chosen, base, proposal: proposal.template, notes: proposal.notes, problems: proposal.problems });
+      setState({ phase: "review", choices: chosen, base, proposal: proposal.template, notes: proposal.notes, problems: proposal.problems, warnings: proposal.warnings });
     } catch (error) {
       if (!lifecycle.isActive(id)) return;
       const code = error instanceof SidecarRequestError ? error.code : "";

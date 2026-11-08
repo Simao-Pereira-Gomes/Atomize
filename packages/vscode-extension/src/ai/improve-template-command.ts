@@ -126,7 +126,8 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		proposalDoc.uri,
 		`${vscode.workspace.asRelativePath(doc.uri)} ↔ Copilot's proposal`,
 	);
-	void vscode.window.showInformationMessage(reviewMessage(result.notes, result.ok ? [] : result.errors));
+	const problems = result.ok ? (result.verification?.errors ?? []) : result.errors;
+	void vscode.window.showInformationMessage(reviewMessage(result.notes, problems, result.verification?.warnings ?? []));
 }
 
 /** Runs the improvement, resolving undefined when the user cancelled. */

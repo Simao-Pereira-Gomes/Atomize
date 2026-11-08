@@ -21,9 +21,10 @@ export function catalogRefFor(path: string, items: { kind: string; path: string;
 }
 
 /** The message shown beside the diff: how to finish the review, Copilot's notes, and anything still wrong. */
-export function reviewMessage(notes: string[], problems: string[]): string {
+export function reviewMessage(notes: string[], problems: string[], warnings: string[] = []): string {
 	const parts = ['Review the proposed changes, then choose Accept, Save as New Template, or Reject in the editor title bar.'];
 	if (notes.length > 0) parts.push(`Copilot's notes: ${notes.join(' • ')}`);
 	if (problems.length > 0) parts.push(`Still to fix: ${problems.join(' • ')}`);
+	if (warnings.length > 0) parts.push(`Warnings: ${warnings.join(' • ')}`);
 	return parts.join(' ');
 }

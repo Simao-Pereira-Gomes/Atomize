@@ -8,7 +8,6 @@ import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/wo
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { TemplateDocument } from "@sppg2001/atomize-core/templates/template-document";
 import { parseInstallScope, type TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
-import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { diffTemplates, type TemplateDiff } from "@sppg2001/atomize-schema";
 import chalk from "chalk";
@@ -142,7 +141,7 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
   const documentGrounding = await resolveReferenceDocuments(options, { interactive, connect: deps.connect, ...(deps.cwd ? { cwd: deps.cwd } : {}) });
 
   while (true) {
-    const { result, notes } = await propose(deps, authored, loaded.template, guidance, { ...grounding, documentGrounding }, sourcePath);
+    const { result, notes } = await propose(deps, authored, loaded.template, guidance, { ...grounding, documentGrounding }, sourcePath, options.strict === true);
     const report: ImproveReport = {
       template: label,
       ok: false,
@@ -157,10 +156,7 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
     };
 
     if (result.ok) {
-      const verification = await verifyTemplate(await library.composeTemplate(result.template, sourcePath));
-      const warnings = verification.warnings.map((w) => `${w.path}: ${w.message}`);
-      const errors = [...verification.errors.map((e) => `${e.path}: ${e.message}`), ...(options.strict ? warnings : [])];
-      report.validation = { valid: errors.length === 0, errors, warnings };
+      report.validation = result.verification ?? report.validation;
       report.diff = diffTemplates(authored, result.template);
     }
 
@@ -194,6 +190,7 @@ async function propose(
   guidance: string | null,
   grounding: ImproveGrounding & { documentGrounding: DocumentGrounding | null },
   sourcePath: string,
+  strict: boolean,
 ) {
   const session = await deps.openSession();
   const spinner = createManagedSpinner();
@@ -207,6 +204,7 @@ async function propose(
       projectGrounding: grounding.projectGrounding,
       documentGrounding: grounding.documentGrounding,
       compose: (proposal) => deps.library.composeTemplate(proposal, sourcePath),
+      strict,
     }, {
       onChunk: (chunk) => {
         received += chunk.length;

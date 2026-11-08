@@ -138,13 +138,19 @@ export function ImproveWithAI(props: { stores: SectionStores; ready: Accessor<bo
                             <ul class="mt-2 list-disc space-y-1 pl-5"><For each={current().problems}>{(problem) => <li>{problem}</li>}</For></ul>
                           </section>
                         </Show>
+                        <Show when={current().warnings.length > 0}>
+                          <section>
+                            <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Warnings</h3>
+                            <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200"><For each={current().warnings}>{(warning) => <li>{warning}</li>}</For></ul>
+                          </section>
+                        </Show>
                         <Show when={current().notes.length > 0}>
                           <section>
                             <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Notes from Copilot</h3>
                             <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200"><For each={current().notes}>{(note) => <li>{note}</li>}</For></ul>
                           </section>
                         </Show>
-                        <Show when={current().problems.length === 0 && current().notes.length === 0}>
+                        <Show when={current().problems.length === 0 && current().warnings.length === 0 && current().notes.length === 0}>
                           <p class="text-sm text-slate-500 dark:text-slate-400">Copilot left no notes.</p>
                         </Show>
                       </aside>

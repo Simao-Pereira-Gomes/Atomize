@@ -79,5 +79,10 @@ describe('reviewMessage', () => {
 		const message = reviewMessage([], []);
 		expect(message).not.toContain('notes');
 		expect(message).not.toContain('Still to fix');
+		expect(message).not.toContain('Warnings');
+	});
+
+	it('lists verification warnings apart from problems', () => {
+		expect(reviewMessage([], [], ['tasks: Estimation percentages total 120%'])).toContain('Warnings: tasks: Estimation percentages total 120%');
 	});
 });

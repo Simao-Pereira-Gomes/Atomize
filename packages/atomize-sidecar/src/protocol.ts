@@ -203,17 +203,27 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
  * A Template Improvement of the Template open in Studio. Studio flattens `extends` and Mixins when
  * it loads a Template (ADR-0048), so the authored Template is also its Resolved Template.
  */
-async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; notes: string[]; errors?: string[] }> {
+async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; notes: string[]; errors?: string[]; warnings?: string[] }> {
   const template = params.template as TaskTemplate;
   const result = await withAISession(params.draftId, services, (session, options) =>
     improveTemplate(session, {
       template,
+      // Studio flattens extends and Mixins when it opens a Template (ADR-0048), so there's nothing
+      // to compose: the Template is its own Resolved Template and is verified as it stands.
       resolvedTemplate: template,
       guidance: params.guidance ?? null,
       projectGrounding: (params.grounding as ProjectGrounding | undefined) ?? null,
       documentGrounding: (params.documentGrounding as DocumentGrounding | undefined) ?? null,
     }, options));
-  if (result.ok) return { template: result.template as unknown as Record<string, unknown>, notes: result.notes };
+  if (result.ok) {
+    const verification = result.verification;
+    return {
+      template: result.template as unknown as Record<string, unknown>,
+      notes: result.notes,
+      ...(verification && verification.errors.length > 0 ? { errors: verification.errors } : {}),
+      ...(verification && verification.warnings.length > 0 ? { warnings: verification.warnings } : {}),
+    };
+  }
   if (result.template) return { template: result.template, notes: result.notes, errors: result.errors };
   throw Object.assign(new Error("Copilot did not return a usable proposal. Your Template is unchanged."), { code: "AI_DRAFT_MALFORMED" });
 }

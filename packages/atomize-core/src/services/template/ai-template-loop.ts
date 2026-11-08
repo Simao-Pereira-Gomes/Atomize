@@ -1,5 +1,6 @@
 import { parse as parseYaml } from "yaml";
 import { CURRENT_TEMPLATE_FORMAT_VERSION, type TaskTemplate } from "../../templates/schema";
+import { verifyTemplate } from "../../templates/template-verification";
 import { CancellationError } from "../../utils/errors";
 import {
   buildReferenceDocumentsSection,
@@ -89,8 +90,16 @@ function withFormatVersion<T extends { formatVersion?: unknown }>(template: T): 
   return { formatVersion: formatVersion ?? CURRENT_TEMPLATE_FORMAT_VERSION, ...rest } as T;
 }
 
-/** A Template Improvement: the proposal (or the last failed attempt) plus the AI's notes. */
-export type ImproveResult = AITemplateLoopResult & { notes: string[] };
+/** How a valid proposal fares in verifyTemplate, as it will run; the same check on every surface. */
+export interface ImproveVerification {
+  valid: boolean;
+  /** "path: message" lines; under `strict`, the warnings too. */
+  errors: string[];
+  warnings: string[];
+}
+
+/** A Template Improvement: the proposal (or the last failed attempt), the AI's notes, and a valid proposal's verification. */
+export type ImproveResult = AITemplateLoopResult & { notes: string[]; verification?: ImproveVerification };
 
 /**
  * Proposes a Template Improvement. The proposal is judged against the Resolved Template, validated
@@ -123,7 +132,17 @@ export async function improveTemplate(
       return parsed ? prepare(parsed).proposal : undefined;
     },
   }, options);
-  return { ...result, notes };
+  if (!result.ok) return { ...result, notes };
+  return { ...result, notes, verification: await verifyProposal(result.template, request) };
+}
+
+async function verifyProposal(proposal: TaskTemplate, request: ImproveRequest): Promise<ImproveVerification> {
+  const composed = request.compose ? await request.compose(proposal as unknown as Record<string, unknown>) : proposal;
+  const verification = await verifyTemplate(composed);
+  const line = (issue: { path: string; message: string }) => `${issue.path}: ${issue.message}`;
+  const warnings = verification.warnings.map(line);
+  const errors = [...verification.errors.map(line), ...(request.strict ? warnings : [])];
+  return { valid: errors.length === 0, errors, warnings };
 }
 
 interface AttemptPlan {
