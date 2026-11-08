@@ -45,6 +45,7 @@ import type {
   ReferencesLoadParams,
   ReferencesLoadResult,
   ReferencesSaveParams,
+  SidecarError,
   SidecarMethod,
   SidecarNotifications,
   SidecarResult,
@@ -57,8 +58,21 @@ import type {
  */
 const adapters = new AuthenticatedAdapterCache();
 
+/** An authenticated adapter for a Connection Profile's connection, reused while its token works. */
+function connectTo(connection: GroundingConnection): Promise<IPlatformAdapter> {
+  return adapters.get(buildAzureDevOpsConfig(connection, connection.token));
+}
+
+/**
+ * A request failure for Studio. `tokenRejected` tells the Rust relay that Azure DevOps refused the
+ * Connection Profile's token, so it forgets the cached one; it is the contract, not the code's wording.
+ */
+function sidecarFailure(code: string, message: string, tokenRejected = false): Error {
+  return Object.assign(new Error(message), { code, ...(tokenRejected ? { tokenRejected: true } : {}) });
+}
+
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
-export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
+export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: SidecarError };
 export type RpcNotification = {
   [M in keyof SidecarNotifications]: SidecarNotifications[M] extends undefined
     ? { jsonrpc: "2.0"; method: M }
@@ -139,21 +153,19 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 
 export async function validateOnline(params: OnlineValidationParams, signal: AbortSignal): Promise<TemplateVerificationResult> {
   try {
-    const adapter = await abortable(adapters.get(buildAzureDevOpsConfig(params.connection, params.connection.token)), signal);
+    const adapter = await abortable(connectTo(params.connection), signal);
     return await abortable(verifyTemplate(params.template, {
       project: { mode: "online", platform: projectVerificationPlatform(adapter) },
     }), signal);
   } catch (error) {
     if (signal.aborted) throw error;
-    const message = getErrorMessage(error);
-    const code = error instanceof AuthError || /authentication failed|access denied/i.test(message)
-      ? (/token.*expired|personal access token.*expired/i.test(message) ? "VALIDATION_TOKEN_EXPIRED" : "VALIDATION_AUTH_FAILED")
-      : "ONLINE_VALIDATION_FAILED";
-    throw Object.assign(new Error(code === "VALIDATION_TOKEN_EXPIRED"
-      ? "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again."
-      : code === "VALIDATION_AUTH_FAILED"
-        ? "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again."
-        : "Atomize could not validate this Template against Azure DevOps. Check the connection and try again."), { code });
+    throw classifyAdapterError(error, {
+      tokenExpired: "VALIDATION_TOKEN_EXPIRED",
+      authFailed: "VALIDATION_AUTH_FAILED",
+      failed: "ONLINE_VALIDATION_FAILED",
+      message: "Atomize could not validate this Template against Azure DevOps. Check the connection and try again.",
+      detail: false,
+    });
   }
 }
 
@@ -278,11 +290,11 @@ const GROUNDING_MESSAGES: Record<ProjectGroundingErrorCode, string> = {
 
 export async function fetchGrounding(connection: GroundingConnection): Promise<ProjectGrounding> {
   try {
-    const adapter = await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
+    const adapter = await connectTo(connection);
     return await fetchProjectGrounding(adapter);
   } catch (error) {
     const { code } = toProjectGroundingError(error);
-    throw Object.assign(new Error(GROUNDING_MESSAGES[code]), { code });
+    throw sidecarFailure(code, GROUNDING_MESSAGES[code], code !== "GROUNDING_FETCH_FAILED");
   }
 }
 
@@ -313,7 +325,7 @@ export async function loadReferences(params: ReferencesLoadParams): Promise<Refe
     wiki: async () => {
       const connection = params.connection;
       if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
-      return await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
+      return await connectTo(connection);
     },
   });
   const reported = skipped.map(({ entry, message }) => ({ entry, message }));
@@ -333,7 +345,7 @@ export async function listWikiPages(params: WikiPagesParams): Promise<{ paths: s
 
 async function withWikiAdapter<T>(connection: GroundingConnection, run: (platform: IPlatformAdapter) => Promise<T>): Promise<T> {
   try {
-    const platform = await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
+    const platform = await connectTo(connection);
     return await run(platform);
   } catch (error) {
     throw Object.assign(new Error(getErrorMessage(error)), { code: error instanceof ReferenceDocumentError ? error.code : "WIKI_READ_FAILED" });
@@ -375,34 +387,47 @@ async function resolveGenerateTemplate(source: string, library: SidecarTemplateL
   }
 }
 
-export function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: string, authFailedCode: string, defaultCode: string, defaultMessage: string): { code: string; message: string } {
+/** The codes and wording for one kind of request that talks to Azure DevOps. */
+type AdapterFailureCodes = {
+  tokenExpired: string;
+  authFailed: string;
+  failed: string;
+  /** The general message, ending "Check the connection and try again." */
+  message: string;
+  /** Add a platform or configuration error's own (sanitised) detail; on by default. */
+  detail?: boolean;
+};
+
+/** Classifies an Azure DevOps failure; an expired or refused token is marked tokenRejected. */
+export function classifyAdapterError(error: unknown, codes: AdapterFailureCodes): Error {
   const message = getErrorMessage(error);
   if (error instanceof AuthError || /authentication failed|access denied/i.test(message)) {
     return /token.*expired|personal access token.*expired/i.test(message)
-      ? { code: tokenExpiredCode, message: "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again." }
-      : { code: authFailedCode, message: "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again." };
+      ? sidecarFailure(codes.tokenExpired, "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again.", true)
+      : sidecarFailure(codes.authFailed, "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again.", true);
   }
   // AzureDevOpsAdapter constructs PlatformError messages from its sanitised REST response. They
   // identify template rules, missing fields, and permission failures without exposing the PAT.
-  if (error instanceof PlatformError || error instanceof ConfigurationError) {
-    return {
-      code: defaultCode,
-      message: `${defaultMessage.replace(/\. Check the connection and try again\.$/, "")}: ${message}`,
-    };
+  if (codes.detail !== false && (error instanceof PlatformError || error instanceof ConfigurationError)) {
+    return sidecarFailure(codes.failed, `${codes.message.replace(/\. Check the connection and try again\.$/, "")}: ${message}`);
   }
-  return { code: defaultCode, message: defaultMessage };
+  return sidecarFailure(codes.failed, codes.message);
 }
 
 /** The Stories a filter-scoped Generate run would process, for the Generate Area's Story browser — see ADR-0056 (Generate Scope via Story browser). */
 export async function queryGenerateStories(params: GenerateQueryStoriesParams, library: SidecarTemplateLibrary): Promise<{ stories: WorkItem[] }> {
   const template = await resolveGenerateTemplate(params.source, library);
   try {
-    const adapter = await adapters.get(buildAzureDevOpsConfig(params.connection, params.connection.token));
+    const adapter = await connectTo(params.connection);
     const stories = await new Atomizer(adapter).queryStories(template);
     return { stories };
   } catch (error) {
-    const classified = classifyGenerateAdapterError(error, "GENERATE_TOKEN_EXPIRED", "GENERATE_AUTH_FAILED", "GENERATE_QUERY_FAILED", "Atomize could not fetch Stories from Azure DevOps. Check the connection and try again.");
-    throw Object.assign(new Error(classified.message), { code: classified.code });
+    throw classifyAdapterError(error, {
+      tokenExpired: "GENERATE_TOKEN_EXPIRED",
+      authFailed: "GENERATE_AUTH_FAILED",
+      failed: "GENERATE_QUERY_FAILED",
+      message: "Atomize could not fetch Stories from Azure DevOps. Check the connection and try again.",
+    });
   }
 }
 
@@ -416,7 +441,7 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
 export async function runGenerate(params: GenerateRunParams, library: SidecarTemplateLibrary, notify: SidecarServices["notify"], signal: AbortSignal): Promise<{ report: AtomizationReport }> {
   const template = await resolveGenerateTemplate(params.source, library);
   try {
-    const adapter = await abortable(adapters.get(buildAzureDevOpsConfig(params.connection, params.connection.token)), signal);
+    const adapter = await abortable(connectTo(params.connection), signal);
     const atomizer = new Atomizer(adapter);
     const report = await atomizer.atomize(template, {
       dryRun: params.dryRun,
@@ -428,8 +453,12 @@ export async function runGenerate(params: GenerateRunParams, library: SidecarTem
     return { report };
   } catch (error) {
     if (signal.aborted) throw error;
-    const classified = classifyGenerateAdapterError(error, "GENERATE_TOKEN_EXPIRED", "GENERATE_AUTH_FAILED", "GENERATE_RUN_FAILED", "Atomize could not complete this Generate run. Check the connection and try again.");
-    throw Object.assign(new Error(classified.message), { code: classified.code });
+    throw classifyAdapterError(error, {
+      tokenExpired: "GENERATE_TOKEN_EXPIRED",
+      authFailed: "GENERATE_AUTH_FAILED",
+      failed: "GENERATE_RUN_FAILED",
+      message: "Atomize could not complete this Generate run. Check the connection and try again.",
+    });
   }
 }
 
@@ -620,6 +649,12 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
   return await (handlers[request.method] as Handler<SidecarMethod>)(request.params, services, signal);
 }
 
+function toSidecarError(error: unknown): SidecarError {
+  const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "SIDECAR_REQUEST_FAILED";
+  const tokenRejected = error instanceof Error && "tokenRejected" in error && error.tokenRejected === true;
+  return { code, message: error instanceof Error ? error.message : "Sidecar request failed.", ...(tokenRejected ? { tokenRejected: true } : {}) };
+}
+
 export async function handleLine(line: string, services: SidecarServices): Promise<RpcResponse | undefined> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { return { jsonrpc: "2.0", id: 0, error: { code: "PARSE_ERROR", message: "Request is not valid JSON." } }; }
@@ -634,7 +669,7 @@ export async function handleLine(line: string, services: SidecarServices): Promi
     const result = await dispatch(value, services, controller.signal);
     return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, result };
   } catch (error) {
-    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, error: { code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "SIDECAR_REQUEST_FAILED", message: error instanceof Error ? error.message : "Sidecar request failed." } };
+    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, error: toSidecarError(error) };
   } finally { services.activeRequests.delete(value.id); }
 }
 

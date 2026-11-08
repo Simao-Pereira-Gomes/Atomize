@@ -90,5 +90,9 @@ export interface SidecarNotifications {
   "generate.progress": { runId: string; event: ProgressEvent };
 }
 
-/** An error response; `code` names the failure so callers branch without reading the message. */
-export type SidecarError = { code: string; message: string };
+/**
+ * An error response; `code` names the failure so callers branch without reading the message.
+ * `tokenRejected` is set when Azure DevOps refused the Connection Profile's token (expired or
+ * revoked), so the relay forgets the cached token; no other failure sets it.
+ */
+export type SidecarError = { code: string; message: string; tokenRejected?: true };

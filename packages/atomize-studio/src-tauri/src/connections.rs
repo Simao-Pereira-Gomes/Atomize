@@ -151,12 +151,6 @@ pub fn forget_token(name: &str) {
     if let Ok(mut tokens) = session_tokens().lock() { tokens.forget(name); }
 }
 
-/// Whether a sidecar error code means Azure DevOps rejected the token, e.g. GROUNDING_AUTH_FAILED
-/// or STORIES_TOKEN_EXPIRED, so a cached token is stale.
-pub fn is_rejected_token_code(code: &str) -> bool {
-    code.ends_with("_AUTH_FAILED") || code.ends_with("_TOKEN_EXPIRED")
-}
-
 fn unavailable_credential_error() -> ConnectionError {
     ConnectionError {
         code: "CREDENTIAL_UNAVAILABLE",
@@ -369,14 +363,6 @@ mod tests {
         let mut cache = TokenCache::default();
         assert!(cache.get_or_read("ado", |_| Err(missing_credential_error())).is_err());
         assert_eq!(cache.get_or_read("ado", |_| Ok("token".into())).unwrap(), "token");
-    }
-
-    #[test]
-    fn treats_only_authentication_failures_as_a_rejected_token() {
-        assert!(is_rejected_token_code("GROUNDING_AUTH_FAILED"));
-        assert!(is_rejected_token_code("STORIES_TOKEN_EXPIRED"));
-        assert!(!is_rejected_token_code("REFERENCE_WIKI_ACCESS"));
-        assert!(!is_rejected_token_code("GROUNDING_NETWORK"));
     }
 
     #[test]

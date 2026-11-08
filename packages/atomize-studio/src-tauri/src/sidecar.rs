@@ -9,7 +9,13 @@ const MAX_RESTARTS: usize = 3;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct SidecarError { pub code: String, pub message: String }
+pub struct SidecarError {
+    pub code: String,
+    pub message: String,
+    /// Set when Azure DevOps refused the Connection Profile's token, so its cached token is stale.
+    #[serde(rename = "tokenRejected", skip_serializing_if = "std::ops::Not::not")]
+    pub token_rejected: bool,
+}
 
 struct PendingRequests {
     next_id: AtomicU64,
@@ -122,13 +128,13 @@ impl SidecarRelay {
     }
 
     async fn request_with_cancel_key(&self, method: &str, params: Value, cancel_key: Option<&str>) -> Result<Value, SidecarError> {
-        if self.fatal.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar failed repeatedly. Select Retry to restart it.".into() }); }
-        if !self.ready.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_STARTING".into(), message: "Atomize sidecar is still starting.".into() }); }
+        if self.fatal.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar failed repeatedly. Select Retry to restart it.".into(), token_rejected: false }); }
+        if !self.ready.load(Ordering::SeqCst) { return Err(SidecarError { code: "SIDECAR_STARTING".into(), message: "Atomize sidecar is still starting.".into(), token_rejected: false }); }
         let (id, receiver) = self.requests.register(cancel_key);
         let request = encode_request(id, method, params);
-        if let Some(child) = self.child.lock().unwrap().as_mut() { child.write(format!("{request}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string() })?; }
-        else { self.requests.drop_pending(id); return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar is not running.".into() }); }
-        let outcome = receiver.await.map_err(|_| SidecarError { code: "SIDECAR_STOPPED".into(), message: "Atomize sidecar stopped before responding.".into() })?;
+        if let Some(child) = self.child.lock().unwrap().as_mut() { child.write(format!("{request}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string(), token_rejected: false })?; }
+        else { self.requests.drop_pending(id); return Err(SidecarError { code: "SIDECAR_UNAVAILABLE".into(), message: "Atomize sidecar is not running.".into(), token_rejected: false }); }
+        let outcome = receiver.await.map_err(|_| SidecarError { code: "SIDECAR_STOPPED".into(), message: "Atomize sidecar stopped before responding.".into(), token_rejected: false })?;
         if let Some(key) = cancel_key { self.requests.forget_cancel_key(key); }
         outcome
     }
@@ -157,7 +163,7 @@ impl SidecarRelay {
         let notification = json!({ "jsonrpc": "2.0", "method": "$/cancelRequest", "params": { "id": id } });
         let mut child = self.child.lock().unwrap();
         let Some(child) = child.as_mut() else { return Ok(()); };
-        child.write(format!("{notification}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string() })
+        child.write(format!("{notification}\n").as_bytes()).map_err(|e| SidecarError { code: "SIDECAR_WRITE_FAILED".into(), message: e.to_string(), token_rejected: false })
     }
 
     pub fn retry(self: &Arc<Self>) -> Result<(), String> {
@@ -183,8 +189,8 @@ fn copilot_cli_path() -> Result<std::path::PathBuf, String> {
 fn response_outcome(value: &Value) -> Result<Value, SidecarError> {
     match (value.get("result"), value.get("error")) {
         (Some(result), _) => Ok(result.clone()),
-        (_, Some(error)) => Err(SidecarError { code: error.get("code").and_then(Value::as_str).unwrap_or("SIDECAR_REQUEST_FAILED").to_owned(), message: error.get("message").and_then(Value::as_str).unwrap_or("Sidecar request failed.").to_owned() }),
-        _ => Err(SidecarError { code: "MALFORMED_SIDECAR_RESPONSE".into(), message: "Malformed sidecar response.".into() }),
+        (_, Some(error)) => Err(SidecarError { code: error.get("code").and_then(Value::as_str).unwrap_or("SIDECAR_REQUEST_FAILED").to_owned(), message: error.get("message").and_then(Value::as_str).unwrap_or("Sidecar request failed.").to_owned(), token_rejected: error.get("tokenRejected").and_then(Value::as_bool).unwrap_or(false) }),
+        _ => Err(SidecarError { code: "MALFORMED_SIDECAR_RESPONSE".into(), message: "Malformed sidecar response.".into(), token_rejected: false }),
     }
 }
 
@@ -204,6 +210,13 @@ mod tests {
         let error = response_outcome(&json!({ "error": { "code": "GROUNDING_TOKEN_EXPIRED", "message": "Token expired." } })).unwrap_err();
         assert_eq!(error.code, "GROUNDING_TOKEN_EXPIRED");
         assert_eq!(error.message, "Token expired.");
+        assert!(!error.token_rejected);
+    }
+    #[test] fn a_rejected_token_is_the_error_flag_not_the_code_name() {
+        let rejected = response_outcome(&json!({ "error": { "code": "ANYTHING", "message": "Refused.", "tokenRejected": true } })).unwrap_err();
+        assert!(rejected.token_rejected);
+        let named_like_one = response_outcome(&json!({ "error": { "code": "WIKI_AUTH_FAILED", "message": "No." } })).unwrap_err();
+        assert!(!named_like_one.token_rejected);
     }
     #[test] fn resolves_the_staged_copilot_binary_without_a_target_suffix() {
         let path = copilot_cli_path().unwrap();
@@ -225,7 +238,7 @@ mod tests {
     #[test] fn a_structured_error_response_reaches_the_waiter() {
         let requests = PendingRequests::new();
         let (id, mut rx) = requests.register(None);
-        requests.resolve(id, Err(SidecarError { code: "GROUNDING_TOKEN_EXPIRED".into(), message: "expired".into() }));
+        requests.resolve(id, Err(SidecarError { code: "GROUNDING_TOKEN_EXPIRED".into(), message: "expired".into(), token_rejected: false }));
         assert_eq!(rx.try_recv().unwrap().unwrap_err().code, "GROUNDING_TOKEN_EXPIRED");
     }
 

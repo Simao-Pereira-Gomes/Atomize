@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { authFailureDetail } from '../profiles/auth-failure.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
@@ -58,7 +59,7 @@ async function runLivePreview(
 		return { report };
 	} catch (err) {
 		if (err instanceof AuthError) {
-			return { error: 'auth', detail: err.message.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.' };
+			return { error: 'auth', detail: authFailureDetail(err) };
 		}
 		return { error: 'notfound', detail: err instanceof Error ? err.message : String(err) };
 	}

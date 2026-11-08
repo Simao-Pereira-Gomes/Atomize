@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { authFailureDetail } from '../profiles/auth-failure.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
@@ -29,10 +30,6 @@ type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMes
 
 type GenerateOutcome = { report: AtomizationReport } | { error: 'auth' | 'blocked'; detail: string };
 
-function authDetail(err: AuthError): string {
-	return err.message.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.';
-}
-
 function errorDetail(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }
@@ -50,7 +47,7 @@ async function runAtomize(
 		const report = await atomizer.atomize(template, { ...options, timeoutMs: DEFAULT_GENERATION_TIMEOUT_MS });
 		return { report };
 	} catch (err) {
-		if (err instanceof AuthError) return { error: 'auth', detail: authDetail(err) };
+		if (err instanceof AuthError) return { error: 'auth', detail: authFailureDetail(err) };
 		return { error: 'blocked', detail: errorDetail(err) };
 	}
 }
