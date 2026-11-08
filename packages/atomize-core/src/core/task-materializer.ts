@@ -189,10 +189,15 @@ export class TaskMaterializer {
     options: TaskMaterializationOptions,
   ): Promise<Array<WorkItem | undefined>> {
     const created = new Array<WorkItem | undefined>(calculatedTasks.length);
-    await this.platform.createTasksBulk(parentId, calculatedTasks, (task, index) => {
-      created[index] = task;
-      options.onTaskCreated?.(task);
-    });
+    await this.platform.createTasksBulk(
+      parentId,
+      calculatedTasks,
+      (task, index) => {
+        created[index] = task;
+        options.onTaskCreated?.(task);
+      },
+      { signal: options.signal },
+    );
     const links = planDependencyLinks(calculatedTasks, created, templateTasks);
     await this.createDependencyLinks(links, options.dependencyConcurrency ?? 5);
     return created;

@@ -487,6 +487,7 @@ interface IPlatformAdapter {
     parentId: string,
     tasks: TaskDefinition[],
     onTaskCreated?: (task: WorkItem, index: number) => void,
+    options?: { signal?: AbortSignal },
   ): Promise<WorkItem[]>;
   getPlatformMetadata(): PlatformMetadata;
   
@@ -509,6 +510,7 @@ Generation calls `createTasksBulk` once per Story, or once per Task when it link
 
 - Return the Tasks it created in the same order as `tasks`, leaving out any that failed. A failed Task must not fail the whole call.
 - Call `onTaskCreated` for each created Task with that Task's **index in `tasks`**. Generation uses the index to match created Work Items back to Template tasks, so it can link dependencies correctly even when an earlier Task failed.
+- Stop starting Tasks once `options.signal` is aborted (the run was cancelled or timed out), and return the Tasks already created. Pass `shouldStop: () => options.signal?.aborted === true` to `runWithConcurrency`.
 - Keep its own requests in flight under a limit. Start the next Task as soon as one finishes, instead of waiting for a whole batch. `runWithConcurrency` in `atomize-core/src/utils/concurrency.ts` does this.
 
 Your adapter can create `dependsOn` links in one of two ways:

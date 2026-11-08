@@ -67,6 +67,21 @@ describe("FieldSchemaService requests", () => {
     expect(calls.typeFields).toBe(1);
   });
 
+  test("fetches a schema again once it is older than maxAgeMs", async () => {
+    const { api, calls } = countingApi();
+    let now = 0;
+    const service = new FieldSchemaService({ maxAgeMs: 1000, now: () => now });
+
+    await service.getFieldsForType(api, "P", "Task", "k");
+    now = 999;
+    await service.getFieldsForType(api, "P", "Task", "k");
+    expect(calls).toEqual({ getFields: 1, typeFields: 1 });
+
+    now = 1000;
+    await service.getFieldsForType(api, "P", "Task", "k");
+    expect(calls).toEqual({ getFields: 2, typeFields: 2 });
+  });
+
   test("a failed fetch isn't cached", async () => {
     let fail = true;
     const api = {

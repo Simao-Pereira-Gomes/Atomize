@@ -21,6 +21,7 @@ import type {
   SavedQueryInfo,
   WikiInfo,
 } from "../../interfaces/platform.interface";
+import type { CreateTasksOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
@@ -227,16 +228,20 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     if (!witApi) return [];
     const types = workItemTypes?.length ? workItemTypes : await this.getWorkItemTypes();
     const perType = await Promise.all(types.map((type) => {
-      let entry = this.closedStatesByType.get(type);
-      if (!entry) {
-        entry = witApi.getWorkItemTypeStates(this.config.project, type)
-          .then((states) => states
-            .filter((state) => state.category === "Completed" || state.category === "Removed")
-            .map((state) => state.name)
-            .filter((name): name is string => !!name))
-          .catch(() => []);
-        this.closedStatesByType.set(type, entry);
-      }
+      const cached = this.closedStatesByType.get(type);
+      if (cached) return cached;
+      const entry: Promise<string[]> = witApi.getWorkItemTypeStates(this.config.project, type)
+        .then((states) => states
+          .filter((state) => state.category === "Completed" || state.category === "Removed")
+          .map((state) => state.name)
+          .filter((name): name is string => !!name))
+        .catch(() => {
+          // This query goes ahead without the type's closed states; drop the failure so the next one
+          // asks again rather than keeping it for as long as a host reuses this adapter.
+          if (this.closedStatesByType.get(type) === entry) this.closedStatesByType.delete(type);
+          return [];
+        });
+      this.closedStatesByType.set(type, entry);
       return entry;
     }));
     return [...new Set(perType.flat())];
@@ -411,6 +416,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     parentId: string,
     tasks: TaskDefinition[],
     onTaskCreated?: (task: WorkItem, index: number) => void,
+    options: CreateTasksOptions = {},
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
@@ -431,7 +437,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
           error,
         });
       }
-    });
+    }, { shouldStop: () => options.signal?.aborted === true });
 
     const createdTasks = results.filter((r): r is WorkItem => r !== null);
 

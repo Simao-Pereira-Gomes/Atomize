@@ -94,6 +94,7 @@ export class StoryProcessor {
     logger.debug("Estimation summary:", estimation.summary);
 
     let tasksCreated: WorkItem[] = [];
+    let stoppedEarly = false;
 
     if (options.dryRun) {
       logger.info(`DRY RUN: Would create ${calculatedTasks.length} tasks`);
@@ -110,6 +111,12 @@ export class StoryProcessor {
         },
       );
       logger.info(`Created ${tasksCreated.length} tasks`);
+      stoppedEarly = options.signal?.aborted === true && tasksCreated.length < calculatedTasks.length;
+      if (stoppedEarly) {
+        const warning = `${story.id}: the run stopped after ${tasksCreated.length} of ${calculatedTasks.length} Tasks were created`;
+        logger.warn(warning);
+        warnings.push(warning);
+      }
     }
 
     return {
@@ -118,6 +125,7 @@ export class StoryProcessor {
       tasksCreated,
       tasksSkipped: skippedTasks,
       success: true,
+      ...(stoppedEarly ? { stoppedEarly } : {}),
       ...(unresolvedEstimate ? { unresolvedEstimate } : {}),
       ...reported,
       estimationSummary: estimation.summary,

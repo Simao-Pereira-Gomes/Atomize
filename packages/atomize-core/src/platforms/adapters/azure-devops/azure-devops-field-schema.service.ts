@@ -9,14 +9,32 @@ import type { ADoFieldSchema, AtoFieldType } from "../../interfaces/field-schema
 
 type CacheKey = string; // `${profileKey}::${project}::${workItemType|__all__}`
 
+type CacheEntry<T> = { value: Promise<T>; fetchedAt: number };
+
+export interface FieldSchemaServiceOptions {
+  /**
+   * How long a fetched schema is reused (default 5 minutes). Hosts keep an authenticated adapter
+   * for much longer, so this bounds how long a field added or changed in Azure DevOps goes unseen.
+   */
+  maxAgeMs?: number;
+  now?: () => number;
+}
+
 /**
  * Caches field schemas as promises, so concurrent requests share one fetch, and a failed fetch is
  * dropped so the next request tries again. The project's field list is fetched once and shared by
- * every Work Item type's schema.
+ * every Work Item type's schema. Entries older than `maxAgeMs` are fetched again.
  */
 export class FieldSchemaService {
-  private cache = new Map<CacheKey, Promise<ADoFieldSchema[]>>();
-  private projectFields = new Map<CacheKey, Promise<WorkItemField[]>>();
+  private cache = new Map<CacheKey, CacheEntry<ADoFieldSchema[]>>();
+  private projectFields = new Map<CacheKey, CacheEntry<WorkItemField[]>>();
+  private readonly maxAgeMs: number;
+  private readonly now: () => number;
+
+  constructor(options: FieldSchemaServiceOptions = {}) {
+    this.maxAgeMs = options.maxAgeMs ?? 5 * 60_000;
+    this.now = options.now ?? Date.now;
+  }
 
   /**
    * Fetch fields for a specific work item type, including allowedValues for picklist fields.
@@ -60,15 +78,15 @@ export class FieldSchemaService {
     return this.cached(this.projectFields, `${profileKey}::${project}`, async () => (await witApi.getFields(project)) ?? []);
   }
 
-  private cached<T>(cache: Map<CacheKey, Promise<T>>, key: CacheKey, load: () => Promise<T>): Promise<T> {
+  private cached<T>(cache: Map<CacheKey, CacheEntry<T>>, key: CacheKey, load: () => Promise<T>): Promise<T> {
     const existing = cache.get(key);
-    if (existing) return existing;
-    const loading = load();
-    cache.set(key, loading);
-    loading.catch(() => {
-      if (cache.get(key) === loading) cache.delete(key);
+    if (existing && this.now() - existing.fetchedAt < this.maxAgeMs) return existing.value;
+    const entry: CacheEntry<T> = { value: load(), fetchedAt: this.now() };
+    cache.set(key, entry);
+    entry.value.catch(() => {
+      if (cache.get(key) === entry) cache.delete(key);
     });
-    return loading;
+    return entry.value;
   }
 
   private mergeField(

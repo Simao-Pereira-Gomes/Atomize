@@ -151,3 +151,46 @@ describe("processing Stories in a Generation Run", () => {
     expect(result?.tasksCreated).toHaveLength(2);
   });
 });
+
+describe("stopping a Generation Run partway through a Story", () => {
+  /** Creates Tasks one at a time and, like a real adapter, starts none once the signal is aborted. */
+  const signalAwarePlatform = (): GenerationPlatform => {
+    let nextId = 1;
+    return {
+      getConnectUserEmail: async () => "",
+      queryWorkItems: async () => [story("1")],
+      createTasksBulk: async (parentId, tasks, onTaskCreated, options) => {
+        const created: WorkItem[] = [];
+        for (const [index, task] of tasks.entries()) {
+          if (options?.signal?.aborted) break;
+          const item: WorkItem = { id: `T${nextId++}`, title: task.title, type: "Task", state: "New", parentId };
+          created.push(item);
+          onTaskCreated?.(item, index);
+        }
+        return created;
+      },
+    };
+  };
+
+  test("stops creating a Story's Tasks when the run is cancelled, even without link-on-create", async () => {
+    const controller = new AbortController();
+    const report = await new Atomizer(signalAwarePlatform()).atomize(template, {
+      signal: controller.signal,
+      onProgress: (event) => {
+        if (event.type === "task_created") controller.abort();
+      },
+    });
+
+    const [result] = report.results;
+    expect(result?.tasksCreated.map((task) => task.title)).toEqual(["Design"]);
+    expect(result?.stoppedEarly).toBe(true);
+    expect(report.warnings).toContain("1: the run stopped after 1 of 2 Tasks were created");
+  });
+
+  test("doesn't flag a Story the run finished", async () => {
+    const report = await new Atomizer(signalAwarePlatform()).atomize(template, { signal: new AbortController().signal });
+
+    expect(report.results[0]?.tasksCreated).toHaveLength(2);
+    expect(report.results[0]).not.toHaveProperty("stoppedEarly");
+  });
+});

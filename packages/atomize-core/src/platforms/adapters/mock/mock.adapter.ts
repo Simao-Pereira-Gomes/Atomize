@@ -13,6 +13,7 @@ import type {
   SavedQueryInfo,
   WikiInfo,
 } from "../../interfaces/platform.interface";
+import type { CreateTasksOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
@@ -229,9 +230,10 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     parentId: string,
     tasks: TaskDefinition[],
     onTaskCreated?: (task: WorkItem, index: number) => void,
-    concurrency = 5
+    options: CreateTasksOptions = {},
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
+    const concurrency = 5;
 
     logger.debug(
       `MockPlatform: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
@@ -249,7 +251,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
           error,
         });
       }
-    });
+    }, { shouldStop: () => options.signal?.aborted === true });
 
     const createdTasks = results.filter((r): r is WorkItem => r !== null);
 

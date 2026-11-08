@@ -660,6 +660,19 @@ describe("AzureDevOpsAdapter", () => {
       expect(mockWorkItemTrackingApi.createWorkItem).toHaveBeenCalledTimes(2);
     });
 
+    test("starts no further Task once the signal is aborted, keeping those already created", async () => {
+      const controller = new AbortController();
+      const created = await adapter.createTasksBulk(
+        "100",
+        Array.from({ length: 12 }, (_, i) => ({ title: `Task ${i}` })),
+        () => controller.abort(),
+        { signal: controller.signal },
+      );
+
+      // The first window of 5 was already in flight when the first one finished.
+      expect(created.length).toBe(5);
+    });
+
     test("declares that it links dependencies while creating Tasks", () => {
       expect(adapter.createsDependencyLinksWithTasks).toBe(true);
     });
@@ -1145,5 +1158,30 @@ describe("AzureDevOpsAdapter current and next sprint", () => {
     const { stories, queries } = await sprintSearch([]);
     expect(stories).toEqual([]);
     expect(queries).toBe(0);
+  });
+});
+
+describe("AzureDevOpsAdapter closed states", () => {
+  test("a failed closed-states fetch is asked for again, not kept for the adapter's lifetime", async () => {
+    let fail = true;
+    const api = mockWorkItemTrackingApi as unknown as Record<string, unknown>;
+    api.getWorkItemTypeStates = mock(async () => {
+      if (fail) throw new Error("network");
+      return [{ name: "Active", category: "InProgress" }, { name: "Closed", category: "Completed" }];
+    });
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    await adapter.authenticate();
+    mockWorkItemTrackingApi.queryByWiql.mockClear();
+
+    const search = { limit: 10, excludeClosed: true, workItemTypes: ["User Story"] };
+    await adapter.searchStories(search);
+    fail = false;
+    await adapter.searchStories(search);
+
+    // biome-ignore lint/suspicious/noExplicitAny: mock call arguments are untyped
+    const queries = (mockWorkItemTrackingApi.queryByWiql.mock.calls as any[]).map((call) => call[0].query as string);
+    expect(queries[0]).not.toContain("'Closed'");
+    expect(queries[1]).toContain("'Closed'");
+    delete api.getWorkItemTypeStates;
   });
 });
