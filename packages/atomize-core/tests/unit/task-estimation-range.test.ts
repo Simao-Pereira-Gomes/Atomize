@@ -228,15 +228,12 @@ describe("taskEstimationRange", () => {
 			estimationPercent: 50,
 		}));
 		const calculate = (forceNormalize: boolean) =>
-			calc.calculateTasksWithSkipped(
-				parseMockStory('{"estimation":10}'),
-				"",
+			calc.estimate(parseMockStory('{"estimation":10}'), {
 				tasks,
-				{ strategy: "percentage", rounding: "none", normalize: "auto" },
+				estimation: { strategy: "percentage", rounding: "none", normalize: "auto" },
 				forceNormalize,
-				undefined,
-				{ min: 10, max: 30 },
-			);
+				taskEstimationRange: { min: 10, max: 30 },
+			});
 		expect(() => calculate(false)).toThrow("Task allocation violates");
 		expect(
 			calculate(true).calculatedTasks.map((task) => task.estimationPercent),

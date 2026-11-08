@@ -5,7 +5,7 @@ import type { StoryEstimate, WorkItem } from "../platforms/interfaces/work-item.
 import type { TaskTemplate, TaskDefinition as TemplateTaskDefinition } from "../templates/schema";
 import type { AtomizationOptions, StoryAtomizationResult } from "./atomizer";
 import { EstimationCalculator } from "./estimation-calculator";
-import { readStoryEstimate, resolveEstimationFieldMapping } from "./estimation-field-mapping";
+import { resolveEstimationFieldMapping } from "./estimation-field-mapping";
 import { TaskMaterializer } from "./task-materializer";
 
 /**
@@ -15,17 +15,12 @@ import { TaskMaterializer } from "./task-materializer";
  * Atomizer owns batching and concurrency; StoryProcessor owns what happens to one Story.
  */
 export class StoryProcessor {
-  private estimationCalculator: EstimationCalculator;
-  private taskMaterializer: TaskMaterializer;
-  private estimationDefaults: EstimationDefaults | undefined;
+  private readonly estimationCalculator = new EstimationCalculator();
+  private readonly taskMaterializer: TaskMaterializer;
+  private readonly estimationDefaults: EstimationDefaults | undefined;
 
-  constructor(
-    platform: GenerationPlatform,
-    estimationCalculator = new EstimationCalculator(),
-    taskMaterializer = new TaskMaterializer(platform),
-  ) {
-    this.estimationCalculator = estimationCalculator;
-    this.taskMaterializer = taskMaterializer;
+  constructor(platform: GenerationPlatform) {
+    this.taskMaterializer = new TaskMaterializer(platform);
     this.estimationDefaults = platform.getEstimationDefaults?.();
   }
 
@@ -49,16 +44,19 @@ export class StoryProcessor {
         })
       : undefined;
 
-    const { calculatedTasks, skippedTasks, unresolvedEstimate, defaultEstimateReason } =
-      this.estimationCalculator.calculateTasksWithSkipped(
-        story,
-        connectUserEmail,
-        orderedTasks,
-        template.estimation,
-        options.forceNormalize,
-        fieldMapping,
-        template.validation?.taskEstimationRange,
-      );
+    const estimation = this.estimationCalculator.estimate(story, {
+      tasks: orderedTasks,
+      connectUserEmail,
+      estimation: template.estimation,
+      forceNormalize: options.forceNormalize,
+      fieldMapping,
+      taskEstimationRange: template.validation?.taskEstimationRange,
+    });
+    const { calculatedTasks, skippedTasks, unresolvedEstimate, defaultEstimateReason } = estimation;
+    const reported = {
+      ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
+      ...withStoryEstimate(estimation.storyEstimate),
+    };
 
     logger.info(
       `Generated ${calculatedTasks.length} tasks, skipped ${skippedTasks.length} conditional tasks`,
@@ -74,8 +72,7 @@ export class StoryProcessor {
         tasksSkipped: [],
         success: true,
         unresolvedEstimate,
-      ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
-      ...withStoryEstimate(readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] })),
+        ...reported,
         skipReason,
       };
     }
@@ -86,34 +83,15 @@ export class StoryProcessor {
       warnings.push(`${story.id}: ${defaultEstimateReason}; used defaultParentEstimation`);
     }
 
-    if (skippedTasks.length > 0) {
-      skippedTasks.forEach((skipped) => {
-        logger.debug(`  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`);
-      });
+    for (const skipped of skippedTasks) {
+      logger.debug(`  Skipped: "${skipped.templateTask.title}" - ${skipped.reason}`);
+    }
+    for (const warning of estimation.warnings) {
+      logger.warn(warning);
+      warnings.push(`${story.id}: ${warning}`);
     }
 
-    const validation = this.estimationCalculator.validateEstimation(
-      story,
-      calculatedTasks,
-      template.estimation,
-      fieldMapping,
-    );
-
-    if (!validation.valid) {
-      validation.warnings.forEach((warning) => {
-        logger.warn(`${warning}`);
-        warnings.push(`${story.id}: ${warning}`);
-      });
-    }
-
-    const estimationSummary = this.estimationCalculator.getEstimationSummary(
-      story,
-      calculatedTasks,
-      template.estimation,
-      fieldMapping,
-    );
-
-    logger.debug("Estimation summary:", estimationSummary);
+    logger.debug("Estimation summary:", estimation.summary);
 
     let tasksCreated: WorkItem[] = [];
 
@@ -141,9 +119,8 @@ export class StoryProcessor {
       tasksSkipped: skippedTasks,
       success: true,
       ...(unresolvedEstimate ? { unresolvedEstimate } : {}),
-      ...(fieldMapping?.unitLabel ? { estimateUnit: fieldMapping.unitLabel } : {}),
-      ...withStoryEstimate(readStoryEstimate(story, fieldMapping?.storySource ?? { kind: "default", fields: [] })),
-      estimationSummary,
+      ...reported,
+      estimationSummary: estimation.summary,
     };
   }
 }
