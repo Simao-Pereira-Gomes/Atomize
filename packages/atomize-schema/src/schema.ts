@@ -881,6 +881,15 @@ export function copyCount(task: Pick<TaskTemplate["tasks"][number], "repeat">): 
   return task.repeat ?? 1;
 }
 
+/** The percent a Template's unconditional Task definitions always allocate, counting each repeated copy. */
+export function totalUnconditionalEstimationPercent(
+  tasks: ReadonlyArray<Pick<TaskTemplate["tasks"][number], "condition" | "estimationPercent" | "repeat">>,
+): number {
+  return tasks
+    .filter((task) => !task.condition)
+    .reduce((sum, task) => sum + (task.estimationPercent ?? 0) * copyCount(task), 0);
+}
+
 /** How many Tasks the definitions generate when every one is active, counting each repeated copy. */
 export function generatedTaskCount(tasks: ReadonlyArray<Pick<TaskTemplate["tasks"][number], "repeat">>): number {
   return tasks.reduce((sum, task) => sum + copyCount(task), 0);
@@ -1200,7 +1209,7 @@ export type TaskTemplate = z.infer<typeof TaskTemplateSchema>;
 /**
  * A template that uses `extends` and/or `mixins` and has not yet been resolved.
  * `filter` and `tasks` are inherited from the parent and therefore optional here.
- * Always resolve through `TemplateLoader` or `TemplateResolver` before validating.
+ * Always resolve through the Template Library (`loadSource` or `composeTemplate`) before validating.
  */
 export type PartialTaskTemplate = Omit<TaskTemplate, "filter" | "tasks"> & {
   filter?: FilterCriteria;

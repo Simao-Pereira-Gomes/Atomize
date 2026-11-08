@@ -1,4 +1,4 @@
-import { buildAzureDevOpsConfig, PlatformFactory } from '@sppg2001/atomize-core';
+import { AuthenticatedAdapterCache, buildAzureDevOpsConfig } from '@sppg2001/atomize-core';
 import type { IPlatformAdapter } from '@sppg2001/atomize-core/platforms/interfaces/platform.interface';
 import type { ProfileStore } from './profile-store.js';
 
@@ -24,7 +24,14 @@ export interface CredentialResolver {
 	resolveByName(profileName: string): Promise<IPlatformAdapter>;
 }
 
-export function createCredentialResolver(store: ProfileStore): CredentialResolver {
+/**
+ * Adapters are reused per profile connection and token (see AuthenticatedAdapterCache), so validating
+ * on every save or opening another panel doesn't authenticate again or refetch field schemas.
+ */
+export function createCredentialResolver(
+	store: ProfileStore,
+	adapters: AuthenticatedAdapterCache = new AuthenticatedAdapterCache(),
+): CredentialResolver {
 	return {
 		async resolveByName(profileName: string): Promise<IPlatformAdapter> {
 			const profile = store.getByName(profileName);
@@ -37,9 +44,7 @@ export function createCredentialResolver(store: ProfileStore): CredentialResolve
 				{ organizationUrl: profile.organizationUrl, project: profile.project, team: profile.team },
 				token,
 			);
-			const adapter = PlatformFactory.create('azure-devops', config);
-			await adapter.authenticate();
-			return adapter;
+			return adapters.get(config);
 		},
 	};
 }

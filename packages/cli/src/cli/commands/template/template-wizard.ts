@@ -2,7 +2,7 @@ import { confirm, select } from "@clack/prompts";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
 import { copyCount, DEFAULT_MAX_REPEAT, type TaskDefinition, type TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
-import { normalizeEstimationPercentages } from "@sppg2001/atomize-core/utils/estimation-normalizer";
+import { normalizeEstimationPercentages } from "@sppg2001/atomize-schema";
 import chalk from "chalk";
 import { match } from "ts-pattern";
 import { stringify as stringifyYaml } from "yaml";
@@ -50,7 +50,6 @@ const output = createCommandOutput(resolveCommandOutputPolicy({}));
 export function normalizeEstimations(tasks: TaskDefinition[]): void {
   normalizeEstimationPercentages(tasks, {
     skipIfAlreadyNormalized: false, // Always normalize in wizard context
-    enableLogging: false,
   });
 
   const finalTotal = tasks.reduce((s, t) => s + (t.estimationPercent || 0), 0);

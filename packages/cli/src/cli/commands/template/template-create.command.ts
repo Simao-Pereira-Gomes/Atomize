@@ -338,7 +338,7 @@ async function createFromTemplate(options: CreateOptions): Promise<AnyTaskTempla
   return { ...parentTemplate, origin: `template:${templateName}` };
 }
 
-function formatCatalogChoice(label: string, scope: import("@sppg2001/atomize-core/services/template/template-catalog").TemplateCatalogScope): string {
+function formatCatalogChoice(label: string, scope: import("@sppg2001/atomize-core/templates/template-library").TemplateCatalogScope): string {
   return `${label} (${formatScope(scope)})`;
 }
 

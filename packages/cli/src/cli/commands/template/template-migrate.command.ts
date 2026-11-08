@@ -1,4 +1,4 @@
-import { TemplateCatalog, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { TemplateLibrary, type WritableCatalogScope } from "@sppg2001/atomize-core/templates/template-library";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
@@ -16,13 +16,13 @@ const VALID_SCOPES = ["user", "project", "all"] as const;
 
 function resolveScopes(
   scopeOption: string | undefined,
-): Extract<TemplateCatalogScope, "user" | "project">[] {
+): WritableCatalogScope[] {
   const raw = scopeOption ?? "user";
   if (!VALID_SCOPES.includes(raw as (typeof VALID_SCOPES)[number])) {
     throw new Error(`Invalid scope "${raw}". Valid values: user, project, all`);
   }
   if (raw === "all") return ["user", "project"];
-  return [raw as Extract<TemplateCatalogScope, "user" | "project">];
+  return [raw as WritableCatalogScope];
 }
 
 export const templateMigrateCommand = new Command("migrate")
@@ -44,12 +44,12 @@ export const templateMigrateCommand = new Command("migrate")
         output.print(chalk.yellow("  Dry run: no files will be written or deleted\n"));
       }
 
-      const catalog = new TemplateCatalog();
+      const library = new TemplateLibrary();
       let totalMigrated = 0;
       let totalSkipped = 0;
 
       for (const scope of scopes) {
-        const result = await catalog.migrateLegacyItems(scope, { dryRun, cleanupDirs });
+        const result = await library.migrateLegacyItems(scope, { dryRun, cleanupDirs });
 
         for (const item of result.migrated) {
           const ref = sanitizeTty(`${item.kind}:${item.name}`);

@@ -1,19 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
-import { TemplateResolver } from "@sppg2001/atomize-core/services/template/template-resolver";
-import { MAX_INHERITANCE_DEPTH, TemplateComposer } from "@sppg2001/atomize-core/templates/composer";
-import { mergeTemplates } from "@sppg2001/atomize-core/templates/composition-policy";
-import { TemplateLoader } from "@sppg2001/atomize-core/templates/loader";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateCompositionError } from "@sppg2001/atomize-core/utils/errors";
 import { expectToReject } from "../utils/matchers";
 
+const library = new TemplateLibrary();
+const load = async (path: string) => (await library.loadSource(path)).template;
+
 const fixturesPath = resolve(__dirname, "../fixtures/templates");
 
-describe("TemplateComposer", () => {
-  const composer = new TemplateComposer();
+describe("composing a Template", () => {
 
   describe("resolve — no composition", () => {
     test("returns template unchanged when no extends or mixins", async () => {
@@ -23,7 +22,7 @@ describe("TemplateComposer", () => {
         filter: { workItemTypes: ["User Story"] },
         tasks: [{ title: "Task 1", estimationPercent: 100 }],
       };
-      const result = await composer.resolve(raw, "/some/path/template.yaml");
+      const result = await library.composeTemplate(raw, "/some/path/template.yaml");
       expect(result).toEqual(raw);
     });
   });
@@ -37,7 +36,7 @@ describe("TemplateComposer", () => {
         description: "Child description",
       };
 
-      const result = await composer.resolve(raw, "/any/context.yaml");
+      const result = await library.composeTemplate(raw, "/any/context.yaml");
 
       expect(result.name).toBe("Child");
       expect(result.description).toBe("Child description");
@@ -59,7 +58,7 @@ describe("TemplateComposer", () => {
         ],
       };
 
-      const result = await composer.resolve(raw, "/any/context.yaml");
+      const result = await library.composeTemplate(raw, "/any/context.yaml");
 
       const designTask = result.tasks.find((t) => t.id === "design");
       expect(designTask?.title).toBe("Custom Design");
@@ -75,7 +74,7 @@ describe("TemplateComposer", () => {
         tasks: [{ title: "New Task", estimationPercent: 10 }],
       };
 
-      const result = await composer.resolve(raw, "/any/context.yaml");
+      const result = await library.composeTemplate(raw, "/any/context.yaml");
 
       expect(result.tasks).toHaveLength(4);
       expect(result.tasks[3]?.title).toBe("New Task");
@@ -89,7 +88,7 @@ describe("TemplateComposer", () => {
         tags: ["child", "base"],
       };
 
-      const result = await composer.resolve(raw, "/any/context.yaml");
+      const result = await library.composeTemplate(raw, "/any/context.yaml");
 
       expect(result.tags).toContain("base");
       expect(result.tags).toContain("child");
@@ -110,7 +109,7 @@ describe("TemplateComposer", () => {
         filter: { workItemTypes: ["Bug"] },
       };
 
-      const result = await composer.resolve(raw, "/any/context.yaml");
+      const result = await library.composeTemplate(raw, "/any/context.yaml");
 
       expect(result.filter.workItemTypes).toEqual(["Bug"]);
       expect(result.filter.states).toBeUndefined();
@@ -118,15 +117,13 @@ describe("TemplateComposer", () => {
 
     test("throws TemplateCompositionError for circular extends", async () => {
       const circularA = resolve(fixturesPath, "circular-a.yaml");
-      const loader = new TemplateLoader();
 
-      await expectToReject(loader.load(circularA), TemplateCompositionError);
+      await expectToReject(load(circularA), TemplateCompositionError);
     });
 
     test("resolves relative paths from context", async () => {
       const childPath = resolve(fixturesPath, "child-template.atomize.yaml");
-      const loader = new TemplateLoader();
-      const result = await loader.load(childPath);
+      const result = await load(childPath);
 
       expect(result.name).toBe("Child Template");
       expect(result.filter.workItemTypes).toEqual(["User Story"]);
@@ -136,8 +133,7 @@ describe("TemplateComposer", () => {
   describe("resolve — mixins", () => {
     test("mixin tasks are merged into composed template", async () => {
       const templatePath = resolve(fixturesPath, "template-with-mixins.yaml");
-      const loader = new TemplateLoader();
-      const result = await loader.load(templatePath);
+      const result = await load(templatePath);
 
       const taskIds = result.tasks.map((t) => t.id);
       expect(taskIds).toContain("design");
@@ -149,8 +145,7 @@ describe("TemplateComposer", () => {
 
     test("child overrides mixin task with same id", async () => {
       const templatePath = resolve(fixturesPath, "template-with-mixins.yaml");
-      const loader = new TemplateLoader();
-      const result = await loader.load(templatePath);
+      const result = await load(templatePath);
 
       const securityTask = result.tasks.find((t) => t.id === "security-review");
       expect(securityTask?.title).toBe(`Security Audit: \${story.title}`);
@@ -167,7 +162,7 @@ describe("TemplateComposer", () => {
       };
 
       await expect(
-        composer.resolve(raw, resolve(fixturesPath, "dummy.yaml")),
+        library.composeTemplate(raw, resolve(fixturesPath, "dummy.yaml")),
       ).rejects.toThrow();
     });
 
@@ -180,7 +175,7 @@ describe("TemplateComposer", () => {
       };
 
       await expect(
-        composer.resolve(raw, resolve(fixturesPath, "dummy.yaml")),
+        library.composeTemplate(raw, resolve(fixturesPath, "dummy.yaml")),
       ).rejects.toThrow(TemplateCompositionError);
     });
 
@@ -193,7 +188,7 @@ describe("TemplateComposer", () => {
       };
 
       await expect(
-        composer.resolve(raw, resolve(fixturesPath, "dummy.yaml")),
+        library.composeTemplate(raw, resolve(fixturesPath, "dummy.yaml")),
       ).rejects.toThrow(TemplateCompositionError);
     });
 
@@ -208,7 +203,7 @@ describe("TemplateComposer", () => {
         ],
       };
 
-      const result = await composer.resolve(raw, resolve(fixturesPath, "dummy.yaml"));
+      const result = await library.composeTemplate(raw, resolve(fixturesPath, "dummy.yaml"));
       const childTasks = result.tasks.filter((task) => task.id === "child-task");
 
       expect(childTasks).toHaveLength(1);
@@ -216,10 +211,9 @@ describe("TemplateComposer", () => {
     });
   });
 
-  describe("TemplateLoader integration", () => {
+  describe("loading a Template file", () => {
     test("plain template loads unchanged", async () => {
-      const loader = new TemplateLoader();
-      const template = await loader.load(
+      const template = await load(
         resolve(fixturesPath, "valid-template.yaml"),
       );
       expect(template.name).toBe("Test Template");
@@ -227,8 +221,7 @@ describe("TemplateComposer", () => {
     });
 
     test("child template loads with inherited filter and merged tasks", async () => {
-      const loader = new TemplateLoader();
-      const template = await loader.load(
+      const template = await load(
         resolve(fixturesPath, "child-template.atomize.yaml"),
       );
 
@@ -302,23 +295,23 @@ describe("TemplateCatalog discovery", () => {
   });
 
   test("loads logical template and mixin refs", async () => {
-    const catalog = new TemplateCatalog({
+    const scoped = new TemplateLibrary({
       packageRoot: resolve(catalogRoot, "package"),
       userRoot: resolve(catalogRoot, "user"),
       projectRoot: resolve(catalogRoot, "project"),
     });
-
-    const resolver = new TemplateResolver(catalog);
-    const template = await resolver.loadTemplateRef("template:team-base");
-    const mixin = await resolver.loadMixinRef("mixin:security");
+    const template = (await scoped.loadSource("template:team-base")).template;
+    const composed = await scoped.composeTemplate(
+      { name: "Child", extends: "template:team-base", mixins: ["mixin:security"] },
+      resolve(catalogRoot, "child.yaml"),
+    );
 
     expect(template.name).toBe("Package Team Base");
-    expect(mixin.name).toBe("Project Security");
+    expect(composed.tasks.map((task) => task.id)).toContain("project-security");
   });
 
   test("loads Atomize curated template refs", async () => {
-    const resolver = new TemplateResolver(new TemplateCatalog());
-    const template = await resolver.loadTemplateRef("template:backend-api");
+    const template = (await library.loadSource("template:backend-api")).template;
 
     expect(template.name).toBe("Backend API Development");
     expect(template.tasks.length).toBeGreaterThan(0);
@@ -346,7 +339,6 @@ describe("TemplateCatalog discovery", () => {
 describe("mergeTasks conflict resolution", () => {
   test("base task ordering is preserved when overriding", async () => {
     const basePath = resolve(fixturesPath, "base-template.yaml");
-    const composer = new TemplateComposer();
     const raw = {
       extends: basePath,
       name: "Child",
@@ -355,7 +347,7 @@ describe("mergeTasks conflict resolution", () => {
       ],
     };
 
-    const result = await composer.resolve(raw, "/any/context.yaml");
+    const result = await library.composeTemplate(raw, "/any/context.yaml");
 
     const ids = result.tasks.map((t) => t.id);
     expect(ids.indexOf("design")).toBeLessThan(ids.indexOf("implement"));
@@ -370,8 +362,7 @@ describe("mergeTasks conflict resolution", () => {
 
 describe("mixins-only (no extends) — child wins over mixin", () => {
   test("child task with same id overrides mixin task, not the other way", async () => {
-    const loader = new TemplateLoader();
-    const template = await loader.load(
+    const template = await load(
       resolve(fixturesPath, "mixins-only-template.yaml"),
     );
 
@@ -381,8 +372,7 @@ describe("mixins-only (no extends) — child wins over mixin", () => {
   });
 
   test("mixin tasks not in child are still present", async () => {
-    const loader = new TemplateLoader();
-    const template = await loader.load(
+    const template = await load(
       resolve(fixturesPath, "mixins-only-template.yaml"),
     );
 
@@ -393,8 +383,7 @@ describe("mixins-only (no extends) — child wins over mixin", () => {
   });
 
   test("child's own tasks (no mixin conflict) are preserved", async () => {
-    const loader = new TemplateLoader();
-    const template = await loader.load(
+    const template = await load(
       resolve(fixturesPath, "mixins-only-template.yaml"),
     );
 
@@ -405,9 +394,8 @@ describe("mixins-only (no extends) — child wins over mixin", () => {
 
 describe("circular inheritance error message", () => {
   test("error message contains all nodes in the cycle, not just duplicates", async () => {
-    const loader = new TemplateLoader();
     try {
-      await loader.load(resolve(fixturesPath, "circular-a.yaml"));
+      await load(resolve(fixturesPath, "circular-a.yaml"));
       expect(true).toBe(false); // should not reach here
     } catch (error) {
       expect(error).toBeInstanceOf(TemplateCompositionError);
@@ -421,44 +409,30 @@ describe("circular inheritance error message", () => {
   });
 });
 
-describe("MAX_INHERITANCE_DEPTH", () => {
-  test("MAX_INHERITANCE_DEPTH is exported and equals 10", () => {
-    expect(MAX_INHERITANCE_DEPTH).toBe(10);
-  });
-
-  test("throws TemplateCompositionError when depth is exceeded", async () => {
-    const basePath = resolve(fixturesPath, "base-template.yaml");
-    const fakeContextPath = resolve(fixturesPath, "deep-chain.yaml");
-
-    const visited = new Set<string>();
-    for (let i = 0; i < MAX_INHERITANCE_DEPTH; i++) {
-      visited.add(`/fake/path/template-${i}.yaml`);
+describe("inheritance depth limit", () => {
+  test("throws TemplateCompositionError when an extends chain is deeper than 10", async () => {
+    const dir = await mkdtemp(resolve(tmpdir(), "atomize-deep-chain-"));
+    await writeFile(resolve(dir, "t0.yaml"), 'version: "1.0"\nname: T0\nfilter:\n  workItemTypes: ["User Story"]\ntasks:\n  - title: Root\n    estimationPercent: 100\n');
+    for (let i = 1; i <= 11; i++) {
+      await writeFile(resolve(dir, `t${i}.yaml`), `name: T${i}\nextends: ./t${i - 1}.yaml\n`);
     }
 
-    const composer = new TemplateComposer();
-    await expect(
-      composer.resolve(
-        { extends: basePath, name: "Overflow" },
-        fakeContextPath,
-        visited,
-      ),
-    ).rejects.toThrow(TemplateCompositionError);
+    await expect(library.loadSource(resolve(dir, "t11.yaml"))).rejects.toThrow(TemplateCompositionError);
+    expect((await library.loadSource(resolve(dir, "t9.yaml"))).template.name).toBe("T9");
   });
 });
 
 describe("multi-level inheritance chain", () => {
   test("three-level chain resolves all fields correctly", async () => {
     const parentPath = resolve(fixturesPath, "parent-template.yaml");
-    const loader = new TemplateLoader();
-    const template = await loader.load(parentPath);
+    const template = await load(parentPath);
     expect(template.filter.workItemTypes).toEqual(["User Story"]);
     expect(template.filter.states).toEqual(["New"]);
   });
 
   test("child wins over parent wins over grandparent for tasks", async () => {
     const parentPath = resolve(fixturesPath, "parent-template.yaml");
-    const loader = new TemplateLoader();
-    const template = await loader.load(parentPath);
+    const template = await load(parentPath);
     const gpTask = template.tasks.find((t) => t.id === "gp-task");
     expect(gpTask?.title).toBe("Overridden by Parent");
     const parentTask = template.tasks.find((t) => t.id === "parent-task");
@@ -467,8 +441,7 @@ describe("multi-level inheritance chain", () => {
 
   test("tags are merged across the full chain", async () => {
     const parentPath = resolve(fixturesPath, "parent-template.yaml");
-    const loader = new TemplateLoader();
-    const template = await loader.load(parentPath);
+    const template = await load(parentPath);
 
     expect(template.tags).toContain("grandparent");
     expect(template.tags).toContain("parent");
@@ -476,10 +449,9 @@ describe("multi-level inheritance chain", () => {
 
 });
 
-describe("TemplateLoader.loadWithMeta", () => {
+describe("composition metadata", () => {
   test("plain template has isComposed = false", async () => {
-    const loader = new TemplateLoader();
-    const { meta } = await loader.loadWithMeta(
+    const { meta } = await library.loadSource(
       resolve(fixturesPath, "valid-template.yaml"),
     );
     expect(meta.isComposed).toBe(false);
@@ -488,8 +460,7 @@ describe("TemplateLoader.loadWithMeta", () => {
   });
 
   test("child template reports extendsRef and resolved path", async () => {
-    const loader = new TemplateLoader();
-    const { meta } = await loader.loadWithMeta(
+    const { meta } = await library.loadSource(
       resolve(fixturesPath, "child-template.atomize.yaml"),
     );
     expect(meta.isComposed).toBe(true);
@@ -498,8 +469,7 @@ describe("TemplateLoader.loadWithMeta", () => {
   });
 
   test("template with mixins reports mixin paths", async () => {
-    const loader = new TemplateLoader();
-    const { meta } = await loader.loadWithMeta(
+    const { meta } = await library.loadSource(
       resolve(fixturesPath, "template-with-mixins.yaml"),
     );
     expect(meta.isComposed).toBe(true);
@@ -508,47 +478,44 @@ describe("TemplateLoader.loadWithMeta", () => {
   });
 
   test("file extends reports resolved path metadata", async () => {
-    const loader = new TemplateLoader();
-    const { meta } = await loader.loadWithMeta(
+    const { meta } = await library.loadSource(
       resolve(fixturesPath, "child-template.atomize.yaml"),
     );
     expect(meta.resolvedExtendsPath).toBeDefined();
   });
 });
 
-describe("mergeTemplates taskType", () => {
+describe("what a child inherits", () => {
+  let dir: string;
+  const compose = async (base: object, child: object) => {
+    dir ??= await mkdtemp(resolve(tmpdir(), "atomize-inherit-"));
+    const basePath = resolve(dir, `base-${Math.random().toString(36).slice(2)}.yaml`);
+    await writeFile(basePath, JSON.stringify(base));
+    return await library.composeTemplate({ ...child, extends: basePath }, resolve(dir, "child.yaml"));
+  };
   const base = {
-    version: "1.0",
+    formatVersion: "1.0",
+    version: "7",
     name: "Base",
     filter: { workItemTypes: ["User Story"] },
     tasks: [{ title: "Task 1", estimationPercent: 100 }],
     taskType: "Sub-task",
   };
 
-  test("a child inherits the base taskType", () => {
-    expect(mergeTemplates(base, { name: "Child" }).taskType).toBe("Sub-task");
+  test("a child inherits the base taskType", async () => {
+    expect((await compose(base, { name: "Child" })).taskType).toBe("Sub-task");
   });
 
-  test("a child's own taskType wins", () => {
-    expect(mergeTemplates(base, { name: "Child", taskType: "Deliverable" }).taskType).toBe("Deliverable");
-  });
-});
-
-describe("mergeTemplates version and formatVersion", () => {
-  const base = {
-    formatVersion: "1.0" as const,
-    version: "7",
-    name: "Base",
-    filter: { workItemTypes: ["User Story"] },
-    tasks: [{ title: "Task 1", estimationPercent: 100 }],
-  };
-
-  test("a child never inherits the base's revision", () => {
-    expect(mergeTemplates(base, { name: "Child" }).version).toBeUndefined();
-    expect(mergeTemplates(base, { name: "Child", version: "2" }).version).toBe("2");
+  test("a child's own taskType wins", async () => {
+    expect((await compose(base, { name: "Child", taskType: "Deliverable" })).taskType).toBe("Deliverable");
   });
 
-  test("a child without formatVersion keeps the base's format", () => {
-    expect(mergeTemplates(base, { name: "Child" }).formatVersion).toBe("1.0");
+  test("a child never inherits the base's revision", async () => {
+    expect((await compose(base, { name: "Child" })).version).toBeUndefined();
+    expect((await compose(base, { name: "Child", version: "2" })).version).toBe("2");
+  });
+
+  test("a child without formatVersion keeps the base's format", async () => {
+    expect((await compose(base, { name: "Child" })).formatVersion).toBe("1.0");
   });
 });

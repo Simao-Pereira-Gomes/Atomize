@@ -1,5 +1,5 @@
-import { logger } from "../logger.js";
 import { orderTaskDefinitions } from "@sppg2001/atomize-schema";
+import { logger } from "../logger.js";
 import type { TaskDefinition } from "../templates/schema.js";
 import { CircularDependencyError } from "../utils/errors.js";
 import { detectCycles, formatCyclePath } from "../utils/graph.js";

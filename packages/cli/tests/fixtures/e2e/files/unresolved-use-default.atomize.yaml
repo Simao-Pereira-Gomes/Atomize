@@ -1,0 +1,16 @@
+formatVersion: "1.0"
+name: "Unresolved use-default"
+filter:
+  workItemTypes: ["User Story"]
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  ifParentHasNoEstimation: "use-default"
+  defaultParentEstimation: 6
+tasks:
+  - title: "Build"
+    estimationPercent: 60
+  - title: "Fixed"
+    estimationFixed: 2
+  - title: "Test"
+    estimationPercent: 40

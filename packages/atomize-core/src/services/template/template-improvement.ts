@@ -19,8 +19,13 @@ export interface ImproveRequest {
   projectGrounding?: ProjectGrounding | null;
   /** The team's Reference Documents, fitted to the limit. */
   documentGrounding?: DocumentGrounding | null;
-  /** Composes a proposal with its parent and Mixins so it's validated as it will run; omit for a plain Template. */
+  /**
+   * Composes a proposal with its parent and Mixins so it's validated as it will run. Omit it when the
+   * Template has nothing to compose: a plain Template, or one already flattened at load (Studio, ADR-0048).
+   */
   compose?: (proposal: Record<string, unknown>) => Promise<TaskTemplate>;
+  /** Treat the valid proposal's verification warnings as errors (`--strict`). */
+  strict?: boolean;
 }
 
 export function isComposedTemplate(template: TaskTemplate): boolean {
@@ -108,4 +113,17 @@ function isTask(value: unknown): value is TaskDefinition {
 
 function taskKey(task: TaskDefinition): string {
   return task.id ? `id:${task.id}` : `title:${task.title.trim().toLowerCase()}`;
+}
+
+/**
+ * The Template that "Save as new" writes: named as improved, with `origin` pointing at the source
+ * when it is a Catalog item, and none for a standalone file (ADR-0010, ADR-0037).
+ */
+export function deriveImprovedCopy(proposal: TaskTemplate, source: { catalogRef?: string }): TaskTemplate {
+  const { origin: _origin, ...rest } = proposal;
+  return {
+    ...rest,
+    name: `${proposal.name} (improved)`,
+    ...(source.catalogRef ? { origin: source.catalogRef } : {}),
+  } as TaskTemplate;
 }

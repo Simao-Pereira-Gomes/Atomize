@@ -1,4 +1,5 @@
 import { logger } from "../../../logger";
+import { runWithConcurrency } from "../../../utils/concurrency";
 import type { EstimationDefaults } from "../../interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
 import type {
@@ -12,12 +13,16 @@ import type {
   SavedQueryInfo,
   WikiInfo,
 } from "../../interfaces/platform.interface";
+import type { CreateTasksOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
   WorkItem,
 } from "../../interfaces/work-item.interface";
 import { getMockStoryById, mockUserStories } from "./mock-data";
+import { MOCK_ESTIMATION_DEFAULTS } from "./mock-story.platform";
+
+export { MOCK_ESTIMATION_DEFAULTS };
 
 /** The mock team's current and next sprint, standing in for `@CurrentIteration` and `@CurrentIteration + 1`. */
 export const MOCK_CURRENT_AND_NEXT_SPRINT = ["Sprint 23", "Sprint 24"];
@@ -32,13 +37,6 @@ export const MOCK_WIKI_PAGES: Record<string, Record<string, string>> = {
   },
 };
 
-/** Mock Stories carry their Story Estimate in the platform-free `estimation` property. */
-export const MOCK_ESTIMATION_DEFAULTS: EstimationDefaults = {
-  storyEstimateFields: ["estimation"],
-  taskWorkItemType: "Task",
-  taskEstimateFields: ["estimation"],
-  unitLabel: "hours",
-};
 
 /**
  * Mock platform adapter for testing
@@ -231,10 +229,11 @@ export class MockPlatformAdapter implements IPlatformAdapter {
   async createTasksBulk(
     parentId: string,
     tasks: TaskDefinition[],
-    onTaskCreated?: (task: WorkItem) => void,
-    concurrency = 5
+    onTaskCreated?: (task: WorkItem, index: number) => void,
+    options: CreateTasksOptions = {},
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
+    const concurrency = 5;
 
     logger.debug(
       `MockPlatform: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`
@@ -242,27 +241,17 @@ export class MockPlatformAdapter implements IPlatformAdapter {
 
     const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
 
-    // Process tasks in parallel batches
-    for (let i = 0; i < tasks.length; i += concurrency) {
-      const batch = tasks.slice(i, i + concurrency);
-      const batchPromises = batch.map(async (task, batchIndex) => {
-        const taskIndex = i + batchIndex;
-        try {
-          const created = await this.createTask(parentId, task);
-          results[taskIndex] = created;
-          onTaskCreated?.(created);
-          return created;
-        } catch (error) {
-          logger.error(`MockPlatform: Failed to create task: ${task.title}`, {
-            error,
-          });
-          results[taskIndex] = null;
-          return null;
-        }
-      });
-
-      await Promise.all(batchPromises);
-    }
+    await runWithConcurrency(tasks, concurrency, async (task, taskIndex) => {
+      try {
+        const created = await this.createTask(parentId, task);
+        results[taskIndex] = created;
+        onTaskCreated?.(created, taskIndex);
+      } catch (error) {
+        logger.error(`MockPlatform: Failed to create task: ${task.title}`, {
+          error,
+        });
+      }
+    }, { shouldStop: () => options.signal?.aborted === true });
 
     const createdTasks = results.filter((r): r is WorkItem => r !== null);
 

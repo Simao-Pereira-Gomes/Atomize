@@ -1,0 +1,16 @@
+formatVersion: "1.0"
+name: "Over always"
+filter:
+  workItemTypes: ["User Story"]
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  normalize: "always"
+tasks:
+  - title: "Dev"
+    estimationPercent: 90
+  - title: "QA"
+    estimationPercent: 60
+  - title: "Docs"
+    estimationPercent: 20
+    condition: { field: "tags", operator: "contains", value: "frontend" }

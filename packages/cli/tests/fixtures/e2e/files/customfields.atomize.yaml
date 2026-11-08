@@ -1,0 +1,9 @@
+formatVersion: "1.0"
+name: "Custom fields"
+filter:
+  workItemTypes: ["User Story"]
+  savedQuery: { path: "Shared Queries/Sprint" }
+tasks:
+  - title: "Build"
+    estimationPercent: 100
+    customFields: { "Custom.ClientTier": "Enterprise", "Custom.Note": "For ${story.title}" }

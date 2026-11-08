@@ -1,0 +1,5 @@
+name: "Invalid"
+filter: {}
+tasks:
+  - title: ""
+    estimationPercent: 120

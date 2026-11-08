@@ -9,6 +9,7 @@ export const AtomizeErrorCode = {
   CancellationError: "CancellationError",
   TemplateCreationError: "TemplateCreationError",
   AuthError: "AuthError",
+  GenerationTimeoutError: "GenerationTimeoutError",
 } as const;
 
 export type AtomizeErrorCode =
@@ -79,6 +80,22 @@ export class CancellationError extends AtomizeError {
   constructor(message: string) {
     super(AtomizeErrorCode.CancellationError, message);
   }
+}
+
+/** A Generation Run made no progress for its stall deadline; no new Story or Task work started after it. */
+export class GenerationTimeoutError extends AtomizeError {
+  constructor(public readonly stallTimeoutMs: number) {
+    super(
+      AtomizeErrorCode.GenerationTimeoutError,
+      `Generation timed out: no progress for ${formatDuration(stallTimeoutMs)}. No new work was started after that, and Tasks already created were kept.`,
+    );
+  }
+}
+
+function formatDuration(ms: number): string {
+  if (ms >= 60_000 && ms % 60_000 === 0) return `${ms / 60_000} minute${ms === 60_000 ? "" : "s"}`;
+  if (ms >= 1_000 && ms % 1_000 === 0) return `${ms / 1_000} second${ms === 1_000 ? "" : "s"}`;
+  return `${ms} ms`;
 }
 
 export class AuthError extends AtomizeError {

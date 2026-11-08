@@ -89,8 +89,15 @@ const mockWikiApi = {
   },
 };
 
+// biome-ignore lint/suspicious/noExplicitAny: team iterations as the Work API returns them
+let mockTeamIterations: any[] = [];
+const mockWorkApi = {
+  getTeamIterations: mock(async () => mockTeamIterations),
+};
+
 const mockWebApi = {
   getWikiApi: mock(async () => mockWikiApi),
+  getWorkApi: mock(async () => mockWorkApi),
   getWorkItemTrackingApi: mock(async () => mockWorkItemTrackingApi),
   connect: mock(async () => ({
     authenticatedUser: {
@@ -212,6 +219,41 @@ describe("AzureDevOpsAdapter", () => {
       const email = await adapter.getConnectUserEmail();
       expect(typeof email).toBe("string");
       expect(true).toBe(true);
+    });
+
+    test("checks the credentials with one connection-data request and sends no test query", async () => {
+      mockWebApi.connect.mockClear();
+      mockWorkItemTrackingApi.queryByWiql.mockClear();
+      const adapter = new AzureDevOpsAdapter(validConfig);
+
+      await adapter.authenticate();
+      expect(await adapter.getConnectUserEmail()).toBe("test@example.com");
+      expect(await adapter.getConnectUserEmail()).toBe("test@example.com");
+
+      expect(mockWebApi.connect).toHaveBeenCalledTimes(1);
+      expect(mockWorkItemTrackingApi.queryByWiql).not.toHaveBeenCalled();
+    });
+
+    test("stops reporting itself connected once a request comes back 401", async () => {
+      const adapter = new AzureDevOpsAdapter(validConfig);
+      await adapter.authenticate();
+      mockWorkItemTrackingApi.queryByWiql.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("TF400813: The user is not authorized"), { statusCode: 401 });
+      });
+
+      await expect(adapter.queryWorkItems({})).rejects.toThrow();
+
+      expect(adapter.getPlatformMetadata().connected).toBe(false);
+    });
+
+    test("fails authentication when Azure DevOps rejects the credentials", async () => {
+      mockWebApi.connect.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("TF400813: The user is not authorized"), { statusCode: 401 });
+      });
+      const adapter = new AzureDevOpsAdapter(validConfig);
+
+      await expect(adapter.authenticate()).rejects.toThrow("Authentication failed");
+      expect(adapter.getPlatformMetadata().connected).toBe(false);
     });
   });
 
@@ -572,6 +614,67 @@ describe("AzureDevOpsAdapter", () => {
       const created = await adapter.createTasksBulk("100", []);
       expect(created).toEqual([]);
       expect(true).toBe(true);
+    });
+
+    test("reports each created Task with its index, so failed inputs can be told apart", async () => {
+      mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(async () => {
+        throw new Error("field rule violated");
+      });
+      const seen: Array<[string, number]> = [];
+
+      const created = await adapter.createTasksBulk(
+        "100",
+        [{ title: "First" }, { title: "Second" }],
+        (task, index) => seen.push([task.title, index]),
+      );
+
+      expect(created.map((t) => t.title)).toEqual(["Second"]);
+      expect(seen).toEqual([["Second", 1]]);
+    });
+
+    test("links predecessors in the create request instead of a separate update", async () => {
+      mockWorkItemTrackingApi.createWorkItem.mockClear();
+      mockWorkItemTrackingApi.updateWorkItem.mockClear();
+
+      await adapter.createTasksBulk("100", [{ title: "Test", predecessorIds: ["201"] }]);
+
+      // biome-ignore lint/suspicious/noExplicitAny: mock call arguments are untyped
+      const patch = (mockWorkItemTrackingApi.createWorkItem.mock.calls[0] as any[])[1] as Array<{ value?: { rel?: string; url?: string } }>;
+      expect(patch.map((op) => op.value?.rel).filter(Boolean)).toEqual([
+        "System.LinkTypes.Hierarchy-Reverse",
+        "System.LinkTypes.Dependency-Reverse",
+      ]);
+      expect(patch.at(-1)?.value?.url).toBe("https://dev.azure.com/test/_apis/wit/workItems/201");
+      expect(mockWorkItemTrackingApi.updateWorkItem).not.toHaveBeenCalled();
+    });
+
+    test("retries a Task that Azure DevOps throttled with 429", async () => {
+      mockWorkItemTrackingApi.createWorkItem.mockClear();
+      mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("Too many requests"), { statusCode: 429, rateLimit: { retryAfter: 0 } });
+      });
+
+      const created = await adapter.createTasksBulk("100", [{ title: "Throttled" }]);
+
+      expect(created.map((t) => t.title)).toEqual(["Throttled"]);
+      expect(mockWorkItemTrackingApi.createWorkItem).toHaveBeenCalledTimes(2);
+    });
+
+    test("starts no further Task once the signal is aborted, keeping those already created", async () => {
+      const controller = new AbortController();
+      const created = await adapter.createTasksBulk(
+        "100",
+        Array.from({ length: 12 }, (_, i) => ({ title: `Task ${i}` })),
+        () => controller.abort(),
+        { signal: controller.signal },
+      );
+
+      // The first window of 5 was already in flight when the first one finished.
+      expect(created.length).toBe(5);
+    });
+
+    test("declares that it links dependencies while creating Tasks", () => {
+      expect(adapter.createsDependencyLinksWithTasks).toBe(true);
     });
   });
 
@@ -1021,5 +1124,64 @@ describe("AzureDevOps excludeIfHasTasks functionality", () => {
     };
 
     expect(hasChildRelations(workItemWithParentOnly)).toBe(false);
+  });
+});
+
+describe("AzureDevOpsAdapter current and next sprint", () => {
+  async function sprintSearch(iterations: unknown[]) {
+    mockTeamIterations = iterations;
+    mockWorkItemTrackingApi.queryByWiql.mockClear();
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    await adapter.authenticate();
+    mockWorkItemTrackingApi.queryByWiql.mockClear();
+    const stories = await adapter.searchStories({ limit: 50, currentAndNextSprint: true });
+    // biome-ignore lint/suspicious/noExplicitAny: mock call arguments are untyped
+    const calls = mockWorkItemTrackingApi.queryByWiql.mock.calls as any[];
+    return { stories, wiql: calls[0]?.[0]?.query as string | undefined, queries: calls.length };
+  }
+
+  test("lists the current and next sprint when both exist", async () => {
+    const { wiql } = await sprintSearch([
+      { path: "SampleProject\\Sprint 1", attributes: { timeFrame: 1 } },
+      { path: "SampleProject\\Sprint 2", attributes: { timeFrame: 2, startDate: new Date("2027-01-01") } },
+    ]);
+    expect(wiql).toContain("[System.IterationPath] IN ('SampleProject\\Sprint 1', 'SampleProject\\Sprint 2')");
+  });
+
+  test("lists the current sprint without failing when there is no next sprint", async () => {
+    const { wiql, stories } = await sprintSearch([{ path: "SampleProject\\Sprint 1", attributes: { timeFrame: 1 } }]);
+    expect(wiql).toContain("[System.IterationPath] IN ('SampleProject\\Sprint 1')");
+    expect(stories.length).toBeGreaterThan(0);
+  });
+
+  test("lists nothing, without failing, when there is no current sprint", async () => {
+    const { stories, queries } = await sprintSearch([]);
+    expect(stories).toEqual([]);
+    expect(queries).toBe(0);
+  });
+});
+
+describe("AzureDevOpsAdapter closed states", () => {
+  test("a failed closed-states fetch is asked for again, not kept for the adapter's lifetime", async () => {
+    let fail = true;
+    const api = mockWorkItemTrackingApi as unknown as Record<string, unknown>;
+    api.getWorkItemTypeStates = mock(async () => {
+      if (fail) throw new Error("network");
+      return [{ name: "Active", category: "InProgress" }, { name: "Closed", category: "Completed" }];
+    });
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    await adapter.authenticate();
+    mockWorkItemTrackingApi.queryByWiql.mockClear();
+
+    const search = { limit: 10, excludeClosed: true, workItemTypes: ["User Story"] };
+    await adapter.searchStories(search);
+    fail = false;
+    await adapter.searchStories(search);
+
+    // biome-ignore lint/suspicious/noExplicitAny: mock call arguments are untyped
+    const queries = (mockWorkItemTrackingApi.queryByWiql.mock.calls as any[]).map((call) => call[0].query as string);
+    expect(queries[0]).not.toContain("'Closed'");
+    expect(queries[1]).toContain("'Closed'");
+    delete api.getWorkItemTypeStates;
   });
 });

@@ -1,11 +1,12 @@
 import { basename } from 'node:path';
 import { Atomizer } from '@sppg2001/atomize-core';
-import type { AtomizationReport } from '@sppg2001/atomize-core/core/atomizer';
+import { type AtomizationReport, DEFAULT_GENERATION_STALL_TIMEOUT_MS } from '@sppg2001/atomize-core/core/atomizer';
 import { AuthError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { authFailureDetail } from '../profiles/auth-failure.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
@@ -54,11 +55,11 @@ async function runLivePreview(
 		const adapter = await credentialResolver.resolveByName(profile);
 		const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
 		const atomizer = new Atomizer(adapter);
-		const report = await atomizer.atomize(template, { dryRun: true, storyIds: [storyId] });
+		const report = await atomizer.atomize(template, { dryRun: true, storyIds: [storyId], stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS });
 		return { report };
 	} catch (err) {
 		if (err instanceof AuthError) {
-			return { error: 'auth', detail: err.message.replace(/^authentication failed[:\s]*/i, '').trim() || 'Personal access token may be expired or revoked.' };
+			return { error: 'auth', detail: authFailureDetail(err) };
 		}
 		return { error: 'notfound', detail: err instanceof Error ? err.message : String(err) };
 	}

@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
-import { TemplateLoader } from "@sppg2001/atomize-core/templates/loader";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { FixableWarningCode, TemplateValidator } from "@sppg2001/atomize-core/templates/validator";
 import { TemplateValidationError } from "@sppg2001/atomize-core/utils/errors";
 
+const library = new TemplateLibrary();
+const load = async (path: string) => (await library.loadSource(path)).template;
+
 describe("TemplateValidator", () => {
 	const validator = new TemplateValidator();
-	const loader = new TemplateLoader();
 	const fixturesPath = resolve(__dirname, "../fixtures/templates");
 
 	describe("validate", () => {
@@ -180,7 +182,7 @@ describe("TemplateValidator", () => {
 		});
 
 		test("should validate a correct template", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "valid-template.yaml"),
 			);
 			const result = validator.validate(template);
@@ -190,7 +192,7 @@ describe("TemplateValidator", () => {
 		});
 
 		test("should return validation result with errors and warnings", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "valid-template.yaml"),
 			);
 			const result = validator.validate(template);
@@ -203,7 +205,7 @@ describe("TemplateValidator", () => {
 		});
 
 		test("should detect invalid estimation total", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "invalid-estimation.yaml"),
 			);
 			const result = validator.validate(template);
@@ -220,7 +222,7 @@ describe("TemplateValidator", () => {
 		});
 
 		test("should detect invalid dependencies", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "invalid-dependency.yaml"),
 			);
 			const result = validator.validate(template);
@@ -504,7 +506,7 @@ describe("TemplateValidator", () => {
 
 	describe("validateOrThrow", () => {
 		test("should return template if valid", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "valid-template.yaml"),
 			);
 			const validated = validator.validateOrThrow(template);
@@ -514,7 +516,7 @@ describe("TemplateValidator", () => {
 		});
 
 		test("should throw TemplateValidationError if invalid", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "invalid-estimation.yaml"),
 			);
 
@@ -524,7 +526,7 @@ describe("TemplateValidator", () => {
 		});
 
 		test("should include error details in exception", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "invalid-estimation.yaml"),
 			);
 
@@ -542,7 +544,7 @@ describe("TemplateValidator", () => {
 
 	describe("formatResult", () => {
 		test("should format valid result", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "valid-template.yaml"),
 			);
 			const result = validator.validate(template);
@@ -552,7 +554,7 @@ describe("TemplateValidator", () => {
 		});
 
 		test("should format invalid result with errors", async () => {
-			const template = await loader.load(
+			const template = await load(
 				resolve(fixturesPath, "invalid-estimation.yaml"),
 			);
 			const result = validator.validate(template);

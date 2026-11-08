@@ -22,7 +22,7 @@ Subpath exports let consumers reach into a specific area without importing every
 - `platforms/*`: platform adapters and capability interfaces (Azure DevOps today).
 - `services/*`: the template services layer.
 - `templates/*`: composition (`extends`/`mixins`), loading, source resolution, schema.
-- `utils/*`: errors, graph, math, estimation-normalizer helpers.
+- `utils/*`: errors, graph and math helpers.
 
 ## Consumers
 

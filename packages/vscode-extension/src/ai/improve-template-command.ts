@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { type ImproveResult, improveTemplate } from '@sppg2001/atomize-core/services/template/ai-template-loop';
 import { MAX_ATTEMPTS } from '@sppg2001/atomize-core/services/template/llm-template-generator';
 import type { DocumentGrounding } from '@sppg2001/atomize-core/services/template/reference-documents';
-import { applyProposalToYaml } from '@sppg2001/atomize-core/services/template/template-writeback';
 import type { TaskTemplate } from '@sppg2001/atomize-core/templates/schema';
+import { TemplateDocument } from '@sppg2001/atomize-core/templates/template-document';
 import { CancellationError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
@@ -112,7 +112,7 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		return;
 	}
 
-	const proposalText = applyProposalToYaml(sourceText, proposal);
+	const proposalText = TemplateDocument.parse(sourceText).withValue(proposal).toString();
 	if (proposalText === sourceText) {
 		void vscode.window.showInformationMessage('Copilot proposed no changes to this Template.');
 		return;
@@ -126,7 +126,8 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		proposalDoc.uri,
 		`${vscode.workspace.asRelativePath(doc.uri)} ↔ Copilot's proposal`,
 	);
-	void vscode.window.showInformationMessage(reviewMessage(result.notes, result.ok ? [] : result.errors));
+	const problems = result.ok ? (result.verification?.errors ?? []) : result.errors;
+	void vscode.window.showInformationMessage(reviewMessage(result.notes, problems, result.verification?.warnings ?? []));
 }
 
 /** Runs the improvement, resolving undefined when the user cancelled. */

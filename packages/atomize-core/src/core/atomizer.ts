@@ -6,10 +6,11 @@ import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
 } from "../templates/schema";
+import { runWithConcurrency } from "../utils/concurrency";
+import { GenerationTimeoutError, getErrorMessage } from "../utils/errors";
 import { DependencyResolver } from "./dependency-resolver.js";
 import type { CalculatedTask } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
-import { StoryBatchProcessor } from "./story-batch-processor";
 import { StoryProcessor } from "./story-processor";
 
 /**
@@ -21,9 +22,7 @@ export type ProgressEventType =
   | "story_start"
   | "story_complete"
   | "story_error"
-  | "task_created"
-  | "dependency_created"
-  | "complete";
+  | "task_created";
 
 /**
  * Progress event data
@@ -40,8 +39,6 @@ export interface ProgressEvent {
   story?: WorkItem;
   /** Number of tasks created so far */
   tasksCreated?: number;
-  /** Number of dependencies created so far */
-  dependenciesCreated?: number;
   /** Error message if type is story_error */
   error?: string;
   /** The task that was just created (type: task_created) */
@@ -84,9 +81,36 @@ export interface AtomizationOptions {
   /** Fetch these specific work item IDs directly, bypassing the template filter (excludeIfHasTasks still applies) */
   storyIds?: string[];
 
-  /** Batch-level cancellation: checked between story batches and before each story starts. In-flight batches still complete — see ADR-0057. */
+  /** Cancels the run: no further Story or Task starts once aborted; requests already sent finish and created Tasks are kept (see ADR-0057). */
   signal?: AbortSignal;
+
+  /**
+   * How long the run may go without progress (a Story query, Story or Task finishing) before it is
+   * given up as stuck: the run's signal is aborted, so no new Story or Task work starts, and `atomize`
+   * rejects with a GenerationTimeoutError. A run that keeps making progress never times out, however
+   * long it takes. No deadline when omitted.
+   */
+  stallTimeoutMs?: number;
 }
+
+/** What every Story in one run is processed with. */
+interface StoryRun {
+  orderedTasks: TemplateTaskDefinition[];
+  template: TaskTemplate;
+  connectUserEmail: string;
+  options: AtomizationOptions;
+  warnings: string[];
+}
+
+/** Which Stories a run covers: specific Story IDs, or the Template's filter. */
+export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit">;
+
+/**
+ * The stall deadline surfaces use for an interactive Generation Run. Longer than the longest wait
+ * the Azure DevOps throttle makes before retrying (five minutes), so a throttled run isn't taken
+ * for a stuck one.
+ */
+export const DEFAULT_GENERATION_STALL_TIMEOUT_MS = 6 * 60 * 1_000;
 
 /**
  * Result for a single story
@@ -103,6 +127,10 @@ export interface StoryAtomizationResult {
   error?: string;
   /** Present when the Story was skipped because its Story Estimate could not be resolved. */
   skipReason?: string;
+  /** True when the run was cancelled or timed out before all of this Story's Tasks were created; those created are kept. */
+  stoppedEarly?: boolean;
+  /** Why the Story Estimate could not be resolved, and whether Task Estimates were left blank or the Story skipped. */
+  unresolvedEstimate?: { action: "blank" | "skip"; reason: string };
   /** Unit of the Task Estimates when they go to the platform's default fields (e.g. "hours"); absent when the unit is unknown. */
   estimateUnit?: string;
   /** The raw Story Estimate as read through the effective source (e.g. "L" from an overridden size field); absent when the Story has none. */
@@ -161,22 +189,12 @@ export interface AtomizationReport {
  * Main orchestrator that generates tasks from user stories based on templates
  */
 export class Atomizer {
-  private filterEngine: FilterEngine;
-  private dependencyResolver: DependencyResolver;
-  private storyProcessor: StoryProcessor;
-  private storyBatchProcessor: StoryBatchProcessor;
+  private readonly filterEngine = new FilterEngine();
+  private readonly dependencyResolver = new DependencyResolver();
+  private readonly storyProcessor: StoryProcessor;
 
-  constructor(
-    private platform: GenerationPlatform,
-    filterEngine = new FilterEngine(),
-    dependencyResolver = new DependencyResolver(),
-    storyProcessor = new StoryProcessor(platform),
-    storyBatchProcessor = new StoryBatchProcessor(),
-  ) {
-    this.filterEngine = filterEngine;
-    this.dependencyResolver = dependencyResolver;
-    this.storyProcessor = storyProcessor;
-    this.storyBatchProcessor = storyBatchProcessor;
+  constructor(private readonly platform: GenerationPlatform) {
+    this.storyProcessor = new StoryProcessor(platform);
   }
 
   /**
@@ -186,6 +204,45 @@ export class Atomizer {
     template: TaskTemplate,
     options: AtomizationOptions = {},
   ): Promise<AtomizationReport> {
+    const { stallTimeoutMs } = options;
+    if (stallTimeoutMs === undefined) return await this.run(template, options);
+
+    const deadline = new AbortController();
+    const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let rejectStalled: (error: Error) => void = () => undefined;
+    const stalled = new Promise<never>((_, reject) => {
+      rejectStalled = reject;
+    });
+    // Every progress event pushes the deadline back, so only a run that has stopped moving times out.
+    const restartDeadline = () => {
+      if (deadline.signal.aborted) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        deadline.abort();
+        rejectStalled(new GenerationTimeoutError(stallTimeoutMs));
+      }, stallTimeoutMs);
+    };
+    const onProgress = (event: ProgressEvent) => {
+      restartDeadline();
+      options.onProgress?.(event);
+    };
+
+    restartDeadline();
+    const run = this.run(template, { ...options, signal, onProgress });
+    // A run still winding down after the deadline settles later; its outcome is no longer reported.
+    run.catch(() => undefined);
+    try {
+      return await Promise.race([run, stalled]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async run(
+    template: TaskTemplate,
+    options: AtomizationOptions,
+  ): Promise<AtomizationReport> {
     const startTime = Date.now();
 
     logger.info("Starting atomization process...");
@@ -193,26 +250,7 @@ export class Atomizer {
     logger.info(`Dry run: ${options.dryRun ? "Yes" : "No"}`);
 
     const connectUserEmail = await this.platform.getConnectUserEmail();
-
-    let platformFilter: FilterCriteria;
-    if (options.storyIds && options.storyIds.length > 0) {
-      logger.info(`Fetching ${options.storyIds.length} specific work item(s) by ID`);
-      platformFilter = {
-        workItemIds: options.storyIds,
-        excludeIfHasTasks: template.filter.excludeIfHasTasks,
-      };
-    } else {
-      platformFilter = this.filterEngine.convertFilter(
-        template.filter,
-        connectUserEmail,
-      );
-      if (options.limit !== undefined) platformFilter.limit = options.limit;
-
-      const filterValidation = this.filterEngine.validateFilter(template.filter);
-      if (!filterValidation.valid) {
-        throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
-      }
-    }
+    const platformFilter = this.storyQuery(template, options, connectUserEmail);
 
     const onProgress = options.onProgress;
 
@@ -235,22 +273,16 @@ export class Atomizer {
     );
     logger.debug(`Resolved ${orderedTasks.length} tasks in dependency order`);
 
-    // Process stories in parallel batches
     const storyConcurrency = options.storyConcurrency ?? 3;
     logger.info(
       `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,
     );
 
-    const { results, errors } = await this.storyBatchProcessor.process({
+    const { results, errors } = await this.processStories(
       stories,
-      orderedTasks,
-      template,
-      connectUserEmail,
-      options,
-      warnings,
-      concurrency: storyConcurrency,
-      storyProcessor: this.storyProcessor,
-    });
+      { orderedTasks, template, connectUserEmail, options, warnings },
+      storyConcurrency,
+    );
 
     const storiesSuccess = results.filter((r) => r.success).length;
     const storiesFailed = results.filter((r) => !r.success).length;
@@ -316,22 +348,142 @@ export class Atomizer {
   }
 
   /**
-   * Get a summary of what would be generated (dry run)
+   * Processes Stories through a concurrency pool: the next Story starts as soon as a slot frees
+   * up. Stops starting Stories on the first failure (unless continueOnError) or once the signal is
+   * aborted; Stories already started still finish.
    */
-  async preview(template: TaskTemplate): Promise<AtomizationReport> {
-    return this.atomize(template, { dryRun: true });
+  private async processStories(
+    stories: WorkItem[],
+    run: StoryRun,
+    concurrency: number,
+  ): Promise<{ results: StoryAtomizationResult[]; errors: Array<{ storyId: string; error: string }> }> {
+    const results: StoryAtomizationResult[] = new Array(stories.length);
+    const errors: Array<{ storyId: string; error: string }> = [];
+    let stopProcessing = false;
+    let completedStories = 0;
+    let totalTasksCreated = 0;
+    const onProgress = run.options.onProgress;
+    const signal = run.options.signal;
+    const isCancelled = () => stopProcessing || signal?.aborted === true;
+
+    await runWithConcurrency(
+      stories,
+      concurrency,
+      async (story, storyIndex) => {
+        onProgress?.({ type: "story_start", storyIndex, totalStories: stories.length, story });
+
+        const onTaskCreated = onProgress
+          ? (task: WorkItem) => {
+              totalTasksCreated++;
+              onProgress({
+                type: "task_created",
+                task,
+                story,
+                storyIndex,
+                totalStories: stories.length,
+                completedStories,
+                tasksCreated: totalTasksCreated,
+              });
+            }
+          : undefined;
+
+        try {
+          const result = await this.storyProcessor.process(
+            story,
+            run.orderedTasks,
+            run.template,
+            run.connectUserEmail,
+            { ...run.options, onTaskCreated },
+            run.warnings,
+          );
+          results[storyIndex] = result;
+          completedStories++;
+
+          onProgress?.({
+            type: "story_complete",
+            storyIndex,
+            totalStories: stories.length,
+            completedStories,
+            story,
+            tasksCreated: totalTasksCreated,
+          });
+        } catch (error) {
+          const failedResult = this.buildFailedResult(story, error);
+          errors.push({ storyId: story.id, error: failedResult.error ?? "" });
+          results[storyIndex] = failedResult;
+
+          completedStories++;
+          onProgress?.({
+            type: "story_error",
+            storyIndex,
+            totalStories: stories.length,
+            completedStories,
+            story,
+            error: failedResult.error,
+          });
+
+          if (!run.options.continueOnError) {
+            logger.error("Stopping on first error (continueOnError=false)");
+            stopProcessing = true;
+          }
+        }
+      },
+      { shouldStop: isCancelled },
+    );
+
+    return {
+      results: results.filter((r): r is StoryAtomizationResult => r !== undefined),
+      errors,
+    };
+  }
+
+  private buildFailedResult(
+    story: WorkItem,
+    error: unknown,
+  ): StoryAtomizationResult {
+    const errorMessage = getErrorMessage(error);
+    logger.error(`Error processing story ${story.id}: ${errorMessage}`);
+
+    return {
+      story,
+      tasksCalculated: [],
+      tasksCreated: [],
+      success: false,
+      error: errorMessage,
+    };
   }
 
   /**
-   * Count how many stories match the filter
+   * The Stories a run with these options would process: the given Story IDs, or the Template's
+   * filter (validated, and capped by `limit`). The same step `atomize` starts with.
    */
-  async countMatchingStories(template: TaskTemplate): Promise<number> {
+  async queryStories(
+    template: TaskTemplate,
+    options: StoryScopeOptions = {},
+  ): Promise<WorkItem[]> {
     const connectUserEmail = await this.platform.getConnectUserEmail();
-    const platformFilter = this.filterEngine.convertFilter(
-      template.filter,
-      connectUserEmail,
-    );
-    const stories = await this.platform.queryWorkItems(platformFilter);
-    return stories.length;
+    return await this.platform.queryWorkItems(this.storyQuery(template, options, connectUserEmail));
+  }
+
+  private storyQuery(
+    template: TaskTemplate,
+    options: StoryScopeOptions,
+    connectUserEmail: string,
+  ): FilterCriteria {
+    if (options.storyIds && options.storyIds.length > 0) {
+      logger.info(`Fetching ${options.storyIds.length} specific work item(s) by ID`);
+      return {
+        workItemIds: options.storyIds,
+        excludeIfHasTasks: template.filter.excludeIfHasTasks,
+      };
+    }
+
+    const filterValidation = this.filterEngine.validateFilter(template.filter);
+    if (!filterValidation.valid) {
+      throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
+    }
+    const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
+    if (options.limit !== undefined) platformFilter.limit = options.limit;
+    return platformFilter;
   }
 }

@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 
 const TEST_DIR = join(tmpdir(), `atomize-library-install-content-test-${process.pid}`);
@@ -16,14 +15,13 @@ tasks:
   - title: Test task`;
 
 function makeLibrary(): TemplateLibrary {
-  const catalog = new TemplateCatalog({
+  return new TemplateLibrary({
     userRoot: join(TEST_DIR, "user"),
     projectRoot: join(TEST_DIR, "project"),
     legacyUserRoot: join(TEST_DIR, "legacy-user"),
     legacyProjectRoot: join(TEST_DIR, "legacy-project"),
     packageRoot: join(TEST_DIR, "package"),
   });
-  return new TemplateLibrary(undefined, catalog);
 }
 
 beforeEach(async () => {

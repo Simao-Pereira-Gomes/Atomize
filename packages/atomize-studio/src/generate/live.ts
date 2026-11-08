@@ -26,7 +26,7 @@ export type GenerateReport = {
 };
 
 export type GenerateProgressEventType =
-  | "query_start" | "query_complete" | "story_start" | "story_complete" | "story_error" | "task_created" | "dependency_created" | "complete";
+  | "query_start" | "query_complete" | "story_start" | "story_complete" | "story_error" | "task_created";
 
 export type GenerateProgressEvent = {
   type: GenerateProgressEventType;

@@ -473,3 +473,57 @@ describe("Document Grounding", () => {
     expect(calls[0]?.userPrompt).not.toContain("Reference documents");
   });
 });
+
+describe("improveTemplate checks a valid proposal the same way for every surface", () => {
+  const plain = {
+    version: "1.0",
+    name: "Backend API",
+    filter: { workItemTypes: ["User Story"], states: ["Active"] },
+    tasks: [{ title: "Implementation", estimationPercent: 100 }],
+  } as unknown as TaskTemplate;
+  const OVER_ALLOCATED = `version: "1.0"
+name: "Backend API"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - title: "Implementation"
+    estimationPercent: 70
+  - title: "Testing"
+    estimationPercent: 50
+`;
+
+  test("returns its verification warnings without failing it", async () => {
+    const { session } = scriptedSession([OVER_ALLOCATED]);
+    const result = await improveTemplate(session, { template: plain, resolvedTemplate: plain });
+
+    expect(result.ok).toBe(true);
+    expect(result.verification?.valid).toBe(true);
+    expect(result.verification?.warnings.length).toBeGreaterThan(0);
+  });
+
+  test("fails it on warnings when the request is strict", async () => {
+    const { session } = scriptedSession([OVER_ALLOCATED]);
+    const result = await improveTemplate(session, { template: plain, resolvedTemplate: plain, strict: true });
+
+    expect(result.verification?.valid).toBe(false);
+    expect(result.verification?.errors).toEqual(result.verification?.warnings);
+  });
+
+  test("verifies the proposal as it will run, composed with its parent", async () => {
+    const { session } = scriptedSession([VALID]);
+    let composedWith: unknown;
+    const result = await improveTemplate(session, {
+      template: plain,
+      resolvedTemplate: plain,
+      compose: async (proposal) => {
+        composedWith = proposal;
+        const own = proposal as unknown as TaskTemplate;
+        return { ...own, tasks: [{ title: "Inherited review", estimationPercent: 50 }, ...own.tasks] };
+      },
+    });
+
+    expect(composedWith).toBeDefined();
+    expect(result.ok).toBe(true);
+    expect(result.verification?.warnings.length).toBeGreaterThan(0);
+  });
+});

@@ -1,6 +1,6 @@
 import { basename, extname, resolve } from "node:path";
-import { parse as parseYaml } from "yaml";
 import { MixinTemplateSchema, TaskTemplateSchema } from "../../templates/schema";
+import { TemplateDocument } from "../../templates/template-document";
 import { loadYamlFile } from "../../templates/template-file";
 import type {
   TemplateCatalog,
@@ -120,7 +120,7 @@ async function resolveRemoteInstallSource(
 function detectKindFromContent(content: string): TemplateCatalogKind {
   let raw: unknown;
   try {
-    raw = parseYaml(content);
+    raw = TemplateDocument.parse(content).toValue();
   } catch {
     throw new Error("Could not parse YAML content. Pass --type explicitly.");
   }

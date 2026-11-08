@@ -3,14 +3,14 @@ import { copyFile, mkdir, readdir, rmdir, unlink, writeFile } from "node:fs/prom
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { logger } from "../../logger";
 import {
   MixinTemplateSchema,
   TaskTemplateSchema,
 } from "../../templates/schema";
+import { TemplateDocument } from "../../templates/template-document";
 import { loadYamlFile } from "../../templates/template-file";
-import { discoverWorkspaceRoot } from "./workspace-root";
+import { canonicalPath, discoverWorkspaceRoot } from "./workspace-root";
 
 export type TemplateCatalogKind = "template" | "mixin";
 export type TemplateCatalogScope = "builtin" | "user" | "project";
@@ -97,7 +97,7 @@ export class TemplateCatalog {
     const home = resolve(options?.homeDirectory ?? homedir());
     const userStateRoot = resolve(home, ".atomize");
     const workspaceRoot = resolve(discoverWorkspaceRoot(options?.invocationCwd, home));
-    this.hasProject = options?.projectRoot !== undefined || workspaceRoot !== home;
+    this.hasProject = options?.projectRoot !== undefined || canonicalPath(workspaceRoot) !== canonicalPath(home);
     const projectStateRoot = resolve(workspaceRoot, ".atomize");
     this.userRoot = options?.userRoot ?? resolve(userStateRoot, "catalog");
     this.projectRoot = options?.projectRoot ?? resolve(projectStateRoot, "catalog");
@@ -196,7 +196,7 @@ export class TemplateCatalog {
     const name = filename.replace(/(?:\.atomize)?\.ya?ml$/i, "");
     this.assertValidName(name);
 
-    const raw = parseYaml(content);
+    const raw = TemplateDocument.parse(content).toValue();
     this.validateInstallPayload(raw, kind);
 
     const targetPath = await this.prepareDestination(kind, scope, name, options.overwrite === true);
@@ -232,6 +232,8 @@ export class TemplateCatalog {
     kind: TemplateCatalogKind;
     name: string;
     template: unknown;
+    /** The YAML text `template` derives from, whose anchors, aliases and comments are kept where they still apply. */
+    sourceText?: string;
     scope: Extract<TemplateCatalogScope, "user" | "project">;
     overwrite?: boolean;
     validate?: boolean;
@@ -249,7 +251,10 @@ export class TemplateCatalog {
     }
 
     await mkdir(dirname(targetPath), { recursive: true });
-    await writeFile(targetPath, stringifyYaml(input.template), "utf-8");
+    const document = input.sourceText === undefined
+      ? TemplateDocument.create(input.template)
+      : TemplateDocument.parse(input.sourceText).withValue(input.template);
+    await writeFile(targetPath, document.toString(), "utf-8");
     await this.cleanupLegacyDestinationFiles(input.kind, input.scope, input.name);
 
     const metadata = this.extractMetadata(input.template);

@@ -1,13 +1,12 @@
 import { note } from "@clack/prompts";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import type {
   CatalogLineage,
   CatalogOverride,
   TemplateCatalogItem,
   TemplateCatalogKind,
   TemplateCatalogScope,
-} from "@sppg2001/atomize-core/services/template/template-catalog";
-import { TemplateLoader } from "@sppg2001/atomize-core/templates/loader";
-import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+} from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
@@ -61,7 +60,7 @@ export const templateListCommand = new Command("list")
         const { items, overrides, lineage } = await library.getCatalog(type);
 
         if (jsonMode) {
-          output.printJson(await buildJsonItems(items, overrides, lineage));
+          output.printJson(await buildJsonItems(library, items, overrides, lineage));
           return;
         }
 
@@ -92,7 +91,7 @@ export const templateListCommand = new Command("list")
 
       if (jsonMode) {
         const { items, overrides, lineage } = await library.getCatalogAll();
-        output.printJson(await buildJsonItems(items, overrides, lineage));
+        output.printJson(await buildJsonItems(library, items, overrides, lineage));
         return;
       }
 
@@ -148,6 +147,7 @@ function capitalize(s: string): string {
 }
 
 async function buildJsonItems(
+  library: TemplateLibrary,
   items: TemplateCatalogItem[],
   overrides: CatalogOverride[],
   lineage: CatalogLineage[],
@@ -160,14 +160,13 @@ async function buildJsonItems(
     return a.ref.localeCompare(b.ref);
   });
 
-  const loader = new TemplateLoader();
   return await Promise.all(sorted.map(async (item): Promise<CatalogJsonItem> => {
     const overriddenItem = overrideMap.get(item.ref);
     const originItem = lineageMap.get(item.ref);
     let template: TaskTemplate | undefined;
     if (item.kind === "template") {
       try {
-        template = await loader.load(item.path);
+        template = (await library.loadSource(item.path)).template;
       } catch {
         // Keep the metadata entry visible; callers that require a resolved payload skip it.
       }

@@ -1,13 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { ConditionEvaluator } from "@sppg2001/atomize-core/core/condition-evaluator";
 import { EstimationCalculator } from "@sppg2001/atomize-core/core/estimation-calculator";
 import { resolveEstimationFieldMapping } from "@sppg2001/atomize-core/core/estimation-field-mapping";
 import { MOCK_ESTIMATION_DEFAULTS } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
-import type { EstimationConfig, TaskDefinition } from "@sppg2001/atomize-core/templates/schema";
+import type { EstimationConfig, TaskDefinition, TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+
+/** The calculator's estimate, called with the arguments these tests were written around. */
+function calculateTasks(
+  story: WorkItem,
+  connectUserEmail: string,
+  tasks: TaskDefinition[],
+  estimation?: EstimationConfig,
+  forceNormalize?: boolean,
+  fieldMapping?: Parameters<EstimationCalculator["estimate"]>[1]["fieldMapping"],
+  taskEstimationRange?: NonNullable<TaskTemplate["validation"]>["taskEstimationRange"],
+) {
+  return new EstimationCalculator().estimate(story, { tasks, connectUserEmail, estimation, forceNormalize, fieldMapping, taskEstimationRange });
+}
 
 describe("EstimationCalculator", () => {
-  const calculator = new EstimationCalculator();
 
   const mockStory: WorkItem = {
     id: "STORY-001",
@@ -26,7 +37,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 3", estimationPercent: 20 },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -44,7 +55,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 2", estimationFixed: 5 },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -66,7 +77,7 @@ describe("EstimationCalculator", () => {
         strategy: "percentage",
         rounding: "nearest",
       };
-      const { calculatedTasks: nearest } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: nearest } = calculateTasks(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -79,7 +90,7 @@ describe("EstimationCalculator", () => {
         strategy: "percentage",
         rounding: "up",
       };
-      const { calculatedTasks: up } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: up } = calculateTasks(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -92,7 +103,7 @@ describe("EstimationCalculator", () => {
         strategy: "percentage",
         rounding: "down",
       };
-      const { calculatedTasks: down } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: down } = calculateTasks(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -114,7 +125,7 @@ describe("EstimationCalculator", () => {
         strategy: "percentage",
         rounding: "nearest",
       };
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -130,7 +141,7 @@ describe("EstimationCalculator", () => {
         rounding: "nearest",
         minimumTaskEstimate: 0.5,
       };
-      const { calculatedTasks: calculatedWithMin } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculatedWithMin } = calculateTasks(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -154,7 +165,7 @@ describe("EstimationCalculator", () => {
         rounding: "nearest",
       };
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         story,
         mockStory.assignedTo ?? "",
         tasks,
@@ -170,7 +181,7 @@ describe("EstimationCalculator", () => {
         { title: "Small Task", estimationPercent: 3 },
         { title: "Filler", estimationPercent: 97 },
       ];
-      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+      const { calculatedTasks } = calculateTasks(story, "", tasks, {
         strategy: "percentage",
         rounding: "nearest",
         minimumTaskPoints: 0.5,
@@ -184,7 +195,7 @@ describe("EstimationCalculator", () => {
         { title: "Small Task", estimationPercent: 3 },
         { title: "Filler", estimationPercent: 97 },
       ];
-      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+      const { calculatedTasks } = calculateTasks(story, "", tasks, {
         strategy: "percentage",
         rounding: "nearest",
         minimumTaskEstimate: 1,
@@ -204,7 +215,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 2", estimationPercent: 20 },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -232,7 +243,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         story,
         story.assignedTo ?? "",
         tasks
@@ -256,7 +267,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -282,7 +293,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         storyWithIteration,
         storyWithIteration.assignedTo ?? "",
         tasks
@@ -296,7 +307,7 @@ describe("EstimationCalculator", () => {
         { title: "Task", estimationPercent: 100, assignTo: "@ParentAssignee" },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         mockStory,
         mockStory.assignedTo ?? "",
         tasks
@@ -311,7 +322,7 @@ describe("EstimationCalculator", () => {
         { title: "Task", estimationPercent: 50 },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: calculated } = calculateTasks(
         storyNoEstimation,
         storyNoEstimation.assignedTo ?? "",
         tasks
@@ -321,124 +332,47 @@ describe("EstimationCalculator", () => {
     });
   });
 
-  describe("calculateTotalEstimation", () => {
-    test("should sum task estimations", () => {
-      const tasks = [
-        { title: "T1", estimation: 3 },
-        { title: "T2", estimation: 5 },
-        { title: "T3", estimation: 2 },
-      ];
+  describe("estimation summary", () => {
+    const summaryOf = (story: WorkItem, tasks: TaskDefinition[]) => calculateTasks(story, "", tasks).summary;
 
-      const total = calculator.calculateTotalEstimation(tasks);
-
-      expect(total).toBe(10);
+    test("sums the Task Estimates and compares them with the Story Estimate", () => {
+      const summary = summaryOf({ ...mockStory, estimation: 10 }, [{ title: "T1", estimationFixed: 3 }, { title: "T2", estimationFixed: 5 }, { title: "T3", estimationFixed: 2 }]);
+      expect(summary).toEqual({ storyEstimation: 10, totalTaskEstimation: 10, difference: 0, percentageUsed: 100 });
     });
 
-    test("should handle tasks with no estimation", () => {
-      const tasks = [
-        { title: "T1", estimation: 3 },
-        { title: "T2" }, // No estimation
-      ];
-
-      const total = calculator.calculateTotalEstimation(tasks);
-
-      expect(total).toBe(3);
-    });
-  });
-
-  describe("getEstimationSummary", () => {
-    test("should provide accurate summary", () => {
-      const story = { ...mockStory, estimation: 10 };
-      const tasks = [
-        { title: "T1", estimation: 3 },
-        { title: "T2", estimation: 5 },
-        { title: "T3", estimation: 2 },
-      ];
-
-      const summary = calculator.getEstimationSummary(story, tasks);
-
-      expect(summary.storyEstimation).toBe(10);
-      expect(summary.totalTaskEstimation).toBe(10);
-      expect(summary.difference).toBe(0);
-      expect(summary.percentageUsed).toBe(100);
-    });
-
-    test("should calculate difference correctly", () => {
-      const story = { ...mockStory, estimation: 10 };
-      const tasks = [
-        { title: "T1", estimation: 3 },
-        { title: "T2", estimation: 4 },
-      ];
-
-      const summary = calculator.getEstimationSummary(story, tasks);
-
+    test("reports the difference and the share used", () => {
+      const summary = summaryOf({ ...mockStory, estimation: 10 }, [{ title: "T1", estimationFixed: 3 }, { title: "T2", estimationFixed: 4 }]);
       expect(summary.totalTaskEstimation).toBe(7);
       expect(summary.difference).toBe(3);
       expect(summary.percentageUsed).toBe(70);
     });
 
-    test("should handle story with no estimation", () => {
-      const story = { ...mockStory, estimation: 0 };
-      const tasks = [{ title: "T1", estimation: 3 }];
+    test("counts a Task with no estimate as zero", () => {
+      expect(summaryOf({ ...mockStory, estimation: undefined }, [{ title: "T1", estimationFixed: 3 }, { title: "T2", estimationPercent: 50 }]).totalTaskEstimation).toBe(3);
+    });
 
-      const summary = calculator.getEstimationSummary(story, tasks);
-
-      expect(summary.percentageUsed).toBe(0);
+    test("uses nothing of a Story with no estimation", () => {
+      expect(summaryOf({ ...mockStory, estimation: 0 }, [{ title: "T1", estimationFixed: 3 }]).percentageUsed).toBe(0);
     });
   });
 
-  describe("validateEstimation", () => {
-    test("should pass validation when estimations match", () => {
-      const story = { ...mockStory, estimation: 10 };
-      const tasks = [
-        { title: "T1", estimation: 5 },
-        { title: "T2", estimation: 5 },
-      ];
+  describe("distribution warnings", () => {
+    const warningsOf = (tasks: TaskDefinition[]) => calculateTasks({ ...mockStory, estimation: 10 }, "", tasks).warnings;
 
-      const validation = calculator.validateEstimation(story, tasks);
-
-      expect(validation.valid).toBe(true);
-      expect(validation.warnings).toHaveLength(0);
+    test("none when the Task Estimates add up to the Story Estimate", () => {
+      expect(warningsOf([{ title: "T1", estimationFixed: 5 }, { title: "T2", estimationFixed: 5 }])).toEqual([]);
     });
 
-    test("should warn when estimations do not match", () => {
-      const story = { ...mockStory, estimation: 10 };
-      const tasks = [
-        { title: "T1", estimation: 3 },
-        { title: "T2", estimation: 4 },
-      ];
-
-      const validation = calculator.validateEstimation(story, tasks);
-
-      expect(validation.valid).toBe(false);
-      expect(validation.warnings.length).toBeGreaterThan(0);
-      expect(validation.warnings[0]).toContain("differs");
+    test("warns when they don't", () => {
+      expect(warningsOf([{ title: "T1", estimationFixed: 3 }, { title: "T2", estimationFixed: 4 }])[0]).toContain("differs");
     });
 
-    test("should warn about zero estimations", () => {
-      const story = { ...mockStory, estimation: 10 };
-      const tasks = [
-        { title: "T1", estimation: 10 },
-        { title: "T2", estimation: 0 },
-      ];
-
-      const validation = calculator.validateEstimation(story, tasks);
-
-      expect(validation.valid).toBe(false);
-      expect(
-        validation.warnings.some((w) => w.includes("zero estimation"))
-      ).toBe(true);
+    test("warns about zero estimations", () => {
+      expect(warningsOf([{ title: "T1", estimationFixed: 10 }, { title: "T2", estimationFixed: 0 }]).some((w) => w.includes("zero estimation"))).toBe(true);
     });
 
-    test("should allow small differences (tolerance)", () => {
-      const story = { ...mockStory, estimation: 10 };
-      const tasks = [
-        { title: "T1", estimation: 5.2 },
-        { title: "T2", estimation: 4.9 },
-      ];
-
-      const validation = calculator.validateEstimation(story, tasks);
-      expect(validation.valid).toBe(true);
+    test("allows small differences", () => {
+      expect(warningsOf([{ title: "T1", estimationFixed: 5.2 }, { title: "T2", estimationFixed: 4.9 }])).toEqual([]);
     });
   });
 
@@ -461,7 +395,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 3", estimationPercent: 20 },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         storyWithTags,
         storyWithTags.assignedTo ?? "",
         tasks
@@ -514,7 +448,7 @@ describe("EstimationCalculator", () => {
         { title: "Frontend Task 2", estimationPercent: 20 },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         storyWithoutBackend,
         storyWithoutBackend.assignedTo ?? "",
         tasks
@@ -549,7 +483,7 @@ describe("EstimationCalculator", () => {
         { title: "Task 2", estimationPercent: 60 },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         story,
         story.assignedTo ?? "",
         tasks
@@ -583,7 +517,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         storyWithoutBackend,
         storyWithoutBackend.assignedTo ?? "",
         tasks
@@ -612,7 +546,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         story,
         story.assignedTo ?? "",
         tasks
@@ -656,7 +590,7 @@ describe("EstimationCalculator", () => {
         { title: "Testing Task", estimationPercent: 10 },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         story,
         story.assignedTo ?? "",
         tasks
@@ -693,7 +627,7 @@ describe("EstimationCalculator", () => {
         { title: "Filler", estimationPercent: 40 },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(story, "", tasks);
+      const { calculatedTasks: calculated } = calculateTasks(story, "", tasks);
 
       expect(calculated[0]?.estimationPercent).toBe(60);
       expect(calculated[0]?.estimation).toBe(6); // 60% of 10
@@ -712,7 +646,7 @@ describe("EstimationCalculator", () => {
         { title: "Filler", estimationPercent: 60 },
       ];
 
-      const { calculatedTasks: calculated } = calculator.calculateTasksWithSkipped(story, "", tasks);
+      const { calculatedTasks: calculated } = calculateTasks(story, "", tasks);
 
       expect(calculated[0]?.estimationPercent).toBe(40);
       expect(calculated[0]?.estimation).toBe(4); // 40% of 10
@@ -731,17 +665,17 @@ describe("EstimationCalculator", () => {
         { title: "Filler", estimationPercent: 90 },
       ];
 
-      const { calculatedTasks: small } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: small } = calculateTasks(
         { ...mockStory, estimation: 3 },
         "",
         tasks,
       );
-      const { calculatedTasks: medium } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: medium } = calculateTasks(
         { ...mockStory, estimation: 8 },
         "",
         tasks,
       );
-      const { calculatedTasks: large } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: large } = calculateTasks(
         { ...mockStory, estimation: 13 },
         "",
         tasks,
@@ -767,12 +701,12 @@ describe("EstimationCalculator", () => {
         { title: "Filler", estimationPercent: 60 },
       ];
 
-      const { calculatedTasks: backendOnly } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: backendOnly } = calculateTasks(
         { ...mockStory, estimation: 10, tags: ["backend"] },
         "",
         tasks,
       );
-      const { calculatedTasks: fullstack } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks: fullstack } = calculateTasks(
         { ...mockStory, estimation: 10, tags: ["fullstack"] },
         "",
         tasks,
@@ -807,7 +741,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(story, "", tasks);
+      const result = calculateTasks(story, "", tasks);
 
       expect(result.calculatedTasks).toHaveLength(2);
       expect(result.skippedTasks).toHaveLength(1);
@@ -844,7 +778,7 @@ describe("EstimationCalculator", () => {
         },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(story, "", tasks);
+      const result = calculateTasks(story, "", tasks);
 
       expect(result.calculatedTasks).toHaveLength(2);
       expect(result.skippedTasks).toHaveLength(1);
@@ -876,12 +810,12 @@ describe("EstimationCalculator", () => {
     const config: EstimationConfig = { strategy: "percentage", rounding: "none", conversion: { factor: 4 } };
 
     test("converts the Story Estimate before splitting it", () => {
-      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
+      const { calculatedTasks } = calculateTasks(story, "", tasks, config);
       expect(calculatedTasks.map((t) => t.estimation)).toEqual([16, 4]);
     });
 
     test("applies rounding and the minimum after conversion", () => {
-      const { calculatedTasks } = calculator.calculateTasksWithSkipped(
+      const { calculatedTasks } = calculateTasks(
         { ...story, estimation: 1 },
         "",
         [
@@ -895,7 +829,7 @@ describe("EstimationCalculator", () => {
     });
 
     test("Templates without a conversion are unchanged", () => {
-      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, {
+      const { calculatedTasks } = calculateTasks(story, "", tasks, {
         strategy: "percentage",
         rounding: "none",
       });
@@ -903,16 +837,14 @@ describe("EstimationCalculator", () => {
     });
 
     test("the estimation summary reports the converted Story total", () => {
-      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
-      const summary = calculator.getEstimationSummary(story, calculatedTasks, config);
+      const { summary } = calculateTasks(story, "", tasks, config);
       expect(summary.storyEstimation).toBe(20);
       expect(summary.totalTaskEstimation).toBe(20);
       expect(summary.percentageUsed).toBe(100);
     });
 
     test("validation compares Task Estimates with the converted total, not the raw points", () => {
-      const { calculatedTasks } = calculator.calculateTasksWithSkipped(story, "", tasks, config);
-      expect(calculator.validateEstimation(story, calculatedTasks, config).valid).toBe(true);
+      expect(calculateTasks(story, "", tasks, config).warnings).toEqual([]);
     });
   });
 
@@ -924,14 +856,14 @@ describe("EstimationCalculator", () => {
     ];
 
     test("by default Tasks are generated with blank estimates, never zero", () => {
-      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks);
+      const result = calculateTasks(unestimated, "", tasks);
       expect(result.calculatedTasks).toHaveLength(2);
       expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
       expect(result.unresolvedEstimate).toEqual({ action: "blank", reason: "Story has no estimate" });
     });
 
     test("a fixed Task Estimate is kept when the Story Estimate is unresolvable", () => {
-      const result = calculator.calculateTasksWithSkipped(unestimated, "", [
+      const result = calculateTasks(unestimated, "", [
         { title: "Fixed", estimationFixed: 2 },
         { title: "Share", estimationPercent: 100 },
       ]);
@@ -939,7 +871,7 @@ describe("EstimationCalculator", () => {
     });
 
     test("skip produces no Tasks and reports the reason", () => {
-      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks, {
+      const result = calculateTasks(unestimated, "", tasks, {
         strategy: "percentage",
         rounding: "none",
         ifParentHasNoEstimation: "skip",
@@ -956,15 +888,15 @@ describe("EstimationCalculator", () => {
         defaultParentEstimation: 5,
         conversion: { factor: 2 },
       };
-      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks, config);
+      const result = calculateTasks(unestimated, "", tasks, config);
       expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([6, 4]);
       expect(result.defaultEstimateReason).toBe("Story has no estimate");
-      expect(calculator.getEstimationSummary(unestimated, result.calculatedTasks, config).storyEstimation).toBe(10);
+      expect(result.summary.storyEstimation).toBe(10);
     });
 
     test("blank estimates do not trigger the zero-estimation or difference warnings", () => {
-      const result = calculator.calculateTasksWithSkipped(unestimated, "", tasks);
-      expect(calculator.validateEstimation(unestimated, result.calculatedTasks)).toEqual({ valid: true, warnings: [] });
+      const result = calculateTasks(unestimated, "", tasks);
+      expect(result.warnings).toEqual([]);
     });
   });
 
@@ -993,24 +925,24 @@ describe("EstimationCalculator", () => {
         conversion: { table: { XL: 5 }, multipliers: true },
       };
       // 0.3 × 5 = 1.5 hours; 80% = 1.2 → 1, 20% = 0.3 → 0.5 at half-hour rounding
-      const result = calculator.calculateTasksWithSkipped(sized("0.3XL"), "", tasks, multiplied, false, mapping);
+      const result = calculateTasks(sized("0.3XL"), "", tasks, multiplied, false, mapping);
       expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([1, 0.5]);
-      expect(calculator.getEstimationSummary(sized("0.3XL"), result.calculatedTasks, multiplied, mapping).storyEstimation).toBe(1.5);
+      expect(result.summary.storyEstimation).toBe(1.5);
     });
 
     test("an L Story's 20% task gets 1 hour", () => {
-      const result = calculator.calculateTasksWithSkipped(sized("L"), "", tasks, config, false, mapping);
+      const result = calculateTasks(sized("L"), "", tasks, config, false, mapping);
       expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([4, 1]);
     });
 
     test("a size missing from the table leaves Task Estimates blank with a warning", () => {
-      const result = calculator.calculateTasksWithSkipped(sized("XXL"), "", tasks, config, false, mapping);
+      const result = calculateTasks(sized("XXL"), "", tasks, config, false, mapping);
       expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
       expect(result.unresolvedEstimate?.reason).toContain('"XXL"');
     });
 
     test("a Task conditioned on a numeric comparison against a size is skipped with a reason", () => {
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         sized("L"),
         "",
         [
@@ -1034,14 +966,14 @@ describe("EstimationCalculator", () => {
           condition: { any: [{ field: "estimation", operator: "equals", value: "L" }, { field: "estimation", operator: "equals", value: "XL" }] },
         },
       ];
-      const large = calculator.calculateTasksWithSkipped(sized("XL"), "", conditional, config, false, mapping);
-      const small = calculator.calculateTasksWithSkipped(sized("S"), "", conditional, config, false, mapping);
+      const large = calculateTasks(sized("XL"), "", conditional, config, false, mapping);
+      const small = calculateTasks(sized("S"), "", conditional, config, false, mapping);
       expect(large.calculatedTasks.map((t) => t.title)).toContain("Architecture review");
       expect(small.calculatedTasks.map((t) => t.title)).not.toContain("Architecture review");
     });
 
     test("an estimationPercentCondition that cannot be evaluated skips that Task instead of failing the Story", () => {
-      const result = calculator.calculateTasksWithSkipped(
+      const result = calculateTasks(
         sized("L"),
         "",
         [
@@ -1061,7 +993,7 @@ describe("EstimationCalculator", () => {
     });
 
     test("a blank source field never falls back to the default estimation", () => {
-      const result = calculator.calculateTasksWithSkipped(sized(), "", tasks, config, false, mapping);
+      const result = calculateTasks(sized(), "", tasks, config, false, mapping);
       expect(result.calculatedTasks.every((t) => t.estimation === undefined)).toBe(true);
       expect(result.unresolvedEstimate?.reason).toBe("Story has no estimate");
     });
@@ -1079,8 +1011,7 @@ describe("EstimationCalculator", () => {
       { title: "QA", estimationPercent: 60 },
     ];
     const run = (tasks: TaskDefinition[], normalize?: EstimationConfig["normalize"]) =>
-      calculator
-        .calculateTasksWithSkipped(story, "", tasks, { strategy: "percentage", rounding: "none", ...(normalize ? { normalize } : {}) })
+      calculateTasks(story, "", tasks, { strategy: "percentage", rounding: "none", ...(normalize ? { normalize } : {}) })
         .calculatedTasks.map((t) => t.estimation);
 
     test("auto (default) scales a skipped task's share up and keeps over-allocation", () => {
@@ -1099,7 +1030,7 @@ describe("EstimationCalculator", () => {
     });
 
     test("an explicit never wins over a forced normalisation", () => {
-      const result = calculator.calculateTasksWithSkipped(story, "", overAllocated, { strategy: "percentage", rounding: "none", normalize: "never" }, true);
+      const result = calculateTasks(story, "", overAllocated, { strategy: "percentage", rounding: "none", normalize: "never" }, true);
       expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([9, 6]);
     });
   });
@@ -1115,14 +1046,6 @@ describe("EstimationCalculator repeated tasks", () => {
     tags: ["review"],
   };
 
-  class CountingConditionEvaluator extends ConditionEvaluator {
-    calls = 0;
-    override evaluateCondition(...args: Parameters<ConditionEvaluator["evaluateCondition"]>): boolean {
-      this.calls++;
-      return super.evaluateCondition(...args);
-    }
-  }
-
   test("produces one Task per copy, each with an ordinal title and the full percentage", () => {
     // biome-ignore-start lint/suspicious/noTemplateCurlyInString: testing that the ordinal follows interpolation
     const tasks: TaskDefinition[] = [
@@ -1131,7 +1054,7 @@ describe("EstimationCalculator repeated tasks", () => {
     ];
     // biome-ignore-end lint/suspicious/noTemplateCurlyInString: testing that the ordinal follows interpolation
 
-    const { calculatedTasks } = new EstimationCalculator().calculateTasksWithSkipped(story, "", tasks);
+    const { calculatedTasks } = calculateTasks(story, "", tasks);
 
     expect(calculatedTasks.map((t) => [t.title, t.estimationPercent, t.estimation, t.templateId])).toEqual([
       ["Design Checkout", 70, 7, undefined],
@@ -1142,7 +1065,7 @@ describe("EstimationCalculator repeated tasks", () => {
   });
 
   test("a task without repeat keeps its title unsuffixed", () => {
-    const { calculatedTasks } = new EstimationCalculator().calculateTasksWithSkipped(story, "", [
+    const { calculatedTasks } = calculateTasks(story, "", [
       { title: "Review", estimationPercent: 100, repeat: 1 },
     ]);
 
@@ -1156,7 +1079,7 @@ describe("EstimationCalculator repeated tasks", () => {
     ];
 
     // 50% + 3 × 50% = 200%; forced normalisation halves every copy, not just the definition.
-    const { calculatedTasks } = new EstimationCalculator().calculateTasksWithSkipped(
+    const { calculatedTasks } = calculateTasks(
       story,
       "",
       tasks,
@@ -1167,8 +1090,7 @@ describe("EstimationCalculator repeated tasks", () => {
     expect(calculatedTasks.map((t) => t.estimation)).toEqual([2.5, 2.5, 2.5, 2.5]);
   });
 
-  test("a met condition is evaluated once and produces every copy", () => {
-    const evaluator = new CountingConditionEvaluator();
+  test("a met condition produces every copy", () => {
     const tasks: TaskDefinition[] = [
       {
         title: "Review",
@@ -1178,9 +1100,8 @@ describe("EstimationCalculator repeated tasks", () => {
       },
     ];
 
-    const { calculatedTasks, skippedTasks } = new EstimationCalculator(evaluator).calculateTasksWithSkipped(story, "", tasks);
+    const { calculatedTasks, skippedTasks } = calculateTasks(story, "", tasks);
 
-    expect(evaluator.calls).toBe(1);
     expect(calculatedTasks).toHaveLength(4);
     expect(skippedTasks).toEqual([]);
   });
@@ -1196,9 +1117,36 @@ describe("EstimationCalculator repeated tasks", () => {
       },
     ];
 
-    const { calculatedTasks, skippedTasks } = new EstimationCalculator().calculateTasksWithSkipped(story, "", tasks);
+    const { calculatedTasks, skippedTasks } = calculateTasks(story, "", tasks);
 
     expect(calculatedTasks.map((t) => t.title)).toEqual(["Build"]);
     expect(skippedTasks.map((s) => s.templateTask.title)).toEqual(["Review"]);
+  });
+});
+
+describe("EstimationCalculator.estimate", () => {
+  test("reads the Story Estimate once per Story", () => {
+    let reads = 0;
+    const story = {
+      id: "STORY-ONCE",
+      title: "Once",
+      type: "User Story",
+      state: "New",
+      get estimation() {
+        reads++;
+        return 10;
+      },
+    } as WorkItem;
+
+    const result = new EstimationCalculator().estimate(story, { tasks: [{ title: "A", estimationPercent: 60 }, { title: "B", estimationPercent: 40 }] });
+
+    expect(result.calculatedTasks.map((t) => t.estimation)).toEqual([6, 4]);
+    expect(result.summary.storyEstimation).toBe(10);
+    expect(reads).toBe(1);
+  });
+
+  test("returns the Story Estimate as read", () => {
+    const result = new EstimationCalculator().estimate({ id: "S", title: "S", type: "User Story", state: "New", estimation: 5 }, { tasks: [] });
+    expect(result.storyEstimate).toBe(5);
   });
 });

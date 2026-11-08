@@ -1,7 +1,12 @@
 import { select } from "@clack/prompts";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
-import { fetchProjectGrounding, type ProjectGrounding, toProjectGroundingError } from "@sppg2001/atomize-core/services/template/project-grounding";
+import {
+  fetchProjectGrounding,
+  type GroundingFailureChoice,
+  type ProjectGrounding,
+  withGroundingRecovery,
+} from "@sppg2001/atomize-core/services/template/project-grounding";
 import { CancellationError, ConfigurationError } from "@sppg2001/atomize-core/utils/errors";
 import { assertNotCancelled, createManagedSpinner, isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 
@@ -46,30 +51,34 @@ export async function loadProjectGrounding(
   connect: (profile?: string) => Promise<IPlatformAdapter>,
   interactive: boolean,
 ): Promise<ProjectGrounding | null> {
-  while (true) {
-    const spinner = createManagedSpinner();
-    try {
-      spinner.start("Connecting to Azure DevOps…");
-      const adapter = await connect(profile);
-      spinner.message("Loading project metadata…");
-      const projectGrounding = await fetchProjectGrounding(adapter);
-      spinner.stop(
-        `Project metadata loaded ✓ (${projectGrounding.workItemTypes.length} work item types, ${projectGrounding.savedQueries.length} saved queries)`,
-      );
-      return projectGrounding;
-    } catch (error) {
-      spinner.stop("Grounding failed");
-      const next = await decideAfterGroundingFailure(toProjectGroundingError(error).message, interactive);
-      if (next === "ungrounded") return null;
-    }
-  }
+  const grounding = await withGroundingRecovery(
+    async () => {
+      const spinner = createManagedSpinner();
+      try {
+        spinner.start("Connecting to Azure DevOps…");
+        const adapter = await connect(profile);
+        spinner.message("Loading project metadata…");
+        const projectGrounding = await fetchProjectGrounding(adapter);
+        spinner.stop(
+          `Project metadata loaded ✓ (${projectGrounding.workItemTypes.length} work item types, ${projectGrounding.savedQueries.length} saved queries)`,
+        );
+        return projectGrounding;
+      } catch (error) {
+        spinner.stop("Grounding failed");
+        throw error;
+      }
+    },
+    (error) => decideAfterGroundingFailure(error.message, interactive),
+  );
+  if (grounding === undefined) throw new CancellationError("AI request cancelled");
+  return grounding;
 }
 
 /**
  * Grounding the user asked for never disappears silently (ADR-0069): an interactive run chooses to
  * retry, continue without it, or cancel; a non-interactive run stops with an error.
  */
-async function decideAfterGroundingFailure(message: string, interactive: boolean): Promise<"retry" | "ungrounded"> {
+async function decideAfterGroundingFailure(message: string, interactive: boolean): Promise<GroundingFailureChoice> {
   if (!interactive) {
     throw new ConfigurationError(
       `${message} Grounding was requested (--ground), so Atomize stopped instead of continuing without it.`,
@@ -85,8 +94,7 @@ async function decideAfterGroundingFailure(message: string, interactive: boolean
       ],
     }),
   ) as string;
-  if (next === "cancel") throw new CancellationError("AI request cancelled");
-  return next as "retry" | "ungrounded";
+  return next as GroundingFailureChoice;
 }
 
 async function askToGround(): Promise<boolean> {

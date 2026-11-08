@@ -1,8 +1,10 @@
 /** The Project Reference Documents found around a folder or file (ADR-0070). */
 export type ReferenceList = { workspaceRoot: string; entries: string[]; problems: string[] };
 
+import type { DocumentGrounding } from "@sppg2001/atomize-sidecar/contract";
+
 /** Loaded Reference Documents, fitted to the limit, as Document Grounding. */
-export type DocumentGrounding = { documents: { ref: string; title: string; text: string; truncated: boolean; originalLength: number }[] };
+export type { DocumentGrounding };
 
 export type LoadedReferences = {
   grounding: DocumentGrounding | null;

@@ -1,0 +1,4 @@
+formatVersion: "1.0"
+name: "Composed from the built-in Catalog"
+extends: "template:backend-api"
+mixins: ["mixin:proj-docs"]

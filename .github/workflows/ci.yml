@@ -262,7 +262,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -286,6 +286,17 @@ jobs:
 
       - name: Build
         run: bun run build
+        working-directory: packages/vscode-extension
+
+      - name: Cache VS Code for the e2e tests
+        uses: actions/cache@v4
+        with:
+          path: packages/vscode-extension/.vscode-test
+          key: vscode-test-1.90.0-${{ runner.os }}
+
+      - name: End-to-end tests in VS Code
+        # Runs the built extension in a real VS Code (the minimum supported version) under a virtual display.
+        run: xvfb-run -a bun run test:e2e
         working-directory: packages/vscode-extension
 
       - name: Package extension

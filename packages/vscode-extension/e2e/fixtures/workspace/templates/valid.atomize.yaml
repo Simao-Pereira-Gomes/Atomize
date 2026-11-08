@@ -1,0 +1,9 @@
+formatVersion: "1.0"
+name: "Valid"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - title: "Build"
+    estimationPercent: 60
+  - title: "Test"
+    estimationPercent: 40

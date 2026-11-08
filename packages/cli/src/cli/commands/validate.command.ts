@@ -1,24 +1,18 @@
 import { select } from "@clack/prompts";
 import { type LogLevel, logger } from "@config/logger";
-import { totalUnconditionalEstimationPercent } from "@sppg2001/atomize-core/core/estimation-distribution";
-import {
-  requireProjectMetadataReader,
-  requireSavedQueryReader,
-} from "@sppg2001/atomize-core/platforms/capabilities";
-import {
-  appendOfflineVerificationWarning,
-  type CustomFieldVerificationSummary,
-  checkValueType,
-  getCustomFieldVerificationSummary,
-  verifyTemplateCustomFields as validateCustomFieldsAgainstSchemas,
-} from "@sppg2001/atomize-core/templates/custom-field-verifier";
-import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
 import {
   generatedTaskCount,
   type TaskTemplate,
+  totalUnconditionalEstimationPercent,
   type ValidationMode,
 } from "@sppg2001/atomize-core/templates/schema";
+import type { CompositionMeta } from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
+import {
+  type CustomFieldVerificationSummary,
+  getCustomFieldVerificationSummary,
+  projectVerificationPlatform,
+} from "@sppg2001/atomize-core/templates/template-verification";
 import type {
   ValidationError,
   ValidationResult,
@@ -48,13 +42,7 @@ import {
 
 
 export { resolveValidationOptions } from "./validate-application";
-export {
-  appendOfflineVerificationWarning,
-  type CustomFieldVerificationSummary,
-  checkValueType,
-  getCustomFieldVerificationSummary,
-  validateCustomFieldsAgainstSchemas,
-};
+export { type CustomFieldVerificationSummary, getCustomFieldVerificationSummary };
 
 type ValidateOptions = {
   strict?: boolean;
@@ -166,20 +154,14 @@ function createValidateCommandDeps(depsOptions: { showStatus: boolean }): Valida
 
       try {
         const adapter = await createAzureDevOpsAdapter(options.profile);
-        const metadataReader = requireProjectMetadataReader(adapter);
-        const savedQueryReader = requireSavedQueryReader(adapter);
+        const platform = projectVerificationPlatform(adapter);
         s?.message("Fetching ADO project metadata...");
         s?.stop("ADO connection ready");
         return {
           options: {
             mode: "online",
             strict: options.strict === true,
-            platform: {
-              getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
-              listSavedQueries: (folder) => savedQueryReader.listSavedQueries(folder),
-              getEstimationDefaults: () => adapter.getEstimationDefaults(),
-              getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
-            },
+            platform,
           },
           connectionWarnings: [],
         };
@@ -335,35 +317,4 @@ function handleFatal(
 
   const message = getErrorMessage(error);
   output.print(chalk.red(message));
-}
-
-export async function validateCustomFieldsOnline(
-  template: TaskTemplate,
-  profile: string | undefined,
-): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-  const s = createManagedSpinner();
-  s.start("Connecting to ADO to validate custom fields...");
-
-  try {
-    const adapter = await createAzureDevOpsAdapter(profile);
-    const metadataReader = requireProjectMetadataReader(adapter);
-    s.message("Fetching field schemas...");
-    const result = await validateCustomFieldsAgainstSchemas(
-      template,
-      async (workItemType) => metadataReader.getFieldSchemas(workItemType),
-      template.taskType ?? adapter.getEstimationDefaults().taskWorkItemType,
-    );
-
-    s.stop("Custom field validation complete");
-    return result;
-  } catch (err) {
-    s.stop("Custom field validation failed");
-    return {
-      errors: [],
-      warnings: [{
-        path: "tasks[*].customFields",
-        message: `Could not validate custom fields against ADO: ${err instanceof Error ? err.message : String(err)}`,
-      }],
-    };
-  }
 }

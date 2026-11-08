@@ -147,12 +147,13 @@ export function buildCreateTaskPatch(
         },
       },
     },
+    ...(task.predecessorIds ?? []).flatMap((predecessorId) => buildDependencyLinkPatch(organizationUrl, predecessorId)),
   ];
 }
 
 export function buildDependencyLinkPatch(
   organizationUrl: string,
-  predecessorId: number,
+  predecessorId: number | string,
 ): JsonPatchDocument {
   return [
     {

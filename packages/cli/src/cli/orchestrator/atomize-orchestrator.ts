@@ -1,7 +1,11 @@
 import { log, progress } from "@clack/prompts";
 import { logger } from "@config/logger";
-import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
-import { GenerationRun } from "@sppg2001/atomize-core/core/generation-run";
+import {
+  type AtomizationReport,
+  Atomizer,
+  DEFAULT_GENERATION_STALL_TIMEOUT_MS,
+  type ProgressEvent,
+} from "@sppg2001/atomize-core/core/atomizer";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
@@ -110,23 +114,9 @@ export function createProgressHandler(
         if (isTTYSession && storyProgressRef.current) {
           storyProgressRef.current.advance(
             0,
-            `${e.completedStories}/${e.totalStories} stories · ${e.tasksCreated} task${e.tasksCreated === 1 ? "" : "s"} created`,
+            `${e.completedStories ?? 0}/${e.totalStories} stories · ${e.tasksCreated ?? 0} task${e.tasksCreated === 1 ? "" : "s"} created`,
           );
         }
-      })
-      .with({ type: "dependency_created" }, (e) => {
-        if (isTTYSession && storyProgressRef.current) {
-          storyProgressRef.current.advance(
-            0,
-            `${e.completedStories}/${e.totalStories} stories · ${e.dependenciesCreated} link${e.dependenciesCreated === 1 ? "" : "s"} created`,
-          );
-        }
-      })
-      .with({ type: "complete" }, (e) => {
-        if (isTTYSession) storyProgressRef.current?.stop(
-          `Done: ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`,
-        );
-        else print(`Done: ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`);
       })
       .exhaustive();
 }
@@ -139,7 +129,7 @@ export async function runAtomization(
 ): Promise<AtomizationReport> {
   logger.info("Starting atomization...");
 
-  const generationRun = new GenerationRun(platform);
+  const atomizer = new Atomizer(platform);
   const storyProgressRef: { current: ProgressHandle | undefined } = { current: undefined };
 
   const querySpinner = (!opts.jsonStream && opts.isTTYSession)
@@ -156,10 +146,12 @@ export async function runAtomization(
         output.print,
         log.success,
         log.error,
-        (total) => progress({ max: total, style: "block" }),
+        // A narrower bar keeps the line within 80 columns; a wrapped line leaves stale copies behind.
+        (total) => progress({ max: total, style: "block", size: 30 }),
       );
 
-  const report = await generationRun.execute(template, {
+  const report = await atomizer.atomize(template, {
+    stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS,
     dryRun: opts.dryRun,
     continueOnError: opts.continueOnError,
     limit: opts.limit,

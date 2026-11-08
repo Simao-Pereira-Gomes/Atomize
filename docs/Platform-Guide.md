@@ -483,7 +483,12 @@ interface IPlatformAdapter {
   authenticate(config?: AuthConfig): Promise<void>;
   queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]>;
   createTask(parentId: string, task: TaskDefinition): Promise<WorkItem>;
-  createTasksBulk(parentId: string, tasks: TaskDefinition[]): Promise<WorkItem[]>;
+  createTasksBulk(
+    parentId: string,
+    tasks: TaskDefinition[],
+    onTaskCreated?: (task: WorkItem, index: number) => void,
+    options?: { signal?: AbortSignal },
+  ): Promise<WorkItem[]>;
   getPlatformMetadata(): PlatformMetadata;
   
   // Optional methods
@@ -492,8 +497,47 @@ interface IPlatformAdapter {
   getChildren?(parentId: string): Promise<WorkItem[]>;
   updateWorkItem?(id: string, updates: Partial<WorkItem>): Promise<WorkItem>;
   deleteWorkItem?(id: string): Promise<boolean>;
+  createDependencyLink?(dependentId: string, predecessorId: string): Promise<void>;
+
+  // Optional capability flag
+  readonly createsDependencyLinksWithTasks?: boolean;
 }
 ```
+
+### Creating Tasks and dependency links
+
+Generation calls `createTasksBulk` once per Story, or once per Task when it links dependencies on create (see below). Your adapter must:
+
+- Return the Tasks it created in the same order as `tasks`, leaving out any that failed. A failed Task must not fail the whole call.
+- Call `onTaskCreated` for each created Task with that Task's **index in `tasks`**. Generation uses the index to match created Work Items back to Template tasks, so it can link dependencies correctly even when an earlier Task failed.
+- Stop starting Tasks once `options.signal` is aborted (the run was cancelled or timed out), and return the Tasks already created. Pass `shouldStop: () => options.signal?.aborted === true` to `runWithConcurrency`.
+- Keep its own requests in flight under a limit. Start the next Task as soon as one finishes, instead of waiting for a whole batch. `runWithConcurrency` in `atomize-core/src/utils/concurrency.ts` does this.
+
+Your adapter can create `dependsOn` links in one of two ways:
+
+| Adapter declares | What generation does |
+|---|---|
+| `createsDependencyLinksWithTasks: true` | Creates each Task as soon as its own predecessors exist, with at most `taskConcurrency` (default 5) in flight. Each Task's `predecessorIds` holds the IDs of its already-created predecessors, and your adapter links them as part of creating the Task, with no extra request. |
+| Only `createDependencyLink` | Creates all of a Story's Tasks in one call, then calls `createDependencyLink` once per link. |
+| Neither | Creates the Tasks and logs a warning that dependencies weren't linked. |
+
+If the platform's API lets one create request carry links, prefer the first way: it saves one request per link. If a predecessor failed to create, its dependent is still created, just without that link.
+
+Linking on create makes a dependency chain's Tasks wait for each other, so a long chain would take longer than creating everything at once. When the adapter also has `createDependencyLink`, generation picks per Story whichever takes fewer rounds of requests:
+
+- **Links on create:** the length of the longest chain.
+- **Create, then link:** ⌈Tasks / `taskConcurrency`⌉ + ⌈links / dependency concurrency⌉.
+
+A tie goes to linking on create, which sends fewer requests. Without `createDependencyLink`, it always links on create.
+
+### Rate limits
+
+If the platform throttles clients, handle it inside the adapter so every request in a run shares one policy. The Azure DevOps adapter is the model to follow (`request-throttle.ts`):
+
+- Retry HTTP 429 after the `Retry-After` delay.
+- Retry 503 only for reads, because a write can return 503 after it was applied, and retrying it could create a duplicate Task.
+- Treat `Retry-After` on a successful response as a signal to slow down.
+- Once throttled, lower the number of requests in flight until the platform has been quiet for a while (five minutes for Azure DevOps, matching its sliding rate-limit window). Hosts that reuse an adapter across runs carry that state over, which is intended: the limit is per user, not per run.
 
 ### Steps to Add a Platform
 

@@ -1,3 +1,4 @@
+import { isNativelyManagedTaskField } from "@sppg2001/atomize-schema";
 import { type AzureDevOpsProfile, listAzureDevOpsProfiles as listNativeAzureDevOpsProfiles } from "../connections/connection-client";
 import { loadGrounding, type SidecarInvoker, SidecarRequestError } from "../sidecar/sidecar-client";
 
@@ -36,27 +37,10 @@ export type GroundedEstimation = {
   storyEstimateFieldsByWorkItemType: Record<string, GroundedEstimationField[]>;
 };
 
-/**
- * Fields the Task editor already authors through dedicated controls or that Azure
- * DevOps owns itself. Keep this aligned with the CLI custom-field picker so a
- * connected project offers the same safe set of Task fields in both surfaces.
- */
-const NATIVELY_MANAGED_TASK_FIELDS = new Set([
-  "System.Title", "System.State", "System.WorkItemType", "System.TeamProject",
-  "System.AreaPath", "System.IterationPath", "System.AssignedTo", "System.Tags",
-  "System.Description", "System.Id", "System.Rev", "System.CreatedBy",
-  "System.CreatedDate", "System.ChangedBy", "System.ChangedDate",
-  "System.AuthorizedAs", "System.AuthorizedDate", "System.Watermark",
-  "Microsoft.VSTS.Scheduling.RemainingWork",
-  "Microsoft.VSTS.Scheduling.OriginalEstimate",
-  "Microsoft.VSTS.Scheduling.CompletedWork", "Microsoft.VSTS.Common.Priority",
-  "Microsoft.VSTS.Common.Activity",
-]);
-
 /** Fields that can safely be added through a Template Task's customFields map. */
 export function editableTaskFields(options: GroundedFieldOptions | undefined): GroundedTaskField[] {
   return (options?.taskFields ?? []).filter(
-    (field) => !field.isReadOnly && !NATIVELY_MANAGED_TASK_FIELDS.has(field.referenceName),
+    (field) => !field.isReadOnly && !isNativelyManagedTaskField(field.referenceName),
   );
 }
 

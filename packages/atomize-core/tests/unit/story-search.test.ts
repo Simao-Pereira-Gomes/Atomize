@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { buildStorySearchWiql } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/work-item-query";
+import { buildStorySearchWiql, pickCurrentAndNextSprint } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/work-item-query";
 import { AzureDevOpsWorkItemRetrieval } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/work-item-retrieval";
 import { MockPlatformAdapter } from "@sppg2001/atomize-core/platforms/adapters/mock/mock.adapter";
 import {
@@ -44,9 +44,14 @@ describe("buildStorySearchWiql", () => {
     expect(wiql).toContain("[System.WorkItemType] NOT IN ('Task')");
   });
 
-  test("limits to the team's current and next sprint and leaves out given states", () => {
-    const wiql = buildStorySearchWiql({ currentAndNextSprint: true, excludeStates: ["Closed", "Removed"], limit: 50 }, "MyProject");
-    expect(wiql).toContain("([System.IterationPath] = @CurrentIteration OR [System.IterationPath] = @CurrentIteration + 1)");
+  test("limits to the team's resolved sprints and leaves out given states", () => {
+    const wiql = buildStorySearchWiql(
+      { currentAndNextSprint: true, excludeStates: ["Closed", "Removed"], limit: 50 },
+      "MyProject",
+      ["MyProject\\Sprint 4", "MyProject\\Sprint 5"],
+    );
+    expect(wiql).toContain("[System.IterationPath] IN ('MyProject\\Sprint 4', 'MyProject\\Sprint 5')");
+    expect(wiql).not.toContain("@CurrentIteration");
     expect(wiql).toContain("[System.State] NOT IN ('Closed', 'Removed')");
   });
 
@@ -216,9 +221,86 @@ describe("AzureDevOpsWorkItemRetrieval.search", () => {
     expect(batches).toEqual([200]);
   });
 
+  test("lists the current sprint alone when the team has no next sprint", async () => {
+    const { api } = stubApi([1], [item(1, 0)]);
+    let wiql = "";
+    api.queryByWiql = async (query: unknown) => {
+      wiql = (query as { query: string }).query;
+      return { workItems: [{ id: 1 }] };
+    };
+    const stories = await new AzureDevOpsWorkItemRetrieval(api as never, {
+      project: "P",
+      team: "T",
+      sprintIterations: async () => ["P\\Sprint 9"],
+    }).search({ limit: 50, currentAndNextSprint: true });
+
+    expect(wiql).toContain("[System.IterationPath] IN ('P\\Sprint 9')");
+    expect(stories.map((story) => story.id)).toEqual(["1"]);
+  });
+
+  test("lists nothing, without querying, when the team has no current sprint", async () => {
+    let queried = false;
+    const api = {
+      queryByWiql: async () => {
+        queried = true;
+        return { workItems: [] };
+      },
+      getWorkItems: async () => [],
+    };
+    const stories = await new AzureDevOpsWorkItemRetrieval(api as never, {
+      project: "P",
+      team: "T",
+      sprintIterations: async () => [],
+    }).search({ limit: 50, currentAndNextSprint: true });
+
+    expect(stories).toEqual([]);
+    expect(queried).toBe(false);
+  });
+
   test("requires a team to list the current and next sprint", async () => {
     const { api } = stubApi([], []);
     await expect(new AzureDevOpsWorkItemRetrieval(api as never, { project: "P", team: "" }).search({ limit: 50, currentAndNextSprint: true }))
       .rejects.toBeInstanceOf(ConfigurationError);
+  });
+});
+
+describe("pickCurrentAndNextSprint", () => {
+  const sprint = (path: string, timeFrame: number | string | undefined, start?: string) => ({
+    path,
+    attributes: { timeFrame, ...(start ? { startDate: new Date(start) } : {}) },
+  });
+
+  test("picks the current sprint and the earliest one after it", () => {
+    expect(
+      pickCurrentAndNextSprint([
+        sprint("P\\Sprint 1", 0, "2026-10-01"),
+        sprint("P\\Sprint 4", 2, "2026-12-01"),
+        sprint("P\\Sprint 2", 1, "2026-11-01"),
+        sprint("P\\Sprint 3", 2, "2026-11-15"),
+      ]),
+    ).toEqual(["P\\Sprint 2", "P\\Sprint 3"]);
+  });
+
+  test("returns only the current sprint when there is no future one", () => {
+    expect(pickCurrentAndNextSprint([sprint("P\\Sprint 1", 0), sprint("P\\Sprint 2", 1)])).toEqual(["P\\Sprint 2"]);
+  });
+
+  test("returns nothing when there is no current sprint, even if a future one exists", () => {
+    expect(pickCurrentAndNextSprint([sprint("P\\Sprint 1", 0), sprint("P\\Sprint 5", 2, "2027-01-01")])).toEqual([]);
+    expect(pickCurrentAndNextSprint([])).toEqual([]);
+  });
+
+  test("reads the time frame whether it arrives as a number or a name", () => {
+    expect(pickCurrentAndNextSprint([sprint("P\\Now", "current"), sprint("P\\Later", "future", "2027-01-01")])).toEqual([
+      "P\\Now",
+      "P\\Later",
+    ]);
+  });
+
+  test("a future sprint without dates still counts as next, after dated ones", () => {
+    expect(pickCurrentAndNextSprint([sprint("P\\Now", 1), sprint("P\\Undated", 2), sprint("P\\Dated", 2, "2027-01-01")])).toEqual([
+      "P\\Now",
+      "P\\Dated",
+    ]);
   });
 });

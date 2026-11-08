@@ -189,6 +189,12 @@ describe("parseImproveResponse", () => {
     expect(parsed.template.tasks[0]?.title).toBe("");
   });
 
+  it("keeps a valid proposal's verification warnings apart from its problems", () => {
+    const parsed = parseImproveResponse({ template: CURRENT, notes: [], warnings: ["tasks: Estimation percentages total 120%"] });
+    expect(parsed.problems).toEqual([]);
+    expect(parsed.warnings).toEqual(["tasks: Estimation percentages total 120%"]);
+  });
+
   it("rejects a response without a Template", () => {
     expect(() => parseImproveResponse({ notes: [] })).toThrow("did not contain a Template");
   });

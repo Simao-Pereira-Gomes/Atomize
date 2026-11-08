@@ -1,39 +1,7 @@
 import { confirm, log, select, text } from "@clack/prompts";
 import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces/field-schema.interface";
+import { isNativelyManagedTaskField } from "@sppg2001/atomize-schema";
 import { assertNotCancelled, selectOrAutocomplete } from "@/cli/utilities/prompt-utilities";
-
-/**
- * Fields Atomize already manages natively — excluded from the custom field picker
- * to avoid conflicts with built-in template behaviour.
- */
-const NATIVELY_MANAGED_FIELDS = new Set([
-  // Core identity / structure (always set by ADO or Atomize on creation)
-  "System.Title",
-  "System.State",
-  "System.WorkItemType",
-  "System.TeamProject",
-  "System.AreaPath",
-  "System.IterationPath",
-  "System.AssignedTo",
-  "System.Tags",
-  "System.Description",
-  // Audit fields (set by ADO, read-only in practice)
-  "System.Id",
-  "System.Rev",
-  "System.CreatedBy",
-  "System.CreatedDate",
-  "System.ChangedBy",
-  "System.ChangedDate",
-  "System.AuthorizedAs",
-  "System.AuthorizedDate",
-  "System.Watermark",
-  // Fields set automatically by Atomize
-  "Microsoft.VSTS.Scheduling.RemainingWork",
-  "Microsoft.VSTS.Scheduling.OriginalEstimate",
-  "Microsoft.VSTS.Scheduling.CompletedWork",
-  "Microsoft.VSTS.Common.Priority",
-  "Microsoft.VSTS.Common.Activity",
-]);
 
 /**
  * Wizard step for adding custom fields to a task definition.
@@ -86,7 +54,7 @@ export async function configureCustomFields(
 /** Returns true when at least one field in `fieldSchemas` can be picked (not read-only, not natively managed). */
 export function hasPickableFields(fieldSchemas: ADoFieldSchema[]): boolean {
   return fieldSchemas.some(
-    (f) => !f.isReadOnly && !NATIVELY_MANAGED_FIELDS.has(f.referenceName),
+    (f) => !f.isReadOnly && !isNativelyManagedTaskField(f.referenceName),
   );
 }
 
@@ -94,7 +62,7 @@ export async function pickFieldOnline(
   fieldSchemas: ADoFieldSchema[],
 ): Promise<ADoFieldSchema | null> {
   const available = fieldSchemas.filter(
-    (f) => !f.isReadOnly && !NATIVELY_MANAGED_FIELDS.has(f.referenceName),
+    (f) => !f.isReadOnly && !isNativelyManagedTaskField(f.referenceName),
   );
 
   if (available.length === 0) {

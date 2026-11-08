@@ -23,13 +23,13 @@ async fn catalog_install_item(content: String, name: String, scope: String, over
 
 #[tauri::command]
 async fn grounding_load(profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
+    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message, token_rejected: false })?;
     forget_if_rejected(&profile, relay.request("grounding.fetch", json!({ "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token })).await)
 }
 
 #[tauri::command]
 async fn validation_online(validation_id: String, template: serde_json::Value, profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
+    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message, token_rejected: false })?;
     forget_if_rejected(&profile, relay.validate(validation_id, json!({ "template": template, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
 }
 
@@ -44,12 +44,12 @@ async fn ai_generate(draft_id: String, prose: String, grounding: Option<serde_js
 }
 
 fn forget_if_rejected<T>(profile: &str, result: Result<T, sidecar::SidecarError>) -> Result<T, sidecar::SidecarError> {
-    if let Err(error) = &result { if connections::is_rejected_token_code(&error.code) { connections::forget_token(profile); } }
+    if let Err(error) = &result { if error.token_rejected { connections::forget_token(profile); } }
     result
 }
 
 fn grounding_connection(profile: &str) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
+    let connection = connections::resolve_for_grounding(profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message, token_rejected: false })?;
     Ok(json!({ "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token }))
 }
 
@@ -101,13 +101,13 @@ async fn ai_auth_status(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<se
 
 #[tauri::command]
 async fn generate_query_stories(source: String, profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
+    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message, token_rejected: false })?;
     forget_if_rejected(&profile, relay.request("generate.queryStories", json!({ "source": source, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
 }
 
 #[tauri::command]
 async fn generate_run(run_id: String, source: String, profile: String, dry_run: bool, scope: serde_json::Value, continue_on_error: Option<bool>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
-    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message })?;
+    let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message, token_rejected: false })?;
     forget_if_rejected(&profile, relay.run_generate(run_id.clone(), json!({
         "runId": run_id,
         "source": source,

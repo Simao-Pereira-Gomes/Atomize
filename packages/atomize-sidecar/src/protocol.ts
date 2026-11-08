@@ -1,10 +1,8 @@
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
-import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
-import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
-import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
-import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
+import { Atomizer, AuthenticatedAdapterCache, buildAzureDevOpsConfig, TemplateLibrary } from "@sppg2001/atomize-core";
+import type { AtomizationReport } from "@sppg2001/atomize-core/core/atomizer";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { draftTemplate, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
@@ -19,47 +17,82 @@ import {
   fitDocumentsToLimit,
   listProjectWikis,
   listWikiPagePaths,
-  loadLocalReference,
-  loadWikiReference,
-  parseReferenceRef,
-  type ReferenceDocument,
+  loadReferenceDocuments,
   ReferenceDocumentError,
   readProjectReferences,
   saveProjectReference,
   truncationNotices,
 } from "@sppg2001/atomize-core/services/template/reference-documents";
-import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
-import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
-import { type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
+import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomize-core/templates/template-library";
+import { projectVerificationPlatform, type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
-import { match } from "ts-pattern";
-import { parse as parseYaml } from "yaml";
+import type {
+  AIDraftParams,
+  AIDraftResult,
+  AIImproveParams,
+  AIImproveResult,
+  CatalogInstallParams,
+  GenerateQueryStoriesParams,
+  GenerateRunParams,
+  GenerateScope,
+  GroundingConnection,
+  OnlineValidationParams,
+  ReferencesListParams,
+  ReferencesListResult,
+  ReferencesLoadParams,
+  ReferencesLoadResult,
+  ReferencesSaveParams,
+  SidecarError,
+  SidecarMethod,
+  SidecarNotifications,
+  SidecarResult,
+  WikiPagesParams,
+} from "./contract";
+
+/**
+ * One authenticated adapter per Studio connection and token for the sidecar's lifetime, so each
+ * action doesn't authenticate again and field schemas stay cached between actions.
+ */
+const adapters = new AuthenticatedAdapterCache();
+
+/** An authenticated adapter for a Connection Profile's connection, reused while its token works. */
+function connectTo(connection: GroundingConnection): Promise<IPlatformAdapter> {
+  return adapters.get(buildAzureDevOpsConfig(connection, connection.token));
+}
+
+/**
+ * A request failure for Studio. `tokenRejected` tells the Rust relay that Azure DevOps refused the
+ * Connection Profile's token, so it forgets the cached one; it is the contract, not the code's wording.
+ */
+function sidecarFailure(code: string, message: string, tokenRejected = false): Error {
+  return Object.assign(new Error(message), { code, ...(tokenRejected ? { tokenRejected: true } : {}) });
+}
 
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
-export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
-export type RpcNotification =
-  | { jsonrpc: "2.0"; method: "sidecar.ready" }
-  | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } }
-  | { jsonrpc: "2.0"; method: "generate.progress"; params: { runId: string; event: ProgressEvent } };
-export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
-export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
-export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
-export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; documentGrounding?: unknown };
-/** Where Reference Documents are looked up: a Workspace Root, discovered from a folder or file inside it. */
-export type ReferencesListParams = { startPath: string };
-export type ReferencesSaveParams = { workspaceRoot: string; entry: string };
-/** Reference Documents to load and fit; wiki entries need the Rust-injected connection. */
-export type ReferencesLoadParams = { workspaceRoot: string; entries: string[]; connection?: GroundingConnection };
-export type ReferencesLoadResult = { grounding: DocumentGrounding | null; notices: string[]; skipped: { entry: string; message: string }[] };
-export type WikiPagesParams = { connection: GroundingConnection; wiki: string };
-export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown; documentGrounding?: unknown };
-/** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
-export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
-export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection };
-export type GenerateRunParams = { runId: string; source: string; connection: GroundingConnection; dryRun: boolean; scope: GenerateScope; continueOnError?: boolean };
+export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: SidecarError };
+export type RpcNotification = {
+  [M in keyof SidecarNotifications]: SidecarNotifications[M] extends undefined
+    ? { jsonrpc: "2.0"; method: M }
+    : { jsonrpc: "2.0"; method: M; params: SidecarNotifications[M] };
+}[keyof SidecarNotifications];
+export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "readCatalogItemContent" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
+export type {
+  AIDraftParams,
+  AIImproveParams,
+  GenerateQueryStoriesParams,
+  GenerateRunParams,
+  GenerateScope,
+  GroundingConnection,
+  OnlineValidationParams,
+  ReferencesListParams,
+  ReferencesLoadParams,
+  ReferencesLoadResult,
+  ReferencesSaveParams,
+  WikiPagesParams,
+} from "./contract";
 export type SidecarServices = {
   library: SidecarTemplateLibrary;
   fetchGrounding: (connection: GroundingConnection) => Promise<ProjectGrounding>;
@@ -86,11 +119,10 @@ export function createTemplateLibrary(projectFolder?: string): TemplateLibrary {
   // Catalog listing and catalog-reference resolution must use the same root. The
   // bundled Studio catalog is not at atomize-core's default package location. The catalog finds
   // the project from the chosen folder itself, so the home folder is never taken for a project.
-  const catalog = new TemplateCatalog({
+  return new TemplateLibrary({
     ...(packageRoot ? { packageRoot } : {}),
     ...(projectFolder ? { invocationCwd: projectFolder } : {}),
   });
-  return new TemplateLibrary(new TemplateSourceResolver(undefined, catalog), catalog);
 }
 
 export function createSidecarServices(library = createTemplateLibrary()): SidecarServices {
@@ -121,32 +153,19 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 
 export async function validateOnline(params: OnlineValidationParams, signal: AbortSignal): Promise<TemplateVerificationResult> {
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
-    await abortable(adapter.authenticate(), signal);
-    const metadataReader = requireProjectMetadataReader(adapter);
-    const queryReader = requireSavedQueryReader(adapter);
+    const adapter = await abortable(connectTo(params.connection), signal);
     return await abortable(verifyTemplate(params.template, {
-      project: {
-        mode: "online",
-        platform: {
-          getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
-          listSavedQueries: () => queryReader.listSavedQueries(),
-          getEstimationDefaults: () => adapter.getEstimationDefaults(),
-          getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
-        },
-      },
+      project: { mode: "online", platform: projectVerificationPlatform(adapter) },
     }), signal);
   } catch (error) {
     if (signal.aborted) throw error;
-    const message = getErrorMessage(error);
-    const code = error instanceof AuthError || /authentication failed|access denied/i.test(message)
-      ? (/token.*expired|personal access token.*expired/i.test(message) ? "VALIDATION_TOKEN_EXPIRED" : "VALIDATION_AUTH_FAILED")
-      : "ONLINE_VALIDATION_FAILED";
-    throw Object.assign(new Error(code === "VALIDATION_TOKEN_EXPIRED"
-      ? "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again."
-      : code === "VALIDATION_AUTH_FAILED"
-        ? "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again."
-        : "Atomize could not validate this Template against Azure DevOps. Check the connection and try again."), { code });
+    throw classifyAdapterError(error, {
+      tokenExpired: "VALIDATION_TOKEN_EXPIRED",
+      authFailed: "VALIDATION_AUTH_FAILED",
+      failed: "ONLINE_VALIDATION_FAILED",
+      message: "Atomize could not validate this Template against Azure DevOps. Check the connection and try again.",
+      detail: false,
+    });
   }
 }
 
@@ -199,7 +218,7 @@ async function withAISession<T>(
   }
 }
 
-async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; errors?: string[] }> {
+async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<AIDraftResult> {
   const result = await withAISession(params.draftId, services, (session, options) =>
     draftTemplate(session, {
       prose: params.prose,
@@ -216,17 +235,27 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
  * A Template Improvement of the Template open in Studio. Studio flattens `extends` and Mixins when
  * it loads a Template (ADR-0048), so the authored Template is also its Resolved Template.
  */
-async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; notes: string[]; errors?: string[] }> {
+async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<AIImproveResult> {
   const template = params.template as TaskTemplate;
   const result = await withAISession(params.draftId, services, (session, options) =>
     improveTemplate(session, {
       template,
+      // Studio flattens extends and Mixins when it opens a Template (ADR-0048), so there's nothing
+      // to compose: the Template is its own Resolved Template and is verified as it stands.
       resolvedTemplate: template,
       guidance: params.guidance ?? null,
       projectGrounding: (params.grounding as ProjectGrounding | undefined) ?? null,
       documentGrounding: (params.documentGrounding as DocumentGrounding | undefined) ?? null,
     }, options));
-  if (result.ok) return { template: result.template as unknown as Record<string, unknown>, notes: result.notes };
+  if (result.ok) {
+    const verification = result.verification;
+    return {
+      template: result.template as unknown as Record<string, unknown>,
+      notes: result.notes,
+      ...(verification && verification.errors.length > 0 ? { errors: verification.errors } : {}),
+      ...(verification && verification.warnings.length > 0 ? { warnings: verification.warnings } : {}),
+    };
+  }
   if (result.template) return { template: result.template, notes: result.notes, errors: result.errors };
   throw Object.assign(new Error("Copilot did not return a usable proposal. Your Template is unchanged."), { code: "AI_DRAFT_MALFORMED" });
 }
@@ -261,17 +290,16 @@ const GROUNDING_MESSAGES: Record<ProjectGroundingErrorCode, string> = {
 
 export async function fetchGrounding(connection: GroundingConnection): Promise<ProjectGrounding> {
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
-    await adapter.authenticate();
+    const adapter = await connectTo(connection);
     return await fetchProjectGrounding(adapter);
   } catch (error) {
     const { code } = toProjectGroundingError(error);
-    throw Object.assign(new Error(GROUNDING_MESSAGES[code]), { code });
+    throw sidecarFailure(code, GROUNDING_MESSAGES[code], code !== "GROUNDING_FETCH_FAILED");
   }
 }
 
 /** The Workspace Root around a folder or file, and its Project Reference Documents (ADR-0070). */
-export async function listReferences(params: ReferencesListParams): Promise<{ workspaceRoot: string; entries: string[]; problems: string[] }> {
+export async function listReferences(params: ReferencesListParams): Promise<ReferencesListResult> {
   const start = await isDirectory(params.startPath) ? params.startPath : dirname(params.startPath);
   const workspaceRoot = discoverWorkspaceRoot(start);
   return { workspaceRoot, ...await readProjectReferences(workspaceRoot) };
@@ -292,30 +320,18 @@ export async function saveReference(params: ReferencesSaveParams): Promise<{ sav
  * used is reported, never silently dropped; the shortening notices are shown before sending.
  */
 export async function loadReferences(params: ReferencesLoadParams): Promise<ReferencesLoadResult> {
-  const documents: ReferenceDocument[] = [];
-  const skipped: { entry: string; message: string }[] = [];
-  let adapter: Promise<IPlatformAdapter> | undefined;
-  const connect = () => {
-    const connection = params.connection;
-    if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
-    adapter ??= (async () => {
-      const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
-      await platform.authenticate();
-      return platform;
-    })();
-    return adapter;
-  };
-  for (const entry of params.entries) {
-    try {
-      const ref = parseReferenceRef(entry);
-      documents.push(ref.kind === "wiki" ? await loadWikiReference(await connect(), ref) : await loadLocalReference(params.workspaceRoot, ref.path));
-    } catch (error) {
-      skipped.push({ entry, message: getErrorMessage(error) });
-    }
-  }
-  if (documents.length === 0) return { grounding: null, notices: [], skipped };
+  const { documents, skipped } = await loadReferenceDocuments(params.entries.map(entry => ({ entry, requested: false })), {
+    workspaceRoot: params.workspaceRoot,
+    wiki: async () => {
+      const connection = params.connection;
+      if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
+      return await connectTo(connection);
+    },
+  });
+  const reported = skipped.map(({ entry, message }) => ({ entry, message }));
+  if (documents.length === 0) return { grounding: null, notices: [], skipped: reported };
   const grounding = fitDocumentsToLimit(documents);
-  return { grounding, notices: truncationNotices(grounding), skipped };
+  return { grounding, notices: truncationNotices(grounding), skipped: reported };
 }
 
 /** Lists the wikis in the Work Project's project, for picking wiki pages. */
@@ -329,8 +345,7 @@ export async function listWikiPages(params: WikiPagesParams): Promise<{ paths: s
 
 async function withWikiAdapter<T>(connection: GroundingConnection, run: (platform: IPlatformAdapter) => Promise<T>): Promise<T> {
   try {
-    const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
-    await platform.authenticate();
+    const platform = await connectTo(connection);
     return await run(platform);
   } catch (error) {
     throw Object.assign(new Error(getErrorMessage(error)), { code: error instanceof ReferenceDocumentError ? error.code : "WIKI_READ_FAILED" });
@@ -372,37 +387,47 @@ async function resolveGenerateTemplate(source: string, library: SidecarTemplateL
   }
 }
 
-export function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: string, authFailedCode: string, defaultCode: string, defaultMessage: string): { code: string; message: string } {
+/** The codes and wording for one kind of request that talks to Azure DevOps. */
+type AdapterFailureCodes = {
+  tokenExpired: string;
+  authFailed: string;
+  failed: string;
+  /** The general message, ending "Check the connection and try again." */
+  message: string;
+  /** Add a platform or configuration error's own (sanitised) detail; on by default. */
+  detail?: boolean;
+};
+
+/** Classifies an Azure DevOps failure; an expired or refused token is marked tokenRejected. */
+export function classifyAdapterError(error: unknown, codes: AdapterFailureCodes): Error {
   const message = getErrorMessage(error);
   if (error instanceof AuthError || /authentication failed|access denied/i.test(message)) {
     return /token.*expired|personal access token.*expired/i.test(message)
-      ? { code: tokenExpiredCode, message: "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again." }
-      : { code: authFailedCode, message: "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again." };
+      ? sidecarFailure(codes.tokenExpired, "Your Azure DevOps access token has expired. Rotate the token in Studio, then try again.", true)
+      : sidecarFailure(codes.authFailed, "Atomize could not sign in to this Azure DevOps project. Check its access token, then try again.", true);
   }
   // AzureDevOpsAdapter constructs PlatformError messages from its sanitised REST response. They
   // identify template rules, missing fields, and permission failures without exposing the PAT.
-  if (error instanceof PlatformError || error instanceof ConfigurationError) {
-    return {
-      code: defaultCode,
-      message: `${defaultMessage.replace(/\. Check the connection and try again\.$/, "")}: ${message}`,
-    };
+  if (codes.detail !== false && (error instanceof PlatformError || error instanceof ConfigurationError)) {
+    return sidecarFailure(codes.failed, `${codes.message.replace(/\. Check the connection and try again\.$/, "")}: ${message}`);
   }
-  return { code: defaultCode, message: defaultMessage };
+  return sidecarFailure(codes.failed, codes.message);
 }
 
-/** Wraps `queryWorkItems` for the Generate Area's Story browser — see ADR-0056 (Generate Scope via Story browser). */
+/** The Stories a filter-scoped Generate run would process, for the Generate Area's Story browser — see ADR-0056 (Generate Scope via Story browser). */
 export async function queryGenerateStories(params: GenerateQueryStoriesParams, library: SidecarTemplateLibrary): Promise<{ stories: WorkItem[] }> {
   const template = await resolveGenerateTemplate(params.source, library);
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
-    await adapter.authenticate();
-    const connectUserEmail = await adapter.getConnectUserEmail();
-    const platformFilter = new FilterEngine().convertFilter(template.filter, connectUserEmail);
-    const stories = await adapter.queryWorkItems(platformFilter);
+    const adapter = await connectTo(params.connection);
+    const stories = await new Atomizer(adapter).queryStories(template);
     return { stories };
   } catch (error) {
-    const classified = classifyGenerateAdapterError(error, "GENERATE_TOKEN_EXPIRED", "GENERATE_AUTH_FAILED", "GENERATE_QUERY_FAILED", "Atomize could not fetch Stories from Azure DevOps. Check the connection and try again.");
-    throw Object.assign(new Error(classified.message), { code: classified.code });
+    throw classifyAdapterError(error, {
+      tokenExpired: "GENERATE_TOKEN_EXPIRED",
+      authFailed: "GENERATE_AUTH_FAILED",
+      failed: "GENERATE_QUERY_FAILED",
+      message: "Atomize could not fetch Stories from Azure DevOps. Check the connection and try again.",
+    });
   }
 }
 
@@ -410,14 +435,13 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
  * Wraps `Atomizer.atomize` for the Generate Area — one call for both Live Preview (`dryRun: true`)
  * and Execute (`dryRun: false`), see ADR-0055. The per-request `signal` (routed by Rust as a raw
  * `$/cancelRequest`, mirroring `validation.online`/`validation.cancel`) is passed straight into
- * `atomize()`'s options, so a caller-initiated cancel stops at the next batch boundary — see
- * ADR-0057. Stories whose batch was already in flight when cancel was requested still complete.
+ * `atomize()`'s options, so a caller-initiated cancel starts no further Story or Task — see
+ * ADR-0057. Requests already sent finish, and Tasks already created are kept.
  */
 export async function runGenerate(params: GenerateRunParams, library: SidecarTemplateLibrary, notify: SidecarServices["notify"], signal: AbortSignal): Promise<{ report: AtomizationReport }> {
   const template = await resolveGenerateTemplate(params.source, library);
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
-    await abortable(adapter.authenticate(), signal);
+    const adapter = await abortable(connectTo(params.connection), signal);
     const atomizer = new Atomizer(adapter);
     const report = await atomizer.atomize(template, {
       dryRun: params.dryRun,
@@ -429,13 +453,17 @@ export async function runGenerate(params: GenerateRunParams, library: SidecarTem
     return { report };
   } catch (error) {
     if (signal.aborted) throw error;
-    const classified = classifyGenerateAdapterError(error, "GENERATE_TOKEN_EXPIRED", "GENERATE_AUTH_FAILED", "GENERATE_RUN_FAILED", "Atomize could not complete this Generate run. Check the connection and try again.");
-    throw Object.assign(new Error(classified.message), { code: classified.code });
+    throw classifyAdapterError(error, {
+      tokenExpired: "GENERATE_TOKEN_EXPIRED",
+      authFailed: "GENERATE_AUTH_FAILED",
+      failed: "GENERATE_RUN_FAILED",
+      message: "Atomize could not complete this Generate run. Check the connection and try again.",
+    });
   }
 }
 
 /** Composes a local file's `extends`/`mixins` for Studio's Open, without throwing on field-level invalidity — see ADR-0048. */
-export async function resolveLocalTemplate(path: string, services: SidecarServices): Promise<unknown> {
+export async function resolveLocalTemplate(path: string, services: SidecarServices): Promise<TaskTemplate> {
   try {
     const runnable = await services.library.getRunnableTemplate(path, { validate: false });
     return runnable.template;
@@ -566,49 +594,65 @@ function generateRunParams(params: unknown): GenerateRunParams {
   };
 }
 
+type Handler<M extends SidecarMethod> = (params: unknown, services: SidecarServices, signal: AbortSignal) => Promise<SidecarResult<M>>;
+
+/** One handler per contract method; a result that drifts from the contract is a type error here. */
+const handlers: { [M in SidecarMethod]: Handler<M> } = {
+  "catalog.list": async (_params, services) => {
+    const { items } = await services.library.getCatalogAll();
+    return await Promise.all(items.map(async item => ({ ...item, content: await services.library.readCatalogItemContent(item) })));
+  },
+  "catalog.remove": async (params, services) => {
+    const { kind, name } = removeCatalogItemParams(params);
+    await services.library.removeCatalogItem(kind, name);
+    return { removed: true };
+  },
+  "catalog.install": async (params, services) => {
+    const { content, name, scope, overwrite, workspaceRoot }: CatalogInstallParams = installCatalogItemParams(params);
+    const library = scope === "project" ? createTemplateLibrary(workspaceRoot) : services.library;
+    return await library.installTemplate({ source: { content, name }, scope, overwrite });
+  },
+  "grounding.fetch": (params, services) => services.fetchGrounding(groundingConnection(params)),
+  "references.list": async (params) => await listReferences({ startPath: stringParam(params, "startPath", "A project folder") }),
+  "references.save": async (params) => await saveReference({ workspaceRoot: stringParam(params, "workspaceRoot", "A project folder"), entry: stringParam(params, "entry", "A Reference Document") }),
+  "references.load": async (params) => await loadReferences(referencesLoadParams(params)),
+  "wiki.list": async (params) => await listWikis(groundingConnection((params as { connection?: unknown } | undefined)?.connection)),
+  "wiki.pages": async (params) => await listWikiPages({ connection: groundingConnection((params as { connection?: unknown } | undefined)?.connection), wiki: stringParam(params, "wiki", "A wiki") }),
+  "validation.online": (params, services, signal) => services.validateOnline(onlineValidationParams(params), signal),
+  "ai.generate": (params, services) => generateDraft(aiDraftParams(params), services),
+  "ai.improve": (params, services) => improveDraft(aiImproveParams(params), services),
+  "ai.cancel": (params, services) => cancelDraft(params, services),
+  "ai.authStatus": (_params, services) => services.checkCopilotAuth(),
+  "template.resolveLocal": (params, services) => resolveLocalTemplate(resolveLocalTemplateParams(params).path, services),
+  "generate.queryStories": (params, services) => services.queryGenerateStories(generateQueryStoriesParams(params)),
+  "generate.run": (params, services, signal) => services.runGenerate(generateRunParams(params), signal),
+  "preview.inspect": async (params, services) => {
+    const { source } = inspectPreviewParams(params);
+    return inspectTemplate(await resolvePreviewSource(source, services));
+  },
+  "preview.mockStory": async (params, services) => {
+    const { source, mockStory } = mockStoryPreviewParams(params);
+    try { parseMockStory(mockStory); }
+    catch (error) { throw Object.assign(new Error(getErrorMessage(error)), { code: "MOCK_STORY_INVALID" }); }
+    return await runPreview(await resolvePreviewSource(source, services), mockStory);
+  },
+};
+
+function isSidecarMethod(method: string): method is SidecarMethod {
+  return Object.hasOwn(handlers, method);
+}
+
 export async function dispatch(request: RpcRequest, services: SidecarServices, signal: AbortSignal): Promise<unknown> {
-  return await match(request.method)
-    .with("catalog.list", async () => {
-      const { items } = await services.library.getCatalogAll();
-      return await Promise.all(items.map(async item => ({ ...item, content: parseYaml(await readFile(item.path, "utf8")) })));
-    })
-    .with("catalog.remove", async () => {
-      const { kind, name } = removeCatalogItemParams(request.params);
-      await services.library.removeCatalogItem(kind, name);
-      return { removed: true };
-    })
-    .with("catalog.install", async () => {
-      const { content, name, scope, overwrite, workspaceRoot } = installCatalogItemParams(request.params);
-      const library = scope === "project" ? createTemplateLibrary(workspaceRoot) : services.library;
-      return await library.installTemplate({ source: { content, name }, scope, overwrite });
-    })
-    .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
-    .with("references.list", () => listReferences({ startPath: stringParam(request.params, "startPath", "A project folder") }))
-    .with("references.save", () => saveReference({ workspaceRoot: stringParam(request.params, "workspaceRoot", "A project folder"), entry: stringParam(request.params, "entry", "A Reference Document") }))
-    .with("references.load", () => loadReferences(referencesLoadParams(request.params)))
-    .with("wiki.list", () => listWikis(groundingConnection((request.params as { connection?: unknown } | undefined)?.connection)))
-    .with("wiki.pages", () => listWikiPages({ connection: groundingConnection((request.params as { connection?: unknown } | undefined)?.connection), wiki: stringParam(request.params, "wiki", "A wiki") }))
-    .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
-    .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
-    .with("ai.improve", () => improveDraft(aiImproveParams(request.params), services))
-    .with("ai.cancel", () => cancelDraft(request.params, services))
-    .with("ai.authStatus", () => services.checkCopilotAuth())
-    .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))
-    .with("generate.queryStories", () => services.queryGenerateStories(generateQueryStoriesParams(request.params)))
-    .with("generate.run", () => services.runGenerate(generateRunParams(request.params), signal))
-    .with("preview.inspect", async () => {
-      const { source } = inspectPreviewParams(request.params);
-      const template = await resolvePreviewSource(source, services);
-      return inspectTemplate(template);
-    })
-    .with("preview.mockStory", async () => {
-      const { source, mockStory } = mockStoryPreviewParams(request.params);
-      try { parseMockStory(mockStory); }
-      catch (error) { throw Object.assign(new Error(getErrorMessage(error)), { code: "MOCK_STORY_INVALID" }); }
-      const template = await resolvePreviewSource(source, services);
-      return runPreview(template, mockStory);
-    })
-    .otherwise(method => { throw Object.assign(new Error(`Unknown method: ${method}`), { code: "METHOD_NOT_FOUND" }); });
+  if (!isSidecarMethod(request.method)) {
+    throw Object.assign(new Error(`Unknown method: ${request.method}`), { code: "METHOD_NOT_FOUND" });
+  }
+  return await (handlers[request.method] as Handler<SidecarMethod>)(request.params, services, signal);
+}
+
+function toSidecarError(error: unknown): SidecarError {
+  const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "SIDECAR_REQUEST_FAILED";
+  const tokenRejected = error instanceof Error && "tokenRejected" in error && error.tokenRejected === true;
+  return { code, message: error instanceof Error ? error.message : "Sidecar request failed.", ...(tokenRejected ? { tokenRejected: true } : {}) };
 }
 
 export async function handleLine(line: string, services: SidecarServices): Promise<RpcResponse | undefined> {
@@ -625,7 +669,7 @@ export async function handleLine(line: string, services: SidecarServices): Promi
     const result = await dispatch(value, services, controller.signal);
     return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, result };
   } catch (error) {
-    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, error: { code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "SIDECAR_REQUEST_FAILED", message: error instanceof Error ? error.message : "Sidecar request failed." } };
+    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, error: toSidecarError(error) };
   } finally { services.activeRequests.delete(value.id); }
 }
 

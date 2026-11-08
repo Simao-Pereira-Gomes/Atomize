@@ -2,17 +2,17 @@ import { dirname } from 'node:path';
 import type { IPlatformAdapter } from '@sppg2001/atomize-core/platforms/interfaces/platform.interface';
 import {
 	type DocumentGrounding,
-	fitDocumentsToLimit,
+	fitReferenceDocuments,
 	listProjectWikis,
 	listWikiPagePaths,
 	loadLocalReference,
+	loadReferenceDocuments,
 	loadWikiReference,
-	parseReferenceRef,
 	type ReferenceDocument,
 	ReferenceDocumentError,
 	readProjectReferences,
+	type ShortenedChoice,
 	saveProjectReference,
-	truncationNotices,
 } from '@sppg2001/atomize-core/services/template/reference-documents';
 import { discoverWorkspaceRoot } from '@sppg2001/atomize-core/services/template/workspace-root';
 import * as vscode from 'vscode';
@@ -60,12 +60,8 @@ export async function chooseReferenceDocuments(options: ReferenceStepOptions): P
 	}
 
 	const documents = [...added.filter(document => ticked.has(document.ref))];
-	for (const entry of saved.entries.filter(entry => ticked.has(entry) && !added.some(document => document.ref === entry))) {
-		const document = await loadSaved(root, entry, options.adapter);
-		if (document) documents.push(document);
-	}
-	if (documents.length === 0) return null;
-	return confirmFit(documents, options.title);
+	documents.push(...await loadSaved(root, saved.entries.filter(entry => ticked.has(entry) && !added.some(document => document.ref === entry)), options.adapter));
+	return fitReferenceDocuments(documents, (notices, kept) => chooseOnShortened(notices, kept, options.title));
 }
 
 function workspaceRootFor(resource: vscode.Uri | undefined): string | undefined {
@@ -180,28 +176,21 @@ async function offerToSave(root: string, documents: ReferenceDocument[], title: 
 }
 
 /** A saved default that can't be loaded is reported and left out; one this profile can't reach is "unavailable". */
-async function loadSaved(root: string | undefined, entry: string, adapter: IPlatformAdapter | undefined): Promise<ReferenceDocument | undefined> {
-	try {
-		const ref = parseReferenceRef(entry);
-		if (ref.kind === 'wiki') {
-			if (!adapter) {
-				void vscode.window.showWarningMessage(`Left out ${entry}: wiki pages need a Connection Profile, and this run has no grounding.`);
-				return undefined;
-			}
-			return await inProgress(`Reading ${entry}…`, () => loadWikiReference(adapter, ref));
-		}
-		if (!root) return undefined;
-		return await loadLocalReference(root, ref.path);
-	} catch (error) {
-		if (error instanceof ReferenceDocumentError && error.code === 'REFERENCE_UNAVAILABLE') {
-			void vscode.window.showWarningMessage(`Unavailable for this profile, so left out: ${error.message}`);
-		} else if (error instanceof ReferenceDocumentError && error.code === 'REFERENCE_WIKI_ACCESS') {
-			await reportWikiProblem(error);
-		} else {
-			void vscode.window.showWarningMessage(`Left out a Project Reference Document: ${error instanceof Error ? error.message : String(error)}`);
-		}
-		return undefined;
+async function loadSaved(root: string | undefined, entries: string[], adapter: IPlatformAdapter | undefined): Promise<ReferenceDocument[]> {
+	const { documents, skipped } = await loadReferenceDocuments(entries.map(entry => ({ entry, requested: false })), {
+		workspaceRoot: root,
+		wiki: async () => {
+			if (!adapter) throw new ReferenceDocumentError('REFERENCE_UNAVAILABLE', 'wiki pages need a Connection Profile, and this run has no grounding.');
+			return adapter;
+		},
+		reading: (entry, read) => (entry.startsWith('wiki:') ? Promise.resolve(inProgress(`Reading ${entry}…`, read)) : read()),
+	});
+	for (const { code, message } of skipped) {
+		if (code === 'REFERENCE_UNAVAILABLE') void vscode.window.showWarningMessage(`Unavailable for this profile, so left out: ${message}`);
+		else if (code === 'REFERENCE_WIKI_ACCESS') await reportWikiProblem(new ReferenceDocumentError(code, message));
+		else void vscode.window.showWarningMessage(`Left out a Project Reference Document: ${message}`);
 	}
+	return documents;
 }
 
 /** Shows a progress notification while a wiki call runs, so a slow wiki doesn't look like a freeze. */
@@ -220,26 +209,19 @@ async function reportWikiProblem(error: unknown): Promise<void> {
 }
 
 /** Shows any shortening before sending: continue, leave some documents out, or cancel. */
-async function confirmFit(documents: ReferenceDocument[], title: string): Promise<DocumentGrounding | null | undefined> {
-	let kept = documents;
-	while (true) {
-		const grounding = fitDocumentsToLimit(kept);
-		const notices = truncationNotices(grounding);
-		if (notices.length === 0) return grounding;
-		const choice = await vscode.window.showWarningMessage(
-			'Some Reference Documents are too long for the AI request.',
-			{ modal: true, detail: `${notices.join('.\n')}.` },
-			'Continue',
-			'Leave Some Out',
-		);
-		if (choice === 'Continue') return grounding;
-		if (choice !== 'Leave Some Out') return undefined;
-		const keep = await vscode.window.showQuickPick(
-			kept.map(document => ({ label: document.title, description: `${document.text.length.toLocaleString('en-US')} characters`, picked: true, document })),
-			{ title: `${title} · Reference Documents to keep`, canPickMany: true },
-		);
-		if (!keep) return undefined;
-		kept = keep.map(item => item.document);
-		if (kept.length === 0) return null;
-	}
+async function chooseOnShortened(notices: string[], kept: ReferenceDocument[], title: string): Promise<ShortenedChoice> {
+	const choice = await vscode.window.showWarningMessage(
+		'Some Reference Documents are too long for the AI request.',
+		{ modal: true, detail: `${notices.join('.\n')}.` },
+		'Continue',
+		'Leave Some Out',
+	);
+	if (choice === 'Continue') return { action: 'continue' };
+	if (choice !== 'Leave Some Out') return { action: 'cancel' };
+	const keep = await vscode.window.showQuickPick(
+		kept.map(document => ({ label: document.title, description: `${document.text.length.toLocaleString('en-US')} characters`, picked: true, document })),
+		{ title: `${title} · Reference Documents to keep`, canPickMany: true },
+	);
+	if (!keep) return { action: 'cancel' };
+	return { action: 'keep', refs: keep.map(item => item.document.ref) };
 }

@@ -1,0 +1,12 @@
+formatVersion: "1.0"
+name: "Range"
+filter:
+  workItemTypes: ["User Story"]
+validation:
+  taskEstimationRange: { min: 10, max: 30 }
+estimation: { strategy: "percentage", rounding: "none", normalize: "always" }
+tasks:
+  - title: "A"
+    estimationPercent: 50
+  - title: "B"
+    estimationPercent: 50

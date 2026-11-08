@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { CopilotClient, type CopilotSession, RuntimeConnection } from "@github/copilot-sdk";
+import type { CopilotClient, CopilotSession } from "@github/copilot-sdk";
 import type { AIDraftSession, AIProvider } from "../provider.interface";
 
 export class CopilotAuthenticationError extends Error {
@@ -85,7 +85,7 @@ export class GitHubCopilotProvider implements AIProvider {
 
   /** Creates the single session which is deliberately shared by repair attempts. */
   async createDraftSession(): Promise<AIDraftSession> {
-    const client = this.createClient();
+    const client = await this.createClient();
     try {
       await client.start();
       if (!(await client.getAuthStatus()).isAuthenticated) throw new CopilotAuthenticationError();
@@ -116,7 +116,7 @@ export class GitHubCopilotProvider implements AIProvider {
   }
 
   async *stream(systemPrompt: string, userPrompt: string): AsyncIterable<string> {
-    const client = this.createClient();
+    const client = await this.createClient();
     try {
       await client.start();
       const status = await client.getAuthStatus();
@@ -160,7 +160,7 @@ export class GitHubCopilotProvider implements AIProvider {
   }
 
   private async withClient<T>(action: (client: CopilotClient) => Promise<T>): Promise<T> {
-    const client = this.createClient();
+    const client = await this.createClient();
     try {
       await client.start();
       return await action(client);
@@ -181,7 +181,9 @@ export class GitHubCopilotProvider implements AIProvider {
    * at the same real, persistent home `copilot login` itself uses (honoring `COPILOT_HOME` when
    * set, e.g. for isolated testing) is what makes sign-in state actually visible here.
    */
-  private createClient(): CopilotClient {
+  /** Loads the Copilot SDK on first use, so commands that never use AI don't pay for loading it. */
+  private async createClient(): Promise<CopilotClient> {
+    const { CopilotClient, RuntimeConnection } = await import("@github/copilot-sdk");
     const cliPath = process.env.ATOMIZE_COPILOT_CLI_PATH;
     return new CopilotClient({
       baseDirectory: process.env.COPILOT_HOME || join(homedir(), ".copilot"),

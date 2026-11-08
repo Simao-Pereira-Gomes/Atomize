@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { TemplateLibrary } from "../../atomize-core/src/templates/template-library.ts";
 import { inspectTemplate, runPreview } from "../../atomize-core/src/templates/template-inspector.ts";
+import { TemplateLibrary } from "../../atomize-core/src/templates/template-library.ts";
 import { resolveResponse } from "./capture-protocol.mjs";
 
 const source = fileURLToPath(new URL("../../atomize-core/catalog/templates/backend-api.atomize.yaml", import.meta.url));

@@ -1,0 +1,6 @@
+name: "Legacy One"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - title: "Legacy task"
+    estimationPercent: 100

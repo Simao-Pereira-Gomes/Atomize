@@ -9,67 +9,84 @@ import type { ADoFieldSchema, AtoFieldType } from "../../interfaces/field-schema
 
 type CacheKey = string; // `${profileKey}::${project}::${workItemType|__all__}`
 
+type CacheEntry<T> = { value: Promise<T>; fetchedAt: number };
+
+export interface FieldSchemaServiceOptions {
+  /**
+   * How long a fetched schema is reused (default 5 minutes). Hosts keep an authenticated adapter
+   * for much longer, so this bounds how long a field added or changed in Azure DevOps goes unseen.
+   */
+  maxAgeMs?: number;
+  now?: () => number;
+}
+
+/**
+ * Caches field schemas as promises, so concurrent requests share one fetch, and a failed fetch is
+ * dropped so the next request tries again. The project's field list is fetched once and shared by
+ * every Work Item type's schema. Entries older than `maxAgeMs` are fetched again.
+ */
 export class FieldSchemaService {
-  private cache = new Map<CacheKey, ADoFieldSchema[]>();
+  private cache = new Map<CacheKey, CacheEntry<ADoFieldSchema[]>>();
+  private projectFields = new Map<CacheKey, CacheEntry<WorkItemField[]>>();
+  private readonly maxAgeMs: number;
+  private readonly now: () => number;
+
+  constructor(options: FieldSchemaServiceOptions = {}) {
+    this.maxAgeMs = options.maxAgeMs ?? 5 * 60_000;
+    this.now = options.now ?? Date.now;
+  }
 
   /**
    * Fetch fields for a specific work item type, including allowedValues for picklist fields.
    * Merges WIT-scoped field list with full field metadata to obtain type and readOnly info.
    */
-  async getFieldsForType(
+  getFieldsForType(
     witApi: IWorkItemTrackingApi,
     project: string,
     workItemType: string,
     profileKey: string,
   ): Promise<ADoFieldSchema[]> {
-    const key: CacheKey = `${profileKey}::${project}::${workItemType}`;
-    const cached = this.cache.get(key);
-    if (cached) return cached;
-
-    const [witFields, allFields] = await Promise.all([
-      witApi.getWorkItemTypeFieldsWithReferences(
-        project,
-        workItemType,
-        WorkItemTypeFieldsExpandLevel.AllowedValues,
-      ),
-      witApi.getFields(project),
-    ]);
-
-    const fieldMetaByRef = new Map<string, WorkItemField>(
-      (allFields ?? [])
-        .filter((f): f is WorkItemField & { referenceName: string } => !!f.referenceName)
-        .map(f => [f.referenceName, f]),
-    );
-
-    const schemas = (witFields ?? []).map(f =>
-      this.mergeField(f, fieldMetaByRef.get(f.referenceName ?? "")),
-    );
-
-    this.cache.set(key, schemas);
-    return schemas;
+    return this.cached(this.cache, `${profileKey}::${project}::${workItemType}`, async () => {
+      const [witFields, allFields] = await Promise.all([
+        witApi.getWorkItemTypeFieldsWithReferences(project, workItemType, WorkItemTypeFieldsExpandLevel.AllowedValues),
+        this.getProjectFields(witApi, project, profileKey),
+      ]);
+      const fieldMetaByRef = new Map<string, WorkItemField>(
+        allFields
+          .filter((f): f is WorkItemField & { referenceName: string } => !!f.referenceName)
+          .map((f) => [f.referenceName, f]),
+      );
+      return (witFields ?? []).map((f) => this.mergeField(f, fieldMetaByRef.get(f.referenceName ?? "")));
+    });
   }
 
   /**
    * Fetch all fields in the project (no WIT scope, no allowedValues for picklist fields).
    */
-  async getAllFields(
-    witApi: IWorkItemTrackingApi,
-    project: string,
-    profileKey: string,
-  ): Promise<ADoFieldSchema[]> {
-    const key: CacheKey = `${profileKey}::${project}::__all__`;
-    const cached = this.cache.get(key);
-    if (cached) return cached;
-
-    const fields = await witApi.getFields(project);
-    const schemas = (fields ?? []).map(f => this.mapWorkItemField(f));
-
-    this.cache.set(key, schemas);
-    return schemas;
+  getAllFields(witApi: IWorkItemTrackingApi, project: string, profileKey: string): Promise<ADoFieldSchema[]> {
+    return this.cached(this.cache, `${profileKey}::${project}::__all__`, async () =>
+      (await this.getProjectFields(witApi, project, profileKey)).map((f) => this.mapWorkItemField(f)),
+    );
   }
 
   clearCache(): void {
     this.cache.clear();
+    this.projectFields.clear();
+  }
+
+  private getProjectFields(witApi: IWorkItemTrackingApi, project: string, profileKey: string): Promise<WorkItemField[]> {
+    return this.cached(this.projectFields, `${profileKey}::${project}`, async () => (await witApi.getFields(project)) ?? []);
+  }
+
+  private cached<T>(cache: Map<CacheKey, CacheEntry<T>>, key: CacheKey, load: () => Promise<T>): Promise<T> {
+    const existing = cache.get(key);
+    if (existing && this.now() - existing.fetchedAt < this.maxAgeMs) return existing.value;
+    const entry: CacheEntry<T> = { value: load(), fetchedAt: this.now() };
+    cache.set(key, entry);
+    entry.value.catch(() => {
+      if (cache.get(key) === entry) cache.delete(key);
+    });
+    return entry.value;
   }
 
   private mergeField(

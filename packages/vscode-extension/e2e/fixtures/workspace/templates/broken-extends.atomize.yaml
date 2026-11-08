@@ -1,0 +1,6 @@
+formatVersion: "1.0"
+name: "Broken extends"
+extends: "template:does-not-exist"
+tasks:
+  - title: "Build"
+    estimationPercent: 100

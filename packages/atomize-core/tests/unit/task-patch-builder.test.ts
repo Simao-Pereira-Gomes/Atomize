@@ -114,3 +114,27 @@ describe("buildCreateTaskPatch estimate fields", () => {
     expect(fieldOps(patch)).toEqual({ "Custom.Effort": 4 });
   });
 });
+
+describe("buildCreateTaskPatch predecessor links", () => {
+  type PatchOp = { path: string; value?: unknown };
+  test("adds a predecessor relation for each predecessorId, after the parent link", () => {
+    const patch = buildCreateTaskPatch(
+      "https://dev.azure.com/org",
+      10,
+      { title: "Test", predecessorIds: ["11", "12"] },
+      DEFAULT_WRITE,
+    ) as PatchOp[];
+    const relations = patch.filter((op) => op.path === "/relations/-").map((op) => op.value);
+
+    expect(relations).toEqual([
+      { rel: "System.LinkTypes.Hierarchy-Reverse", url: "https://dev.azure.com/org/_apis/wit/workItems/10", attributes: { comment: "Parent link" } },
+      { rel: "System.LinkTypes.Dependency-Reverse", url: "https://dev.azure.com/org/_apis/wit/workItems/11", attributes: { comment: "Predecessor dependency" } },
+      { rel: "System.LinkTypes.Dependency-Reverse", url: "https://dev.azure.com/org/_apis/wit/workItems/12", attributes: { comment: "Predecessor dependency" } },
+    ]);
+  });
+
+  test("adds no predecessor relation when there are none", () => {
+    const patch = buildCreateTaskPatch("https://dev.azure.com/org", 10, { title: "Design" }, DEFAULT_WRITE) as PatchOp[];
+    expect(patch.filter((op) => op.path === "/relations/-")).toHaveLength(1);
+  });
+});

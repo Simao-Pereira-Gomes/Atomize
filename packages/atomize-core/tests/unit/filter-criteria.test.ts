@@ -283,11 +283,7 @@ describe("FilterEngine", () => {
         },
       ];
 
-      const result = calculator.calculateTasksWithSkipped(
-        story,
-        "test@example.com",
-        templateTasks
-      );
+      const result = calculator.estimate(story, { tasks: templateTasks, connectUserEmail: "test@example.com" });
 
       expect(result.skippedTasks).toHaveLength(1);
       expect(result.skippedTasks[0]?.templateTask.title).toBe("Task 2");
@@ -317,9 +313,7 @@ describe("FilterEngine", () => {
       expect(task4?.estimationPercent).toBeGreaterThanOrEqual(28);
       expect(task4?.estimationPercent).toBeLessThanOrEqual(29);
 
-      const totalEstimation = calculator.calculateTotalEstimation(
-        result.calculatedTasks
-      );
+      const totalEstimation = result.summary.totalTaskEstimation;
 
       expect(totalEstimation).toBeGreaterThanOrEqual(9.9);
       expect(totalEstimation).toBeLessThanOrEqual(10.1);

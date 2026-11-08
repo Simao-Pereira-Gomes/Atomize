@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
@@ -7,6 +7,19 @@ function isDirectory(path: string): boolean {
     return statSync(path).isDirectory();
   } catch {
     return false;
+  }
+}
+
+/**
+ * The path with symlinks resolved, so one folder reached two ways compares equal (on macOS,
+ * /var is /private/var; a home folder can be a symlink). A path that doesn't exist stays as given.
+ */
+export function canonicalPath(path: string): string {
+  const absolute = resolve(path);
+  try {
+    return realpathSync(absolute);
+  } catch {
+    return absolute;
   }
 }
 
@@ -22,13 +35,16 @@ function isInside(path: string, folder: string): boolean {
  * inside it a project, such as the personal Catalog: discovery from there returns the home folder.
  */
 export function discoverWorkspaceRoot(invocationCwd = process.cwd(), homeDirectory = homedir()): string {
+  // Paths are returned as given; only comparisons use the real path, so a symlinked home (or
+  // macOS's /var vs /private/var) is still recognised as the home folder.
   const start = resolve(invocationCwd);
   const home = resolve(homeDirectory);
-  if (isInside(start, resolve(home, ".atomize"))) return home;
+  const realHome = canonicalPath(home);
+  if (isInside(canonicalPath(start), resolve(realHome, ".atomize"))) return home;
 
   let current = start;
   while (true) {
-    if (current !== home && isDirectory(resolve(current, ".atomize"))) {
+    if (canonicalPath(current) !== realHome && isDirectory(resolve(current, ".atomize"))) {
       return current;
     }
 
@@ -58,5 +74,5 @@ export function discoverWorkspaceRoot(invocationCwd = process.cwd(), homeDirecto
  */
 export function defaultCatalogScope(invocationCwd = process.cwd(), homeDirectory = homedir()): "user" | "project" {
   const root = discoverWorkspaceRoot(invocationCwd, homeDirectory);
-  return root !== resolve(homeDirectory) && isDirectory(resolve(root, ".atomize")) ? "project" : "user";
+  return canonicalPath(root) !== canonicalPath(homeDirectory) && isDirectory(resolve(root, ".atomize")) ? "project" : "user";
 }

@@ -1,5 +1,5 @@
 import type { IPlatformAdapter } from '@sppg2001/atomize-core/platforms/interfaces/platform.interface';
-import { fetchProjectGrounding, type ProjectGrounding, toProjectGroundingError } from '@sppg2001/atomize-core/services/template/project-grounding';
+import { fetchProjectGrounding, type ProjectGrounding, withGroundingRecovery } from '@sppg2001/atomize-core/services/template/project-grounding';
 import * as vscode from 'vscode';
 import { getDefaultProfile } from '../config/atomize-configuration.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
@@ -46,24 +46,25 @@ export async function chooseAIGrounding(deps: AIGroundingDeps, options: AIGround
 	if (profile === null) return 'cancelled';
 	if (profile === undefined) return UNGROUNDED;
 
-	while (true) {
-		try {
-			return await vscode.window.withProgress(
-				{ location: vscode.ProgressLocation.Notification, title: `Loading "${profile}" project metadata…` },
-				async () => {
-					const adapter = await deps.credentialResolver.resolveByName(profile);
-					return { profile, projectGrounding: await fetchProjectGrounding(adapter), adapter };
-				},
-			);
-		} catch (error) {
+	const grounding = await withGroundingRecovery<AIGrounding>(
+		() => Promise.resolve(vscode.window.withProgress(
+			{ location: vscode.ProgressLocation.Notification, title: `Loading "${profile}" project metadata…` },
+			async () => {
+				const adapter = await deps.credentialResolver.resolveByName(profile);
+				return { profile, projectGrounding: await fetchProjectGrounding(adapter), adapter };
+			},
+		)),
+		async error => {
 			const choice = await vscode.window.showWarningMessage(
-				toProjectGroundingError(error).message,
+				error.message,
 				{ modal: true, detail: `${options.purpose} was going to use this project's metadata.` },
 				'Retry',
 				'Continue without grounding',
 			);
-			if (choice === 'Continue without grounding') return UNGROUNDED;
-			if (choice !== 'Retry') return 'cancelled';
-		}
-	}
+			if (choice === 'Retry') return 'retry';
+			return choice === 'Continue without grounding' ? 'ungrounded' : 'cancel';
+		},
+	);
+	if (grounding === undefined) return 'cancelled';
+	return grounding ?? UNGROUNDED;
 }

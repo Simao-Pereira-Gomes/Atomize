@@ -3,12 +3,15 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectGrounding } from "@sppg2001/atomize-core/services/template/project-grounding";
-import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
-import { classifyGenerateAdapterError, handleLine, type RpcResponse, type SidecarServices } from "./protocol";
+import { AuthError, PlatformError } from "@sppg2001/atomize-core/utils/errors";
+import { classifyAdapterError, handleLine, type RpcResponse, type SidecarServices } from "./protocol";
 
 const services: SidecarServices = {
   library: {
     getCatalogAll: async () => ({ items: [], overrides: [], lineage: [] }),
+    readCatalogItemContent: async () => {
+      throw new Error("readCatalogItemContent not stubbed for this test");
+    },
     getRunnableTemplate: async () => {
       throw new Error("getRunnableTemplate not stubbed for this test");
     },
@@ -278,16 +281,15 @@ describe("generate.queryStories", () => {
 
 describe("Generate failure messages", () => {
   it("keeps a safe platform failure detail instead of blaming the connection", () => {
-    expect(classifyGenerateAdapterError(
-      new PlatformError("Failed to create task: TF401320: Rule validation error.", "azure-devops"),
-      "GENERATE_TOKEN_EXPIRED",
-      "GENERATE_AUTH_FAILED",
-      "GENERATE_RUN_FAILED",
-      "Atomize could not complete this Generate run. Check the connection and try again.",
-    )).toEqual({
-      code: "GENERATE_RUN_FAILED",
-      message: "Atomize could not complete this Generate run: Failed to create task: TF401320: Rule validation error.",
-    });
+    const codes = {
+      tokenExpired: "GENERATE_TOKEN_EXPIRED",
+      authFailed: "GENERATE_AUTH_FAILED",
+      failed: "GENERATE_RUN_FAILED",
+      message: "Atomize could not complete this Generate run. Check the connection and try again.",
+    };
+    const failure = classifyAdapterError(new PlatformError("Failed to create task: TF401320: Rule validation error.", "azure-devops"), codes);
+    expect(failure).toMatchObject({ code: "GENERATE_RUN_FAILED", message: "Atomize could not complete this Generate run: Failed to create task: TF401320: Rule validation error." });
+    expect(failure).not.toHaveProperty("tokenRejected");
   });
 });
 
@@ -665,5 +667,21 @@ describe("Reference Documents protocol", () => {
     const documentGrounding = { documents: [{ ref: "file:x.md", title: "x.md", text: "DOC-MARKER", truncated: false, originalLength: 10 }] };
     await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 63, method: "ai.generate", params: { draftId: "d-docs", prose: "Anything", documentGrounding } }), ai);
     expect(prompts[0]).toContain("DOC-MARKER");
+  });
+});
+
+describe("token rejection in error responses", () => {
+  const codes = { tokenExpired: "X_TOKEN_EXPIRED", authFailed: "X_AUTH_FAILED", failed: "X_FAILED", message: "Failed. Check the connection and try again." };
+
+  it("marks an expired or refused token, whatever the code is called", () => {
+    expect(classifyAdapterError(new AuthError("Authentication failed: personal access token expired"), codes)).toMatchObject({ code: "X_TOKEN_EXPIRED", tokenRejected: true });
+    expect(classifyAdapterError(new AuthError("Authentication failed"), codes)).toMatchObject({ code: "X_AUTH_FAILED", tokenRejected: true });
+    expect(classifyAdapterError(new Error("socket hang up"), codes)).not.toHaveProperty("tokenRejected");
+  });
+
+  it("carries tokenRejected in the JSON-RPC error so the relay can forget the token", async () => {
+    const rejecting: SidecarServices = { ...services, fetchGrounding: async () => { throw Object.assign(new Error("expired"), { code: "GROUNDING_TOKEN_EXPIRED", tokenRejected: true }); } };
+    const response = await handleLine('{"jsonrpc":"2.0","id":4,"method":"grounding.fetch","params":{"organizationUrl":"https://dev.azure.com/org","project":"P","team":"T","token":"t"}}', rejecting);
+    expect(response?.error).toEqual({ code: "GROUNDING_TOKEN_EXPIRED", message: "expired", tokenRejected: true });
   });
 });

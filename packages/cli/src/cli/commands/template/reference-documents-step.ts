@@ -3,17 +3,17 @@ import { autocompleteMultiselect, confirm, multiselect, select, text } from "@cl
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import {
   type DocumentGrounding,
-  fitDocumentsToLimit,
+  fitReferenceDocuments,
   listProjectWikis,
   listWikiPagePaths,
   loadLocalReference,
+  loadReferenceDocuments,
   loadWikiReference,
-  parseReferenceRef,
   type ReferenceDocument,
   ReferenceDocumentError,
   readProjectReferences,
+  type ShortenedChoice,
   saveProjectReference,
-  truncationNotices,
 } from "@sppg2001/atomize-core/services/template/reference-documents";
 import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
@@ -63,16 +63,15 @@ export async function resolveReferenceDocuments(
   const saved = project.entries.filter((entry) => !flagged.includes(entry));
 
   const chosenSaved = interactive && saved.length > 0 ? await tickSaved(saved) : saved;
-  const documents: ReferenceDocument[] = [];
-  for (const entry of flagged) documents.push(await load(sources, entry, { requested: true }));
-  for (const entry of chosenSaved) {
-    const document = await load(sources, entry, { requested: false });
-    if (document) documents.push(document);
-  }
+  const documents = await load(sources, [
+    ...flagged.map((entry) => ({ entry, requested: true })),
+    ...chosenSaved.map((entry) => ({ entry, requested: false })),
+  ]);
   if (interactive) documents.push(...await addDocuments(sources, documents));
-  if (documents.length === 0) return null;
 
-  return confirmFit(documents, interactive);
+  const grounding = await fitReferenceDocuments(documents, (notices, kept) => chooseOnShortened(notices, kept, interactive));
+  if (grounding === undefined) throw new CancellationError("AI request cancelled");
+  return grounding;
 }
 
 function toEntry(entry: string, cwd: string, root: string): string {
@@ -98,24 +97,26 @@ interface Sources {
 }
 
 /**
- * Loads one entry. A document named on the command line was asked for, so failing to load it stops
+ * Loads the entries. A document named on the command line was asked for, so failing to load it stops
  * the run; a saved default that can't be loaded, or whose wiki this profile doesn't reach, is
  * reported and left out.
  */
-async function load(sources: Sources, entry: string, context: { requested: true }): Promise<ReferenceDocument>;
-async function load(sources: Sources, entry: string, context: { requested: false }): Promise<ReferenceDocument | undefined>;
-async function load(sources: Sources, entry: string, context: { requested: boolean }): Promise<ReferenceDocument | undefined> {
+async function load(sources: Sources, entries: Array<{ entry: string; requested: boolean }>): Promise<ReferenceDocument[]> {
   try {
-    const ref = parseReferenceRef(entry);
-    return ref.kind === "wiki"
-      ? await withSpinner(`Reading ${sanitizeTty(entry)}…`, async () => loadWikiReference(await sources.adapter(), ref), { done: () => `Read ${sanitizeTty(entry)}`, failed: `Could not read ${sanitizeTty(entry)}` })
-      : await loadLocalReference(sources.root, ref.path);
+    const { documents, skipped } = await loadReferenceDocuments(entries, {
+      workspaceRoot: sources.root,
+      wiki: sources.adapter,
+      reading: (entry, read) => entry.startsWith("wiki:")
+        ? withSpinner(`Reading ${sanitizeTty(entry)}…`, read, { done: () => `Read ${sanitizeTty(entry)}`, failed: `Could not read ${sanitizeTty(entry)}` })
+        : read(),
+    });
+    for (const { code, message } of skipped) {
+      output.warn(sanitizeTty(code === "REFERENCE_UNAVAILABLE" ? `Unavailable for this profile, so left out: ${message}` : `Left out a Project Reference Document: ${message}`));
+    }
+    return documents;
   } catch (error) {
-    const message = getErrorMessage(error);
-    if (context.requested) throw new ConfigurationError(`Reference Document ${message}`);
-    const unavailable = error instanceof ReferenceDocumentError && error.code === "REFERENCE_UNAVAILABLE";
-    output.warn(sanitizeTty(unavailable ? `Unavailable for this profile, so left out: ${message}` : `Left out a Project Reference Document: ${message}`));
-    return undefined;
+    if (error instanceof ReferenceDocumentError) throw new ConfigurationError(`Reference Document ${error.message}`);
+    throw error;
   }
 }
 
@@ -211,37 +212,29 @@ async function offerToSave(root: string, documents: ReferenceDocument[]): Promis
 }
 
 /** Shows any shortening before sending; an interactive run can continue, leave documents out, or cancel. */
-async function confirmFit(documents: ReferenceDocument[], interactive: boolean): Promise<DocumentGrounding | null> {
-  let kept = documents;
-  while (true) {
-    const grounding = fitDocumentsToLimit(kept);
-    const notices = truncationNotices(grounding);
-    if (notices.length === 0) return grounding;
-    if (!interactive) {
-      for (const notice of notices) output.warn(sanitizeTty(`${notice} to fit the AI request.`));
-      return grounding;
-    }
-    const choice = assertNotCancelled(
-      await select({
-        message: `${notices.join("; ")} to fit the AI request. What would you like to do?`,
-        options: [
-          { label: "Continue with the shortened documents", value: "continue" },
-          { label: "Leave some documents out", value: "deselect" },
-          { label: "Cancel", value: "cancel" },
-        ],
-      }),
-    ) as string;
-    if (choice === "continue") return grounding;
-    if (choice === "cancel") throw new CancellationError("AI request cancelled");
-    const refs = assertNotCancelled(
-      await multiselect({
-        message: "Reference Documents to keep:",
-        options: kept.map((document) => ({ value: document.ref, label: sanitizeTty(document.title), hint: `${document.text.length.toLocaleString("en-US")} characters` })),
-        initialValues: kept.map((document) => document.ref),
-        required: false,
-      }),
-    ) as string[];
-    kept = kept.filter((document) => refs.includes(document.ref));
-    if (kept.length === 0) return null;
+async function chooseOnShortened(notices: string[], kept: ReferenceDocument[], interactive: boolean): Promise<ShortenedChoice> {
+  if (!interactive) {
+    for (const notice of notices) output.warn(sanitizeTty(`${notice} to fit the AI request.`));
+    return { action: "continue" };
   }
+  const choice = assertNotCancelled(
+    await select({
+      message: `${notices.join("; ")} to fit the AI request. What would you like to do?`,
+      options: [
+        { label: "Continue with the shortened documents", value: "continue" },
+        { label: "Leave some documents out", value: "deselect" },
+        { label: "Cancel", value: "cancel" },
+      ],
+    }),
+  ) as string;
+  if (choice === "continue" || choice === "cancel") return { action: choice };
+  const refs = assertNotCancelled(
+    await multiselect({
+      message: "Reference Documents to keep:",
+      options: kept.map((document) => ({ value: document.ref, label: sanitizeTty(document.title), hint: `${document.text.length.toLocaleString("en-US")} characters` })),
+      initialValues: kept.map((document) => document.ref),
+      required: false,
+    }),
+  ) as string[];
+  return { action: "keep", refs };
 }

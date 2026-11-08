@@ -62,7 +62,7 @@ let sourcePath: string;
 
 /** A Template library over one file, optionally presented as a Catalog Template, that records saves. */
 function library(options: { catalogRef?: string; builtin?: boolean; existing?: string[] } = {}) {
-  const saved: { name: string; template: TaskTemplate; scope?: string }[] = [];
+  const saved: { name: string; template: TaskTemplate; scope?: string; sourceText?: string }[] = [];
   const lib: ImproveLibrary = {
     loadSource: (async () => ({
       template: parse(SOURCE),
@@ -74,8 +74,8 @@ function library(options: { catalogRef?: string; builtin?: boolean; existing?: s
     composeTemplate: async (raw) => raw as TaskTemplate,
     getCatalog: (async () => ({ items: options.builtin ? [{ path: sourcePath, scope: "builtin" }] : [] })) as unknown as ImproveLibrary["getCatalog"],
     templateExists: async (_kind, _scope, name) => (options.existing ?? []).includes(name),
-    saveTemplate: (async ({ name, template, scope }: { name: string; template: TaskTemplate; scope?: string }) => {
-      saved.push({ name, template, scope });
+    saveTemplate: (async ({ name, template, scope, sourceText }: { name: string; template: TaskTemplate; scope?: string; sourceText?: string }) => {
+      saved.push({ name, template, scope, sourceText });
       return { path: join(dir, `${name}.yaml`) };
     }) as unknown as ImproveLibrary["saveTemplate"],
   };
@@ -204,6 +204,21 @@ describe("atomize template improve", () => {
     expect(saved[0]?.template.origin).toBe("template:backend-api");
     expect(report.saved?.action).toBe("save-as");
     expect(await readFile(sourcePath, "utf8")).toBe(SOURCE);
+  });
+
+  test("--save-as passes the source text, so the saved Template keeps its anchors and comments", async () => {
+    const { lib, saved } = library();
+    await run({ saveAs: "copy" }, { lib });
+    expect(saved[0]?.sourceText).toBe(SOURCE);
+  });
+
+  test("a draft of an invalid proposal keeps the source's comments", async () => {
+    answers = ["", "none", "done", "draft"];
+    const { lib } = library();
+    const broken = PROPOSAL.replace("title: Code review", 'title: ""');
+    await run({}, { lib, outputs: [broken], interactive: true });
+    const draft = await readFile(join(dir, "backend.improved-draft.yaml"), "utf8");
+    expect(draft).toContain("# Owned by the platform team");
   });
 
   test("--save-as saves to the personal Catalog in a project that hasn't opted in", async () => {

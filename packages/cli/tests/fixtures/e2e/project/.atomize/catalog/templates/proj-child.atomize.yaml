@@ -1,0 +1,8 @@
+formatVersion: "1.0"
+name: "Project Child"
+extends: "template:user-child"
+mixins: ["mixin:proj-docs"]
+tasks:
+  - id: "design"
+    title: "Project design for ${story.title}"
+    estimationPercent: 20

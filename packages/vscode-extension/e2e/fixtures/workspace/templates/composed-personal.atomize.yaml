@@ -1,0 +1,8 @@
+formatVersion: "1.0"
+name: "Composed from the personal Catalog"
+extends: "template:personal-base"
+mixins: ["mixin:proj-docs"]
+tasks:
+  - id: "build"
+    title: "Build it"
+    estimationPercent: 70

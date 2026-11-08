@@ -98,6 +98,22 @@ describe("createProgressHandler — TTY mode", () => {
     expect(f.print).not.toHaveBeenCalled();
   });
 
+  test("task_created: shows the running Story and Task counts", () => {
+    f.storyProgressRef.current = f.mockProgressBar;
+
+    handler({ type: "task_created", completedStories: 1, totalStories: 5, tasksCreated: 7 });
+
+    expect(f.mockProgressBar.advance).toHaveBeenCalledWith(0, "1/5 stories · 7 tasks created");
+  });
+
+  test("task_created: never shows undefined when an event has no counts", () => {
+    f.storyProgressRef.current = f.mockProgressBar;
+
+    handler({ type: "task_created", totalStories: 5 });
+
+    expect(f.mockProgressBar.advance).toHaveBeenCalledWith(0, "0/5 stories · 0 tasks created");
+  });
+
   test("story_complete: falls back to print when no progress bar exists yet", () => {
     handler({
       type: "story_complete",
