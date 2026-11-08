@@ -1,0 +1,17 @@
+formatVersion: "1.0"
+name: "User Child"
+extends: "template:backend-api"
+mixins: ["mixin:security-review", "mixin:team-review"]
+tasks:
+  - id: "implement"
+    title: "Implement API Change: ${story.title}"
+    estimationPercent: 45
+    dependsOn: ["design"]
+  - id: "verify"
+    title: "Verify API Behavior: ${story.title}"
+    estimationPercent: 20
+    dependsOn: ["implement"]
+  - id: "deploy"
+    title: "Deploy ${story.title}"
+    estimationFixed: 1
+    dependsOn: ["implement", "verify"]

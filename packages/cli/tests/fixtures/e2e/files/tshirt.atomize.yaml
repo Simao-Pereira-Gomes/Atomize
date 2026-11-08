@@ -1,0 +1,14 @@
+formatVersion: "1.0"
+name: "T-shirt"
+filter:
+  workItemTypes: ["User Story"]
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  source: "Custom.Size"
+  conversion: { table: { S: 2, M: 4, L: 8, XL: 16 }, multipliers: true }
+tasks:
+  - title: "Build"
+    estimationPercent: 80
+  - title: "Test"
+    estimationPercent: 20

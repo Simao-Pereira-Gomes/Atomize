@@ -1,0 +1,17 @@
+# Conditions reused through YAML anchors (docs: "Reusing conditions")
+formatVersion: "1.0"
+name: "Anchors"
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - id: "a"
+    title: "API contract" # keep this comment
+    estimationPercent: 40
+    condition: &api { field: "tags", operator: "contains", value: "api" }
+  - id: "b"
+    title: "API tests"
+    estimationPercent: 30
+    condition: *api
+  - id: "c"
+    title: "Build"
+    estimationPercent: 30

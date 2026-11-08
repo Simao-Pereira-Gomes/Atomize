@@ -1,0 +1,5 @@
+name: "Project Docs"
+tasks:
+  - id: "proj-docs"
+    title: "Write project docs"
+    estimationFixed: 1

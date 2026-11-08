@@ -10,3 +10,5 @@ test-fixtures/**
 .vscode/**
 CONTEXT.md
 images/**
+e2e/**
+.vscode-test/**

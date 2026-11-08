@@ -222,6 +222,7 @@
 		"build": "bun esbuild.mjs && vite build --config vite.webview.config.mts",
 		"package": "vsce package --no-dependencies --baseContentUrl https://github.com/Simao-Pereira-Gomes/atomize/blob/HEAD/packages/vscode-extension --baseImagesUrl https://github.com/Simao-Pereira-Gomes/atomize/raw/HEAD/packages/vscode-extension",
 		"verify:readme-images": "node scripts/verify-readme-images.mjs",
+		"test:e2e": "node e2e/run.mjs",
 		"typecheck": "tsc --noEmit && tsc --noEmit -p webview/tsconfig.json",
 		"lint": "bunx biome check --max-diagnostics 100",
 		"lint:fix": "bunx biome check --fix --max-diagnostics 100"
@@ -236,6 +237,7 @@
 		"@tailwindcss/cli": "^4.3.3",
 		"@types/node": "^26.5.1",
 		"@types/vscode": "^1.90.0",
+		"@vscode/test-electron": "3.1.0",
 		"@vscode/vsce": "^4.0.0",
 		"bun-types": "^1.4.2",
 		"esbuild": "^0.28.2",

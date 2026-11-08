@@ -1,0 +1,20 @@
+# Valid as written; only Stories tagged "api" activate a Task whose share breaks the range.
+formatVersion: "1.0"
+name: "Runtime range"
+filter:
+  workItemTypes: ["User Story"]
+validation:
+  taskEstimationRange: { min: 10, max: 40 }
+estimation: { strategy: "percentage", rounding: "none", normalize: "never" }
+tasks:
+  - title: "Build"
+    estimationPercent: 40
+  - title: "Test"
+    estimationPercent: 30
+  - title: "Review"
+    estimationPercent: 30
+  - title: "API hardening"
+    estimationPercentCondition:
+      - condition: { field: "tags", operator: "contains", value: "api" }
+        percent: 60
+    estimationPercent: 20

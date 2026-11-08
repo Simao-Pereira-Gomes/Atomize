@@ -1,0 +1,16 @@
+formatVersion: "1.0"
+name: "Unresolved blank"
+filter:
+  workItemTypes: ["User Story"]
+estimation:
+  strategy: "percentage"
+  rounding: "none"
+  ifParentHasNoEstimation: "blank"
+
+tasks:
+  - title: "Build"
+    estimationPercent: 60
+  - title: "Fixed"
+    estimationFixed: 2
+  - title: "Test"
+    estimationPercent: 40

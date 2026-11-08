@@ -1,0 +1,40 @@
+formatVersion: "1.0"
+name: "Features"
+filter:
+  workItemTypes: ["User Story"]
+  states: ["New", "Active", "Approved"]
+estimation:
+  strategy: "percentage"
+  rounding: "nearest"
+  conversion: { factor: 4 }
+  minimumTaskEstimate: 0.5
+tasks:
+  - id: "design"
+    title: "Design ${story.title}"
+    estimationPercent: 20
+    assignTo: "@ParentAssignee"
+    tags: ["design"]
+  - id: "build"
+    title: "Build ${story.title}"
+    estimationPercent: 40
+    dependsOn: ["design"]
+    priority: 2
+    activity: "Development"
+  - id: "review"
+    title: "Review"
+    estimationPercent: 5
+    repeat: 3
+  - id: "ui"
+    title: "UI polish"
+    estimationPercentCondition:
+      - condition: { field: "tags", operator: "contains", value: "frontend" }
+        percent: 15
+    estimationPercent: 5
+  - id: "sec"
+    title: "Security check"
+    estimationPercent: 10
+    condition: { field: "tags", operator: "contains", value: "security" }
+    dependsOn: ["design", "build"]
+  - id: "fixed"
+    title: "Sync meeting"
+    estimationFixed: 1
