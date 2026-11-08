@@ -313,3 +313,21 @@ describe("withRequestThrottle", () => {
     expect(wrapped.prefix).toBe("item");
   });
 });
+
+describe("RequestThrottle recovery", () => {
+  test("lifts the limit once Azure DevOps hasn't throttled for a while, so a long-lived adapter recovers", async () => {
+    const clock = fakeClock();
+    const throttle = new RequestThrottle({ sleep: clock.sleep, now: clock.now, recoverAfterMs: 60_000 });
+
+    await throttle.run(async () => ({ rateLimit: { retryAfter: 1 } }));
+    expect(throttle.currentLimit).toBe(2);
+
+    await clock.sleep(30_000);
+    await throttle.run(async () => undefined);
+    expect(throttle.currentLimit).toBe(2);
+
+    await clock.sleep(31_000);
+    await throttle.run(async () => undefined);
+    expect(throttle.currentLimit).toBe(Number.POSITIVE_INFINITY);
+  });
+});

@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
-import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
+import { Atomizer, AuthenticatedAdapterCache, buildAzureDevOpsConfig, TemplateLibrary } from "@sppg2001/atomize-core";
 import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
@@ -33,6 +33,12 @@ import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomiz
 import { projectVerificationPlatform, type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
+
+/**
+ * One authenticated adapter per Studio connection and token for the sidecar's lifetime, so each
+ * action doesn't authenticate again and field schemas stay cached between actions.
+ */
+const adapters = new AuthenticatedAdapterCache();
 
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
 export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
@@ -116,8 +122,7 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 
 export async function validateOnline(params: OnlineValidationParams, signal: AbortSignal): Promise<TemplateVerificationResult> {
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
-    await abortable(adapter.authenticate(), signal);
+    const adapter = await abortable(adapters.get(buildAzureDevOpsConfig(params.connection, params.connection.token)), signal);
     return await abortable(verifyTemplate(params.template, {
       project: { mode: "online", platform: projectVerificationPlatform(adapter) },
     }), signal);
@@ -246,8 +251,7 @@ const GROUNDING_MESSAGES: Record<ProjectGroundingErrorCode, string> = {
 
 export async function fetchGrounding(connection: GroundingConnection): Promise<ProjectGrounding> {
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
-    await adapter.authenticate();
+    const adapter = await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
     return await fetchProjectGrounding(adapter);
   } catch (error) {
     const { code } = toProjectGroundingError(error);
@@ -284,8 +288,7 @@ export async function loadReferences(params: ReferencesLoadParams): Promise<Refe
     const connection = params.connection;
     if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
     adapter ??= (async () => {
-      const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
-      await platform.authenticate();
+      const platform = await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
       return platform;
     })();
     return adapter;
@@ -314,8 +317,7 @@ export async function listWikiPages(params: WikiPagesParams): Promise<{ paths: s
 
 async function withWikiAdapter<T>(connection: GroundingConnection, run: (platform: IPlatformAdapter) => Promise<T>): Promise<T> {
   try {
-    const platform = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(connection, connection.token));
-    await platform.authenticate();
+    const platform = await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
     return await run(platform);
   } catch (error) {
     throw Object.assign(new Error(getErrorMessage(error)), { code: error instanceof ReferenceDocumentError ? error.code : "WIKI_READ_FAILED" });
@@ -379,8 +381,7 @@ export function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: s
 export async function queryGenerateStories(params: GenerateQueryStoriesParams, library: SidecarTemplateLibrary): Promise<{ stories: WorkItem[] }> {
   const template = await resolveGenerateTemplate(params.source, library);
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
-    await adapter.authenticate();
+    const adapter = await adapters.get(buildAzureDevOpsConfig(params.connection, params.connection.token));
     const stories = await new Atomizer(adapter).queryStories(template);
     return { stories };
   } catch (error) {
@@ -399,8 +400,7 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
 export async function runGenerate(params: GenerateRunParams, library: SidecarTemplateLibrary, notify: SidecarServices["notify"], signal: AbortSignal): Promise<{ report: AtomizationReport }> {
   const template = await resolveGenerateTemplate(params.source, library);
   try {
-    const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
-    await abortable(adapter.authenticate(), signal);
+    const adapter = await abortable(adapters.get(buildAzureDevOpsConfig(params.connection, params.connection.token)), signal);
     const atomizer = new Atomizer(adapter);
     const report = await atomizer.atomize(template, {
       dryRun: params.dryRun,

@@ -76,6 +76,8 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   private readonly throttle = new RequestThrottle();
   private witApi?: IWorkItemTrackingApi;
   private authenticated = false;
+  /** Read from the connection data fetched during authenticate(). */
+  private connectUserEmail?: string;
   private closedStatesByType = new Map<string, Promise<string[]>>();
   private readonly fieldSchemaService: FieldSchemaService;
 
@@ -114,9 +116,15 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         authHandler,
       );
 
-      this.witApi = withRequestThrottle(await this.connection.getWorkItemTrackingApi(), this.throttle);
-
-      await this.testConnection();
+      // Connection data both checks the credentials (it rejects a bad PAT) and names the user,
+      // so it doubles as the connection test; fetch it alongside the Work Item Tracking API.
+      const connection = this.connection;
+      const [witApi, connectionData] = await Promise.all([
+        connection.getWorkItemTrackingApi(),
+        connection.connect(),
+      ]);
+      this.witApi = withRequestThrottle(witApi, this.throttle);
+      this.connectUserEmail = connectionData.authenticatedUser?.properties?.Account?.$value || "";
 
       this.authenticated = true;
       logger.info("AzureDevOps: Authentication successful");
@@ -128,11 +136,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
 
   async getConnectUserEmail(): Promise<string> {
-    if (!this.connection) {
+    if (this.connectUserEmail === undefined) {
       throw new UnknownError("Not connected to Azure DevOps");
     }
-    const connectionData = await this.connection.connect();
-    return connectionData.authenticatedUser?.properties?.Account?.$value || "";
+    return this.connectUserEmail;
   }
 
   /**

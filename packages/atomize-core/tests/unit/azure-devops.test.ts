@@ -213,6 +213,29 @@ describe("AzureDevOpsAdapter", () => {
       expect(typeof email).toBe("string");
       expect(true).toBe(true);
     });
+
+    test("checks the credentials with one connection-data request and sends no test query", async () => {
+      mockWebApi.connect.mockClear();
+      mockWorkItemTrackingApi.queryByWiql.mockClear();
+      const adapter = new AzureDevOpsAdapter(validConfig);
+
+      await adapter.authenticate();
+      expect(await adapter.getConnectUserEmail()).toBe("test@example.com");
+      expect(await adapter.getConnectUserEmail()).toBe("test@example.com");
+
+      expect(mockWebApi.connect).toHaveBeenCalledTimes(1);
+      expect(mockWorkItemTrackingApi.queryByWiql).not.toHaveBeenCalled();
+    });
+
+    test("fails authentication when Azure DevOps rejects the credentials", async () => {
+      mockWebApi.connect.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("TF400813: The user is not authorized"), { statusCode: 401 });
+      });
+      const adapter = new AzureDevOpsAdapter(validConfig);
+
+      await expect(adapter.authenticate()).rejects.toThrow("Authentication failed");
+      expect(adapter.getPlatformMetadata().connected).toBe(false);
+    });
   });
 
   describe("error handling", () => {

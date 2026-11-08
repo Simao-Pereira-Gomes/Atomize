@@ -15,6 +15,8 @@ export interface RequestThrottleOptions {
   /** First backoff when a throttled response has no Retry-After; doubles each retry (default 1000 ms). */
   baseRetryDelayMs?: number;
   maxRetryDelayMs?: number;
+  /** After this long without a throttle signal the limit is lifted again (default 5 minutes). */
+  recoverAfterMs?: number;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
 }
@@ -30,7 +32,7 @@ export interface ThrottledRequestOptions {
  * Azure DevOps returns 429 when it blocks a user, and can slow a user down with a successful response
  * that carries Retry-After (https://learn.microsoft.com/en-us/azure/devops/integrate/concepts/rate-limits).
  * On either signal every request waits out the Retry-After delay, and the number of requests in flight
- * is halved (from the run's peak, never below two) for the rest of the run. 429 responses are retried
+ * is halved (from the run's peak, never below two) until Azure DevOps has been quiet for a while. 429 responses are retried
  * after the delay, and so are 503 responses to reads.
  *
  * azure-devops-node-api (17+) attaches parsed rate-limit headers as `rateLimit` to results and errors,
@@ -41,6 +43,7 @@ export class RequestThrottle {
   private inFlight = 0;
   private peakInFlight = 0;
   private pausedUntil = 0;
+  private lastThrottledAt = 0;
   /** A throttle signal from a request sent before the latest limit cut doesn't cut again. */
   private limitCuts = 0;
   private warned = false;
@@ -48,6 +51,7 @@ export class RequestThrottle {
   private readonly maxRetries: number;
   private readonly baseRetryDelayMs: number;
   private readonly maxRetryDelayMs: number;
+  private readonly recoverAfterMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
 
@@ -55,6 +59,7 @@ export class RequestThrottle {
     this.maxRetries = options.maxRetries ?? 5;
     this.baseRetryDelayMs = options.baseRetryDelayMs ?? 1000;
     this.maxRetryDelayMs = options.maxRetryDelayMs ?? 5 * 60_000;
+    this.recoverAfterMs = options.recoverAfterMs ?? 5 * 60_000;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? Date.now;
   }
@@ -85,7 +90,8 @@ export class RequestThrottle {
   }
 
   private onThrottled(cutsAtStart: number, delayMs: number): void {
-    this.pausedUntil = Math.max(this.pausedUntil, this.now() + Math.min(delayMs, this.maxRetryDelayMs));
+    this.lastThrottledAt = this.now();
+    this.pausedUntil = Math.max(this.pausedUntil, this.lastThrottledAt + Math.min(delayMs, this.maxRetryDelayMs));
     if (cutsAtStart !== this.limitCuts) return;
     this.limitCuts++;
     const base = Number.isFinite(this.limit) ? this.limit : this.peakInFlight;
@@ -104,6 +110,11 @@ export class RequestThrottle {
       if (waitMs > 0) {
         await this.sleep(waitMs);
         continue;
+      }
+      if (Number.isFinite(this.limit) && this.now() - this.lastThrottledAt >= this.recoverAfterMs) {
+        this.limit = Number.POSITIVE_INFINITY;
+        this.peakInFlight = this.inFlight;
+        this.warned = false;
       }
       if (this.inFlight < this.limit) {
         this.inFlight++;
