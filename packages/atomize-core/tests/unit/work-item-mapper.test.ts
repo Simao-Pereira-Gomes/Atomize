@@ -43,3 +43,22 @@ describe("convertWorkItem Story Estimate fallback chain", () => {
     expect(storyWith({}).estimation).toBeUndefined();
   });
 });
+
+describe("convertWorkItem Story url", () => {
+  test("uses the html link Azure DevOps returned", () => {
+    const story = convertWorkItem(
+      { id: 7, fields: { "System.TeamProject": "My Project" }, _links: { html: { href: "https://dev.azure.com/org/link/7" } } },
+      "https://dev.azure.com/org",
+    );
+    expect(story.url).toBe("https://dev.azure.com/org/link/7");
+  });
+
+  test("builds the edit link from the organization and the Story's project when there are no _links", () => {
+    const story = convertWorkItem({ id: 7, fields: { "System.TeamProject": "My Project" } }, "https://dev.azure.com/org/");
+    expect(story.url).toBe("https://dev.azure.com/org/My%20Project/_workitems/edit/7");
+  });
+
+  test("has no url without _links or an organization", () => {
+    expect(convertWorkItem({ id: 7, fields: { "System.TeamProject": "P" } }).url).toBeUndefined();
+  });
+});

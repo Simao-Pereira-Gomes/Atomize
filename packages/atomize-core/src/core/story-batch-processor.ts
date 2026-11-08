@@ -4,6 +4,7 @@ import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
 } from "../templates/schema";
+import { runWithConcurrency } from "../utils/concurrency";
 import { getErrorMessage } from "../utils/errors";
 import type {
   AtomizationOptions,
@@ -29,7 +30,7 @@ export interface StoryBatchProcessorResult {
 }
 
 /**
- * Owns generation batching policy for Stories: concurrency windows, progress
+ * Owns generation batching policy for Stories: a concurrency pool, progress
  * events, stop-on-error behavior, and failed-story result shaping.
  */
 export class StoryBatchProcessor {
@@ -43,17 +44,10 @@ export class StoryBatchProcessor {
     const signal = input.options.signal;
     const isCancelled = () => stopProcessing || signal?.aborted === true;
 
-    for (let i = 0; i < input.stories.length; i += input.concurrency) {
-      if (isCancelled()) break;
-
-      const batch = input.stories.slice(i, i + input.concurrency);
-      const batchResults = batch.map(async (story, batchIndex) => {
-        const storyIndex = i + batchIndex;
-
-        if (isCancelled()) {
-          return null;
-        }
-
+    await runWithConcurrency(
+      input.stories,
+      input.concurrency,
+      async (story, storyIndex) => {
         emitStoryStart(onProgress, storyIndex, input.stories.length, story);
 
         const onTaskCreated = onProgress
@@ -70,7 +64,6 @@ export class StoryBatchProcessor {
             input.warnings,
           );
           results[storyIndex] = result;
-
           completedStories++;
           totalTasksCreated += result.tasksCreated.length;
 
@@ -82,8 +75,6 @@ export class StoryBatchProcessor {
             story,
             tasksCreated: totalTasksCreated,
           });
-
-          return result;
         } catch (error) {
           const failedResult = this.buildFailedResult(story, error);
           errors.push({ storyId: story.id, error: failedResult.error ?? "" });
@@ -103,18 +94,13 @@ export class StoryBatchProcessor {
             logger.error("Stopping on first error (continueOnError=false)");
             stopProcessing = true;
           }
-
-          return failedResult;
         }
-      });
-
-      await Promise.all(batchResults);
-    }
+      },
+      { shouldStop: isCancelled },
+    );
 
     return {
-      results: results.filter(
-        (r): r is StoryAtomizationResult => r !== undefined && r !== null,
-      ),
+      results: results.filter((r): r is StoryAtomizationResult => r !== undefined),
       errors,
     };
   }

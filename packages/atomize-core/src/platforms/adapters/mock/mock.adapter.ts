@@ -1,4 +1,5 @@
 import { logger } from "../../../logger";
+import { runWithConcurrency } from "../../../utils/concurrency";
 import type { EstimationDefaults } from "../../interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
 import type {
@@ -231,7 +232,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
   async createTasksBulk(
     parentId: string,
     tasks: TaskDefinition[],
-    onTaskCreated?: (task: WorkItem) => void,
+    onTaskCreated?: (task: WorkItem, index: number) => void,
     concurrency = 5
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
@@ -242,27 +243,17 @@ export class MockPlatformAdapter implements IPlatformAdapter {
 
     const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
 
-    // Process tasks in parallel batches
-    for (let i = 0; i < tasks.length; i += concurrency) {
-      const batch = tasks.slice(i, i + concurrency);
-      const batchPromises = batch.map(async (task, batchIndex) => {
-        const taskIndex = i + batchIndex;
-        try {
-          const created = await this.createTask(parentId, task);
-          results[taskIndex] = created;
-          onTaskCreated?.(created);
-          return created;
-        } catch (error) {
-          logger.error(`MockPlatform: Failed to create task: ${task.title}`, {
-            error,
-          });
-          results[taskIndex] = null;
-          return null;
-        }
-      });
-
-      await Promise.all(batchPromises);
-    }
+    await runWithConcurrency(tasks, concurrency, async (task, taskIndex) => {
+      try {
+        const created = await this.createTask(parentId, task);
+        results[taskIndex] = created;
+        onTaskCreated?.(created, taskIndex);
+      } catch (error) {
+        logger.error(`MockPlatform: Failed to create task: ${task.title}`, {
+          error,
+        });
+      }
+    });
 
     const createdTasks = results.filter((r): r is WorkItem => r !== null);
 

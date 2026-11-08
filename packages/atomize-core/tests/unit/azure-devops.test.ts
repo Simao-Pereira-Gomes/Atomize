@@ -573,6 +573,54 @@ describe("AzureDevOpsAdapter", () => {
       expect(created).toEqual([]);
       expect(true).toBe(true);
     });
+
+    test("reports each created Task with its index, so failed inputs can be told apart", async () => {
+      mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(async () => {
+        throw new Error("field rule violated");
+      });
+      const seen: Array<[string, number]> = [];
+
+      const created = await adapter.createTasksBulk(
+        "100",
+        [{ title: "First" }, { title: "Second" }],
+        (task, index) => seen.push([task.title, index]),
+      );
+
+      expect(created.map((t) => t.title)).toEqual(["Second"]);
+      expect(seen).toEqual([["Second", 1]]);
+    });
+
+    test("links predecessors in the create request instead of a separate update", async () => {
+      mockWorkItemTrackingApi.createWorkItem.mockClear();
+      mockWorkItemTrackingApi.updateWorkItem.mockClear();
+
+      await adapter.createTasksBulk("100", [{ title: "Test", predecessorIds: ["201"] }]);
+
+      // biome-ignore lint/suspicious/noExplicitAny: mock call arguments are untyped
+      const patch = (mockWorkItemTrackingApi.createWorkItem.mock.calls[0] as any[])[1] as Array<{ value?: { rel?: string; url?: string } }>;
+      expect(patch.map((op) => op.value?.rel).filter(Boolean)).toEqual([
+        "System.LinkTypes.Hierarchy-Reverse",
+        "System.LinkTypes.Dependency-Reverse",
+      ]);
+      expect(patch.at(-1)?.value?.url).toBe("https://dev.azure.com/test/_apis/wit/workItems/201");
+      expect(mockWorkItemTrackingApi.updateWorkItem).not.toHaveBeenCalled();
+    });
+
+    test("retries a Task that Azure DevOps throttled with 429", async () => {
+      mockWorkItemTrackingApi.createWorkItem.mockClear();
+      mockWorkItemTrackingApi.createWorkItem.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("Too many requests"), { statusCode: 429, rateLimit: { retryAfter: 0 } });
+      });
+
+      const created = await adapter.createTasksBulk("100", [{ title: "Throttled" }]);
+
+      expect(created.map((t) => t.title)).toEqual(["Throttled"]);
+      expect(mockWorkItemTrackingApi.createWorkItem).toHaveBeenCalledTimes(2);
+    });
+
+    test("declares that it links dependencies while creating Tasks", () => {
+      expect(adapter.createsDependencyLinksWithTasks).toBe(true);
+    });
   });
 
   describe("getChildren", () => {

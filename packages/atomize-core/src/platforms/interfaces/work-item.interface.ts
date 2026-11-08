@@ -122,6 +122,12 @@ export interface TaskDefinition {
   /** IDs of tasks this task depends on */
   dependsOn?: string[];
 
+  /**
+   * IDs of already-created Work Items this Task depends on, linked as predecessors when the Task is
+   * created. Set only for platforms that report `createsDependencyLinksWithTasks`.
+   */
+  predecessorIds?: string[];
+
   /** Custom fields to set on the work item (keyed by reference name, e.g. "Custom.ClientTier") */
   customFields?: Record<string, string | number | boolean>;
 }

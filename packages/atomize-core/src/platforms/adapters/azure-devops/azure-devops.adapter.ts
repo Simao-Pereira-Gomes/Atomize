@@ -8,6 +8,7 @@ import {
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
 import { logger } from "../../../logger";
+import { runWithConcurrency } from "../../../utils/concurrency";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "../../../utils/errors";
 import type { EstimationDefaults } from "../../interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
@@ -27,6 +28,7 @@ import type {
 } from "../../interfaces/work-item.interface";
 import { FieldSchemaService } from "./azure-devops-field-schema.service.js";
 import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "./estimation-defaults";
+import { RequestThrottle, withRequestThrottle } from "./request-throttle";
 import { buildCreateTaskPatch, buildDependencyLinkPatch } from "./task-patch-builder";
 import { convertWorkItem } from "./work-item-mapper";
 import { buildWorkItemWiqlQuery } from "./work-item-query";
@@ -63,7 +65,11 @@ export interface AzureDevOpsConfig extends PlatformConfig {
  * Connects to Azure DevOps Services using the REST API
  */
 export class AzureDevOpsAdapter implements IPlatformAdapter {
+  /** Each created Task's predecessors go in its create request (see buildCreateTaskPatch). */
+  readonly createsDependencyLinksWithTasks = true;
   private connection?: azdev.WebApi;
+  /** Shared by every Work Item Tracking request this adapter sends, so throttling slows the whole run. */
+  private readonly throttle = new RequestThrottle();
   private witApi?: IWorkItemTrackingApi;
   private authenticated = false;
   private closedStatesByType = new Map<string, Promise<string[]>>();
@@ -104,7 +110,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         authHandler,
       );
 
-      this.witApi = await this.connection.getWorkItemTrackingApi();
+      this.witApi = withRequestThrottle(await this.connection.getWorkItemTrackingApi(), this.throttle);
 
       await this.testConnection();
 
@@ -140,6 +146,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       return await new AzureDevOpsWorkItemRetrieval(this.witApi, {
         project: this.config.project,
         team: this.config.team,
+        organizationUrl: this.config.organizationUrl,
       }).query(filter);
     } catch (error) {
       const message = sanitizeAzureErrorMessage(error);
@@ -170,6 +177,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       return await new AzureDevOpsWorkItemRetrieval(this.witApi, {
         project: this.config.project,
         team: this.config.team,
+        organizationUrl: this.config.organizationUrl,
       }).search({ ...search, ...(excludeStates?.length ? { excludeStates } : {}) });
     } catch (error) {
       const message = sanitizeAzureErrorMessage(error);
@@ -330,6 +338,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
       if (Number.isNaN(numericParentId)) {
         throw new Error(`Invalid parent ID: ${parentId}`);
       }
+      const invalidPredecessor = task.predecessorIds?.find((id) => Number.isNaN(parseInt(id, 10)));
+      if (invalidPredecessor !== undefined) {
+        throw new Error(`Invalid predecessor work item ID: ${invalidPredecessor}`);
+      }
 
       const defaults = this.getEstimationDefaults();
       const estimateWrite = task.estimateFields?.length
@@ -367,13 +379,12 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
 
   /**
-   * Create multiple tasks in bulk with parallel execution
-   * Uses concurrency limit to avoid overwhelming the API
+   * Create multiple tasks in parallel, at most `maxConcurrency` at a time
    */
   async createTasksBulk(
     parentId: string,
     tasks: TaskDefinition[],
-    onTaskCreated?: (task: WorkItem) => void,
+    onTaskCreated?: (task: WorkItem, index: number) => void,
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
@@ -384,27 +395,17 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
     const results: (WorkItem | null)[] = new Array(tasks.length).fill(null);
 
-    // Process tasks in parallel batches
-    for (let i = 0; i < tasks.length; i += concurrency) {
-      const batch = tasks.slice(i, i + concurrency);
-      const batchPromises = batch.map(async (task, batchIndex) => {
-        const taskIndex = i + batchIndex;
-        try {
-          const created = await this.createTask(parentId, task);
-          results[taskIndex] = created;
-          onTaskCreated?.(created);
-          return created;
-        } catch (error) {
-          logger.error(`AzureDevOps: Failed to create task: ${task.title}`, {
-            error,
-          });
-          results[taskIndex] = null;
-          return null;
-        }
-      });
-
-      await Promise.all(batchPromises);
-    }
+    await runWithConcurrency(tasks, concurrency, async (task, taskIndex) => {
+      try {
+        const created = await this.createTask(parentId, task);
+        results[taskIndex] = created;
+        onTaskCreated?.(created, taskIndex);
+      } catch (error) {
+        logger.error(`AzureDevOps: Failed to create task: ${task.title}`, {
+          error,
+        });
+      }
+    });
 
     const createdTasks = results.filter((r): r is WorkItem => r !== null);
 
@@ -685,12 +686,11 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   async getAreaPaths(): Promise<string[]> {
     this.ensureAuthenticated();
 
-    if (!this.connection) {
-      throw new UnknownError("Not connected to Azure DevOps");
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
     }
 
-    const witApi = await this.connection.getWorkItemTrackingApi();
-    const root = await witApi.getClassificationNode(
+    const root = await this.witApi.getClassificationNode(
       this.config.project,
       TreeStructureGroup.Areas,
       undefined,
@@ -705,12 +705,11 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   async getIterationPaths(): Promise<string[]> {
     this.ensureAuthenticated();
 
-    if (!this.connection) {
-      throw new UnknownError("Not connected to Azure DevOps");
+    if (!this.witApi) {
+      throw new UnknownError("Work Item Tracking API not initialized");
     }
 
-    const witApi = await this.connection.getWorkItemTrackingApi();
-    const root = await witApi.getClassificationNode(
+    const root = await this.witApi.getClassificationNode(
       this.config.project,
       TreeStructureGroup.Iterations,
       undefined,

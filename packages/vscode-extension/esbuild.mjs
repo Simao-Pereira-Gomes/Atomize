@@ -24,6 +24,7 @@ await build({
 	target: 'node18',
 	external: ['vscode', 'node:*'],
 	sourcemap: true,
+	minify: true,
 	loader: { '.css': 'text' },
 	// atomize-core's TemplateCatalog has an import.meta.url fallback path that's
 	// unreachable here (src/core-library.ts always supplies an explicit

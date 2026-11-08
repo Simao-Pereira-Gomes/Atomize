@@ -23,11 +23,20 @@ export interface ChildTaskReader {
 }
 
 export interface TaskWriter {
+  /**
+   * Creates the Tasks, returning those that were created in input order. `onTaskCreated` receives
+   * each created Task with its index in `tasks`, so callers can tell which inputs failed.
+   */
   createTasksBulk(
     parentId: string,
     tasks: TaskDefinition[],
-    onTaskCreated?: (task: WorkItem) => void,
+    onTaskCreated?: (task: WorkItem, index: number) => void,
   ): Promise<WorkItem[]>;
+  /**
+   * True when createTasksBulk links each Task's `predecessorIds` as part of creating it, so
+   * dependencies cost no extra request. Otherwise they are linked afterwards via createDependencyLink.
+   */
+  readonly createsDependencyLinksWithTasks?: boolean;
 }
 
 export interface DependencyLinker {

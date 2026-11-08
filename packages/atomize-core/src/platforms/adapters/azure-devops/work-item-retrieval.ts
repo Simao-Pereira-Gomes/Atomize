@@ -7,6 +7,7 @@ import {
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
 import { logger } from "../../../logger";
+import { runWithConcurrency } from "../../../utils/concurrency";
 import { ConfigurationError, PlatformError } from "../../../utils/errors";
 import type { FilterCriteria } from "../../interfaces/filter.interface";
 import type { StorySearch } from "../../interfaces/story-search.interface";
@@ -26,10 +27,14 @@ const MAX_BATCH_FETCH = 200;
  * isn't left short (hiding "Load more") just because few recent Stories have Tasks.
  */
 const MAX_SEARCH_CANDIDATES = 5000;
+/** Batch fetches run at once; enough to overlap round trips without a burst Azure DevOps throttles. */
+const FETCH_CONCURRENCY = 3;
 
 export interface AzureDevOpsRetrievalConfig {
   project: string;
   team: string;
+  /** Used to build each Story's web link, since Story fetches don't ask for `_links`. */
+  organizationUrl?: string;
 }
 
 /** Extracts an HTTP status code from an ADO SDK error, if present. */
@@ -89,17 +94,12 @@ export class AzureDevOpsWorkItemRetrieval {
       .filter((id): id is number => id !== undefined)
       .slice(0, top);
 
-    const matching: AzureWorkItem[] = [];
-    for (let start = 0; start < ids.length && matching.length < search.limit; start += MAX_BATCH_FETCH) {
-      const chunk = ids.slice(start, start + MAX_BATCH_FETCH);
-      const byId = new Map((await this.getWorkItems(chunk)).map((item) => [item.id, item]));
-      // Keep the WIQL's newest-first order regardless of the batch fetch's ordering.
-      for (const id of chunk) {
-        const item = byId.get(id);
-        if (item && (!postFiltered || hasChildRelations(item) === search.hasTasks)) matching.push(item);
-      }
-    }
-    return matching.slice(0, search.limit).map((item) => convertWorkItem(item));
+    const matching = await this.fetchMatching(
+      ids,
+      search.limit,
+      postFiltered ? (item) => hasChildRelations(item) === search.hasTasks : undefined,
+    );
+    return matching.map((item) => convertWorkItem(item, this.config.organizationUrl));
   }
 
   private async runFilterQuery(filter: FilterCriteria): Promise<WorkItem[]> {
@@ -110,6 +110,8 @@ export class AzureDevOpsWorkItemRetrieval {
     const result = await this.witApi.queryByWiql(
       { query: wiql },
       { project: this.config.project, team: effectiveTeam },
+      undefined,
+      queryTop(filter),
     );
 
     return this.hydrateQueryResult(result.workItems, filter, {
@@ -132,10 +134,8 @@ export class AzureDevOpsWorkItemRetrieval {
     }
 
     logger.info(`AzureDevOps: Fetching ${numericIds.length} work item(s) by ID`);
-    const workItems = await this.getWorkItems(numericIds);
-    return this.applyPostFilters(workItems, filter).map((wi) =>
-      convertWorkItem(wi),
-    );
+    const workItems = await this.fetchFiltered(numericIds, filter);
+    return workItems.map((wi) => convertWorkItem(wi, this.config.organizationUrl));
   }
 
   private async runSavedQuery(
@@ -148,6 +148,8 @@ export class AzureDevOpsWorkItemRetrieval {
     const result = await this.witApi.queryByWiql(
       { query: wiql },
       { project: this.config.project, team: this.resolveEffectiveTeam(filter) },
+      undefined,
+      queryTop(filter),
     );
 
     return this.hydrateQueryResult(result.workItems, filter, {
@@ -175,48 +177,85 @@ export class AzureDevOpsWorkItemRetrieval {
       .filter((id): id is number => id !== undefined);
     logger.info(messages.matchedMessage(ids.length));
 
-    const workItems = await this.getWorkItems(ids);
-    const filtered = this.applyPostFilters(workItems, filter);
-    const converted = filtered.map((wi) => convertWorkItem(wi));
+    const filtered = await this.fetchFiltered(ids, filter);
+    const converted = filtered.map((wi) => convertWorkItem(wi, this.config.organizationUrl));
 
     logger.info(`AzureDevOps: Returning ${converted.length} work item(s)`);
     return converted;
   }
 
-  private async getWorkItems(ids: number[]): Promise<AzureWorkItem[]> {
-    const fetched: AzureWorkItem[] = [];
-    for (let start = 0; start < ids.length; start += MAX_BATCH_FETCH) {
-      const workItems = await this.witApi.getWorkItems(
-        ids.slice(start, start + MAX_BATCH_FETCH),
-        undefined,
-        undefined,
-        WorkItemExpand.All,
-        undefined,
-        this.config.project,
-      );
-      fetched.push(...((workItems ?? []).filter((wi) => wi !== null) as AzureWorkItem[]));
+  /** Fetches the Work Items for `ids`, applying excludeIfHasTasks and limit without over-fetching. */
+  private async fetchFiltered(ids: number[], filter: FilterCriteria): Promise<AzureWorkItem[]> {
+    const fetched = await this.fetchMatching(
+      ids,
+      filter.limit || undefined,
+      filter.excludeIfHasTasks ? (item) => !hasChildRelations(item) : undefined,
+    );
+    if (filter.excludeIfHasTasks) {
+      logger.info(`AzureDevOps: ${fetched.length} work item(s) without tasks (after excludeIfHasTasks)`);
     }
     return fetched;
   }
 
-  private applyPostFilters(
-    workItems: AzureWorkItem[],
-    filter: FilterCriteria,
-  ): AzureWorkItem[] {
-    let filtered = workItems;
-
-    if (filter.excludeIfHasTasks) {
-      filtered = filtered.filter((item) => !hasChildRelations(item));
-      logger.info(
-        `AzureDevOps: ${filtered.length} work item(s) without tasks (after excludeIfHasTasks)`,
-      );
+  /**
+   * Fetches Work Items for `ids` in `ids` order, keeping those that pass `keep`, and stops once
+   * `limit` are kept. Chunks of 200 run a few at a time. Without `keep`, only the first `limit` IDs
+   * are fetched; with it, the first round fetches what would fill the limit if every item passed,
+   * and later rounds go a few chunks wide since the filter is discarding items.
+   */
+  private async fetchMatching(
+    ids: number[],
+    limit: number | undefined,
+    keep?: (item: AzureWorkItem) => boolean,
+  ): Promise<AzureWorkItem[]> {
+    const candidates = limit !== undefined && !keep ? ids.slice(0, limit) : ids;
+    const chunks: number[][] = [];
+    for (let start = 0; start < candidates.length; start += MAX_BATCH_FETCH) {
+      chunks.push(candidates.slice(start, start + MAX_BATCH_FETCH));
     }
 
-    if (filter.limit) {
-      filtered = filtered.slice(0, filter.limit);
+    const kept: AzureWorkItem[] = [];
+    const isFull = () => limit !== undefined && kept.length >= limit;
+    let next = 0;
+    while (next < chunks.length && !isFull()) {
+      const roundSize =
+        limit === undefined
+          ? chunks.length
+          : next === 0
+            ? Math.min(FETCH_CONCURRENCY, Math.ceil(limit / MAX_BATCH_FETCH))
+            : FETCH_CONCURRENCY;
+      const round = chunks.slice(next, next + roundSize);
+      next += round.length;
+      const fetched = new Array<AzureWorkItem[]>(round.length);
+      await runWithConcurrency(round, FETCH_CONCURRENCY, async (chunk, index) => {
+        fetched[index] = await this.getWorkItemBatch(chunk);
+      });
+      round.forEach((chunk, index) => {
+        // Keep the query's order regardless of the batch fetch's ordering.
+        const byId = new Map((fetched[index] ?? []).map((item) => [item.id, item]));
+        for (const id of chunk) {
+          const item = byId.get(id);
+          if (item && (!keep || keep(item))) kept.push(item);
+        }
+      });
     }
+    return limit === undefined ? kept : kept.slice(0, limit);
+  }
 
-    return filtered;
+  /**
+   * One batch fetch of at most 200 Work Items. Relations brings the fields and the child links the
+   * filters need; the web link `_links` would add is built locally (see convertWorkItem).
+   */
+  private async getWorkItemBatch(ids: number[]): Promise<AzureWorkItem[]> {
+    const workItems = await this.witApi.getWorkItems(
+      ids,
+      undefined,
+      undefined,
+      WorkItemExpand.Relations,
+      undefined,
+      this.config.project,
+    );
+    return (workItems ?? []).filter((wi) => wi !== null) as AzureWorkItem[];
   }
 
   private resolveEffectiveTeam(filter: FilterCriteria): string | undefined {
@@ -294,4 +333,9 @@ export class AzureDevOpsWorkItemRetrieval {
 
     return queryItem.wiql;
   }
+}
+
+/** WIQL `$top` for a query whose results aren't filtered after fetching: no more IDs than the limit. */
+function queryTop(filter: FilterCriteria): number | undefined {
+  return filter.limit && !filter.excludeIfHasTasks ? filter.limit : undefined;
 }

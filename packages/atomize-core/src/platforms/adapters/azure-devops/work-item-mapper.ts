@@ -13,7 +13,19 @@ function firstEstimate(fields: Record<string, unknown>): StoryEstimate | undefin
   return undefined;
 }
 
-export function convertWorkItem(azureItem: AzureWorkItem): WorkItem {
+/**
+ * The Work Item's web link: the `_links.html` Azure DevOps returned, or, for a fetch that didn't ask
+ * for links (WorkItemExpand.Relations), the same edit URL built from the organization and its project.
+ */
+function webUrl(azureItem: AzureWorkItem, organizationUrl: string | undefined): string | undefined {
+  const href = azureItem._links?.html?.href;
+  if (typeof href === "string") return href;
+  const project = azureItem.fields?.["System.TeamProject"];
+  if (!organizationUrl || typeof project !== "string" || azureItem.id === undefined) return undefined;
+  return `${organizationUrl.replace(/\/+$/, "")}/${encodeURIComponent(project)}/_workitems/edit/${azureItem.id}`;
+}
+
+export function convertWorkItem(azureItem: AzureWorkItem, organizationUrl?: string): WorkItem {
   const fields = azureItem.fields || {};
 
   const predecessorIds: string[] = [];
@@ -39,7 +51,7 @@ export function convertWorkItem(azureItem: AzureWorkItem): WorkItem {
   return {
     id: azureItem.id?.toString() || "",
     title: fields["System.Title"] || "",
-    url: typeof azureItem._links?.html?.href === 'string' ? azureItem._links.html.href : undefined,
+    url: webUrl(azureItem, organizationUrl),
     type: fields["System.WorkItemType"] as WorkItemType,
     state: fields["System.State"] || "",
     assignedTo:
