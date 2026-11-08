@@ -118,20 +118,6 @@ export function createProgressHandler(
           );
         }
       })
-      .with({ type: "dependency_created" }, (e) => {
-        if (isTTYSession && storyProgressRef.current) {
-          storyProgressRef.current.advance(
-            0,
-            `${e.completedStories}/${e.totalStories} stories · ${e.dependenciesCreated} link${e.dependenciesCreated === 1 ? "" : "s"} created`,
-          );
-        }
-      })
-      .with({ type: "complete" }, (e) => {
-        if (isTTYSession) storyProgressRef.current?.stop(
-          `Done: ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`,
-        );
-        else print(`Done: ${e.tasksCreated ?? 0} task${(e.tasksCreated ?? 0) === 1 ? "" : "s"} created`);
-      })
       .exhaustive();
 }
 

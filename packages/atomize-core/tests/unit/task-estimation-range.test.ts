@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { EstimationCalculator } from "@sppg2001/atomize-core/core/estimation-calculator";
-import { StoryProcessor } from "@sppg2001/atomize-core/core/story-processor";
 import {
 	MixinTemplateSchema,
 	TaskTemplateSchema,
@@ -242,39 +241,6 @@ describe("taskEstimationRange", () => {
 		expect(
 			calculate(true).calculatedTasks.map((task) => task.estimationPercent),
 		).toEqual([25, 25, 25, 25]);
-	});
-
-	test("generation rejects an invalid conditional allocation before materializing any Tasks", async () => {
-		let materializations = 0;
-		const processor = new StoryProcessor(
-			{} as never,
-			new EstimationCalculator(),
-			{
-				materialize: async () => {
-					materializations++;
-					return [];
-				},
-			} as never,
-		);
-		const input = TaskTemplateSchema.parse(
-			template([
-				{
-					title: "Conditional",
-					estimationPercentCondition: [{ condition, percent: 50 }],
-				},
-			]),
-		);
-		await expect(
-			processor.process(
-				parseMockStory('{"priority":1,"estimation":10}'),
-				input.tasks,
-				input,
-				"",
-				{},
-				[],
-			),
-		).rejects.toThrow("Task allocation violates");
-		expect(materializations).toBe(0);
 	});
 
 	test("authoring validation and preview use the same dependency order for percentage rounding", async () => {

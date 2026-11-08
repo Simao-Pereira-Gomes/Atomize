@@ -6,11 +6,11 @@ import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
 } from "../templates/schema";
-import { GenerationTimeoutError } from "../utils/errors";
+import { runWithConcurrency } from "../utils/concurrency";
+import { GenerationTimeoutError, getErrorMessage } from "../utils/errors";
 import { DependencyResolver } from "./dependency-resolver.js";
 import type { CalculatedTask } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
-import { StoryBatchProcessor } from "./story-batch-processor";
 import { StoryProcessor } from "./story-processor";
 
 /**
@@ -22,9 +22,7 @@ export type ProgressEventType =
   | "story_start"
   | "story_complete"
   | "story_error"
-  | "task_created"
-  | "dependency_created"
-  | "complete";
+  | "task_created";
 
 /**
  * Progress event data
@@ -41,8 +39,6 @@ export interface ProgressEvent {
   story?: WorkItem;
   /** Number of tasks created so far */
   tasksCreated?: number;
-  /** Number of dependencies created so far */
-  dependenciesCreated?: number;
   /** Error message if type is story_error */
   error?: string;
   /** The task that was just created (type: task_created) */
@@ -93,6 +89,15 @@ export interface AtomizationOptions {
    * Task work starts) and `atomize` rejects with a GenerationTimeoutError. No deadline when omitted.
    */
   timeoutMs?: number;
+}
+
+/** What every Story in one run is processed with. */
+interface StoryRun {
+  orderedTasks: TemplateTaskDefinition[];
+  template: TaskTemplate;
+  connectUserEmail: string;
+  options: AtomizationOptions;
+  warnings: string[];
 }
 
 /** Which Stories a run covers: specific Story IDs, or the Template's filter. */
@@ -176,22 +181,12 @@ export interface AtomizationReport {
  * Main orchestrator that generates tasks from user stories based on templates
  */
 export class Atomizer {
-  private filterEngine: FilterEngine;
-  private dependencyResolver: DependencyResolver;
-  private storyProcessor: StoryProcessor;
-  private storyBatchProcessor: StoryBatchProcessor;
+  private readonly filterEngine = new FilterEngine();
+  private readonly dependencyResolver = new DependencyResolver();
+  private readonly storyProcessor: StoryProcessor;
 
-  constructor(
-    private platform: GenerationPlatform,
-    filterEngine = new FilterEngine(),
-    dependencyResolver = new DependencyResolver(),
-    storyProcessor = new StoryProcessor(platform),
-    storyBatchProcessor = new StoryBatchProcessor(),
-  ) {
-    this.filterEngine = filterEngine;
-    this.dependencyResolver = dependencyResolver;
-    this.storyProcessor = storyProcessor;
-    this.storyBatchProcessor = storyBatchProcessor;
+  constructor(private readonly platform: GenerationPlatform) {
+    this.storyProcessor = new StoryProcessor(platform);
   }
 
   /**
@@ -263,16 +258,11 @@ export class Atomizer {
       `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,
     );
 
-    const { results, errors } = await this.storyBatchProcessor.process({
+    const { results, errors } = await this.processStories(
       stories,
-      orderedTasks,
-      template,
-      connectUserEmail,
-      options,
-      warnings,
-      concurrency: storyConcurrency,
-      storyProcessor: this.storyProcessor,
-    });
+      { orderedTasks, template, connectUserEmail, options, warnings },
+      storyConcurrency,
+    );
 
     const storiesSuccess = results.filter((r) => r.success).length;
     const storiesFailed = results.filter((r) => !r.success).length;
@@ -335,6 +325,102 @@ export class Atomizer {
     }
 
     return report;
+  }
+
+  /**
+   * Processes Stories through a concurrency pool: the next Story starts as soon as a slot frees
+   * up. Stops starting Stories on the first failure (unless continueOnError) or once the signal is
+   * aborted; Stories already started still finish.
+   */
+  private async processStories(
+    stories: WorkItem[],
+    run: StoryRun,
+    concurrency: number,
+  ): Promise<{ results: StoryAtomizationResult[]; errors: Array<{ storyId: string; error: string }> }> {
+    const results: StoryAtomizationResult[] = new Array(stories.length);
+    const errors: Array<{ storyId: string; error: string }> = [];
+    let stopProcessing = false;
+    let completedStories = 0;
+    let totalTasksCreated = 0;
+    const onProgress = run.options.onProgress;
+    const signal = run.options.signal;
+    const isCancelled = () => stopProcessing || signal?.aborted === true;
+
+    await runWithConcurrency(
+      stories,
+      concurrency,
+      async (story, storyIndex) => {
+        onProgress?.({ type: "story_start", storyIndex, totalStories: stories.length, story });
+
+        const onTaskCreated = onProgress
+          ? (task: WorkItem) => onProgress({ type: "task_created", task, story, storyIndex, totalStories: stories.length })
+          : undefined;
+
+        try {
+          const result = await this.storyProcessor.process(
+            story,
+            run.orderedTasks,
+            run.template,
+            run.connectUserEmail,
+            { ...run.options, onTaskCreated },
+            run.warnings,
+          );
+          results[storyIndex] = result;
+          completedStories++;
+          totalTasksCreated += result.tasksCreated.length;
+
+          onProgress?.({
+            type: "story_complete",
+            storyIndex,
+            totalStories: stories.length,
+            completedStories,
+            story,
+            tasksCreated: totalTasksCreated,
+          });
+        } catch (error) {
+          const failedResult = this.buildFailedResult(story, error);
+          errors.push({ storyId: story.id, error: failedResult.error ?? "" });
+          results[storyIndex] = failedResult;
+
+          completedStories++;
+          onProgress?.({
+            type: "story_error",
+            storyIndex,
+            totalStories: stories.length,
+            completedStories,
+            story,
+            error: failedResult.error,
+          });
+
+          if (!run.options.continueOnError) {
+            logger.error("Stopping on first error (continueOnError=false)");
+            stopProcessing = true;
+          }
+        }
+      },
+      { shouldStop: isCancelled },
+    );
+
+    return {
+      results: results.filter((r): r is StoryAtomizationResult => r !== undefined),
+      errors,
+    };
+  }
+
+  private buildFailedResult(
+    story: WorkItem,
+    error: unknown,
+  ): StoryAtomizationResult {
+    const errorMessage = getErrorMessage(error);
+    logger.error(`Error processing story ${story.id}: ${errorMessage}`);
+
+    return {
+      story,
+      tasksCalculated: [],
+      tasksCreated: [],
+      success: false,
+      error: errorMessage,
+    };
   }
 
   /**

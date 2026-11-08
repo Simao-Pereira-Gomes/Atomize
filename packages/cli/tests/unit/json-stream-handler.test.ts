@@ -67,13 +67,11 @@ describe("createJsonStreamProgressHandler — suppressed events", () => {
   test.each([
     "query_start",
     "query_complete",
-    "dependency_created",
-    "complete",
   ] as const)("%s produces no output", (eventType) => {
     const lines: string[] = [];
     const handler = createJsonStreamProgressHandler((line) => lines.push(line));
 
-    handler({ type: eventType, totalStories: 2, tasksCreated: 1, dependenciesCreated: 0 });
+    handler({ type: eventType, totalStories: 2, tasksCreated: 1 });
 
     expect(lines).toHaveLength(0);
   });
