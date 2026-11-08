@@ -28,3 +28,58 @@ describe("FieldSchemaService allowsCustomValues", () => {
     expect(byRef.get("Custom.Points")).toBe(false);
   });
 });
+
+describe("FieldSchemaService requests", () => {
+  function countingApi() {
+    const calls = { getFields: 0, typeFields: 0 };
+    const api = {
+      getFields: async () => {
+        calls.getFields++;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return fields;
+      },
+      getWorkItemTypeFieldsWithReferences: async () => {
+        calls.typeFields++;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return fields.map((f) => ({ referenceName: f.referenceName, name: f.name, allowedValues: [] }));
+      },
+    } as unknown as IWorkItemTrackingApi;
+    return { api, calls };
+  }
+
+  test("fetches the project's field list once for every Work Item type", async () => {
+    const { api, calls } = countingApi();
+    const service = new FieldSchemaService();
+
+    await Promise.all(["User Story", "Bug", "Task", "Feature"].map((type) => service.getFieldsForType(api, "P", type, "k")));
+    await service.getAllFields(api, "P", "k");
+
+    expect(calls.getFields).toBe(1);
+    expect(calls.typeFields).toBe(4);
+  });
+
+  test("concurrent requests for the same type share one fetch", async () => {
+    const { api, calls } = countingApi();
+    const service = new FieldSchemaService();
+
+    await Promise.all([1, 2, 3].map(() => service.getFieldsForType(api, "P", "Task", "k")));
+
+    expect(calls.typeFields).toBe(1);
+  });
+
+  test("a failed fetch isn't cached", async () => {
+    let fail = true;
+    const api = {
+      getFields: async () => {
+        if (fail) throw new Error("network");
+        return fields;
+      },
+      getWorkItemTypeFieldsWithReferences: async () => [],
+    } as unknown as IWorkItemTrackingApi;
+    const service = new FieldSchemaService();
+
+    await expect(service.getAllFields(api, "P", "k")).rejects.toThrow("network");
+    fail = false;
+    expect(await service.getAllFields(api, "P", "k")).toHaveLength(fields.length);
+  });
+});

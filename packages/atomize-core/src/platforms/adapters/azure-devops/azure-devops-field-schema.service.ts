@@ -9,67 +9,66 @@ import type { ADoFieldSchema, AtoFieldType } from "../../interfaces/field-schema
 
 type CacheKey = string; // `${profileKey}::${project}::${workItemType|__all__}`
 
+/**
+ * Caches field schemas as promises, so concurrent requests share one fetch, and a failed fetch is
+ * dropped so the next request tries again. The project's field list is fetched once and shared by
+ * every Work Item type's schema.
+ */
 export class FieldSchemaService {
-  private cache = new Map<CacheKey, ADoFieldSchema[]>();
+  private cache = new Map<CacheKey, Promise<ADoFieldSchema[]>>();
+  private projectFields = new Map<CacheKey, Promise<WorkItemField[]>>();
 
   /**
    * Fetch fields for a specific work item type, including allowedValues for picklist fields.
    * Merges WIT-scoped field list with full field metadata to obtain type and readOnly info.
    */
-  async getFieldsForType(
+  getFieldsForType(
     witApi: IWorkItemTrackingApi,
     project: string,
     workItemType: string,
     profileKey: string,
   ): Promise<ADoFieldSchema[]> {
-    const key: CacheKey = `${profileKey}::${project}::${workItemType}`;
-    const cached = this.cache.get(key);
-    if (cached) return cached;
-
-    const [witFields, allFields] = await Promise.all([
-      witApi.getWorkItemTypeFieldsWithReferences(
-        project,
-        workItemType,
-        WorkItemTypeFieldsExpandLevel.AllowedValues,
-      ),
-      witApi.getFields(project),
-    ]);
-
-    const fieldMetaByRef = new Map<string, WorkItemField>(
-      (allFields ?? [])
-        .filter((f): f is WorkItemField & { referenceName: string } => !!f.referenceName)
-        .map(f => [f.referenceName, f]),
-    );
-
-    const schemas = (witFields ?? []).map(f =>
-      this.mergeField(f, fieldMetaByRef.get(f.referenceName ?? "")),
-    );
-
-    this.cache.set(key, schemas);
-    return schemas;
+    return this.cached(this.cache, `${profileKey}::${project}::${workItemType}`, async () => {
+      const [witFields, allFields] = await Promise.all([
+        witApi.getWorkItemTypeFieldsWithReferences(project, workItemType, WorkItemTypeFieldsExpandLevel.AllowedValues),
+        this.getProjectFields(witApi, project, profileKey),
+      ]);
+      const fieldMetaByRef = new Map<string, WorkItemField>(
+        allFields
+          .filter((f): f is WorkItemField & { referenceName: string } => !!f.referenceName)
+          .map((f) => [f.referenceName, f]),
+      );
+      return (witFields ?? []).map((f) => this.mergeField(f, fieldMetaByRef.get(f.referenceName ?? "")));
+    });
   }
 
   /**
    * Fetch all fields in the project (no WIT scope, no allowedValues for picklist fields).
    */
-  async getAllFields(
-    witApi: IWorkItemTrackingApi,
-    project: string,
-    profileKey: string,
-  ): Promise<ADoFieldSchema[]> {
-    const key: CacheKey = `${profileKey}::${project}::__all__`;
-    const cached = this.cache.get(key);
-    if (cached) return cached;
-
-    const fields = await witApi.getFields(project);
-    const schemas = (fields ?? []).map(f => this.mapWorkItemField(f));
-
-    this.cache.set(key, schemas);
-    return schemas;
+  getAllFields(witApi: IWorkItemTrackingApi, project: string, profileKey: string): Promise<ADoFieldSchema[]> {
+    return this.cached(this.cache, `${profileKey}::${project}::__all__`, async () =>
+      (await this.getProjectFields(witApi, project, profileKey)).map((f) => this.mapWorkItemField(f)),
+    );
   }
 
   clearCache(): void {
     this.cache.clear();
+    this.projectFields.clear();
+  }
+
+  private getProjectFields(witApi: IWorkItemTrackingApi, project: string, profileKey: string): Promise<WorkItemField[]> {
+    return this.cached(this.projectFields, `${profileKey}::${project}`, async () => (await witApi.getFields(project)) ?? []);
+  }
+
+  private cached<T>(cache: Map<CacheKey, Promise<T>>, key: CacheKey, load: () => Promise<T>): Promise<T> {
+    const existing = cache.get(key);
+    if (existing) return existing;
+    const loading = load();
+    cache.set(key, loading);
+    loading.catch(() => {
+      if (cache.get(key) === loading) cache.delete(key);
+    });
+    return loading;
   }
 
   private mergeField(
