@@ -11,14 +11,8 @@ import {
   type TemplateInstallContentSource,
   type TemplateInstallScope,
 } from "../services/template/template-install-source";
-import { TemplateResolver } from "../services/template/template-resolver";
-import { type CompositionMeta, TemplateLoader } from "./loader";
 import type { TaskTemplate } from "./schema";
-import {
-  type ResolvedTemplateSource,
-  TemplateSourceResolver,
-  type TemplateSourceResolverOptions,
-} from "./source-resolver";
+import { type CompositionMeta, TemplateComposition } from "./template-composition";
 import { verifyTemplate } from "./template-verification";
 import {
   TemplateValidator,
@@ -26,16 +20,32 @@ import {
   type ValidationResult,
 } from "./validator";
 
-export interface RunnableTemplate {
+export type { CompositionMeta } from "./template-composition";
+
+export type TemplateSourceKind = "file" | "catalog" | "url";
+
+export interface TemplateSourceInfo {
+  kind: TemplateSourceKind;
+  input: string;
+  path?: string;
+  url?: string;
+  ref?: string;
+}
+
+/** A Resolved Template, how it was composed, and where it came from. */
+export interface ResolvedTemplateSource {
   template: TaskTemplate;
   meta: CompositionMeta;
-  source: {
-    kind: "file" | "catalog" | "url";
-    input: string;
-    path?: string;
-    url?: string;
-    ref?: string;
-  };
+  source: TemplateSourceInfo;
+}
+
+export interface TemplateSourceOptions {
+  fetchContent?: (url: string) => Promise<string>;
+  onFetch?: (url: string) => void;
+  onNotice?: (message: string) => void;
+}
+
+export interface RunnableTemplate extends ResolvedTemplateSource {
   validation: ValidationResult;
 }
 
@@ -82,19 +92,19 @@ export type TemplateLibraryOptions = TemplateCatalogOptions;
 
 export class TemplateLibrary {
   private readonly catalog: TemplateCatalog;
-  private readonly resolver: TemplateSourceResolver;
+  private readonly composition: TemplateComposition;
   private readonly validator = new TemplateValidator();
 
   constructor(options: TemplateLibraryOptions = {}) {
     this.catalog = new TemplateCatalog(options);
-    this.resolver = new TemplateSourceResolver(new TemplateLoader(this.catalog), this.catalog);
+    this.composition = new TemplateComposition(this.catalog);
   }
 
   async getRunnableTemplate(
     source: string,
-    options: TemplateSourceResolverOptions & { validate?: boolean } = {},
+    options: TemplateSourceOptions & { validate?: boolean } = {},
   ): Promise<RunnableTemplate> {
-    const resolved = await this.resolver.load(source, options);
+    const resolved = await this.loadSource(source, options);
     const validation = await verifyTemplate(resolved.template);
     if (options.validate !== false && !validation.valid) {
       const issues = validation.errors
@@ -108,14 +118,60 @@ export class TemplateLibrary {
 
   /** Composes an in-memory raw template as if it were saved at `contextPath` (its `extends` and `mixins` resolved). */
   composeTemplate(raw: unknown, contextPath: string): Promise<TaskTemplate> {
-    return this.resolver.compose(raw, contextPath);
+    return this.composition.compose(raw, contextPath);
   }
 
+  /**
+   * Loads a Resolved Template from a file path, a `template:` Catalog ref, or an HTTPS URL
+   * (which needs `fetchContent`). Mixins are not standalone sources.
+   */
   async loadSource(
     source: string,
-    options: TemplateSourceResolverOptions = {},
+    options: TemplateSourceOptions = {},
   ): Promise<ResolvedTemplateSource> {
-    return await this.resolver.load(source, options);
+    if (source.startsWith("http://")) {
+      throw new Error("Only HTTPS URLs are supported.");
+    }
+    if (source.startsWith("https://")) {
+      return await this.loadUrl(source, options);
+    }
+    if (source.startsWith("mixin:")) {
+      throw new Error(
+        `"${source}" is a mixin, not a template. Mixins cannot be used standalone; they are composed into templates via the mixins field.`,
+      );
+    }
+    if (source.startsWith("template:")) {
+      return await this.loadCatalogRef(source, options);
+    }
+    const composed = await this.composition.loadFile(source);
+    return { ...composed, source: { kind: "file", input: source, path: source } };
+  }
+
+  private async loadUrl(url: string, options: TemplateSourceOptions): Promise<ResolvedTemplateSource> {
+    if (!options.fetchContent) {
+      throw new Error("A fetchContent adapter is required to load remote templates.");
+    }
+    options.onFetch?.(url);
+    const composed = await this.composition.loadContent(await options.fetchContent(url));
+    return { ...composed, source: { kind: "url", input: url, url } };
+  }
+
+  private async loadCatalogRef(ref: string, options: TemplateSourceOptions): Promise<ResolvedTemplateSource> {
+    const item = await this.catalog.findByRef(ref);
+    if (!item) {
+      throw new Error(`"${ref}" not found. Run: atomize template list`);
+    }
+    const { overrides } = await this.catalog.listWithOverrides("template");
+    const override = overrides.find(
+      (candidate) => candidate.active.name === item.name && candidate.active.scope === item.scope,
+    );
+    if (override) {
+      options.onNotice?.(
+        `Using ${item.scope}-scoped "${item.name}"; your ${override.overridden.scope}-scoped version is inactive. Run "atomize template list" to review.`,
+      );
+    }
+    const composed = await this.composition.loadFile(item.path);
+    return { ...composed, source: { kind: "catalog", input: ref, ref, path: item.path } };
   }
 
   /**
@@ -153,10 +209,7 @@ export class TemplateLibrary {
       return this.validator.validate(template, options);
     }
 
-    const resolvedTemplate = await new TemplateResolver(this.catalog).resolveRaw(
-      template,
-      outputPath,
-    );
+    const resolvedTemplate = await this.composition.compose(template, outputPath);
     return await verifyTemplate(resolvedTemplate, { validation: options });
   }
 

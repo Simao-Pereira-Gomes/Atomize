@@ -2,19 +2,21 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { TemplateLoader } from "@sppg2001/atomize-core/templates/loader";
 import { MAX_TEMPLATE_FILE_BYTES } from "@sppg2001/atomize-core/templates/template-file";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateLoadError } from "@sppg2001/atomize-core/utils/errors";
 import { expectToReject } from "../utils/matchers";
 
-describe("TemplateLoader", () => {
-  const loader = new TemplateLoader();
+const library = new TemplateLibrary();
+const load = async (path: string) => (await library.loadSource(path)).template;
+
+describe("loading a Template file", () => {
   const fixturesPath = resolve(__dirname, "../fixtures/templates");
 
   describe("load", () => {
     test("should load a valid YAML template", async () => {
       const templatePath = resolve(fixturesPath, "valid-template.yaml");
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
 
       expect(template).toBeDefined();
       expect(template.name).toBe("Test Template");
@@ -24,7 +26,7 @@ describe("TemplateLoader", () => {
 
     test("should load template with correct structure", async () => {
       const templatePath = resolve(fixturesPath, "valid-template.yaml");
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
 
       expect(template.filter).toBeDefined();
       expect(template.filter.workItemTypes).toEqual(["User Story"]);
@@ -34,7 +36,7 @@ describe("TemplateLoader", () => {
 
     test("should load tasks with all properties", async () => {
       const templatePath = resolve(fixturesPath, "valid-template.yaml");
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
 
       const task1 = template.tasks[0];
       expect(task1?.id).toBe("task1");
@@ -49,14 +51,14 @@ describe("TemplateLoader", () => {
     test("should throw TemplateLoadError for non-existent file", async () => {
       const templatePath = resolve(fixturesPath, "does-not-exist.yaml");
 
-      await expectToReject(loader.load(templatePath), TemplateLoadError);
+      await expectToReject(load(templatePath), TemplateLoadError);
     });
 
     test("should throw TemplateLoadError with file path", async () => {
       const templatePath = resolve(fixturesPath, "does-not-exist.yaml");
 
       try {
-        await loader.load(templatePath);
+        await load(templatePath);
         expect(true).toBe(false); // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(TemplateLoadError);
@@ -67,7 +69,7 @@ describe("TemplateLoader", () => {
     });
 
     test("should handle relative paths", async () => {
-      const template = await loader.load(
+      const template = await load(
         "tests/fixtures/templates/valid-template.yaml"
       );
       expect(template.name).toBe("Test Template");
@@ -75,7 +77,7 @@ describe("TemplateLoader", () => {
 
     test("should handle absolute paths", async () => {
       const absolutePath = resolve(fixturesPath, "valid-template.yaml");
-      const template = await loader.load(absolutePath);
+      const template = await load(absolutePath);
       expect(template.name).toBe("Test Template");
     });
 
@@ -86,59 +88,10 @@ describe("TemplateLoader", () => {
       try {
         await writeFile(largeTemplatePath, "x".repeat(MAX_TEMPLATE_FILE_BYTES + 1), "utf-8");
 
-        await expectToReject(loader.load(largeTemplatePath), "Template file too large");
+        await expectToReject(load(largeTemplatePath), "Template file too large");
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }
-    });
-  });
-
-  describe("loadMultiple", () => {
-    test("should load multiple templates", async () => {
-      const paths = [
-        resolve(fixturesPath, "valid-template.yaml"),
-        resolve(fixturesPath, "invalid-estimation.yaml"),
-      ];
-
-      const templates = await loader.loadMultiple(paths);
-
-      expect(templates).toHaveLength(2);
-      expect(templates[0]?.name).toBe("Test Template");
-      expect(templates[1]?.name).toBe("Invalid Estimation Template");
-    });
-
-    test("should return empty array for empty input", async () => {
-      const templates = await loader.loadMultiple([]);
-      expect(templates).toEqual([]);
-    });
-
-    test("should fail if any template fails to load", async () => {
-      const paths = [
-        resolve(fixturesPath, "valid-template.yaml"),
-        resolve(fixturesPath, "does-not-exist.yaml"),
-      ];
-
-      await expectToReject(loader.loadMultiple(paths), TemplateLoadError);
-    });
-  });
-
-  describe("canLoad", () => {
-    test("should return true for valid template", async () => {
-      const templatePath = resolve(fixturesPath, "valid-template.yaml");
-      const result = await loader.canLoad(templatePath);
-      expect(result).toBe(true);
-    });
-
-    test("should return false for non-existent file", async () => {
-      const templatePath = resolve(fixturesPath, "does-not-exist.yaml");
-      const result = await loader.canLoad(templatePath);
-      expect(result).toBe(false);
-    });
-
-    test("should return true even for invalid templates", async () => {
-      const templatePath = resolve(fixturesPath, "invalid-estimation.yaml");
-      const result = await loader.canLoad(templatePath);
-      expect(result).toBe(true);
     });
   });
 });

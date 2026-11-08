@@ -1200,7 +1200,7 @@ export type TaskTemplate = z.infer<typeof TaskTemplateSchema>;
 /**
  * A template that uses `extends` and/or `mixins` and has not yet been resolved.
  * `filter` and `tasks` are inherited from the parent and therefore optional here.
- * Always resolve through `TemplateLoader` or `TemplateResolver` before validating.
+ * Always resolve through the Template Library (`loadSource` or `composeTemplate`) before validating.
  */
 export type PartialTaskTemplate = Omit<TaskTemplate, "filter" | "tasks"> & {
   filter?: FilterCriteria;

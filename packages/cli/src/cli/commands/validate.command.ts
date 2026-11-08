@@ -12,12 +12,12 @@ import {
   getCustomFieldVerificationSummary,
   verifyTemplateCustomFields as validateCustomFieldsAgainstSchemas,
 } from "@sppg2001/atomize-core/templates/custom-field-verifier";
-import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
 import {
   generatedTaskCount,
   type TaskTemplate,
   type ValidationMode,
 } from "@sppg2001/atomize-core/templates/schema";
+import type { CompositionMeta } from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import type {
   ValidationError,

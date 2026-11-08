@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
-import { TemplateLoader } from "@sppg2001/atomize-core/templates/loader";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateValidator } from "@sppg2001/atomize-core/templates/validator";
 import { TemplateCompositionError, TemplateLoadError } from "@sppg2001/atomize-core/utils/errors";
 
+const library = new TemplateLibrary();
+const load = async (path: string) => (await library.loadSource(path)).template;
+
 describe("Integration Tests", () => {
-  const loader = new TemplateLoader();
   const validator = new TemplateValidator();
   const fixturesPath = resolve(__dirname, "../fixtures/templates");
   const examplesFolder = resolve(__dirname, "../../../../examples");
@@ -20,7 +22,7 @@ describe("Integration Tests", () => {
   describe("Load and Validate Flow", () => {
     test("should load and validate backend template", async () => {
       const templatePath = resolve(examplesFolder, exampleTemplates.backend);
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
       expect(template).toBeDefined();
       expect(template.name).toBe("Backend API Feature");
       const result = validator.validate(template);
@@ -30,7 +32,7 @@ describe("Integration Tests", () => {
 
     test("should load and validate frontend template", async () => {
       const templatePath = resolve(examplesFolder, exampleTemplates.frontend);
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
       expect(template.name).toBe("Frontend React Feature");
       const result = validator.validate(template);
       expect(result.valid).toBe(true);
@@ -38,7 +40,7 @@ describe("Integration Tests", () => {
 
     test("should load and validate fullstack template", async () => {
       const templatePath = resolve(examplesFolder, exampleTemplates.fullstack);
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
       expect(template.name).toBe("Fullstack Feature");
       const result = validator.validate(template);
       expect(result.valid).toBe(true);
@@ -46,14 +48,14 @@ describe("Integration Tests", () => {
 
     test("should handle complete workflow for valid template", async () => {
       const templatePath = resolve(fixturesPath, "valid-template.yaml");
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
       const result = validator.validate(template);
       expect(result.valid).toBe(true);
     });
 
     test("should handle complete workflow for invalid template", async () => {
       const templatePath = resolve(fixturesPath, "invalid-estimation.yaml");
-      const template = await loader.load(templatePath);
+      const template = await load(templatePath);
       const result = validator.validate(template);
       const formatted = validator.formatResult(result);
 
@@ -64,7 +66,7 @@ describe("Integration Tests", () => {
 
   describe("Real-world Template Validation", () => {
     test("backend template should have correct task count", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.backend)
       );
 
@@ -74,7 +76,7 @@ describe("Integration Tests", () => {
     });
 
     test("backend template should have 100% estimation", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.backend)
       );
 
@@ -86,7 +88,7 @@ describe("Integration Tests", () => {
     });
 
     test("backend template should have valid dependencies", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.backend)
       );
 
@@ -99,7 +101,7 @@ describe("Integration Tests", () => {
     });
 
     test("fullstack template should support conditionals", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.fullstack)
       );
 
@@ -116,7 +118,7 @@ describe("Integration Tests", () => {
       ];
 
       for (const templatePath of templates) {
-        const template = await loader.load(resolve(examplesFolder, templatePath));
+        const template = await load(resolve(examplesFolder, templatePath));
         const result = validator.validate(template);
 
         expect(result.valid).toBe(true);
@@ -128,7 +130,7 @@ describe("Integration Tests", () => {
     test("should provide helpful error for missing file", async () => {
       const templatePath = "/nonexistent/template.yaml";
       try {
-        await loader.load(templatePath);
+        await load(templatePath);
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TemplateLoadError);
@@ -140,7 +142,7 @@ describe("Integration Tests", () => {
     });
 
     test("should provide detailed validation errors", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(fixturesPath, "invalid-estimation.yaml")
       );
 
@@ -155,7 +157,7 @@ describe("Integration Tests", () => {
 
   describe("validateOrThrow usage", () => {
     test("should work in try-catch pattern", async () => {
-      const validTemplate = await loader.load(
+      const validTemplate = await load(
         resolve(fixturesPath, "valid-template.yaml")
       );
 
@@ -168,7 +170,7 @@ describe("Integration Tests", () => {
     });
 
     test("should throw on invalid template", async () => {
-      const invalidTemplate = await loader.load(
+      const invalidTemplate = await load(
         resolve(fixturesPath, "invalid-estimation.yaml")
       );
 
@@ -186,7 +188,7 @@ describe("Integration Tests", () => {
 
   describe("Template Features", () => {
     test("should support all filter types", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.advancedFiltering)
       );
 
@@ -197,7 +199,7 @@ describe("Integration Tests", () => {
     });
 
     test("should support task metadata", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.backend)
       );
 
@@ -210,7 +212,7 @@ describe("Integration Tests", () => {
     });
 
     test("should support estimation configuration", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.backend)
       );
 
@@ -220,7 +222,7 @@ describe("Integration Tests", () => {
     });
 
     test("should support validation configuration", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.backend)
       );
 
@@ -230,7 +232,7 @@ describe("Integration Tests", () => {
     });
 
     test("should support metadata", async () => {
-      const template = await loader.load(
+      const template = await load(
         resolve(examplesFolder, exampleTemplates.backend)
       );
 
@@ -242,7 +244,7 @@ describe("Integration Tests", () => {
 
   describe("Template Composition", () => {
     test("child template inherits filter and tasks from parent", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
+      const template = await load(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       expect(template.name).toBe("Child Template");
       expect(template.filter.workItemTypes).toEqual(["User Story"]);
@@ -250,7 +252,7 @@ describe("Integration Tests", () => {
     });
 
     test("child template overrides parent task by id", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
+      const template = await load(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       const designTask = template.tasks.find((t) => t.id === "design");
       expect(designTask?.estimationPercent).toBe(15);
@@ -258,7 +260,7 @@ describe("Integration Tests", () => {
     });
 
     test("child template appends new tasks to parent", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
+      const template = await load(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       const taskIds = template.tasks.map((t) => t.id);
       expect(taskIds).toContain("implement");
@@ -267,7 +269,7 @@ describe("Integration Tests", () => {
     });
 
     test("composed child template is valid at 100% estimation", async () => {
-      const template = await loader.load(resolve(fixturesPath, "child-template.atomize.yaml"));
+      const template = await load(resolve(fixturesPath, "child-template.atomize.yaml"));
       const result = validator.validate(template);
 
       expect(result.valid).toBe(true);
@@ -276,7 +278,7 @@ describe("Integration Tests", () => {
     });
 
     test("template with mixins includes mixin tasks", async () => {
-      const template = await loader.load(resolve(fixturesPath, "template-with-mixins.yaml"));
+      const template = await load(resolve(fixturesPath, "template-with-mixins.yaml"));
 
       const taskIds = template.tasks.map((t) => t.id);
       expect(taskIds).toContain("dependency-audit");
@@ -284,7 +286,7 @@ describe("Integration Tests", () => {
     });
 
     test("child overrides mixin task by matching id", async () => {
-      const template = await loader.load(resolve(fixturesPath, "template-with-mixins.yaml"));
+      const template = await load(resolve(fixturesPath, "template-with-mixins.yaml"));
 
       const securityTask = template.tasks.find((t) => t.id === "security-review");
       expect(securityTask?.estimationPercent).toBe(8);
@@ -292,7 +294,7 @@ describe("Integration Tests", () => {
     });
 
     test("mixins-only template (no extends) applies mixin tasks", async () => {
-      const template = await loader.load(resolve(fixturesPath, "mixins-only-template.yaml"));
+      const template = await load(resolve(fixturesPath, "mixins-only-template.yaml"));
 
       const taskIds = template.tasks.map((t) => t.id);
       expect(taskIds).toContain("dependency-audit");
@@ -300,7 +302,7 @@ describe("Integration Tests", () => {
     });
 
     test("multi-level inheritance resolves full chain", async () => {
-      const template = await loader.load(resolve(fixturesPath, "parent-template.yaml"));
+      const template = await load(resolve(fixturesPath, "parent-template.yaml"));
 
       const taskIds = template.tasks.map((t) => t.id);
       expect(taskIds).toContain("gp-task");
@@ -311,14 +313,14 @@ describe("Integration Tests", () => {
     });
 
     test("multi-level inheritance inherits grandparent filter", async () => {
-      const template = await loader.load(resolve(fixturesPath, "parent-template.yaml"));
+      const template = await load(resolve(fixturesPath, "parent-template.yaml"));
 
       expect(template.filter.workItemTypes).toEqual(["User Story"]);
       expect(template.filter.states).toEqual(["New"]);
     });
 
     test("loadWithMeta reports composition metadata for inheriting template", async () => {
-      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "child-template.atomize.yaml"));
+      const { meta } = await library.loadSource(resolve(fixturesPath, "child-template.atomize.yaml"));
 
       expect(meta.isComposed).toBe(true);
       expect(meta.extendsRef).toContain("base-template.yaml");
@@ -326,21 +328,21 @@ describe("Integration Tests", () => {
     });
 
     test("loadWithMeta reports mixin refs", async () => {
-      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "template-with-mixins.yaml"));
+      const { meta } = await library.loadSource(resolve(fixturesPath, "template-with-mixins.yaml"));
 
       expect(meta.isComposed).toBe(true);
       expect(meta.mixinRefs).toHaveLength(1);
     });
 
     test("loadWithMeta marks plain templates as not composed", async () => {
-      const { meta } = await loader.loadWithMeta(resolve(fixturesPath, "valid-template.yaml"));
+      const { meta } = await library.loadSource(resolve(fixturesPath, "valid-template.yaml"));
 
       expect(meta.isComposed).toBe(false);
     });
 
     test("circular inheritance throws TemplateCompositionError", async () => {
       await expect(
-        loader.load(resolve(fixturesPath, "circular-a.yaml")),
+        load(resolve(fixturesPath, "circular-a.yaml")),
       ).rejects.toBeInstanceOf(TemplateCompositionError);
     });
   });

@@ -14,8 +14,8 @@ import type {
   ProjectMetadataReader,
 } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import { PlatformFactory } from "@sppg2001/atomize-core/platforms/platform-factory";
-import type { CompositionMeta } from "@sppg2001/atomize-core/templates/loader";
 import { formatEstimateValue, type TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import type { CompositionMeta } from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { AuthError } from "@sppg2001/atomize-core/utils/errors";
 import { clampConcurrency } from "@sppg2001/atomize-core/utils/math";
