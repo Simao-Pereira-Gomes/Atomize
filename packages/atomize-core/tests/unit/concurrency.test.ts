@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { runWithConcurrency } from "@sppg2001/atomize-core/utils/concurrency";
+import { runAsDependenciesFinish, runWithConcurrency } from "@sppg2001/atomize-core/utils/concurrency";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -98,5 +98,64 @@ describe("runWithConcurrency", () => {
         if (item === 2) throw new Error("boom");
       }),
     ).rejects.toThrow("boom");
+  });
+});
+
+describe("runAsDependenciesFinish", () => {
+  test("starts an item once everything it waits for has finished", async () => {
+    const events: string[] = [];
+    // 2 waits for 0 and 1; 3 waits for 2.
+    await runAsDependenciesFinish([[], [], [0, 1], [2]], 4, async (index) => {
+      events.push(`start ${index}`);
+      await sleep(index === 1 ? 20 : 2);
+      events.push(`end ${index}`);
+    });
+
+    expect(events.indexOf("start 2")).toBeGreaterThan(events.indexOf("end 1"));
+    expect(events.indexOf("start 3")).toBeGreaterThan(events.indexOf("end 2"));
+  });
+
+  test("doesn't wait on items an item doesn't depend on", async () => {
+    const events: string[] = [];
+    await runAsDependenciesFinish([[], [], [0]], 3, async (index) => {
+      events.push(`start ${index}`);
+      await sleep(index === 1 ? 30 : 2);
+      events.push(`end ${index}`);
+    });
+    expect(events.indexOf("start 2")).toBeLessThan(events.indexOf("end 1"));
+  });
+
+  test("starts ready items in index order when slots are scarce", async () => {
+    const started: number[] = [];
+    await runAsDependenciesFinish([[], [], [0], []], 1, async (index) => {
+      started.push(index);
+    });
+    expect(started).toEqual([0, 1, 2, 3]);
+  });
+
+  test("stops starting items after a worker fails, then rejects", async () => {
+    const started: number[] = [];
+    await expect(
+      runAsDependenciesFinish([[], [0], [1]], 1, async (index) => {
+        started.push(index);
+        if (index === 1) throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+    expect(started).toEqual([0, 1]);
+  });
+
+  test("stops starting items once shouldStop returns true", async () => {
+    const started: number[] = [];
+    let stop = false;
+    await runAsDependenciesFinish(
+      [[], [0], [1]],
+      1,
+      async (index) => {
+        started.push(index);
+        stop = true;
+      },
+      { shouldStop: () => stop },
+    );
+    expect(started).toEqual([0]);
   });
 });

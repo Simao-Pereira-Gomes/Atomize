@@ -2,13 +2,13 @@ import { logger } from "../logger";
 import type { GenerationPlatform } from "../platforms/interfaces/platform-capabilities";
 import type { WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { TaskDefinition as TemplateTaskDefinition } from "../templates/schema";
-import { runWithConcurrency } from "../utils/concurrency";
+import { runAsDependenciesFinish, runWithConcurrency } from "../utils/concurrency";
 import { getErrorMessage } from "../utils/errors";
 import type { CalculatedTask } from "./estimation-calculator";
 
 export interface TaskMaterializationOptions {
   dependencyConcurrency?: number;
-  /** Once aborted, no further dependency level is created; Tasks already created are kept. */
+  /** Once aborted, no further Task starts; Tasks already created are kept. */
   signal?: AbortSignal;
   onTaskCreated?: (task: WorkItem) => void;
 }
@@ -30,45 +30,43 @@ function dependenciesOf(
 }
 
 /**
- * Groups calculated Task indices by dependency level: level 0 has no predecessor among these Tasks,
- * and each later level depends only on earlier ones. A dependency on a Task that isn't being created
- * (skipped by its condition) doesn't hold its dependent back.
+ * For each calculated Task, the indices of the calculated Tasks it depends on. A dependency on a Task
+ * that isn't being created (skipped by its condition) is dropped with a warning: it can't be linked and
+ * doesn't hold its dependent back.
  */
-export function groupByDependencyLevel(
-  calculatedTasks: CalculatedTask[],
-  templateTasks: TemplateTaskDefinition[],
-): number[][] {
-  const dependencies = dependenciesOf(calculatedTasks, templateTasks);
+function predecessorIndices(calculatedTasks: CalculatedTask[], templateTasks: TemplateTaskDefinition[]): number[][] {
   const indexByTemplateId = new Map<string, number>();
   calculatedTasks.forEach((task, index) => {
     if (task.templateId) indexByTemplateId.set(task.templateId, index);
   });
+  return dependenciesOf(calculatedTasks, templateTasks).map((depIds) =>
+    depIds.flatMap((depId) => {
+      const index = indexByTemplateId.get(depId);
+      if (index === undefined) {
+        logger.warn(`Cannot create dependency link: predecessor task with ID "${depId}" not found`);
+        return [];
+      }
+      return [index];
+    }),
+  );
+}
 
-  const levels = new Array<number | undefined>(calculatedTasks.length);
+/** Tasks on the longest dependency chain: how many must be created one after another. */
+function chainLength(predecessors: number[][]): number {
+  const lengths = new Array<number | undefined>(predecessors.length);
   const visiting = new Set<number>();
-  const levelOf = (index: number): number => {
-    const known = levels[index];
+  const lengthOf = (index: number): number => {
+    const known = lengths[index];
     if (known !== undefined) return known;
     // The dependency resolver rejects cycles; this guard only keeps a bad input from recursing forever.
-    if (visiting.has(index)) return 0;
+    if (visiting.has(index)) return 1;
     visiting.add(index);
-    let level = 0;
-    for (const depId of dependencies[index] ?? []) {
-      const depIndex = indexByTemplateId.get(depId);
-      if (depIndex !== undefined) level = Math.max(level, levelOf(depIndex) + 1);
-    }
+    const length = 1 + Math.max(0, ...(predecessors[index] ?? []).map(lengthOf));
     visiting.delete(index);
-    levels[index] = level;
-    return level;
+    lengths[index] = length;
+    return length;
   };
-
-  const groups: number[][] = [];
-  calculatedTasks.forEach((_, index) => {
-    const level = levelOf(index);
-    groups[level] ??= [];
-    groups[level].push(index);
-  });
-  return groups.filter((group) => group !== undefined);
+  return Math.max(0, ...predecessors.map((_, index) => lengthOf(index)));
 }
 
 /**
@@ -121,50 +119,66 @@ export class TaskMaterializer {
     templateTasks: TemplateTaskDefinition[],
     options: TaskMaterializationOptions = {},
   ): Promise<WorkItem[]> {
-    const createdTasks = this.platform.createsDependencyLinksWithTasks
-      ? await this.createLevelByLevel(parentId, calculatedTasks, templateTasks, options)
+    const predecessors = predecessorIndices(calculatedTasks, templateTasks);
+    const createdTasks = this.linksOnCreate(predecessors, options)
+      ? await this.createAsPredecessorsFinish(parentId, calculatedTasks, predecessors, options)
       : await this.createThenLink(parentId, calculatedTasks, templateTasks, options);
     return createdTasks.filter((task): task is WorkItem => task !== undefined);
   }
 
   /**
-   * Creates one dependency level at a time so each Task's predecessors already exist, and lets the
-   * platform link them in the create request. Tasks within a level are created in parallel.
+   * Whether to put each Task's links in its create request. That saves one request per link, but a
+   * Task can only be created once its predecessors exist, so a long chain is created one Task after
+   * another. In rounds of requests, that costs the chain's length; creating every Task at once and
+   * then linking costs ceil(Tasks / Task concurrency) + ceil(links / link concurrency). Link on create
+   * unless that is slower; a tie goes to fewer requests.
    */
-  private async createLevelByLevel(
+  private linksOnCreate(predecessors: number[][], options: TaskMaterializationOptions): boolean {
+    if (!this.platform.createsDependencyLinksWithTasks) return false;
+    const linkCount = predecessors.reduce((sum, deps) => sum + deps.length, 0);
+    if (linkCount === 0) return false;
+    if (!this.platform.createDependencyLink) return true;
+    const createThenLinkRounds =
+      Math.ceil(predecessors.length / this.taskConcurrency()) +
+      Math.ceil(linkCount / Math.max(1, options.dependencyConcurrency ?? 5));
+    return chainLength(predecessors) <= createThenLinkRounds;
+  }
+
+  private taskConcurrency(): number {
+    return Math.max(1, this.platform.taskConcurrency ?? 5);
+  }
+
+  /**
+   * Creates each Task as soon as its own predecessors exist, putting their IDs in its create request,
+   * with at most the platform's Task concurrency in flight.
+   */
+  private async createAsPredecessorsFinish(
     parentId: string,
     calculatedTasks: CalculatedTask[],
-    templateTasks: TemplateTaskDefinition[],
+    predecessors: number[][],
     options: TaskMaterializationOptions,
   ): Promise<Array<WorkItem | undefined>> {
     const created = new Array<WorkItem | undefined>(calculatedTasks.length);
-    const createdByTemplateId = new Map<string, WorkItem>();
-    const dependencies = dependenciesOf(calculatedTasks, templateTasks);
-
-    for (const level of groupByDependencyLevel(calculatedTasks, templateTasks)) {
-      if (options.signal?.aborted) break;
-      const definitions = level.map((index) => {
+    await runAsDependenciesFinish(
+      predecessors,
+      this.taskConcurrency(),
+      async (index) => {
         const task = calculatedTasks[index] as CalculatedTask;
-        const predecessorIds = (dependencies[index] ?? []).flatMap((depId) => {
-          const predecessor = createdByTemplateId.get(depId);
-          if (!predecessor) {
-            logger.warn(`Cannot create dependency link: predecessor task with ID "${depId}" not found`);
+        const predecessorIds = (predecessors[index] ?? []).flatMap((predecessor) => {
+          const predecessorTask = created[predecessor];
+          if (!predecessorTask) {
+            logger.warn(`Cannot link "${task.title}" to "${calculatedTasks[predecessor]?.title}": that Task wasn't created`);
             return [];
           }
-          return [predecessor.id];
+          return [predecessorTask.id];
         });
-        return predecessorIds.length > 0 ? { ...task, predecessorIds } : task;
-      });
-
-      await this.platform.createTasksBulk(parentId, definitions, (task, levelIndex) => {
-        const index = level[levelIndex];
-        if (index === undefined) return;
-        created[index] = task;
-        const templateId = calculatedTasks[index]?.templateId;
-        if (templateId) createdByTemplateId.set(templateId, task);
-        options.onTaskCreated?.(task);
-      });
-    }
+        await this.platform.createTasksBulk(parentId, [predecessorIds.length > 0 ? { ...task, predecessorIds } : task], (createdTask) => {
+          created[index] = createdTask;
+          options.onTaskCreated?.(createdTask);
+        });
+      },
+      { shouldStop: () => options.signal?.aborted === true },
+    );
     return created;
   }
 

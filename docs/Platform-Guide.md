@@ -505,7 +505,7 @@ interface IPlatformAdapter {
 
 ### Creating Tasks and dependency links
 
-Generation calls `createTasksBulk` once per Story, or once per dependency level (see below). Your adapter must:
+Generation calls `createTasksBulk` once per Story, or once per Task when it links dependencies on create (see below). Your adapter must:
 
 - Return the Tasks it created in the same order as `tasks`, leaving out any that failed. A failed Task must not fail the whole call.
 - Call `onTaskCreated` for each created Task with that Task's **index in `tasks`**. Generation uses the index to match created Work Items back to Template tasks, so it can link dependencies correctly even when an earlier Task failed.
@@ -515,11 +515,18 @@ Your adapter can create `dependsOn` links in one of two ways:
 
 | Adapter declares | What generation does |
 |---|---|
-| `createsDependencyLinksWithTasks: true` | Creates Tasks one dependency level at a time. Each Task's `predecessorIds` holds the IDs of its already-created predecessors, and your adapter links them as part of creating the Task, with no extra request. Tasks in the same level are created in one call. |
+| `createsDependencyLinksWithTasks: true` | Creates each Task as soon as its own predecessors exist, with at most `taskConcurrency` (default 5) in flight. Each Task's `predecessorIds` holds the IDs of its already-created predecessors, and your adapter links them as part of creating the Task, with no extra request. |
 | Only `createDependencyLink` | Creates all of a Story's Tasks in one call, then calls `createDependencyLink` once per link. |
 | Neither | Creates the Tasks and logs a warning that dependencies weren't linked. |
 
 If the platform's API lets one create request carry links, prefer the first way: it saves one request per link. If a predecessor failed to create, its dependent is still created, just without that link.
+
+Linking on create makes a dependency chain's Tasks wait for each other, so a long chain would take longer than creating everything at once. When the adapter also has `createDependencyLink`, generation picks per Story whichever takes fewer rounds of requests:
+
+- **Links on create:** the length of the longest chain.
+- **Create, then link:** ⌈Tasks / `taskConcurrency`⌉ + ⌈links / dependency concurrency⌉.
+
+A tie goes to linking on create, which sends fewer requests. Without `createDependencyLink`, it always links on create.
 
 ### Rate limits
 

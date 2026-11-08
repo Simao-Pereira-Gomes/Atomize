@@ -67,6 +67,10 @@ export interface AzureDevOpsConfig extends PlatformConfig {
 export class AzureDevOpsAdapter implements IPlatformAdapter {
   /** Each created Task's predecessors go in its create request (see buildCreateTaskPatch). */
   readonly createsDependencyLinksWithTasks = true;
+
+  get taskConcurrency(): number {
+    return this.config.maxConcurrency ?? 5;
+  }
   private connection?: azdev.WebApi;
   /** Shared by every Work Item Tracking request this adapter sends, so throttling slows the whole run. */
   private readonly throttle = new RequestThrottle();
@@ -388,7 +392,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   ): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
-    const concurrency = this.config.maxConcurrency ?? 5;
+    const concurrency = this.taskConcurrency;
     logger.debug(
       `AzureDevOps: Creating ${tasks.length} tasks for parent ${parentId} (concurrency: ${concurrency})`,
     );

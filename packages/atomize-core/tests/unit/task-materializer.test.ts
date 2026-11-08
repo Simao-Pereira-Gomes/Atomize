@@ -91,7 +91,8 @@ describe("TaskMaterializer linking dependencies when creating Tasks", () => {
       dependencyConcurrency: 1,
     });
 
-    expect(predecessors).toEqual({ Design: undefined, Docs: undefined, Build: ["100"], Test: ["102", "101"] });
+    // One at a time, Build is ready (and starts) before Docs: Design=100, Build=101, Docs=102.
+    expect(predecessors).toEqual({ Design: undefined, Build: ["100"], Docs: undefined, Test: ["101", "102"] });
     expect(links).toEqual([]);
     expect(created.map((t) => t.title)).toEqual(["Design", "Build", "Docs", "Test"]);
   });
@@ -106,10 +107,12 @@ describe("TaskMaterializer linking dependencies when creating Tasks", () => {
   });
 
   test("never has more Tasks in flight than the platform's Task concurrency", async () => {
-    const independent = ["a", "b", "c", "d", "e"].map((id) => ({ id, title: id, estimationPercent: 20 })) as TemplateTaskDefinition[];
-    const { platform, peak } = recordingPlatform({ linksOnCreate: true, taskConcurrency: 2, delayMs: { a: 5, b: 5, c: 5, d: 5, e: 5 } });
+    const ids = ["a", "b", "c", "d", "e", "f"];
+    const tasks = ids.map((id) => ({ id, title: id, estimationPercent: 10, ...(id === "f" ? { dependsOn: ["a"] } : {}) })) as TemplateTaskDefinition[];
+    const delayMs = Object.fromEntries(ids.map((id) => [id, 5]));
+    const { platform, peak } = recordingPlatform({ linksOnCreate: true, taskConcurrency: 2, delayMs });
 
-    await new TaskMaterializer(platform).materialize("1", calculated(["a", "b", "c", "d", "e"], independent), independent);
+    await new TaskMaterializer(platform).materialize("1", calculated(ids, tasks), tasks);
 
     expect(peak()).toBe(2);
   });
@@ -123,7 +126,8 @@ describe("TaskMaterializer linking dependencies when creating Tasks", () => {
 
     expect(created.map((t) => t.title)).toEqual(["Build", "Docs", "Test"]);
     expect(predecessors.Build).toBeUndefined();
-    expect(predecessors.Test).toEqual(["101", "100"]);
+    // Design failed, so Build=100 and Docs=101.
+    expect(predecessors.Test).toEqual(["100", "101"]);
   });
 
   test("a dependency skipped by a condition doesn't hold back or link its dependent", async () => {

@@ -37,6 +37,8 @@ export interface TaskWriter {
    * dependencies cost no extra request. Otherwise they are linked afterwards via createDependencyLink.
    */
   readonly createsDependencyLinksWithTasks?: boolean;
+  /** How many Tasks the platform creates at once; generation uses it when it schedules Tasks itself (default 5). */
+  readonly taskConcurrency?: number;
 }
 
 export interface DependencyLinker {
