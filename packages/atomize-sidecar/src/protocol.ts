@@ -3,7 +3,6 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
 import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
 import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
-import { FilterEngine } from "@sppg2001/atomize-core/core/filter-engine";
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
@@ -387,15 +386,13 @@ export function classifyGenerateAdapterError(error: unknown, tokenExpiredCode: s
   return { code: defaultCode, message: defaultMessage };
 }
 
-/** Wraps `queryWorkItems` for the Generate Area's Story browser — see ADR-0056 (Generate Scope via Story browser). */
+/** The Stories a filter-scoped Generate run would process, for the Generate Area's Story browser — see ADR-0056 (Generate Scope via Story browser). */
 export async function queryGenerateStories(params: GenerateQueryStoriesParams, library: SidecarTemplateLibrary): Promise<{ stories: WorkItem[] }> {
   const template = await resolveGenerateTemplate(params.source, library);
   try {
     const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
     await adapter.authenticate();
-    const connectUserEmail = await adapter.getConnectUserEmail();
-    const platformFilter = new FilterEngine().convertFilter(template.filter, connectUserEmail);
-    const stories = await adapter.queryWorkItems(platformFilter);
+    const stories = await new Atomizer(adapter).queryStories(template);
     return { stories };
   } catch (error) {
     const classified = classifyGenerateAdapterError(error, "GENERATE_TOKEN_EXPIRED", "GENERATE_AUTH_FAILED", "GENERATE_QUERY_FAILED", "Atomize could not fetch Stories from Azure DevOps. Check the connection and try again.");

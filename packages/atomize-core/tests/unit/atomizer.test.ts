@@ -460,61 +460,49 @@ describe("Atomizer", () => {
     });
   });
 
-  describe("preview", () => {
-    test("should run in dry-run mode", async () => {
+  describe("queryStories", () => {
+    test("returns exactly the Stories a dry run processes", async () => {
       await platform.authenticate();
 
-      const report = await atomizer.preview(basicTemplate);
+      const stories = await atomizer.queryStories(basicTemplate);
+      const report = await atomizer.atomize(basicTemplate, { dryRun: true });
 
-      expect(report.dryRun).toBe(true);
-      expect(report.tasksCreated).toBe(0);
-      expect(report.tasksCalculated).toBeGreaterThan(0);
+      expect(stories.length).toBeGreaterThan(0);
+      expect(report.results.map((result) => result.story.id).sort()).toEqual(stories.map((story) => story.id).sort());
     });
 
-    test("should return same structure as atomize", async () => {
+    test("applies limit the way a run does", async () => {
       await platform.authenticate();
 
-      const preview = await atomizer.preview(basicTemplate);
-      const actual = await atomizer.atomize(basicTemplate, { dryRun: true });
+      const stories = await atomizer.queryStories(basicTemplate, { limit: 1 });
+      const report = await atomizer.atomize(basicTemplate, { dryRun: true, limit: 1 });
 
-      expect(preview.templateName).toBe(actual.templateName);
-      expect(preview.storiesProcessed).toBe(actual.storiesProcessed);
-      expect(preview.tasksCalculated).toBe(actual.tasksCalculated);
-    });
-  });
-
-  describe("countMatchingStories", () => {
-    test("should count stories that match filter", async () => {
-      await platform.authenticate();
-
-      const count = await atomizer.countMatchingStories(basicTemplate);
-
-      expect(count).toBeGreaterThan(0);
-      expect(typeof count).toBe("number");
+      expect(stories).toHaveLength(1);
+      expect(report.storiesProcessed).toBe(1);
     });
 
-    test("should return same count as atomize processes", async () => {
+    test("uses Story IDs instead of the filter when given", async () => {
       await platform.authenticate();
+      const [first] = await atomizer.queryStories(basicTemplate);
+      if (!first) throw new Error("mock data has no matching stories");
 
-      const count = await atomizer.countMatchingStories(basicTemplate);
-      const report = await atomizer.atomize(basicTemplate);
+      const stories = await atomizer.queryStories(basicTemplate, { storyIds: [first.id] });
 
-      expect(count).toBe(report.storiesProcessed);
+      expect(stories.map((story) => story.id)).toEqual([first.id]);
     });
 
-    test("should return 0 for no matches", async () => {
+    test("rejects an invalid filter, as a run does", async () => {
+      await platform.authenticate();
+      const invalid = { ...basicTemplate, filter: { ...basicTemplate.filter, workItemTypes: [] } };
+
+      await expectToReject(atomizer.queryStories(invalid), "Invalid filter");
+      await expectToReject(atomizer.atomize(invalid, { dryRun: true }), "Invalid filter");
+    });
+
+    test("returns no Stories when nothing matches", async () => {
       await platform.authenticate();
 
-      const noMatchTemplate: TaskTemplate = {
-        ...basicTemplate,
-        filter: {
-          states: ["NonExistent"],
-        },
-      };
-
-      const count = await atomizer.countMatchingStories(noMatchTemplate);
-
-      expect(count).toBe(0);
+      expect(await atomizer.queryStories({ ...basicTemplate, filter: { states: ["NonExistent"] } })).toEqual([]);
     });
   });
 

@@ -95,6 +95,9 @@ export interface AtomizationOptions {
   timeoutMs?: number;
 }
 
+/** Which Stories a run covers: specific Story IDs, or the Template's filter. */
+export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit">;
+
 /** The deadline surfaces use for an interactive Generation Run. */
 export const DEFAULT_GENERATION_TIMEOUT_MS = 5 * 60 * 1_000;
 
@@ -229,26 +232,7 @@ export class Atomizer {
     logger.info(`Dry run: ${options.dryRun ? "Yes" : "No"}`);
 
     const connectUserEmail = await this.platform.getConnectUserEmail();
-
-    let platformFilter: FilterCriteria;
-    if (options.storyIds && options.storyIds.length > 0) {
-      logger.info(`Fetching ${options.storyIds.length} specific work item(s) by ID`);
-      platformFilter = {
-        workItemIds: options.storyIds,
-        excludeIfHasTasks: template.filter.excludeIfHasTasks,
-      };
-    } else {
-      platformFilter = this.filterEngine.convertFilter(
-        template.filter,
-        connectUserEmail,
-      );
-      if (options.limit !== undefined) platformFilter.limit = options.limit;
-
-      const filterValidation = this.filterEngine.validateFilter(template.filter);
-      if (!filterValidation.valid) {
-        throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
-      }
-    }
+    const platformFilter = this.storyQuery(template, options, connectUserEmail);
 
     const onProgress = options.onProgress;
 
@@ -352,22 +336,36 @@ export class Atomizer {
   }
 
   /**
-   * Get a summary of what would be generated (dry run)
+   * The Stories a run with these options would process: the given Story IDs, or the Template's
+   * filter (validated, and capped by `limit`). The same step `atomize` starts with.
    */
-  async preview(template: TaskTemplate): Promise<AtomizationReport> {
-    return this.atomize(template, { dryRun: true });
+  async queryStories(
+    template: TaskTemplate,
+    options: StoryScopeOptions = {},
+  ): Promise<WorkItem[]> {
+    const connectUserEmail = await this.platform.getConnectUserEmail();
+    return await this.platform.queryWorkItems(this.storyQuery(template, options, connectUserEmail));
   }
 
-  /**
-   * Count how many stories match the filter
-   */
-  async countMatchingStories(template: TaskTemplate): Promise<number> {
-    const connectUserEmail = await this.platform.getConnectUserEmail();
-    const platformFilter = this.filterEngine.convertFilter(
-      template.filter,
-      connectUserEmail,
-    );
-    const stories = await this.platform.queryWorkItems(platformFilter);
-    return stories.length;
+  private storyQuery(
+    template: TaskTemplate,
+    options: StoryScopeOptions,
+    connectUserEmail: string,
+  ): FilterCriteria {
+    if (options.storyIds && options.storyIds.length > 0) {
+      logger.info(`Fetching ${options.storyIds.length} specific work item(s) by ID`);
+      return {
+        workItemIds: options.storyIds,
+        excludeIfHasTasks: template.filter.excludeIfHasTasks,
+      };
+    }
+
+    const filterValidation = this.filterEngine.validateFilter(template.filter);
+    if (!filterValidation.valid) {
+      throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
+    }
+    const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
+    if (options.limit !== undefined) platformFilter.limit = options.limit;
+    return platformFilter;
   }
 }
