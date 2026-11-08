@@ -72,6 +72,8 @@ export interface SaveTemplateInput {
   kind: TemplateCatalogKind;
   name: string;
   template: unknown;
+  /** The YAML text `template` derives from, whose anchors, aliases and comments are kept where they still apply. */
+  sourceText?: string;
   /** The Catalog to save to; the personal one when omitted. */
   scope?: WritableCatalogScope;
   overwrite?: boolean;

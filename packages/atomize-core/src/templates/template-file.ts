@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
-import { parse as parseYaml } from "yaml";
 import { getErrorMessage, TemplateLoadError } from "../utils/errors";
+import { TemplateDocument } from "./template-document";
 
 export const MAX_TEMPLATE_FILE_BYTES = 512 * 1024; // 512 KB
 
@@ -15,7 +15,7 @@ export async function loadYamlFile(filePath: string): Promise<unknown> {
     }
 
     const content = await readFile(filePath, "utf-8");
-    const parsed = parseYaml(content);
+    const parsed = TemplateDocument.parse(content).toValue();
     if (!parsed) {
       throw new TemplateLoadError("File is empty", filePath);
     }

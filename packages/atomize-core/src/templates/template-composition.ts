@@ -1,10 +1,10 @@
 import { resolve } from "node:path";
-import { parse as parseYaml } from "yaml";
 import { logger } from "../logger";
 import type { TemplateCatalog } from "../services/template/template-catalog";
 import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "../utils/errors";
 import { TemplateComposer } from "./composer";
 import { type MixinTemplate, MixinTemplateSchema, type TaskTemplate } from "./schema";
+import { TemplateDocument } from "./template-document";
 import { loadYamlFile } from "./template-file";
 import { isFilePath, parseCompositionFields, resolveTemplatePath } from "./template-reference";
 
@@ -52,7 +52,7 @@ export class TemplateComposition {
   /** Loads remote YAML content; it has no folder, so only catalog refs can be composed. */
   async loadContent(content: string): Promise<ComposedTemplate> {
     try {
-      const raw = parseYaml(content);
+      const raw = TemplateDocument.parse(content).toValue();
       rejectFilePathRefs(raw);
       return await this.composeWithMeta(raw, "");
     } catch (error) {

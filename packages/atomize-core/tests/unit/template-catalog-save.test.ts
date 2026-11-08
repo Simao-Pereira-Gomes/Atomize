@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
+import { parse } from "yaml";
 
 const TEST_DIR = join(tmpdir(), `atomize-catalog-save-test-${process.pid}`);
 const template = { version: "1.0", name: "Delivery", filter: { workItemTypes: ["User Story"] }, tasks: [{ title: "Plan", estimationPercent: 100 }] };
@@ -78,5 +79,38 @@ describe("installing an Atomize YAML File", () => {
     const preview = await library().previewInstall({ source, scope: "project" });
     expect(preview.source.name).toBe("backend-api");
     expect(preview.targetPath).toBe(join(TEST_DIR, "project", ".atomize", "catalog", "templates", "backend-api.atomize.yaml"));
+  });
+});
+
+describe("saving a Template derived from YAML text", () => {
+  const ANCHORED = `# Shared review condition
+version: "1.0"
+name: Delivery
+filter:
+  workItemTypes: ["User Story"]
+tasks:
+  - id: review
+    title: Security review
+    estimationPercent: 50
+    condition: &security
+      field: tags
+      operator: contains
+      value: security
+  - id: pentest
+    title: Pen test
+    estimationPercent: 50
+    condition: *security
+`;
+
+  test("keeps the source text's anchors, aliases and comments", async () => {
+    const derived = { ...(parse(ANCHORED) as Record<string, unknown>), name: "Delivery (improved)" };
+
+    const item = await library().saveTemplate({ kind: "template", name: "delivery-copy", template: derived, sourceText: ANCHORED });
+
+    const text = await readFile(item.path, "utf8");
+    expect(text).toContain("condition: &security");
+    expect(text).toContain("condition: *security");
+    expect(text).toContain("# Shared review condition");
+    expect(text).toContain("name: Delivery (improved)");
   });
 });

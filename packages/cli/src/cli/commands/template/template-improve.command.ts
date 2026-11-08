@@ -13,7 +13,7 @@ import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg200
 import { diffTemplates, type TemplateDiff } from "@sppg2001/atomize-schema";
 import chalk from "chalk";
 import { Command } from "commander";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { stringify as stringifyYaml } from "yaml";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, createManagedSpinner, formatScope, isInteractiveTerminal, sanitizeTty } from "@/cli/utilities/prompt-utilities";
@@ -132,7 +132,7 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
     throw new ConfigurationError("Only a Template file or a Catalog Template can be improved. Download a remote Template first.");
   }
   const sourceText = await readFile(sourcePath, "utf8");
-  const authored = parseYaml(sourceText) as TaskTemplate;
+  const authored = TemplateDocument.parse(sourceText).toValue() as TaskTemplate;
   const catalogRef = loaded.source.kind === "catalog" ? loaded.source.ref : undefined;
   const builtin = catalogRef ? await isBuiltin(library, sourcePath) : false;
   const label = catalogRef ?? sourcePath;
@@ -170,7 +170,7 @@ export async function runTemplateImprove(templateArg: string, options: ImproveOp
     if (!report.validation.valid) {
       const next = interactive && !options.dryRun ? await askAfterInvalid(Boolean(proposal)) : "reject";
       if (next === "retry") continue;
-      if (next === "draft" && proposal) report.saved = await saveDraft(proposal, sourcePath);
+      if (next === "draft" && proposal) report.saved = await saveDraft(proposal, sourcePath, sourceText);
       return finish(report, options);
     }
 
@@ -289,7 +289,7 @@ async function saveAsNew(proposal: TaskTemplate, name: string, ctx: SaveContext)
   if (await ctx.library.templateExists("template", scope, name)) {
     throw new ConfigurationError(`A Template named "${name}" already exists. Choose another name for --save-as.`);
   }
-  const item = await ctx.library.saveTemplate({ kind: "template", name, template: copy, scope });
+  const item = await ctx.library.saveTemplate({ kind: "template", name, template: copy, sourceText: ctx.sourceText, scope });
   output.success(`Saved the improvement as template:${name} (${formatScope(scope)}: ${item.path})`);
   return { action: "save-as", path: item.path };
 }
@@ -305,9 +305,9 @@ function catalogScope(ctx: SaveContext): "user" | "project" {
 }
 
 /** An invalid proposal is never saved into the Catalog; a draft is written beside the source for hand-fixing. */
-async function saveDraft(proposal: TaskTemplate, sourcePath: string): Promise<Saved> {
+async function saveDraft(proposal: TaskTemplate, sourcePath: string, sourceText: string): Promise<Saved> {
   const path = `${sourcePath.replace(/(\.atomize)?\.ya?ml$/i, "")}.improved-draft.yaml`;
-  await writeFile(path, stringifyYaml(proposal), "utf8");
+  await writeFile(path, TemplateDocument.parse(sourceText).withValue(proposal).toString(), "utf8");
   output.success(`Saved the draft to ${path}. Fix the problems above, then install or copy it.`);
   return { action: "draft", path };
 }

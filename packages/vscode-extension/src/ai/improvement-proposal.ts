@@ -1,6 +1,6 @@
 import { deriveImprovedCopy } from '@sppg2001/atomize-core/services/template/template-improvement';
 import type { TaskTemplate } from '@sppg2001/atomize-core/templates/schema';
-import { parse, stringify } from 'yaml';
+import { TemplateDocument } from '@sppg2001/atomize-core/templates/template-document';
 import { ATOMIZE_YAML_MODELINE } from './draft-document.js';
 
 /**
@@ -9,8 +9,10 @@ import { ATOMIZE_YAML_MODELINE } from './draft-document.js';
  * when it is a Catalog Template (ADR-0010, ADR-0037).
  */
 export function improvedCopyContent(proposalText: string, catalogRef: string | undefined): string {
-	const copy = deriveImprovedCopy(parse(proposalText) as TaskTemplate, { catalogRef });
-	return `${ATOMIZE_YAML_MODELINE}\n${stringify(copy)}`;
+	const document = TemplateDocument.parse(proposalText);
+	const copy = deriveImprovedCopy(document.toValue() as TaskTemplate, { catalogRef });
+	const text = document.withValue(copy).toString();
+	return text.startsWith(`${ATOMIZE_YAML_MODELINE}\n`) ? text : `${ATOMIZE_YAML_MODELINE}\n${text}`;
 }
 
 /** The Catalog ref (`template:<name>`) of the Catalog Template stored at `path`, if any. */

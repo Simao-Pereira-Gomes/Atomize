@@ -27,6 +27,28 @@ describe('improvedCopyContent', () => {
 	it('leaves out origin for a standalone file', () => {
 		expect(parse(improvedCopyContent(PROPOSAL, undefined))).not.toHaveProperty('origin');
 	});
+
+	it('keeps the proposal text\'s anchors, aliases and comments', () => {
+		const anchored = `${PROPOSAL}  - title: Review
+    estimationPercent: 0
+    condition: &security
+      field: tags
+      operator: contains
+      value: security
+  - title: Pen test
+    estimationPercent: 0
+    condition: *security
+`;
+		const content = improvedCopyContent(anchored, undefined);
+		expect(content).toContain('condition: &security');
+		expect(content).toContain('condition: *security');
+		expect(content).toContain('# My comment');
+	});
+
+	it('writes the Atomize YAML modeline once when the proposal already has it', () => {
+		const content = improvedCopyContent(`# atomize-yaml\n${PROPOSAL}`, undefined);
+		expect(content.match(/# atomize-yaml/g)).toHaveLength(1);
+	});
 });
 
 describe('catalogRefFor', () => {
