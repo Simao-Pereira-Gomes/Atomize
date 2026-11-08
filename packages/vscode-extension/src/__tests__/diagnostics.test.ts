@@ -250,3 +250,51 @@ it('contains errors from the validation failure notification', async () => {
 		logged.mockRestore();
 	}
 });
+
+describe('loadFailureResult', () => {
+	const load = async () => {
+		mock.module('vscode', () => baseVscodeMock());
+		const { loadFailureResult } = await import(`../validation/diagnostics.js?t=${Date.now()}-load-failure`);
+		const { TemplateCompositionError, TemplateLoadError } = await import('@sppg2001/atomize-core/utils/errors');
+		return { loadFailureResult, TemplateCompositionError, TemplateLoadError };
+	};
+	const text = ['name: Child', 'extends: "template:missing-base"', 'mixins: ["mixin:missing-review"]', 'tasks: []'].join('\n');
+
+	it('reports an unresolvable extends on the extends key', async () => {
+		const { loadFailureResult, TemplateCompositionError } = await load();
+		const result = loadFailureResult(new TemplateCompositionError('Failed to load template reference "template:missing-base": not found.', 'template:missing-base'), text);
+
+		expect(result).toMatchObject({ valid: false, errors: [{ path: 'extends', code: 'TEMPLATE_COMPOSITION_FAILED' }] });
+		expect(result?.errors[0]?.message).toContain('template:missing-base');
+	});
+
+	it("reports one of this file's own Mixins on the mixins key", async () => {
+		const { loadFailureResult, TemplateCompositionError } = await load();
+		const result = loadFailureResult(new TemplateCompositionError('Failed to load mixin reference "mixin:missing-review": not found.', 'mixin:missing-review'), text);
+		expect(result?.errors[0]?.path).toBe('mixins');
+	});
+
+	it("matches a file-path Mixin, which composition reports as an absolute path", async () => {
+		const { loadFailureResult, TemplateCompositionError } = await load();
+		const fileText = ['name: Child', 'extends: "template:base"', 'mixins: ["./mixins/review.yaml"]', 'tasks: []'].join('\n');
+		const result = loadFailureResult(new TemplateCompositionError('Invalid mixin', '/work/templates/mixins/review.yaml'), fileText, '/work/templates/child.atomize.yaml');
+		expect(result?.errors[0]?.path).toBe('mixins');
+	});
+
+	it('reports a failure further up the inherited chain on extends', async () => {
+		const { loadFailureResult, TemplateCompositionError } = await load();
+		const result = loadFailureResult(new TemplateCompositionError('Failed to load mixin reference "mixin:parents-own": not found.', 'mixin:parents-own'), text);
+		expect(result?.errors[0]?.path).toBe('extends');
+	});
+
+	it('reports a file that cannot be loaded at all', async () => {
+		const { loadFailureResult, TemplateLoadError } = await load();
+		const result = loadFailureResult(new TemplateLoadError('Failed to load template: bad indentation', '/x.atomize.yaml'), 'name: [');
+		expect(result).toMatchObject({ valid: false, errors: [{ code: 'TEMPLATE_LOAD_FAILED' }] });
+	});
+
+	it('leaves other failures to the existing notification', async () => {
+		const { loadFailureResult } = await load();
+		expect(loadFailureResult(new Error('disk on fire'), text)).toBeUndefined();
+	});
+});

@@ -59,6 +59,18 @@ test('a Template extending a built-in Catalog Template gets no diagnostics', asy
 	assert.deepEqual((await diagnosticsFor(uri, false)).map(d => d.message), []);
 });
 
+test('an extends that cannot be resolved is an error on the extends line, not just a notification', async () => {
+	const uri = workspaceFile('templates', 'broken-extends.atomize.yaml');
+	await open(uri);
+	const [diagnostic] = await diagnosticsFor(uri, true);
+
+	assert.ok(diagnostic, 'a diagnostic is reported');
+	assert.equal(diagnostic.severity, vscode.DiagnosticSeverity.Error);
+	assert.equal(codeOf(diagnostic), 'TEMPLATE_COMPOSITION_FAILED');
+	assert.equal(diagnostic.range.start.line, 2, 'it underlines the extends line');
+	assert.match(diagnostic.message, /template:does-not-exist/);
+});
+
 async function resolvedText(file: string): Promise<string> {
 	fire('atomize.showResolvedTemplate', workspaceFile('templates', file));
 	const editor = await waitFor('the Resolved Template view', () =>

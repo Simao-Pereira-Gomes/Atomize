@@ -1,10 +1,13 @@
+import { dirname, resolve } from 'node:path';
 import {
 	projectVerificationPlatform,
 	type TemplateVerificationOptions,
 	verifyTemplate,
 } from '@sppg2001/atomize-core/templates/template-verification';
 import type { ValidationWarning } from '@sppg2001/atomize-core/templates/validator';
+import { TemplateCompositionError, TemplateLoadError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
+import { parse as parseYaml } from 'yaml';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { createTemplateLibrary } from '../core-library.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
@@ -93,7 +96,11 @@ async function executeValidation(request: ValidationRequest, state: RunState): P
 	try {
 		// Include setup in the error boundary: a failure while opening a document
 		// must not escape activation or leave this document marked as running.
-		const result = await runValidationInProcess(resolveDocumentPath(doc.uri), request.profile, request.credentialResolver);
+		const result = await runValidationInProcess(resolveDocumentPath(doc.uri), request.profile, request.credentialResolver).catch(error => {
+			const failure = loadFailureResult(error, doc.getText(), resolveDocumentPath(doc.uri));
+			if (failure) return failure;
+			throw error;
+		});
 		const items = [
 			...result.errors.map(e =>
 				makeDiagnostic(e.path, e.message, vscode.DiagnosticSeverity.Error, doc, e.code),
@@ -126,6 +133,38 @@ function runPendingValidation(state: RunState): void {
 	if (!pending) return;
 	state.pending = undefined;
 	runValidation(pending);
+}
+
+/**
+ * A Template that can't be loaded or composed, as a validation result the editor can underline:
+ * an unresolvable reference on this file's own `mixins` entry, or on `extends` when it fails anywhere
+ * up the inherited chain; a file that can't be read or parsed at the top. Other failures: undefined.
+ */
+export function loadFailureResult(error: unknown, text: string, filePath?: string): ValidationResult | undefined {
+	const failed = (path: string, message: string, code: string): ValidationResult => ({
+		valid: false,
+		errors: [{ path, message, code }],
+		warnings: [],
+		mode: 'lenient',
+	});
+	if (error instanceof TemplateCompositionError) {
+		const ownMixin = error.source !== undefined && ownMixinRefs(text, filePath).includes(error.source);
+		return failed(ownMixin ? 'mixins' : 'extends', error.message, 'TEMPLATE_COMPOSITION_FAILED');
+	}
+	if (error instanceof TemplateLoadError) return failed('', error.message, 'TEMPLATE_LOAD_FAILED');
+	return undefined;
+}
+
+/** This file's own Mixin refs, with file paths also given absolute (as composition reports them). */
+function ownMixinRefs(text: string, filePath: string | undefined): string[] {
+	try {
+		const raw: unknown = parseYaml(text);
+		const mixins = typeof raw === 'object' && raw !== null ? (raw as { mixins?: unknown }).mixins : undefined;
+		const refs = Array.isArray(mixins) ? mixins.filter((ref): ref is string => typeof ref === 'string') : [];
+		return filePath ? [...refs, ...refs.map(ref => resolve(dirname(filePath), ref))] : refs;
+	} catch {
+		return [];
+	}
 }
 
 async function runValidationInProcess(
