@@ -8,6 +8,8 @@ import type { CalculatedTask } from "./estimation-calculator";
 
 export interface TaskMaterializationOptions {
   dependencyConcurrency?: number;
+  /** Once aborted, no further dependency level is created; Tasks already created are kept. */
+  signal?: AbortSignal;
   onTaskCreated?: (task: WorkItem) => void;
 }
 
@@ -140,6 +142,7 @@ export class TaskMaterializer {
     const dependencies = dependenciesOf(calculatedTasks, templateTasks);
 
     for (const level of groupByDependencyLevel(calculatedTasks, templateTasks)) {
+      if (options.signal?.aborted) break;
       const definitions = level.map((index) => {
         const task = calculatedTasks[index] as CalculatedTask;
         const predecessorIds = (dependencies[index] ?? []).flatMap((depId) => {

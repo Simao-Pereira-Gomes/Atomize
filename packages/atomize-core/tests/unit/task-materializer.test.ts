@@ -103,6 +103,21 @@ describe("TaskMaterializer on a platform that links dependencies when creating T
     expect(calls[0]?.predecessors).toEqual({ Build: undefined, Docs: undefined });
   });
 
+  test("stops before the next level once the run is cancelled, keeping the Tasks already created", async () => {
+    const { platform, calls } = recordingPlatform({ linksOnCreate: true });
+    const controller = new AbortController();
+
+    const created = await new TaskMaterializer(platform).materialize(
+      "1",
+      calculated(["design", "build", "docs", "test"]),
+      templateTasks,
+      { signal: controller.signal, onTaskCreated: () => controller.abort() },
+    );
+
+    expect(calls.map((c) => c.titles)).toEqual([["Design", "Docs"]]);
+    expect(created.map((t) => t.title)).toEqual(["Design", "Docs"]);
+  });
+
   test("forwards each created Task to onTaskCreated", async () => {
     const { platform } = recordingPlatform({ linksOnCreate: true });
     const seen: string[] = [];

@@ -1,7 +1,14 @@
 import { logger } from "../../../logger";
 
-/** Statuses Azure DevOps uses when it blocks or sheds a request; both are safe to send again later. */
-const THROTTLED_STATUSES = new Set([429, 503]);
+/**
+ * 429 means Azure DevOps blocked the request before doing any work, so any request can be sent again.
+ * A 503 can come back after a write was applied, so only reads are retried on it.
+ */
+const RETRY_STATUSES = { write: new Set([429]), read: new Set([429, 503]) };
+/** However often the run is throttled, it keeps at least this many requests in flight. */
+const MIN_LIMIT = 2;
+/** SDK method names that change Work Items; every other Work Item Tracking method only reads. */
+const WRITE_METHOD = /^(create|update|delete|destroy|restore)/;
 
 export interface RequestThrottleOptions {
   maxRetries?: number;
@@ -12,13 +19,19 @@ export interface RequestThrottleOptions {
   now?: () => number;
 }
 
+export interface ThrottledRequestOptions {
+  /** False for writes, which aren't retried on 503 (default true). */
+  idempotent?: boolean;
+}
+
 /**
  * Keeps one run's Azure DevOps requests under the service's rate limits.
  *
  * Azure DevOps returns 429 when it blocks a user, and can slow a user down with a successful response
  * that carries Retry-After (https://learn.microsoft.com/en-us/azure/devops/integrate/concepts/rate-limits).
  * On either signal every request waits out the Retry-After delay, and the number of requests in flight
- * is halved for the rest of the run. 429 and 503 responses are retried after the delay.
+ * is halved (from the run's peak, never below two) for the rest of the run. 429 responses are retried
+ * after the delay, and so are 503 responses to reads.
  *
  * azure-devops-node-api (17+) attaches parsed rate-limit headers as `rateLimit` to results and errors,
  * and the status as `statusCode` to errors; that is what this reads.
@@ -26,8 +39,10 @@ export interface RequestThrottleOptions {
 export class RequestThrottle {
   private limit = Number.POSITIVE_INFINITY;
   private inFlight = 0;
+  private peakInFlight = 0;
   private pausedUntil = 0;
-  private generation = 0;
+  /** A throttle signal from a request sent before the latest limit cut doesn't cut again. */
+  private limitCuts = 0;
   private warned = false;
   private readonly waiters: Array<() => void> = [];
   private readonly maxRetries: number;
@@ -48,19 +63,20 @@ export class RequestThrottle {
     return this.limit;
   }
 
-  async run<T>(request: () => Promise<T>): Promise<T> {
+  async run<T>(request: () => Promise<T>, options: ThrottledRequestOptions = {}): Promise<T> {
+    const retryStatuses = options.idempotent === false ? RETRY_STATUSES.write : RETRY_STATUSES.read;
     for (let attempt = 0; ; attempt++) {
-      const generation = await this.acquire();
+      const cutsAtStart = await this.acquire();
       try {
         const result = await request();
-        const retryAfterMs = retryAfterMsOf(result);
-        if (retryAfterMs !== undefined && retryAfterMs > 0) this.onThrottled(generation, retryAfterMs);
+        const retryAfterMs = this.retryAfterMsOf(result);
+        if (retryAfterMs !== undefined && retryAfterMs > 0) this.onThrottled(cutsAtStart, retryAfterMs);
         return result;
       } catch (error) {
         const status = statusCodeOf(error);
-        if (status === undefined || !THROTTLED_STATUSES.has(status) || attempt >= this.maxRetries) throw error;
-        const delayMs = retryAfterMsOf(error) ?? this.baseRetryDelayMs * 2 ** attempt;
-        this.onThrottled(generation, delayMs);
+        if (status === undefined || !retryStatuses.has(status) || attempt >= this.maxRetries) throw error;
+        const delayMs = this.retryAfterMsOf(error) ?? this.baseRetryDelayMs * 2 ** attempt;
+        this.onThrottled(cutsAtStart, delayMs);
         logger.debug(`AzureDevOps: HTTP ${status}, retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt + 1})`);
       } finally {
         this.release();
@@ -68,12 +84,12 @@ export class RequestThrottle {
     }
   }
 
-  private onThrottled(generation: number, delayMs: number): void {
+  private onThrottled(cutsAtStart: number, delayMs: number): void {
     this.pausedUntil = Math.max(this.pausedUntil, this.now() + Math.min(delayMs, this.maxRetryDelayMs));
-    if (generation !== this.generation) return;
-    this.generation++;
-    const base = Number.isFinite(this.limit) ? this.limit : this.inFlight;
-    this.limit = Math.max(1, Math.floor(base / 2));
+    if (cutsAtStart !== this.limitCuts) return;
+    this.limitCuts++;
+    const base = Number.isFinite(this.limit) ? this.limit : this.peakInFlight;
+    this.limit = Math.max(MIN_LIMIT, Math.floor(base / 2));
     if (!this.warned) {
       this.warned = true;
       logger.warn(
@@ -91,7 +107,8 @@ export class RequestThrottle {
       }
       if (this.inFlight < this.limit) {
         this.inFlight++;
-        return this.generation;
+        this.peakInFlight = Math.max(this.peakInFlight, this.inFlight);
+        return this.limitCuts;
       }
       await new Promise<void>((resolve) => this.waiters.push(resolve));
     }
@@ -101,18 +118,35 @@ export class RequestThrottle {
     this.inFlight--;
     this.waiters.shift()?.();
   }
+
+  /** Retry-After in milliseconds from an SDK result or error, if Azure DevOps sent one. */
+  private retryAfterMsOf(value: unknown): number | undefined {
+    if (!value || typeof value !== "object") return undefined;
+    const parsed = (value as { rateLimit?: { retryAfter?: unknown } }).rateLimit?.retryAfter;
+    if (typeof parsed === "number" && Number.isFinite(parsed)) return parsed * 1000;
+    const headers = (value as { responseHeaders?: Record<string, unknown> }).responseHeaders;
+    const raw = headers?.["retry-after"];
+    const header = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof header !== "string" && typeof header !== "number") return undefined;
+    const seconds = Number(header);
+    if (Number.isFinite(seconds)) return seconds * 1000;
+    const date = Date.parse(String(header));
+    return Number.isNaN(date) ? undefined : Math.max(0, date - this.now());
+  }
 }
 
 /**
- * Wraps a REST client API object so every method call goes through `throttle`. Use it only for
- * azure-devops-node-api client APIs (such as IWorkItemTrackingApi), whose methods all return Promises.
+ * Wraps a REST client API object so every method call goes through `throttle`, treating methods named
+ * create*, update*, delete*, destroy* or restore* as writes. Use it only for azure-devops-node-api
+ * client APIs (such as IWorkItemTrackingApi), whose methods all return Promises.
  */
 export function withRequestThrottle<T extends object>(api: T, throttle: RequestThrottle): T {
   return new Proxy(api, {
     get(target, property, receiver) {
       const value = Reflect.get(target, property, receiver);
       if (typeof value !== "function") return value;
-      return (...args: unknown[]) => throttle.run(() => value.apply(target, args));
+      const idempotent = typeof property !== "string" || !WRITE_METHOD.test(property);
+      return (...args: unknown[]) => throttle.run(() => value.apply(target, args), { idempotent });
     },
   });
 }
@@ -121,19 +155,4 @@ function statusCodeOf(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
   const code = (error as { statusCode?: unknown }).statusCode;
   return typeof code === "number" ? code : undefined;
-}
-
-/** Retry-After in milliseconds from an SDK result or error, if Azure DevOps sent one. */
-function retryAfterMsOf(value: unknown): number | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const parsed = (value as { rateLimit?: { retryAfter?: unknown } }).rateLimit?.retryAfter;
-  if (typeof parsed === "number" && Number.isFinite(parsed)) return parsed * 1000;
-  const headers = (value as { responseHeaders?: Record<string, unknown> }).responseHeaders;
-  const raw = headers?.["retry-after"];
-  const header = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof header !== "string" && typeof header !== "number") return undefined;
-  const seconds = Number(header);
-  if (Number.isFinite(seconds)) return seconds * 1000;
-  const date = Date.parse(String(header));
-  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
 }
