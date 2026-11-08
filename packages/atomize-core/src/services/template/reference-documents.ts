@@ -242,3 +242,91 @@ export async function saveProjectReference(workspaceRoot: string, entry: string)
   doc.set("referenceDocuments", list);
   await writeFile(path, doc.toString(), "utf8");
 }
+
+/** One Reference Document entry to load, and whether the user asked for it on this run. */
+export interface ReferenceEntryRequest {
+  entry: string;
+  /** Asked for on this run (e.g. `--reference`), so failing to load it fails the run. */
+  requested: boolean;
+}
+
+export interface SkippedReference {
+  entry: string;
+  code: ReferenceDocumentErrorCode;
+  message: string;
+}
+
+export interface ReferenceSources {
+  /** Where `file:` entries resolve; without one, local entries are skipped as unavailable. */
+  workspaceRoot?: string;
+  /**
+   * The run's connection for `wiki:` entries, opened the first time one is needed. A run without one
+   * passes a function that throws a REFERENCE_UNAVAILABLE ReferenceDocumentError in its own words.
+   */
+  wiki: () => Promise<IPlatformAdapter>;
+  /** Wraps each read, e.g. to show progress while a wiki page loads. */
+  reading?: (entry: string, read: () => Promise<ReferenceDocument>) => Promise<ReferenceDocument>;
+}
+
+/**
+ * Loads Reference Documents for an AI run (ADR-0069, ADR-0070). A requested document that can't be
+ * loaded throws its ReferenceDocumentError; a saved default that can't be loaded, or whose wiki the
+ * run's connection doesn't reach, is skipped and reported, never silently dropped.
+ */
+export async function loadReferenceDocuments(
+  entries: ReferenceEntryRequest[],
+  sources: ReferenceSources,
+): Promise<{ documents: ReferenceDocument[]; skipped: SkippedReference[] }> {
+  let connection: Promise<IPlatformAdapter> | undefined;
+  const wiki = () => (connection ??= sources.wiki());
+  const read = sources.reading ?? ((_entry, load) => load());
+  const documents: ReferenceDocument[] = [];
+  const skipped: SkippedReference[] = [];
+
+  for (const { entry, requested } of entries) {
+    try {
+      const ref = parseReferenceRef(entry);
+      documents.push(await read(entry, async () => {
+        if (ref.kind === "wiki") return await loadWikiReference(await wiki(), ref);
+        if (!sources.workspaceRoot) {
+          throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", `"${ref.path}" needs an open workspace folder.`);
+        }
+        return await loadLocalReference(sources.workspaceRoot, ref.path);
+      }));
+    } catch (error) {
+      const failure = error instanceof ReferenceDocumentError
+        ? error
+        : new ReferenceDocumentError("REFERENCE_READ_FAILED", error instanceof Error ? error.message : String(error));
+      if (requested) throw failure;
+      skipped.push({ entry, code: failure.code, message: failure.message });
+    }
+  }
+  return { documents, skipped };
+}
+
+/** What to do when fitting would shorten some documents. */
+export type ShortenedChoice =
+  | { action: "continue" }
+  | { action: "keep"; refs: string[] }
+  | { action: "cancel" };
+
+/**
+ * Fits Reference Documents to the shared limit, asking before any is sent shortened: continue with
+ * them, keep only some (then refit), or cancel. Null when no documents are left; undefined when cancelled.
+ */
+export async function fitReferenceDocuments(
+  documents: ReferenceDocument[],
+  onShortened: (notices: string[], documents: ReferenceDocument[]) => Promise<ShortenedChoice>,
+): Promise<DocumentGrounding | null | undefined> {
+  let kept = documents;
+  while (kept.length > 0) {
+    const grounding = fitDocumentsToLimit(kept);
+    const notices = truncationNotices(grounding);
+    if (notices.length === 0) return grounding;
+    const choice = await onShortened(notices, kept);
+    if (choice.action === "continue") return grounding;
+    if (choice.action === "cancel") return undefined;
+    kept = kept.filter((document) => choice.refs.includes(document.ref));
+  }
+  return null;
+}

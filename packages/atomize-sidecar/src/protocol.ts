@@ -17,10 +17,7 @@ import {
   fitDocumentsToLimit,
   listProjectWikis,
   listWikiPagePaths,
-  loadLocalReference,
-  loadWikiReference,
-  parseReferenceRef,
-  type ReferenceDocument,
+  loadReferenceDocuments,
   ReferenceDocumentError,
   readProjectReferences,
   saveProjectReference,
@@ -281,29 +278,18 @@ export async function saveReference(params: ReferencesSaveParams): Promise<{ sav
  * used is reported, never silently dropped; the shortening notices are shown before sending.
  */
 export async function loadReferences(params: ReferencesLoadParams): Promise<ReferencesLoadResult> {
-  const documents: ReferenceDocument[] = [];
-  const skipped: { entry: string; message: string }[] = [];
-  let adapter: Promise<IPlatformAdapter> | undefined;
-  const connect = () => {
-    const connection = params.connection;
-    if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
-    adapter ??= (async () => {
-      const platform = await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
-      return platform;
-    })();
-    return adapter;
-  };
-  for (const entry of params.entries) {
-    try {
-      const ref = parseReferenceRef(entry);
-      documents.push(ref.kind === "wiki" ? await loadWikiReference(await connect(), ref) : await loadLocalReference(params.workspaceRoot, ref.path));
-    } catch (error) {
-      skipped.push({ entry, message: getErrorMessage(error) });
-    }
-  }
-  if (documents.length === 0) return { grounding: null, notices: [], skipped };
+  const { documents, skipped } = await loadReferenceDocuments(params.entries.map(entry => ({ entry, requested: false })), {
+    workspaceRoot: params.workspaceRoot,
+    wiki: async () => {
+      const connection = params.connection;
+      if (!connection) throw new ReferenceDocumentError("REFERENCE_UNAVAILABLE", "Wiki pages need a Work Project to read them through.");
+      return await adapters.get(buildAzureDevOpsConfig(connection, connection.token));
+    },
+  });
+  const reported = skipped.map(({ entry, message }) => ({ entry, message }));
+  if (documents.length === 0) return { grounding: null, notices: [], skipped: reported };
   const grounding = fitDocumentsToLimit(documents);
-  return { grounding, notices: truncationNotices(grounding), skipped };
+  return { grounding, notices: truncationNotices(grounding), skipped: reported };
 }
 
 /** Lists the wikis in the Work Project's project, for picking wiki pages. */
