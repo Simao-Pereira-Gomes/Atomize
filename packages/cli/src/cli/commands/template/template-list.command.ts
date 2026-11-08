@@ -1,12 +1,12 @@
 import { note } from "@clack/prompts";
+import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import type {
   CatalogLineage,
   CatalogOverride,
   TemplateCatalogItem,
   TemplateCatalogKind,
   TemplateCatalogScope,
-} from "@sppg2001/atomize-core/services/template/template-catalog";
-import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+} from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";

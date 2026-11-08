@@ -1,4 +1,5 @@
 import type {
+  MigrationResult,
   TemplateCatalogItem,
   TemplateCatalogKind,
   TemplateCatalogScope,
@@ -13,6 +14,7 @@ import {
 } from "../services/template/template-install-source";
 import type { TaskTemplate } from "./schema";
 import { type CompositionMeta, TemplateComposition } from "./template-composition";
+import { loadYamlFile } from "./template-file";
 import { verifyTemplate } from "./template-verification";
 import {
   TemplateValidator,
@@ -20,7 +22,18 @@ import {
   type ValidationResult,
 } from "./validator";
 
+export type {
+  CatalogLineage,
+  CatalogOverride,
+  MigrationResult,
+  TemplateCatalogItem,
+  TemplateCatalogKind,
+  TemplateCatalogScope,
+} from "../services/template/template-catalog";
 export type { CompositionMeta } from "./template-composition";
+
+/** A Catalog a Template can be saved or installed to: personal (user) or project. */
+export type WritableCatalogScope = Extract<TemplateCatalogScope, "user" | "project">;
 
 export type TemplateSourceKind = "file" | "catalog" | "url";
 
@@ -60,14 +73,14 @@ export interface SaveTemplateInput {
   name: string;
   template: unknown;
   /** The Catalog to save to; the personal one when omitted. */
-  scope?: Extract<TemplateCatalogScope, "user" | "project">;
+  scope?: WritableCatalogScope;
   overwrite?: boolean;
   validate?: boolean;
 }
 
 export interface InstallTemplateInput {
   source: string | TemplateInstallContentSource;
-  scope?: Extract<TemplateCatalogScope, "user" | "project">;
+  scope?: WritableCatalogScope;
   kind?: TemplateCatalogKind;
   overwrite?: boolean;
   fetchContent?: (url: string) => Promise<string>;
@@ -89,6 +102,14 @@ const INSTALL_SCOPES: TemplateInstallScope[] = ["user", "project"];
  * `mixin:`, `template:`) always use the one Catalog built from this config.
  */
 export type TemplateLibraryOptions = TemplateCatalogOptions;
+
+/** Parses a `--scope`-style value naming a writable Catalog. */
+export function parseInstallScope(value: string): TemplateInstallScope {
+  if (INSTALL_SCOPES.includes(value as TemplateInstallScope)) {
+    return value as TemplateInstallScope;
+  }
+  throw new Error(`Invalid scope "${value}". Expected: ${INSTALL_SCOPES.join(", ")}.`);
+}
 
 export class TemplateLibrary {
   private readonly catalog: TemplateCatalog;
@@ -235,6 +256,20 @@ export class TemplateLibrary {
     return await this.catalog.findByRef(ref, defaultKind);
   }
 
+  /** The item's own YAML as written, before any `extends` or Mixins are applied. */
+  async readCatalogItemContent(item: TemplateCatalogItem): Promise<unknown> {
+    return await loadYamlFile(item.path);
+  }
+
+  /** Moves legacy `.atomize/templates` items of one scope into the current Catalog root. */
+  async migrateLegacyItems(
+    scope: WritableCatalogScope,
+    options: { dryRun?: boolean; cleanupDirs?: boolean } = {},
+  ): Promise<MigrationResult> {
+    return await this.catalog.migrateLegacyItems(scope, options);
+  }
+
+  /** Removes a personal (user) Catalog item; built-in and project items are refused (ADR-0049). */
   async removeCatalogItem(
     kind: TemplateCatalogKind,
     name: string,
@@ -269,10 +304,7 @@ export class TemplateLibrary {
         onRawUrl: input.onRawUrl,
       },
     );
-    const targetPath =
-      (input.scope ?? "user") === "project"
-        ? this.catalog.getProjectTemplatePath(resolved.kind, resolved.name)
-        : this.catalog.getUserTemplatePath(resolved.kind, resolved.name);
+    const targetPath = this.getTemplatePath(resolved.kind, input.scope ?? "user", resolved.name);
 
     return {
       source: resolved,
@@ -286,18 +318,7 @@ export class TemplateLibrary {
   }
 
   parseInstallScope(value: string): TemplateInstallScope {
-    if (INSTALL_SCOPES.includes(value as TemplateInstallScope)) {
-      return value as TemplateInstallScope;
-    }
-    throw new Error(`Invalid scope "${value}". Expected: ${INSTALL_SCOPES.join(", ")}.`);
-  }
-
-  getUserTemplatePath(kind: TemplateCatalogKind, name: string): string {
-    return this.catalog.getUserTemplatePath(kind, name);
-  }
-
-  getProjectTemplatePath(kind: TemplateCatalogKind, name: string): string {
-    return this.catalog.getProjectTemplatePath(kind, name);
+    return parseInstallScope(value);
   }
 
   /** Whether there's a project to hold a project Catalog; the home folder is never one. */
@@ -305,15 +326,11 @@ export class TemplateLibrary {
     return this.catalog.hasProject;
   }
 
-  async userTemplateExists(kind: TemplateCatalogKind, name: string): Promise<boolean> {
-    return await this.catalog.destinationExists(kind, "user", name);
-  }
-
-  getTemplatePath(kind: TemplateCatalogKind, scope: Extract<TemplateCatalogScope, "user" | "project">, name: string): string {
+  getTemplatePath(kind: TemplateCatalogKind, scope: WritableCatalogScope, name: string): string {
     return scope === "project" ? this.catalog.getProjectTemplatePath(kind, name) : this.catalog.getUserTemplatePath(kind, name);
   }
 
-  async templateExists(kind: TemplateCatalogKind, scope: Extract<TemplateCatalogScope, "user" | "project">, name: string): Promise<boolean> {
+  async templateExists(kind: TemplateCatalogKind, scope: WritableCatalogScope, name: string): Promise<boolean> {
     return await this.catalog.destinationExists(kind, scope, name);
   }
 }

@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
-import type { TemplateCatalogKind } from '@sppg2001/atomize-core/services/template/template-catalog';
 import type { TemplateInstallScope } from '@sppg2001/atomize-core/services/template/template-install-source';
 import { defaultCatalogScope, discoverWorkspaceRoot } from '@sppg2001/atomize-core/services/template/workspace-root';
+import type { TemplateCatalogKind } from '@sppg2001/atomize-core/templates/template-library';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import { isAtomizeToolingDocument, isMixinDocument } from '../authoring/language-detection.js';
@@ -132,7 +132,7 @@ async function chooseScope(
 	const personal: ScopeItem = {
 		label: 'Personal Catalog',
 		description: 'available in every folder on this computer',
-		detail: library.getUserTemplatePath(kind, name),
+		detail: library.getTemplatePath(kind, 'user', name),
 		scope: 'user',
 	};
 	if (!folder || !library.hasProjectCatalog) {
@@ -145,7 +145,7 @@ async function chooseScope(
 	const project: ScopeItem = {
 		label: 'Project Catalog',
 		description: `shared with ${basename(discoverWorkspaceRoot(folder))}, to commit with it`,
-		detail: library.getProjectTemplatePath(kind, name),
+		detail: library.getTemplatePath(kind, 'project', name),
 		scope: 'project',
 	};
 	const items = defaultCatalogScope(folder) === 'project' ? [project, personal] : [personal, project];

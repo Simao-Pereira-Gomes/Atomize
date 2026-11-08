@@ -3,14 +3,14 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
+import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 
 const TEST_DIR = join(tmpdir(), `atomize-catalog-migrate-test-${process.pid}`);
 
 const MINIMAL_YAML = `name: test\ntasks:\n  - title: Task`;
 
-function makeCatalog(): TemplateCatalog {
-  return new TemplateCatalog({
+function makeCatalog(): TemplateLibrary {
+  return new TemplateLibrary({
     userRoot: join(TEST_DIR, "user"),
     projectRoot: join(TEST_DIR, "project"),
     legacyUserRoot: join(TEST_DIR, "legacy-user"),

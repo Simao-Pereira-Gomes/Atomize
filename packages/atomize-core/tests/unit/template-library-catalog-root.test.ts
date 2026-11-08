@@ -45,3 +45,23 @@ describe("a Template Library built from one Catalog config", () => {
     expect(composed.tasks.map((task) => task.id)).toEqual(["design", "ship"]);
   });
 });
+
+describe("reading a Catalog item's own content", () => {
+  test("returns the item's raw YAML, not its Resolved Template", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "atomize-library-content-"));
+    try {
+      const project = join(dir, "project");
+      await mkdir(join(project, ".atomize", "catalog", "templates"), { recursive: true });
+      await writeFile(join(project, ".atomize", "catalog", "templates", "base.atomize.yaml"), BASE);
+      await writeFile(join(project, ".atomize", "catalog", "templates", "child.atomize.yaml"), 'version: "1.0"\nname: Child\nextends: template:base\n');
+      const library = new TemplateLibrary({ packageRoot: join(dir, "package"), invocationCwd: project, homeDirectory: join(dir, "home") });
+
+      const child = await library.findCatalogItem("template", "child");
+      if (!child) throw new Error("Expected the project Catalog to list template:child");
+
+      expect(await library.readCatalogItemContent(child)).toEqual({ version: "1.0", name: "Child", extends: "template:base" });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

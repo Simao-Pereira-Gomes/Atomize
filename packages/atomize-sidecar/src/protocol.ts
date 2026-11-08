@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
 import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
@@ -28,14 +28,13 @@ import {
   saveProjectReference,
   truncationNotices,
 } from "@sppg2001/atomize-core/services/template/reference-documents";
-import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
+import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomize-core/templates/template-library";
 import { type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
-import { parse as parseYaml } from "yaml";
 
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
 export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
@@ -43,7 +42,7 @@ export type RpcNotification =
   | { jsonrpc: "2.0"; method: "sidecar.ready" }
   | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } }
   | { jsonrpc: "2.0"; method: "generate.progress"; params: { runId: string; event: ProgressEvent } };
-export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
+export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "readCatalogItemContent" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
 export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; documentGrounding?: unknown };
@@ -568,7 +567,7 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
   return await match(request.method)
     .with("catalog.list", async () => {
       const { items } = await services.library.getCatalogAll();
-      return await Promise.all(items.map(async item => ({ ...item, content: parseYaml(await readFile(item.path, "utf8")) })));
+      return await Promise.all(items.map(async item => ({ ...item, content: await services.library.readCatalogItemContent(item) })));
     })
     .with("catalog.remove", async () => {
       const { kind, name } = removeCatalogItemParams(request.params);

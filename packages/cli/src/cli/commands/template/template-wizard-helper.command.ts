@@ -7,7 +7,6 @@ import {
   isEstimateTargetField,
   sortEstimateFields,
 } from "@sppg2001/atomize-core/services/template/estimation-grounding";
-import type { TemplateCatalogItem } from "@sppg2001/atomize-core/services/template/template-catalog";
 import {
   type EstimationConfig,
   type FilterCriteria,
@@ -15,6 +14,7 @@ import {
   type Metadata,
   type ValidationConfig,
 } from "@sppg2001/atomize-core/templates/schema";
+import type { TemplateCatalogItem } from "@sppg2001/atomize-core/templates/template-library";
 import chalk from "chalk";
 import {
   createCommandOutput,

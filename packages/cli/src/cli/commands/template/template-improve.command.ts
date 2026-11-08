@@ -6,7 +6,7 @@ import type { DocumentGrounding } from "@sppg2001/atomize-core/services/template
 import { applyProposalToYaml, deriveImprovedCopy } from "@sppg2001/atomize-core/services/template/template-writeback";
 import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
-import type { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
+import { parseInstallScope, type TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { diffTemplates, type TemplateDiff } from "@sppg2001/atomize-schema";
@@ -296,8 +296,11 @@ async function saveAsNew(proposal: TaskTemplate, name: string, ctx: SaveContext)
 /** --scope, or project when the project has opted in with its own .atomize folder, else user. */
 function catalogScope(ctx: SaveContext): "user" | "project" {
   if (ctx.options.scope === undefined) return defaultCatalogScope(ctx.cwd);
-  if (ctx.options.scope === "user" || ctx.options.scope === "project") return ctx.options.scope;
-  throw new ConfigurationError(`Invalid scope "${ctx.options.scope}". Expected: user, project.`);
+  try {
+    return parseInstallScope(ctx.options.scope);
+  } catch (error) {
+    throw new ConfigurationError(getErrorMessage(error));
+  }
 }
 
 /** An invalid proposal is never saved into the Catalog; a draft is written beside the source for hand-fixing. */

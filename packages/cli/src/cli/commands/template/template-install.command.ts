@@ -1,9 +1,9 @@
 import { confirm } from "@clack/prompts";
-import type { TemplateCatalogKind } from "@sppg2001/atomize-core/services/template/template-catalog";
 import type {
   TemplateInstallScope,
 } from "@sppg2001/atomize-core/services/template/template-install-source";
 import { defaultCatalogScope } from "@sppg2001/atomize-core/services/template/workspace-root";
+import type { TemplateCatalogKind } from "@sppg2001/atomize-core/templates/template-library";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";

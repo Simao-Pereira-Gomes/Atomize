@@ -1,5 +1,5 @@
 import * as fs from 'node:fs/promises';
-import type { TemplateCatalogItem } from '@sppg2001/atomize-core/services/template/template-catalog';
+import type { TemplateCatalogItem } from '@sppg2001/atomize-core/templates/template-library';
 import * as vscode from 'vscode';
 import { isAtomizeDocument } from '../authoring/language-detection.js';
 import { createTemplateLibrary } from '../core-library.js';

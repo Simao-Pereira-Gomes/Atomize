@@ -9,6 +9,9 @@ import { classifyGenerateAdapterError, handleLine, type RpcResponse, type Sideca
 const services: SidecarServices = {
   library: {
     getCatalogAll: async () => ({ items: [], overrides: [], lineage: [] }),
+    readCatalogItemContent: async () => {
+      throw new Error("readCatalogItemContent not stubbed for this test");
+    },
     getRunnableTemplate: async () => {
       throw new Error("getRunnableTemplate not stubbed for this test");
     },
