@@ -47,7 +47,6 @@
   .documentation-sections-mobile a[aria-current="page"] { background: var(--sl-color-bg); color: var(--sl-color-text-accent); }
 }
 .documentation-header-actions .theme-toggle { width: 2rem; height: 2rem; padding: 0; justify-content: center; border: 0; }
-.documentation-header-actions .theme-toggle > span { display: none; }
 .documentation-header-actions .social-icons { border: 0; }
 .documentation-header a:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 5px; border-radius: 3px; }
 .documentation-eyebrow { color: var(--sl-color-text-accent); font-size: .75rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; margin-bottom: .75rem; }
@@ -63,11 +62,11 @@ h1 { letter-spacing: -.035em; }
 .documentation-field-link a { display: block; margin-block: .5rem; color: var(--sl-color-text-accent); text-underline-offset: 3px; }
 .documentation-field-link small { display: block; color: var(--sl-color-gray-3); font-size: .75rem; }
 .sidebar-content { padding-top: 2rem; }
-.sidebar-content ul.top-level > li + li { margin-top: 1.75rem; }
 .sidebar-content summary { padding: .25rem .75rem .6rem; }
 .sidebar-content summary .large { color: var(--sl-color-gray-3); font-size: .6875rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 .sidebar-content summary .caret { width: .875rem; height: .875rem; color: var(--sl-color-gray-3); }
 .sidebar-content ul ul li { margin-left: 0; padding-left: 0; border-left: 0; }
+.sidebar-content ul.top-level > li + li { margin-top: 1.75rem; }
 .sidebar-content a { font-size: .9375rem; padding: .55rem .75rem; border-radius: 6px; line-height: 1.45; }
 .sidebar-content a.large { font-size: .9375rem; font-weight: 500; color: var(--sl-color-gray-2); }
 .sidebar-content a:not([aria-current="page"]):hover { background: var(--sl-color-accent-low); color: var(--sl-color-text-accent); }
@@ -81,6 +80,7 @@ h1 { letter-spacing: -.035em; }
 .onboarding-paths strong { font-size: 1.125rem; color: var(--sl-color-white); }
 .onboarding-paths > a > span { font-size: .9375rem; line-height: 1.6; }
 .onboarding-paths small { display: block; margin-top: auto; padding-top: .5rem; font-size: .8125rem; color: var(--sl-color-text-accent); }
+.documentation-header-actions .theme-toggle > span { display: none; }
 @media (max-width: 79.99rem) { .onboarding-paths { grid-template-columns: 1fr; } }
 @media (max-width: 71.99rem) { .documentation-field-link { display: none; } }
 @media (min-width: 50rem) {

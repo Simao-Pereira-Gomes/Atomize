@@ -3,7 +3,7 @@
 // Run `bun run --cwd packages/vscode-extension build` first; the output is never published.
 import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const extension = fileURLToPath(new URL('../../vscode-extension/', import.meta.url));

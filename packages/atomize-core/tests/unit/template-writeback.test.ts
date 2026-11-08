@@ -103,7 +103,12 @@ tasks:
   // A proposal arrives as JSON, so its conditions never share an object the way parse() makes them.
   const fresh = () => JSON.parse(JSON.stringify(anchored)) as TaskTemplate;
   type Condition = { value: string };
-  const conditionOf = (task: TaskTemplate["tasks"][number]) => (task.condition as unknown as Condition);
+  const taskAt = (template: TaskTemplate, index: number) => {
+    const task = template.tasks[index];
+    if (!task) throw new Error(`No task at index ${index}`);
+    return task;
+  };
+  const conditionOf = (template: TaskTemplate, index: number) => (taskAt(template, index).condition as unknown as Condition);
 
   test("keeps an alias the proposal doesn't change", () => {
     const proposal = fresh();
@@ -119,8 +124,8 @@ tasks:
 
   test("keeps the alias when the anchored value changes and the alias follows it", () => {
     const proposal = fresh();
-    conditionOf(proposal.tasks[1]!).value = "auth";
-    conditionOf(proposal.tasks[2]!).value = "auth";
+    conditionOf(proposal, 1).value = "auth";
+    conditionOf(proposal, 2).value = "auth";
 
     const text = applyProposalToYaml(ANCHORED, proposal);
 
@@ -130,7 +135,7 @@ tasks:
 
   test("writes an alias out in full when only that use changes", () => {
     const proposal = fresh();
-    conditionOf(proposal.tasks[2]!).value = "auth";
+    conditionOf(proposal, 2).value = "auth";
 
     const text = applyProposalToYaml(ANCHORED, proposal);
 
@@ -141,7 +146,7 @@ tasks:
 
   test("writes an alias out in full when its Task moves above the anchor", () => {
     const proposal = fresh();
-    proposal.tasks = [proposal.tasks[0]!, proposal.tasks[2]!, proposal.tasks[1]!];
+    proposal.tasks = [taskAt(proposal, 0), taskAt(proposal, 2), taskAt(proposal, 1)];
 
     const text = applyProposalToYaml(ANCHORED, proposal);
 

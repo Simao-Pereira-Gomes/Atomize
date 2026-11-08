@@ -30,7 +30,7 @@ const links = flatten(Astro.locals.starlightRoute.sidebar);
 </nav>
 <Sidebar><slot /></Sidebar>
 <nav class="documentation-rail" aria-label="Compact documentation navigation" data-pagefind-ignore>
-  {links.map(link => <a href={link.href} aria-label={link.label} aria-current={link.isCurrent ? "page" : undefined}>
+  {links.map(link => /* biome-ignore lint/a11y/useAnchorContent: aria-label names each link; the visible label only shows on hover or focus */ <a href={link.href} aria-label={link.label} aria-current={link.isCurrent ? "page" : undefined}>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icon(link.href)} /></svg>
     <span class="documentation-rail-label" aria-hidden="true">{link.label}</span>
   </a>)}
