@@ -89,8 +89,15 @@ const mockWikiApi = {
   },
 };
 
+// biome-ignore lint/suspicious/noExplicitAny: team iterations as the Work API returns them
+let mockTeamIterations: any[] = [];
+const mockWorkApi = {
+  getTeamIterations: mock(async () => mockTeamIterations),
+};
+
 const mockWebApi = {
   getWikiApi: mock(async () => mockWikiApi),
+  getWorkApi: mock(async () => mockWorkApi),
   getWorkItemTrackingApi: mock(async () => mockWorkItemTrackingApi),
   connect: mock(async () => ({
     authenticatedUser: {
@@ -1104,5 +1111,39 @@ describe("AzureDevOps excludeIfHasTasks functionality", () => {
     };
 
     expect(hasChildRelations(workItemWithParentOnly)).toBe(false);
+  });
+});
+
+describe("AzureDevOpsAdapter current and next sprint", () => {
+  async function sprintSearch(iterations: unknown[]) {
+    mockTeamIterations = iterations;
+    mockWorkItemTrackingApi.queryByWiql.mockClear();
+    const adapter = new AzureDevOpsAdapter(validConfig);
+    await adapter.authenticate();
+    mockWorkItemTrackingApi.queryByWiql.mockClear();
+    const stories = await adapter.searchStories({ limit: 50, currentAndNextSprint: true });
+    // biome-ignore lint/suspicious/noExplicitAny: mock call arguments are untyped
+    const calls = mockWorkItemTrackingApi.queryByWiql.mock.calls as any[];
+    return { stories, wiql: calls[0]?.[0]?.query as string | undefined, queries: calls.length };
+  }
+
+  test("lists the current and next sprint when both exist", async () => {
+    const { wiql } = await sprintSearch([
+      { path: "SampleProject\\Sprint 1", attributes: { timeFrame: 1 } },
+      { path: "SampleProject\\Sprint 2", attributes: { timeFrame: 2, startDate: new Date("2027-01-01") } },
+    ]);
+    expect(wiql).toContain("[System.IterationPath] IN ('SampleProject\\Sprint 1', 'SampleProject\\Sprint 2')");
+  });
+
+  test("lists the current sprint without failing when there is no next sprint", async () => {
+    const { wiql, stories } = await sprintSearch([{ path: "SampleProject\\Sprint 1", attributes: { timeFrame: 1 } }]);
+    expect(wiql).toContain("[System.IterationPath] IN ('SampleProject\\Sprint 1')");
+    expect(stories.length).toBeGreaterThan(0);
+  });
+
+  test("lists nothing, without failing, when there is no current sprint", async () => {
+    const { stories, queries } = await sprintSearch([]);
+    expect(stories).toEqual([]);
+    expect(queries).toBe(0);
   });
 });

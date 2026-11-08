@@ -31,7 +31,7 @@ import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "./estimation-defaults";
 import { RequestThrottle, withRequestThrottle } from "./request-throttle";
 import { buildCreateTaskPatch, buildDependencyLinkPatch } from "./task-patch-builder";
 import { convertWorkItem } from "./work-item-mapper";
-import { buildWorkItemWiqlQuery } from "./work-item-query";
+import { buildWorkItemWiqlQuery, pickCurrentAndNextSprint } from "./work-item-query";
 import { AzureDevOpsWorkItemRetrieval } from "./work-item-retrieval";
 
 /** The Wiki Pages Batch REST resource's location ID, as azure-devops-node-api's WikiApi uses it. */
@@ -195,6 +195,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         project: this.config.project,
         team: this.config.team,
         organizationUrl: this.config.organizationUrl,
+        sprintIterations: () => this.getCurrentAndNextSprint(),
       }).search({ ...search, ...(excludeStates?.length ? { excludeStates } : {}) });
     } catch (error) {
       const message = sanitizeAzureErrorMessage(error);
@@ -207,6 +208,14 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         "azure-devops",
       );
     }
+  }
+
+  /** The team's current and next sprint paths: one when there is no next sprint, none without a current one. */
+  private async getCurrentAndNextSprint(): Promise<string[]> {
+    if (!this.connection) throw new UnknownError("Not connected to Azure DevOps");
+    const workApi = withRequestThrottle(await this.connection.getWorkApi(), this.throttle);
+    const sprints = await workApi.getTeamIterations({ project: this.config.project, team: this.config.team });
+    return pickCurrentAndNextSprint(sprints ?? []);
   }
 
   /**

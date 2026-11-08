@@ -35,6 +35,8 @@ export interface AzureDevOpsRetrievalConfig {
   team: string;
   /** Used to build each Story's web link, since Story fetches don't ask for `_links`. */
   organizationUrl?: string;
+  /** The team's current and next sprint paths, for a Story Search with `currentAndNextSprint`. */
+  sprintIterations?: () => Promise<string[]>;
 }
 
 /** Extracts an HTTP status code from an ADO SDK error, if present. */
@@ -80,11 +82,19 @@ export class AzureDevOpsWorkItemRetrieval {
       );
     }
 
+    let sprintIterations: string[] = [];
+    if (search.currentAndNextSprint) {
+      if (!this.config.sprintIterations) throw new ConfigurationError("This connection can't list the team's sprints.");
+      sprintIterations = await this.config.sprintIterations();
+      // No current sprint: there is nothing to list, and an empty IN () isn't valid WIQL.
+      if (sprintIterations.length === 0) return [];
+    }
+
     // Tasks are checked after fetching, so consider more candidates to still fill the page.
     const postFiltered = search.hasTasks !== undefined;
     const top = postFiltered ? Math.max(search.limit, MAX_SEARCH_CANDIDATES) : search.limit;
     const result = await this.witApi.queryByWiql(
-      { query: buildStorySearchWiql(search, this.config.project) },
+      { query: buildStorySearchWiql(search, this.config.project, sprintIterations) },
       { project: this.config.project, team: this.config.team },
       undefined,
       top,

@@ -92,7 +92,13 @@ export function buildWorkItemWiqlQuery(
   return `SELECT [System.Id] FROM WorkItems WHERE ${conditions.join(" AND ")}`;
 }
 
-export function buildStorySearchWiql(search: StorySearch, project: string): string {
+/**
+ * `sprintIterations` are the team's current and next sprint paths (see pickCurrentAndNextSprint),
+ * required when `search.currentAndNextSprint` is set. They replace the @CurrentIteration and
+ * @CurrentIteration + 1 macros, which make Azure DevOps reject the whole query when the team has
+ * no next (or no current) sprint.
+ */
+export function buildStorySearchWiql(search: StorySearch, project: string, sprintIterations: string[] = []): string {
   const conditions: string[] = [`[System.TeamProject] = '${wiqlEscape(project)}'`];
 
   const text = search.text?.trim();
@@ -118,13 +124,41 @@ export function buildStorySearchWiql(search: StorySearch, project: string): stri
   }
 
   if (search.currentAndNextSprint) {
-    conditions.push("([System.IterationPath] = @CurrentIteration OR [System.IterationPath] = @CurrentIteration + 1)");
+    conditions.push(`[System.IterationPath] IN (${quoteList(sprintIterations)})`);
   }
 
   appendUnderConditions(conditions, "[System.AreaPath]", search.areaPaths);
   appendUnderConditions(conditions, "[System.IterationPath]", search.iterations);
 
   return `SELECT [System.Id] FROM WorkItems WHERE ${conditions.join(" AND ")} ORDER BY [System.CreatedDate] DESC`;
+}
+
+export interface TeamSprint {
+  path?: string;
+  attributes?: { startDate?: Date; timeFrame?: number | string };
+}
+
+const TIME_FRAME = { current: 1, future: 2 } as const;
+
+function timeFrameOf(sprint: TeamSprint): number | undefined {
+  const frame = sprint.attributes?.timeFrame;
+  if (typeof frame === "number") return frame;
+  if (typeof frame === "string") return { past: 0, current: 1, future: 2 }[frame.toLowerCase()];
+  return undefined;
+}
+
+/**
+ * The team's current sprint and the earliest future one after it, as iteration paths: just the current
+ * sprint when there is no next one, and nothing when there is no current sprint.
+ */
+export function pickCurrentAndNextSprint(sprints: TeamSprint[]): string[] {
+  const current = sprints.find((sprint) => timeFrameOf(sprint) === TIME_FRAME.current && sprint.path);
+  if (!current?.path) return [];
+  const startOf = (sprint: TeamSprint) => sprint.attributes?.startDate?.getTime() ?? Number.POSITIVE_INFINITY;
+  const next = sprints
+    .filter((sprint) => timeFrameOf(sprint) === TIME_FRAME.future && sprint.path)
+    .sort((a, b) => startOf(a) - startOf(b))[0];
+  return next?.path ? [current.path, next.path] : [current.path];
 }
 
 function quoteList(values: string[]): string {
