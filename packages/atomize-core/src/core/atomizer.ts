@@ -6,6 +6,7 @@ import type {
   TaskTemplate,
   TaskDefinition as TemplateTaskDefinition,
 } from "../templates/schema";
+import { GenerationTimeoutError } from "../utils/errors";
 import { DependencyResolver } from "./dependency-resolver.js";
 import type { CalculatedTask } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
@@ -86,7 +87,16 @@ export interface AtomizationOptions {
 
   /** Batch-level cancellation: checked between story batches and before each story starts. In-flight batches still complete — see ADR-0057. */
   signal?: AbortSignal;
+
+  /**
+   * Deadline for the whole run. When it passes, the run's signal is aborted (so no new Story or
+   * Task work starts) and `atomize` rejects with a GenerationTimeoutError. No deadline when omitted.
+   */
+  timeoutMs?: number;
 }
+
+/** The deadline surfaces use for an interactive Generation Run. */
+export const DEFAULT_GENERATION_TIMEOUT_MS = 5 * 60 * 1_000;
 
 /**
  * Result for a single story
@@ -185,6 +195,32 @@ export class Atomizer {
   async atomize(
     template: TaskTemplate,
     options: AtomizationOptions = {},
+  ): Promise<AtomizationReport> {
+    const { timeoutMs } = options;
+    if (timeoutMs === undefined) return await this.run(template, options);
+
+    const deadline = new AbortController();
+    const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        deadline.abort();
+        reject(new GenerationTimeoutError(timeoutMs));
+      }, timeoutMs);
+    });
+    const run = this.run(template, { ...options, signal });
+    // A run still winding down after the deadline settles later; its outcome is no longer reported.
+    run.catch(() => undefined);
+    try {
+      return await Promise.race([run, timedOut]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async run(
+    template: TaskTemplate,
+    options: AtomizationOptions,
   ): Promise<AtomizationReport> {
     const startTime = Date.now();
 

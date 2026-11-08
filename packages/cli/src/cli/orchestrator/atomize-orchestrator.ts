@@ -1,7 +1,11 @@
 import { log, progress } from "@clack/prompts";
 import { logger } from "@config/logger";
-import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
-import { GenerationRun } from "@sppg2001/atomize-core/core/generation-run";
+import {
+  type AtomizationReport,
+  Atomizer,
+  DEFAULT_GENERATION_TIMEOUT_MS,
+  type ProgressEvent,
+} from "@sppg2001/atomize-core/core/atomizer";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
@@ -139,7 +143,7 @@ export async function runAtomization(
 ): Promise<AtomizationReport> {
   logger.info("Starting atomization...");
 
-  const generationRun = new GenerationRun(platform);
+  const atomizer = new Atomizer(platform);
   const storyProgressRef: { current: ProgressHandle | undefined } = { current: undefined };
 
   const querySpinner = (!opts.jsonStream && opts.isTTYSession)
@@ -159,7 +163,8 @@ export async function runAtomization(
         (total) => progress({ max: total, style: "block" }),
       );
 
-  const report = await generationRun.execute(template, {
+  const report = await atomizer.atomize(template, {
+    timeoutMs: DEFAULT_GENERATION_TIMEOUT_MS,
     dryRun: opts.dryRun,
     continueOnError: opts.continueOnError,
     limit: opts.limit,

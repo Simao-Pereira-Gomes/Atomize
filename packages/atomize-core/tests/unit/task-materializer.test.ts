@@ -5,121 +5,151 @@ import type { GenerationPlatform } from "@sppg2001/atomize-core/platforms/interf
 import type { TaskDefinition, WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import type { TaskDefinition as TemplateTaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 
-interface CreateCall {
-  titles: string[];
-  predecessors: Record<string, string[] | undefined>;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+interface PlatformOptions {
+  linksOnCreate: boolean;
+  /** Platforms that link on create may still lack a separate link call. */
+  separateLinks?: boolean;
+  taskConcurrency?: number;
+  failTitles?: string[];
+  delayMs?: Record<string, number>;
 }
 
-/** A platform that records each createTasksBulk call and can fail Tasks by title. */
-function recordingPlatform(options: { linksOnCreate: boolean; failTitles?: string[] }) {
+/** A platform that records each Task it creates (with its predecessors), each link, and the order of events. */
+function recordingPlatform(options: PlatformOptions) {
   let nextId = 100;
-  const calls: CreateCall[] = [];
+  let inFlight = 0;
+  let peak = 0;
+  const calls: string[][] = [];
+  const predecessors: Record<string, string[] | undefined> = {};
   const links: Array<[string, string]> = [];
+  const events: string[] = [];
   const platform: GenerationPlatform = {
     getConnectUserEmail: async () => "",
     queryWorkItems: async () => [],
     ...(options.linksOnCreate ? { createsDependencyLinksWithTasks: true as const } : {}),
+    ...(options.taskConcurrency !== undefined ? { taskConcurrency: options.taskConcurrency } : {}),
     createTasksBulk: async (_parentId: string, tasks: TaskDefinition[], onTaskCreated?: (task: WorkItem, index: number) => void) => {
-      calls.push({
-        titles: tasks.map((t) => t.title),
-        predecessors: Object.fromEntries(tasks.map((t) => [t.title, t.predecessorIds])),
-      });
+      calls.push(tasks.map((t) => t.title));
       const created: WorkItem[] = [];
-      tasks.forEach((task, index) => {
-        if (options.failTitles?.includes(task.title)) return;
-        const item: WorkItem = { id: String(nextId++), title: task.title, type: "Task", state: "New" };
-        created.push(item);
-        onTaskCreated?.(item, index);
-      });
+      await Promise.all(
+        tasks.map(async (task, index) => {
+          predecessors[task.title] = task.predecessorIds;
+          events.push(`start ${task.title}`);
+          inFlight++;
+          peak = Math.max(peak, inFlight);
+          await sleep(options.delayMs?.[task.title] ?? 0);
+          inFlight--;
+          events.push(`end ${task.title}`);
+          if (options.failTitles?.includes(task.title)) return;
+          const item: WorkItem = { id: String(nextId++), title: task.title, type: "Task", state: "New" };
+          created.push(item);
+          onTaskCreated?.(item, index);
+        }),
+      );
       return created;
     },
-    createDependencyLink: async (dependentId: string, predecessorId: string) => {
-      links.push([dependentId, predecessorId]);
-    },
+    ...(options.separateLinks === false
+      ? {}
+      : {
+          createDependencyLink: async (dependentId: string, predecessorId: string) => {
+            links.push([dependentId, predecessorId]);
+          },
+        }),
   };
-  return { platform, calls, links };
+  return { platform, calls, predecessors, links, events, peak: () => peak };
 }
 
-const templateTasks: TemplateTaskDefinition[] = [
+const templateTasks = [
   { id: "design", title: "Design", estimationPercent: 25 },
   { id: "build", title: "Build", estimationPercent: 25, dependsOn: ["design"] },
   { id: "docs", title: "Docs", estimationPercent: 25 },
   { id: "test", title: "Test", estimationPercent: 25, dependsOn: ["build", "docs"] },
 ] as TemplateTaskDefinition[];
 
-const calculated = (ids: string[]): CalculatedTask[] =>
-  ids.map((id) => {
-    const t = templateTasks.find((task) => task.id === id);
-    return { title: t?.title ?? id, templateId: id };
-  });
+const chainTasks = ["a", "b", "c", "d", "e", "f"].map((id, index, ids) => ({
+  id,
+  title: id.toUpperCase(),
+  estimationPercent: 10,
+  ...(index > 0 ? { dependsOn: [ids[index - 1]] } : {}),
+})) as TemplateTaskDefinition[];
 
-describe("TaskMaterializer on a platform that links dependencies when creating Tasks", () => {
-  test("creates Tasks one dependency level at a time, putting predecessors in the create call", async () => {
-    const { platform, calls, links } = recordingPlatform({ linksOnCreate: true });
+const calculated = (ids: string[], tasks = templateTasks): CalculatedTask[] =>
+  ids.map((id) => ({ title: tasks.find((task) => task.id === id)?.title ?? id, templateId: id }));
 
-    const created = await new TaskMaterializer(platform).materialize(
-      "1",
-      calculated(["design", "build", "docs", "test"]),
-      templateTasks,
-    );
+const all = ["design", "build", "docs", "test"];
 
-    expect(calls.map((c) => c.titles)).toEqual([["Design", "Docs"], ["Build"], ["Test"]]);
-    expect(calls[0]?.predecessors).toEqual({ Design: undefined, Docs: undefined });
-    expect(calls[1]?.predecessors).toEqual({ Build: ["100"] });
-    expect(calls[2]?.predecessors).toEqual({ Test: ["102", "101"] });
+describe("TaskMaterializer linking dependencies when creating Tasks", () => {
+  // One Task at a time makes create-then-link slow (4 + 3 rounds), so linking on create wins (3 rounds).
+  const linksOnCreate = { linksOnCreate: true, taskConcurrency: 1 } as const;
+
+  test("puts each Task's created predecessors in its create request and sends no separate links", async () => {
+    const { platform, predecessors, links } = recordingPlatform(linksOnCreate);
+
+    const created = await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks, {
+      dependencyConcurrency: 1,
+    });
+
+    expect(predecessors).toEqual({ Design: undefined, Docs: undefined, Build: ["100"], Test: ["102", "101"] });
     expect(links).toEqual([]);
     expect(created.map((t) => t.title)).toEqual(["Design", "Build", "Docs", "Test"]);
   });
 
-  test("sends a single create call when no Task has dependencies", async () => {
-    const { platform, calls } = recordingPlatform({ linksOnCreate: true });
+  test("starts a Task as soon as its own predecessors exist, not when every earlier-level Task is done", async () => {
+    // Build waits only for Design; the slow Docs shouldn't hold it back.
+    const { platform, events } = recordingPlatform({ linksOnCreate: true, delayMs: { Docs: 60, Design: 5 } });
 
-    await new TaskMaterializer(platform).materialize("1", calculated(["design", "docs"]), templateTasks);
+    await new TaskMaterializer(platform).materialize("1", calculated(["design", "build", "docs"]), templateTasks);
 
-    expect(calls.map((c) => c.titles)).toEqual([["Design", "Docs"]]);
+    expect(events.indexOf("start Build")).toBeLessThan(events.indexOf("end Docs"));
+  });
+
+  test("never has more Tasks in flight than the platform's Task concurrency", async () => {
+    const independent = ["a", "b", "c", "d", "e"].map((id) => ({ id, title: id, estimationPercent: 20 })) as TemplateTaskDefinition[];
+    const { platform, peak } = recordingPlatform({ linksOnCreate: true, taskConcurrency: 2, delayMs: { a: 5, b: 5, c: 5, d: 5, e: 5 } });
+
+    await new TaskMaterializer(platform).materialize("1", calculated(["a", "b", "c", "d", "e"], independent), independent);
+
+    expect(peak()).toBe(2);
   });
 
   test("a failed predecessor leaves its dependents created, just without that link", async () => {
-    const { platform, calls } = recordingPlatform({ linksOnCreate: true, failTitles: ["Design"] });
+    const { platform, predecessors } = recordingPlatform({ ...linksOnCreate, failTitles: ["Design"] });
 
-    const created = await new TaskMaterializer(platform).materialize(
-      "1",
-      calculated(["design", "build", "docs", "test"]),
-      templateTasks,
-    );
+    const created = await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks, {
+      dependencyConcurrency: 1,
+    });
 
     expect(created.map((t) => t.title)).toEqual(["Build", "Docs", "Test"]);
-    expect(calls[1]?.predecessors).toEqual({ Build: undefined });
-    expect(calls[2]?.predecessors).toEqual({ Test: ["101", "100"] });
+    expect(predecessors.Build).toBeUndefined();
+    expect(predecessors.Test).toEqual(["101", "100"]);
   });
 
   test("a dependency skipped by a condition doesn't hold back or link its dependent", async () => {
-    const { platform, calls } = recordingPlatform({ linksOnCreate: true });
+    const { platform, predecessors } = recordingPlatform(linksOnCreate);
 
-    // "design" was skipped by its condition, so "build" has nothing to wait for.
     await new TaskMaterializer(platform).materialize("1", calculated(["build", "docs"]), templateTasks);
 
-    expect(calls.map((c) => c.titles)).toEqual([["Build", "Docs"]]);
-    expect(calls[0]?.predecessors).toEqual({ Build: undefined, Docs: undefined });
+    expect(predecessors).toEqual({ Build: undefined, Docs: undefined });
   });
 
-  test("stops before the next level once the run is cancelled, keeping the Tasks already created", async () => {
-    const { platform, calls } = recordingPlatform({ linksOnCreate: true });
+  test("stops starting Tasks once the run is cancelled, keeping the Tasks already created", async () => {
+    const { platform, calls } = recordingPlatform(linksOnCreate);
     const controller = new AbortController();
 
-    const created = await new TaskMaterializer(platform).materialize(
-      "1",
-      calculated(["design", "build", "docs", "test"]),
-      templateTasks,
-      { signal: controller.signal, onTaskCreated: () => controller.abort() },
-    );
+    const created = await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks, {
+      dependencyConcurrency: 1,
+      signal: controller.signal,
+      onTaskCreated: () => controller.abort(),
+    });
 
-    expect(calls.map((c) => c.titles)).toEqual([["Design", "Docs"]]);
-    expect(created.map((t) => t.title)).toEqual(["Design", "Docs"]);
+    expect(calls).toEqual([["Design"]]);
+    expect(created.map((t) => t.title)).toEqual(["Design"]);
   });
 
   test("forwards each created Task to onTaskCreated", async () => {
-    const { platform } = recordingPlatform({ linksOnCreate: true });
+    const { platform } = recordingPlatform(linksOnCreate);
     const seen: string[] = [];
 
     await new TaskMaterializer(platform).materialize("1", calculated(["design", "build"]), templateTasks, {
@@ -130,28 +160,55 @@ describe("TaskMaterializer on a platform that links dependencies when creating T
   });
 });
 
+describe("TaskMaterializer choosing how to link dependencies", () => {
+  test("creates a long chain all at once and links it afterwards, since waiting on each Task would be slower", async () => {
+    // 6 levels in sequence versus 2 rounds of creates (6 Tasks, 5 at a time) plus 1 round of 5 links.
+    const { platform, calls, predecessors, links } = recordingPlatform({ linksOnCreate: true, taskConcurrency: 5 });
+
+    await new TaskMaterializer(platform).materialize("1", calculated(["a", "b", "c", "d", "e", "f"], chainTasks), chainTasks, {
+      dependencyConcurrency: 5,
+    });
+
+    expect(calls).toEqual([["A", "B", "C", "D", "E", "F"]]);
+    expect(Object.values(predecessors).every((ids) => ids === undefined)).toBe(true);
+    expect(links).toHaveLength(5);
+  });
+
+  test("links on create when the chain is no longer than create-then-link would take", async () => {
+    // 2 levels versus 1 round of creates plus 1 round of links: a tie goes to fewer requests.
+    const { platform, links, predecessors } = recordingPlatform({ linksOnCreate: true, taskConcurrency: 5 });
+
+    await new TaskMaterializer(platform).materialize("1", calculated(["design", "build", "docs"]), templateTasks, {
+      dependencyConcurrency: 5,
+    });
+
+    expect(links).toEqual([]);
+    expect(predecessors.Build).toEqual(["100"]);
+  });
+
+  test("links on create even for a long chain when the platform can't link Tasks afterwards", async () => {
+    const { platform, predecessors } = recordingPlatform({ linksOnCreate: true, separateLinks: false, taskConcurrency: 5 });
+
+    await new TaskMaterializer(platform).materialize("1", calculated(["a", "b", "c", "d", "e", "f"], chainTasks), chainTasks);
+
+    expect(predecessors.F).toEqual(["104"]);
+  });
+});
+
 describe("TaskMaterializer on a platform that links dependencies afterwards", () => {
   test("creates every Task in one call, then adds each link", async () => {
     const { platform, calls, links } = recordingPlatform({ linksOnCreate: false });
 
-    await new TaskMaterializer(platform).materialize(
-      "1",
-      calculated(["design", "build", "docs", "test"]),
-      templateTasks,
-    );
+    await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks);
 
-    expect(calls.map((c) => c.titles)).toEqual([["Design", "Build", "Docs", "Test"]]);
+    expect(calls).toEqual([["Design", "Build", "Docs", "Test"]]);
     expect(links.sort()).toEqual([["101", "100"], ["103", "101"], ["103", "102"]]);
   });
 
   test("links the right Tasks when an earlier Task failed to create", async () => {
     const { platform, links } = recordingPlatform({ linksOnCreate: false, failTitles: ["Design"] });
 
-    await new TaskMaterializer(platform).materialize(
-      "1",
-      calculated(["design", "build", "docs", "test"]),
-      templateTasks,
-    );
+    await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks);
 
     // Build=100, Docs=101, Test=102. Build's predecessor failed, so it gets no link.
     expect(links.sort()).toEqual([["102", "100"], ["102", "101"]]);
