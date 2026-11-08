@@ -37,7 +37,7 @@ jobs:
       matrix:
         include:
           - name: macOS Apple Silicon
-            runner: macos-14
+            runner: macos-15
             args: --target aarch64-apple-darwin
             experimental: false
           - name: macOS Intel
@@ -155,7 +155,7 @@ jobs:
       matrix:
         include:
           - name: Apple Silicon
-            runner: macos-14
+            runner: macos-15
             args: --target aarch64-apple-darwin
           - name: Intel
             runner: macos-15-intel

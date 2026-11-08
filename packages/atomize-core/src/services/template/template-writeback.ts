@@ -1,15 +1,18 @@
-import { type Document, isMap, isScalar, isSeq, type Node, parseDocument } from "yaml";
+import { type Alias, type Document, isAlias, isMap, isScalar, isSeq, type Node, parseDocument, visit } from "yaml";
 import type { TaskTemplate } from "../../templates/schema";
 
 /**
  * Writes a Template Improvement back onto the Template's own YAML text. Unchanged content keeps its
  * comments, quoting, key order, and indentation; Tasks are matched by `id` (else `title`) so a Task
- * keeps its comment even when it moves. A proposal that changes nothing returns the text untouched.
+ * keeps its comment even when it moves, and an alias keeps pointing at its anchor while the proposal
+ * still matches it. A proposal that changes nothing returns the text untouched.
  */
 export function applyProposalToYaml(sourceYaml: string, proposal: TaskTemplate): string {
   const doc = parseDocument(sourceYaml);
   if (deepEqual(doc.toJS(), proposal)) return sourceYaml;
-  doc.contents = merge(doc, doc.contents, proposal) as typeof doc.contents;
+  const aliases = new Map<Alias, unknown>();
+  doc.contents = merge(doc, doc.contents, proposal, aliases) as typeof doc.contents;
+  expandStaleAliases(doc, aliases);
   return doc.toString(detectIndentation(sourceYaml));
 }
 
@@ -26,7 +29,14 @@ export function deriveImprovedCopy(proposal: TaskTemplate, source: { catalogRef?
   } as TaskTemplate;
 }
 
-function merge(doc: Document, node: unknown, value: unknown): Node {
+function merge(doc: Document, node: unknown, value: unknown, aliases: Map<Alias, unknown>): Node {
+  // Whether an alias can stay is only known once the whole document is merged (its anchor may be
+  // edited, moved, or dropped later in the walk), so record what it should read as for now.
+  if (isAlias(node)) {
+    aliases.set(node, value);
+    return node;
+  }
+
   if (isPlainObject(value) && isMap(node)) {
     for (const pair of [...node.items]) {
       const key = isScalar(pair.key) ? pair.key.value : pair.key;
@@ -35,7 +45,7 @@ function merge(doc: Document, node: unknown, value: unknown): Node {
     for (const [key, child] of Object.entries(value)) {
       if (child === undefined) continue;
       const existing = node.get(key, true);
-      node.set(key, existing === undefined ? doc.createNode(child) : merge(doc, existing, child));
+      node.set(key, existing === undefined ? doc.createNode(child) : merge(doc, existing, child, aliases));
     }
     return node;
   }
@@ -53,7 +63,7 @@ function merge(doc: Document, node: unknown, value: unknown): Node {
       const index = unused.findIndex((candidate) => sameItem(candidate, item));
       if (index < 0) return doc.createNode(item);
       const [match] = unused.splice(index, 1);
-      return merge(doc, match, item);
+      return merge(doc, match, item, aliases);
     });
     return node;
   }
@@ -64,6 +74,27 @@ function merge(doc: Document, node: unknown, value: unknown): Node {
   }
 
   return doc.createNode(value);
+}
+
+/**
+ * Keeps an alias (`*name`) only where its anchor still comes before it and still reads as the
+ * proposed value, so a shared condition stays shared. Any other alias is written out in full.
+ */
+function expandStaleAliases(doc: Document, aliases: Map<Alias, unknown>): void {
+  if (aliases.size === 0) return;
+  const anchors = new Map<string, Node>();
+  visit(doc, {
+    Node(_key, node) {
+      if (!isAlias(node)) {
+        if (node.anchor) anchors.set(node.anchor, node);
+        return undefined;
+      }
+      if (!aliases.has(node)) return undefined;
+      const value = aliases.get(node);
+      const target = anchors.get(node.source);
+      return target && deepEqual(target.toJS(doc), value) ? undefined : doc.createNode(value);
+    },
+  });
 }
 
 /** Whether an existing sequence item is the same item as a proposed one: same Task `id` or `title`, or same scalar. */

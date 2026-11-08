@@ -81,6 +81,85 @@ describe("applyProposalToYaml", () => {
   });
 });
 
+describe("applyProposalToYaml with YAML anchors", () => {
+  const ANCHORED = `name: Anchored
+tasks:
+  - id: impl
+    title: Implement
+    estimationPercent: 60
+  - id: sec
+    title: Security Review
+    estimationPercent: 20
+    condition: &security
+      field: tags
+      operator: contains
+      value: security
+  - id: pentest
+    title: Pen test
+    estimationPercent: 20
+    condition: *security
+`;
+  const anchored = parse(ANCHORED) as TaskTemplate;
+  // A proposal arrives as JSON, so its conditions never share an object the way parse() makes them.
+  const fresh = () => JSON.parse(JSON.stringify(anchored)) as TaskTemplate;
+  type Condition = { value: string };
+  const valueOf = (task: TaskTemplate["tasks"][number]) => (task.condition as unknown as Condition);
+
+  test("keeps an alias the proposal doesn't change", () => {
+    const proposal = fresh();
+    proposal.tasks[0] = { ...proposal.tasks[0], estimationPercent: 55 } as TaskTemplate["tasks"][number];
+    proposal.tasks[1] = { ...proposal.tasks[1], estimationPercent: 25 } as TaskTemplate["tasks"][number];
+
+    const text = applyProposalToYaml(ANCHORED, proposal);
+
+    expect(parse(text)).toEqual(proposal);
+    expect(text).toContain("condition: &security");
+    expect(text).toContain("condition: *security");
+  });
+
+  test("keeps the alias when the anchored value changes and the alias follows it", () => {
+    const proposal = fresh();
+    valueOf(proposal.tasks[1]!).value = "auth";
+    valueOf(proposal.tasks[2]!).value = "auth";
+
+    const text = applyProposalToYaml(ANCHORED, proposal);
+
+    expect(parse(text)).toEqual(proposal);
+    expect(text).toContain("condition: *security");
+  });
+
+  test("writes an alias out in full when only that use changes", () => {
+    const proposal = fresh();
+    valueOf(proposal.tasks[2]!).value = "auth";
+
+    const text = applyProposalToYaml(ANCHORED, proposal);
+
+    expect(parse(text)).toEqual(proposal);
+    expect(text).toContain("condition: &security");
+    expect(text).not.toContain("*security");
+  });
+
+  test("writes an alias out in full when its Task moves above the anchor", () => {
+    const proposal = fresh();
+    proposal.tasks = [proposal.tasks[0]!, proposal.tasks[2]!, proposal.tasks[1]!];
+
+    const text = applyProposalToYaml(ANCHORED, proposal);
+
+    expect(parse(text)).toEqual(proposal);
+    expect(text).not.toContain("*security");
+  });
+
+  test("writes an alias out in full when the Task holding its anchor is removed", () => {
+    const proposal = fresh();
+    proposal.tasks.splice(1, 1);
+
+    const text = applyProposalToYaml(ANCHORED, proposal);
+
+    expect(parse(text)).toEqual(proposal);
+    expect(text).not.toContain("*security");
+  });
+});
+
 describe("deriveImprovedCopy", () => {
   const proposal = { ...source, origin: "template:base" } as TaskTemplate;
 
