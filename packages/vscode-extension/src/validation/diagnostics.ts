@@ -1,6 +1,8 @@
-import { requireProjectMetadataReader, requireSavedQueryReader } from '@sppg2001/atomize-core/platforms/capabilities';
-import type { TemplateVerificationOptions } from '@sppg2001/atomize-core/templates/template-verification';
-import { verifyTemplate } from '@sppg2001/atomize-core/templates/template-verification';
+import {
+	projectVerificationPlatform,
+	type TemplateVerificationOptions,
+	verifyTemplate,
+} from '@sppg2001/atomize-core/templates/template-verification';
 import type { ValidationWarning } from '@sppg2001/atomize-core/templates/validator';
 import * as vscode from 'vscode';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
@@ -139,17 +141,7 @@ async function runValidationInProcess(
 	if (profile && credentialResolver) {
 		try {
 			const adapter = await credentialResolver.resolveByName(profile);
-			const metadataReader = requireProjectMetadataReader(adapter);
-			const savedQueryReader = requireSavedQueryReader(adapter);
-			project = {
-				mode: 'online',
-				platform: {
-					getFieldSchemas: workItemType => metadataReader.getFieldSchemas(workItemType),
-					listSavedQueries: folder => savedQueryReader.listSavedQueries(folder),
-					getEstimationDefaults: () => adapter.getEstimationDefaults(),
-					getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
-				},
-			};
+			project = { mode: 'online', platform: projectVerificationPlatform(adapter) };
 		} catch (err) {
 			project = { mode: 'online' };
 			connectionWarnings.push({

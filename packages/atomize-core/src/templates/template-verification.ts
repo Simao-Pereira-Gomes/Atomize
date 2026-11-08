@@ -1,9 +1,12 @@
 import { extractCustomFieldRefs } from "../core/condition-evaluator.js";
+import { hasPlatformMethod } from "../platforms/capabilities";
 import type { EstimationDefaultsProvider } from "../platforms/interfaces/estimation-defaults.interface";
+import type { IPlatformAdapter } from "../platforms/interfaces/platform.interface";
 import type {
   ProjectMetadataReader,
   SavedQueryReader,
 } from "../platforms/interfaces/platform-capabilities";
+import { ConfigurationError } from "../utils/errors";
 import {
   appendOfflineVerificationWarning,
   verifyTemplateCustomFields,
@@ -34,6 +37,22 @@ export type ProjectVerificationMode = "offline" | "online";
 export type ProjectVerificationPlatform = Pick<ProjectMetadataReader, "getFieldSchemas" | "getWorkItemTypes"> &
   Pick<SavedQueryReader, "listSavedQueries"> &
   Partial<EstimationDefaultsProvider>;
+
+/**
+ * The project metadata Online Validation needs, read from a connected Platform Adapter.
+ * Throws a ConfigurationError when the adapter cannot provide field schemas or saved queries.
+ */
+export function projectVerificationPlatform(adapter: IPlatformAdapter): ProjectVerificationPlatform {
+  if (!hasPlatformMethod(adapter, "getFieldSchemas") || !hasPlatformMethod(adapter, "listSavedQueries")) {
+    throw new ConfigurationError("The selected platform cannot provide the field schemas and saved queries Online Validation checks.");
+  }
+  return {
+    getFieldSchemas: (workItemType) => adapter.getFieldSchemas(workItemType),
+    getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
+    listSavedQueries: (folder) => adapter.listSavedQueries(folder),
+    getEstimationDefaults: () => adapter.getEstimationDefaults(),
+  };
+}
 
 export interface ProjectVerificationOptions {
   mode: ProjectVerificationMode;

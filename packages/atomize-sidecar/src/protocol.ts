@@ -3,7 +3,6 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
 import { Atomizer, buildAzureDevOpsConfig, PlatformFactory, TemplateLibrary } from "@sppg2001/atomize-core";
 import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
-import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { draftTemplate, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
@@ -31,7 +30,7 @@ import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
 import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomize-core/templates/template-library";
-import { type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
+import { projectVerificationPlatform, type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import { match } from "ts-pattern";
 
@@ -119,18 +118,8 @@ export async function validateOnline(params: OnlineValidationParams, signal: Abo
   try {
     const adapter = PlatformFactory.create("azure-devops", buildAzureDevOpsConfig(params.connection, params.connection.token));
     await abortable(adapter.authenticate(), signal);
-    const metadataReader = requireProjectMetadataReader(adapter);
-    const queryReader = requireSavedQueryReader(adapter);
     return await abortable(verifyTemplate(params.template, {
-      project: {
-        mode: "online",
-        platform: {
-          getFieldSchemas: (workItemType) => metadataReader.getFieldSchemas(workItemType),
-          listSavedQueries: () => queryReader.listSavedQueries(),
-          getEstimationDefaults: () => adapter.getEstimationDefaults(),
-          getWorkItemTypes: adapter.getWorkItemTypes?.bind(adapter),
-        },
-      },
+      project: { mode: "online", platform: projectVerificationPlatform(adapter) },
     }), signal);
   } catch (error) {
     if (signal.aborted) throw error;

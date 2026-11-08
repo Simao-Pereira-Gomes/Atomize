@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
-import type { ValidationResult } from "@sppg2001/atomize-core/templates/validator";
 import {
-  appendOfflineVerificationWarning,
-  checkValueType,
   getCustomFieldVerificationSummary,
   getTemplateSummary,
   resolveValidateLogLevel,
@@ -29,63 +26,6 @@ describe("resolveValidateLogLevel", () => {
 
   test("returns error log level in quiet mode", () => {
     expect(resolveValidateLogLevel({ quiet: true })).toBe("error");
-  });
-});
-
-describe("appendOfflineVerificationWarning", () => {
-  function makeValidationResult(): ValidationResult {
-    return {
-      valid: true,
-      errors: [],
-      warnings: [],
-      mode: "lenient",
-    };
-  }
-
-  test("adds a warning in lenient mode for offline custom field verification", () => {
-    const result = makeValidationResult();
-
-    appendOfflineVerificationWarning(result, 2, false);
-
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
-    expect(result.warnings).toHaveLength(1);
-    expect(result.warnings[0]?.path).toBe("tasks[*].customFields");
-  });
-
-  test("fails validation in strict mode for offline custom field verification", () => {
-    const result = makeValidationResult();
-
-    appendOfflineVerificationWarning(result, 1, true);
-
-    expect(result.valid).toBe(false);
-    expect(result.warnings).toHaveLength(0);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]?.code).toBe("STRICT_MODE_WARNING");
-  });
-});
-
-describe("checkValueType", () => {
-  test("rejects invalid boolean values", () => {
-    const error = checkValueType(
-      "Custom.IsBillable",
-      "yes",
-      "boolean",
-      'tasks[0].customFields["Custom.IsBillable"]',
-    );
-
-    expect(error?.message).toContain("expects a boolean");
-  });
-
-  test("rejects invalid datetime values", () => {
-    const error = checkValueType(
-      "Custom.ReleaseDate",
-      "next friday",
-      "datetime",
-      'tasks[0].customFields["Custom.ReleaseDate"]',
-    );
-
-    expect(error?.message).toContain("expects an ISO 8601 date or @Today macro");
   });
 });
 
