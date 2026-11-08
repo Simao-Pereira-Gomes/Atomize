@@ -5,3 +5,8 @@ tsconfig.json
 esbuild.mjs
 webview/**
 vite.webview.config.mts
+**/*.map
+test-fixtures/**
+.vscode/**
+CONTEXT.md
+images/**
