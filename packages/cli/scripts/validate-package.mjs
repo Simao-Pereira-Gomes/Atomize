@@ -18,6 +18,10 @@ if (!existsSync(join(distCliDir, "index.js"))) {
 	throw new Error("Missing dist/cli/index.js");
 }
 
+if (!existsSync(join(distCliDir, "main.js"))) {
+	throw new Error("Missing dist/cli/main.js");
+}
+
 if (!existsSync(templatesDir)) {
 	throw new Error("Missing catalog/templates directory");
 }

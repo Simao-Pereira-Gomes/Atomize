@@ -24,7 +24,7 @@
 		"dev": "ATOMIZE_DEV=true bun run src/cli/index.ts",
 		"build": "bun run --cwd ../atomize-ai build && bun run typecheck && bun run build:bun",
 		"postbuild": "node make-executable.js",
-		"build:bun": "node ./scripts/prepare-dist.mjs && bun build ./src/cli/index.ts --outdir ./dist/cli --target node --format esm --external keytar --external @github/copilot --external @github/copilot-sdk",
+		"build:bun": "node ./scripts/prepare-dist.mjs && bun build ./src/cli/index.ts --outfile ./dist/cli/main.js --target node --format esm --external keytar --external @github/copilot --external @github/copilot-sdk",
 		"build:standalone": "bun build src/cli/index.ts --compile --outfile atomize",
 		"prepublishOnly": "bun run build",
 		"test": "bun test",
