@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
 import { Atomizer, AuthenticatedAdapterCache, buildAzureDevOpsConfig, TemplateLibrary } from "@sppg2001/atomize-core";
-import type { AtomizationReport, ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
+import type { AtomizationReport } from "@sppg2001/atomize-core/core/atomizer";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import { draftTemplate, improveTemplate } from "@sppg2001/atomize-core/services/template/ai-template-loop";
@@ -29,7 +29,27 @@ import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-c
 import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomize-core/templates/template-library";
 import { projectVerificationPlatform, type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
-import { match } from "ts-pattern";
+import type {
+  AIDraftParams,
+  AIDraftResult,
+  AIImproveParams,
+  AIImproveResult,
+  CatalogInstallParams,
+  GenerateQueryStoriesParams,
+  GenerateRunParams,
+  GenerateScope,
+  GroundingConnection,
+  OnlineValidationParams,
+  ReferencesListParams,
+  ReferencesListResult,
+  ReferencesLoadParams,
+  ReferencesLoadResult,
+  ReferencesSaveParams,
+  SidecarMethod,
+  SidecarNotifications,
+  SidecarResult,
+  WikiPagesParams,
+} from "./contract";
 
 /**
  * One authenticated adapter per Studio connection and token for the sidecar's lifetime, so each
@@ -39,26 +59,26 @@ const adapters = new AuthenticatedAdapterCache();
 
 export type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params?: unknown };
 export type RpcResponse = { jsonrpc: "2.0"; id: number; result?: unknown; error?: { code: string; message: string } };
-export type RpcNotification =
-  | { jsonrpc: "2.0"; method: "sidecar.ready" }
-  | { jsonrpc: "2.0"; method: "ai.progress"; params: { draftId: string; length: number } }
-  | { jsonrpc: "2.0"; method: "generate.progress"; params: { runId: string; event: ProgressEvent } };
+export type RpcNotification = {
+  [M in keyof SidecarNotifications]: SidecarNotifications[M] extends undefined
+    ? { jsonrpc: "2.0"; method: M }
+    : { jsonrpc: "2.0"; method: M; params: SidecarNotifications[M] };
+}[keyof SidecarNotifications];
 export type SidecarTemplateLibrary = Pick<TemplateLibrary, "getCatalogAll" | "readCatalogItemContent" | "getRunnableTemplate" | "removeCatalogItem" | "installTemplate">;
-export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
-export type OnlineValidationParams = { template: TaskTemplate; connection: GroundingConnection };
-export type AIDraftParams = { draftId: string; prose: string; grounding?: unknown; documentGrounding?: unknown };
-/** Where Reference Documents are looked up: a Workspace Root, discovered from a folder or file inside it. */
-export type ReferencesListParams = { startPath: string };
-export type ReferencesSaveParams = { workspaceRoot: string; entry: string };
-/** Reference Documents to load and fit; wiki entries need the Rust-injected connection. */
-export type ReferencesLoadParams = { workspaceRoot: string; entries: string[]; connection?: GroundingConnection };
-export type ReferencesLoadResult = { grounding: DocumentGrounding | null; notices: string[]; skipped: { entry: string; message: string }[] };
-export type WikiPagesParams = { connection: GroundingConnection; wiki: string };
-export type AIImproveParams = { draftId: string; template: Record<string, unknown>; guidance?: string | null; grounding?: unknown; documentGrounding?: unknown };
-/** Which Stories a `generate.run`/`generate.queryStories` call processes — see CONTEXT.md's "Generate Scope". */
-export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
-export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection };
-export type GenerateRunParams = { runId: string; source: string; connection: GroundingConnection; dryRun: boolean; scope: GenerateScope; continueOnError?: boolean };
+export type {
+  AIDraftParams,
+  AIImproveParams,
+  GenerateQueryStoriesParams,
+  GenerateRunParams,
+  GenerateScope,
+  GroundingConnection,
+  OnlineValidationParams,
+  ReferencesListParams,
+  ReferencesLoadParams,
+  ReferencesLoadResult,
+  ReferencesSaveParams,
+  WikiPagesParams,
+} from "./contract";
 export type SidecarServices = {
   library: SidecarTemplateLibrary;
   fetchGrounding: (connection: GroundingConnection) => Promise<ProjectGrounding>;
@@ -186,7 +206,7 @@ async function withAISession<T>(
   }
 }
 
-async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; errors?: string[] }> {
+async function generateDraft(params: AIDraftParams, services: SidecarServices): Promise<AIDraftResult> {
   const result = await withAISession(params.draftId, services, (session, options) =>
     draftTemplate(session, {
       prose: params.prose,
@@ -203,7 +223,7 @@ async function generateDraft(params: AIDraftParams, services: SidecarServices): 
  * A Template Improvement of the Template open in Studio. Studio flattens `extends` and Mixins when
  * it loads a Template (ADR-0048), so the authored Template is also its Resolved Template.
  */
-async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<{ template: Record<string, unknown>; notes: string[]; errors?: string[]; warnings?: string[] }> {
+async function improveDraft(params: AIImproveParams, services: SidecarServices): Promise<AIImproveResult> {
   const template = params.template as TaskTemplate;
   const result = await withAISession(params.draftId, services, (session, options) =>
     improveTemplate(session, {
@@ -267,7 +287,7 @@ export async function fetchGrounding(connection: GroundingConnection): Promise<P
 }
 
 /** The Workspace Root around a folder or file, and its Project Reference Documents (ADR-0070). */
-export async function listReferences(params: ReferencesListParams): Promise<{ workspaceRoot: string; entries: string[]; problems: string[] }> {
+export async function listReferences(params: ReferencesListParams): Promise<ReferencesListResult> {
   const start = await isDirectory(params.startPath) ? params.startPath : dirname(params.startPath);
   const workspaceRoot = discoverWorkspaceRoot(start);
   return { workspaceRoot, ...await readProjectReferences(workspaceRoot) };
@@ -414,7 +434,7 @@ export async function runGenerate(params: GenerateRunParams, library: SidecarTem
 }
 
 /** Composes a local file's `extends`/`mixins` for Studio's Open, without throwing on field-level invalidity — see ADR-0048. */
-export async function resolveLocalTemplate(path: string, services: SidecarServices): Promise<unknown> {
+export async function resolveLocalTemplate(path: string, services: SidecarServices): Promise<TaskTemplate> {
   try {
     const runnable = await services.library.getRunnableTemplate(path, { validate: false });
     return runnable.template;
@@ -545,49 +565,59 @@ function generateRunParams(params: unknown): GenerateRunParams {
   };
 }
 
+type Handler<M extends SidecarMethod> = (params: unknown, services: SidecarServices, signal: AbortSignal) => Promise<SidecarResult<M>>;
+
+/** One handler per contract method; a result that drifts from the contract is a type error here. */
+const handlers: { [M in SidecarMethod]: Handler<M> } = {
+  "catalog.list": async (_params, services) => {
+    const { items } = await services.library.getCatalogAll();
+    return await Promise.all(items.map(async item => ({ ...item, content: await services.library.readCatalogItemContent(item) })));
+  },
+  "catalog.remove": async (params, services) => {
+    const { kind, name } = removeCatalogItemParams(params);
+    await services.library.removeCatalogItem(kind, name);
+    return { removed: true };
+  },
+  "catalog.install": async (params, services) => {
+    const { content, name, scope, overwrite, workspaceRoot }: CatalogInstallParams = installCatalogItemParams(params);
+    const library = scope === "project" ? createTemplateLibrary(workspaceRoot) : services.library;
+    return await library.installTemplate({ source: { content, name }, scope, overwrite });
+  },
+  "grounding.fetch": (params, services) => services.fetchGrounding(groundingConnection(params)),
+  "references.list": async (params) => await listReferences({ startPath: stringParam(params, "startPath", "A project folder") }),
+  "references.save": async (params) => await saveReference({ workspaceRoot: stringParam(params, "workspaceRoot", "A project folder"), entry: stringParam(params, "entry", "A Reference Document") }),
+  "references.load": async (params) => await loadReferences(referencesLoadParams(params)),
+  "wiki.list": async (params) => await listWikis(groundingConnection((params as { connection?: unknown } | undefined)?.connection)),
+  "wiki.pages": async (params) => await listWikiPages({ connection: groundingConnection((params as { connection?: unknown } | undefined)?.connection), wiki: stringParam(params, "wiki", "A wiki") }),
+  "validation.online": (params, services, signal) => services.validateOnline(onlineValidationParams(params), signal),
+  "ai.generate": (params, services) => generateDraft(aiDraftParams(params), services),
+  "ai.improve": (params, services) => improveDraft(aiImproveParams(params), services),
+  "ai.cancel": (params, services) => cancelDraft(params, services),
+  "ai.authStatus": (_params, services) => services.checkCopilotAuth(),
+  "template.resolveLocal": (params, services) => resolveLocalTemplate(resolveLocalTemplateParams(params).path, services),
+  "generate.queryStories": (params, services) => services.queryGenerateStories(generateQueryStoriesParams(params)),
+  "generate.run": (params, services, signal) => services.runGenerate(generateRunParams(params), signal),
+  "preview.inspect": async (params, services) => {
+    const { source } = inspectPreviewParams(params);
+    return inspectTemplate(await resolvePreviewSource(source, services));
+  },
+  "preview.mockStory": async (params, services) => {
+    const { source, mockStory } = mockStoryPreviewParams(params);
+    try { parseMockStory(mockStory); }
+    catch (error) { throw Object.assign(new Error(getErrorMessage(error)), { code: "MOCK_STORY_INVALID" }); }
+    return await runPreview(await resolvePreviewSource(source, services), mockStory);
+  },
+};
+
+function isSidecarMethod(method: string): method is SidecarMethod {
+  return Object.hasOwn(handlers, method);
+}
+
 export async function dispatch(request: RpcRequest, services: SidecarServices, signal: AbortSignal): Promise<unknown> {
-  return await match(request.method)
-    .with("catalog.list", async () => {
-      const { items } = await services.library.getCatalogAll();
-      return await Promise.all(items.map(async item => ({ ...item, content: await services.library.readCatalogItemContent(item) })));
-    })
-    .with("catalog.remove", async () => {
-      const { kind, name } = removeCatalogItemParams(request.params);
-      await services.library.removeCatalogItem(kind, name);
-      return { removed: true };
-    })
-    .with("catalog.install", async () => {
-      const { content, name, scope, overwrite, workspaceRoot } = installCatalogItemParams(request.params);
-      const library = scope === "project" ? createTemplateLibrary(workspaceRoot) : services.library;
-      return await library.installTemplate({ source: { content, name }, scope, overwrite });
-    })
-    .with("grounding.fetch", () => services.fetchGrounding(groundingConnection(request.params)))
-    .with("references.list", () => listReferences({ startPath: stringParam(request.params, "startPath", "A project folder") }))
-    .with("references.save", () => saveReference({ workspaceRoot: stringParam(request.params, "workspaceRoot", "A project folder"), entry: stringParam(request.params, "entry", "A Reference Document") }))
-    .with("references.load", () => loadReferences(referencesLoadParams(request.params)))
-    .with("wiki.list", () => listWikis(groundingConnection((request.params as { connection?: unknown } | undefined)?.connection)))
-    .with("wiki.pages", () => listWikiPages({ connection: groundingConnection((request.params as { connection?: unknown } | undefined)?.connection), wiki: stringParam(request.params, "wiki", "A wiki") }))
-    .with("validation.online", () => services.validateOnline(onlineValidationParams(request.params), signal))
-    .with("ai.generate", () => generateDraft(aiDraftParams(request.params), services))
-    .with("ai.improve", () => improveDraft(aiImproveParams(request.params), services))
-    .with("ai.cancel", () => cancelDraft(request.params, services))
-    .with("ai.authStatus", () => services.checkCopilotAuth())
-    .with("template.resolveLocal", () => resolveLocalTemplate(resolveLocalTemplateParams(request.params).path, services))
-    .with("generate.queryStories", () => services.queryGenerateStories(generateQueryStoriesParams(request.params)))
-    .with("generate.run", () => services.runGenerate(generateRunParams(request.params), signal))
-    .with("preview.inspect", async () => {
-      const { source } = inspectPreviewParams(request.params);
-      const template = await resolvePreviewSource(source, services);
-      return inspectTemplate(template);
-    })
-    .with("preview.mockStory", async () => {
-      const { source, mockStory } = mockStoryPreviewParams(request.params);
-      try { parseMockStory(mockStory); }
-      catch (error) { throw Object.assign(new Error(getErrorMessage(error)), { code: "MOCK_STORY_INVALID" }); }
-      const template = await resolvePreviewSource(source, services);
-      return runPreview(template, mockStory);
-    })
-    .otherwise(method => { throw Object.assign(new Error(`Unknown method: ${method}`), { code: "METHOD_NOT_FOUND" }); });
+  if (!isSidecarMethod(request.method)) {
+    throw Object.assign(new Error(`Unknown method: ${request.method}`), { code: "METHOD_NOT_FOUND" });
+  }
+  return await (handlers[request.method] as Handler<SidecarMethod>)(request.params, services, signal);
 }
 
 export async function handleLine(line: string, services: SidecarServices): Promise<RpcResponse | undefined> {

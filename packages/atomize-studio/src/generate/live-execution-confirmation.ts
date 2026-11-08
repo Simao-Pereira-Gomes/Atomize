@@ -1,7 +1,8 @@
+import type { GenerateScope } from "@sppg2001/atomize-sidecar/contract";
 import type { PreviewSource } from "./preview";
 
 /** Which Stories a Generate Area run processes — see CONTEXT.md's "Generate Scope". */
-export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
+export type { GenerateScope };
 
 export type LiveExecutionPayload = { template: PreviewSource; scope: GenerateScope; platform: string };
 

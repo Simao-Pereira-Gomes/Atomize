@@ -9,6 +9,8 @@ on:
       # neither builds nor tests src-tauri, so do not duplicate it there.
       - '!packages/atomize-studio/src-tauri/**'
       - packages/atomize-sidecar/**
+      # Studio type-imports the sidecar's contract, whose types come from atomize-core.
+      - packages/atomize-core/**
       - .github/workflows/validate-studio-frontend.yml
 
 permissions: {}

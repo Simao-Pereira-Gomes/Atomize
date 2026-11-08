@@ -84,7 +84,6 @@
       "dependencies": {
         "@sppg2001/atomize-ai": "workspace:*",
         "@sppg2001/atomize-core": "workspace:*",
-        "ts-pattern": "^5.9.0",
       },
       "devDependencies": {
         "@types/bun": "1.4.2",
@@ -108,6 +107,7 @@
         "yaml": "^2.9.0",
       },
       "devDependencies": {
+        "@sppg2001/atomize-sidecar": "workspace:*",
         "@tailwindcss/vite": "^4.3.3",
         "@tauri-apps/cli": "^2.11.4",
         "@types/node": "^26.5.1",
