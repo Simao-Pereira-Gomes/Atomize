@@ -10,6 +10,8 @@ Conditions are checked against each Story when you preview or generate. They dec
 
 <!-- atomize:include template-conditional-estimation -->
 
+<!-- atomize:include template-yaml-anchors -->
+
 ## Look up fields
 
 - [`tasks[].condition`](/reference/templates/schema/#template.tasks[].condition): simple and compound clauses and their operators.

@@ -21,6 +21,7 @@ documents `main`; the Schema Reference inside Studio and VS Code matches the ins
   - [Task Custom Fields](#task-custom-fields)
   - [Conditional Tasks](#conditional-tasks)
   - [Conditional Estimation](#conditional-estimation)
+  - [Reuse Conditions With YAML Anchors](#reuse-conditions-with-yaml-anchors)
   - [Task Dependencies](#task-dependencies)
   - [Repeated Tasks](#repeated-tasks)
 - [estimation](#estimation)
@@ -523,6 +524,47 @@ tasks:
 - If no condition matches, `estimationPercent` is used
 - Normalization uses the resolved percentages (including skipped tasks)
 - Conditional percentages participate correctly in the 100% distribution
+
+<!-- /atomize:section -->
+
+<!-- atomize:section template-yaml-anchors -->
+
+### Reuse Conditions With YAML Anchors
+
+When several tasks share a condition, write it once and reuse it with a standard YAML anchor. Put `&name` on the first condition to name it, then use `*name` wherever the same condition applies. Atomize sees each use as a full copy of the condition.
+
+```yaml
+tasks:
+  - title: "Security Review"
+    estimationPercent: 10
+    condition: &security-story        # define the condition and name it
+      any:
+        - field: "tags"
+          operator: "contains"
+          value: "security"
+        - field: "tags"
+          operator: "contains"
+          value: "auth"
+
+  - title: "Penetration Test"
+    estimationPercent: 10
+    condition: *security-story        # same condition, no copy to keep in sync
+
+  - title: "Implementation"
+    estimationPercent: 80
+    estimationPercentCondition:
+      - condition: *security-story    # anchors work in percentage rules too
+        percent: 70
+```
+
+An anchor can name any value, not only a condition, such as a list of tags or a custom field value. Keep these limits in mind:
+
+- **Define the anchor where it's first used.** It must sit inside a field the template already has. The template schema rejects keys it doesn't know, so a top-level holding area such as `x-conditions:` fails validation with `Unrecognized key: "x-conditions"`.
+- **Anchors work inside one file only.** A template can't use an anchor defined in its `extends` parent or in a Mixin, and a Mixin can't use one from the template that includes it. To share tasks between files, use [composition](#composition) instead.
+- **Merge keys (`<<: *base`) aren't supported.** They come from YAML 1.1, and Atomize reads YAML 1.2. A task that uses `<<` to copy defaults from another task fails validation with `Unrecognized key: "<<"`. Repeat the fields, or use [`repeat`](#repeated-tasks) when the tasks are identical.
+- **Errors are reported at each use.** If an anchored condition is invalid, validation reports it once for every task that uses it, under that task's path (for example `tasks.1.condition`). In VS Code the problem shows on that task's `condition:` line, even when it is an alias. Fix it once, where the anchor is defined.
+- **Tools that rewrite the file can expand anchors.** <!-- atomize:feature studio -->Saving from Atomize Studio rebuilds the YAML from the builder, so every use is written out in full and the anchors are gone. <!-- /atomize:feature -->Applying an AI improvement keeps an alias while it still matches its anchor. It writes the alias out in full only when the improvement changes that one use, or moves or removes the anchor. Resolved views such as `atomize template resolve` always show the expanded conditions. Installing a file into the Catalog copies it unchanged, anchors included.
+- **There is a limit on aliases.** To stop a small file from expanding into a huge one (a "billion laughs" file), the YAML parser rejects a file whose aliases would expand too far. In practice one anchor can be used about 99 times, and fewer when anchors are nested inside other anchors. A file over the limit fails to load with `Excessive alias count indicates a resource exhaustion attack`. Normal templates stay well below it.
 
 <!-- /atomize:section -->
 
