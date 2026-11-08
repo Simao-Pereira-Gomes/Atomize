@@ -28,10 +28,9 @@ import {
   saveProjectReference,
   truncationNotices,
 } from "@sppg2001/atomize-core/services/template/reference-documents";
-import { TemplateCatalog, type TemplateCatalogKind, type TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
+import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomize-core/services/template/template-catalog";
 import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
-import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
 import { type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
@@ -86,11 +85,10 @@ export function createTemplateLibrary(projectFolder?: string): TemplateLibrary {
   // Catalog listing and catalog-reference resolution must use the same root. The
   // bundled Studio catalog is not at atomize-core's default package location. The catalog finds
   // the project from the chosen folder itself, so the home folder is never taken for a project.
-  const catalog = new TemplateCatalog({
+  return new TemplateLibrary({
     ...(packageRoot ? { packageRoot } : {}),
     ...(projectFolder ? { invocationCwd: projectFolder } : {}),
   });
-  return new TemplateLibrary(new TemplateSourceResolver(undefined, catalog), catalog);
 }
 
 export function createSidecarServices(library = createTemplateLibrary()): SidecarServices {

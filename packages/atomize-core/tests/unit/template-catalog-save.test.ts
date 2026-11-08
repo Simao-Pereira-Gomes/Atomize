@@ -3,22 +3,19 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TemplateCatalog } from "@sppg2001/atomize-core/services/template/template-catalog";
-import { TemplateSourceResolver } from "@sppg2001/atomize-core/templates/source-resolver";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 
 const TEST_DIR = join(tmpdir(), `atomize-catalog-save-test-${process.pid}`);
 const template = { version: "1.0", name: "Delivery", filter: { workItemTypes: ["User Story"] }, tasks: [{ title: "Plan", estimationPercent: 100 }] };
 
-const library = () => {
-  const catalog = new TemplateCatalog({
+const library = () =>
+  new TemplateLibrary({
     packageRoot: join(TEST_DIR, "package"),
     userRoot: join(TEST_DIR, "user", "catalog"),
     legacyUserRoot: join(TEST_DIR, "user", "templates"),
     projectRoot: join(TEST_DIR, "project", ".atomize", "catalog"),
     legacyProjectRoot: join(TEST_DIR, "project", ".atomize", "templates"),
   });
-  return new TemplateLibrary(new TemplateSourceResolver(undefined, catalog), catalog);
-};
 
 beforeEach(async () => { await rm(TEST_DIR, { recursive: true, force: true }); });
 afterEach(async () => { await rm(TEST_DIR, { recursive: true, force: true }); });

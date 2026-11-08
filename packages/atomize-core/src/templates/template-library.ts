@@ -3,7 +3,7 @@ import type {
   TemplateCatalogKind,
   TemplateCatalogScope,
 } from "../services/template/template-catalog";
-import { TemplateCatalog } from "../services/template/template-catalog";
+import { TemplateCatalog, type TemplateCatalogOptions } from "../services/template/template-catalog";
 import {
   parseTemplateCatalogKind,
   type ResolvedTemplateInstallSource,
@@ -12,7 +12,7 @@ import {
   type TemplateInstallScope,
 } from "../services/template/template-install-source";
 import { TemplateResolver } from "../services/template/template-resolver";
-import type { CompositionMeta } from "./loader";
+import { type CompositionMeta, TemplateLoader } from "./loader";
 import type { TaskTemplate } from "./schema";
 import {
   type ResolvedTemplateSource,
@@ -73,12 +73,22 @@ export interface TemplateInstallPreview {
 
 const INSTALL_SCOPES: TemplateInstallScope[] = ["user", "project"];
 
+/**
+ * Where the Template Library finds its Catalog: the built-in package root and the Workspace Root
+ * the project Catalog is discovered from. Listing and catalog-ref resolution (`extends`,
+ * `mixin:`, `template:`) always use the one Catalog built from this config.
+ */
+export type TemplateLibraryOptions = TemplateCatalogOptions;
+
 export class TemplateLibrary {
-  constructor(
-    private readonly resolver = new TemplateSourceResolver(),
-    private readonly catalog = new TemplateCatalog(),
-    private readonly validator = new TemplateValidator(),
-  ) {}
+  private readonly catalog: TemplateCatalog;
+  private readonly resolver: TemplateSourceResolver;
+  private readonly validator = new TemplateValidator();
+
+  constructor(options: TemplateLibraryOptions = {}) {
+    this.catalog = new TemplateCatalog(options);
+    this.resolver = new TemplateSourceResolver(new TemplateLoader(this.catalog), this.catalog);
+  }
 
   async getRunnableTemplate(
     source: string,
