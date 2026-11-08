@@ -1,9 +1,9 @@
 import { select } from "@clack/prompts";
 import { type LogLevel, logger } from "@config/logger";
-import { totalUnconditionalEstimationPercent } from "@sppg2001/atomize-core/core/estimation-distribution";
 import {
   generatedTaskCount,
   type TaskTemplate,
+  totalUnconditionalEstimationPercent,
   type ValidationMode,
 } from "@sppg2001/atomize-core/templates/schema";
 import type { CompositionMeta } from "@sppg2001/atomize-core/templates/template-library";

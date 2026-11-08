@@ -881,6 +881,15 @@ export function copyCount(task: Pick<TaskTemplate["tasks"][number], "repeat">): 
   return task.repeat ?? 1;
 }
 
+/** The percent a Template's unconditional Task definitions always allocate, counting each repeated copy. */
+export function totalUnconditionalEstimationPercent(
+  tasks: ReadonlyArray<Pick<TaskTemplate["tasks"][number], "condition" | "estimationPercent" | "repeat">>,
+): number {
+  return tasks
+    .filter((task) => !task.condition)
+    .reduce((sum, task) => sum + (task.estimationPercent ?? 0) * copyCount(task), 0);
+}
+
 /** How many Tasks the definitions generate when every one is active, counting each repeated copy. */
 export function generatedTaskCount(tasks: ReadonlyArray<Pick<TaskTemplate["tasks"][number], "repeat">>): number {
   return tasks.reduce((sum, task) => sum + copyCount(task), 0);

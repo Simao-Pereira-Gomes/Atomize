@@ -1,4 +1,4 @@
-import { taskEstimationRangeViolations } from "@sppg2001/atomize-schema";
+import { distributeEstimationPercentages, taskEstimationRangeViolations } from "@sppg2001/atomize-schema";
 import { match } from "ts-pattern";
 import { logger } from "../logger";
 import type {
@@ -14,7 +14,6 @@ import type {
 import { getErrorMessage, TemplateValidationError } from "../utils/errors";
 import { ConditionEvaluator } from "./condition-evaluator.js";
 import { resolveStoryEstimate, type StoryEstimateResolution } from "./estimation-conversion";
-import { distributeActiveTaskPercentages } from "./estimation-distribution";
 import { type EstimationFieldMapping, readStoryEstimate } from "./estimation-field-mapping";
 import { repeatTasks, withOrdinal } from "./task-repeater";
 import { interpolateValue } from "./template-interpolator.js";
@@ -203,11 +202,10 @@ export class EstimationCalculator {
       }
     }
 
-    distributeActiveTaskPercentages(calculatedTasks, {
-      forceNormalize,
-      enableLogging: true,
-      mode: estimationConfig?.normalize,
-    });
+    // "auto" fills totals under 100% and keeps overage unless forced; "always" and "never" replace that.
+    if (distributeEstimationPercentages(calculatedTasks, estimationConfig?.normalize ?? "auto", forceNormalize)) {
+      logger.debug("Normalized estimation percentages");
+    }
 
     const allocationErrors = taskEstimationRangeViolations(calculatedTasks, taskEstimationRange);
     if (allocationErrors.length) {

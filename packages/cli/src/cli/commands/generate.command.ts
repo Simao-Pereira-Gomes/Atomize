@@ -7,7 +7,6 @@ import {
 import type { Config } from "@config/config";
 import { logger } from "@config/logger";
 import type { AtomizationReport, Atomizer } from "@sppg2001/atomize-core/core/atomizer";
-import { shouldOfferOverageNormalization } from "@sppg2001/atomize-core/core/estimation-distribution";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
@@ -704,8 +703,8 @@ async function resolveNormalization(
 ): Promise<boolean> {
   // An explicit "always" or "never" in the Template decides; only "auto" leaves overage to the user.
   if (template.estimation?.normalize && template.estimation.normalize !== "auto") return false;
-  const { shouldOffer, total } = shouldOfferOverageNormalization(template.tasks);
-  if (!shouldOffer) return false;
+  const total = template.tasks.reduce((sum, task) => sum + (task.estimationPercent ?? 0), 0);
+  if (total <= 100) return false;
 
   if (isTTYSession) {
     return prompts.confirm({
