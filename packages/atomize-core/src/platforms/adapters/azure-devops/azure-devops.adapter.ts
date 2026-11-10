@@ -21,7 +21,7 @@ import type {
   SavedQueryInfo,
   WikiInfo,
 } from "../../interfaces/platform.interface";
-import type { CreateTasksOptions } from "../../interfaces/platform-capabilities";
+import type { CreateTasksOptions, QueryWorkItemsOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
@@ -152,7 +152,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   /**
    * Query work items based on filter criteria
    */
-  async queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]> {
+  async queryWorkItems(filter: FilterCriteria, options?: QueryWorkItemsOptions): Promise<WorkItem[]> {
     this.ensureAuthenticated();
 
     try {
@@ -165,7 +165,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         project: this.config.project,
         team: this.config.team,
         organizationUrl: this.config.organizationUrl,
-      }).query(filter);
+      }).query(filter, options);
     } catch (error) {
       const message = sanitizeAzureErrorMessage(error);
       logger.debug("AzureDevOps: Query failed", { error: message });

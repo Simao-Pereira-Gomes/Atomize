@@ -11,6 +11,13 @@ export interface TaskMaterializationOptions {
   /** Once aborted, no further Task starts; Tasks already created are kept. */
   signal?: AbortSignal;
   onTaskCreated?: (task: WorkItem) => void;
+  /**
+   * Resuming a Partly Created Story: indexed like the calculated Tasks, the child Task that already
+   * stands for each one. Those are not created again; links are made only where one side is new.
+   */
+  existing?: ReadonlyArray<WorkItem | undefined>;
+  /** Indices of existing Tasks that no link is made to or from (their title is shared by several children). */
+  unlinkable?: ReadonlySet<number>;
 }
 
 type DependencyLink = { dependentTask: WorkItem; predecessorTask: WorkItem };
@@ -69,41 +76,28 @@ function chainLength(predecessors: number[][]): number {
   return Math.max(0, ...predecessors.map((_, index) => lengthOf(index)));
 }
 
-/**
- * Pairs each created dependent Task with its created predecessors. `createdTasks` is indexed like
- * `calculatedTasks`, with a gap where a Task failed to create.
- */
-export function planDependencyLinks(
+/** Pairs each dependent with its predecessors by index, skipping (with a warning) a side that wasn't created. */
+function planLinks(
   calculatedTasks: CalculatedTask[],
-  createdTasks: ReadonlyArray<WorkItem | undefined>,
-  templateTasks: TemplateTaskDefinition[],
+  created: ReadonlyArray<WorkItem | undefined>,
+  predecessors: number[][],
 ): DependencyLink[] {
-  const createdByTemplateId = new Map<string, WorkItem>();
-  calculatedTasks.forEach((task, index) => {
-    const created = createdTasks[index];
-    if (task.templateId && created) createdByTemplateId.set(task.templateId, created);
-  });
-
-  const dependencies = dependenciesOf(calculatedTasks, templateTasks);
-  const links: DependencyLink[] = [];
-  calculatedTasks.forEach((task, index) => {
-    const depIds = dependencies[index] ?? [];
-    if (depIds.length === 0) return;
-    const dependentTask = createdTasks[index];
+  return predecessors.flatMap((deps, index) => {
+    if (deps.length === 0) return [];
+    const dependentTask = created[index];
     if (!dependentTask) {
-      logger.warn(`Cannot create dependency links for task "${task.title}" - task not created`);
-      return;
+      logger.warn(`Cannot create dependency links for task "${calculatedTasks[index]?.title}" - task not created`);
+      return [];
     }
-    for (const depId of depIds) {
-      const predecessorTask = createdByTemplateId.get(depId);
+    return deps.flatMap((dep) => {
+      const predecessorTask = created[dep];
       if (!predecessorTask) {
-        logger.warn(`Cannot create dependency link: predecessor task with ID "${depId}" not found`);
-        continue;
+        logger.warn(`Cannot create dependency link: predecessor "${calculatedTasks[dep]?.title}" was not created`);
+        return [];
       }
-      links.push({ dependentTask, predecessorTask });
-    }
+      return [{ dependentTask, predecessorTask }];
+    });
   });
-  return links;
 }
 
 /**
@@ -119,11 +113,20 @@ export class TaskMaterializer {
     templateTasks: TemplateTaskDefinition[],
     options: TaskMaterializationOptions = {},
   ): Promise<WorkItem[]> {
+    const existing = options.existing ?? [];
+    const isNew = (index: number) => existing[index] === undefined;
     const predecessors = predecessorIndices(calculatedTasks, templateTasks);
-    const createdTasks = this.linksOnCreate(predecessors, options)
-      ? await this.createAsPredecessorsFinish(parentId, calculatedTasks, predecessors, options)
-      : await this.createThenLink(parentId, calculatedTasks, templateTasks, options);
-    return createdTasks.filter((task): task is WorkItem => task !== undefined);
+    // Links touching an unlinkable existing Task are dropped; those between two existing Tasks are left alone.
+    const wanted = predecessors.map((deps, index) =>
+      deps.filter(
+        (dep) => !options.unlinkable?.has(index) && !options.unlinkable?.has(dep) && (isNew(index) || isNew(dep)),
+      ),
+    );
+    const known = calculatedTasks.map((_, index) => existing[index]);
+    const createdTasks = this.linksOnCreate(wanted, options)
+      ? await this.createAsPredecessorsFinish(parentId, calculatedTasks, wanted, known, options)
+      : await this.createThenLink(parentId, calculatedTasks, wanted, known, options);
+    return createdTasks.filter((task, index): task is WorkItem => task !== undefined && isNew(index));
   }
 
   /**
@@ -150,19 +153,23 @@ export class TaskMaterializer {
 
   /**
    * Creates each Task as soon as its own predecessors exist, putting their IDs in its create request,
-   * with at most the platform's Task concurrency in flight.
+   * with at most the platform's Task concurrency in flight. An existing dependent of a new Task is
+   * linked afterwards.
    */
   private async createAsPredecessorsFinish(
     parentId: string,
     calculatedTasks: CalculatedTask[],
     predecessors: number[][],
+    known: Array<WorkItem | undefined>,
     options: TaskMaterializationOptions,
   ): Promise<Array<WorkItem | undefined>> {
-    const created = new Array<WorkItem | undefined>(calculatedTasks.length);
+    const created = [...known];
+    const isKnown = (index: number) => known[index] !== undefined;
     await runAsDependenciesFinish(
-      predecessors,
+      predecessors.map((deps, index) => (isKnown(index) ? [] : deps)),
       this.taskConcurrency(),
       async (index) => {
+        if (isKnown(index)) return;
         const task = calculatedTasks[index] as CalculatedTask;
         const predecessorIds = (predecessors[index] ?? []).flatMap((predecessor) => {
           const predecessorTask = created[predecessor];
@@ -179,27 +186,30 @@ export class TaskMaterializer {
       },
       { shouldStop: () => options.signal?.aborted === true },
     );
+    const existingDependents = predecessors.map((deps, index) => (isKnown(index) ? deps : []));
+    await this.createDependencyLinks(planLinks(calculatedTasks, created, existingDependents), options.dependencyConcurrency ?? 5);
     return created;
   }
 
   private async createThenLink(
     parentId: string,
     calculatedTasks: CalculatedTask[],
-    templateTasks: TemplateTaskDefinition[],
+    predecessors: number[][],
+    known: Array<WorkItem | undefined>,
     options: TaskMaterializationOptions,
   ): Promise<Array<WorkItem | undefined>> {
-    const created = new Array<WorkItem | undefined>(calculatedTasks.length);
+    const created = [...known];
+    const toCreate = calculatedTasks.flatMap((_, index) => (known[index] === undefined ? [index] : []));
     await this.platform.createTasksBulk(
       parentId,
-      calculatedTasks,
-      (task, index) => {
-        created[index] = task;
+      toCreate.map((index) => calculatedTasks[index] as CalculatedTask),
+      (task, position) => {
+        created[toCreate[position] as number] = task;
         options.onTaskCreated?.(task);
       },
       { signal: options.signal },
     );
-    const links = planDependencyLinks(calculatedTasks, created, templateTasks);
-    await this.createDependencyLinks(links, options.dependencyConcurrency ?? 5);
+    await this.createDependencyLinks(planLinks(calculatedTasks, created, predecessors), options.dependencyConcurrency ?? 5);
     return created;
   }
 

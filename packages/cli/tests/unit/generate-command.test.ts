@@ -36,6 +36,7 @@ function makeReport(overrides: Partial<AtomizationReport> = {}): AtomizationRepo
     results: [],
     errors: [],
     warnings: [],
+    partlyCreated: [],
     ...overrides,
   };
 }

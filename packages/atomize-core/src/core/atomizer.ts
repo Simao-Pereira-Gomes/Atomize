@@ -81,6 +81,12 @@ export interface AtomizationOptions {
   /** Fetch these specific work item IDs directly, bypassing the template filter (excludeIfHasTasks still applies) */
   storyIds?: string[];
 
+  /**
+   * Resume each of `storyIds` as a Partly Created Story: create only the planned Tasks whose title
+   * isn't already among the Story's child Tasks. Ignores excludeIfHasTasks for those Stories.
+   */
+  resume?: boolean;
+
   /** Cancels the run: no further Story or Task starts once aborted; requests already sent finish and created Tasks are kept (see ADR-0057). */
   signal?: AbortSignal;
 
@@ -103,7 +109,7 @@ interface StoryRun {
 }
 
 /** Which Stories a run covers: specific Story IDs, or the Template's filter. */
-export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit">;
+export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit" | "resume">;
 
 /**
  * The stall deadline surfaces use for an interactive Generation Run. Longer than the longest wait
@@ -127,6 +133,15 @@ export interface StoryAtomizationResult {
   error?: string;
   /** Present when the Story was skipped because its Story Estimate could not be resolved. */
   skipReason?: string;
+  /**
+   * Present when the Story was resumed: the planned Tasks a child Task already stands for (the rest
+   * are `tasksCalculated`), the child Tasks no planned Task matched, and whether nothing was missing.
+   */
+  resume?: {
+    existing: Array<{ title: string; workItemId: string }>;
+    notInPlan: Array<{ title: string; workItemId: string }>;
+    complete: boolean;
+  };
   /** True when the run was cancelled or timed out before all of this Story's Tasks were created; those created are kept. */
   stoppedEarly?: boolean;
   /** Why the Story Estimate could not be resolved, and whether Task Estimates were left blank or the Story skipped. */
@@ -176,6 +191,9 @@ export interface AtomizationReport {
 
   /** Warnings */
   warnings: string[];
+
+  /** Stories excludeIfHasTasks skipped that look partly created: some planned Tasks exist, some are missing. */
+  partlyCreated: Array<{ storyId: string; title: string; tasksExisting: number; tasksPlanned: number }>;
 
   /** Execution time in ms */
   executionTime: number;
@@ -257,7 +275,8 @@ export class Atomizer {
     // Query user stories
     logger.info("Querying user stories...");
     onProgress?.({ type: "query_start" });
-    const stories = await this.platform.queryWorkItems(platformFilter);
+    const excluded: WorkItem[] = [];
+    const stories = await this.platform.queryWorkItems(platformFilter, { onExcluded: (story) => excluded.push(story) });
     logger.info(`Found ${stories.length} stories`);
     onProgress?.({ type: "query_complete", totalStories: stories.length });
 
@@ -272,6 +291,15 @@ export class Atomizer {
       template.tasks,
     );
     logger.debug(`Resolved ${orderedTasks.length} tasks in dependency order`);
+
+    const partlyCreated = excluded.flatMap((story) => {
+      const state = this.storyProcessor.partlyCreated(story, orderedTasks, template, connectUserEmail, options.forceNormalize);
+      if (!state) return [];
+      warnings.push(
+        `${story.id} skipped (excludeIfHasTasks): ${state.tasksExisting} of ${state.tasksPlanned} planned Tasks exist; resume it to create the rest`,
+      );
+      return [{ storyId: story.id, title: story.title, ...state }];
+    });
 
     const storyConcurrency = options.storyConcurrency ?? 3;
     logger.info(
@@ -312,6 +340,7 @@ export class Atomizer {
       results,
       errors,
       warnings,
+      partlyCreated,
       executionTime,
       dryRun: options.dryRun || false,
     };
@@ -465,16 +494,30 @@ export class Atomizer {
     return await this.platform.queryWorkItems(this.storyQuery(template, options, connectUserEmail));
   }
 
+  /** The Work Item type this Template's Tasks are created as, when the Template or platform names one. */
+  private taskWorkItemTypes(template: TaskTemplate): { taskWorkItemTypes?: string[] } {
+    const type = template.taskType ?? this.platform.getEstimationDefaults?.()?.taskWorkItemType;
+    return type ? { taskWorkItemTypes: [type] } : {};
+  }
+
   private storyQuery(
     template: TaskTemplate,
     options: StoryScopeOptions,
     connectUserEmail: string,
   ): FilterCriteria {
-    if (options.storyIds && options.storyIds.length > 0) {
-      logger.info(`Fetching ${options.storyIds.length} specific work item(s) by ID`);
+    const taskWorkItemTypes = this.taskWorkItemTypes(template);
+    const hasStoryIds = options.storyIds !== undefined && options.storyIds.length > 0;
+    if (options.resume) {
+      if (!hasStoryIds) throw new Error("Resume needs specific Story IDs (--story)");
+      logger.info(`Resuming ${options.storyIds?.length} specific work item(s) by ID`);
+      return { workItemIds: options.storyIds, includeTaskChildren: true, ...taskWorkItemTypes };
+    }
+    if (hasStoryIds) {
+      logger.info(`Fetching ${options.storyIds?.length} specific work item(s) by ID`);
       return {
         workItemIds: options.storyIds,
         excludeIfHasTasks: template.filter.excludeIfHasTasks,
+        ...(template.filter.excludeIfHasTasks ? taskWorkItemTypes : {}),
       };
     }
 
@@ -484,6 +527,7 @@ export class Atomizer {
     }
     const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
     if (options.limit !== undefined) platformFilter.limit = options.limit;
+    if (platformFilter.excludeIfHasTasks) Object.assign(platformFilter, taskWorkItemTypes);
     return platformFilter;
   }
 }
