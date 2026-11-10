@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
-import { createProgressHandler } from "@/cli/orchestrator/atomize-orchestrator";
+import { createProgressHandler, progressBarSize } from "@/cli/orchestrator/atomize-orchestrator";
 
 function makeStory(id: string, title = `Story ${id}`): WorkItem {
   return { id, title } as WorkItem;
@@ -103,7 +103,7 @@ describe("createProgressHandler — TTY mode", () => {
 
     handler({ type: "task_created", completedStories: 1, totalStories: 5, tasksCreated: 7 });
 
-    expect(f.mockProgressBar.advance).toHaveBeenCalledWith(0, "1/5 stories · 7 tasks created");
+    expect(f.mockProgressBar.advance).toHaveBeenCalledWith(0, "1/5 stories · 7 tasks");
   });
 
   test("task_created: never shows undefined when an event has no counts", () => {
@@ -111,7 +111,7 @@ describe("createProgressHandler — TTY mode", () => {
 
     handler({ type: "task_created", totalStories: 5 });
 
-    expect(f.mockProgressBar.advance).toHaveBeenCalledWith(0, "0/5 stories · 0 tasks created");
+    expect(f.mockProgressBar.advance).toHaveBeenCalledWith(0, "0/5 stories · 0 tasks");
   });
 
   test("story_complete: falls back to print when no progress bar exists yet", () => {
@@ -301,5 +301,21 @@ describe("createProgressHandler — event sequencing", () => {
     expect(f.mockProgressBar.advance).toHaveBeenCalledTimes(2);
     expect(f.logSuccess).toHaveBeenCalledTimes(1);
     expect(f.logError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("progressBarSize", () => {
+  test("is 30 cells wide when the terminal has room", () => {
+    expect(progressBarSize(120, 5)).toBe(30);
+  });
+
+  test("shrinks so the whole line fits a narrow terminal, since a wrapped line leaves stale copies behind", () => {
+    const size = progressBarSize(60, 5);
+    const longestLine = 3 + size + 1 + "5/5 stories · 99999 tasks".length;
+    expect(longestLine).toBeLessThanOrEqual(60);
+  });
+
+  test("never goes below 10 cells", () => {
+    expect(progressBarSize(20, 5)).toBe(10);
   });
 });

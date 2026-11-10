@@ -184,7 +184,8 @@ describe("stopping a Generation Run partway through a Story", () => {
     const [result] = report.results;
     expect(result?.tasksCreated.map((task) => task.title)).toEqual(["Design"]);
     expect(result?.stoppedEarly).toBe(true);
-    expect(report.warnings).toContain("1: the run stopped after 1 of 2 Tasks were created");
+    // The report's `stopped` and the result's `stoppedEarly` say so; a warning would only repeat it.
+    expect(report.warnings.filter((warning) => warning.includes("stopped"))).toEqual([]);
   });
 
   test("doesn't flag a Story the run finished", async () => {

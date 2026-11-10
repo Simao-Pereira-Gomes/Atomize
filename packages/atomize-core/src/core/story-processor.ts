@@ -157,11 +157,8 @@ export class StoryProcessor {
       );
       logger.info(`Created ${tasksCreated.length} tasks`);
       stoppedEarly = options.signal?.aborted === true && tasksCreated.length < calculatedTasks.length;
-      if (stoppedEarly) {
-        const warning = `${story.id}: the run stopped after ${tasksCreated.length} of ${calculatedTasks.length} Tasks were created`;
-        logger.warn(warning);
-        warnings.push(warning);
-      }
+      // Reported through the result's `stoppedEarly` and the report's `stopped`, not as a warning.
+      if (stoppedEarly) logger.info(`${story.id}: the run stopped after ${tasksCreated.length} of ${calculatedTasks.length} Tasks were created`);
     }
 
     return {

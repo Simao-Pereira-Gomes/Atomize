@@ -1,5 +1,6 @@
 import { log, progress } from "@clack/prompts";
 import { logger } from "@config/logger";
+import { logger as coreLogger, silently } from "@sppg2001/atomize-core";
 import {
   type AtomizationReport,
   Atomizer,
@@ -116,11 +117,21 @@ export function createProgressHandler(
         if (isTTYSession && storyProgressRef.current) {
           storyProgressRef.current.advance(
             0,
-            `${e.completedStories ?? 0}/${e.totalStories} stories · ${e.tasksCreated ?? 0} task${e.tasksCreated === 1 ? "" : "s"} created`,
+            `${e.completedStories ?? 0}/${e.totalStories} stories · ${e.tasksCreated ?? 0} task${e.tasksCreated === 1 ? "" : "s"}`,
           );
         }
       })
       .exhaustive();
+}
+
+/**
+ * How many cells wide the progress bar can be so its line (marker, bar, and the longest message,
+ * "N/N stories · 99999 tasks") fits a terminal `columns` wide: at most 30, at least 10.
+ * @internal Exported for testing
+ */
+export function progressBarSize(columns: number, totalStories: number): number {
+  const longestMessage = `${totalStories}/${totalStories} stories · 99999 tasks`.length;
+  return Math.max(10, Math.min(30, columns - 3 - 1 - longestMessage - 1));
 }
 
 export async function runAtomization(
@@ -148,13 +159,17 @@ export async function runAtomization(
         output.print,
         log.success,
         log.error,
-        // A narrower bar keeps the line within 80 columns; a wrapped line leaves stale copies behind.
-        (total) => progress({ max: total, style: "block", size: 30 }),
+        // The whole line must fit the terminal: a wrapped line leaves a stale copy behind on every redraw.
+        (total) => progress({ max: total, style: "block", size: progressBarSize(process.stdout.columns ?? 80, total) }),
       );
 
+  // Log lines printed under a progress bar break its redraw. Every warning is in the report at the
+  // end, so while the bar is drawn the log stays quiet unless the user asked for more (--verbose).
+  const drawsProgress = !opts.jsonStream && opts.isTTYSession;
+  const quiet = drawsProgress && (coreLogger.level === "warn" || coreLogger.level === "error");
   const report = await stopOnInterrupt(
     (signal) =>
-      atomizer.atomize(template, {
+      (quiet ? silently : (run: () => Promise<AtomizationReport>) => run())(() => atomizer.atomize(template, {
         stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS,
         signal,
         dryRun: opts.dryRun,
@@ -166,7 +181,7 @@ export async function runAtomization(
         dependencyConcurrency: opts.dependencyConcurrency,
         forceNormalize: opts.forceNormalize,
         onProgress,
-      }),
+      })),
     // stderr, so --json and --json-stream keep stdout to JSON.
     () => process.stderr.write("\nStopping: no new work will start. Press Ctrl+C again to quit now.\n"),
   );

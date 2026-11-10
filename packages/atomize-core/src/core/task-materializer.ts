@@ -81,18 +81,21 @@ function planLinks(
   calculatedTasks: CalculatedTask[],
   created: ReadonlyArray<WorkItem | undefined>,
   predecessors: number[][],
+  stopped = false,
 ): DependencyLink[] {
+  // After a stop, Tasks left uncreated are expected: the run reports them, so only log them in debug.
+  const note = stopped ? logger.debug : logger.warn;
   return predecessors.flatMap((deps, index) => {
     if (deps.length === 0) return [];
     const dependentTask = created[index];
     if (!dependentTask) {
-      logger.warn(`Cannot create dependency links for task "${calculatedTasks[index]?.title}" - task not created`);
+      note(`Cannot create dependency links for task "${calculatedTasks[index]?.title}" - task not created`);
       return [];
     }
     return deps.flatMap((dep) => {
       const predecessorTask = created[dep];
       if (!predecessorTask) {
-        logger.warn(`Cannot create dependency link: predecessor "${calculatedTasks[dep]?.title}" was not created`);
+        note(`Cannot create dependency link: predecessor "${calculatedTasks[dep]?.title}" was not created`);
         return [];
       }
       return [{ dependentTask, predecessorTask }];
@@ -174,7 +177,7 @@ export class TaskMaterializer {
         const predecessorIds = (predecessors[index] ?? []).flatMap((predecessor) => {
           const predecessorTask = created[predecessor];
           if (!predecessorTask) {
-            logger.warn(`Cannot link "${task.title}" to "${calculatedTasks[predecessor]?.title}": that Task wasn't created`);
+            (options.signal?.aborted ? logger.debug : logger.warn)(`Cannot link "${task.title}" to "${calculatedTasks[predecessor]?.title}": that Task wasn't created`);
             return [];
           }
           return [predecessorTask.id];
@@ -187,7 +190,7 @@ export class TaskMaterializer {
       { shouldStop: () => options.signal?.aborted === true },
     );
     const existingDependents = predecessors.map((deps, index) => (isKnown(index) ? deps : []));
-    await this.createDependencyLinks(planLinks(calculatedTasks, created, existingDependents), options.dependencyConcurrency ?? 5);
+    await this.createDependencyLinks(planLinks(calculatedTasks, created, existingDependents, options.signal?.aborted), options.dependencyConcurrency ?? 5);
     return created;
   }
 
@@ -209,7 +212,7 @@ export class TaskMaterializer {
       },
       { signal: options.signal },
     );
-    await this.createDependencyLinks(planLinks(calculatedTasks, created, predecessors), options.dependencyConcurrency ?? 5);
+    await this.createDependencyLinks(planLinks(calculatedTasks, created, predecessors, options.signal?.aborted), options.dependencyConcurrency ?? 5);
     return created;
   }
 
