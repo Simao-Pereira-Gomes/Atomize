@@ -571,14 +571,15 @@ describe("printReport for a run that stopped or skipped partly created Stories",
 
     expect(printed()).toContain("Generation timed out: no progress for 6 min.");
     expect(printed()).toContain("2: Half · 1 of 3 Tasks created");
-    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 2 --resume --execute");
-    expect(printed()).toContain("2 Stories weren't started. Run again to process them.");
+    // A Resume of a Story with no Tasks creates all of them, so one command finishes both kinds.
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 2 3 4 --resume --execute");
+    expect(printed()).toContain("3, 4: not started");
   });
 
   test("still prints the command to finish in quiet mode", () => {
     printReport(stoppedReport, { verbose: false, quiet: true, templateRef: "./my templates/a.yaml" }, false);
 
-    expect(printed()).toContain("To finish: atomize generate './my templates/a.yaml' --story 2 --resume --execute");
+    expect(printed()).toContain("To finish: atomize generate './my templates/a.yaml' --story 2 3 4 --resume --execute");
   });
 
   test("lists Stories skipped by excludeIfHasTasks that look partly created, with the command to resume them", () => {

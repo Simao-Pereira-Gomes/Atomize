@@ -378,11 +378,13 @@ npm install -g @sppg2001/atomize
 
 A Generation Run that is cancelled, or that stops after six minutes without progress, keeps the Tasks it already created. A Story it was working on is left a **Partly Created Story**: some of its planned Tasks exist and the rest don't. Because that Story now has Tasks, a rerun with `excludeIfHasTasks: true` skips it, and every surface flags a skipped Story that looks partly created.
 
-Finishing it is a **Resume**: Atomize plans the Story's Tasks again from the Story as it is now, and creates only the planned Tasks whose title isn't already among the Story's child Tasks. Existing children are never changed or deleted, and links are made only where one side is a new Task. The preview shows which Tasks already exist, which will be created, and which children aren't in the plan. A Resume applies only to Stories you name. A Task renamed since the stopped run no longer matches its plan, so check the preview before creating.
+Finishing it is a **Resume**: Atomize plans the Story's Tasks again from the Story as it is now, and creates only the planned Tasks whose title isn't already among the Story's child Tasks. Existing children are never changed or deleted, and links are made only where one side is a new Task. The preview shows which Tasks already exist, which will be created, and which children aren't in the plan. A Story with no Tasks yet gets all its planned Tasks, so one Resume can finish untouched and partly created Stories together. A Resume applies only to Stories you name. A Task renamed since the stopped run no longer matches its plan, so check the preview before creating.
 
-- **CLI**: `atomize generate <template> --story <ids...> --resume`, then add `--execute`. A stopped run prints this command with the Story IDs filled in.
-- **VS Code**: **Finish these Stories** in the Generate Panel's result, or **Atomize: Finish Partly Created Stories** to pick them.
-- **Atomize Studio**: **Finish these Stories** in the Generate result, or tick **Finish partly created Stories** in the Story browser.
+A stopped run lists, in one place, the Stories it left part-way through and those it never started, all ticked to finish together. A dry run that skipped partly created Stories lets you tick them to include them in the same run.
+
+- **CLI**: `atomize generate <template> --story <ids...> --resume`, then add `--execute`. A stopped run prints this command with the Story IDs filled in, both kinds included.
+- **VS Code**: **Finish selected Stories** in the Generate Panel's result, **Include in this run** in its dry run, or **Atomize: Finish Partly Created Stories** to pick Stories yourself.
+- **Atomize Studio**: **Finish selected Stories** in the Generate result, **Include in this run** in its Preview, or tick **Finish partly created Stories** in the Story browser.
 
 ### No Stories Found
 

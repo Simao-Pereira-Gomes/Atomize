@@ -163,6 +163,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   const rerun = (storyIds: string[], resume: boolean) => {
     dispatch({ type: "reset" });
     setUnticked(new Set<string>());
+    setIncluded(new Set<string>());
     void advanceToPreview({ kind: "stories", storyIds, ...(resume ? { resume: true } : {}) });
   };
 
@@ -182,14 +183,52 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     <button type="button" class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none disabled:opacity-40" disabled={ticked(ids).length === 0} onClick={() => rerun(ticked(ids), true)}>Finish selected Stories →</button>
   );
 
-  const partlyCreatedBlock = (report: GenerateReport) => (
+  // Partly created Stories ticked to join a previewed run (unticked until chosen).
+  const [included, setIncluded] = createSignal<Set<string>>(new Set());
+  const toggleIncluded = (id: string) => setIncluded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+
+  /**
+   * Stories excludeIfHasTasks skipped that look partly created. When the Preview has other Stories
+   * (`previewed`), they can be ticked to join it: the run becomes one Resume of both, since a Resume
+   * of a Story with no Tasks creates all of them. Otherwise they are finished on their own.
+   */
+  const partlyCreatedBlock = (report: GenerateReport, previewed: string[] = []) => (
     <Show when={report.partlyCreated.length > 0}>
       <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
         <p class="font-semibold">Skipped as already having Tasks, but they look partly created:</p>
-        <ul class="mt-1 space-y-0.5">
-          <For each={report.partlyCreated}>{(story) => selectableStory(story.storyId, `${story.storyId} · ${story.title}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`)}</For>
-        </ul>
-        {finishButton(report.partlyCreated.map((story) => story.storyId))}
+        <Show
+          when={previewed.length > 0}
+          fallback={
+            <>
+              <ul class="mt-1 space-y-0.5">
+                <For each={report.partlyCreated}>{(story) => selectableStory(story.storyId, `${story.storyId} · ${story.title}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`)}</For>
+              </ul>
+              {finishButton(report.partlyCreated.map((story) => story.storyId))}
+            </>
+          }
+        >
+          <ul class="mt-1 space-y-0.5">
+            <For each={report.partlyCreated}>
+              {(story) => (
+                <li>
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={included().has(story.storyId)} onChange={() => toggleIncluded(story.storyId)} />
+                    <span>{story.storyId} · {story.title}: {story.tasksExisting} of {story.tasksPlanned} planned Tasks exist</span>
+                  </label>
+                </li>
+              )}
+            </For>
+          </ul>
+          <button
+            type="button"
+            class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none disabled:opacity-40"
+            disabled={included().size === 0}
+            onClick={() => rerun([...previewed, ...included()], true)}
+          >
+            Include in this run →
+          </button>
+          <p class="mt-1 text-xs">Tick the Stories to finish along with the ones above. The Preview runs again with only the missing Tasks.</p>
+        </Show>
       </div>
     </Show>
   );
@@ -202,15 +241,13 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
       <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
         <p class="font-semibold">{stopped.reason === "timedOut" ? "Run timed out" : "Run cancelled"}: Tasks already created were kept.</p>
         <Show when={stopped.reason === "timedOut"}><p class="mt-1">{stopped.message}</p></Show>
-        <Show when={stoppedEarly.length > 0}>
+        {/* One list: a Resume finishes both, since for a Story with no Tasks it creates all of them. */}
+        <Show when={stoppedEarly.length + stopped.storiesNotStarted.length > 0}>
           <ul class="mt-2 space-y-0.5">
             <For each={stoppedEarly}>{(row) => selectableStory(row.story.id, `${row.story.id} · ${row.story.title}: ${row.tasksCreated.length} of ${row.tasksPlanned.length} Tasks created`)}</For>
+            <For each={stopped.storiesNotStarted}>{(id) => selectableStory(id, `${id}: not started`)}</For>
           </ul>
-          {finishButton(stoppedEarly.map((row) => row.story.id))}
-        </Show>
-        <Show when={stopped.storiesNotStarted.length > 0}>
-          <p class="mt-2">{stopped.storiesNotStarted.length} Stor{stopped.storiesNotStarted.length === 1 ? "y wasn't" : "ies weren't"} started.</p>
-          <button type="button" class="mt-1 text-xs font-bold text-amber-800 hover:underline dark:text-amber-200" onClick={() => rerun(stopped.storiesNotStarted, false)}>Run {stopped.storiesNotStarted.length === 1 ? "it" : "them"} now →</button>
+          {finishButton([...stoppedEarly.map((row) => row.story.id), ...stopped.storiesNotStarted])}
         </Show>
       </div>
     );
@@ -364,7 +401,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     </For>
                   </div>
                   <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{plural(report.storiesProcessed, "Story", "Stories")} · {plural(report.tasksPlanned, "Task", "Tasks")} {(() => { const s = scope(); return s?.kind === "stories" && s.resume ? "to create" : "total"; })()}</p>
-                  {partlyCreatedBlock(report)}
+                  {partlyCreatedBlock(report, report.results.filter((row) => row.success).map((row) => row.story.id))}
                   <div class="mt-4 flex gap-3">
                     <button type="button" class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={() => setStep(1)}>← Back</button>
                     <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={() => { setStep(3); confirmExecution(); }}>Continue to Execute →</button>

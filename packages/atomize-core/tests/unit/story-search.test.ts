@@ -127,9 +127,10 @@ describe("listSprintStories", () => {
     expect(stories.every((story) => story.taskCount === 0)).toBe(true);
   });
 
-  test("lists the sprint's Stories that already have Tasks instead, for finishing Partly Created Stories", async () => {
-    const stories = await listSprintStories(adapter, { workItemTypes: ["User Story"], hasTasks: true });
-    expect(stories.map((story) => story.id)).toEqual(["STORY-007"]);
+  test("lists the sprint's Stories with or without Tasks, for finishing untouched and partly created Stories together", async () => {
+    const stories = await listSprintStories(adapter, { workItemTypes: ["User Story"], tasks: "any" });
+    expect(stories.map((story) => story.id)).toContain("STORY-007");
+    expect(stories.map((story) => story.id)).toContain("STORY-001");
   });
 
   test("lists no Stories of a type the sprint doesn't contain", async () => {

@@ -293,19 +293,29 @@ describe('GeneratePanel and Partly Created Stories', () => {
 
 		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate · Stopped');
 		expect(panel.webview.html).toContain('1 of 3 Tasks created');
-		expect(panel.webview.html).toContain("1 Story wasn't started");
-		expect(panel.webview.html).toContain('data-finish="1"');
+		// One list, one button: a Resume of a Story with no Tasks creates all of them.
+		expect(panel.webview.html).toContain('<input type="checkbox" checked data-story="1">');
+		expect(panel.webview.html).toContain('<input type="checkbox" checked data-story="2">');
+		expect(panel.webview.html).toContain('2: not started');
+		expect(panel.webview.html).not.toContain('Run it now');
 
 		panel.receive?.({ type: 'finishStories', storyIds: ['1'] });
 		await waitFor(() => calls.length === 3);
 		expect(calls[2]).toEqual({ dryRun: true, storyIds: ['1'], resume: true });
 	});
 
-	it('a dry run lists the Stories excludeIfHasTasks skipped that look partly created, with a way to finish them', async () => {
-		const { panel } = await openPanel([{ ...dryReport, partlyCreated: [{ storyId: '7', title: 'Login', tasksExisting: 2, tasksPlanned: 6 }] }]);
+	it('a dry run offers to include the partly created Stories excludeIfHasTasks skipped in the same run', async () => {
+		const { panel, calls } = await openPanel([{ ...dryReport, partlyCreated: [{ storyId: '7', title: 'Login', tasksExisting: 2, tasksPlanned: 6 }] }, dryReport]);
 
 		expect(panel.webview.html).toContain('2 of 6 planned Tasks exist');
-		expect(panel.webview.html).toContain('data-finish="7"');
+		expect(panel.webview.html).toContain('<input type="checkbox" data-story="7">');
+		expect(panel.webview.html).toContain('data-base="1"');
+		expect(panel.webview.html).toContain('Include in this run');
+
+		// The webview sends the previewed Stories plus the ticked ones.
+		panel.receive?.({ type: 'finishStories', storyIds: ['1', '7'] });
+		await waitFor(() => calls.length === 2);
+		expect(calls[1]).toEqual({ dryRun: true, storyIds: ['1', '7'], resume: true });
 	});
 
 	it('opened to finish Stories, resumes the picked ones and shows what already exists', async () => {
@@ -324,9 +334,10 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		expect(panel.webview.html).toContain('Not in the plan');
 	});
 
-	it('lets each partly created Story in the report be ticked or unticked before finishing', async () => {
+	it('lets each partly created Story be ticked or unticked before finishing, when nothing else was previewed', async () => {
 		const { panel } = await openPanel([{
 			...dryReport,
+			storiesProcessed: 0, storiesSuccess: 0, tasksCalculated: 0, results: [],
 			partlyCreated: [
 				{ storyId: '7', title: 'Login', tasksExisting: 2, tasksPlanned: 6 },
 				{ storyId: '8', title: 'Logout', tasksExisting: 1, tasksPlanned: 6 },
@@ -353,7 +364,7 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		expect(panel.webview.html).toContain('data-story="7"');
 	});
 
-	it('opened to finish Stories, lists Stories that already have Tasks to pick from', async () => {
+	it('opened to finish Stories, lists Stories with or without Tasks to pick from', async () => {
 		await openPanel([dryReport], { pickedStoryIds: ['1'], resume: true });
 
 		expect(lastBrowse.prepare).toEqual({ withTasks: true });

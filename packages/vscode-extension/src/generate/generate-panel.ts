@@ -29,11 +29,9 @@ interface ManageProfilesMessage { type: 'manageProfiles'; }
 interface OpenLinkMessage { type: 'openLink'; url: string; }
 /** Finish these Partly Created Stories: a resume dry run of them. */
 interface FinishStoriesMessage { type: 'finishStories'; storyIds: string[]; }
-/** Run these Stories as a plain dry run (Stories a stopped run never started). */
-interface RunStoriesMessage { type: 'runStories'; storyIds: string[]; }
 /** Stop the live run: no new Story or Task starts, and the result shows what was done. */
 interface CancelRunMessage { type: 'cancelRun'; }
-type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage | FinishStoriesMessage | RunStoriesMessage | CancelRunMessage;
+type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage | FinishStoriesMessage | CancelRunMessage;
 
 /** How the panel was opened: to generate, or to finish Partly Created Stories (a resume). */
 export interface GenerateOpenOptions { resume?: boolean; }
@@ -337,10 +335,10 @@ export class GeneratePanel {
 			await this._runLive();
 		} else if (message.type === 'cancelRun') {
 			this._liveRun?.abort();
-		} else if (message.type === 'finishStories' || message.type === 'runStories') {
+		} else if (message.type === 'finishStories') {
 			if (this._isExecuting || !Array.isArray(message.storyIds) || message.storyIds.length === 0) return;
 			this._storyIds = message.storyIds.filter((id): id is string => typeof id === 'string');
-			this._resume = message.type === 'finishStories';
+			this._resume = true;
 			this._dryRunReport = undefined;
 			this._execReport = undefined;
 			this._continueOnError = false;

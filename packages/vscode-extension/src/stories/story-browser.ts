@@ -34,15 +34,15 @@ export interface StoryBrowserOptions {
 	adapter: IPlatformAdapter;
 	/**
 	 * The view the browser opens on, with Search one button away: `sprint` lists Stories of these
-	 * types in the current or next sprint with no Tasks yet (or, with `hasTasks`, those that already
-	 * have Tasks) and not closed. Omit to open straight in Search.
+	 * types in the current or next sprint with no Tasks yet (or, with `tasks: 'any'`, with or without
+	 * Tasks) and not closed. Omit to open straight in Search.
 	 */
 	defaultView?: DefaultView;
 	canPickMany: boolean;
 	placeholder: string;
 }
 
-export type DefaultView = { kind: 'sprint'; workItemTypes?: string[]; hasTasks?: boolean };
+export type DefaultView = { kind: 'sprint'; workItemTypes?: string[]; tasks?: 'none' | 'any' };
 
 type StoryItem = vscode.QuickPickItem & { story: StorySummary };
 type Action = 'switchMode' | 'enterIds' | 'type' | 'state' | 'area' | 'iteration' | 'hasTasks';
@@ -60,8 +60,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 export async function browseStories(options: StoryBrowserOptions): Promise<string[] | undefined> {
 	const state = {
 		mode: (options.defaultView?.kind ?? 'search') as StoryBrowserModeKind,
-		// Finishing Partly Created Stories looks for Stories that already have Tasks, in Search too.
-		filters: emptyFilters(options.defaultView?.hasTasks === true),
+		filters: emptyFilters(false),
 		selected: new Map<string, StorySummary>(),
 		limit: STORY_SEARCH_LIMIT,
 	};
@@ -96,7 +95,7 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				picker.hide();
 			};
 
-			const title = browserTitle(options.title, state.mode, state.filters, { sprintHasTasks: options.defaultView?.hasTasks === true });
+			const title = browserTitle(options.title, state.mode, state.filters, { sprintTasks: options.defaultView?.tasks });
 			picker.title = title;
 			picker.placeholder = state.mode !== 'search'
 				? `${options.placeholder} Type to narrow the list, search all Stories, or enter IDs from the buttons above.`
@@ -131,7 +130,7 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 					const view = options.defaultView;
 					const stories = state.mode === 'search' || !view
 						? await searchStories(options.adapter, { ...toStorySearch(state.filters), limit: state.limit })
-						: await listSprintStories(options.adapter, { workItemTypes: view.workItemTypes, limit: state.limit, hasTasks: view.hasTasks === true });
+						: await listSprintStories(options.adapter, { workItemTypes: view.workItemTypes, limit: state.limit, tasks: view.tasks });
 					loaded = stories.length;
 					if (generation === loadGeneration && !settled) showStories(stories, more ? shownBefore : undefined);
 				} catch (error) {
@@ -290,13 +289,13 @@ export async function prepareTemplateStoryBrowser(
 	credentialResolver: CredentialResolver,
 	profile: string,
 	fileUri: vscode.Uri,
-	/** `withTasks`: list Stories that already have Tasks, to pick Partly Created Stories to finish. */
+	/** `withTasks`: list Stories with or without Tasks, to pick untouched and Partly Created Stories to finish together. */
 	options: { withTasks?: boolean } = {},
 ): Promise<{ adapter: IPlatformAdapter; defaultView: DefaultView } | undefined> {
 	try {
 		const adapter = await credentialResolver.resolveByName(profile);
 		const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
-		return { adapter, defaultView: { kind: 'sprint', workItemTypes: template.filter.workItemTypes, hasTasks: options.withTasks === true } };
+		return { adapter, defaultView: { kind: 'sprint', workItemTypes: template.filter.workItemTypes, tasks: options.withTasks ? 'any' : 'none' } };
 	} catch {
 		return undefined;
 	}

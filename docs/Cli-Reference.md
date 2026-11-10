@@ -305,7 +305,7 @@ atomize generate template:backend-api --story STORY-123 --resume --execute  # cr
 
 A resume plans each story's tasks again and creates only those whose title isn't already among the story's child tasks. It never changes or deletes an existing child, and links new tasks to existing ones where the template's `dependsOn` asks for it. A story with nothing missing is reported as already complete.
 
-**Stopping a run:** once task creation has started, the first `Ctrl+C` stops starting new work, waits for the requests already sent, prints the report, and exits `4`. A second `Ctrl+C` quits at once. A stopped report lists each story left partly created with the `To finish:` command, and how many stories weren't started.
+**Stopping a run:** once task creation has started, the first `Ctrl+C` stops starting new work, waits for the requests already sent, prints the report, and exits `4`. A second `Ctrl+C` quits at once. A stopped report lists the stories left partly created and those never started, with one `To finish:` command that resumes them all: a resume of a story with no tasks creates every planned task.
 
 **Execute for real in CI/non-interactive mode:**
 ```bash

@@ -544,11 +544,11 @@ function printFinishCommands(report: AtomizationReport, templateRef: string | un
         ),
       );
     }
-    if (stoppedEarly.length > 0) print(chalk.bold(`  ${finishCommand(templateRef, stoppedEarly.map((r) => r.story.id))}`));
-    const notStarted = report.stopped.storiesNotStarted.length;
-    if (notStarted > 0) {
-      print(chalk.yellow(`  ${notStarted} ${notStarted === 1 ? "Story wasn't" : "Stories weren't"} started. Run again to process them.`));
-    }
+    const notStarted = report.stopped.storiesNotStarted;
+    if (notStarted.length > 0) print(chalk.yellow(`  • ${notStarted.map((id) => sanitizeTty(id)).join(", ")}: not started`));
+    // A Resume of a Story with no Tasks creates all of them, so one command finishes both kinds.
+    const toFinish = [...stoppedEarly.map((r) => r.story.id), ...notStarted];
+    if (toFinish.length > 0) print(chalk.bold(`  ${finishCommand(templateRef, toFinish)}`));
     print("");
   }
 

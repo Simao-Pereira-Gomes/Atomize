@@ -103,36 +103,54 @@ function finishButton(storyIds: string[], label: string): string {
 }
 
 /** One Story the user can tick or untick before finishing; the block's button takes the ticked ones. */
-function selectableStory(storyId: string, text: string): string {
-	return `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer"><input type="checkbox" checked data-story="${esc(storyId)}">${text}</label>`;
+function selectableStory(storyId: string, text: string, ticked = true): string {
+	return `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer"><input type="checkbox"${ticked ? ' checked' : ''} data-story="${esc(storyId)}">${text}</label>`;
 }
 
 function noticeBox(content: string): string {
 	return `<div style="margin:0 0 14px;padding:10px 12px;background:rgba(204,167,0,.06);border-left:2px solid rgba(204,167,0,.5);border-radius:2px;font-size:.84em">${content}</div>`;
 }
 
-/** Stories excludeIfHasTasks skipped that look partly created, with a button that finishes them. */
+/**
+ * Stories excludeIfHasTasks skipped that look partly created. In a dry run that previewed other
+ * Stories, they can be ticked to join it: the run becomes one Resume of the previewed Stories and the
+ * ticked ones (a Resume of a Story with no Tasks creates all of them). Otherwise they are finished on
+ * their own.
+ */
 function partlyCreatedBlock(report: GenerateReport): string {
 	const stories = report.partlyCreated ?? [];
 	if (stories.length === 0) return '';
-	const rows = stories.map(story => selectableStory(story.storyId, `${esc(story.storyId)} · ${esc(story.title)}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`)).join('');
-	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">Skipped as already having Tasks, but they look partly created</div>${rows}${finishButton(stories.map(story => story.storyId), 'Finish selected Stories')}`);
+	const previewed = report.dryRun ? report.results.filter(result => result.success).map(result => result.story.id) : [];
+	const joining = previewed.length > 0;
+	const rows = stories.map(story => selectableStory(
+		story.storyId,
+		`${esc(story.storyId)} · ${esc(story.title)}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`,
+		!joining,
+	)).join('');
+	const ids = esc(stories.map(story => story.storyId).join(','));
+	const action = joining
+		? `<button class="btn-primary" style="margin-top:8px" data-finish="${ids}" data-base="${esc(previewed.join(','))}">Include in this run</button>
+<div style="margin-top:4px;color:var(--vscode-descriptionForeground)">Tick the Stories to finish along with the ones above. The preview runs again with only the missing Tasks.</div>`
+		: finishButton(stories.map(story => story.storyId), 'Finish selected Stories');
+	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">Skipped as already having Tasks, but they look partly created</div>${rows}${action}`);
 }
 
-/** Why a run stopped, the Stories it left part-way through, and those it never started. */
+/**
+ * Why a run stopped, and one list of the Stories it left part-way through and those it never
+ * started: a Resume finishes both, since for a Story with no Tasks it creates all of them.
+ */
 function stoppedBlock(report: GenerateReport): string {
 	const stopped = report.stopped;
 	if (!stopped) return '';
 	const stoppedEarly = report.results.filter(result => result.stoppedEarly);
 	const title = stopped.reason === 'timedOut' ? stopped.message : 'Run cancelled. Tasks already created were kept.';
-	const rows = stoppedEarly.map(result => selectableStory(result.story.id, `${esc(result.story.id)} · ${esc(result.story.title)}: ${result.tasksCreated.length} of ${result.tasksCalculated.length} Tasks created`)).join('');
-	const finish = stoppedEarly.length > 0 ? finishButton(stoppedEarly.map(result => result.story.id), 'Finish selected Stories') : '';
-	const notStarted = stopped.storiesNotStarted.length;
-	const notStartedHtml = notStarted > 0
-		? `<div style="margin-top:8px">${notStarted === 1 ? "1 Story wasn't started." : `${notStarted} Stories weren't started.`}</div>
-<button class="btn-secondary" style="margin-top:6px" data-run="${esc(stopped.storiesNotStarted.join(','))}">Run ${notStarted === 1 ? 'it' : 'them'} now</button>`
-		: '';
-	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">${esc(title)}</div>${rows}${finish}${notStartedHtml}`);
+	const rows = [
+		...stoppedEarly.map(result => selectableStory(result.story.id, `${esc(result.story.id)} · ${esc(result.story.title)}: ${result.tasksCreated.length} of ${result.tasksCalculated.length} Tasks created`)),
+		...stopped.storiesNotStarted.map(id => selectableStory(id, `${esc(id)}: not started`)),
+	].join('');
+	const ids = [...stoppedEarly.map(result => result.story.id), ...stopped.storiesNotStarted];
+	const finish = ids.length > 0 ? finishButton(ids, 'Finish selected Stories') : '';
+	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">${esc(title)}</div>${rows}${finish}`);
 }
 
 function pctColor(pct: number): string {
@@ -155,8 +173,6 @@ body{color:var(--vscode-editor-foreground);background:var(--vscode-editor-backgr
 .btn-stop{flex-shrink:0;background:transparent;color:var(--vscode-errorForeground,#f48771);border:1px solid var(--vscode-errorForeground,#f48771);padding:4px 12px;border-radius:2px;font-family:var(--vscode-font-family);font-size:.88em;font-weight:600;cursor:pointer}
 .btn-stop:hover:not(:disabled){background:rgba(241,76,76,.1)}
 .btn-stop:disabled{opacity:.55;cursor:default}
-.btn-secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer}
-.btn-secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .tag{display:inline-block;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:0 5px;font-size:.75em;color:var(--vscode-descriptionForeground);line-height:1.6}
 .chev{display:inline-block;width:14px;text-align:center;font-size:.9em;color:var(--vscode-descriptionForeground);transition:transform .15s ease}
 details[open]>summary .chev{transform:rotate(90deg)}
@@ -542,14 +558,13 @@ document.addEventListener('click', function(e) {
   var finish = e.target.closest('[data-finish]');
   if (finish) {
     var boxes = finish.parentElement.querySelectorAll('input[data-story]');
-    var ids = boxes.length > 0
+    var ticked = boxes.length > 0
       ? Array.prototype.filter.call(boxes, function(box) { return box.checked; }).map(function(box) { return box.getAttribute('data-story'); })
       : finish.getAttribute('data-finish').split(',');
-    if (ids.length > 0) vscode.postMessage({ type: 'finishStories', storyIds: ids });
-    return;
+    var base = finish.getAttribute('data-base');
+    var ids = (base ? base.split(',') : []).concat(ticked);
+    if (ticked.length > 0) vscode.postMessage({ type: 'finishStories', storyIds: ids });
   }
-  var run = e.target.closest('[data-run]');
-  if (run) vscode.postMessage({ type: 'runStories', storyIds: run.getAttribute('data-run').split(',') });
 });
 </script>
 </body>

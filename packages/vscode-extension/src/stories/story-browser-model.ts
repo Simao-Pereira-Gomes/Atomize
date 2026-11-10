@@ -43,9 +43,9 @@ export function browserTitle(
 	base: string,
 	mode: StoryBrowserModeKind,
 	filters: StoryBrowserFilters,
-	options: { sprintHasTasks?: boolean } = {},
+	options: { sprintTasks?: 'none' | 'any' } = {},
 ): string {
-	if (mode === 'sprint') return `${base} · Current and next sprint, ${options.sprintHasTasks ? 'with Tasks' : 'no Tasks yet'}`;
+	if (mode === 'sprint') return `${base} · Current and next sprint${options.sprintTasks === 'any' ? '' : ', no Tasks yet'}`;
 	const parts = [
 		filters.workItemTypes.length ? `Type: ${filters.workItemTypes.join(', ')}` : '',
 		filters.states.length ? `State: ${filters.states.join(', ')}` : '',
