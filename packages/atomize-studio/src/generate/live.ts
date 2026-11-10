@@ -8,8 +8,8 @@ export type GenerateWorkItem = { id: string; title: string; url?: string; type?:
 /** A Task a dry run would create; atomize-core reports these as `tasksCalculated`, leaving `tasksCreated` empty. */
 export type GeneratePlannedTask = { title: string; estimation?: number };
 
-/** A child Task a resume found for a planned Task, or a child no planned Task matched. */
-export type GenerateExistingTask = { title: string; workItemId: string };
+/** A child Task a resume found for a planned Task, or a child no planned Task matched. `url` opens it. */
+export type GenerateExistingTask = { title: string; workItemId: string; url?: string };
 
 /** A resumed Story: the planned Tasks that already exist (the rest are `tasksPlanned`), children not in the plan, and whether nothing was missing. */
 export type GenerateResumePlan = { existing: GenerateExistingTask[]; notInPlan: GenerateExistingTask[]; complete: boolean };
@@ -98,7 +98,7 @@ function parsePlannedTasks(value: unknown): GeneratePlannedTask[] {
 function parseExistingTasks(value: unknown): GenerateExistingTask[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((task) => isRecord(task) && typeof task.title === "string" && typeof task.workItemId === "string"
-    ? [{ title: task.title, workItemId: task.workItemId }]
+    ? [{ title: task.title, workItemId: task.workItemId, ...(typeof task.url === "string" ? { url: task.url } : {}) }]
     : []);
 }
 

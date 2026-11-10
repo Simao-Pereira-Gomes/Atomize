@@ -108,6 +108,22 @@ describe("parseGenerateReport", () => {
     });
   });
 
+  it("keeps each existing Task's link, so it can be opened to check it is the right Task", () => {
+    const value = {
+      report: {
+        results: [{
+          story: { id: "1", title: "A" }, tasksCalculated: [], tasksCreated: [], success: true,
+          resume: { existing: [{ title: "Design", workItemId: "E1", url: "https://dev.azure.com/org/P/_workitems/edit/E1" }], notInPlan: [{ title: "Spike", workItemId: "E9" }], complete: true },
+        }],
+      },
+    };
+    expect(parseGenerateReport(value).results[0]?.resume).toEqual({
+      existing: [{ title: "Design", workItemId: "E1", url: "https://dev.azure.com/org/P/_workitems/edit/E1" }],
+      notInPlan: [{ title: "Spike", workItemId: "E9" }],
+      complete: true,
+    });
+  });
+
   it("reads the Stories excludeIfHasTasks skipped that look partly created, dropping malformed ones", () => {
     const value = {
       report: {

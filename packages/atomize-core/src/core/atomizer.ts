@@ -175,8 +175,9 @@ export interface StoryAtomizationResult {
    * are `tasksCalculated`), the child Tasks no planned Task matched, and whether nothing was missing.
    */
   resume?: {
-    existing: Array<{ title: string; workItemId: string }>;
-    notInPlan: Array<{ title: string; workItemId: string }>;
+    /** `url` opens the Work Item, so the user can check it is the right Task. */
+    existing: Array<{ title: string; workItemId: string; url?: string }>;
+    notInPlan: Array<{ title: string; workItemId: string; url?: string }>;
     complete: boolean;
   };
   /** True when the run was cancelled or timed out before all of this Story's Tasks were created; those created are kept. */

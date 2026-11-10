@@ -13,6 +13,13 @@ import { GenerateResultRow } from "./GenerateResultRow";
 
 type Step = 1 | 2 | 3;
 
+/** `#id ↗` opening the Work Item in Azure DevOps, so the user can check it is the right Task; plain `#id` without a link. */
+function workItemLink(item: { workItemId: string; url?: string }) {
+  return item.url
+    ? <a href={item.url} target="_blank" rel="noreferrer" title="Open in Azure DevOps" class="text-indigo-600 hover:underline dark:text-indigo-400">#{item.workItemId} ↗</a>
+    : `#${item.workItemId}`;
+}
+
 /** "1 Story", "2 Stories". */
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 type StoriesState = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; stories: GenerateWorkItem[] } | { kind: "error"; message: string };
@@ -375,7 +382,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                                 {(task) => (
                                   <li class="flex items-center justify-between gap-4 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                                     <span class="min-w-0 truncate">{task.title}</span>
-                                    <span class="shrink-0 text-xs font-semibold">exists · #{task.workItemId}</span>
+                                    <span class="shrink-0 text-xs font-semibold">exists · {workItemLink(task)}</span>
                                   </li>
                                 )}
                               </For>
@@ -394,7 +401,17 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                             </ul>
                           </Show>
                           <Show when={(row.resume?.notInPlan.length ?? 0) > 0}>
-                            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Not in the plan, left as they are: {row.resume?.notInPlan.map((child) => `${child.title} (#${child.workItemId})`).join(", ")}</p>
+                            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                              Not in the plan, left as they are:{" "}
+                              <For each={row.resume?.notInPlan}>
+                                {(child, i) => (
+                                  <>
+                                    {i() > 0 ? ", " : ""}
+                                    {child.title} ({workItemLink(child)})
+                                  </>
+                                )}
+                              </For>
+                            </p>
                           </Show>
                         </div>
                       )}

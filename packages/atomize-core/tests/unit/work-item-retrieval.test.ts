@@ -184,6 +184,19 @@ describe("AzureDevOpsWorkItemRetrieval.query counting child Tasks by type", () =
     ]);
   });
 
+  test("gives each child Task its web link, built from the organization and project", async () => {
+    const { api } = storiesWithChildren(childrenOf);
+    const withProject = {
+      getWorkItems: async (requested: number[]) =>
+        (await api.getWorkItems(requested)).map((item) => ({ ...item, fields: { ...item.fields, "System.TeamProject": "P" } })),
+    };
+    const linked = new AzureDevOpsWorkItemRetrieval(withProject as never, { project: "P", team: "T", organizationUrl: "https://dev.azure.com/org" });
+
+    const stories = await linked.query({ workItemIds: ["2"], includeTaskChildren: true, taskWorkItemTypes: ["Task"] });
+
+    expect(stories[0]?.children?.[0]?.url).toBe("https://dev.azure.com/org/P/_workitems/edit/201");
+  });
+
   test("reads children only for Stories that have some, in one batch", async () => {
     const { api, childFetches } = storiesWithChildren(childrenOf);
 

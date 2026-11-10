@@ -207,12 +207,13 @@ function taskEstimate(workItem: WorkItem, fields: readonly string[]): number | u
 const round = (value: number) => Math.round(value * 100) / 100;
 
 function resumeSummary(planned: CalculatedTask[], match: ExistingTaskMatch): NonNullable<StoryAtomizationResult["resume"]> {
+  const link = (workItem: WorkItem) => (workItem.url ? { url: workItem.url } : {});
   return {
     existing: planned.flatMap((task, index) => {
       const workItem = match.existing[index];
-      return workItem ? [{ title: task.title, workItemId: workItem.id }] : [];
+      return workItem ? [{ title: task.title, workItemId: workItem.id, ...link(workItem) }] : [];
     }),
-    notInPlan: match.notInPlan.map((child) => ({ title: child.title, workItemId: child.id })),
+    notInPlan: match.notInPlan.map((child) => ({ title: child.title, workItemId: child.id, ...link(child) })),
     complete: match.missing.length === 0,
   };
 }

@@ -330,7 +330,7 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		const { panel, calls } = await openPanel([resumed], { pickedStoryIds: ['1'], resume: true });
 
 		expect(calls).toEqual([{ dryRun: true, storyIds: ['1'], resume: true }]);
-		expect(panel.webview.html).toContain('Exists · #E1');
+		expect(panel.webview.html).toContain('Exists · #E1');  // no link: the child had no url
 		expect(panel.webview.html).toContain('Not in the plan');
 	});
 
@@ -374,6 +374,25 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		await openPanel([dryReport], { pickedStoryIds: ['1'] });
 
 		expect(lastBrowse.prepare).toEqual({ withTasks: false });
+	});
+
+	it('links each existing Task and child not in the plan to its Work Item, to check it is the right one', async () => {
+		const resumed = makeReport({
+			results: [{
+				story: story('1'), tasksCalculated: [task('B')], tasksCreated: [], success: true,
+				resume: {
+					existing: [{ title: 'A', workItemId: 'E1', url: 'https://dev.azure.com/org/P/_workitems/edit/E1' }],
+					notInPlan: [{ title: 'Spike', workItemId: 'E9', url: 'https://dev.azure.com/org/P/_workitems/edit/E9' }],
+					complete: false,
+				},
+			}],
+			tasksCalculated: 1,
+			partlyCreated: [],
+		});
+		const { panel } = await openPanel([resumed], { pickedStoryIds: ['1'], resume: true });
+
+		expect(panel.webview.html).toContain('data-url="https://dev.azure.com/org/P/_workitems/edit/E1"');
+		expect(panel.webview.html).toContain('data-url="https://dev.azure.com/org/P/_workitems/edit/E9"');
 	});
 
 	it('opened to finish Stories, does nothing when no Story is picked', async () => {

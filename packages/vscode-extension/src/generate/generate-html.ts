@@ -47,8 +47,9 @@ export interface GenerateResult {
 	stoppedEarly?: boolean;
 	/** A resumed Story: planned Tasks that already exist (the rest are `tasksCalculated`), and children not in the plan. */
 	resume?: {
-		existing: Array<{ title: string; workItemId: string }>;
-		notInPlan: Array<{ title: string; workItemId: string }>;
+		/** `url` opens the Work Item, so the user can check it is the right Task. */
+		existing: Array<{ title: string; workItemId: string; url?: string }>;
+		notInPlan: Array<{ title: string; workItemId: string; url?: string }>;
 		complete: boolean;
 	};
 }
@@ -80,20 +81,27 @@ function esc(s: unknown): string {
 
 const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
-/** A resumed Story's Tasks that already exist, and its children no planned Task matched. */
+/** `#id ↗`, opening the Work Item when it has a link (the page's click handler sends `openLink`). */
+function workItemLink(item: { workItemId: string; url?: string }): string {
+	return item.url
+		? `<a data-url="${esc(item.url)}" title="Open in Azure DevOps" style="color:var(--vscode-textLink-foreground,var(--vscode-focusBorder));text-decoration:none;cursor:pointer">#${esc(item.workItemId)} ↗</a>`
+		: `#${esc(item.workItemId)}`;
+}
+
+/** A resumed Story's Tasks that already exist, and its children no planned Task matched, each linked to its Work Item. */
 function resumeLines(result: GenerateResult): string {
 	const resume = result.resume;
 	if (!resume) return '';
 	const existing = resume.existing.map(task => `
 <div style="padding:6px 10px;border:1px dashed rgba(255,255,255,.12);border-radius:3px;margin-bottom:3px;display:flex;align-items:center;gap:8px;color:var(--vscode-descriptionForeground)">
   <span style="font-size:.88em;flex:1">${esc(task.title)}</span>
-  <span style="font-size:.78em;font-weight:600">Exists · #${esc(task.workItemId)}</span>
+  <span style="font-size:.78em;font-weight:600">Exists · ${workItemLink(task)}</span>
 </div>`).join('');
 	const complete = resume.complete
 		? `<div style="margin:4px 0 8px;font-size:.82em;color:var(--vscode-testing-iconPassed)">Already complete: every planned Task exists</div>`
 		: '';
 	const notInPlan = resume.notInPlan.length > 0
-		? `<div style="margin:4px 0 8px;font-size:.8em;color:var(--vscode-descriptionForeground)">Not in the plan, left as they are: ${resume.notInPlan.map(child => `${esc(child.title)} (#${esc(child.workItemId)})`).join(', ')}</div>`
+		? `<div style="margin:4px 0 8px;font-size:.8em;color:var(--vscode-descriptionForeground)">Not in the plan, left as they are: ${resume.notInPlan.map(child => `${esc(child.title)} (${workItemLink(child)})`).join(', ')}</div>`
 		: '';
 	return complete + existing + notInPlan;
 }

@@ -196,6 +196,19 @@ describe("resuming a Partly Created Story", () => {
     });
   });
 
+  test("gives each existing child its link, so it can be opened to check it is the right Task", async () => {
+    const linked = (id: string, title: string): WorkItem => ({ ...child(id, title), url: `https://dev.azure.com/org/P/_workitems/edit/${id}` });
+    const platform = new RecordingPlatform([story("1", [linked("E1", "Design"), linked("E9", "Spike")])]);
+
+    const report = await resume(platform, template([{ title: "Design" }, { title: "Build" }]), { dryRun: true });
+
+    expect(report.results[0]?.resume).toEqual({
+      existing: [{ title: "Design", workItemId: "E1", url: "https://dev.azure.com/org/P/_workitems/edit/E1" }],
+      notInPlan: [{ title: "Spike", workItemId: "E9", url: "https://dev.azure.com/org/P/_workitems/edit/E9" }],
+      complete: false,
+    });
+  });
+
   test("reports a Story whose planned Tasks all exist as already complete, and writes nothing", async () => {
     const platform = new RecordingPlatform([story("1", [child("E1", "Design"), child("E2", "Build")])]);
 
