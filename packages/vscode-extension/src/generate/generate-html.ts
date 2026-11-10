@@ -149,6 +149,12 @@ const GEN_CSS = `${css}
 body{color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);margin:0;padding:0 18px 90px;line-height:1.625}
 .btn-primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:6px 14px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn-primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}
+.live-card{border:1px solid var(--vscode-panel-border,#3d3d3d);border-radius:4px;padding:10px 12px;background:rgba(255,255,255,.02)}
+.live-status{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.live-progress{padding-left:24px}
+.btn-stop{flex-shrink:0;background:transparent;color:var(--vscode-errorForeground,#f48771);border:1px solid var(--vscode-errorForeground,#f48771);padding:4px 12px;border-radius:2px;font-family:var(--vscode-font-family);font-size:.88em;font-weight:600;cursor:pointer}
+.btn-stop:hover:not(:disabled){background:rgba(241,76,76,.1)}
+.btn-stop:disabled{opacity:.55;cursor:default}
 .btn-secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer}
 .btn-secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .tag{display:inline-block;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:0 5px;font-size:.75em;color:var(--vscode-descriptionForeground);line-height:1.6}
@@ -709,11 +715,13 @@ export function renderGenerateLiveRunning(
 	const totalStories = dryReport.storiesSuccess;
 	const body = `${header}${collapsed}
 <div style="border-top:1px solid var(--vscode-panel-border,#3d3d3d);margin-bottom:14px"></div>
-<div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:var(--vscode-descriptionForeground)">
+<div class="live-card">
+<div class="live-status">
   <div class="spinner"></div>
-  <span style="font-size:.9em">Creating tasks in <strong style="color:var(--vscode-editor-foreground)">${esc(profile)}</strong>…</span>
+  <span id="live-status-text" style="flex:1;min-width:0;font-size:.9em;color:var(--vscode-descriptionForeground)">Creating tasks in <strong style="color:var(--vscode-editor-foreground)">${esc(profile)}</strong>…</span>
+  <button id="btn-cancel-run" class="btn-stop">Cancel run</button>
 </div>
-<div style="padding-left:24px;margin-top:4px">
+<div class="live-progress">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
     <div class="progress-track" style="flex:1">
       <div class="progress-fill" id="progress-fill" style="width:0%"></div>
@@ -725,13 +733,15 @@ export function renderGenerateLiveRunning(
     <span id="live-tasks" style="font-weight:600;color:var(--vscode-testing-iconPassed)">0</span>
     <span> tasks created</span>
   </div>
-  <button id="btn-cancel-run" class="btn-secondary" style="margin-top:12px">Cancel run</button>
-  <div id="stopping-note" style="display:none;margin-top:12px;font-size:.82em;color:var(--vscode-descriptionForeground)">Stopping: no new work will start. Waiting for the requests already sent to Azure DevOps…</div>
+</div>
 </div>`;
 	return page('Atomize: Generate · Creating…', body, `${LIVE_PROGRESS_SCRIPT}
-document.getElementById('btn-cancel-run').addEventListener('click', function() {
-  this.style.display = 'none';
-  document.getElementById('stopping-note').style.display = 'block';
+var btn = document.getElementById('btn-cancel-run');
+btn.addEventListener('click', function() {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Stopping…';
+  document.getElementById('live-status-text').textContent = 'Stopping: no new work will start. Waiting for the requests already sent…';
   vscode.postMessage({ type: 'cancelRun' });
 });`);
 }

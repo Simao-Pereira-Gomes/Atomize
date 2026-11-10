@@ -21,6 +21,16 @@ function makeDryReport(overrides?: Partial<GenerateReport>): GenerateReport {
 }
 
 describe('renderGenerateLiveRunning', () => {
+	it('puts Cancel run in the status row beside the spinner, and turns it into a disabled Stopping… in place', () => {
+		const html = renderGenerateLiveRunning(makeDryReport(), 'a.atomize.yaml', 'work');
+		const statusRow = /<div class="live-status">([\s\S]*?)<\/div>\s*<div class="live-progress">/.exec(html)?.[1] ?? '';
+
+		expect(statusRow).toContain('class="spinner"');
+		expect(statusRow).toContain('<button id="btn-cancel-run" class="btn-stop">Cancel run</button>');
+		expect(html).toContain("btn.textContent = 'Stopping…'");
+		expect(html).toContain('btn.disabled = true');
+	});
+
 	it('contains live-stories and live-tasks counter elements', () => {
 		const html = renderGenerateLiveRunning(makeDryReport(), 'templates/auth.atomize.yaml', 'work-ado');
 		expect(html).toContain('id="live-stories"');
