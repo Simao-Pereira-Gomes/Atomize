@@ -398,20 +398,25 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
           </Match>
           <Match when={fsm().kind === "executing"}>
             <div>
-              <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+              {/* The status bar, and Cancel run in it, stay in place at the top while finished Stories pile up below. */}
+              <div class="sticky top-0 z-10 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <span class="size-4 shrink-0 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                <span class="text-sm text-slate-600 dark:text-slate-300">
-                  {execPending().size > 0 ? `Creating tasks for ${[...execPending().values()].map((row) => row.story.id).join(", ")}…` : "Creating tasks…"}
+                <span class="min-w-0 flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
+                  {stopping()
+                    ? "Stopping: no new work will start…"
+                    : execPending().size > 0 ? `Creating tasks for ${[...execPending().values()].map((row) => row.story.id).join(", ")}…` : "Creating tasks…"}
                 </span>
-                <span class="ml-auto shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{execRows().length} done</span>
+                <span class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{execRows().length} done</span>
+                <button
+                  type="button"
+                  class="shrink-0 rounded-lg !border !border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 !shadow-none hover:bg-rose-50 disabled:cursor-default disabled:opacity-50 dark:!border-rose-800 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                  disabled={stopping()}
+                  onClick={cancelRun}
+                >
+                  {stopping() ? "Stopping…" : "Cancel run"}
+                </button>
               </div>
               <Show when={execRows().length > 0}>{rowsList(execRows())}</Show>
-              <Show
-                when={stopping()}
-                fallback={<button type="button" class="mt-3 text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={cancelRun}>Cancel run</button>}
-              >
-                <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">Stopping: no new work will start. Waiting for the requests already sent to Azure DevOps…</p>
-              </Show>
             </div>
           </Match>
           <Match when={fsm().kind === "error"}>
