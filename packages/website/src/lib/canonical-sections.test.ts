@@ -68,7 +68,7 @@ describe("canonical guide rendering", () => {
     const { document } = parseHTML(code);
     expect(code).toContain("every execution is still confirmed");
     expect(code).toContain("Tasks are created only after step 6");
-    expect(code).toContain("no cancel action once creation starts");
+    expect(code).toContain("<strong>Cancel run</strong> beside the spinner");
     expect(document.querySelector('img.themed-screenshot-light[src="/vscode/generate-dry-run-light.png"]')).not.toBeNull();
     expect(document.querySelector('img.themed-screenshot-dark[src="/vscode/generate-confirmation-dark.png"]')?.getAttribute("alt")).toContain("confirmation dialog");
     expect(document.querySelector('a[href="/vscode/generate/#choose-stories"]')).not.toBeNull();
