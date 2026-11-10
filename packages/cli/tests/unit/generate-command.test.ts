@@ -533,3 +533,122 @@ describe("getJsonStreamConflictError", () => {
     expect(error).toContain("--json");
   });
 });
+
+// ─── stopped and partly created Stories (#331) ───────────────────────────────
+
+describe("printReport for a run that stopped or skipped partly created Stories", () => {
+  let consoleSpy: ReturnType<typeof spyOn>;
+  beforeEach(() => {
+    consoleSpy = spyOn(console, "log").mockImplementation(noop);
+  });
+  afterEach(() => {
+    consoleSpy.mockRestore();
+  });
+  const printed = () => consoleSpy.mock.calls.flat().join("\n");
+
+  const stoppedReport = makeReport({
+    storiesProcessed: 4,
+    results: [
+      {
+        story: { id: "1", title: "Done", type: "User Story", state: "New" },
+        success: true,
+        tasksCalculated: [{ title: "A" }],
+        tasksCreated: [{ id: "T1", title: "A", type: "Task", state: "New" }],
+      },
+      {
+        story: { id: "2", title: "Half", type: "User Story", state: "New" },
+        success: true,
+        stoppedEarly: true,
+        tasksCalculated: [{ title: "A" }, { title: "B" }, { title: "C" }],
+        tasksCreated: [{ id: "T2", title: "A", type: "Task", state: "New" }],
+      },
+    ],
+    stopped: { reason: "timedOut", message: "Generation timed out: no progress for 6 min.", storiesNotStarted: ["3", "4"] },
+  });
+
+  test("lists each Story that stopped early with the command to finish it", () => {
+    printReport(stoppedReport, { verbose: false, templateRef: "template:backend-api" }, false);
+
+    expect(printed()).toContain("Generation timed out: no progress for 6 min.");
+    expect(printed()).toContain("2: Half · 1 of 3 Tasks created");
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 2 --resume --execute");
+    expect(printed()).toContain("2 Stories weren't started. Run again to process them.");
+  });
+
+  test("still prints the command to finish in quiet mode", () => {
+    printReport(stoppedReport, { verbose: false, quiet: true, templateRef: "./my templates/a.yaml" }, false);
+
+    expect(printed()).toContain("To finish: atomize generate './my templates/a.yaml' --story 2 --resume --execute");
+  });
+
+  test("lists Stories skipped by excludeIfHasTasks that look partly created, with the command to resume them", () => {
+    printReport(
+      makeReport({
+        partlyCreated: [
+          { storyId: "7", title: "Login", tasksExisting: 2, tasksPlanned: 6 },
+          { storyId: "8", title: "Logout", tasksExisting: 1, tasksPlanned: 6 },
+        ],
+      }),
+      { verbose: false, templateRef: "template:backend-api" },
+      true,
+    );
+
+    expect(printed()).toContain("7: Login · 2 of 6 planned Tasks exist");
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 7 8 --resume --execute");
+  });
+
+  test("shows a resumed Story's Tasks that exist, will be created, and aren't in the plan", () => {
+    printReport(
+      makeReport({
+        results: [
+          {
+            story: { id: "1", title: "Story", type: "User Story", state: "New" },
+            success: true,
+            tasksCalculated: [{ title: "Build", estimation: 5, estimationPercent: 50 }],
+            tasksCreated: [],
+            resume: {
+              existing: [{ title: "Design", workItemId: "E1" }],
+              notInPlan: [{ title: "Spike", workItemId: "E9" }],
+              complete: false,
+            },
+          },
+        ] as unknown as AtomizationReport["results"],
+      }),
+      { verbose: false },
+      true,
+    );
+
+    expect(printed()).toContain("exists       Design (E1)");
+    expect(printed()).toContain("will create  Build");
+    expect(printed()).toContain("not in plan  Spike (E9)");
+  });
+
+  test("says when a resumed Story was already complete", () => {
+    printReport(
+      makeReport({
+        results: [
+          {
+            story: { id: "1", title: "Story", type: "User Story", state: "New" },
+            success: true,
+            tasksCalculated: [],
+            tasksCreated: [],
+            resume: { existing: [{ title: "Design", workItemId: "E1" }], notInPlan: [], complete: true },
+          },
+        ],
+      }),
+      { verbose: false },
+      false,
+    );
+
+    expect(printed()).toContain("Already complete: every planned Task exists");
+  });
+});
+
+describe("reportExitCode for a stopped run", () => {
+  test("is Stopped (4) when the run was cancelled or timed out, even with failed Stories", () => {
+    const stopped = { reason: "cancelled" as const, message: "The run was cancelled.", storiesNotStarted: [] };
+    expect(ExitCode.Stopped).toBe(4);
+    expect(reportExitCode(makeReport({ stopped }))).toBe(ExitCode.Stopped);
+    expect(reportExitCode(makeReport({ stopped, storiesFailed: 1 }))).toBe(ExitCode.Stopped);
+  });
+});

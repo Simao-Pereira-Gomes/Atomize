@@ -1,0 +1,16 @@
+formatVersion: "1.0"
+name: "Export"
+filter:
+  workItemTypes: ["User Story"]
+  excludeIfHasTasks: true
+tasks:
+  - id: "design"
+    title: "Design export API"
+    estimationPercent: 25
+  - id: "build"
+    title: "Build export"
+    estimationPercent: 50
+    dependsOn: ["design"]
+  - id: "test"
+    title: "Test export"
+    estimationPercent: 25

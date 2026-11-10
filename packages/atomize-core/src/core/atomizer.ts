@@ -93,7 +93,8 @@ export interface AtomizationOptions {
   /**
    * How long the run may go without progress (a Story query, Story or Task finishing) before it is
    * given up as stuck: the run's signal is aborted, so no new Story or Task work starts, and `atomize`
-   * rejects with a GenerationTimeoutError. A run that keeps making progress never times out, however
+   * resolves with what was done so far (`stopped.reason: "timedOut"`), or rejects with a
+   * GenerationTimeoutError if it was still querying Stories. A run that keeps making progress never times out, however
    * long it takes. No deadline when omitted.
    */
   stallTimeoutMs?: number;
@@ -106,6 +107,39 @@ interface StoryRun {
   connectUserEmail: string;
   options: AtomizationOptions;
   warnings: string[];
+}
+
+/** A Story the run has started and not finished: what it plans to create and has created so far. */
+interface InFlightStory {
+  planned?: CalculatedTask[];
+  created: WorkItem[];
+}
+
+/** What a run has done so far, kept outside it so a run given up on can still be reported. */
+interface RunState {
+  startTime: number;
+  queried: boolean;
+  stories: WorkItem[];
+  results: Array<StoryAtomizationResult | undefined>;
+  inFlight: Map<number, InFlightStory>;
+  started: Set<number>;
+  errors: Array<{ storyId: string; error: string }>;
+  warnings: string[];
+  partlyCreated: AtomizationReport["partlyCreated"];
+}
+
+function newRunState(): RunState {
+  return {
+    startTime: Date.now(),
+    queried: false,
+    stories: [],
+    results: [],
+    inFlight: new Map(),
+    started: new Set(),
+    errors: [],
+    warnings: [],
+    partlyCreated: [],
+  };
 }
 
 /** Which Stories a run covers: specific Story IDs, or the Template's filter. */
@@ -192,6 +226,17 @@ export interface AtomizationReport {
   /** Warnings */
   warnings: string[];
 
+  /**
+   * Present when the run stopped before finishing: cancelled through `signal`, or given up after
+   * `stallTimeoutMs` without progress. Stories it was working on are in `results` with `stoppedEarly`.
+   */
+  stopped?: {
+    reason: "cancelled" | "timedOut";
+    message: string;
+    /** Stories the query matched that the run never started. */
+    storiesNotStarted: string[];
+  };
+
   /** Stories excludeIfHasTasks skipped that look partly created: some planned Tasks exist, some are missing. */
   partlyCreated: Array<{ storyId: string; title: string; tasksExisting: number; tasksPlanned: number }>;
 
@@ -223,7 +268,7 @@ export class Atomizer {
     options: AtomizationOptions = {},
   ): Promise<AtomizationReport> {
     const { stallTimeoutMs } = options;
-    if (stallTimeoutMs === undefined) return await this.run(template, options);
+    if (stallTimeoutMs === undefined) return await this.run(template, options, newRunState());
 
     const deadline = new AbortController();
     const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
@@ -247,11 +292,16 @@ export class Atomizer {
     };
 
     restartDeadline();
-    const run = this.run(template, { ...options, signal, onProgress });
+    const state = newRunState();
+    const run = this.run(template, { ...options, signal, onProgress }, state);
     // A run still winding down after the deadline settles later; its outcome is no longer reported.
     run.catch(() => undefined);
     try {
       return await Promise.race([run, stalled]);
+    } catch (error) {
+      // Stuck before any Story was found: there is nothing to report.
+      if (!(error instanceof GenerationTimeoutError) || !state.queried) throw error;
+      return this.buildReport(template, options, state, { reason: "timedOut", message: error.message });
     } finally {
       clearTimeout(timer);
     }
@@ -260,9 +310,8 @@ export class Atomizer {
   private async run(
     template: TaskTemplate,
     options: AtomizationOptions,
+    state: RunState,
   ): Promise<AtomizationReport> {
-    const startTime = Date.now();
-
     logger.info("Starting atomization process...");
     logger.info(`Template: ${template.name}`);
     logger.info(`Dry run: ${options.dryRun ? "Yes" : "No"}`);
@@ -277,6 +326,8 @@ export class Atomizer {
     onProgress?.({ type: "query_start" });
     const excluded: WorkItem[] = [];
     const stories = await this.platform.queryWorkItems(platformFilter, { onExcluded: (story) => excluded.push(story) });
+    state.stories = stories;
+    state.queried = true;
     logger.info(`Found ${stories.length} stories`);
     onProgress?.({ type: "query_complete", totalStories: stories.length });
 
@@ -284,7 +335,7 @@ export class Atomizer {
       logger.warn("No stories found matching filter criteria");
     }
 
-    const warnings: string[] = [];
+    const warnings = state.warnings;
 
     // Resolve task dependencies once (same for all stories)
     const orderedTasks = this.dependencyResolver.resolveDependencies(
@@ -292,13 +343,13 @@ export class Atomizer {
     );
     logger.debug(`Resolved ${orderedTasks.length} tasks in dependency order`);
 
-    const partlyCreated = excluded.flatMap((story) => {
-      const state = this.storyProcessor.partlyCreated(story, orderedTasks, template, connectUserEmail, options.forceNormalize);
-      if (!state) return [];
+    state.partlyCreated = excluded.flatMap((story) => {
+      const partly = this.storyProcessor.partlyCreated(story, orderedTasks, template, connectUserEmail, options.forceNormalize);
+      if (!partly) return [];
       warnings.push(
-        `${story.id} skipped (excludeIfHasTasks): ${state.tasksExisting} of ${state.tasksPlanned} planned Tasks exist; resume it to create the rest`,
+        `${story.id} skipped (excludeIfHasTasks): ${partly.tasksExisting} of ${partly.tasksPlanned} planned Tasks exist; resume it to create the rest`,
       );
-      return [{ storyId: story.id, title: story.title, ...state }];
+      return [{ storyId: story.id, title: story.title, ...partly }];
     });
 
     const storyConcurrency = options.storyConcurrency ?? 3;
@@ -306,45 +357,64 @@ export class Atomizer {
       `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,
     );
 
-    const { results, errors } = await this.processStories(
+    await this.processStories(
       stories,
       { orderedTasks, template, connectUserEmail, options, warnings },
       storyConcurrency,
+      state,
     );
 
-    const storiesSuccess = results.filter((r) => r.success).length;
-    const storiesFailed = results.filter((r) => !r.success).length;
-    const tasksCalculated = results.reduce(
-      (sum, r) => sum + r.tasksCalculated.length,
-      0,
+    const report = this.buildReport(
+      template,
+      options,
+      state,
+      options.signal?.aborted ? { reason: "cancelled", message: "The run was cancelled." } : undefined,
     );
-    const tasksCreated = results.reduce(
-      (sum, r) => sum + r.tasksCreated.length,
-      0,
-    );
-    const tasksSkipped = results.reduce(
-      (sum, r) => sum + (r.tasksSkipped?.length || 0),
-      0,
-    );
+    this.logReport(report);
+    return report;
+  }
 
-    const executionTime = Date.now() - startTime;
+  /**
+   * The report for what `state` holds. A Story still in flight (the run stopped while it was
+   * creating Tasks) is reported as stopped early with the Tasks it got so far.
+   */
+  private buildReport(
+    template: TaskTemplate,
+    options: AtomizationOptions,
+    state: RunState,
+    stopped?: { reason: "cancelled" | "timedOut"; message: string },
+  ): AtomizationReport {
+    const results = state.stories.flatMap((story, index): StoryAtomizationResult[] => {
+      const finished = state.results[index];
+      if (finished) return [finished];
+      const inFlight = state.inFlight.get(index);
+      if (!inFlight) return [];
+      return [
+        { story, tasksCalculated: inFlight.planned ?? [], tasksCreated: [...inFlight.created], success: true, stoppedEarly: true },
+      ];
+    });
+    const sum = (count: (r: StoryAtomizationResult) => number) => results.reduce((total, r) => total + count(r), 0);
+    const storiesNotStarted = state.stories.filter((_, index) => !state.started.has(index)).map((story) => story.id);
 
-    const report: AtomizationReport = {
+    return {
       templateName: template.name,
-      storiesProcessed: stories.length,
-      storiesSuccess,
-      storiesFailed,
-      tasksCalculated,
-      tasksCreated,
-      tasksSkipped,
+      storiesProcessed: state.stories.length,
+      storiesSuccess: results.filter((r) => r.success).length,
+      storiesFailed: results.filter((r) => !r.success).length,
+      tasksCalculated: sum((r) => r.tasksCalculated.length),
+      tasksCreated: sum((r) => r.tasksCreated.length),
+      tasksSkipped: sum((r) => r.tasksSkipped?.length || 0),
       results,
-      errors,
-      warnings,
-      partlyCreated,
-      executionTime,
+      errors: [...state.errors],
+      warnings: [...state.warnings],
+      partlyCreated: state.partlyCreated,
+      ...(stopped ? { stopped: { ...stopped, storiesNotStarted } } : {}),
+      executionTime: Date.now() - state.startTime,
       dryRun: options.dryRun || false,
     };
+  }
 
+  private logReport(report: AtomizationReport): void {
     logger.info(`\n${"=".repeat(60)}`);
     logger.info("ATOMIZATION COMPLETE");
     logger.info("=".repeat(60));
@@ -359,21 +429,15 @@ export class Atomizer {
     logger.info(`Mode:              ${report.dryRun ? "DRY RUN" : "LIVE"}`);
     logger.info("=".repeat(60));
 
-    if (errors.length > 0) {
-      logger.error(`\n${errors.length} error(s) encountered:`);
-      errors.forEach((err) => {
-        logger.error(`  • ${err.storyId}: ${err.error}`);
-      });
+    if (report.errors.length > 0) {
+      logger.error(`\n${report.errors.length} error(s) encountered:`);
+      for (const err of report.errors) logger.error(`  • ${err.storyId}: ${err.error}`);
     }
 
-    if (warnings.length > 0) {
-      logger.warn(`\n${warnings.length} warning(s):`);
-      warnings.forEach((warn) => {
-        logger.warn(`  • ${warn}`);
-      });
+    if (report.warnings.length > 0) {
+      logger.warn(`\n${report.warnings.length} warning(s):`);
+      for (const warn of report.warnings) logger.warn(`  • ${warn}`);
     }
-
-    return report;
   }
 
   /**
@@ -385,9 +449,10 @@ export class Atomizer {
     stories: WorkItem[],
     run: StoryRun,
     concurrency: number,
-  ): Promise<{ results: StoryAtomizationResult[]; errors: Array<{ storyId: string; error: string }> }> {
-    const results: StoryAtomizationResult[] = new Array(stories.length);
-    const errors: Array<{ storyId: string; error: string }> = [];
+    state: RunState,
+  ): Promise<void> {
+    const results = state.results;
+    const errors = state.errors;
     let stopProcessing = false;
     let completedStories = 0;
     let totalTasksCreated = 0;
@@ -399,22 +464,24 @@ export class Atomizer {
       stories,
       concurrency,
       async (story, storyIndex) => {
+        state.started.add(storyIndex);
+        const inFlight: InFlightStory = { created: [] };
+        state.inFlight.set(storyIndex, inFlight);
         onProgress?.({ type: "story_start", storyIndex, totalStories: stories.length, story });
 
-        const onTaskCreated = onProgress
-          ? (task: WorkItem) => {
-              totalTasksCreated++;
-              onProgress({
-                type: "task_created",
-                task,
-                story,
-                storyIndex,
-                totalStories: stories.length,
-                completedStories,
-                tasksCreated: totalTasksCreated,
-              });
-            }
-          : undefined;
+        const onTaskCreated = (task: WorkItem) => {
+          inFlight.created.push(task);
+          totalTasksCreated++;
+          onProgress?.({
+            type: "task_created",
+            task,
+            story,
+            storyIndex,
+            totalStories: stories.length,
+            completedStories,
+            tasksCreated: totalTasksCreated,
+          });
+        };
 
         try {
           const result = await this.storyProcessor.process(
@@ -422,10 +489,17 @@ export class Atomizer {
             run.orderedTasks,
             run.template,
             run.connectUserEmail,
-            { ...run.options, onTaskCreated },
+            {
+              ...run.options,
+              onTaskCreated,
+              onPlanned: (planned) => {
+                inFlight.planned = planned;
+              },
+            },
             run.warnings,
           );
           results[storyIndex] = result;
+          state.inFlight.delete(storyIndex);
           completedStories++;
 
           onProgress?.({
@@ -440,6 +514,7 @@ export class Atomizer {
           const failedResult = this.buildFailedResult(story, error);
           errors.push({ storyId: story.id, error: failedResult.error ?? "" });
           results[storyIndex] = failedResult;
+          state.inFlight.delete(storyIndex);
 
           completedStories++;
           onProgress?.({
@@ -459,11 +534,6 @@ export class Atomizer {
       },
       { shouldStop: isCancelled },
     );
-
-    return {
-      results: results.filter((r): r is StoryAtomizationResult => r !== undefined),
-      errors,
-    };
   }
 
   private buildFailedResult(

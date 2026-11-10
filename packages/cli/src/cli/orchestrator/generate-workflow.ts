@@ -14,6 +14,7 @@ export interface GenerateWorkflowOptions {
   continueOnError: boolean;
   limit?: number;
   storyIds?: string[];
+  resume?: boolean;
   storyConcurrency: number;
   dependencyConcurrency: number;
   forceNormalize: boolean;
@@ -41,6 +42,7 @@ export async function runGenerateWorkflow(
     continueOnError: options.continueOnError,
     limit: options.limit,
     storyIds: options.storyIds,
+    resume: options.resume,
     storyConcurrency: options.storyConcurrency,
     dependencyConcurrency: options.dependencyConcurrency,
     forceNormalize: options.forceNormalize,

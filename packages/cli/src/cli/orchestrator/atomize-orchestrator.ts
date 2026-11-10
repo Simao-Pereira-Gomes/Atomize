@@ -12,6 +12,7 @@ import type {
 } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { match } from "ts-pattern";
+import { stopOnInterrupt } from "@/cli/utilities/interrupt";
 import type { OutputSink, SpinnerHandle } from "@/cli/utilities/output-sink";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 
@@ -26,6 +27,7 @@ export interface AtomizeOptions {
   continueOnError: boolean;
   limit?: number;
   storyIds?: string[];
+  resume?: boolean;
   storyConcurrency: number;
   dependencyConcurrency: number;
   forceNormalize: boolean;
@@ -150,17 +152,24 @@ export async function runAtomization(
         (total) => progress({ max: total, style: "block", size: 30 }),
       );
 
-  const report = await atomizer.atomize(template, {
-    stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS,
-    dryRun: opts.dryRun,
-    continueOnError: opts.continueOnError,
-    limit: opts.limit,
-    storyIds: opts.storyIds,
-    storyConcurrency: opts.storyConcurrency,
-    dependencyConcurrency: opts.dependencyConcurrency,
-    forceNormalize: opts.forceNormalize,
-    onProgress,
-  });
+  const report = await stopOnInterrupt(
+    (signal) =>
+      atomizer.atomize(template, {
+        stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS,
+        signal,
+        dryRun: opts.dryRun,
+        continueOnError: opts.continueOnError,
+        limit: opts.limit,
+        storyIds: opts.storyIds,
+        resume: opts.resume,
+        storyConcurrency: opts.storyConcurrency,
+        dependencyConcurrency: opts.dependencyConcurrency,
+        forceNormalize: opts.forceNormalize,
+        onProgress,
+      }),
+    // stderr, so --json and --json-stream keep stdout to JSON.
+    () => process.stderr.write("\nStopping: no new work will start. Press Ctrl+C again to quit now.\n"),
+  );
 
   if (!opts.jsonStream && report.storiesProcessed > 0) {
     if (opts.isTTYSession && storyProgressRef.current) {

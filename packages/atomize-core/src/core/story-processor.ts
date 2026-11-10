@@ -77,6 +77,8 @@ export class StoryProcessor {
     connectUserEmail: string,
     options: Pick<AtomizationOptions, "dryRun" | "forceNormalize" | "dependencyConcurrency" | "signal" | "resume"> & {
       onTaskCreated?: (task: WorkItem) => void;
+      /** Receives the Tasks this Story will create, just before creating them. */
+      onPlanned?: (tasks: CalculatedTask[]) => void;
     },
     warnings: string[],
   ): Promise<StoryAtomizationResult> {
@@ -141,6 +143,7 @@ export class StoryProcessor {
       logger.info(`DRY RUN: Would create ${calculatedTasks.length} tasks`);
     } else {
       logger.info(`Creating ${calculatedTasks.length} tasks...`);
+      options.onPlanned?.(calculatedTasks);
       tasksCreated = await this.taskMaterializer.materialize(
         story.id,
         estimation.calculatedTasks,
