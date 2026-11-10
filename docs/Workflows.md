@@ -384,7 +384,9 @@ A stopped run lists, in one place, the Stories it left part-way through and thos
 
 - **CLI**: `atomize generate <template> --story <ids...> --resume`, then add `--execute`. A stopped run prints this command with the Story IDs filled in, both kinds included. A dry run that skipped partly created Stories prints it twice: one for those Stories alone, and one (**To include them in this run**) for them together with the Stories it previewed.
 - **VS Code**: **Finish selected Stories** in the Generate Panel's result, **Include in this run** in its dry run, or **Atomize: Finish Partly Created Stories** to pick Stories yourself.
+<!-- atomize:feature studio -->
 - **Atomize Studio**: **Finish selected Stories** in the Generate result, **Include in this run** in its Preview, or tick **Finish partly created Stories** in the Story browser.
+<!-- /atomize:feature -->
 
 ### No Stories Found
 
