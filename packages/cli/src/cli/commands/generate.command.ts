@@ -369,7 +369,10 @@ export function printReport(
   );
 
   if (report.storiesProcessed === 0) {
-    if (storyIds && storyIds.length > 0) {
+    if (report.partlyCreated.length > 0) {
+      output.printAlways(chalk.yellow("Every matching Story already has Tasks, so excludeIfHasTasks skipped them all."));
+      printFinishCommands(report, options.templateRef, output.printAlways);
+    } else if (storyIds && storyIds.length > 0) {
       output.printAlways(chalk.yellow("None of the specified stories were found."));
     } else {
       output.printAlways(chalk.yellow("No stories matched the filter criteria."));

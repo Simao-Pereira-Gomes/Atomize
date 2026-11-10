@@ -597,6 +597,23 @@ describe("printReport for a run that stopped or skipped partly created Stories",
     expect(printed()).toContain("To finish: atomize generate template:backend-api --story 7 8 --resume --execute");
   });
 
+  test("lists partly created Stories even when excludeIfHasTasks skipped every Story", () => {
+    const code = printReport(
+      makeReport({
+        storiesProcessed: 0,
+        partlyCreated: [{ storyId: "7", title: "Login", tasksExisting: 2, tasksPlanned: 6 }],
+      }),
+      { verbose: false, templateRef: "template:backend-api" },
+      true,
+    );
+
+    expect(code).toBe(ExitCode.NoMatch);
+    expect(printed()).toContain("Every matching Story already has Tasks");
+    expect(printed()).toContain("7: Login · 2 of 6 planned Tasks exist");
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 7 --resume --execute");
+    expect(printed()).not.toContain("Check your template's filter configuration");
+  });
+
   test("shows a resumed Story's Tasks that exist, will be created, and aren't in the plan", () => {
     printReport(
       makeReport({

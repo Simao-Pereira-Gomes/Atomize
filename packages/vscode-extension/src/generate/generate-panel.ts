@@ -31,7 +31,9 @@ interface OpenLinkMessage { type: 'openLink'; url: string; }
 interface FinishStoriesMessage { type: 'finishStories'; storyIds: string[]; }
 /** Run these Stories as a plain dry run (Stories a stopped run never started). */
 interface RunStoriesMessage { type: 'runStories'; storyIds: string[]; }
-type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage | FinishStoriesMessage | RunStoriesMessage;
+/** Stop the live run: no new Story or Task starts, and the result shows what was done. */
+interface CancelRunMessage { type: 'cancelRun'; }
+type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage | FinishStoriesMessage | RunStoriesMessage | CancelRunMessage;
 
 /** How the panel was opened: to generate, or to finish Partly Created Stories (a resume). */
 export interface GenerateOpenOptions { resume?: boolean; }
@@ -46,7 +48,7 @@ async function runAtomize(
 	credentialResolver: CredentialResolver,
 	profile: string,
 	fileUri: vscode.Uri,
-	options: { dryRun: boolean; continueOnError?: boolean; storyIds?: string[]; resume?: boolean; onProgress?: (event: ProgressEvent) => void },
+	options: { dryRun: boolean; continueOnError?: boolean; storyIds?: string[]; resume?: boolean; signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void },
 ): Promise<GenerateOutcome> {
 	try {
 		const adapter = await credentialResolver.resolveByName(profile);
@@ -92,6 +94,8 @@ export class GeneratePanel {
 	private _isExecuting: boolean = false;
 	/** Finishing Partly Created Stories: only the Tasks each one is missing are created. */
 	private _resume: boolean = false;
+	/** Cancels the live run in progress, if any. */
+	private _liveRun: AbortController | undefined;
 
 	private constructor(
 		panel: vscode.WebviewPanel,
@@ -194,10 +198,13 @@ export class GeneratePanel {
 			}
 
 			if (report.storiesProcessed === 0) {
-				const noMatchMsg = this._storyIds
-					? `None of the specified story IDs were found, or all were excluded by the template's excludeIfHasTasks filter. Verify the IDs are correct and accessible via the "${this._profile}" profile.`
-					: 'The filter returned no work items. Check your YAML filter conditions and verify the profile has access to the configured project.';
-				this._panel.webview.html = renderGenerateBlocked('no-matches', noMatchMsg, fileName, this._profile, this._storyIds);
+				const partlyCreated = (report.partlyCreated ?? []).length > 0;
+				const noMatchMsg = partlyCreated
+					? 'Every matching Story already has Tasks, so excludeIfHasTasks skipped them all. The Stories below look partly created: finish them to create only their missing Tasks.'
+					: this._storyIds
+						? `None of the specified story IDs were found, or all were excluded by the template's excludeIfHasTasks filter. Verify the IDs are correct and accessible via the "${this._profile}" profile.`
+						: 'The filter returned no work items. Check your YAML filter conditions and verify the profile has access to the configured project.';
+				this._panel.webview.html = renderGenerateBlocked('no-matches', noMatchMsg, fileName, this._profile, this._storyIds, report);
 				return;
 			}
 
@@ -220,6 +227,7 @@ export class GeneratePanel {
 					fileName,
 					this._profile,
 					this._storyIds,
+					report,
 				);
 				return;
 			}
@@ -239,6 +247,8 @@ export class GeneratePanel {
 		if (!dryReport) return;
 
 		this._isExecuting = true;
+		const liveRun = new AbortController();
+		this._liveRun = liveRun;
 		try {
 			const fileName = basename(this._fileUri.fsPath);
 			this._panel.title = `Atomize: ${fileName} (Generate · Creating…)`;
@@ -249,6 +259,7 @@ export class GeneratePanel {
 				continueOnError: this._continueOnError,
 				storyIds: this._storyIds,
 				...(this._resume ? { resume: true } : {}),
+				signal: liveRun.signal,
 				onProgress: event => {
 					if (event.type !== 'story_complete' && event.type !== 'story_error') return;
 					this._panel.webview.postMessage({
@@ -278,6 +289,7 @@ export class GeneratePanel {
 			if (execReport.stopped) this._panel.title = `Atomize: ${fileName} (Generate · Stopped)`;
 			this._panel.webview.html = this._renderLiveResult(dryReport, execReport, fileName);
 		} finally {
+			this._liveRun = undefined;
 			this._isExecuting = false;
 		}
 	}
@@ -323,6 +335,8 @@ export class GeneratePanel {
 
 			if (confirmed !== 'Create Tasks') return;
 			await this._runLive();
+		} else if (message.type === 'cancelRun') {
+			this._liveRun?.abort();
 		} else if (message.type === 'finishStories' || message.type === 'runStories') {
 			if (this._isExecuting || !Array.isArray(message.storyIds) || message.storyIds.length === 0) return;
 			this._storyIds = message.storyIds.filter((id): id is string => typeof id === 'string');

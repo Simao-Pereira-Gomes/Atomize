@@ -651,6 +651,8 @@ export function renderGenerateBlocked(
 	fileName: string,
 	profile: string,
 	storyIds?: string[],
+	/** The dry run's report, so Stories excludeIfHasTasks skipped that look partly created can still be finished. */
+	report?: GenerateReport,
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
 	const header = panelHeader('default', false, shortFile, profile, undefined, storyIds);
@@ -670,14 +672,16 @@ export function renderGenerateBlocked(
 	if (kind === 'no-matches') {
 		const body = header
 			+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
-			+ errorBubble('○', 'No matching stories', detail, false, '');
+			+ errorBubble('○', 'No matching stories', detail, false, '')
+			+ (report ? partlyCreatedBlock(report) : '');
 		return page('Atomize: Generate · No Matches', body, '');
 	}
 
 	// no-tasks
 	const body = header
 		+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
-		+ errorBubble('○', 'No tasks to create', detail, false, '');
+		+ errorBubble('○', 'No tasks to create', detail, false, '')
+		+ (report ? partlyCreatedBlock(report) : '');
 	return page('Atomize: Generate · No Tasks', body, '');
 }
 
@@ -709,8 +713,15 @@ export function renderGenerateLiveRunning(
     <span id="live-tasks" style="font-weight:600;color:var(--vscode-testing-iconPassed)">0</span>
     <span> tasks created</span>
   </div>
+  <button id="btn-cancel-run" class="btn-secondary" style="margin-top:12px">Cancel run</button>
+  <div id="stopping-note" style="display:none;margin-top:12px;font-size:.82em;color:var(--vscode-descriptionForeground)">Stopping: no new work will start. Waiting for the requests already sent to Azure DevOps…</div>
 </div>`;
-	return page('Atomize: Generate · Creating…', body, LIVE_PROGRESS_SCRIPT);
+	return page('Atomize: Generate · Creating…', body, `${LIVE_PROGRESS_SCRIPT}
+document.getElementById('btn-cancel-run').addEventListener('click', function() {
+  this.style.display = 'none';
+  document.getElementById('stopping-note').style.display = 'block';
+  vscode.postMessage({ type: 'cancelRun' });
+});`);
 }
 
 export function renderGenerateLiveSuccess(

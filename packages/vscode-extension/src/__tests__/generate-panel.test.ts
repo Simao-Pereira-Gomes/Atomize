@@ -323,6 +323,53 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		expect(calls).toEqual([]);
 	});
 
+	it('lists partly created Stories even when excludeIfHasTasks skipped every Story', async () => {
+		const allSkipped = makeReport({
+			storiesProcessed: 0, storiesSuccess: 0, tasksCalculated: 0, results: [],
+			partlyCreated: [{ storyId: '7', title: 'Login', tasksExisting: 2, tasksPlanned: 6 }],
+		});
+		const { panel } = await openPanel([allSkipped]);
+
+		expect(panel.webview.html).toContain('2 of 6 planned Tasks exist');
+		expect(panel.webview.html).toContain('data-finish="7"');
+	});
+
+	it('a live run can be cancelled: no new work starts, and the result lists what stopped part-way', async () => {
+		let signal: AbortSignal | undefined;
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks();
+		mockTemplateLibrary();
+		const stopped = makeReport({
+			dryRun: false,
+			results: [{ story: story('1'), tasksCalculated: [task('A'), task('B')], tasksCreated: [{ id: 'T1', title: 'A' }], success: true, stoppedEarly: true }],
+			stopped: { reason: 'cancelled', message: 'The run was cancelled.', storiesNotStarted: [] },
+			partlyCreated: [],
+		});
+		mockAtomizeCore({
+			Atomizer: class {
+				async atomize(_template: unknown, options: { dryRun?: boolean; signal?: AbortSignal }) {
+					if (options.dryRun) return dryReport;
+					signal = options.signal;
+					await new Promise((resolve) => options.signal?.addEventListener('abort', resolve));
+					return stopped;
+				}
+			},
+		});
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
+
+		panel.receive?.({ type: 'createTasks', continueOnError: false });
+		await waitFor(() => signal !== undefined);
+		expect(panel.webview.html).toContain('id="btn-cancel-run"');
+
+		panel.receive?.({ type: 'cancelRun' });
+		await waitFor(() => htmlTitle(panel.webview.html) === 'Atomize: Generate · Stopped');
+		expect(signal?.aborted).toBe(true);
+		expect(panel.webview.html).toContain('Run cancelled');
+		expect(panel.webview.html).toContain('1 of 2 Tasks created');
+	});
+
 	it('says so when every planned Task of the resumed Stories already exists', async () => {
 		const complete = makeReport({
 			results: [{ story: story('1'), tasksCalculated: [], tasksCreated: [], success: true, resume: { existing: [{ title: 'A', workItemId: 'E1' }], notInPlan: [], complete: true } }],
