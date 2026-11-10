@@ -1,3 +1,5 @@
 # Studio sidecar uses cooperative request cancellation
 
+> Superseded in part: a cancelled `generate.run` is still answered. The run stops starting new work and settles with the report of what it did, which Studio needs to show the Stories left partly created and offer to finish them (#331). The sidecar answers it after `$/cancelRequest`, and Rust keeps its waiter. A Generation Run that stalls after the cancel settles at its stall deadline. Every other request is still cancelled as below.
+
 Studio sends a JSON-RPC-style `$/cancelRequest` notification for an in-flight request when its owning authoring session is discarded or replaced. The sidecar tracks the original request by correlation id, aborts cancellable work through an `AbortController`, and suppresses any cancelled response; Rust also removes its pending receiver immediately. Cancellation is deliberately best-effort: dependencies that cannot abort may finish in the background, but their result is ignored. This extends ADR-0042's concurrent, correlated protocol without promising network-level cancellation that the underlying Azure DevOps calls cannot guarantee.

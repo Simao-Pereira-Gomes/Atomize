@@ -329,22 +329,36 @@ describe("generate.run", () => {
       .resolves.toMatchObject({ jsonrpc: "2.0", id: 93, error: { code: "INVALID_PARAMS" } });
   });
 
-  it("cancels an in-flight run without emitting a late response — mirrors validation.online's cancellation", async () => {
-    let started!: () => void;
+  it("answers a cancelled run with the report of what it did, so Studio can show which Stories stopped early", async () => {
+    let finish!: () => void;
     const generating: SidecarServices = {
       ...services,
       activeRequests: new Map(),
-      runGenerate: (_params, signal) => new Promise<never>((resolve, reject) => {
-        started = () => resolve(undefined as never);
-        signal.addEventListener("abort", () => reject(Object.assign(new Error("cancelled"), { code: "REQUEST_CANCELLED" })));
+      runGenerate: (_params, signal) => new Promise((resolve) => {
+        finish = () => resolve({ report: { stopped: { reason: signal.aborted ? "cancelled" : "none", message: "The run was cancelled.", storiesNotStarted: ["2"] } } as never });
       }),
     };
     const params = { runId: "run-5", source: "template:release-checklist", connection, dryRun: false, scope: { kind: "filter" } };
     const pending = handleLine(JSON.stringify({ jsonrpc: "2.0", id: 94, method: "generate.run", params }), generating);
     while (!generating.activeRequests.has(94)) await new Promise((resolve) => setTimeout(resolve, 0));
     await expect(handleLine('{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":94}}', generating)).resolves.toBeUndefined();
-    started();
-    await expect(pending).resolves.toBeUndefined();
+    finish();
+    await expect(pending).resolves.toMatchObject({ jsonrpc: "2.0", id: 94, result: { report: { stopped: { reason: "cancelled", storiesNotStarted: ["2"] } } } });
+  });
+
+  it("answers a run cancelled before it started with REQUEST_CANCELLED", async () => {
+    const generating: SidecarServices = {
+      ...services,
+      activeRequests: new Map(),
+      runGenerate: (_params, signal) => new Promise<never>((_, reject) => {
+        signal.addEventListener("abort", () => reject(Object.assign(new Error("Request cancelled."), { code: "REQUEST_CANCELLED" })));
+      }),
+    };
+    const params = { runId: "run-6", source: "template:release-checklist", connection, dryRun: false, scope: { kind: "filter" } };
+    const pending = handleLine(JSON.stringify({ jsonrpc: "2.0", id: 95, method: "generate.run", params }), generating);
+    while (!generating.activeRequests.has(95)) await new Promise((resolve) => setTimeout(resolve, 0));
+    await handleLine('{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":95}}', generating);
+    await expect(pending).resolves.toMatchObject({ jsonrpc: "2.0", id: 95, error: { code: "REQUEST_CANCELLED" } });
   });
 });
 

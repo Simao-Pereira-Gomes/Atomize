@@ -1,4 +1,4 @@
-export { Atomizer } from "./core/atomizer";
+export { Atomizer, DEFAULT_GENERATION_STALL_TIMEOUT_MS } from "./core/atomizer";
 export { type Logger, type LogLevel, logger, silently } from "./logger";
 export { AuthenticatedAdapterCache } from "./platforms/authenticated-adapter-cache";
 export {
