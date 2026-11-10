@@ -8,6 +8,7 @@ import { parseGenerateProgressEvent, parseGenerateReport, parseGenerateStories }
 import type { GenerateScope, LiveExecutionEvent } from "../generate/live-execution-confirmation";
 import { initialLiveExecutionState, transitionLiveExecution } from "../generate/live-execution-confirmation";
 import { formatEstimateAmount, formatTaskEstimate, type PreviewSource, previewSourceValue } from "../generate/preview";
+import { ExternalLink } from "../links/ExternalLink";
 import { cancelGenerate, listenGenerateProgress, queryGenerateStories, runGenerate, SidecarRequestError } from "../sidecar/sidecar-client";
 import { GenerateResultRow } from "./GenerateResultRow";
 
@@ -16,7 +17,7 @@ type Step = 1 | 2 | 3;
 /** `#id ↗` opening the Work Item in Azure DevOps, so the user can check it is the right Task; plain `#id` without a link. */
 function workItemLink(item: { workItemId: string; url?: string }) {
   return item.url
-    ? <a href={item.url} target="_blank" rel="noreferrer" title="Open in Azure DevOps" class="text-indigo-600 hover:underline dark:text-indigo-400">#{item.workItemId} ↗</a>
+    ? <ExternalLink href={item.url} title="Open in Azure DevOps" class="text-indigo-600 hover:underline dark:text-indigo-400">#{item.workItemId} ↗</ExternalLink>
     : `#${item.workItemId}`;
 }
 
@@ -265,6 +266,31 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     setStep(2);
   };
 
+  /** Back to the Scope step with nothing carried over, after a run finished, stopped, or failed. */
+  const startOver = () => {
+    dispatch({ type: "reset" });
+    setScope(undefined);
+    setDryRun({ kind: "idle" });
+    setExecRows([]);
+    setExecPending(new Map());
+    setExecReport(undefined);
+    setExecError({ message: "", code: "" });
+    setSelectedIds([]);
+    setResumeSelected(false);
+    setBrowsing(false);
+    setSearch("");
+    setStoriesState({ kind: "idle" });
+    setUnticked(new Set<string>());
+    setIncluded(new Set<string>());
+    setStep(1);
+  };
+
+  const newRunButton = () => (
+    <button type="button" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" onClick={startOver}>
+      ← New run
+    </button>
+  );
+
   const rowsList = (rows: GenerateResultRowData[]) => (
     <div class="mt-3">
       <Show when={rows.length > 1}>
@@ -483,7 +509,10 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     {cancelled ? "Run cancelled. Stories already sent to Azure DevOps were not rolled back." : err.message}
                   </div>
                   <Show when={execRows().length > 0}>{rowsList(execRows())}</Show>
-                  <button type="button" class="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={retry}>Try again</button>
+                  <div class="mt-3 flex items-center gap-4">
+                    <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={retry}>Try again</button>
+                    {newRunButton()}
+                  </div>
                 </div>
               );
             })()}
@@ -495,6 +524,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               const partial = report.storiesFailed > 0;
               return (
                 <div>
+                  <div class="mb-3 flex justify-end">{newRunButton()}</div>
                   <Show
                     when={report.stopped}
                     fallback={

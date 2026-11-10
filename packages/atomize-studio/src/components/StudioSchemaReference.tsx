@@ -6,16 +6,11 @@ import { getVersion } from "@tauri-apps/api/app";
 import { isTauri } from "@tauri-apps/api/core";
 import { createSignal, onMount, Show } from "solid-js";
 import { version as bundledVersion } from "../../package.json";
+import { openInBrowser } from "../links/open-in-browser";
 
 const trees = buildSchemaTrees(schema);
 const guideUrl = (anchor?: string) => `https://github.com/Simao-Pereira-Gomes/Atomize/blob/main/docs/Template-Reference.md${anchor ? `#${anchor}` : ""}`;
 
-async function openInBrowser(url: string) {
-  if (isTauri()) {
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(url);
-  } else window.open(url, "_blank", "noopener,noreferrer");
-}
 
 export const openTemplateReference = () => openInBrowser(guideUrl());
 
