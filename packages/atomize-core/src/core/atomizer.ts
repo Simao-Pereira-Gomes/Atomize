@@ -143,7 +143,10 @@ function newRunState(): RunState {
 }
 
 /** Which Stories a run covers: specific Story IDs, or the Template's filter. */
-export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit" | "resume">;
+export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit" | "resume"> & {
+  /** Keep Stories that already have Tasks (ignore excludeIfHasTasks), to pick Partly Created Stories to finish. */
+  withTasks?: boolean;
+};
 
 /**
  * The stall deadline surfaces use for an interactive Generation Run. Longer than the longest wait
@@ -596,6 +599,7 @@ export class Atomizer {
       throw new Error(`Invalid filter: ${filterValidation.errors.join(", ")}`);
     }
     const platformFilter = this.filterEngine.convertFilter(template.filter, connectUserEmail);
+    if (options.withTasks) delete platformFilter.excludeIfHasTasks;
     if (options.limit !== undefined) platformFilter.limit = options.limit;
     if (platformFilter.excludeIfHasTasks) Object.assign(platformFilter, taskWorkItemTypes);
     return platformFilter;

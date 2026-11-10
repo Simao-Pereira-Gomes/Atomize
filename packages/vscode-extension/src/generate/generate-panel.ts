@@ -68,7 +68,7 @@ async function runAtomize(
  * so the panel's own auth and blocked views still report the problem.
  */
 async function pickGenerateStories(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri, resume: boolean): Promise<string[] | undefined> {
-	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri);
+	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri, { withTasks: resume });
 	if (!source) return [];
 	return browseStories({
 		...source,

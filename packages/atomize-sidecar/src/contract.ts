@@ -53,7 +53,8 @@ export type ReferencesLoadParams = { workspaceRoot: string; entries: string[]; c
 export type ReferencesLoadResult = { grounding: DocumentGrounding | null; notices: string[]; skipped: { entry: string; message: string }[] };
 export type WikiListParams = { connection: GroundingConnection };
 export type WikiPagesParams = { connection: GroundingConnection; wiki: string };
-export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection };
+/** `withTasks` keeps Stories that already have Tasks (ignoring excludeIfHasTasks), to pick Partly Created Stories to finish. */
+export type GenerateQueryStoriesParams = { source: string; connection: GroundingConnection; withTasks?: boolean };
 export type GenerateRunParams = { runId: string; source: string; connection: GroundingConnection; dryRun: boolean; scope: GenerateScope; continueOnError?: boolean };
 
 /** Every method the sidecar answers, by its dotted name. */

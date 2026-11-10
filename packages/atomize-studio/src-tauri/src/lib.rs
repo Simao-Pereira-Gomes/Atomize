@@ -100,9 +100,9 @@ async fn ai_auth_status(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<se
 }
 
 #[tauri::command]
-async fn generate_query_stories(source: String, profile: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+async fn generate_query_stories(source: String, profile: String, with_tasks: Option<bool>, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
     let connection = connections::resolve_for_grounding(&profile).map_err(|error| sidecar::SidecarError { code: error.code.into(), message: error.message, token_rejected: false })?;
-    forget_if_rejected(&profile, relay.request("generate.queryStories", json!({ "source": source, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token } })).await)
+    forget_if_rejected(&profile, relay.request("generate.queryStories", json!({ "source": source, "connection": { "organizationUrl": connection.organization_url, "project": connection.project, "team": connection.team, "token": connection.token }, "withTasks": with_tasks.unwrap_or(false) })).await)
 }
 
 #[tauri::command]

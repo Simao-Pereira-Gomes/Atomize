@@ -39,8 +39,13 @@ export function storyDescription(story: StorySummary): string {
 }
 
 /** The QuickPick title: which mode is active and, in Search mode, every filter in effect. */
-export function browserTitle(base: string, mode: StoryBrowserModeKind, filters: StoryBrowserFilters): string {
-	if (mode === 'sprint') return `${base} · Current and next sprint, no Tasks yet`;
+export function browserTitle(
+	base: string,
+	mode: StoryBrowserModeKind,
+	filters: StoryBrowserFilters,
+	options: { sprintHasTasks?: boolean } = {},
+): string {
+	if (mode === 'sprint') return `${base} · Current and next sprint, ${options.sprintHasTasks ? 'with Tasks' : 'no Tasks yet'}`;
 	const parts = [
 		filters.workItemTypes.length ? `Type: ${filters.workItemTypes.join(', ')}` : '',
 		filters.states.length ? `State: ${filters.states.join(', ')}` : '',

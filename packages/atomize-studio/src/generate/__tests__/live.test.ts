@@ -12,6 +12,11 @@ describe("parseGenerateStories", () => {
     expect(parseGenerateStories(value)).toEqual([{ id: "1031", title: "Add OAuth login" }]);
   });
 
+  it("keeps how many Tasks each Story has, so Stories to finish can be told apart", () => {
+    const value = { stories: [{ id: "1031", title: "Add OAuth login", childCount: 2 }, { id: "1032", title: "Logout" }] };
+    expect(parseGenerateStories(value).map((story) => story.taskCount)).toEqual([2, undefined]);
+  });
+
   it("rejects a response with no stories array", () => {
     expect(() => parseGenerateStories({})).toThrow("unexpected response");
   });

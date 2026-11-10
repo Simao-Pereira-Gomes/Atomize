@@ -419,7 +419,7 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
   const template = await resolveGenerateTemplate(params.source, library);
   try {
     const adapter = await connectTo(params.connection);
-    const stories = await new Atomizer(adapter).queryStories(template);
+    const stories = await new Atomizer(adapter).queryStories(template, { withTasks: params.withTasks === true });
     return { stories };
   } catch (error) {
     throw classifyAdapterError(error, {
@@ -578,7 +578,11 @@ function generateQueryStoriesParams(params: unknown): GenerateQueryStoriesParams
   if (typeof params !== "object" || params === null || typeof (params as { source?: unknown }).source !== "string" || !(params as { source: string }).source.trim()) {
     throw Object.assign(new Error("Browsing Stories requires a Template source and a resolved connection."), { code: "INVALID_PARAMS" });
   }
-  return { source: (params as { source: string }).source, connection: groundingConnection((params as { connection?: unknown }).connection) };
+  return {
+    source: (params as { source: string }).source,
+    connection: groundingConnection((params as { connection?: unknown }).connection),
+    ...((params as { withTasks?: unknown }).withTasks === true ? { withTasks: true } : {}),
+  };
 }
 
 function generateRunParams(params: unknown): GenerateRunParams {

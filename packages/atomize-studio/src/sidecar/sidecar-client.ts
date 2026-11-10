@@ -149,8 +149,9 @@ export async function runMockPreview(source: string, mockStory: string, call: Si
   catch (error) { throw sidecarError(error); }
 }
 
-export async function queryGenerateStories(source: string, profile: string, call: SidecarInvoker = tauriInvoke): Promise<SidecarResult<"generate.queryStories">> {
-  try { return await call("generate_query_stories", { source, profile }); }
+/** `withTasks` lists Stories that already have Tasks too, to pick Partly Created Stories to finish. */
+export async function queryGenerateStories(source: string, profile: string, withTasks = false, call: SidecarInvoker = tauriInvoke): Promise<SidecarResult<"generate.queryStories">> {
+  try { return await call("generate_query_stories", { source, profile, withTasks }); }
   catch (error) { throw sidecarError(error); }
 }
 

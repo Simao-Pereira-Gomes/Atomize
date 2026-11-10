@@ -249,6 +249,15 @@ describe("resuming a Partly Created Story", () => {
     ]);
   });
 
+  test("lists the Stories the Template matches that have Tasks too, so they can be picked to finish", async () => {
+    const platform = new RecordingPlatform([story("1", [child("E1", "Design")]), story("2")]);
+
+    const stories = await new Atomizer(platform).queryStories(template([{ title: "Design" }]), { withTasks: true });
+
+    expect(stories.map((s) => s.id)).toEqual(["1", "2"]);
+    expect(platform.queries[0]?.excludeIfHasTasks).toBeUndefined();
+  });
+
   test("is refused without specific Story IDs", async () => {
     const platform = new RecordingPlatform([story("1")]);
 

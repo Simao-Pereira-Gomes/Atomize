@@ -50,7 +50,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     if (storiesState().kind !== "idle") return;
     setStoriesState({ kind: "loading" });
     try {
-      const result = await queryGenerateStories(previewSourceValue(props.source), props.profile());
+      const result = await queryGenerateStories(previewSourceValue(props.source), props.profile(), resumeSelected());
       setStoriesState({ kind: "ready", stories: parseGenerateStories(result) });
     } catch (error) {
       setStoriesState({ kind: "error", message: error instanceof SidecarRequestError ? error.message : "We could not fetch Stories from Azure DevOps." });
@@ -162,17 +162,34 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   /** Starts over at the Preview with these Stories: resumed (only their missing Tasks), or as a plain run. */
   const rerun = (storyIds: string[], resume: boolean) => {
     dispatch({ type: "reset" });
+    setUnticked(new Set<string>());
     void advanceToPreview({ kind: "stories", storyIds, ...(resume ? { resume: true } : {}) });
   };
+
+  // Stories unticked in a report's "finish" list; the rest are finished.
+  const [unticked, setUnticked] = createSignal<Set<string>>(new Set());
+  const toggleTicked = (id: string) => setUnticked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const ticked = (ids: string[]) => ids.filter((id) => !unticked().has(id));
+  const selectableStory = (id: string, text: string) => (
+    <li>
+      <label class="flex cursor-pointer items-center gap-2">
+        <input type="checkbox" checked={!unticked().has(id)} onChange={() => toggleTicked(id)} />
+        <span>{text}</span>
+      </label>
+    </li>
+  );
+  const finishButton = (ids: string[]) => (
+    <button type="button" class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none disabled:opacity-40" disabled={ticked(ids).length === 0} onClick={() => rerun(ticked(ids), true)}>Finish selected Stories →</button>
+  );
 
   const partlyCreatedBlock = (report: GenerateReport) => (
     <Show when={report.partlyCreated.length > 0}>
       <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
         <p class="font-semibold">Skipped as already having Tasks, but they look partly created:</p>
         <ul class="mt-1 space-y-0.5">
-          <For each={report.partlyCreated}>{(story) => <li>{story.storyId} · {story.title}: {story.tasksExisting} of {story.tasksPlanned} planned Tasks exist</li>}</For>
+          <For each={report.partlyCreated}>{(story) => selectableStory(story.storyId, `${story.storyId} · ${story.title}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`)}</For>
         </ul>
-        <button type="button" class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none" onClick={() => rerun(report.partlyCreated.map((story) => story.storyId), true)}>Finish these Stories →</button>
+        {finishButton(report.partlyCreated.map((story) => story.storyId))}
       </div>
     </Show>
   );
@@ -187,9 +204,9 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
         <Show when={stopped.reason === "timedOut"}><p class="mt-1">{stopped.message}</p></Show>
         <Show when={stoppedEarly.length > 0}>
           <ul class="mt-2 space-y-0.5">
-            <For each={stoppedEarly}>{(row) => <li>{row.story.id} · {row.story.title}: {row.tasksCreated.length} of {row.tasksPlanned.length} Tasks created</li>}</For>
+            <For each={stoppedEarly}>{(row) => selectableStory(row.story.id, `${row.story.id} · ${row.story.title}: ${row.tasksCreated.length} of ${row.tasksPlanned.length} Tasks created`)}</For>
           </ul>
-          <button type="button" class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none" onClick={() => rerun(stoppedEarly.map((row) => row.story.id), true)}>Finish these Stories →</button>
+          {finishButton(stoppedEarly.map((row) => row.story.id))}
         </Show>
         <Show when={stopped.storiesNotStarted.length > 0}>
           <p class="mt-2">{stopped.storiesNotStarted.length} Stor{stopped.storiesNotStarted.length === 1 ? "y wasn't" : "ies weren't"} started.</p>
@@ -259,7 +276,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     {(story) => (
                       <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">
                         <input type="checkbox" class="mt-1" checked={selectedIds().includes(story.id)} onChange={() => toggleStory(story.id)} />
-                        <div class="min-w-0"><p class="font-semibold text-slate-950 dark:text-white">{story.id} · {story.title}</p><p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{[story.type, story.state, story.areaPath].filter(Boolean).join(" · ")}</p></div>
+                        <div class="min-w-0"><p class="font-semibold text-slate-950 dark:text-white">{story.id} · {story.title}</p><p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{[story.type, story.state, story.areaPath, story.taskCount === undefined ? "" : plural(story.taskCount, "Task", "Tasks")].filter(Boolean).join(" · ")}</p></div>
                       </label>
                     )}
                   </For>
@@ -267,7 +284,17 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                 <div class="flex items-center justify-between gap-4 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
                   <p class="text-sm text-slate-500 dark:text-slate-400">{selectedIds().length} selected</p>
                   <label class="ml-auto flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300" title="Create only the Tasks each Story is missing, for Stories a stopped run left partly created. Ignores excludeIfHasTasks for them.">
-                    <input type="checkbox" checked={resumeSelected()} onChange={(e) => setResumeSelected(e.currentTarget.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={resumeSelected()}
+                      onChange={(e) => {
+                        // Stories to finish already have Tasks, which the Template's excludeIfHasTasks would hide: list them instead.
+                        setResumeSelected(e.currentTarget.checked);
+                        setSelectedIds([]);
+                        setStoriesState({ kind: "idle" });
+                        void loadStories();
+                      }}
+                    />
                     Finish partly created Stories
                   </label>
                   <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none disabled:opacity-40" disabled={selectedIds().length === 0} onClick={() => void advanceToPreview({ kind: "stories", storyIds: selectedIds(), ...(resumeSelected() ? { resume: true } : {}) })}>Continue →</button>

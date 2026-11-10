@@ -32,6 +32,8 @@ describe('story browser model', () => {
 
 	it('names the mode in the title and lists every Search filter in effect', () => {
 		expect(browserTitle('Atomize: Generate', 'sprint', emptyFilters(false))).toBe('Atomize: Generate · Current and next sprint, no Tasks yet');
+		expect(browserTitle('Atomize: Finish Partly Created Stories', 'sprint', emptyFilters(true), { sprintHasTasks: true }))
+			.toBe('Atomize: Finish Partly Created Stories · Current and next sprint, with Tasks');
 		expect(browserTitle('Atomize: Generate', 'search', emptyFilters(false))).toBe('Atomize: Generate · Search');
 		expect(browserTitle('Atomize: Generate', 'search', {
 			...emptyFilters(true), workItemTypes: ['Bug'], states: ['Active'], areaPaths: ['P\\Team A'], iterations: ['P\\Sprint 3'],

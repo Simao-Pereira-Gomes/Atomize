@@ -81,10 +81,17 @@ function setupVscodeMock(panel: FakePanel, opts: { confirm?: string } = {}): voi
 	}));
 }
 
+/** What the panel last asked the Story Browser for. */
+let lastBrowse: { prepare?: unknown; browse?: Record<string, unknown> } = {};
+
 function setupSupportMocks(opts: { pickedStoryIds?: string[] } = {}): void {
+	lastBrowse = {};
 	mock.module('../stories/story-browser.js', () => ({
-		prepareTemplateStoryBrowser: async () => ({ adapter: {}, defaultView: { kind: 'sprint' } }),
-		browseStories: async () => opts.pickedStoryIds ?? [],
+		prepareTemplateStoryBrowser: async (_resolver: unknown, _profile: unknown, _uri: unknown, prepareOptions?: unknown) => {
+			lastBrowse.prepare = prepareOptions;
+			return { adapter: {}, defaultView: { kind: 'sprint' } };
+		},
+		browseStories: async (options: Record<string, unknown>) => { lastBrowse.browse = options; return opts.pickedStoryIds ?? []; },
 	}));
 	mock.module('../config/atomize-configuration.js', () => ({
 		getDefaultProfile: () => undefined,
@@ -315,6 +322,47 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		expect(calls).toEqual([{ dryRun: true, storyIds: ['1'], resume: true }]);
 		expect(panel.webview.html).toContain('Exists · #E1');
 		expect(panel.webview.html).toContain('Not in the plan');
+	});
+
+	it('lets each partly created Story in the report be ticked or unticked before finishing', async () => {
+		const { panel } = await openPanel([{
+			...dryReport,
+			partlyCreated: [
+				{ storyId: '7', title: 'Login', tasksExisting: 2, tasksPlanned: 6 },
+				{ storyId: '8', title: 'Logout', tasksExisting: 1, tasksPlanned: 6 },
+			],
+		}]);
+
+		expect(panel.webview.html).toContain('<input type="checkbox" checked data-story="7">');
+		expect(panel.webview.html).toContain('<input type="checkbox" checked data-story="8">');
+		expect(panel.webview.html).toContain('Finish selected Stories');
+	});
+
+	it('the report after a live run still lists the partly created Stories excludeIfHasTasks skipped', async () => {
+		const created = makeReport({
+			dryRun: false,
+			results: [{ story: story('1'), tasksCalculated: [task('A')], tasksCreated: [{ id: 'T1', title: 'A' }], success: true }],
+			partlyCreated: [{ storyId: '7', title: 'Login', tasksExisting: 2, tasksPlanned: 6 }],
+		});
+		const { panel } = await openPanel([dryReport, created]);
+
+		panel.receive?.({ type: 'createTasks', continueOnError: false });
+		await waitFor(() => htmlTitle(panel.webview.html) === 'Atomize: Generate · Done');
+
+		expect(panel.webview.html).toContain('2 of 6 planned Tasks exist');
+		expect(panel.webview.html).toContain('data-story="7"');
+	});
+
+	it('opened to finish Stories, lists Stories that already have Tasks to pick from', async () => {
+		await openPanel([dryReport], { pickedStoryIds: ['1'], resume: true });
+
+		expect(lastBrowse.prepare).toEqual({ withTasks: true });
+	});
+
+	it('opened to generate, lists Stories without Tasks as before', async () => {
+		await openPanel([dryReport], { pickedStoryIds: ['1'] });
+
+		expect(lastBrowse.prepare).toEqual({ withTasks: false });
 	});
 
 	it('opened to finish Stories, does nothing when no Story is picked', async () => {

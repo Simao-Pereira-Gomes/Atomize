@@ -2,7 +2,8 @@
 // counterpart to preview.ts's Mock Preview types. Frontend-local mirrors of atomize-core's
 // WorkItem/AtomizationReport/ProgressEvent shapes, since atomize-studio doesn't depend on atomize-core.
 
-export type GenerateWorkItem = { id: string; title: string; url?: string; type?: string; state?: string; areaPath?: string };
+/** `taskCount`: how many child Tasks the Story has, when Azure DevOps reported it. */
+export type GenerateWorkItem = { id: string; title: string; url?: string; type?: string; state?: string; areaPath?: string; taskCount?: number };
 
 /** A Task a dry run would create; atomize-core reports these as `tasksCalculated`, leaving `tasksCreated` empty. */
 export type GeneratePlannedTask = { title: string; estimation?: number };
@@ -67,6 +68,7 @@ function parseWorkItem(value: unknown): GenerateWorkItem | undefined {
     type: typeof value.type === "string" ? value.type : undefined,
     state: typeof value.state === "string" ? value.state : undefined,
     areaPath: typeof value.areaPath === "string" ? value.areaPath : undefined,
+    ...(typeof value.childCount === "number" ? { taskCount: value.childCount } : {}),
   };
 }
 

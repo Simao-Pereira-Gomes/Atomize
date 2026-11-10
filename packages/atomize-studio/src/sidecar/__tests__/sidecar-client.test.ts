@@ -149,10 +149,22 @@ describe('queryGenerateStories', () => {
 			return { stories: [] } as T;
 		};
 
-		const result = await queryGenerateStories('template:release-checklist', 'contoso-prod', call);
+		const result = await queryGenerateStories('template:release-checklist', 'contoso-prod', false, call);
 
-		expect(calls).toEqual([{ command: 'generate_query_stories', args: { source: 'template:release-checklist', profile: 'contoso-prod' } }]);
+		expect(calls).toEqual([{ command: 'generate_query_stories', args: { source: 'template:release-checklist', profile: 'contoso-prod', withTasks: false } }]);
 		expect(result).toEqual({ stories: [] });
+	});
+
+	it('asks for Stories that already have Tasks when finishing Partly Created Stories', async () => {
+		const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+		const call = async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
+			calls.push({ command, args });
+			return { stories: [] } as T;
+		};
+
+		await queryGenerateStories('template:release-checklist', 'contoso-prod', true, call);
+
+		expect(calls[0]?.args).toMatchObject({ withTasks: true });
 	});
 
 	it('wraps a structured sidecar error, preserving its code', async () => {
@@ -160,7 +172,7 @@ describe('queryGenerateStories', () => {
 			throw { code: 'GENERATE_AUTH_FAILED', message: 'Atomize could not sign in to this Azure DevOps project. Check its access token, then try again.' };
 		};
 
-		const error = await queryGenerateStories('template:release-checklist', 'contoso-prod', call).catch((e) => e);
+		const error = await queryGenerateStories('template:release-checklist', 'contoso-prod', false, call).catch((e) => e);
 
 		expect(error).toBeInstanceOf(SidecarRequestError);
 		expect((error as SidecarRequestError).code).toBe('GENERATE_AUTH_FAILED');

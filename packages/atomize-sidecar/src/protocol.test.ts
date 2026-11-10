@@ -273,6 +273,16 @@ describe("generate.queryStories", () => {
     expect(received).toEqual({ source: "template:release-checklist", connection });
   });
 
+  it("passes withTasks through, so the Story browser can list Stories to finish", async () => {
+    let received: unknown;
+    const generating: SidecarServices = {
+      ...services,
+      queryGenerateStories: async (params) => { received = params; return { stories: [] }; },
+    };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 82, method: "generate.queryStories", params: { source: "template:release-checklist", connection, withTasks: true } }), generating);
+    expect(received).toEqual({ source: "template:release-checklist", connection, withTasks: true });
+  });
+
   it("rejects a missing source as INVALID_PARAMS", async () => {
     await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 81, method: "generate.queryStories", params: { connection } }), services))
       .resolves.toMatchObject({ jsonrpc: "2.0", id: 81, error: { code: "INVALID_PARAMS" } });

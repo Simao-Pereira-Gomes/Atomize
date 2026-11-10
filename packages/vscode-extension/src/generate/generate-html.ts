@@ -102,6 +102,11 @@ function finishButton(storyIds: string[], label: string): string {
 	return `<button class="btn-primary" style="margin-top:8px" data-finish="${esc(storyIds.join(','))}">${esc(label)}</button>`;
 }
 
+/** One Story the user can tick or untick before finishing; the block's button takes the ticked ones. */
+function selectableStory(storyId: string, text: string): string {
+	return `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer"><input type="checkbox" checked data-story="${esc(storyId)}">${text}</label>`;
+}
+
 function noticeBox(content: string): string {
 	return `<div style="margin:0 0 14px;padding:10px 12px;background:rgba(204,167,0,.06);border-left:2px solid rgba(204,167,0,.5);border-radius:2px;font-size:.84em">${content}</div>`;
 }
@@ -110,8 +115,8 @@ function noticeBox(content: string): string {
 function partlyCreatedBlock(report: GenerateReport): string {
 	const stories = report.partlyCreated ?? [];
 	if (stories.length === 0) return '';
-	const rows = stories.map(story => `<div>${esc(story.storyId)} · ${esc(story.title)}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist</div>`).join('');
-	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">Skipped as already having Tasks, but they look partly created</div>${rows}${finishButton(stories.map(story => story.storyId), 'Finish these Stories')}`);
+	const rows = stories.map(story => selectableStory(story.storyId, `${esc(story.storyId)} · ${esc(story.title)}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`)).join('');
+	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">Skipped as already having Tasks, but they look partly created</div>${rows}${finishButton(stories.map(story => story.storyId), 'Finish selected Stories')}`);
 }
 
 /** Why a run stopped, the Stories it left part-way through, and those it never started. */
@@ -120,8 +125,8 @@ function stoppedBlock(report: GenerateReport): string {
 	if (!stopped) return '';
 	const stoppedEarly = report.results.filter(result => result.stoppedEarly);
 	const title = stopped.reason === 'timedOut' ? stopped.message : 'Run cancelled. Tasks already created were kept.';
-	const rows = stoppedEarly.map(result => `<div>${esc(result.story.id)} · ${esc(result.story.title)}: ${result.tasksCreated.length} of ${result.tasksCalculated.length} Tasks created</div>`).join('');
-	const finish = stoppedEarly.length > 0 ? finishButton(stoppedEarly.map(result => result.story.id), 'Finish these Stories') : '';
+	const rows = stoppedEarly.map(result => selectableStory(result.story.id, `${esc(result.story.id)} · ${esc(result.story.title)}: ${result.tasksCreated.length} of ${result.tasksCalculated.length} Tasks created`)).join('');
+	const finish = stoppedEarly.length > 0 ? finishButton(stoppedEarly.map(result => result.story.id), 'Finish selected Stories') : '';
 	const notStarted = stopped.storiesNotStarted.length;
 	const notStartedHtml = notStarted > 0
 		? `<div style="margin-top:8px">${notStarted === 1 ? "1 Story wasn't started." : `${notStarted} Stories weren't started.`}</div>
@@ -529,7 +534,14 @@ document.addEventListener('click', function(e) {
 ${script}
 document.addEventListener('click', function(e) {
   var finish = e.target.closest('[data-finish]');
-  if (finish) { vscode.postMessage({ type: 'finishStories', storyIds: finish.getAttribute('data-finish').split(',') }); return; }
+  if (finish) {
+    var boxes = finish.parentElement.querySelectorAll('input[data-story]');
+    var ids = boxes.length > 0
+      ? Array.prototype.filter.call(boxes, function(box) { return box.checked; }).map(function(box) { return box.getAttribute('data-story'); })
+      : finish.getAttribute('data-finish').split(',');
+    if (ids.length > 0) vscode.postMessage({ type: 'finishStories', storyIds: ids });
+    return;
+  }
   var run = e.target.closest('[data-run]');
   if (run) vscode.postMessage({ type: 'runStories', storyIds: run.getAttribute('data-run').split(',') });
 });
@@ -745,6 +757,7 @@ export function renderGenerateLiveSuccess(
     <span class="live-badge">CREATED</span>
     <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${execReport.tasksCreated} task${execReport.tasksCreated === 1 ? '' : 's'} created across ${execReport.storiesSuccess} ${execReport.storiesSuccess === 1 ? 'story' : 'stories'} in ${esc(profile)}</span>
   </div>
+  ${partlyCreatedBlock(execReport)}
   ${stories}
 </div>`;
 	return page('Atomize: Generate · Done', body, SWITCH_MODE_SCRIPT);
@@ -771,6 +784,7 @@ export function renderGenerateLivePartial(
     <span class="partial-badge">PARTIAL</span>
     <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${execReport.tasksCreated} task${execReport.tasksCreated === 1 ? '' : 's'} created · ${execReport.storiesFailed} ${execReport.storiesFailed === 1 ? 'story' : 'stories'} failed</span>
   </div>
+  ${partlyCreatedBlock(execReport)}
   ${stories}
 </div>`;
 	return page('Atomize: Generate · Done', body, SWITCH_MODE_SCRIPT);
@@ -798,6 +812,7 @@ export function renderGenerateLiveStopped(
     <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${plural(execReport.tasksCreated, 'task', 'tasks')} created in ${esc(profile)}</span>
   </div>
   ${stoppedBlock(execReport)}
+  ${partlyCreatedBlock(execReport)}
   ${stories}
 </div>`;
 	return page('Atomize: Generate · Stopped', body, SWITCH_MODE_SCRIPT);
