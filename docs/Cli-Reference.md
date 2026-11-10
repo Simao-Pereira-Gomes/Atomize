@@ -259,6 +259,7 @@ atomize gen [template] [options]  # alias
 | `--auto-approve` | flag | - | Required with `--execute` in non-interactive mode to acknowledge live task creation |
 | `--continue-on-error` | flag | - | Keep processing other stories if one fails |
 | `--story <ids...>` | string[] | - | Target specific work items by ID, bypassing the template filter. `excludeIfHasTasks` still applies. |
+| `--resume` | flag | - | With `--story`: finish Stories a stopped run left partly created, creating only the Tasks whose title isn't already among each Story's child Tasks. `excludeIfHasTasks` is ignored for them. Refused without `--story` |
 | `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
 | `--dependency-concurrency <n>` | number | `5` | Max dependency links created in parallel (max: 10) |
@@ -294,7 +295,17 @@ Use `--story` to skip the template's `filter` criteria and process explicit work
 - Processing a one-off story that does not match the template's usual filter
 - Testing the template against a known story before a full run
 
-`excludeIfHasTasks` still applies: stories that already have tasks are skipped unless you remove that flag from the template.
+`excludeIfHasTasks` still applies: stories that already have tasks are skipped unless you remove that flag from the template. Only children of the template's `taskType` (`Task` by default) count, so a story whose only children are Bugs is still processed. A skipped story that looks partly created is listed with the command to finish it.
+
+**Finish stories a stopped run left partly created:**
+```bash
+atomize generate template:backend-api --story STORY-123 --resume            # preview: exists / will create / not in plan
+atomize generate template:backend-api --story STORY-123 --resume --execute  # create only the missing tasks
+```
+
+A resume plans each story's tasks again and creates only those whose title isn't already among the story's child tasks. It never changes or deletes an existing child, and links new tasks to existing ones where the template's `dependsOn` asks for it. A story with nothing missing is reported as already complete.
+
+**Stopping a run:** once task creation has started, the first `Ctrl+C` stops starting new work, waits for the requests already sent, prints the report, and exits `4`. A second `Ctrl+C` quits at once. A stopped report lists each story left partly created with the `To finish:` command, and how many stories weren't started.
 
 **Execute for real in CI/non-interactive mode:**
 ```bash
@@ -343,6 +354,7 @@ Do not use it in shared CI pipelines where the report artifact may be visible to
 | `1` | One or more stories failed, or live execution was refused |
 | `2` | No stories matched the filter or `--story` IDs |
 | `3` | Authentication failed |
+| `4` | The run was cancelled (`Ctrl+C`) or timed out before it finished; the report has `stopped` |
 
 The exit codes are the same with `--json` and `--json-stream`. A run with no matching stories exits `2` and still prints its report, with `storiesProcessed: 0`.
 

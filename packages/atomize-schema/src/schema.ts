@@ -230,7 +230,7 @@ export const FilterCriteriaSchema = z.object({
     .optional().meta({ "x-atomize-guide": "filter" }),
   excludeIfHasTasks: z
     .boolean()
-    .describe("If true, skips stories that already have child tasks.")
+    .describe("If true, skips stories that already have child Tasks: children of the Template's taskType (Task by default). Children of other types, such as Bugs, don't count.")
     .optional().meta({ "x-atomize-guide": "filter" }),
   savedQuery: SavedQuerySchema.describe(
     "Reference an existing Azure DevOps saved query to select stories.",

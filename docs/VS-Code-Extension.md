@@ -199,7 +199,9 @@ Runs the Generate Panel for the active Template. The panel first shows a dry-run
   <img alt="VS Code's confirmation dialog over the Generate Panel asking to create 6 tasks for 2 stories using the selected profile, with Cancel and Create Tasks buttons." src="../packages/website/public/vscode/generate-confirmation-light.png">
 </picture>
 
-Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created; there's no cancel action once creation starts. A long run is never cut off while it keeps creating Tasks; one that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops: no further Task is started, and the panel reports the timeout. The result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.
+Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created; there's no cancel action once creation starts. A long run is never cut off while it keeps creating Tasks; one that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops: no further Task is started, and the result shows **STOPPED**. It lists each Story left partly created with how many of its Tasks were created and a **Finish these Stories** button, and **Run them now** for Stories it never started. Otherwise the result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.
+
+When `excludeIfHasTasks` skips a Story that looks partly created, the dry run lists it with **Finish these Stories**. See [A Run Stopped Part-Way](./Workflows.md#a-run-stopped-part-way).
 
 The panel won't offer creation when the dry run can't support it:
 
@@ -211,6 +213,10 @@ The panel won't offer creation when the dry run can't support it:
 Use Generate only when the previewed task plan is ready to create in the connected planning system.
 
 <!-- /atomize:section -->
+
+### Atomize: Finish Partly Created Stories
+
+Finishes Stories a stopped run left partly created. It works like [Atomize: Generate](#atomize-generate), except that you must tick the Stories to finish in the Story Browser, and only the Tasks each one is missing are created. `excludeIfHasTasks` is ignored for them. The dry run shows each Story's Tasks that already exist, the Tasks it will create, and children that aren't in the plan. A Story with nothing missing is reported as already complete.
 
 ### Choosing Stories: the Story Browser
 

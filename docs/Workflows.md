@@ -167,7 +167,7 @@ See [Atomize: Generate](./VS-Code-Extension.md#atomize-generate) for what each s
 Continue from the [CLI quickstart](../README.md#start-with-the-cli): the same `generate` command previews against real Stories once you have a Connection Profile, and only creates Tasks when you ask it to.
 
 1. [Set up an Azure DevOps Connection Profile](./Auth-Guide.md#quick-setup) and make it the default, or pass `--profile <name>` on each command.
-2. Choose the Stories. By default `generate` uses the Template's `filter`. Pass `--story <ids...>` to target specific work items instead (the filter is bypassed, but `excludeIfHasTasks` still applies), or `--limit <n>` to cap how many matching items are processed.
+2. Choose the Stories. By default `generate` uses the Template's `filter`. Pass `--story <ids...>` to target specific work items instead (the filter is bypassed, but `excludeIfHasTasks` still applies), or `--limit <n>` to cap how many matching items are processed. Add `--resume` to `--story` to finish [Partly Created Stories](#a-run-stopped-part-way).
 3. Run a dry run. It is the default: without `--execute`, `generate` reads Stories and prints the planned Tasks without creating anything.
 4. Create the Tasks with `--execute` once the plan is right.
 
@@ -235,9 +235,9 @@ Without an interactive terminal (a script or CI job), `--execute` refuses to run
 └  Refusing live execution without confirmation in non-interactive mode. Re-run with --auto-approve to acknowledge task creation.
 ```
 
-**When Tasks are created:** only with `--execute`, and only after you confirm or pass `--auto-approve`. Press Ctrl+C at any prompt to cancel. Once creation has started, interrupting the process stops it, but Tasks already created stay in Azure DevOps. A run that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops the same way: no further Task is started, and `generate` reports the timeout. A long run that keeps creating Tasks is never cut off.
+**When Tasks are created:** only with `--execute`, and only after you confirm or pass `--auto-approve`. Press Ctrl+C at any prompt to cancel. Once creation has started, Ctrl+C stops the run: no further Story or Task is started, the requests already sent finish, and `generate` prints its report and exits `4`. Press Ctrl+C again to quit at once. Tasks already created stay in Azure DevOps. A run that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops the same way and reports the timeout. A long run that keeps creating Tasks is never cut off. A stopped run lists the Stories it left partly created with the command that finishes them; see [A Run Stopped Part-Way](#a-run-stopped-part-way).
 
-**Results and exit codes:** `generate` exits `0` when every Story succeeded (including a dry run), `1` when one or more Stories failed or the run was refused, `2` when no Stories matched, and `3` when authentication failed. By default the run stops after the first failing Story; pass `--continue-on-error` to keep processing the rest. To retry only the Stories that failed, re-run with `--story`; with `excludeIfHasTasks: true` in the Template, Stories that already received Tasks are skipped.
+**Results and exit codes:** `generate` exits `0` when every Story succeeded (including a dry run), `1` when one or more Stories failed or the run was refused, `2` when no Stories matched, `3` when authentication failed, and `4` when the run was cancelled or timed out. By default the run stops after the first failing Story; pass `--continue-on-error` to keep processing the rest. To retry only the Stories that failed, re-run with `--story`; with `excludeIfHasTasks: true` in the Template, Stories that already have Tasks are skipped. A Story a stopped run left partly created is skipped too, so finish it with `--story <id> --resume` instead.
 
 See [Automate With The CLI](#automate-with-the-cli) for scripts and CI, and the [`generate` reference](./Cli-Reference.md#generate) for every option.
 
@@ -349,12 +349,14 @@ Create a short-lived Connection Profile in the job from your secrets store, and 
 | `1` | One or more Stories failed, or the run was refused | Validation failed |
 | `2` | No Stories matched the filter or `--story` IDs | |
 | `3` | Authentication failed | |
+| `4` | The run was cancelled (Ctrl+C) or timed out before it finished | |
 
 The exit codes are the same with `--json` and `--json-stream`. A run with no matching Stories exits `2` and still prints its report, with `storiesProcessed: 0`.
 
 - By default `generate` stops after the first failing Story. `--continue-on-error` processes the rest and still exits `1` if any failed.
 - Test against a few items with `--limit <n>` before a full `--execute` run.
-- Re-run failed Stories with `--story <ids...>`. With `excludeIfHasTasks: true` in the Template, Stories that already received Tasks are skipped, so a retry does not duplicate them.
+- Re-run failed Stories with `--story <ids...>`. With `excludeIfHasTasks: true` in the Template, Stories that already have Tasks are skipped, so a retry does not duplicate them.
+- A run that exits `4` stopped before finishing. Its report lists the Stories it left partly created (`stoppedEarly`) and those it never started (`stopped.storiesNotStarted`). Finish the first with `--story <ids...> --resume` and run the second with `--story <ids...>`.
 
 See the [CLI Reference](./Cli-Reference.md#commands-overview) for every command and flag.
 
@@ -371,6 +373,16 @@ This applies to terminal/CI use of the CLI only: the VS Code extension runs Atom
 ```bash
 npm install -g @sppg2001/atomize
 ```
+
+### A Run Stopped Part-Way
+
+A Generation Run that is cancelled, or that stops after six minutes without progress, keeps the Tasks it already created. A Story it was working on is left a **Partly Created Story**: some of its planned Tasks exist and the rest don't. Because that Story now has Tasks, a rerun with `excludeIfHasTasks: true` skips it, and every surface flags a skipped Story that looks partly created.
+
+Finishing it is a **Resume**: Atomize plans the Story's Tasks again from the Story as it is now, and creates only the planned Tasks whose title isn't already among the Story's child Tasks. Existing children are never changed or deleted, and links are made only where one side is a new Task. The preview shows which Tasks already exist, which will be created, and which children aren't in the plan. A Resume applies only to Stories you name. A Task renamed since the stopped run no longer matches its plan, so check the preview before creating.
+
+- **CLI**: `atomize generate <template> --story <ids...> --resume`, then add `--execute`. A stopped run prints this command with the Story IDs filled in.
+- **VS Code**: **Finish these Stories** in the Generate Panel's result, or **Atomize: Finish Partly Created Stories** to pick them.
+- **Atomize Studio**: **Finish these Stories** in the Generate result, or tick **Finish partly created Stories** in the Story browser.
 
 ### No Stories Found
 
