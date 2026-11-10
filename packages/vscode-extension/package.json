@@ -95,6 +95,11 @@
 				"category": "Atomize"
 			},
 			{
+				"command": "atomize.finishPartlyCreatedStories",
+				"title": "Finish Partly Created Stories",
+				"category": "Atomize"
+			},
+			{
 				"command": "atomize.manageProfiles",
 				"title": "Manage Profiles",
 				"category": "Atomize"

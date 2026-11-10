@@ -236,3 +236,101 @@ describe('GeneratePanel', () => {
 		]);
 	});
 });
+
+// ─── Partly Created Stories (#331) ──────────────────────────────────────────
+
+describe('GeneratePanel and Partly Created Stories', () => {
+	afterEach(() => {
+		mock.restore();
+	});
+
+	const story = (id: string) => ({ id, title: `Story ${id}` });
+	const task = (title: string) => ({ title, estimation: 1 });
+
+	async function openPanel(reports: unknown[], opts: { pickedStoryIds?: string[]; resume?: boolean } = {}) {
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks({ pickedStoryIds: opts.pickedStoryIds });
+		mockTemplateLibrary();
+		const calls: Array<{ dryRun?: boolean; storyIds?: string[]; resume?: boolean }> = [];
+		mockAtomizeCore({
+			Atomizer: class {
+				async atomize(_template: unknown, options: { dryRun?: boolean; storyIds?: string[]; resume?: boolean }) {
+					calls.push({ dryRun: options.dryRun, storyIds: options.storyIds, resume: options.resume });
+					return reports[Math.min(calls.length - 1, reports.length - 1)];
+				}
+			},
+		});
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver, opts.resume ? { resume: true } : undefined);
+		return { panel, calls };
+	}
+
+	const dryReport = makeReport({
+		results: [{ story: story('1'), tasksCalculated: [task('A'), task('B'), task('C')], tasksCreated: [], success: true }],
+		tasksCalculated: 3,
+		partlyCreated: [],
+	});
+
+	it('after a cancelled run, lists the Stories it stopped part-way through and offers to finish them', async () => {
+		const stopped = makeReport({
+			dryRun: false,
+			results: [{ story: story('1'), tasksCalculated: [task('A'), task('B'), task('C')], tasksCreated: [{ id: 'T1', title: 'A' }], success: true, stoppedEarly: true }],
+			stopped: { reason: 'timedOut', message: 'Generation timed out: no progress for 6 min.', storiesNotStarted: ['2'] },
+			partlyCreated: [],
+		});
+		const { panel, calls } = await openPanel([dryReport, stopped, dryReport]);
+
+		panel.receive?.({ type: 'createTasks', continueOnError: false });
+		await waitFor(() => panel.webview.html.includes('Generation timed out'));
+
+		expect(htmlTitle(panel.webview.html)).toBe('Atomize: Generate · Stopped');
+		expect(panel.webview.html).toContain('1 of 3 Tasks created');
+		expect(panel.webview.html).toContain("1 Story wasn't started");
+		expect(panel.webview.html).toContain('data-finish="1"');
+
+		panel.receive?.({ type: 'finishStories', storyIds: ['1'] });
+		await waitFor(() => calls.length === 3);
+		expect(calls[2]).toEqual({ dryRun: true, storyIds: ['1'], resume: true });
+	});
+
+	it('a dry run lists the Stories excludeIfHasTasks skipped that look partly created, with a way to finish them', async () => {
+		const { panel } = await openPanel([{ ...dryReport, partlyCreated: [{ storyId: '7', title: 'Login', tasksExisting: 2, tasksPlanned: 6 }] }]);
+
+		expect(panel.webview.html).toContain('2 of 6 planned Tasks exist');
+		expect(panel.webview.html).toContain('data-finish="7"');
+	});
+
+	it('opened to finish Stories, resumes the picked ones and shows what already exists', async () => {
+		const resumed = makeReport({
+			results: [{
+				story: story('1'), tasksCalculated: [task('B')], tasksCreated: [], success: true,
+				resume: { existing: [{ title: 'A', workItemId: 'E1' }], notInPlan: [{ title: 'Spike', workItemId: 'E9' }], complete: false },
+			}],
+			tasksCalculated: 1,
+			partlyCreated: [],
+		});
+		const { panel, calls } = await openPanel([resumed], { pickedStoryIds: ['1'], resume: true });
+
+		expect(calls).toEqual([{ dryRun: true, storyIds: ['1'], resume: true }]);
+		expect(panel.webview.html).toContain('Exists · #E1');
+		expect(panel.webview.html).toContain('Not in the plan');
+	});
+
+	it('opened to finish Stories, does nothing when no Story is picked', async () => {
+		const { calls } = await openPanel([dryReport], { pickedStoryIds: [], resume: true });
+
+		expect(calls).toEqual([]);
+	});
+
+	it('says so when every planned Task of the resumed Stories already exists', async () => {
+		const complete = makeReport({
+			results: [{ story: story('1'), tasksCalculated: [], tasksCreated: [], success: true, resume: { existing: [{ title: 'A', workItemId: 'E1' }], notInPlan: [], complete: true } }],
+			tasksCalculated: 0,
+			partlyCreated: [],
+		});
+		const { panel } = await openPanel([complete], { pickedStoryIds: ['1'], resume: true });
+
+		expect(panel.webview.html).toContain('Every planned Task already exists');
+	});
+});

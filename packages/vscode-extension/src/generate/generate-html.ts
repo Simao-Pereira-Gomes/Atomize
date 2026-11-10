@@ -43,6 +43,14 @@ export interface GenerateResult {
 		totalTaskEstimation: number;
 		percentageUsed: number;
 	};
+	/** The run stopped while this Story's Tasks were being created; those created are kept. */
+	stoppedEarly?: boolean;
+	/** A resumed Story: planned Tasks that already exist (the rest are `tasksCalculated`), and children not in the plan. */
+	resume?: {
+		existing: Array<{ title: string; workItemId: string }>;
+		notInPlan: Array<{ title: string; workItemId: string }>;
+		complete: boolean;
+	};
 }
 
 export interface GenerateReport {
@@ -58,12 +66,68 @@ export interface GenerateReport {
 	errors: Array<{ storyId: string; error: string }>;
 	warnings: string[];
 	executionTime: number;
+	/** Present when the run was cancelled or timed out before it finished. */
+	stopped?: { reason: 'cancelled' | 'timedOut'; message: string; storiesNotStarted: string[] };
+	/** Stories excludeIfHasTasks skipped that look partly created. Absent in reports from before #331. */
+	partlyCreated?: Array<{ storyId: string; title: string; tasksExisting: number; tasksPlanned: number }>;
 }
 
 // Shared utilities
 
 function esc(s: unknown): string {
 	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
+
+/** A resumed Story's Tasks that already exist, and its children no planned Task matched. */
+function resumeLines(result: GenerateResult): string {
+	const resume = result.resume;
+	if (!resume) return '';
+	const existing = resume.existing.map(task => `
+<div style="padding:6px 10px;border:1px dashed rgba(255,255,255,.12);border-radius:3px;margin-bottom:3px;display:flex;align-items:center;gap:8px;color:var(--vscode-descriptionForeground)">
+  <span style="font-size:.88em;flex:1">${esc(task.title)}</span>
+  <span style="font-size:.78em;font-weight:600">Exists · #${esc(task.workItemId)}</span>
+</div>`).join('');
+	const complete = resume.complete
+		? `<div style="margin:4px 0 8px;font-size:.82em;color:var(--vscode-testing-iconPassed)">Already complete: every planned Task exists</div>`
+		: '';
+	const notInPlan = resume.notInPlan.length > 0
+		? `<div style="margin:4px 0 8px;font-size:.8em;color:var(--vscode-descriptionForeground)">Not in the plan, left as they are: ${resume.notInPlan.map(child => `${esc(child.title)} (#${esc(child.workItemId)})`).join(', ')}</div>`
+		: '';
+	return complete + existing + notInPlan;
+}
+
+function finishButton(storyIds: string[], label: string): string {
+	return `<button class="btn-primary" style="margin-top:8px" data-finish="${esc(storyIds.join(','))}">${esc(label)}</button>`;
+}
+
+function noticeBox(content: string): string {
+	return `<div style="margin:0 0 14px;padding:10px 12px;background:rgba(204,167,0,.06);border-left:2px solid rgba(204,167,0,.5);border-radius:2px;font-size:.84em">${content}</div>`;
+}
+
+/** Stories excludeIfHasTasks skipped that look partly created, with a button that finishes them. */
+function partlyCreatedBlock(report: GenerateReport): string {
+	const stories = report.partlyCreated ?? [];
+	if (stories.length === 0) return '';
+	const rows = stories.map(story => `<div>${esc(story.storyId)} · ${esc(story.title)}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist</div>`).join('');
+	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">Skipped as already having Tasks, but they look partly created</div>${rows}${finishButton(stories.map(story => story.storyId), 'Finish these Stories')}`);
+}
+
+/** Why a run stopped, the Stories it left part-way through, and those it never started. */
+function stoppedBlock(report: GenerateReport): string {
+	const stopped = report.stopped;
+	if (!stopped) return '';
+	const stoppedEarly = report.results.filter(result => result.stoppedEarly);
+	const title = stopped.reason === 'timedOut' ? stopped.message : 'Run cancelled. Tasks already created were kept.';
+	const rows = stoppedEarly.map(result => `<div>${esc(result.story.id)} · ${esc(result.story.title)}: ${result.tasksCreated.length} of ${result.tasksCalculated.length} Tasks created</div>`).join('');
+	const finish = stoppedEarly.length > 0 ? finishButton(stoppedEarly.map(result => result.story.id), 'Finish these Stories') : '';
+	const notStarted = stopped.storiesNotStarted.length;
+	const notStartedHtml = notStarted > 0
+		? `<div style="margin-top:8px">${notStarted === 1 ? "1 Story wasn't started." : `${notStarted} Stories weren't started.`}</div>
+<button class="btn-secondary" style="margin-top:6px" data-run="${esc(stopped.storiesNotStarted.join(','))}">Run ${notStarted === 1 ? 'it' : 'them'} now</button>`
+		: '';
+	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">${esc(title)}</div>${rows}${finish}${notStartedHtml}`);
 }
 
 function pctColor(pct: number): string {
@@ -80,6 +144,8 @@ const GEN_CSS = `${css}
 body{color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);margin:0;padding:0 18px 90px;line-height:1.625}
 .btn-primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:6px 14px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn-primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}
+.btn-secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer}
+.btn-secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .tag{display:inline-block;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:0 5px;font-size:.75em;color:var(--vscode-descriptionForeground);line-height:1.6}
 .chev{display:inline-block;width:14px;text-align:center;font-size:.9em;color:var(--vscode-descriptionForeground);transition:transform .15s ease}
 details[open]>summary .chev{transform:rotate(90deg)}
@@ -218,7 +284,7 @@ function storySection(result: GenerateResult): string {
       <span style="color:var(--vscode-testing-iconPassed);font-weight:700">${withUnit(storyH, u)}</span>
     </div>
   </summary>
-  ${warningHtml}${taskItems}
+  ${warningHtml}${resumeLines(result)}${taskItems}
 </details>`;
 }
 
@@ -255,7 +321,7 @@ function storySectionCompact(result: GenerateResult): string {
       ${storyLink} · ${tasks.length} tasks · <strong style="color:var(--vscode-testing-iconPassed)">${withUnit(storyH, u)}</strong>
     </span>
   </summary>
-  ${warningHtml}<div style="overflow-x:auto">
+  ${warningHtml}${resumeLines(result)}<div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:.83em">
       <thead><tr>
         <th style="text-align:right;padding:3px 8px 5px 0;font-size:.78em;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-panel-border,#3d3d3d)">#</th>
@@ -461,6 +527,12 @@ document.addEventListener('click', function(e) {
   if (el) { e.stopPropagation(); e.preventDefault(); var url = el.getAttribute('data-url'); if (url) vscode.postMessage({ type: 'openLink', url: url }); }
 }, true);
 ${script}
+document.addEventListener('click', function(e) {
+  var finish = e.target.closest('[data-finish]');
+  if (finish) { vscode.postMessage({ type: 'finishStories', storyIds: finish.getAttribute('data-finish').split(',') }); return; }
+  var run = e.target.closest('[data-run]');
+  if (run) vscode.postMessage({ type: 'runStories', storyIds: run.getAttribute('data-run').split(',') });
+});
 </script>
 </body>
 </html>`;
@@ -549,7 +621,7 @@ export function renderGenerateDrySuccess(
 	const stories = mode === 'default'
 		? report.results.map(storySection).join('')
 		: report.results.map(storySectionCompact).join('');
-	const body = header + kpis + stories + splitButton(report.tasksCalculated, profile);
+	const body = header + kpis + partlyCreatedBlock(report) + stories + splitButton(report.tasksCalculated, profile);
 	return page('Atomize: Generate', body, SPLIT_BUTTON_SCRIPT);
 }
 
@@ -569,7 +641,7 @@ export function renderGenerateDryWarnings(
 	const action = report.storiesFailed === 0
 		? splitButton(report.tasksCalculated, profile)
 		: `<div class="action-zone"><span style="font-size:.84em;color:var(--vscode-descriptionForeground)">⚠ ${report.storiesFailed} ${report.storiesFailed === 1 ? 'story' : 'stories'} failed. Fix errors before creating tasks.</span></div>`;
-	const body = header + kpis + stories + action;
+	const body = header + kpis + partlyCreatedBlock(report) + stories + action;
 	return page('Atomize: Generate', body, report.storiesFailed === 0 ? SPLIT_BUTTON_SCRIPT : SWITCH_MODE_SCRIPT);
 }
 
@@ -691,4 +763,31 @@ export function renderGenerateLivePartial(
   ${stories}
 </div>`;
 	return page('Atomize: Generate · Done', body, SWITCH_MODE_SCRIPT);
+}
+
+export function renderGenerateLiveStopped(
+	dryReport: GenerateReport,
+	execReport: GenerateReport,
+	mode: 'default' | 'compact',
+	fileName: string,
+	profile: string,
+	storyIds?: string[],
+): string {
+	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
+	const header = panelHeader(mode, true, shortFile, profile, execReport.templateName, storyIds);
+	const collapsed = collapsedDryRun(dryReport);
+	const stories = mode === 'default'
+		? execReport.results.map(execStoryResult).join('')
+		: execReport.results.map(execStoryResultCompact).join('');
+	const body = `${header}${collapsed}
+<div style="border-top:1px solid var(--vscode-panel-border,#3d3d3d);margin-bottom:14px"></div>
+<div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span class="partial-badge">STOPPED</span>
+    <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${plural(execReport.tasksCreated, 'task', 'tasks')} created in ${esc(profile)}</span>
+  </div>
+  ${stoppedBlock(execReport)}
+  ${stories}
+</div>`;
+	return page('Atomize: Generate · Stopped', body, SWITCH_MODE_SCRIPT);
 }

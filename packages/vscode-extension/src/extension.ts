@@ -273,6 +273,17 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			await GeneratePanel.open(doc.uri, store, credentialResolver);
 		}),
 
+		// Create only the Tasks each picked Story is missing, after a cancelled or stalled run (#331).
+		vscode.commands.registerCommand('atomize.finishPartlyCreatedStories', async (uri?: vscode.Uri) => {
+			const doc = uri
+				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
+				: vscode.window.activeTextEditor?.document;
+			if (!doc) return;
+			if (!isRunnableTemplate(doc)) return;
+			if (!await checkDirtyDocument(doc, 'generate')) return;
+			await GeneratePanel.open(doc.uri, store, credentialResolver, { resume: true });
+		}),
+
 		vscode.commands.registerCommand('atomize.manageProfiles', async () => {
 			await manageProfiles(store, credentialResolver);
 		}),
