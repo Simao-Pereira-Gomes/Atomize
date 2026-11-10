@@ -37,6 +37,7 @@ describe("parseGenerateReport", () => {
         { story: { id: "1031", title: "Add OAuth login" }, tasksCreated: [{ id: "5001", title: "Design" }], tasksPlanned: [], success: true, error: undefined, estimateUnit: undefined },
         { story: { id: "1044", title: "Rework the digest job" }, tasksCreated: [], tasksPlanned: [], success: false, error: "TF401320: rule violation", estimateUnit: undefined },
       ],
+      partlyCreated: [],
     });
   });
 
@@ -67,6 +68,53 @@ describe("parseGenerateReport", () => {
   it("derives the planned total from the Stories when the report omits it", () => {
     const value = { report: { results: [{ story: { id: "1", title: "A" }, tasksCalculated: [{ title: "Design" }, { title: "Build" }], tasksCreated: [], success: true }] } };
     expect(parseGenerateReport(value).tasksPlanned).toBe(2);
+  });
+
+  it("reads why a run stopped, and the Stories it never started", () => {
+    const value = { report: { results: [], stopped: { reason: "cancelled", message: "The run was cancelled.", storiesNotStarted: ["3", "4"] } } };
+    expect(parseGenerateReport(value).stopped).toEqual({ reason: "cancelled", message: "The run was cancelled.", storiesNotStarted: ["3", "4"] });
+  });
+
+  it("has no stopped entry for a run that finished", () => {
+    expect(parseGenerateReport({ report: { results: [] } }).stopped).toBeUndefined();
+  });
+
+  it("marks a Story the run stopped part-way through", () => {
+    const value = { report: { results: [{ story: { id: "1", title: "A" }, tasksCalculated: [{ title: "Design" }, { title: "Build" }], tasksCreated: [{ id: "5", title: "Design" }], success: true, stoppedEarly: true }] } };
+    expect(parseGenerateReport(value).results[0]).toMatchObject({ stoppedEarly: true, tasksPlanned: [{ title: "Design" }, { title: "Build" }] });
+  });
+
+  it("reads a resumed Story's existing Tasks, the children not in the plan, and whether it was complete", () => {
+    const value = {
+      report: {
+        results: [{
+          story: { id: "1", title: "A" },
+          tasksCalculated: [{ title: "Build" }],
+          tasksCreated: [],
+          success: true,
+          resume: { existing: [{ title: "Design", workItemId: "E1" }], notInPlan: [{ title: "Spike", workItemId: "E9" }], complete: false },
+        }],
+      },
+    };
+    expect(parseGenerateReport(value).results[0]?.resume).toEqual({
+      existing: [{ title: "Design", workItemId: "E1" }],
+      notInPlan: [{ title: "Spike", workItemId: "E9" }],
+      complete: false,
+    });
+  });
+
+  it("reads the Stories excludeIfHasTasks skipped that look partly created, dropping malformed ones", () => {
+    const value = {
+      report: {
+        results: [],
+        partlyCreated: [{ storyId: "7", title: "Login", tasksExisting: 2, tasksPlanned: 6 }, { storyId: "8" }],
+      },
+    };
+    expect(parseGenerateReport(value).partlyCreated).toEqual([{ storyId: "7", title: "Login", tasksExisting: 2, tasksPlanned: 6 }]);
+  });
+
+  it("reads a report from before partly created Stories were reported as having none", () => {
+    expect(parseGenerateReport({ report: { results: [] } }).partlyCreated).toEqual([]);
   });
 
   it("rejects a response with no report object", () => {

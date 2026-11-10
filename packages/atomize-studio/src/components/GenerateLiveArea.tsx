@@ -21,6 +21,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   const [search, setSearch] = createSignal("");
   const [storiesState, setStoriesState] = createSignal<StoriesState>({ kind: "idle" });
   const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
+  const [resumeSelected, setResumeSelected] = createSignal(false);
   const [scope, setScope] = createSignal<GenerateScope>();
   const [dryRun, setDryRun] = createSignal<DryRunState>({ kind: "idle" });
 
@@ -33,6 +34,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   const [execReport, setExecReport] = createSignal<GenerateReport>();
   const [execError, setExecError] = createSignal({ message: "", code: "" });
   const [activeRunId, setActiveRunId] = createSignal("");
+  const [stopping, setStopping] = createSignal(false);
   const [collapsedIds, setCollapsedIds] = createSignal<Set<string>>(new Set());
 
   const platformLabel = () => `Azure DevOps · ${props.profile()}`;
@@ -75,7 +77,9 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   const scopeSummary = () => {
     const s = scope();
     if (!s) return "";
-    return s.kind === "filter" ? "All Stories matching this Template's filter" : `${s.storyIds.length} Stor${s.storyIds.length === 1 ? "y" : "ies"} selected`;
+    if (s.kind === "filter") return "All Stories matching this Template's filter";
+    const count = `${s.storyIds.length} Stor${s.storyIds.length === 1 ? "y" : "ies"}`;
+    return s.resume ? `${count} to finish (only the missing Tasks)` : `${count} selected`;
   };
 
   const confirmExecution = () => {
@@ -93,6 +97,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     setExecPending(new Map());
     setExecReport(undefined);
     setExecError({ message: "", code: "" });
+    setStopping(false);
     const runId = crypto.randomUUID();
     setActiveRunId(runId);
 
@@ -139,12 +144,56 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     } finally {
       unlisten();
       setActiveRunId("");
+      setStopping(false);
     }
   };
 
+  // The run stops starting new work and answers with what it did, so the screen waits for that report.
   const cancelRun = () => {
     const id = activeRunId();
-    if (id) void cancelGenerate(id);
+    if (!id || stopping()) return;
+    setStopping(true);
+    void cancelGenerate(id);
+  };
+
+  /** Starts over at the Preview with these Stories: resumed (only their missing Tasks), or as a plain run. */
+  const rerun = (storyIds: string[], resume: boolean) => {
+    dispatch({ type: "reset" });
+    void advanceToPreview({ kind: "stories", storyIds, ...(resume ? { resume: true } : {}) });
+  };
+
+  const partlyCreatedBlock = (report: GenerateReport) => (
+    <Show when={report.partlyCreated.length > 0}>
+      <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+        <p class="font-semibold">Skipped as already having Tasks, but they look partly created:</p>
+        <ul class="mt-1 space-y-0.5">
+          <For each={report.partlyCreated}>{(story) => <li>{story.storyId} · {story.title}: {story.tasksExisting} of {story.tasksPlanned} planned Tasks exist</li>}</For>
+        </ul>
+        <button type="button" class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none" onClick={() => rerun(report.partlyCreated.map((story) => story.storyId), true)}>Finish these Stories →</button>
+      </div>
+    </Show>
+  );
+
+  const stoppedBlock = (report: GenerateReport) => {
+    const stopped = report.stopped;
+    if (!stopped) return null;
+    const stoppedEarly = report.results.filter((row) => row.stoppedEarly);
+    return (
+      <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+        <p class="font-semibold">{stopped.reason === "timedOut" ? "Run timed out" : "Run cancelled"}: Tasks already created were kept.</p>
+        <Show when={stopped.reason === "timedOut"}><p class="mt-1">{stopped.message}</p></Show>
+        <Show when={stoppedEarly.length > 0}>
+          <ul class="mt-2 space-y-0.5">
+            <For each={stoppedEarly}>{(row) => <li>{row.story.id} · {row.story.title}: {row.tasksCreated.length} of {row.tasksPlanned.length} Tasks created</li>}</For>
+          </ul>
+          <button type="button" class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none" onClick={() => rerun(stoppedEarly.map((row) => row.story.id), true)}>Finish these Stories →</button>
+        </Show>
+        <Show when={stopped.storiesNotStarted.length > 0}>
+          <p class="mt-2">{stopped.storiesNotStarted.length} Stor{stopped.storiesNotStarted.length === 1 ? "y wasn't" : "ies weren't"} started.</p>
+          <button type="button" class="mt-1 text-xs font-bold text-amber-800 hover:underline dark:text-amber-200" onClick={() => rerun(stopped.storiesNotStarted, false)}>Run {stopped.storiesNotStarted.length === 1 ? "it" : "them"} now →</button>
+        </Show>
+      </div>
+    );
   };
 
   const retry = () => {
@@ -212,9 +261,13 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     )}
                   </For>
                 </div>
-                <div class="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+                <div class="flex items-center justify-between gap-4 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
                   <p class="text-sm text-slate-500 dark:text-slate-400">{selectedIds().length} selected</p>
-                  <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none disabled:opacity-40" disabled={selectedIds().length === 0} onClick={() => void advanceToPreview({ kind: "stories", storyIds: selectedIds() })}>Continue →</button>
+                  <label class="ml-auto flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300" title="Create only the Tasks each Story is missing, for Stories a stopped run left partly created. Ignores excludeIfHasTasks for them.">
+                    <input type="checkbox" checked={resumeSelected()} onChange={(e) => setResumeSelected(e.currentTarget.checked)} />
+                    Finish partly created Stories
+                  </label>
+                  <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none disabled:opacity-40" disabled={selectedIds().length === 0} onClick={() => void advanceToPreview({ kind: "stories", storyIds: selectedIds(), ...(resumeSelected() ? { resume: true } : {}) })}>Continue →</button>
                 </div>
               </div>
             </Match>
@@ -231,7 +284,9 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               const report = (dryRun() as Extract<DryRunState, { kind: "ready" }>).report;
               return (
                 <div>
-                  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">DRY RUN: nothing has been created yet</div>
+                  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                    DRY RUN: nothing has been created yet{(() => { const s = scope(); return s?.kind === "stories" && s.resume ? ". Only the Tasks each Story is missing will be created." : ""; })()}
+                  </div>
                   <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
                     <For each={report.results}>
                       {(row) => (
@@ -246,6 +301,19 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                             </Show>
                           </div>
                           <Show when={row.error}><p class="mt-1 text-xs text-rose-600">{row.error}</p></Show>
+                          <Show when={row.resume?.complete}><p class="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Already complete: every planned Task exists</p></Show>
+                          <Show when={(row.resume?.existing.length ?? 0) > 0}>
+                            <ul class="mt-2 space-y-1">
+                              <For each={row.resume?.existing}>
+                                {(task) => (
+                                  <li class="flex items-center justify-between gap-4 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                                    <span class="min-w-0 truncate">{task.title}</span>
+                                    <span class="shrink-0 text-xs font-semibold">exists · #{task.workItemId}</span>
+                                  </li>
+                                )}
+                              </For>
+                            </ul>
+                          </Show>
                           <Show when={row.tasksPlanned.length > 0}>
                             <ul class="mt-2 space-y-1">
                               <For each={row.tasksPlanned}>
@@ -258,11 +326,15 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                               </For>
                             </ul>
                           </Show>
+                          <Show when={(row.resume?.notInPlan.length ?? 0) > 0}>
+                            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Not in the plan, left as they are: {row.resume?.notInPlan.map((child) => `${child.title} (#${child.workItemId})`).join(", ")}</p>
+                          </Show>
                         </div>
                       )}
                     </For>
                   </div>
-                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{report.storiesProcessed} Stories · {report.tasksPlanned} Tasks total</p>
+                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{report.storiesProcessed} Stories · {report.tasksPlanned} Tasks {(() => { const s = scope(); return s?.kind === "stories" && s.resume ? "to create" : "total"; })()}</p>
+                  {partlyCreatedBlock(report)}
                   <div class="mt-4 flex gap-3">
                     <button type="button" class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={() => setStep(1)}>← Back</button>
                     <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={() => { setStep(3); confirmExecution(); }}>Continue to Execute →</button>
@@ -304,7 +376,12 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                 <span class="ml-auto shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{execRows().length} done</span>
               </div>
               <Show when={execRows().length > 0}>{rowsList(execRows())}</Show>
-              <button type="button" class="mt-3 text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={cancelRun}>Cancel run (best-effort)</button>
+              <Show
+                when={stopping()}
+                fallback={<button type="button" class="mt-3 text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={cancelRun}>Cancel run</button>}
+              >
+                <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">Stopping: no new work will start. Waiting for the requests already sent to Azure DevOps…</p>
+              </Show>
             </div>
           </Match>
           <Match when={fsm().kind === "error"}>
@@ -329,9 +406,17 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               const partial = report.storiesFailed > 0;
               return (
                 <div>
-                  <div class={`rounded-xl border px-4 py-3 text-sm font-semibold ${partial ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"}`}>
-                    {partial ? `Partially completed: ${report.storiesFailed} of ${report.storiesProcessed} Stories failed.` : `Done: ${report.storiesSuccess} Stories, ${report.tasksCreated} Work Items created.`}
-                  </div>
+                  <Show
+                    when={report.stopped}
+                    fallback={
+                      <div class={`rounded-xl border px-4 py-3 text-sm font-semibold ${partial ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"}`}>
+                        {partial ? `Partially completed: ${report.storiesFailed} of ${report.storiesProcessed} Stories failed.` : `Done: ${report.storiesSuccess} Stories, ${report.tasksCreated} Work Items created.`}
+                      </div>
+                    }
+                  >
+                    {stoppedBlock(report)}
+                  </Show>
+                  {partlyCreatedBlock(report)}
                   {rowsList(report.results)}
                 </div>
               );

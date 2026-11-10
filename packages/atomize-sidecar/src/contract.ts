@@ -26,7 +26,8 @@ export type { DocumentGrounding, ProjectGrounding, TemplateVerificationResult };
 export type GroundingConnection = { organizationUrl: string; project: string; team: string; token: string };
 
 /** Which Stories a `generate.run` call processes (CONTEXT.md, "Generate Scope"). */
-export type GenerateScope = { kind: "stories"; storyIds: string[] } | { kind: "filter" };
+/** `resume` finishes each Story as a Partly Created Story: only its missing Tasks are created. */
+export type GenerateScope = { kind: "stories"; storyIds: string[]; resume?: boolean } | { kind: "filter" };
 
 export type CatalogListItem = TemplateCatalogItem & { content: unknown };
 export type CatalogRemoveParams = { kind: TemplateCatalogKind; name: string };

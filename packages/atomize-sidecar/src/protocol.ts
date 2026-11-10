@@ -448,6 +448,7 @@ export async function runGenerate(params: GenerateRunParams, library: SidecarTem
       dryRun: params.dryRun,
       continueOnError: params.continueOnError,
       storyIds: params.scope.kind === "stories" ? params.scope.storyIds : undefined,
+      resume: params.scope.kind === "stories" && params.scope.resume === true,
       onProgress: (event) => notify({ jsonrpc: "2.0", method: "generate.progress", params: { runId: params.runId, event } }),
       signal,
       // Also settles a cancelled run whose last requests never come back, so Studio isn't left waiting.
@@ -565,10 +566,10 @@ function onlineValidationParams(params: unknown): OnlineValidationParams {
 function generateScope(value: unknown): GenerateScope {
   const invalid = () => Object.assign(new Error("Generate requires a scope of Stories or the Template's filter."), { code: "INVALID_PARAMS" });
   if (typeof value !== "object" || value === null) throw invalid();
-  const scope = value as Partial<{ kind: unknown; storyIds: unknown }>;
+  const scope = value as Partial<{ kind: unknown; storyIds: unknown; resume: unknown }>;
   if (scope.kind === "filter") return { kind: "filter" };
   if (scope.kind === "stories" && Array.isArray(scope.storyIds) && scope.storyIds.length > 0 && scope.storyIds.every((id) => typeof id === "string")) {
-    return { kind: "stories", storyIds: scope.storyIds as string[] };
+    return { kind: "stories", storyIds: scope.storyIds as string[], ...(scope.resume === true ? { resume: true } : {}) };
   }
   throw invalid();
 }

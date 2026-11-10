@@ -317,6 +317,17 @@ describe("generate.run", () => {
     expect(received).toEqual({ ...params, continueOnError: false });
   });
 
+  it("passes resume on a Stories scope through, so a run finishes partly created Stories", async () => {
+    let received: unknown;
+    const generating: SidecarServices = {
+      ...services,
+      runGenerate: async (params) => { received = params; return { report: {} as never }; },
+    };
+    const params = { runId: "run-7", source: "template:release-checklist", connection, dryRun: true, scope: { kind: "stories", storyIds: ["1031"], resume: true } };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 96, method: "generate.run", params }), generating);
+    expect(received).toMatchObject({ scope: { kind: "stories", storyIds: ["1031"], resume: true } });
+  });
+
   it("rejects a missing dryRun flag as INVALID_PARAMS", async () => {
     const params = { runId: "run-3", source: "template:release-checklist", connection, scope: { kind: "filter" } };
     await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 92, method: "generate.run", params }), services))

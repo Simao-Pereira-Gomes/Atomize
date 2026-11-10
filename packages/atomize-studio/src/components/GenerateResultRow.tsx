@@ -5,6 +5,7 @@ import type { GenerateResultRow as GenerateResultRowData } from "../generate/liv
 
 export function GenerateResultRow(props: { row: GenerateResultRowData; open: boolean; onToggleOpen: () => void }) {
   const failed = () => !props.row.success;
+  const stoppedEarly = () => props.row.stoppedEarly === true;
   return (
     <div class={`mb-2 overflow-hidden rounded-xl border ${failed() ? "border-rose-200 dark:border-rose-900" : "border-slate-100 dark:border-slate-800"}`}>
       <button
@@ -14,7 +15,7 @@ export function GenerateResultRow(props: { row: GenerateResultRowData; open: boo
         aria-expanded={props.open}
       >
         <span class={`shrink-0 text-[10px] text-slate-400 transition-transform duration-150 ${props.open ? "rotate-90" : ""}`}>▸</span>
-        <span class={failed() ? "text-rose-600" : "text-emerald-600"}>{failed() ? "✗" : "✓"}</span>
+        <span class={failed() ? "text-rose-600" : stoppedEarly() ? "text-amber-600" : "text-emerald-600"}>{failed() ? "✗" : stoppedEarly() ? "◐" : "✓"}</span>
         <span class="flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white">{props.row.story.title}</span>
         <Show when={props.row.story.url} fallback={<span class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{props.row.story.id}</span>}>
           <a
@@ -27,8 +28,8 @@ export function GenerateResultRow(props: { row: GenerateResultRowData; open: boo
             {props.row.story.id} ↗
           </a>
         </Show>
-        <span class={`shrink-0 text-xs font-semibold ${failed() ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-          {failed() ? "failed" : `${props.row.tasksCreated.length} created`}
+        <span class={`shrink-0 text-xs font-semibold ${failed() ? "text-rose-700 dark:text-rose-300" : stoppedEarly() ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+          {failed() ? "failed" : stoppedEarly() ? `stopped · ${props.row.tasksCreated.length} of ${props.row.tasksPlanned.length} created` : `${props.row.tasksCreated.length} created`}
         </span>
       </button>
       <Show when={props.open}>
