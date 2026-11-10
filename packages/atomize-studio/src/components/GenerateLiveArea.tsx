@@ -12,6 +12,9 @@ import { cancelGenerate, listenGenerateProgress, queryGenerateStories, runGenera
 import { GenerateResultRow } from "./GenerateResultRow";
 
 type Step = 1 | 2 | 3;
+
+/** "1 Story", "2 Stories". */
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 type StoriesState = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; stories: GenerateWorkItem[] } | { kind: "error"; message: string };
 type DryRunState = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; report: GenerateReport } | { kind: "error"; message: string };
 
@@ -333,7 +336,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                       )}
                     </For>
                   </div>
-                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{report.storiesProcessed} Stories · {report.tasksPlanned} Tasks {(() => { const s = scope(); return s?.kind === "stories" && s.resume ? "to create" : "total"; })()}</p>
+                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{plural(report.storiesProcessed, "Story", "Stories")} · {plural(report.tasksPlanned, "Task", "Tasks")} {(() => { const s = scope(); return s?.kind === "stories" && s.resume ? "to create" : "total"; })()}</p>
                   {partlyCreatedBlock(report)}
                   <div class="mt-4 flex gap-3">
                     <button type="button" class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={() => setStep(1)}>← Back</button>
@@ -410,7 +413,9 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     when={report.stopped}
                     fallback={
                       <div class={`rounded-xl border px-4 py-3 text-sm font-semibold ${partial ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"}`}>
-                        {partial ? `Partially completed: ${report.storiesFailed} of ${report.storiesProcessed} Stories failed.` : `Done: ${report.storiesSuccess} Stories, ${report.tasksCreated} Work Items created.`}
+                        {partial
+                          ? `Partially completed: ${report.storiesFailed} of ${plural(report.storiesProcessed, "Story", "Stories")} failed.`
+                          : `Done: ${plural(report.storiesSuccess, "Story", "Stories")}, ${plural(report.tasksCreated, "Work Item", "Work Items")} created.`}
                       </div>
                     }
                   >
