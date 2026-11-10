@@ -522,9 +522,13 @@ function shellArg(value: string): string {
   return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, "'\\''")}'`;
 }
 
-function finishCommand(templateRef: string | undefined, storyIds: string[]): string {
+function resumeCommand(templateRef: string | undefined, storyIds: string[]): string {
   const template = templateRef === undefined ? "<template>" : shellArg(sanitizeTty(templateRef));
-  return `To finish: atomize generate ${template} --story ${storyIds.map((id) => shellArg(sanitizeTty(id))).join(" ")} --resume --execute`;
+  return `atomize generate ${template} --story ${storyIds.map((id) => shellArg(sanitizeTty(id))).join(" ")} --resume`;
+}
+
+function finishCommand(templateRef: string | undefined, storyIds: string[]): string {
+  return `To finish: ${resumeCommand(templateRef, storyIds)} --execute`;
 }
 
 /**
@@ -561,7 +565,14 @@ function printFinishCommands(report: AtomizationReport, templateRef: string | un
         ),
       );
     }
-    print(chalk.bold(`  ${finishCommand(templateRef, report.partlyCreated.map((story) => story.storyId))}`));
+    const partlyIds = report.partlyCreated.map((story) => story.storyId);
+    print(chalk.bold(`  ${finishCommand(templateRef, partlyIds)}`));
+    // A Resume of a Story with no Tasks creates all of them, so a dry run's Stories and the partly
+    // created ones can be previewed, then created, as one run.
+    const previewed = report.dryRun ? report.results.filter((result) => result.success).map((result) => result.story.id) : [];
+    if (previewed.length > 0) {
+      print(chalk.bold(`  To include them in this run: ${resumeCommand(templateRef, [...previewed, ...partlyIds])}`));
+    }
     print("");
   }
 }

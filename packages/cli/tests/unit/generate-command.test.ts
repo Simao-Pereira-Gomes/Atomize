@@ -598,6 +598,24 @@ describe("printReport for a run that stopped or skipped partly created Stories",
     expect(printed()).toContain("To finish: atomize generate template:backend-api --story 7 8 --resume --execute");
   });
 
+  test("after a dry run, also prints the command that includes the partly created Stories in the same run", () => {
+    printReport(
+      makeReport({
+        dryRun: true,
+        results: [
+          { story: { id: "1040", title: "Export", type: "User Story", state: "New" }, success: true, tasksCalculated: [{ title: "A" }], tasksCreated: [] },
+          { story: { id: "1041", title: "Broken", type: "User Story", state: "New" }, success: false, error: "x", tasksCalculated: [], tasksCreated: [] },
+        ],
+        partlyCreated: [{ storyId: "1031", title: "Login", tasksExisting: 1, tasksPlanned: 3 }],
+      }),
+      { verbose: false, templateRef: "template:backend-api" },
+      true,
+    );
+
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 1031 --resume --execute");
+    expect(printed()).toContain("To include them in this run: atomize generate template:backend-api --story 1040 1031 --resume");
+  });
+
   test("lists partly created Stories even when excludeIfHasTasks skipped every Story", () => {
     const code = printReport(
       makeReport({
