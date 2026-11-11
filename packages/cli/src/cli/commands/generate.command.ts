@@ -517,9 +517,15 @@ function printResumePlan(result: AtomizationReport["results"][number], print: (m
   for (const child of resume.notInPlan) print(chalk.gray(`    not in plan  ${sanitizeTty(child.title)} (${sanitizeTty(child.workItemId)})`));
 }
 
-/** Quotes a shell argument when it holds anything beyond the characters a shell leaves alone. */
-function shellArg(value: string): string {
-  return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, "'\\''")}'`;
+/**
+ * Quotes a shell argument when it holds anything beyond the characters a shell leaves alone. On
+ * Windows it uses double quotes, which cmd.exe and PowerShell both read; cmd.exe keeps single
+ * quotes as part of the argument.
+ */
+export function shellArg(value: string, platform: NodeJS.Platform = process.platform): string {
+  if (/^[\w@%+=:,./-]+$/.test(value)) return value;
+  if (platform === "win32") return `"${value.replace(/"/g, '""')}"`;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function resumeCommand(templateRef: string | undefined, storyIds: string[]): string {

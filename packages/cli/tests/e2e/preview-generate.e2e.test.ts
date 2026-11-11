@@ -250,9 +250,10 @@ describe("generate --resume and stopping a run", () => {
       { storyId: "STORY-007", title: "Implement data export feature", tasksExisting: 1, tasksPlanned: 3 },
     ]);
     // The printed command quotes the path when it holds characters a shell would act on, as a
-    // Windows temp path does (\ and ~).
+    // Windows temp path does (\ and ~); on Windows it uses double quotes, which cmd.exe reads.
     const template = ws.file("export.atomize.yaml");
-    const templateArg = /^[\w@%+=:,./-]+$/.test(template) ? template : `'${template}'`;
+    const quote = process.platform === "win32" ? '"' : "'";
+    const templateArg = /^[\w@%+=:,./-]+$/.test(template) ? template : `${quote}${template}${quote}`;
     expect(stdout).toContain(`To finish: atomize generate ${templateArg} --story STORY-007 --resume --execute`);
   });
 

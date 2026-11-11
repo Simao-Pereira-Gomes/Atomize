@@ -15,6 +15,7 @@ import {
   reportExitCode,
   resolveCommandLogLevel,
   resolveGenerateOutputPolicy,
+  shellArg,
 } from "@/cli/commands/generate.command";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
@@ -579,7 +580,17 @@ describe("printReport for a run that stopped or skipped partly created Stories",
   test("still prints the command to finish in quiet mode", () => {
     printReport(stoppedReport, { verbose: false, quiet: true, templateRef: "./my templates/a.yaml" }, false);
 
-    expect(printed()).toContain("To finish: atomize generate './my templates/a.yaml' --story 2 3 4 --resume --execute");
+    const template = process.platform === "win32" ? '"./my templates/a.yaml"' : "'./my templates/a.yaml'";
+    expect(printed()).toContain(`To finish: atomize generate ${template} --story 2 3 4 --resume --execute`);
+  });
+
+  test("quotes a printed argument in the way the platform's shells read", () => {
+    expect(shellArg("template:backend-api", "darwin")).toBe("template:backend-api");
+    expect(shellArg("C:\\Temp\\a.yaml", "win32")).toBe('"C:\\Temp\\a.yaml"');
+    expect(shellArg("./my templates/a.yaml", "win32")).toBe('"./my templates/a.yaml"');
+    expect(shellArg('say "hi"', "win32")).toBe('"say ""hi"""');
+    expect(shellArg("./my templates/a.yaml", "linux")).toBe("'./my templates/a.yaml'");
+    expect(shellArg("it's.yaml", "darwin")).toBe("'it'\\''s.yaml'");
   });
 
   test("lists Stories skipped by excludeIfHasTasks that look partly created, with the command to resume them", () => {
