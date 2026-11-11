@@ -249,10 +249,16 @@ describe("generate --resume and stopping a run", () => {
     expect((report as StoppedReport).partlyCreated).toEqual([
       { storyId: "STORY-007", title: "Implement data export feature", tasksExisting: 1, tasksPlanned: 3 },
     ]);
-    expect(stdout).toContain(`To finish: atomize generate ${ws.file("export.atomize.yaml")} --story STORY-007 --resume --execute`);
+    // The printed command quotes the path when it holds characters a shell would act on, as a
+    // Windows temp path does (\ and ~).
+    const template = ws.file("export.atomize.yaml");
+    const templateArg = /^[\w@%+=:,./-]+$/.test(template) ? template : `'${template}'`;
+    expect(stdout).toContain(`To finish: atomize generate ${templateArg} --story STORY-007 --resume --execute`);
   });
 
-  test("Ctrl+C stops the run cleanly: no new work starts, the report is printed, and it exits 4", async () => {
+  // Windows has no SIGINT to send a child process: Bun's kill("SIGINT") terminates it outright, so
+  // the CLI's handler never runs.
+  test.skipIf(process.platform === "win32")("Ctrl+C stops the run cleanly: no new work starts, the report is printed, and it exits 4", async () => {
     let interrupted = false;
     const result = await ws.runWhile(
       ["generate", ws.file("features.atomize.yaml"), "--platform", "mock", "--execute", "--auto-approve", "--json-stream", "--story-concurrency", "1"],
