@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { type AIDraftSession, CopilotAuthenticationError, GitHubCopilotProvider } from "@sppg2001/atomize-ai";
-import { Atomizer, AuthenticatedAdapterCache, buildAzureDevOpsConfig, TemplateLibrary } from "@sppg2001/atomize-core";
+import { Atomizer, AuthenticatedAdapterCache, buildAzureDevOpsConfig, DEFAULT_GENERATION_STALL_TIMEOUT_MS, TemplateLibrary } from "@sppg2001/atomize-core";
 import type { AtomizationReport } from "@sppg2001/atomize-core/core/atomizer";
 import type { IPlatformAdapter } from "@sppg2001/atomize-core/platforms/interfaces/platform.interface";
 import type { WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
@@ -419,7 +419,7 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
   const template = await resolveGenerateTemplate(params.source, library);
   try {
     const adapter = await connectTo(params.connection);
-    const stories = await new Atomizer(adapter).queryStories(template);
+    const stories = await new Atomizer(adapter).queryStories(template, { withTasks: params.withTasks === true });
     return { stories };
   } catch (error) {
     throw classifyAdapterError(error, {
@@ -436,7 +436,8 @@ export async function queryGenerateStories(params: GenerateQueryStoriesParams, l
  * and Execute (`dryRun: false`), see ADR-0055. The per-request `signal` (routed by Rust as a raw
  * `$/cancelRequest`, mirroring `validation.online`/`validation.cancel`) is passed straight into
  * `atomize()`'s options, so a caller-initiated cancel starts no further Story or Task — see
- * ADR-0057. Requests already sent finish, and Tasks already created are kept.
+ * ADR-0057. Requests already sent finish, Tasks already created are kept, and the run is still
+ * answered: its report carries `stopped` and the Stories left `stoppedEarly`.
  */
 export async function runGenerate(params: GenerateRunParams, library: SidecarTemplateLibrary, notify: SidecarServices["notify"], signal: AbortSignal): Promise<{ report: AtomizationReport }> {
   const template = await resolveGenerateTemplate(params.source, library);
@@ -447,8 +448,11 @@ export async function runGenerate(params: GenerateRunParams, library: SidecarTem
       dryRun: params.dryRun,
       continueOnError: params.continueOnError,
       storyIds: params.scope.kind === "stories" ? params.scope.storyIds : undefined,
+      resume: params.scope.kind === "stories" && params.scope.resume === true,
       onProgress: (event) => notify({ jsonrpc: "2.0", method: "generate.progress", params: { runId: params.runId, event } }),
       signal,
+      // Also settles a cancelled run whose last requests never come back, so Studio isn't left waiting.
+      stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS,
     });
     return { report };
   } catch (error) {
@@ -562,10 +566,10 @@ function onlineValidationParams(params: unknown): OnlineValidationParams {
 function generateScope(value: unknown): GenerateScope {
   const invalid = () => Object.assign(new Error("Generate requires a scope of Stories or the Template's filter."), { code: "INVALID_PARAMS" });
   if (typeof value !== "object" || value === null) throw invalid();
-  const scope = value as Partial<{ kind: unknown; storyIds: unknown }>;
+  const scope = value as Partial<{ kind: unknown; storyIds: unknown; resume: unknown }>;
   if (scope.kind === "filter") return { kind: "filter" };
   if (scope.kind === "stories" && Array.isArray(scope.storyIds) && scope.storyIds.length > 0 && scope.storyIds.every((id) => typeof id === "string")) {
-    return { kind: "stories", storyIds: scope.storyIds as string[] };
+    return { kind: "stories", storyIds: scope.storyIds as string[], ...(scope.resume === true ? { resume: true } : {}) };
   }
   throw invalid();
 }
@@ -574,7 +578,11 @@ function generateQueryStoriesParams(params: unknown): GenerateQueryStoriesParams
   if (typeof params !== "object" || params === null || typeof (params as { source?: unknown }).source !== "string" || !(params as { source: string }).source.trim()) {
     throw Object.assign(new Error("Browsing Stories requires a Template source and a resolved connection."), { code: "INVALID_PARAMS" });
   }
-  return { source: (params as { source: string }).source, connection: groundingConnection((params as { connection?: unknown }).connection) };
+  return {
+    source: (params as { source: string }).source,
+    connection: groundingConnection((params as { connection?: unknown }).connection),
+    ...((params as { withTasks?: unknown }).withTasks === true ? { withTasks: true } : {}),
+  };
 }
 
 function generateRunParams(params: unknown): GenerateRunParams {
@@ -638,6 +646,13 @@ const handlers: { [M in SidecarMethod]: Handler<M> } = {
   },
 };
 
+/**
+ * Methods still answered after `$/cancelRequest`: a cancelled Generation Run stops starting new
+ * work and settles with the report of what it did, which Studio needs to show the Stories left
+ * partly created. Every other cancelled request's response is suppressed (ADR-0054).
+ */
+const ANSWERS_AFTER_CANCEL: ReadonlySet<string> = new Set(["generate.run"]);
+
 function isSidecarMethod(method: string): method is SidecarMethod {
   return Object.hasOwn(handlers, method);
 }
@@ -665,11 +680,12 @@ export async function handleLine(line: string, services: SidecarServices): Promi
   if (!isRequest(value)) return { jsonrpc: "2.0", id: typeof (value as { id?: unknown }).id === "number" ? (value as { id: number }).id : 0, error: { code: "INVALID_REQUEST", message: "Request must include jsonrpc, numeric id, and method." } };
   const controller = new AbortController();
   services.activeRequests.set(value.id, controller);
+  const suppressed = () => controller.signal.aborted && !ANSWERS_AFTER_CANCEL.has(value.method);
   try {
     const result = await dispatch(value, services, controller.signal);
-    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, result };
+    return suppressed() ? undefined : { jsonrpc: "2.0", id: value.id, result };
   } catch (error) {
-    return controller.signal.aborted ? undefined : { jsonrpc: "2.0", id: value.id, error: toSidecarError(error) };
+    return suppressed() ? undefined : { jsonrpc: "2.0", id: value.id, error: toSidecarError(error) };
   } finally { services.activeRequests.delete(value.id); }
 }
 

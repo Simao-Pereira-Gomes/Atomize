@@ -2,10 +2,17 @@
 // counterpart to preview.ts's Mock Preview types. Frontend-local mirrors of atomize-core's
 // WorkItem/AtomizationReport/ProgressEvent shapes, since atomize-studio doesn't depend on atomize-core.
 
-export type GenerateWorkItem = { id: string; title: string; url?: string; type?: string; state?: string; areaPath?: string };
+/** `taskCount`: how many child Tasks the Story has, when Azure DevOps reported it. */
+export type GenerateWorkItem = { id: string; title: string; url?: string; type?: string; state?: string; areaPath?: string; taskCount?: number };
 
 /** A Task a dry run would create; atomize-core reports these as `tasksCalculated`, leaving `tasksCreated` empty. */
 export type GeneratePlannedTask = { title: string; estimation?: number };
+
+/** A child Task a resume found for a planned Task, or a child no planned Task matched. `url` opens it. */
+export type GenerateExistingTask = { title: string; workItemId: string; url?: string };
+
+/** A resumed Story: the planned Tasks that already exist (the rest are `tasksPlanned`), children not in the plan, and whether nothing was missing. */
+export type GenerateResumePlan = { existing: GenerateExistingTask[]; notInPlan: GenerateExistingTask[]; complete: boolean };
 
 export type GenerateResultRow = {
   story: GenerateWorkItem;
@@ -14,7 +21,16 @@ export type GenerateResultRow = {
   success: boolean;
   error?: string;
   estimateUnit?: string;
+  /** The run stopped while this Story's Tasks were being created; those created are kept. */
+  stoppedEarly?: boolean;
+  resume?: GenerateResumePlan;
 };
+
+/** Why a run stopped before finishing, and the Stories it never started. */
+export type GenerateStopped = { reason: "cancelled" | "timedOut"; message: string; storiesNotStarted: string[] };
+
+/** A Story excludeIfHasTasks skipped that looks partly created: some planned Tasks exist, some don't. */
+export type GeneratePartlyCreated = { storyId: string; title: string; tasksExisting: number; tasksPlanned: number };
 
 export type GenerateReport = {
   storiesProcessed: number;
@@ -23,6 +39,8 @@ export type GenerateReport = {
   tasksCreated: number;
   tasksPlanned: number;
   results: GenerateResultRow[];
+  stopped?: GenerateStopped;
+  partlyCreated: GeneratePartlyCreated[];
 };
 
 export type GenerateProgressEventType =
@@ -50,6 +68,7 @@ function parseWorkItem(value: unknown): GenerateWorkItem | undefined {
     type: typeof value.type === "string" ? value.type : undefined,
     state: typeof value.state === "string" ? value.state : undefined,
     areaPath: typeof value.areaPath === "string" ? value.areaPath : undefined,
+    ...(typeof value.childCount === "number" ? { taskCount: value.childCount } : {}),
   };
 }
 
@@ -76,6 +95,36 @@ function parsePlannedTasks(value: unknown): GeneratePlannedTask[] {
     : []);
 }
 
+function parseExistingTasks(value: unknown): GenerateExistingTask[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((task) => isRecord(task) && typeof task.title === "string" && typeof task.workItemId === "string"
+    ? [{ title: task.title, workItemId: task.workItemId, ...(typeof task.url === "string" ? { url: task.url } : {}) }]
+    : []);
+}
+
+function parseResumePlan(value: unknown): GenerateResumePlan | undefined {
+  if (!isRecord(value)) return undefined;
+  return { existing: parseExistingTasks(value.existing), notInPlan: parseExistingTasks(value.notInPlan), complete: value.complete === true };
+}
+
+function parseStopped(value: unknown): GenerateStopped | undefined {
+  if (!isRecord(value) || (value.reason !== "cancelled" && value.reason !== "timedOut")) return undefined;
+  return {
+    reason: value.reason,
+    message: typeof value.message === "string" ? value.message : "",
+    storiesNotStarted: Array.isArray(value.storiesNotStarted) ? value.storiesNotStarted.filter((id): id is string => typeof id === "string") : [],
+  };
+}
+
+function parsePartlyCreated(value: unknown): GeneratePartlyCreated[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((story) => isRecord(story)
+    && typeof story.storyId === "string" && typeof story.title === "string"
+    && typeof story.tasksExisting === "number" && typeof story.tasksPlanned === "number"
+    ? [{ storyId: story.storyId, title: story.title, tasksExisting: story.tasksExisting, tasksPlanned: story.tasksPlanned }]
+    : []);
+}
+
 function parseResultRow(value: unknown): GenerateResultRow | undefined {
   if (!isRecord(value)) return undefined;
   const story = parseWorkItem(value.story);
@@ -87,6 +136,8 @@ function parseResultRow(value: unknown): GenerateResultRow | undefined {
     success: value.success === true,
     error: typeof value.error === "string" ? value.error : undefined,
     estimateUnit: typeof value.estimateUnit === "string" ? value.estimateUnit : undefined,
+    ...(value.stoppedEarly === true ? { stoppedEarly: true } : {}),
+    ...(parseResumePlan(value.resume) ? { resume: parseResumePlan(value.resume) } : {}),
   };
 }
 
@@ -106,6 +157,8 @@ export function parseGenerateReport(value: unknown): GenerateReport {
     tasksCreated: typeof report.tasksCreated === "number" ? report.tasksCreated : results.reduce((sum, row) => sum + row.tasksCreated.length, 0),
     tasksPlanned: typeof report.tasksCalculated === "number" ? report.tasksCalculated : results.reduce((sum, row) => sum + row.tasksPlanned.length, 0),
     results,
+    ...(parseStopped(report.stopped) ? { stopped: parseStopped(report.stopped) } : {}),
+    partlyCreated: parsePartlyCreated(report.partlyCreated),
   };
 }
 

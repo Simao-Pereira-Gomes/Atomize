@@ -43,17 +43,19 @@ export async function searchStories(
 
 /**
  * The Story Browser's default view for generation: Stories of the given types in the team's
- * current or next sprint that have no Tasks yet and aren't closed, newest first.
+ * current or next sprint that aren't closed, newest first. By default only those with no Tasks
+ * yet; `tasks: "any"` lists them with or without Tasks, to finish untouched and Partly Created
+ * Stories together.
  */
 export async function listSprintStories(
   platform: IPlatformAdapter,
-  options: { workItemTypes?: string[]; limit?: number } = {},
+  options: { workItemTypes?: string[]; limit?: number; tasks?: "none" | "any" } = {},
 ): Promise<StorySummary[]> {
   return searchStories(platform, {
     ...(options.workItemTypes?.length ? { workItemTypes: options.workItemTypes } : {}),
     currentAndNextSprint: true,
     excludeClosed: true,
-    hasTasks: false,
+    ...(options.tasks === "any" ? {} : { hasTasks: false }),
     ...(options.limit ? { limit: options.limit } : {}),
   });
 }

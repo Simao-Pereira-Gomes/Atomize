@@ -341,7 +341,7 @@
             "excludeIfHasTasks": {
               "x-atomize-guide": "filter",
               "type": "boolean",
-              "description": "If true, skips stories that already have child tasks."
+              "description": "If true, skips stories that already have child Tasks: children of the Template's taskType (Task by default). Children of other types, such as Bugs, don't count."
             },
             "savedQuery": {
               "x-atomize-guide": "savedquery",
@@ -1247,7 +1247,7 @@
             "excludeIfHasTasks": {
               "x-atomize-guide": "filter",
               "type": "boolean",
-              "description": "If true, skips stories that already have child tasks."
+              "description": "If true, skips stories that already have child Tasks: children of the Template's taskType (Task by default). Children of other types, such as Bugs, don't count."
             },
             "savedQuery": {
               "x-atomize-guide": "savedquery",

@@ -18,6 +18,7 @@ import {
 	renderGenerateDryWarnings,
 	renderGenerateLivePartial,
 	renderGenerateLiveRunning,
+	renderGenerateLiveStopped,
 	renderGenerateLiveSuccess,
 	renderGenerateLoading,
 } from './generate-html.js';
@@ -26,7 +27,14 @@ interface SwitchModeMessage { type: 'switchMode'; mode: 'default' | 'compact'; }
 interface CreateTasksMessage { type: 'createTasks'; continueOnError: boolean; }
 interface ManageProfilesMessage { type: 'manageProfiles'; }
 interface OpenLinkMessage { type: 'openLink'; url: string; }
-type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage;
+/** Finish these Partly Created Stories: a resume dry run of them. */
+interface FinishStoriesMessage { type: 'finishStories'; storyIds: string[]; }
+/** Stop the live run: no new Story or Task starts, and the result shows what was done. */
+interface CancelRunMessage { type: 'cancelRun'; }
+type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage | FinishStoriesMessage | CancelRunMessage;
+
+/** How the panel was opened: to generate, or to finish Partly Created Stories (a resume). */
+export interface GenerateOpenOptions { resume?: boolean; }
 
 type GenerateOutcome = { report: AtomizationReport } | { error: 'auth' | 'blocked'; detail: string };
 
@@ -38,7 +46,7 @@ async function runAtomize(
 	credentialResolver: CredentialResolver,
 	profile: string,
 	fileUri: vscode.Uri,
-	options: { dryRun: boolean; continueOnError?: boolean; storyIds?: string[]; onProgress?: (event: ProgressEvent) => void },
+	options: { dryRun: boolean; continueOnError?: boolean; storyIds?: string[]; resume?: boolean; signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void },
 ): Promise<GenerateOutcome> {
 	try {
 		const adapter = await credentialResolver.resolveByName(profile);
@@ -57,14 +65,16 @@ async function runAtomize(
  * list to run on every Story the Template matches — also the fallback when the browser can't load,
  * so the panel's own auth and blocked views still report the problem.
  */
-async function pickGenerateStories(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri): Promise<string[] | undefined> {
-	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri);
+async function pickGenerateStories(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri, resume: boolean): Promise<string[] | undefined> {
+	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri, { withTasks: resume });
 	if (!source) return [];
 	return browseStories({
 		...source,
-		title: 'Atomize: Generate',
+		title: resume ? 'Atomize: Finish Partly Created Stories' : 'Atomize: Generate',
 		canPickMany: true,
-		placeholder: 'Tick Stories to generate for, or press Enter with none ticked to use every Story the Template matches.',
+		placeholder: resume
+			? 'Tick the Stories to finish: only the Tasks each one is missing are created.'
+			: 'Tick Stories to generate for, or press Enter with none ticked to use every Story the Template matches.',
 	});
 }
 
@@ -80,6 +90,10 @@ export class GeneratePanel {
 	private _execReport: GenerateReport | undefined;
 	private _continueOnError: boolean = false;
 	private _isExecuting: boolean = false;
+	/** Finishing Partly Created Stories: only the Tasks each one is missing are created. */
+	private _resume: boolean = false;
+	/** Cancels the live run in progress, if any. */
+	private _liveRun: AbortController | undefined;
 
 	private constructor(
 		panel: vscode.WebviewPanel,
@@ -99,7 +113,8 @@ export class GeneratePanel {
 		panel.webview.onDidReceiveMessage((msg: unknown) => { void this._handleMessage(msg); });
 	}
 
-	static async open(fileUri: vscode.Uri, store: ProfileStore, credentialResolver: CredentialResolver): Promise<void> {
+	static async open(fileUri: vscode.Uri, store: ProfileStore, credentialResolver: CredentialResolver, options: GenerateOpenOptions = {}): Promise<void> {
+		const resume = options.resume === true;
 		const mode = getPreviewLayout(fileUri);
 		const defaultProfile = getDefaultProfile(fileUri);
 
@@ -111,8 +126,10 @@ export class GeneratePanel {
 		const profile = await pickProfile(store, credentialResolver, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
 		if (profile == null) return;
 
-		const pickedStoryIds = await pickGenerateStories(credentialResolver, profile, fileUri);
+		const pickedStoryIds = await pickGenerateStories(credentialResolver, profile, fileUri, resume);
 		if (pickedStoryIds === undefined) return;
+		// A resume finishes only the Stories named; there is no filter-wide resume.
+		if (resume && pickedStoryIds.length === 0) return;
 		const storyIds = pickedStoryIds.length > 0 ? pickedStoryIds : undefined;
 
 		const fileName = basename(fileUri.fsPath);
@@ -127,6 +144,7 @@ export class GeneratePanel {
 			inst._dryRunReport = undefined;
 			inst._execReport = undefined;
 			inst._continueOnError = false;
+			inst._resume = resume;
 			inst._panel.title = `Atomize: ${fileName} (Generate · Dry Run)`;
 			inst._panel.reveal(vscode.ViewColumn.Beside, true);
 			panel = inst;
@@ -138,6 +156,7 @@ export class GeneratePanel {
 				{ enableScripts: true, retainContextWhenHidden: true },
 			);
 			panel = new GeneratePanel(webviewPanel, fileUri, credentialResolver, mode, profile, storyIds);
+			panel._resume = resume;
 			GeneratePanel._instance = panel;
 		}
 
@@ -153,6 +172,7 @@ export class GeneratePanel {
 			const outcome = await runAtomize(this._credentialResolver, this._profile, this._fileUri, {
 				dryRun: true,
 				storyIds: this._storyIds,
+				...(this._resume ? { resume: true } : {}),
 			});
 
 			if ('error' in outcome) {
@@ -170,11 +190,30 @@ export class GeneratePanel {
 			this._dryRunReport = report;
 			this._panel.title = `Atomize: ${fileName} (Generate)`;
 
+			if (report.stopped) {
+				this._panel.webview.html = renderGenerateBlocked('exec-error', report.stopped.message, fileName, this._profile, this._storyIds);
+				return;
+			}
+
 			if (report.storiesProcessed === 0) {
-				const noMatchMsg = this._storyIds
-					? `None of the specified story IDs were found, or all were excluded by the template's excludeIfHasTasks filter. Verify the IDs are correct and accessible via the "${this._profile}" profile.`
-					: 'The filter returned no work items. Check your YAML filter conditions and verify the profile has access to the configured project.';
-				this._panel.webview.html = renderGenerateBlocked('no-matches', noMatchMsg, fileName, this._profile, this._storyIds);
+				const partlyCreated = (report.partlyCreated ?? []).length > 0;
+				const noMatchMsg = partlyCreated
+					? 'Every matching Story already has Tasks, so excludeIfHasTasks skipped them all. The Stories below look partly created: finish them to create only their missing Tasks.'
+					: this._storyIds
+						? `None of the specified story IDs were found, or all were excluded by the template's excludeIfHasTasks filter. Verify the IDs are correct and accessible via the "${this._profile}" profile.`
+						: 'The filter returned no work items. Check your YAML filter conditions and verify the profile has access to the configured project.';
+				this._panel.webview.html = renderGenerateBlocked('no-matches', noMatchMsg, fileName, this._profile, this._storyIds, report);
+				return;
+			}
+
+			if (report.tasksCalculated === 0 && this._resume) {
+				this._panel.webview.html = renderGenerateBlocked(
+					'no-tasks',
+					'Every planned Task already exists on these Stories, so there is nothing to finish.',
+					fileName,
+					this._profile,
+					this._storyIds,
+				);
 				return;
 			}
 
@@ -186,6 +225,7 @@ export class GeneratePanel {
 					fileName,
 					this._profile,
 					this._storyIds,
+					report,
 				);
 				return;
 			}
@@ -205,6 +245,8 @@ export class GeneratePanel {
 		if (!dryReport) return;
 
 		this._isExecuting = true;
+		const liveRun = new AbortController();
+		this._liveRun = liveRun;
 		try {
 			const fileName = basename(this._fileUri.fsPath);
 			this._panel.title = `Atomize: ${fileName} (Generate · Creating…)`;
@@ -214,6 +256,8 @@ export class GeneratePanel {
 				dryRun: false,
 				continueOnError: this._continueOnError,
 				storyIds: this._storyIds,
+				...(this._resume ? { resume: true } : {}),
+				signal: liveRun.signal,
 				onProgress: event => {
 					if (event.type !== 'story_complete' && event.type !== 'story_error') return;
 					this._panel.webview.postMessage({
@@ -240,13 +284,10 @@ export class GeneratePanel {
 
 			const execReport = outcome.report as GenerateReport;
 			this._execReport = execReport;
-
-			if (execReport.storiesFailed > 0) {
-				this._panel.webview.html = renderGenerateLivePartial(dryReport, execReport, this._mode, fileName, this._profile, this._storyIds);
-			} else {
-				this._panel.webview.html = renderGenerateLiveSuccess(dryReport, execReport, this._mode, fileName, this._profile, this._storyIds);
-			}
+			if (execReport.stopped) this._panel.title = `Atomize: ${fileName} (Generate · Stopped)`;
+			this._panel.webview.html = this._renderLiveResult(dryReport, execReport, fileName);
 		} finally {
+			this._liveRun = undefined;
 			this._isExecuting = false;
 		}
 	}
@@ -261,11 +302,7 @@ export class GeneratePanel {
 
 			// Live phase: re-render live result
 			if (this._execReport && this._dryRunReport) {
-				if (this._execReport.storiesFailed > 0) {
-					this._panel.webview.html = renderGenerateLivePartial(this._dryRunReport, this._execReport, this._mode, fileName, this._profile, this._storyIds);
-				} else {
-					this._panel.webview.html = renderGenerateLiveSuccess(this._dryRunReport, this._execReport, this._mode, fileName, this._profile, this._storyIds);
-				}
+				this._panel.webview.html = this._renderLiveResult(this._dryRunReport, this._execReport, fileName);
 				return;
 			}
 
@@ -296,11 +333,27 @@ export class GeneratePanel {
 
 			if (confirmed !== 'Create Tasks') return;
 			await this._runLive();
+		} else if (message.type === 'cancelRun') {
+			this._liveRun?.abort();
+		} else if (message.type === 'finishStories') {
+			if (this._isExecuting || !Array.isArray(message.storyIds) || message.storyIds.length === 0) return;
+			this._storyIds = message.storyIds.filter((id): id is string => typeof id === 'string');
+			this._resume = true;
+			this._dryRunReport = undefined;
+			this._execReport = undefined;
+			this._continueOnError = false;
+			await this._runDryRun();
 		} else if (message.type === 'manageProfiles') {
 			await vscode.commands.executeCommand('atomize.manageProfiles');
 		} else if (message.type === 'openLink') {
 			await vscode.env.openExternal(vscode.Uri.parse(message.url));
 		}
+	}
+
+	private _renderLiveResult(dryReport: GenerateReport, execReport: GenerateReport, fileName: string): string {
+		if (execReport.stopped) return renderGenerateLiveStopped(dryReport, execReport, this._mode, fileName, this._profile, this._storyIds);
+		if (execReport.storiesFailed > 0) return renderGenerateLivePartial(dryReport, execReport, this._mode, fileName, this._profile, this._storyIds);
+		return renderGenerateLiveSuccess(dryReport, execReport, this._mode, fileName, this._profile, this._storyIds);
 	}
 
 	static dispose(): void {

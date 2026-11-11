@@ -160,3 +160,6 @@ packages/atomize-sidecar/atomize-sidecar.exe
 packages/atomize-studio/*.bun-build
 packages/atomize-studio/src-tauri/binaries/atomize-sidecar-*
 packages/atomize-studio/src-tauri/binaries/atomize-copilot-*
+
+# macOS Finder metadata
+.DS_Store

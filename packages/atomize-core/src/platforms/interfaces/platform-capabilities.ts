@@ -12,9 +12,17 @@ export interface PlatformAuthenticator {
   };
 }
 
+export interface QueryWorkItemsOptions {
+  /**
+   * Receives each Work Item the query matched but excludeIfHasTasks left out, with its `children`
+   * (child Tasks only) filled in, so a run can tell which of them look partly created.
+   */
+  onExcluded?: (workItem: WorkItem) => void;
+}
+
 export interface WorkItemReader {
   getConnectUserEmail(): Promise<string>;
-  queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]>;
+  queryWorkItems(filter: FilterCriteria, options?: QueryWorkItemsOptions): Promise<WorkItem[]>;
   getWorkItem(id: string): Promise<WorkItem | null>;
 }
 

@@ -58,11 +58,12 @@ export function getNonInteractiveLiveExecutionError(options: {
 
 /**
  * The exit code for a finished run, the same in every output mode: no matching Stories is
- * NoMatch, any failed Story is Failure, otherwise Success.
+ * NoMatch, a run cancelled or timed out is Stopped, any failed Story is Failure, otherwise Success.
  * @internal Exported for testing
  */
 export function reportExitCode(report: AtomizationReport): number {
   if (report.storiesProcessed === 0) return ExitCode.NoMatch;
+  if (report.stopped) return ExitCode.Stopped;
   return report.storiesFailed > 0 ? ExitCode.Failure : ExitCode.Success;
 }
 
@@ -301,7 +302,7 @@ async function initPlatform(
 
 async function confirmLiveExecution(
   template: TaskTemplate,
-  options: { platform: string },
+  options: { platform: string; resume?: boolean },
   output: Pick<ReturnType<typeof createCommandOutput>, "outro">,
   storyIds?: string[],
 ): Promise<void> {
@@ -337,7 +338,9 @@ async function confirmLiveExecution(
       scopeLine,
       `Platform:  ${sanitizeTty(options.platform)}`,
       "",
-      "This will CREATE tasks in your work tracking system.",
+      options.resume
+        ? "This will CREATE the Tasks each Story is missing in your work tracking system."
+        : "This will CREATE tasks in your work tracking system.",
     ].join("\n"),
     "⚠  LIVE MODE",
   );
@@ -354,7 +357,7 @@ async function confirmLiveExecution(
 /** @internal Exported for testing */
 export function printReport(
   report: Awaited<ReturnType<Atomizer["atomize"]>>,
-  options: { verbose: boolean; quiet?: boolean },
+  options: { verbose: boolean; quiet?: boolean; templateRef?: string },
   dryRun: boolean,
   storyIds?: string[],
 ): number {
@@ -366,7 +369,10 @@ export function printReport(
   );
 
   if (report.storiesProcessed === 0) {
-    if (storyIds && storyIds.length > 0) {
+    if (report.partlyCreated.length > 0) {
+      output.printAlways(chalk.yellow("Every matching Story already has Tasks, so excludeIfHasTasks skipped them all."));
+      printFinishCommands(report, options.templateRef, output.printAlways);
+    } else if (storyIds && storyIds.length > 0) {
       output.printAlways(chalk.yellow("None of the specified stories were found."));
     } else {
       output.printAlways(chalk.yellow("No stories matched the filter criteria."));
@@ -378,6 +384,7 @@ export function printReport(
   }
 
   if (options.quiet) {
+    printFinishCommands(report, options.templateRef, output.printAlways);
     if (report.errors.length > 0) {
       for (const err of report.errors) {
         output.printAlways(chalk.red(`Error: ${sanitizeTty(err.storyId)}: ${sanitizeTty(err.error)}`));
@@ -390,7 +397,7 @@ export function printReport(
           `Generation finished with ${report.storiesFailed} failed ${report.storiesFailed === 1 ? "story" : "stories"}.`,
         ),
       );
-      return ExitCode.Failure;
+      return reportExitCode(report);
     }
 
     if (dryRun) {
@@ -409,7 +416,7 @@ export function printReport(
       output.printAlways(chalk.red("No tasks were created."));
     }
 
-    return ExitCode.Success;
+    return reportExitCode(report);
   }
 
   output.blankLine();
@@ -444,6 +451,7 @@ export function printReport(
           chalk.gray(`  Estimation: ${rawEstimate === undefined ? "none" : sanitizeTty(String(rawEstimate))}${conversionNote}`),
         );
         output.print(chalk.gray(`  Tasks: ${result.tasksCalculated.length}`));
+        if (result.resume) printResumePlan(result, output.print);
         if (result.estimationSummary) {
           output.print(
             chalk.gray(
@@ -465,6 +473,8 @@ export function printReport(
       output.blankLine();
     }
   }
+
+  printFinishCommands(report, options.templateRef, output.print);
 
   if (report.errors.length > 0) {
     output.print(chalk.red.bold("Errors:\n"));
@@ -494,15 +504,95 @@ export function printReport(
   return reportExitCode(report);
 }
 
+/** A resumed Story's plan: the Tasks that exist, those it creates, and children not in the plan. */
+function printResumePlan(result: AtomizationReport["results"][number], print: (msg: string) => void): void {
+  const resume = result.resume;
+  if (!resume) return;
+  if (resume.complete) {
+    print(chalk.gray("  Already complete: every planned Task exists"));
+    return;
+  }
+  for (const task of resume.existing) print(chalk.gray(`    exists       ${sanitizeTty(task.title)} (${sanitizeTty(task.workItemId)})`));
+  for (const task of result.tasksCalculated) print(chalk.gray(`    will create  ${sanitizeTty(task.title)}`));
+  for (const child of resume.notInPlan) print(chalk.gray(`    not in plan  ${sanitizeTty(child.title)} (${sanitizeTty(child.workItemId)})`));
+}
+
+/**
+ * Quotes a shell argument when it holds anything beyond the characters a shell leaves alone. On
+ * Windows it uses double quotes, which cmd.exe and PowerShell both read; cmd.exe keeps single
+ * quotes as part of the argument.
+ */
+export function shellArg(value: string, platform: NodeJS.Platform = process.platform): string {
+  if (/^[\w@%+=:,./-]+$/.test(value)) return value;
+  if (platform === "win32") return `"${value.replace(/"/g, '""')}"`;
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function resumeCommand(templateRef: string | undefined, storyIds: string[]): string {
+  const template = templateRef === undefined ? "<template>" : shellArg(sanitizeTty(templateRef));
+  return `atomize generate ${template} --story ${storyIds.map((id) => shellArg(sanitizeTty(id))).join(" ")} --resume`;
+}
+
+function finishCommand(templateRef: string | undefined, storyIds: string[]): string {
+  return `To finish: ${resumeCommand(templateRef, storyIds)} --execute`;
+}
+
+/**
+ * For a run that stopped, the Stories left partly created and those never started; for Stories
+ * excludeIfHasTasks skipped that look partly created, the same. Each list ends with the command
+ * that finishes it.
+ */
+function printFinishCommands(report: AtomizationReport, templateRef: string | undefined, print: (msg: string) => void): void {
+  if (report.stopped) {
+    const stoppedEarly = report.results.filter((result) => result.stoppedEarly);
+    print(chalk.yellow.bold(report.stopped.reason === "timedOut" ? "Stopped: timed out\n" : "Stopped: cancelled\n"));
+    print(chalk.yellow(`  ${sanitizeTty(report.stopped.message)}`));
+    for (const result of stoppedEarly) {
+      print(
+        chalk.yellow(
+          `  • ${sanitizeTty(result.story.id)}: ${sanitizeTty(result.story.title)} · ${result.tasksCreated.length} of ${result.tasksCalculated.length} Tasks created`,
+        ),
+      );
+    }
+    const notStarted = report.stopped.storiesNotStarted;
+    if (notStarted.length > 0) print(chalk.yellow(`  • ${notStarted.map((id) => sanitizeTty(id)).join(", ")}: not started`));
+    // A Resume of a Story with no Tasks creates all of them, so one command finishes both kinds.
+    const toFinish = [...stoppedEarly.map((r) => r.story.id), ...notStarted];
+    if (toFinish.length > 0) print(chalk.bold(`  ${finishCommand(templateRef, toFinish)}`));
+    print("");
+  }
+
+  if (report.partlyCreated.length > 0) {
+    print(chalk.yellow.bold("Partly created (skipped by excludeIfHasTasks):\n"));
+    for (const story of report.partlyCreated) {
+      print(
+        chalk.yellow(
+          `  • ${sanitizeTty(story.storyId)}: ${sanitizeTty(story.title)} · ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`,
+        ),
+      );
+    }
+    const partlyIds = report.partlyCreated.map((story) => story.storyId);
+    print(chalk.bold(`  ${finishCommand(templateRef, partlyIds)}`));
+    // A Resume of a Story with no Tasks creates all of them, so a dry run's Stories and the partly
+    // created ones can be previewed, then created, as one run.
+    const previewed = report.dryRun ? report.results.filter((result) => result.success).map((result) => result.story.id) : [];
+    if (previewed.length > 0) {
+      print(chalk.bold(`  To include them in this run: ${resumeCommand(templateRef, [...previewed, ...partlyIds])}`));
+    }
+    print("");
+  }
+}
+
 function renderFilterCriteria(input: {
   template: TaskTemplate;
   storyIds: string[] | undefined;
+  resume?: boolean;
   limit: string | undefined;
   isQuiet: boolean;
   outputPolicy: CommandOutputPolicy;
   output: Pick<ReturnType<typeof createCommandOutput>, "print" | "blankLine" | "warn">;
 }): void {
-  const { template, storyIds, limit, isQuiet, outputPolicy, output } = input;
+  const { template, storyIds, resume, limit, isQuiet, outputPolicy, output } = input;
   const hasFilterCriteria =
     storyIds ||
     template.filter.savedQuery ||
@@ -531,7 +621,9 @@ function renderFilterCriteria(input: {
       output.print(
         chalk.gray(`  Story IDs: ${storyIds.map((id) => sanitizeTty(id)).join(", ")} (template filter bypassed)`),
       );
-      if (template.filter.excludeIfHasTasks)
+      if (resume)
+        output.print(chalk.gray("  Resume: create only the Tasks each Story is missing (excludeIfHasTasks ignored)"));
+      else if (template.filter.excludeIfHasTasks)
         output.print(chalk.gray("  Exclude if has tasks: Yes"));
     } else if (template.filter.savedQuery?.id) {
       output.print(chalk.gray(`  Saved query ID: ${sanitizeTty(template.filter.savedQuery.id)}`));
@@ -593,6 +685,11 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
   .option(
     "--story <ids...>",
     "Apply this template's task definitions and estimation rules to specific stories by ID, bypassing the template's story filter. excludeIfHasTasks still applies.",
+  )
+  .option(
+    "--resume",
+    "With --story: finish Stories a stopped run left partly created, creating only the Tasks whose title isn't already among each Story's child Tasks. excludeIfHasTasks is ignored for them.",
+    false,
   )
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .option("--json", "Emit AtomizationReport as JSON to stdout; implies --quiet. Runs a dry run unless --execute is passed", false)

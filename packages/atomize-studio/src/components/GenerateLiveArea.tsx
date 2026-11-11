@@ -8,10 +8,21 @@ import { parseGenerateProgressEvent, parseGenerateReport, parseGenerateStories }
 import type { GenerateScope, LiveExecutionEvent } from "../generate/live-execution-confirmation";
 import { initialLiveExecutionState, transitionLiveExecution } from "../generate/live-execution-confirmation";
 import { formatEstimateAmount, formatTaskEstimate, type PreviewSource, previewSourceValue } from "../generate/preview";
+import { ExternalLink } from "../links/ExternalLink";
 import { cancelGenerate, listenGenerateProgress, queryGenerateStories, runGenerate, SidecarRequestError } from "../sidecar/sidecar-client";
 import { GenerateResultRow } from "./GenerateResultRow";
 
 type Step = 1 | 2 | 3;
+
+/** `#id ↗` opening the Work Item in Azure DevOps, so the user can check it is the right Task; plain `#id` without a link. */
+function workItemLink(item: { workItemId: string; url?: string }) {
+  return item.url
+    ? <ExternalLink href={item.url} title="Open in Azure DevOps" class="text-indigo-600 hover:underline dark:text-indigo-400">#{item.workItemId} ↗</ExternalLink>
+    : `#${item.workItemId}`;
+}
+
+/** "1 Story", "2 Stories". */
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 type StoriesState = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; stories: GenerateWorkItem[] } | { kind: "error"; message: string };
 type DryRunState = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; report: GenerateReport } | { kind: "error"; message: string };
 
@@ -21,6 +32,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   const [search, setSearch] = createSignal("");
   const [storiesState, setStoriesState] = createSignal<StoriesState>({ kind: "idle" });
   const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
+  const [resumeSelected, setResumeSelected] = createSignal(false);
   const [scope, setScope] = createSignal<GenerateScope>();
   const [dryRun, setDryRun] = createSignal<DryRunState>({ kind: "idle" });
 
@@ -33,6 +45,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   const [execReport, setExecReport] = createSignal<GenerateReport>();
   const [execError, setExecError] = createSignal({ message: "", code: "" });
   const [activeRunId, setActiveRunId] = createSignal("");
+  const [stopping, setStopping] = createSignal(false);
   const [collapsedIds, setCollapsedIds] = createSignal<Set<string>>(new Set());
 
   const platformLabel = () => `Azure DevOps · ${props.profile()}`;
@@ -45,7 +58,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     if (storiesState().kind !== "idle") return;
     setStoriesState({ kind: "loading" });
     try {
-      const result = await queryGenerateStories(previewSourceValue(props.source), props.profile());
+      const result = await queryGenerateStories(previewSourceValue(props.source), props.profile(), resumeSelected());
       setStoriesState({ kind: "ready", stories: parseGenerateStories(result) });
     } catch (error) {
       setStoriesState({ kind: "error", message: error instanceof SidecarRequestError ? error.message : "We could not fetch Stories from Azure DevOps." });
@@ -75,7 +88,9 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
   const scopeSummary = () => {
     const s = scope();
     if (!s) return "";
-    return s.kind === "filter" ? "All Stories matching this Template's filter" : `${s.storyIds.length} Stor${s.storyIds.length === 1 ? "y" : "ies"} selected`;
+    if (s.kind === "filter") return "All Stories matching this Template's filter";
+    const count = `${s.storyIds.length} Stor${s.storyIds.length === 1 ? "y" : "ies"}`;
+    return s.resume ? `${count} to finish (only the missing Tasks)` : `${count} selected`;
   };
 
   const confirmExecution = () => {
@@ -93,6 +108,7 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     setExecPending(new Map());
     setExecReport(undefined);
     setExecError({ message: "", code: "" });
+    setStopping(false);
     const runId = crypto.randomUUID();
     setActiveRunId(runId);
 
@@ -139,18 +155,141 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
     } finally {
       unlisten();
       setActiveRunId("");
+      setStopping(false);
     }
   };
 
+  // The run stops starting new work and answers with what it did, so the screen waits for that report.
   const cancelRun = () => {
     const id = activeRunId();
-    if (id) void cancelGenerate(id);
+    if (!id || stopping()) return;
+    setStopping(true);
+    void cancelGenerate(id);
+  };
+
+  /** Starts over at the Preview with these Stories: resumed (only their missing Tasks), or as a plain run. */
+  const rerun = (storyIds: string[], resume: boolean) => {
+    dispatch({ type: "reset" });
+    setUnticked(new Set<string>());
+    setIncluded(new Set<string>());
+    void advanceToPreview({ kind: "stories", storyIds, ...(resume ? { resume: true } : {}) });
+  };
+
+  // Stories unticked in a report's "finish" list; the rest are finished.
+  const [unticked, setUnticked] = createSignal<Set<string>>(new Set());
+  const toggleTicked = (id: string) => setUnticked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const ticked = (ids: string[]) => ids.filter((id) => !unticked().has(id));
+  const selectableStory = (id: string, text: string) => (
+    <li>
+      <label class="flex cursor-pointer items-center gap-2">
+        <input type="checkbox" checked={!unticked().has(id)} onChange={() => toggleTicked(id)} />
+        <span>{text}</span>
+      </label>
+    </li>
+  );
+  const finishButton = (ids: string[]) => (
+    <button type="button" class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none disabled:opacity-40" disabled={ticked(ids).length === 0} onClick={() => rerun(ticked(ids), true)}>Finish selected Stories →</button>
+  );
+
+  // Partly created Stories ticked to join a previewed run (unticked until chosen).
+  const [included, setIncluded] = createSignal<Set<string>>(new Set());
+  const toggleIncluded = (id: string) => setIncluded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+
+  /**
+   * Stories excludeIfHasTasks skipped that look partly created. When the Preview has other Stories
+   * (`previewed`), they can be ticked to join it: the run becomes one Resume of both, since a Resume
+   * of a Story with no Tasks creates all of them. Otherwise they are finished on their own.
+   */
+  const partlyCreatedBlock = (report: GenerateReport, previewed: string[] = []) => (
+    <Show when={report.partlyCreated.length > 0}>
+      <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+        <p class="font-semibold">Skipped as already having Tasks, but they look partly created:</p>
+        <Show
+          when={previewed.length > 0}
+          fallback={
+            <>
+              <ul class="mt-1 space-y-0.5">
+                <For each={report.partlyCreated}>{(story) => selectableStory(story.storyId, `${story.storyId} · ${story.title}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`)}</For>
+              </ul>
+              {finishButton(report.partlyCreated.map((story) => story.storyId))}
+            </>
+          }
+        >
+          <ul class="mt-1 space-y-0.5">
+            <For each={report.partlyCreated}>
+              {(story) => (
+                <li>
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={included().has(story.storyId)} onChange={() => toggleIncluded(story.storyId)} />
+                    <span>{story.storyId} · {story.title}: {story.tasksExisting} of {story.tasksPlanned} planned Tasks exist</span>
+                  </label>
+                </li>
+              )}
+            </For>
+          </ul>
+          <button
+            type="button"
+            class="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white !shadow-none disabled:opacity-40"
+            disabled={included().size === 0}
+            onClick={() => rerun([...previewed, ...included()], true)}
+          >
+            Include in this run →
+          </button>
+          <p class="mt-1 text-xs">Tick the Stories to finish along with the ones above. The Preview runs again with only the missing Tasks.</p>
+        </Show>
+      </div>
+    </Show>
+  );
+
+  const stoppedBlock = (report: GenerateReport) => {
+    const stopped = report.stopped;
+    if (!stopped) return null;
+    const stoppedEarly = report.results.filter((row) => row.stoppedEarly);
+    return (
+      <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+        <p class="font-semibold">{stopped.reason === "timedOut" ? "Run timed out" : "Run cancelled"}: Tasks already created were kept.</p>
+        <Show when={stopped.reason === "timedOut"}><p class="mt-1">{stopped.message}</p></Show>
+        {/* One list: a Resume finishes both, since for a Story with no Tasks it creates all of them. */}
+        <Show when={stoppedEarly.length + stopped.storiesNotStarted.length > 0}>
+          <ul class="mt-2 space-y-0.5">
+            <For each={stoppedEarly}>{(row) => selectableStory(row.story.id, `${row.story.id} · ${row.story.title}: ${row.tasksCreated.length} of ${row.tasksPlanned.length} Tasks created`)}</For>
+            <For each={stopped.storiesNotStarted}>{(id) => selectableStory(id, `${id}: not started`)}</For>
+          </ul>
+          {finishButton([...stoppedEarly.map((row) => row.story.id), ...stopped.storiesNotStarted])}
+        </Show>
+      </div>
+    );
   };
 
   const retry = () => {
     dispatch({ type: "reset" });
     setStep(2);
   };
+
+  /** Back to the Scope step with nothing carried over, after a run finished, stopped, or failed. */
+  const startOver = () => {
+    dispatch({ type: "reset" });
+    setScope(undefined);
+    setDryRun({ kind: "idle" });
+    setExecRows([]);
+    setExecPending(new Map());
+    setExecReport(undefined);
+    setExecError({ message: "", code: "" });
+    setSelectedIds([]);
+    setResumeSelected(false);
+    setBrowsing(false);
+    setSearch("");
+    setStoriesState({ kind: "idle" });
+    setUnticked(new Set<string>());
+    setIncluded(new Set<string>());
+    setStep(1);
+  };
+
+  const newRunButton = () => (
+    <button type="button" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400" onClick={startOver}>
+      ← New run
+    </button>
+  );
 
   const rowsList = (rows: GenerateResultRowData[]) => (
     <div class="mt-3">
@@ -207,14 +346,28 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     {(story) => (
                       <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">
                         <input type="checkbox" class="mt-1" checked={selectedIds().includes(story.id)} onChange={() => toggleStory(story.id)} />
-                        <div class="min-w-0"><p class="font-semibold text-slate-950 dark:text-white">{story.id} · {story.title}</p><p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{[story.type, story.state, story.areaPath].filter(Boolean).join(" · ")}</p></div>
+                        <div class="min-w-0"><p class="font-semibold text-slate-950 dark:text-white">{story.id} · {story.title}</p><p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{[story.type, story.state, story.areaPath, story.taskCount === undefined ? "" : plural(story.taskCount, "Task", "Tasks")].filter(Boolean).join(" · ")}</p></div>
                       </label>
                     )}
                   </For>
                 </div>
-                <div class="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+                <div class="flex items-center justify-between gap-4 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
                   <p class="text-sm text-slate-500 dark:text-slate-400">{selectedIds().length} selected</p>
-                  <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none disabled:opacity-40" disabled={selectedIds().length === 0} onClick={() => void advanceToPreview({ kind: "stories", storyIds: selectedIds() })}>Continue →</button>
+                  <label class="ml-auto flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300" title="Create only the Tasks each Story is missing, for Stories a stopped run left partly created. Ignores excludeIfHasTasks for them.">
+                    <input
+                      type="checkbox"
+                      checked={resumeSelected()}
+                      onChange={(e) => {
+                        // Stories to finish already have Tasks, which the Template's excludeIfHasTasks would hide: list them instead.
+                        setResumeSelected(e.currentTarget.checked);
+                        setSelectedIds([]);
+                        setStoriesState({ kind: "idle" });
+                        void loadStories();
+                      }}
+                    />
+                    Finish partly created Stories
+                  </label>
+                  <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none disabled:opacity-40" disabled={selectedIds().length === 0} onClick={() => void advanceToPreview({ kind: "stories", storyIds: selectedIds(), ...(resumeSelected() ? { resume: true } : {}) })}>Continue →</button>
                 </div>
               </div>
             </Match>
@@ -231,7 +384,9 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               const report = (dryRun() as Extract<DryRunState, { kind: "ready" }>).report;
               return (
                 <div>
-                  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">DRY RUN: nothing has been created yet</div>
+                  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                    DRY RUN: nothing has been created yet{(() => { const s = scope(); return s?.kind === "stories" && s.resume ? ". Only the Tasks each Story is missing will be created." : ""; })()}
+                  </div>
                   <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
                     <For each={report.results}>
                       {(row) => (
@@ -246,6 +401,19 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                             </Show>
                           </div>
                           <Show when={row.error}><p class="mt-1 text-xs text-rose-600">{row.error}</p></Show>
+                          <Show when={row.resume?.complete}><p class="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Already complete: every planned Task exists</p></Show>
+                          <Show when={(row.resume?.existing.length ?? 0) > 0}>
+                            <ul class="mt-2 space-y-1">
+                              <For each={row.resume?.existing}>
+                                {(task) => (
+                                  <li class="flex items-center justify-between gap-4 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                                    <span class="min-w-0 truncate">{task.title}</span>
+                                    <span class="shrink-0 text-xs font-semibold">exists · {workItemLink(task)}</span>
+                                  </li>
+                                )}
+                              </For>
+                            </ul>
+                          </Show>
                           <Show when={row.tasksPlanned.length > 0}>
                             <ul class="mt-2 space-y-1">
                               <For each={row.tasksPlanned}>
@@ -258,11 +426,25 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                               </For>
                             </ul>
                           </Show>
+                          <Show when={(row.resume?.notInPlan.length ?? 0) > 0}>
+                            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                              Not in the plan, left as they are:{" "}
+                              <For each={row.resume?.notInPlan}>
+                                {(child, i) => (
+                                  <>
+                                    {i() > 0 ? ", " : ""}
+                                    {child.title} ({workItemLink(child)})
+                                  </>
+                                )}
+                              </For>
+                            </p>
+                          </Show>
                         </div>
                       )}
                     </For>
                   </div>
-                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{report.storiesProcessed} Stories · {report.tasksPlanned} Tasks total</p>
+                  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{plural(report.storiesProcessed, "Story", "Stories")} · {plural(report.tasksPlanned, "Task", "Tasks")} {(() => { const s = scope(); return s?.kind === "stories" && s.resume ? "to create" : "total"; })()}</p>
+                  {partlyCreatedBlock(report, report.results.filter((row) => row.success).map((row) => row.story.id))}
                   <div class="mt-4 flex gap-3">
                     <button type="button" class="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={() => setStep(1)}>← Back</button>
                     <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={() => { setStep(3); confirmExecution(); }}>Continue to Execute →</button>
@@ -296,15 +478,25 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
           </Match>
           <Match when={fsm().kind === "executing"}>
             <div>
-              <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+              {/* The status bar, and Cancel run in it, stay in place at the top while finished Stories pile up below. */}
+              <div class="sticky top-0 z-10 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <span class="size-4 shrink-0 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                <span class="text-sm text-slate-600 dark:text-slate-300">
-                  {execPending().size > 0 ? `Creating tasks for ${[...execPending().values()].map((row) => row.story.id).join(", ")}…` : "Creating tasks…"}
+                <span class="min-w-0 flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
+                  {stopping()
+                    ? "Stopping: no new work will start…"
+                    : execPending().size > 0 ? `Creating tasks for ${[...execPending().values()].map((row) => row.story.id).join(", ")}…` : "Creating tasks…"}
                 </span>
-                <span class="ml-auto shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{execRows().length} done</span>
+                <span class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{execRows().length} done</span>
+                <button
+                  type="button"
+                  class="shrink-0 rounded-lg !border !border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 !shadow-none hover:bg-rose-50 disabled:cursor-default disabled:opacity-50 dark:!border-rose-800 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                  disabled={stopping()}
+                  onClick={cancelRun}
+                >
+                  {stopping() ? "Stopping…" : "Cancel run"}
+                </button>
               </div>
               <Show when={execRows().length > 0}>{rowsList(execRows())}</Show>
-              <button type="button" class="mt-3 text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300" onClick={cancelRun}>Cancel run (best-effort)</button>
             </div>
           </Match>
           <Match when={fsm().kind === "error"}>
@@ -317,7 +509,10 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
                     {cancelled ? "Run cancelled. Stories already sent to Azure DevOps were not rolled back." : err.message}
                   </div>
                   <Show when={execRows().length > 0}>{rowsList(execRows())}</Show>
-                  <button type="button" class="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={retry}>Try again</button>
+                  <div class="mt-3 flex items-center gap-4">
+                    <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white !shadow-none" onClick={retry}>Try again</button>
+                    {newRunButton()}
+                  </div>
                 </div>
               );
             })()}
@@ -329,9 +524,20 @@ export function GenerateLiveArea(props: { source: PreviewSource; profile: () => 
               const partial = report.storiesFailed > 0;
               return (
                 <div>
-                  <div class={`rounded-xl border px-4 py-3 text-sm font-semibold ${partial ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"}`}>
-                    {partial ? `Partially completed: ${report.storiesFailed} of ${report.storiesProcessed} Stories failed.` : `Done: ${report.storiesSuccess} Stories, ${report.tasksCreated} Work Items created.`}
-                  </div>
+                  <div class="mb-3 flex justify-end">{newRunButton()}</div>
+                  <Show
+                    when={report.stopped}
+                    fallback={
+                      <div class={`rounded-xl border px-4 py-3 text-sm font-semibold ${partial ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"}`}>
+                        {partial
+                          ? `Partially completed: ${report.storiesFailed} of ${plural(report.storiesProcessed, "Story", "Stories")} failed.`
+                          : `Done: ${plural(report.storiesSuccess, "Story", "Stories")}, ${plural(report.tasksCreated, "Work Item", "Work Items")} created.`}
+                      </div>
+                    }
+                  >
+                    {stoppedBlock(report)}
+                  </Show>
+                  {partlyCreatedBlock(report)}
                   {rowsList(report.results)}
                 </div>
               );

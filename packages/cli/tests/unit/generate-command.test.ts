@@ -15,6 +15,7 @@ import {
   reportExitCode,
   resolveCommandLogLevel,
   resolveGenerateOutputPolicy,
+  shellArg,
 } from "@/cli/commands/generate.command";
 import { ExitCode } from "@/cli/utilities/exit-codes";
 
@@ -36,6 +37,7 @@ function makeReport(overrides: Partial<AtomizationReport> = {}): AtomizationRepo
     results: [],
     errors: [],
     warnings: [],
+    partlyCreated: [],
     ...overrides,
   };
 }
@@ -530,5 +532,170 @@ describe("getJsonStreamConflictError", () => {
     const error = getJsonStreamConflictError({ json: true, jsonStream: true });
     expect(error).toContain("--json-stream");
     expect(error).toContain("--json");
+  });
+});
+
+// ─── stopped and partly created Stories (#331) ───────────────────────────────
+
+describe("printReport for a run that stopped or skipped partly created Stories", () => {
+  let consoleSpy: ReturnType<typeof spyOn>;
+  beforeEach(() => {
+    consoleSpy = spyOn(console, "log").mockImplementation(noop);
+  });
+  afterEach(() => {
+    consoleSpy.mockRestore();
+  });
+  const printed = () => consoleSpy.mock.calls.flat().join("\n");
+
+  const stoppedReport = makeReport({
+    storiesProcessed: 4,
+    results: [
+      {
+        story: { id: "1", title: "Done", type: "User Story", state: "New" },
+        success: true,
+        tasksCalculated: [{ title: "A" }],
+        tasksCreated: [{ id: "T1", title: "A", type: "Task", state: "New" }],
+      },
+      {
+        story: { id: "2", title: "Half", type: "User Story", state: "New" },
+        success: true,
+        stoppedEarly: true,
+        tasksCalculated: [{ title: "A" }, { title: "B" }, { title: "C" }],
+        tasksCreated: [{ id: "T2", title: "A", type: "Task", state: "New" }],
+      },
+    ],
+    stopped: { reason: "timedOut", message: "Generation timed out: no progress for 6 min.", storiesNotStarted: ["3", "4"] },
+  });
+
+  test("lists each Story that stopped early with the command to finish it", () => {
+    printReport(stoppedReport, { verbose: false, templateRef: "template:backend-api" }, false);
+
+    expect(printed()).toContain("Generation timed out: no progress for 6 min.");
+    expect(printed()).toContain("2: Half · 1 of 3 Tasks created");
+    // A Resume of a Story with no Tasks creates all of them, so one command finishes both kinds.
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 2 3 4 --resume --execute");
+    expect(printed()).toContain("3, 4: not started");
+  });
+
+  test("still prints the command to finish in quiet mode", () => {
+    printReport(stoppedReport, { verbose: false, quiet: true, templateRef: "./my templates/a.yaml" }, false);
+
+    const template = process.platform === "win32" ? '"./my templates/a.yaml"' : "'./my templates/a.yaml'";
+    expect(printed()).toContain(`To finish: atomize generate ${template} --story 2 3 4 --resume --execute`);
+  });
+
+  test("quotes a printed argument in the way the platform's shells read", () => {
+    expect(shellArg("template:backend-api", "darwin")).toBe("template:backend-api");
+    expect(shellArg("C:\\Temp\\a.yaml", "win32")).toBe('"C:\\Temp\\a.yaml"');
+    expect(shellArg("./my templates/a.yaml", "win32")).toBe('"./my templates/a.yaml"');
+    expect(shellArg('say "hi"', "win32")).toBe('"say ""hi"""');
+    expect(shellArg("./my templates/a.yaml", "linux")).toBe("'./my templates/a.yaml'");
+    expect(shellArg("it's.yaml", "darwin")).toBe("'it'\\''s.yaml'");
+  });
+
+  test("lists Stories skipped by excludeIfHasTasks that look partly created, with the command to resume them", () => {
+    printReport(
+      makeReport({
+        partlyCreated: [
+          { storyId: "7", title: "Login", tasksExisting: 2, tasksPlanned: 6 },
+          { storyId: "8", title: "Logout", tasksExisting: 1, tasksPlanned: 6 },
+        ],
+      }),
+      { verbose: false, templateRef: "template:backend-api" },
+      true,
+    );
+
+    expect(printed()).toContain("7: Login · 2 of 6 planned Tasks exist");
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 7 8 --resume --execute");
+  });
+
+  test("after a dry run, also prints the command that includes the partly created Stories in the same run", () => {
+    printReport(
+      makeReport({
+        dryRun: true,
+        results: [
+          { story: { id: "1040", title: "Export", type: "User Story", state: "New" }, success: true, tasksCalculated: [{ title: "A" }], tasksCreated: [] },
+          { story: { id: "1041", title: "Broken", type: "User Story", state: "New" }, success: false, error: "x", tasksCalculated: [], tasksCreated: [] },
+        ],
+        partlyCreated: [{ storyId: "1031", title: "Login", tasksExisting: 1, tasksPlanned: 3 }],
+      }),
+      { verbose: false, templateRef: "template:backend-api" },
+      true,
+    );
+
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 1031 --resume --execute");
+    expect(printed()).toContain("To include them in this run: atomize generate template:backend-api --story 1040 1031 --resume");
+  });
+
+  test("lists partly created Stories even when excludeIfHasTasks skipped every Story", () => {
+    const code = printReport(
+      makeReport({
+        storiesProcessed: 0,
+        partlyCreated: [{ storyId: "7", title: "Login", tasksExisting: 2, tasksPlanned: 6 }],
+      }),
+      { verbose: false, templateRef: "template:backend-api" },
+      true,
+    );
+
+    expect(code).toBe(ExitCode.NoMatch);
+    expect(printed()).toContain("Every matching Story already has Tasks");
+    expect(printed()).toContain("7: Login · 2 of 6 planned Tasks exist");
+    expect(printed()).toContain("To finish: atomize generate template:backend-api --story 7 --resume --execute");
+    expect(printed()).not.toContain("Check your template's filter configuration");
+  });
+
+  test("shows a resumed Story's Tasks that exist, will be created, and aren't in the plan", () => {
+    printReport(
+      makeReport({
+        results: [
+          {
+            story: { id: "1", title: "Story", type: "User Story", state: "New" },
+            success: true,
+            tasksCalculated: [{ title: "Build", estimation: 5, estimationPercent: 50 }],
+            tasksCreated: [],
+            resume: {
+              existing: [{ title: "Design", workItemId: "E1" }],
+              notInPlan: [{ title: "Spike", workItemId: "E9" }],
+              complete: false,
+            },
+          },
+        ] as unknown as AtomizationReport["results"],
+      }),
+      { verbose: false },
+      true,
+    );
+
+    expect(printed()).toContain("exists       Design (E1)");
+    expect(printed()).toContain("will create  Build");
+    expect(printed()).toContain("not in plan  Spike (E9)");
+  });
+
+  test("says when a resumed Story was already complete", () => {
+    printReport(
+      makeReport({
+        results: [
+          {
+            story: { id: "1", title: "Story", type: "User Story", state: "New" },
+            success: true,
+            tasksCalculated: [],
+            tasksCreated: [],
+            resume: { existing: [{ title: "Design", workItemId: "E1" }], notInPlan: [], complete: true },
+          },
+        ],
+      }),
+      { verbose: false },
+      false,
+    );
+
+    expect(printed()).toContain("Already complete: every planned Task exists");
+  });
+});
+
+describe("reportExitCode for a stopped run", () => {
+  test("is Stopped (4) when the run was cancelled or timed out, even with failed Stories", () => {
+    const stopped = { reason: "cancelled" as const, message: "The run was cancelled.", storiesNotStarted: [] };
+    expect(ExitCode.Stopped).toBe(4);
+    expect(reportExitCode(makeReport({ stopped }))).toBe(ExitCode.Stopped);
+    expect(reportExitCode(makeReport({ stopped, storiesFailed: 1 }))).toBe(ExitCode.Stopped);
   });
 });

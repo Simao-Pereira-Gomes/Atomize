@@ -2,9 +2,11 @@
 // execStoryResult (generate-html.ts): task rows link out to the real created Work Item.
 import { For, Show } from "solid-js";
 import type { GenerateResultRow as GenerateResultRowData } from "../generate/live";
+import { ExternalLink } from "../links/ExternalLink";
 
 export function GenerateResultRow(props: { row: GenerateResultRowData; open: boolean; onToggleOpen: () => void }) {
   const failed = () => !props.row.success;
+  const stoppedEarly = () => props.row.stoppedEarly === true;
   return (
     <div class={`mb-2 overflow-hidden rounded-xl border ${failed() ? "border-rose-200 dark:border-rose-900" : "border-slate-100 dark:border-slate-800"}`}>
       <button
@@ -14,21 +16,19 @@ export function GenerateResultRow(props: { row: GenerateResultRowData; open: boo
         aria-expanded={props.open}
       >
         <span class={`shrink-0 text-[10px] text-slate-400 transition-transform duration-150 ${props.open ? "rotate-90" : ""}`}>▸</span>
-        <span class={failed() ? "text-rose-600" : "text-emerald-600"}>{failed() ? "✗" : "✓"}</span>
+        <span class={failed() ? "text-rose-600" : stoppedEarly() ? "text-amber-600" : "text-emerald-600"}>{failed() ? "✗" : stoppedEarly() ? "◐" : "✓"}</span>
         <span class="flex-1 truncate text-sm font-semibold text-slate-950 dark:text-white">{props.row.story.title}</span>
         <Show when={props.row.story.url} fallback={<span class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{props.row.story.id}</span>}>
-          <a
-            href={props.row.story.url}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
+          <ExternalLink
+            href={props.row.story.url as string}
+            title="Open in Azure DevOps"
             class="shrink-0 text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
           >
             {props.row.story.id} ↗
-          </a>
+          </ExternalLink>
         </Show>
-        <span class={`shrink-0 text-xs font-semibold ${failed() ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-          {failed() ? "failed" : `${props.row.tasksCreated.length} created`}
+        <span class={`shrink-0 text-xs font-semibold ${failed() ? "text-rose-700 dark:text-rose-300" : stoppedEarly() ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+          {failed() ? "failed" : stoppedEarly() ? `stopped · ${props.row.tasksCreated.length} of ${props.row.tasksPlanned.length} created` : `${props.row.tasksCreated.length} created`}
         </span>
       </button>
       <Show when={props.open}>
@@ -42,9 +42,9 @@ export function GenerateResultRow(props: { row: GenerateResultRowData; open: boo
                 <div class="flex items-center gap-2 py-1 text-sm">
                   <span class="shrink-0 text-emerald-600">✓</span>
                   <Show when={task.url} fallback={<span class="shrink-0 font-semibold text-slate-500 dark:text-slate-400">#{task.id}</span>}>
-                    <a href={task.url} target="_blank" rel="noreferrer" class="shrink-0 font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                    <ExternalLink href={task.url as string} title="Open in Azure DevOps" class="shrink-0 font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
                       #{task.id}
-                    </a>
+                    </ExternalLink>
                   </Show>
                   <span class="truncate text-slate-600 dark:text-slate-300">{task.title}</span>
                 </div>

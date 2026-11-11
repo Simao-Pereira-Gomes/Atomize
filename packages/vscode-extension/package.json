@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize: generate tasks from YAML templates",
-	"version": "0.5.7",
+	"version": "0.6.0",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -92,6 +92,11 @@
 			{
 				"command": "atomize.generate",
 				"title": "Generate",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.finishPartlyCreatedStories",
+				"title": "Finish Partly Created Stories",
 				"category": "Atomize"
 			},
 			{

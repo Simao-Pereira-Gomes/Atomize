@@ -54,6 +54,11 @@ impl PendingRequests {
 
     fn drop_pending(&self, id: u64) { self.pending.lock().unwrap().remove(&id); }
 
+    /// The id registered under `key`, leaving its waiter in place for the response a cancel still gets.
+    fn id_for_cancel(&self, key: &str) -> Option<u64> {
+        self.cancellable.lock().unwrap().get(key).copied()
+    }
+
     fn take_for_cancel(&self, key: &str) -> Option<u64> {
         let id = self.cancellable.lock().unwrap().remove(key)?;
         self.pending.lock().unwrap().remove(&id);
@@ -147,19 +152,24 @@ impl SidecarRelay {
         self.cancel_by_key(validation_id)
     }
 
-    /// `generate.run` has no dedicated sidecar-side cancel handler — like Online Validation, cancelling
-    /// only abandons the pending response via the generic `$/cancelRequest` mechanism (`atomize-core`
-    /// has no cancellation hook to actually interrupt an in-flight batch).
+    /// `generate.run` is cancelled through the generic `$/cancelRequest` mechanism, but unlike Online
+    /// Validation its response isn't abandoned: the run stops starting new work and answers with the
+    /// report of what it did, including the Stories it left partly created (#331).
     pub async fn run_generate(&self, run_id: String, params: Value) -> Result<Value, SidecarError> {
         self.request_with_cancel_key("generate.run", params, Some(&run_id)).await
     }
 
     pub fn cancel_generate(&self, run_id: &str) -> Result<(), SidecarError> {
-        self.cancel_by_key(run_id)
+        let Some(id) = self.requests.id_for_cancel(run_id) else { return Ok(()); };
+        self.send_cancel(id)
     }
 
     fn cancel_by_key(&self, key: &str) -> Result<(), SidecarError> {
         let Some(id) = self.requests.take_for_cancel(key) else { return Ok(()); };
+        self.send_cancel(id)
+    }
+
+    fn send_cancel(&self, id: u64) -> Result<(), SidecarError> {
         let notification = json!({ "jsonrpc": "2.0", "method": "$/cancelRequest", "params": { "id": id } });
         let mut child = self.child.lock().unwrap();
         let Some(child) = child.as_mut() else { return Ok(()); };
@@ -261,6 +271,16 @@ mod tests {
         assert_eq!(requests.take_for_cancel("run-1"), Some(id));
         assert!(matches!(rx.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
         assert!(!requests.resolve(id, Ok(json!({ "late": true }))));
+    }
+
+    // A Generation Run settles after a cancel with the report of what it did (#331), so cancelling
+    // it only looks up its id: the waiter stays registered and receives that report.
+    #[test] fn cancelling_a_generate_run_keeps_its_waiter_for_the_report() {
+        let requests = PendingRequests::new();
+        let (id, mut rx) = requests.register(Some("run-1"));
+        assert_eq!(requests.id_for_cancel("run-1"), Some(id));
+        assert!(requests.resolve(id, Ok(json!({ "report": { "stopped": { "reason": "cancelled" } } }))));
+        assert_eq!(rx.try_recv().unwrap().unwrap()["report"]["stopped"]["reason"], "cancelled");
     }
 
     #[test] fn cancelling_an_unknown_key_is_a_no_op() {

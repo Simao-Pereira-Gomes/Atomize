@@ -308,13 +308,13 @@ Tasks are created only after step 5.
 
 ### Follow progress or cancel
 
-While Tasks are created, Studio shows which Stories are in progress and how many are done, and lists each finished Story as it completes. **Cancel run (best-effort)** stops the run as soon as the requests already sent come back: no further Story or Task is started. A Story that was being processed when you cancelled keeps the Tasks it already has, and the run's warnings say how many of its Tasks were created. Anything already created in Azure DevOps is not rolled back.
+While Tasks are created, Studio shows which Stories are in progress and how many are done, and lists each finished Story as it completes. **Cancel run**, at the top of the progress, stops starting new work: Studio shows **Stopping** until the requests already sent come back, then the result. A run that makes no progress for six minutes stops the same way. A Story that was being processed when the run stopped keeps the Tasks it already has. The result lists it with how many of its Tasks were created, and the Stories that weren't started, all ticked: **Finish selected Stories** resumes them in one run. Anything already created in Azure DevOps is not rolled back. See [A Run Stopped Part-Way](./Workflows.md#a-run-stopped-part-way).
 
 ### Review results and recover
 
 The result lists each Story with the Tasks created for it; Story and Task numbers link to the Work Items in Azure DevOps. A failed Story shows its error.
 
-Studio stops at the first failing Story: Stories already being processed still finish, but no further Story is started, and the result reads **Partially completed**. A run that fails or is cancelled shows what was created before it stopped. **Try again** returns to the Preview step. Check the result first: Tasks that were already created stay in Azure DevOps.
+Studio stops at the first failing Story: Stories already being processed still finish, but no further Story is started, and the result reads **Partially completed**. A run that fails or is cancelled shows what was created before it stopped. When `excludeIfHasTasks` skips a Story that looks partly created, the Preview lists it unticked: tick it and choose **Include in this run** to preview it with the other Stories, creating only its missing Tasks. To finish Stories yourself, tick **Finish partly created Stories** in the Story browser, which then lists Stories with or without Tasks: the Preview shows each Story's Tasks that already exist and creates only the missing ones. **Try again** returns to the Preview step, and **← New run** goes back to the Scope step to start another run. Story and Task numbers open in your browser. Check the result first: Tasks that were already created stay in Azure DevOps.
 
 <!-- /atomize:section -->
 

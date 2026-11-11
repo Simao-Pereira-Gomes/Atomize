@@ -13,7 +13,7 @@ import type {
   SavedQueryInfo,
   WikiInfo,
 } from "../../interfaces/platform.interface";
-import type { CreateTasksOptions } from "../../interfaces/platform-capabilities";
+import type { CreateTasksOptions, QueryWorkItemsOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
   TaskDefinition,
@@ -74,7 +74,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
   /**
    * Query work items based on filter criteria
    */
-  async queryWorkItems(filter: FilterCriteria): Promise<WorkItem[]> {
+  async queryWorkItems(filter: FilterCriteria, options: QueryWorkItemsOptions = {}): Promise<WorkItem[]> {
     this.ensureAuthenticated();
     logger.debug("MockPlatform: Querying work items with filter:", filter);
     // Simulate network delay
@@ -84,11 +84,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
       let results = mockUserStories.filter((item) =>
         filter.workItemIds?.includes(item.id)
       );
-      if (filter.excludeIfHasTasks) {
-        results = results.filter(
-          (item) => !item.children || item.children.length === 0
-        );
-      }
+      results = applyTaskChildren(results, filter, options);
       logger.info(`MockPlatform: Found ${results.length} work item(s) by ID`);
       return results;
     }
@@ -122,11 +118,7 @@ export class MockPlatformAdapter implements IPlatformAdapter {
     }
 
     // Exclude if has tasks
-    if (filter.excludeIfHasTasks) {
-      results = results.filter(
-        (item) => !item.children || item.children.length === 0
-      );
-    }
+    results = applyTaskChildren(results, filter, options);
 
     // Filter by assigned to
     if (filter.assignedTo && filter.assignedTo.length > 0) {
@@ -449,4 +441,24 @@ export class MockPlatformAdapter implements IPlatformAdapter {
   private async delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+}
+
+/**
+ * Applies excludeIfHasTasks and includeTaskChildren the way the Azure DevOps adapter does: with
+ * `taskWorkItemTypes`, only children of those types count as Tasks.
+ */
+function applyTaskChildren(items: WorkItem[], filter: FilterCriteria, options: QueryWorkItemsOptions): WorkItem[] {
+  const types = filter.taskWorkItemTypes?.length ? new Set(filter.taskWorkItemTypes) : undefined;
+  const tasksOf = (item: WorkItem) => (item.children ?? []).filter((child) => !types || types.has(child.type));
+  const withTasks = (item: WorkItem): WorkItem => {
+    if (!types) return item;
+    const tasks = tasksOf(item);
+    return { ...item, children: tasks, childCount: tasks.length };
+  };
+  if (!filter.excludeIfHasTasks) return filter.includeTaskChildren ? items.map(withTasks) : items;
+  return items.flatMap((item) => {
+    if (tasksOf(item).length === 0) return [withTasks(item)];
+    options.onExcluded?.(withTasks(item));
+    return [];
+  });
 }

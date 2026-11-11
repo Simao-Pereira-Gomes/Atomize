@@ -10,9 +10,10 @@ import { logger } from "../../../logger";
 import { runWithConcurrency } from "../../../utils/concurrency";
 import { ConfigurationError, PlatformError } from "../../../utils/errors";
 import type { FilterCriteria } from "../../interfaces/filter.interface";
+import type { QueryWorkItemsOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type { WorkItem } from "../../interfaces/work-item.interface";
-import { convertWorkItem, hasChildRelations } from "./work-item-mapper";
+import { childIds, convertWorkItem, hasChildRelations } from "./work-item-mapper";
 import {
   buildStorySearchWiql,
   buildWorkItemWiqlQuery,
@@ -62,16 +63,16 @@ export class AzureDevOpsWorkItemRetrieval {
     private readonly config: AzureDevOpsRetrievalConfig,
   ) {}
 
-  async query(filter: FilterCriteria): Promise<WorkItem[]> {
+  async query(filter: FilterCriteria, options: QueryWorkItemsOptions = {}): Promise<WorkItem[]> {
     if (filter.workItemIds && filter.workItemIds.length > 0) {
-      return this.fetchWorkItemsByIds(filter.workItemIds, filter);
+      return this.fetchWorkItemsByIds(filter.workItemIds, filter, options);
     }
 
     if (filter.savedQuery) {
-      return this.runSavedQuery(filter.savedQuery, filter);
+      return this.runSavedQuery(filter.savedQuery, filter, options);
     }
 
-    return this.runFilterQuery(filter);
+    return this.runFilterQuery(filter, options);
   }
 
   /** Runs a Story Search: newest first, capped, optionally keeping only Stories with or without Tasks. */
@@ -112,7 +113,7 @@ export class AzureDevOpsWorkItemRetrieval {
     return matching.map((item) => convertWorkItem(item, this.config.organizationUrl));
   }
 
-  private async runFilterQuery(filter: FilterCriteria): Promise<WorkItem[]> {
+  private async runFilterQuery(filter: FilterCriteria, options: QueryWorkItemsOptions): Promise<WorkItem[]> {
     const effectiveTeam = this.resolveEffectiveTeam(filter);
     const wiql = buildWorkItemWiqlQuery(filter, this.config.project);
     logger.debug("AzureDevOps: WIQL query built");
@@ -124,7 +125,7 @@ export class AzureDevOpsWorkItemRetrieval {
       queryTop(filter),
     );
 
-    return this.hydrateQueryResult(result.workItems, filter, {
+    return this.hydrateQueryResult(result.workItems, filter, options, {
       emptyMessage: "AzureDevOps: No work items found",
       matchedMessage: (count) => `AzureDevOps: Found ${count} work item(s)`,
     });
@@ -133,6 +134,7 @@ export class AzureDevOpsWorkItemRetrieval {
   private async fetchWorkItemsByIds(
     ids: string[],
     filter: FilterCriteria,
+    options: QueryWorkItemsOptions,
   ): Promise<WorkItem[]> {
     const numericIds = ids
       .map((id) => parseInt(id, 10))
@@ -144,13 +146,13 @@ export class AzureDevOpsWorkItemRetrieval {
     }
 
     logger.info(`AzureDevOps: Fetching ${numericIds.length} work item(s) by ID`);
-    const workItems = await this.fetchFiltered(numericIds, filter);
-    return workItems.map((wi) => convertWorkItem(wi, this.config.organizationUrl));
+    return await this.fetchFiltered(numericIds, filter, options);
   }
 
   private async runSavedQuery(
     savedQuery: { id?: string; path?: string },
     filter: FilterCriteria,
+    options: QueryWorkItemsOptions,
   ): Promise<WorkItem[]> {
     const wiql = await this.resolveSavedQueryWiql(savedQuery);
 
@@ -162,7 +164,7 @@ export class AzureDevOpsWorkItemRetrieval {
       queryTop(filter),
     );
 
-    return this.hydrateQueryResult(result.workItems, filter, {
+    return this.hydrateQueryResult(result.workItems, filter, options, {
       emptyMessage: "AzureDevOps: Saved query returned no work items",
       matchedMessage: (count) =>
         `AzureDevOps: Saved query matched ${count} work item(s)`,
@@ -172,6 +174,7 @@ export class AzureDevOpsWorkItemRetrieval {
   private async hydrateQueryResult(
     refs: Array<{ id?: number }> | undefined,
     filter: FilterCriteria,
+    options: QueryWorkItemsOptions,
     messages: {
       emptyMessage: string;
       matchedMessage: (count: number) => string;
@@ -187,24 +190,62 @@ export class AzureDevOpsWorkItemRetrieval {
       .filter((id): id is number => id !== undefined);
     logger.info(messages.matchedMessage(ids.length));
 
-    const filtered = await this.fetchFiltered(ids, filter);
-    const converted = filtered.map((wi) => convertWorkItem(wi, this.config.organizationUrl));
+    const converted = await this.fetchFiltered(ids, filter, options);
 
     logger.info(`AzureDevOps: Returning ${converted.length} work item(s)`);
     return converted;
   }
 
-  /** Fetches the Work Items for `ids`, applying excludeIfHasTasks and limit without over-fetching. */
-  private async fetchFiltered(ids: number[], filter: FilterCriteria): Promise<AzureWorkItem[]> {
+  /**
+   * Fetches the Work Items for `ids`, applying excludeIfHasTasks and limit without over-fetching.
+   * With `taskWorkItemTypes`, only children of those types count as Tasks, which needs the children
+   * themselves: they are read round by round, only for Stories that have any.
+   */
+  private async fetchFiltered(ids: number[], filter: FilterCriteria, options: QueryWorkItemsOptions): Promise<WorkItem[]> {
+    const taskTypes = filter.taskWorkItemTypes?.length ? new Set(filter.taskWorkItemTypes) : undefined;
+    const readsChildren = taskTypes !== undefined && (filter.excludeIfHasTasks || filter.includeTaskChildren);
+    const children = new Map<number, AzureWorkItem>();
+    const childTasks = (item: AzureWorkItem) =>
+      childIds(item).flatMap((id) => {
+        const child = children.get(id);
+        return child && taskTypes?.has(child.fields?.["System.WorkItemType"]) ? [child] : [];
+      });
+    const convert = (item: AzureWorkItem): WorkItem => {
+      const converted = convertWorkItem(item, this.config.organizationUrl);
+      if (!readsChildren) return converted;
+      const tasks = childTasks(item).map((child) => convertWorkItem(child, this.config.organizationUrl));
+      return { ...converted, children: tasks, childCount: tasks.length };
+    };
+    const hasTasks = (item: AzureWorkItem) => (readsChildren ? childTasks(item).length > 0 : hasChildRelations(item));
+
     const fetched = await this.fetchMatching(
       ids,
       filter.limit || undefined,
-      filter.excludeIfHasTasks ? (item) => !hasChildRelations(item) : undefined,
+      filter.excludeIfHasTasks
+        ? (item) => {
+            if (!hasTasks(item)) return true;
+            options.onExcluded?.(convert(item));
+            return false;
+          }
+        : undefined,
+      readsChildren ? (round) => this.readChildren(round, children) : undefined,
     );
     if (filter.excludeIfHasTasks) {
       logger.info(`AzureDevOps: ${fetched.length} work item(s) without tasks (after excludeIfHasTasks)`);
     }
-    return fetched;
+    return fetched.map(convert);
+  }
+
+  /** Reads the children of `stories` into `into`, 200 per batch fetch, a few at a time. */
+  private async readChildren(stories: AzureWorkItem[], into: Map<number, AzureWorkItem>): Promise<void> {
+    const ids = [...new Set(stories.flatMap(childIds))].filter((id) => !into.has(id));
+    const chunks: number[][] = [];
+    for (let start = 0; start < ids.length; start += MAX_BATCH_FETCH) chunks.push(ids.slice(start, start + MAX_BATCH_FETCH));
+    await runWithConcurrency(chunks, FETCH_CONCURRENCY, async (chunk) => {
+      for (const child of await this.getWorkItemBatch(chunk, WorkItemExpand.Fields)) {
+        if (child.id !== undefined) into.set(child.id, child);
+      }
+    });
   }
 
   /**
@@ -217,6 +258,8 @@ export class AzureDevOpsWorkItemRetrieval {
     ids: number[],
     limit: number | undefined,
     keep?: (item: AzureWorkItem) => boolean,
+    /** Runs on each round's Work Items before `keep` sees them. */
+    prepare?: (round: AzureWorkItem[]) => Promise<void>,
   ): Promise<AzureWorkItem[]> {
     const candidates = limit !== undefined && !keep ? ids.slice(0, limit) : ids;
     const chunks: number[][] = [];
@@ -240,6 +283,7 @@ export class AzureDevOpsWorkItemRetrieval {
       await runWithConcurrency(round, FETCH_CONCURRENCY, async (chunk, index) => {
         fetched[index] = await this.getWorkItemBatch(chunk);
       });
+      await prepare?.(fetched.flat());
       round.forEach((chunk, index) => {
         // Keep the query's order regardless of the batch fetch's ordering.
         const byId = new Map((fetched[index] ?? []).map((item) => [item.id, item]));
@@ -254,14 +298,15 @@ export class AzureDevOpsWorkItemRetrieval {
 
   /**
    * One batch fetch of at most 200 Work Items. Relations brings the fields and the child links the
-   * filters need; the web link `_links` would add is built locally (see convertWorkItem).
+   * filters need; the web link `_links` would add is built locally (see convertWorkItem). Children
+   * need only their fields.
    */
-  private async getWorkItemBatch(ids: number[]): Promise<AzureWorkItem[]> {
+  private async getWorkItemBatch(ids: number[], expand = WorkItemExpand.Relations): Promise<AzureWorkItem[]> {
     const workItems = await this.witApi.getWorkItems(
       ids,
       undefined,
       undefined,
-      WorkItemExpand.Relations,
+      expand,
       undefined,
       this.config.project,
     );

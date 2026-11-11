@@ -43,6 +43,15 @@ export interface GenerateResult {
 		totalTaskEstimation: number;
 		percentageUsed: number;
 	};
+	/** The run stopped while this Story's Tasks were being created; those created are kept. */
+	stoppedEarly?: boolean;
+	/** A resumed Story: planned Tasks that already exist (the rest are `tasksCalculated`), and children not in the plan. */
+	resume?: {
+		/** `url` opens the Work Item, so the user can check it is the right Task. */
+		existing: Array<{ title: string; workItemId: string; url?: string }>;
+		notInPlan: Array<{ title: string; workItemId: string; url?: string }>;
+		complete: boolean;
+	};
 }
 
 export interface GenerateReport {
@@ -58,12 +67,98 @@ export interface GenerateReport {
 	errors: Array<{ storyId: string; error: string }>;
 	warnings: string[];
 	executionTime: number;
+	/** Present when the run was cancelled or timed out before it finished. */
+	stopped?: { reason: 'cancelled' | 'timedOut'; message: string; storiesNotStarted: string[] };
+	/** Stories excludeIfHasTasks skipped that look partly created. Absent in reports from before #331. */
+	partlyCreated?: Array<{ storyId: string; title: string; tasksExisting: number; tasksPlanned: number }>;
 }
 
 // Shared utilities
 
 function esc(s: unknown): string {
 	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
+
+/** `#id ↗`, opening the Work Item when it has a link (the page's click handler sends `openLink`). */
+function workItemLink(item: { workItemId: string; url?: string }): string {
+	return item.url
+		? `<a data-url="${esc(item.url)}" title="Open in Azure DevOps" style="color:var(--vscode-textLink-foreground,var(--vscode-focusBorder));text-decoration:none;cursor:pointer">#${esc(item.workItemId)} ↗</a>`
+		: `#${esc(item.workItemId)}`;
+}
+
+/** A resumed Story's Tasks that already exist, and its children no planned Task matched, each linked to its Work Item. */
+function resumeLines(result: GenerateResult): string {
+	const resume = result.resume;
+	if (!resume) return '';
+	const existing = resume.existing.map(task => `
+<div style="padding:6px 10px;border:1px dashed rgba(255,255,255,.12);border-radius:3px;margin-bottom:3px;display:flex;align-items:center;gap:8px;color:var(--vscode-descriptionForeground)">
+  <span style="font-size:.88em;flex:1">${esc(task.title)}</span>
+  <span style="font-size:.78em;font-weight:600">Exists · ${workItemLink(task)}</span>
+</div>`).join('');
+	const complete = resume.complete
+		? `<div style="margin:4px 0 8px;font-size:.82em;color:var(--vscode-testing-iconPassed)">Already complete: every planned Task exists</div>`
+		: '';
+	const notInPlan = resume.notInPlan.length > 0
+		? `<div style="margin:4px 0 8px;font-size:.8em;color:var(--vscode-descriptionForeground)">Not in the plan, left as they are: ${resume.notInPlan.map(child => `${esc(child.title)} (${workItemLink(child)})`).join(', ')}</div>`
+		: '';
+	return complete + existing + notInPlan;
+}
+
+function finishButton(storyIds: string[], label: string): string {
+	return `<button class="btn-primary" style="margin-top:8px" data-finish="${esc(storyIds.join(','))}">${esc(label)}</button>`;
+}
+
+/** One Story the user can tick or untick before finishing; the block's button takes the ticked ones. */
+function selectableStory(storyId: string, text: string, ticked = true): string {
+	return `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer"><input type="checkbox"${ticked ? ' checked' : ''} data-story="${esc(storyId)}">${text}</label>`;
+}
+
+function noticeBox(content: string): string {
+	return `<div style="margin:0 0 14px;padding:10px 12px;background:rgba(204,167,0,.06);border-left:2px solid rgba(204,167,0,.5);border-radius:2px;font-size:.84em">${content}</div>`;
+}
+
+/**
+ * Stories excludeIfHasTasks skipped that look partly created. In a dry run that previewed other
+ * Stories, they can be ticked to join it: the run becomes one Resume of the previewed Stories and the
+ * ticked ones (a Resume of a Story with no Tasks creates all of them). Otherwise they are finished on
+ * their own.
+ */
+function partlyCreatedBlock(report: GenerateReport): string {
+	const stories = report.partlyCreated ?? [];
+	if (stories.length === 0) return '';
+	const previewed = report.dryRun ? report.results.filter(result => result.success).map(result => result.story.id) : [];
+	const joining = previewed.length > 0;
+	const rows = stories.map(story => selectableStory(
+		story.storyId,
+		`${esc(story.storyId)} · ${esc(story.title)}: ${story.tasksExisting} of ${story.tasksPlanned} planned Tasks exist`,
+		!joining,
+	)).join('');
+	const ids = esc(stories.map(story => story.storyId).join(','));
+	const action = joining
+		? `<button class="btn-primary" style="margin-top:8px" data-finish="${ids}" data-base="${esc(previewed.join(','))}">Include in this run</button>
+<div style="margin-top:4px;color:var(--vscode-descriptionForeground)">Tick the Stories to finish along with the ones above. The preview runs again with only the missing Tasks.</div>`
+		: finishButton(stories.map(story => story.storyId), 'Finish selected Stories');
+	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">Skipped as already having Tasks, but they look partly created</div>${rows}${action}`);
+}
+
+/**
+ * Why a run stopped, and one list of the Stories it left part-way through and those it never
+ * started: a Resume finishes both, since for a Story with no Tasks it creates all of them.
+ */
+function stoppedBlock(report: GenerateReport): string {
+	const stopped = report.stopped;
+	if (!stopped) return '';
+	const stoppedEarly = report.results.filter(result => result.stoppedEarly);
+	const title = stopped.reason === 'timedOut' ? stopped.message : 'Run cancelled. Tasks already created were kept.';
+	const rows = [
+		...stoppedEarly.map(result => selectableStory(result.story.id, `${esc(result.story.id)} · ${esc(result.story.title)}: ${result.tasksCreated.length} of ${result.tasksCalculated.length} Tasks created`)),
+		...stopped.storiesNotStarted.map(id => selectableStory(id, `${esc(id)}: not started`)),
+	].join('');
+	const ids = [...stoppedEarly.map(result => result.story.id), ...stopped.storiesNotStarted];
+	const finish = ids.length > 0 ? finishButton(ids, 'Finish selected Stories') : '';
+	return noticeBox(`<div style="font-weight:600;margin-bottom:4px;color:#cca700">${esc(title)}</div>${rows}${finish}`);
 }
 
 function pctColor(pct: number): string {
@@ -80,6 +175,12 @@ const GEN_CSS = `${css}
 body{color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);margin:0;padding:0 18px 90px;line-height:1.625}
 .btn-primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:6px 14px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn-primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}
+.live-card{border:1px solid var(--vscode-panel-border,#3d3d3d);border-radius:4px;padding:10px 12px;background:rgba(255,255,255,.02)}
+.live-status{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.live-progress{padding-left:24px}
+.btn-stop{flex-shrink:0;background:transparent;color:var(--vscode-errorForeground,#f48771);border:1px solid var(--vscode-errorForeground,#f48771);padding:4px 12px;border-radius:2px;font-family:var(--vscode-font-family);font-size:.88em;font-weight:600;cursor:pointer}
+.btn-stop:hover:not(:disabled){background:rgba(241,76,76,.1)}
+.btn-stop:disabled{opacity:.55;cursor:default}
 .tag{display:inline-block;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:0 5px;font-size:.75em;color:var(--vscode-descriptionForeground);line-height:1.6}
 .chev{display:inline-block;width:14px;text-align:center;font-size:.9em;color:var(--vscode-descriptionForeground);transition:transform .15s ease}
 details[open]>summary .chev{transform:rotate(90deg)}
@@ -218,7 +319,7 @@ function storySection(result: GenerateResult): string {
       <span style="color:var(--vscode-testing-iconPassed);font-weight:700">${withUnit(storyH, u)}</span>
     </div>
   </summary>
-  ${warningHtml}${taskItems}
+  ${warningHtml}${resumeLines(result)}${taskItems}
 </details>`;
 }
 
@@ -255,7 +356,7 @@ function storySectionCompact(result: GenerateResult): string {
       ${storyLink} · ${tasks.length} tasks · <strong style="color:var(--vscode-testing-iconPassed)">${withUnit(storyH, u)}</strong>
     </span>
   </summary>
-  ${warningHtml}<div style="overflow-x:auto">
+  ${warningHtml}${resumeLines(result)}<div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:.83em">
       <thead><tr>
         <th style="text-align:right;padding:3px 8px 5px 0;font-size:.78em;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-panel-border,#3d3d3d)">#</th>
@@ -461,6 +562,18 @@ document.addEventListener('click', function(e) {
   if (el) { e.stopPropagation(); e.preventDefault(); var url = el.getAttribute('data-url'); if (url) vscode.postMessage({ type: 'openLink', url: url }); }
 }, true);
 ${script}
+document.addEventListener('click', function(e) {
+  var finish = e.target.closest('[data-finish]');
+  if (finish) {
+    var boxes = finish.parentElement.querySelectorAll('input[data-story]');
+    var ticked = boxes.length > 0
+      ? Array.prototype.filter.call(boxes, function(box) { return box.checked; }).map(function(box) { return box.getAttribute('data-story'); })
+      : finish.getAttribute('data-finish').split(',');
+    var base = finish.getAttribute('data-base');
+    var ids = (base ? base.split(',') : []).concat(ticked);
+    if (ticked.length > 0) vscode.postMessage({ type: 'finishStories', storyIds: ids });
+  }
+});
 </script>
 </body>
 </html>`;
@@ -549,7 +662,7 @@ export function renderGenerateDrySuccess(
 	const stories = mode === 'default'
 		? report.results.map(storySection).join('')
 		: report.results.map(storySectionCompact).join('');
-	const body = header + kpis + stories + splitButton(report.tasksCalculated, profile);
+	const body = header + kpis + partlyCreatedBlock(report) + stories + splitButton(report.tasksCalculated, profile);
 	return page('Atomize: Generate', body, SPLIT_BUTTON_SCRIPT);
 }
 
@@ -569,7 +682,7 @@ export function renderGenerateDryWarnings(
 	const action = report.storiesFailed === 0
 		? splitButton(report.tasksCalculated, profile)
 		: `<div class="action-zone"><span style="font-size:.84em;color:var(--vscode-descriptionForeground)">⚠ ${report.storiesFailed} ${report.storiesFailed === 1 ? 'story' : 'stories'} failed. Fix errors before creating tasks.</span></div>`;
-	const body = header + kpis + stories + action;
+	const body = header + kpis + partlyCreatedBlock(report) + stories + action;
 	return page('Atomize: Generate', body, report.storiesFailed === 0 ? SPLIT_BUTTON_SCRIPT : SWITCH_MODE_SCRIPT);
 }
 
@@ -579,6 +692,8 @@ export function renderGenerateBlocked(
 	fileName: string,
 	profile: string,
 	storyIds?: string[],
+	/** The dry run's report, so Stories excludeIfHasTasks skipped that look partly created can still be finished. */
+	report?: GenerateReport,
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
 	const header = panelHeader('default', false, shortFile, profile, undefined, storyIds);
@@ -598,14 +713,16 @@ export function renderGenerateBlocked(
 	if (kind === 'no-matches') {
 		const body = header
 			+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
-			+ errorBubble('○', 'No matching stories', detail, false, '');
+			+ errorBubble('○', 'No matching stories', detail, false, '')
+			+ (report ? partlyCreatedBlock(report) : '');
 		return page('Atomize: Generate · No Matches', body, '');
 	}
 
 	// no-tasks
 	const body = header
 		+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
-		+ errorBubble('○', 'No tasks to create', detail, false, '');
+		+ errorBubble('○', 'No tasks to create', detail, false, '')
+		+ (report ? partlyCreatedBlock(report) : '');
 	return page('Atomize: Generate · No Tasks', body, '');
 }
 
@@ -621,11 +738,13 @@ export function renderGenerateLiveRunning(
 	const totalStories = dryReport.storiesSuccess;
 	const body = `${header}${collapsed}
 <div style="border-top:1px solid var(--vscode-panel-border,#3d3d3d);margin-bottom:14px"></div>
-<div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:var(--vscode-descriptionForeground)">
+<div class="live-card">
+<div class="live-status">
   <div class="spinner"></div>
-  <span style="font-size:.9em">Creating tasks in <strong style="color:var(--vscode-editor-foreground)">${esc(profile)}</strong>…</span>
+  <span id="live-status-text" style="flex:1;min-width:0;font-size:.9em;color:var(--vscode-descriptionForeground)">Creating tasks in <strong style="color:var(--vscode-editor-foreground)">${esc(profile)}</strong>…</span>
+  <button id="btn-cancel-run" class="btn-stop">Cancel run</button>
 </div>
-<div style="padding-left:24px;margin-top:4px">
+<div class="live-progress">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
     <div class="progress-track" style="flex:1">
       <div class="progress-fill" id="progress-fill" style="width:0%"></div>
@@ -637,8 +756,17 @@ export function renderGenerateLiveRunning(
     <span id="live-tasks" style="font-weight:600;color:var(--vscode-testing-iconPassed)">0</span>
     <span> tasks created</span>
   </div>
+</div>
 </div>`;
-	return page('Atomize: Generate · Creating…', body, LIVE_PROGRESS_SCRIPT);
+	return page('Atomize: Generate · Creating…', body, `${LIVE_PROGRESS_SCRIPT}
+var btn = document.getElementById('btn-cancel-run');
+btn.addEventListener('click', function() {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Stopping…';
+  document.getElementById('live-status-text').textContent = 'Stopping: no new work will start. Waiting for the requests already sent…';
+  vscode.postMessage({ type: 'cancelRun' });
+});`);
 }
 
 export function renderGenerateLiveSuccess(
@@ -662,6 +790,7 @@ export function renderGenerateLiveSuccess(
     <span class="live-badge">CREATED</span>
     <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${execReport.tasksCreated} task${execReport.tasksCreated === 1 ? '' : 's'} created across ${execReport.storiesSuccess} ${execReport.storiesSuccess === 1 ? 'story' : 'stories'} in ${esc(profile)}</span>
   </div>
+  ${partlyCreatedBlock(execReport)}
   ${stories}
 </div>`;
 	return page('Atomize: Generate · Done', body, SWITCH_MODE_SCRIPT);
@@ -688,7 +817,36 @@ export function renderGenerateLivePartial(
     <span class="partial-badge">PARTIAL</span>
     <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${execReport.tasksCreated} task${execReport.tasksCreated === 1 ? '' : 's'} created · ${execReport.storiesFailed} ${execReport.storiesFailed === 1 ? 'story' : 'stories'} failed</span>
   </div>
+  ${partlyCreatedBlock(execReport)}
   ${stories}
 </div>`;
 	return page('Atomize: Generate · Done', body, SWITCH_MODE_SCRIPT);
+}
+
+export function renderGenerateLiveStopped(
+	dryReport: GenerateReport,
+	execReport: GenerateReport,
+	mode: 'default' | 'compact',
+	fileName: string,
+	profile: string,
+	storyIds?: string[],
+): string {
+	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
+	const header = panelHeader(mode, true, shortFile, profile, execReport.templateName, storyIds);
+	const collapsed = collapsedDryRun(dryReport);
+	const stories = mode === 'default'
+		? execReport.results.map(execStoryResult).join('')
+		: execReport.results.map(execStoryResultCompact).join('');
+	const body = `${header}${collapsed}
+<div style="border-top:1px solid var(--vscode-panel-border,#3d3d3d);margin-bottom:14px"></div>
+<div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span class="partial-badge">STOPPED</span>
+    <span style="font-size:.82em;color:var(--vscode-descriptionForeground)">${plural(execReport.tasksCreated, 'task', 'tasks')} created in ${esc(profile)}</span>
+  </div>
+  ${stoppedBlock(execReport)}
+  ${partlyCreatedBlock(execReport)}
+  ${stories}
+</div>`;
+	return page('Atomize: Generate · Stopped', body, SWITCH_MODE_SCRIPT);
 }

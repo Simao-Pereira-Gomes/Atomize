@@ -45,8 +45,17 @@ export interface FilterCriteria {
 		max?: number;
 	};
 
-	/** Exclude work items that already have child tasks */
+	/** Exclude work items that already have child Tasks (children of `taskWorkItemTypes`, when given) */
 	excludeIfHasTasks?: boolean;
+
+	/**
+	 * The Work Item types generated Tasks are created as. Only children of these types count as Tasks,
+	 * for excludeIfHasTasks and for `includeTaskChildren`. Absent means every child counts.
+	 */
+	taskWorkItemTypes?: string[];
+
+	/** Fill in each returned Work Item's `children` with its child Tasks (id, title, type and fields) */
+	includeTaskChildren?: boolean;
 
 	/** Date range filter */
 	dateRange?: {

@@ -29,6 +29,7 @@ export interface GenerateCommandOptions {
   quiet?: boolean;
   limit?: string;
   story?: string[];
+  resume?: boolean;
   profile?: string;
   jsonStream?: boolean;
 }
@@ -70,6 +71,7 @@ export interface GenerateCommandApplicationDeps {
   renderFilterCriteria(input: {
     template: TaskTemplate;
     storyIds: string[] | undefined;
+    resume?: boolean;
     limit: string | undefined;
     isQuiet: boolean;
     outputPolicy: CommandOutputPolicy;
@@ -77,7 +79,7 @@ export interface GenerateCommandApplicationDeps {
   }): void;
   confirmLiveExecution(
     template: TaskTemplate,
-    options: { platform: string },
+    options: { platform: string; resume?: boolean },
     output: Pick<OutputSink, "outro">,
     storyIds?: string[],
   ): Promise<void>;
@@ -89,6 +91,7 @@ export interface GenerateCommandApplicationDeps {
       continueOnError: boolean;
       limit?: number;
       storyIds?: string[];
+      resume?: boolean;
       storyConcurrency: number;
       dependencyConcurrency: number;
       forceNormalize: boolean;
@@ -100,7 +103,7 @@ export interface GenerateCommandApplicationDeps {
   ): Promise<AtomizationReport>;
   printReport(
     report: AtomizationReport,
-    options: { verbose: boolean; quiet?: boolean },
+    options: { verbose: boolean; quiet?: boolean; templateRef?: string },
     dryRun: boolean,
     storyIds?: string[],
   ): number;
@@ -133,6 +136,11 @@ export async function runGenerateCommandApplication(input: {
     templateArg,
     { platform: options.platform, execute: options.execute },
   );
+
+  if (options.resume && !options.story?.length) {
+    output.cancel("--resume needs --story <ids...>: it finishes only the Stories you name.");
+    throw new ExitError(ExitCode.Failure);
+  }
 
   const liveExecutionError = deps.getNonInteractiveLiveExecutionError({
     dryRun,
@@ -173,6 +181,7 @@ export async function runGenerateCommandApplication(input: {
   deps.renderFilterCriteria({
     template,
     storyIds,
+    resume: options.resume,
     limit: options.limit,
     isQuiet,
     outputPolicy,
@@ -180,7 +189,7 @@ export async function runGenerateCommandApplication(input: {
   });
 
   if (!dryRun && isTTYSession) {
-    await deps.confirmLiveExecution(template, { platform }, output, storyIds);
+    await deps.confirmLiveExecution(template, { platform, resume: options.resume }, output, storyIds);
   } else if (!dryRun && outputPolicy.showClackStatus) {
     output.warn("Live mode: acknowledged for non-interactive execution");
   }
@@ -197,6 +206,7 @@ export async function runGenerateCommandApplication(input: {
       continueOnError: options.continueOnError,
       limit: options.limit !== undefined ? parseInt(options.limit, 10) : undefined,
       storyIds,
+      resume: options.resume,
       storyConcurrency,
       dependencyConcurrency,
       forceNormalize,
@@ -209,7 +219,7 @@ export async function runGenerateCommandApplication(input: {
 
   const exitCode = deps.printReport(
     report,
-    { verbose: options.verbose === true, quiet: isQuiet },
+    { verbose: options.verbose === true, quiet: isQuiet, templateRef: templatePath },
     dryRun,
     storyIds,
   );
@@ -234,6 +244,7 @@ export async function runGenerateCommandApplication(input: {
 
   output.outro(
     exitCode === ExitCode.NoMatch ? "No stories matched" :
+    exitCode === ExitCode.Stopped ? "Generation stopped before finishing ✗" :
     dryRun ? "Dry run complete ✓" :
     exitCode === ExitCode.Success ? "Generation complete ✓" :
     "Generation finished with errors ✗",

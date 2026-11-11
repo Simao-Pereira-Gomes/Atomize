@@ -93,6 +93,14 @@ Offline Task generation evaluated against a Mock Story. Produces a resolved Task
 Task generation dry-run evaluated against a real Story fetched from a Platform Adapter. Produces a resolved Task list without creating Work Items on any platform.
 _Avoid_: "live run": Live Preview never creates Tasks.
 
+**Partly Created Story**:
+A Story that a Generation Run stopped part-way through (cancelled, or given up after its stall deadline): some of its planned Tasks exist and the rest were never created. `excludeIfHasTasks` still skips it, since it has child Tasks, so finishing it takes a Resume.
+_Avoid_: "failed Story": nothing failed, the run stopped; a Story whose children were made by hand or by an older Template is not a Partly Created Story just because its children differ from the plan.
+
+**Resume**:
+Finishing named Partly Created Stories: Atomize plans each Story's Tasks again from the Story as it is now and creates only the planned Tasks whose title isn't already among the Story's child Tasks of the Template's Task type. It never updates or deletes a child, and it only applies to Stories the user names, never to a whole filter.
+_Avoid_: "retry", which reruns a failed Story from scratch; "rebalance": a Resume keeps the estimates the plan gives the new Tasks.
+
 **Connection Profile**:
 A named Azure DevOps connection record, with its non-secret fields and default stored in the shared Atomize connections file. The CLI and Atomize Studio both read and write that file and resolve the profile's token through compatible OS credential-manager entries, using their own native credential APIs rather than a shared keychain implementation. Studio supports only OS-keyring-backed tokens: a CLI profile using the optional insecure keyfile fallback must be rotated in Studio before Studio can use it, which converts its token marker to the shared keyring strategy. The first Azure DevOps profile becomes the default, and later default changes are explicit.
 _Avoid_: "auth profile" or "credentials" when referring to a saved named connection; do not use Connection Profile for Copilot sign-in.

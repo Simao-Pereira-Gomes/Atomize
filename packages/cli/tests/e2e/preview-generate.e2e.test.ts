@@ -217,3 +217,67 @@ describe("generate --platform mock", () => {
     expect(report.results[0]?.tasksCalculated.map((task) => task.title)).toContain("Write project docs");
   });
 });
+
+/**
+ * Finishing a Story a stopped run left partly created (#331). STORY-007 in the Mock data already
+ * has "Design export API", the first of export.atomize.yaml's three Tasks.
+ */
+describe("generate --resume and stopping a run", () => {
+  type StoppedReport = Report & {
+    stopped?: { reason: string; storiesNotStarted: string[] };
+    partlyCreated: Array<{ storyId: string; title: string; tasksExisting: number; tasksPlanned: number }>;
+  };
+
+  test("--story with --resume creates only the Story's missing Tasks", async () => {
+    const { report, exitCode } = await generate("export.atomize.yaml", "--story", "STORY-007", "--resume", "--execute", "--auto-approve");
+
+    expect(exitCode).toBe(0);
+    // Tasks are created concurrently, so their order isn't fixed.
+    expect(report.results[0]?.tasksCreated.map((task) => (task as { title: string }).title).sort()).toEqual(["Build export", "Test export"]);
+  });
+
+  test("--resume without --story is refused before anything runs", async () => {
+    const result = await ws.run(["generate", ws.file("export.atomize.yaml"), "--platform", "mock", "--resume"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("--resume needs --story");
+  });
+
+  test("a plain run skips the partly created Story and prints the command to finish it", async () => {
+    const { report, stdout } = await generate("export.atomize.yaml", "--story", "STORY-007", "STORY-001");
+
+    expect((report as StoppedReport).partlyCreated).toEqual([
+      { storyId: "STORY-007", title: "Implement data export feature", tasksExisting: 1, tasksPlanned: 3 },
+    ]);
+    // The printed command quotes the path when it holds characters a shell would act on, as a
+    // Windows temp path does (\ and ~); on Windows it uses double quotes, which cmd.exe reads.
+    const template = ws.file("export.atomize.yaml");
+    const quote = process.platform === "win32" ? '"' : "'";
+    const templateArg = /^[\w@%+=:,./-]+$/.test(template) ? template : `${quote}${template}${quote}`;
+    expect(stdout).toContain(`To finish: atomize generate ${templateArg} --story STORY-007 --resume --execute`);
+  });
+
+  // Windows has no SIGINT to send a child process: Bun's kill("SIGINT") terminates it outright, so
+  // the CLI's handler never runs.
+  test.skipIf(process.platform === "win32")("Ctrl+C stops the run cleanly: no new work starts, the report is printed, and it exits 4", async () => {
+    let interrupted = false;
+    const result = await ws.runWhile(
+      ["generate", ws.file("features.atomize.yaml"), "--platform", "mock", "--execute", "--auto-approve", "--json-stream", "--story-concurrency", "1"],
+      (line, proc) => {
+        if (!interrupted && line.includes('"type":"task_created"')) {
+          interrupted = true;
+          proc.kill("SIGINT");
+        }
+      },
+    );
+
+    expect(result.exitCode).toBe(4);
+    const reportLine = result.stdout.trim().split("\n").at(-1) ?? "";
+    const report = (JSON.parse(reportLine) as { event: string; data: StoppedReport }).data;
+    expect(report.stopped?.reason).toBe("cancelled");
+    // One Story at a time: the one being worked on is reported (whole or stopped early, depending on
+    // how many of its Tasks were already under way), and none after it started.
+    expect(report.results.map((r) => r.story.id)).toEqual(["STORY-001"]);
+    expect(report.stopped?.storiesNotStarted).toEqual(["STORY-002", "STORY-003", "STORY-004", "STORY-005", "STORY-006", "STORY-007"]);
+  });
+});

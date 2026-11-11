@@ -199,7 +199,9 @@ Runs the Generate Panel for the active Template. The panel first shows a dry-run
   <img alt="VS Code's confirmation dialog over the Generate Panel asking to create 6 tasks for 2 stories using the selected profile, with Cancel and Create Tasks buttons." src="../packages/website/public/vscode/generate-confirmation-light.png">
 </picture>
 
-Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created; there's no cancel action once creation starts. A long run is never cut off while it keeps creating Tasks; one that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops: no further Task is started, and the panel reports the timeout. The result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.
+Tasks are created only after step 6. While they're created, the panel shows how many Stories are done and how many Tasks were created, with **Cancel run** beside the spinner: it stops starting new work, and the result follows once the requests already sent come back. A long run is never cut off while it keeps creating Tasks; one that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops the same way. A stopped run's result shows **STOPPED** and lists, ticked, each Story left partly created (with how many of its Tasks were created) and each Story it never started. **Finish selected Stories** resumes the ticked ones in one run. Otherwise the result shows **CREATED**, or **PARTIAL** when some Stories failed, with links to the Stories and Tasks in Azure DevOps. Tasks that were created stay in Azure DevOps even when the run fails.
+
+When `excludeIfHasTasks` skips a Story that looks partly created, the dry run lists it unticked: tick it and choose **Include in this run** to preview it together with the other Stories, creating only its missing Tasks. When the dry run has nothing else, **Finish selected Stories** finishes the ticked ones. See [A Run Stopped Part-Way](./Workflows.md#a-run-stopped-part-way).
 
 The panel won't offer creation when the dry run can't support it:
 
@@ -211,6 +213,10 @@ The panel won't offer creation when the dry run can't support it:
 Use Generate only when the previewed task plan is ready to create in the connected planning system.
 
 <!-- /atomize:section -->
+
+### Atomize: Finish Partly Created Stories
+
+Finishes Stories a stopped run left partly created, together with any untouched ones. It works like [Atomize: Generate](#atomize-generate), except that you must tick the Stories to finish in the Story Browser (it lists the sprint's Stories with or without Tasks), and only the Tasks each one is missing are created; a Story with no Tasks gets all of them. `excludeIfHasTasks` is ignored for them. The dry run shows each Story's Tasks that already exist, the Tasks it will create, and children that aren't in the plan. A Story with nothing missing is reported as already complete.
 
 ### Choosing Stories: the Story Browser
 

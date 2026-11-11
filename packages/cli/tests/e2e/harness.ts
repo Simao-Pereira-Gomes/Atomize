@@ -50,6 +50,18 @@ export class E2EWorkspace {
    * command that hangs is caught rather than stalling the suite.
    */
   async run(args: string[], options: { cwd?: string; timeoutMs?: number } = {}): Promise<CliResult> {
+    return await this.runWhile(args, async () => undefined, options);
+  }
+
+  /**
+   * Like `run`, but calls `onStdoutLine` with each line of stdout as it arrives, along with the
+   * process, so a test can act mid-run (for example send it SIGINT).
+   */
+  async runWhile(
+    args: string[],
+    onStdoutLine: (line: string, proc: { kill(signal: NodeJS.Signals): void }) => Promise<void> | void,
+    options: { cwd?: string; timeoutMs?: number } = {},
+  ): Promise<CliResult> {
     const proc = Bun.spawn(["bun", "run", join(packageRoot, "src/cli/index.ts"), ...args], {
       cwd: options.cwd ?? this.project,
       env: {
@@ -72,8 +84,23 @@ export class E2EWorkspace {
       timedOut = true;
       proc.kill("SIGKILL");
     }, timeoutMs);
+    const readStdout = async (): Promise<string> => {
+      let text = "";
+      let pending = "";
+      const decoder = new TextDecoder();
+      for await (const chunk of proc.stdout) {
+        const piece = decoder.decode(chunk, { stream: true });
+        text += piece;
+        pending += piece;
+        const lines = pending.split("\n");
+        pending = lines.pop() ?? "";
+        for (const line of lines) await onStdoutLine(line, proc);
+      }
+      if (pending) await onStdoutLine(pending, proc);
+      return text;
+    };
     const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
+      readStdout(),
       new Response(proc.stderr).text(),
       proc.exited,
     ]);

@@ -90,3 +90,12 @@ export function countChildRelations(workItem: AzureWorkItem): number {
     (rel) => rel.rel === "System.LinkTypes.Hierarchy-Forward",
   ).length;
 }
+
+/** The IDs of the Work Item's children (`Hierarchy-Forward` links), in link order. */
+export function childIds(workItem: AzureWorkItem): number[] {
+  return (workItem.relations ?? []).flatMap((rel) => {
+    if (rel.rel !== "System.LinkTypes.Hierarchy-Forward") return [];
+    const id = rel.url?.match(/\/(\d+)$/)?.[1];
+    return id ? [Number(id)] : [];
+  });
+}
