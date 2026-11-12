@@ -12,6 +12,7 @@ import type {
   PlatformAuthenticator,
 } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import type { RunTimings } from "@sppg2001/atomize-core/utils/run-timings";
 import { match } from "ts-pattern";
 import { stopOnInterrupt } from "@/cli/utilities/interrupt";
 import type { OutputSink, SpinnerHandle } from "@/cli/utilities/output-sink";
@@ -34,6 +35,7 @@ export interface AtomizeOptions {
   forceNormalize: boolean;
   isTTYSession: boolean;
   jsonStream?: boolean;
+  timings?: RunTimings;
 }
 
 const noopSpinner: SpinnerHandle = { message: () => {}, stop: () => {}, fail: () => {} };
@@ -181,6 +183,7 @@ export async function runAtomization(
         dependencyConcurrency: opts.dependencyConcurrency,
         forceNormalize: opts.forceNormalize,
         onProgress,
+        timings: opts.timings,
       })),
     // stderr, so --json and --json-stream keep stdout to JSON.
     () => process.stderr.write("\nStopping: no new work will start. Press Ctrl+C again to quit now.\n"),

@@ -18,6 +18,7 @@ import type { CompositionMeta } from "@sppg2001/atomize-core/templates/template-
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { AuthError } from "@sppg2001/atomize-core/utils/errors";
 import { clampConcurrency } from "@sppg2001/atomize-core/utils/math";
+import type { RunTimings } from "@sppg2001/atomize-core/utils/run-timings";
 import chalk from "chalk";
 import { Command, Option } from "commander";
 import { match } from "ts-pattern";
@@ -268,7 +269,7 @@ export function parseConcurrency(
 }
 
 async function initPlatform(
-  options: { platform: string; profile?: string },
+  options: { platform: string; profile?: string; timings?: RunTimings },
   taskConcurrency: number,
   output: Pick<ReturnType<typeof createCommandOutput>, "cancel" | "print">,
 ): Promise<PlatformAuthenticator & GenerationPlatform & ProjectMetadataReader> {
@@ -281,6 +282,7 @@ async function initPlatform(
         return PlatformFactory.create("azure-devops", {
           ...azureConfig,
           maxConcurrency: taskConcurrency,
+          ...(options.timings ? { timings: options.timings } : {}),
         });
       })
       .otherwise(() => PlatformFactory.create(options.platform as import("@sppg2001/atomize-core/platforms/interfaces/platform.interface").PlatformType));
@@ -673,6 +675,7 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
   .addOption(new Option("--story-concurrency <number>", "Max concurrent stories to process").default("3").hideHelp())
   .addOption(new Option("--task-concurrency <number>", "Max concurrent tasks to create per story").default("5").hideHelp())
   .addOption(new Option("--dependency-concurrency <number>", "Max concurrent dependency links to create").default("5").hideHelp())
+  .addOption(new Option("--timings <file>", "Write where the run spent its time (phases, Stories, every platform request) to a JSON file").hideHelp())
   .option("-v, --verbose", "Show detailed output", false)
   .option("-o, --output <file>", "Write JSON report to file")
   .option(

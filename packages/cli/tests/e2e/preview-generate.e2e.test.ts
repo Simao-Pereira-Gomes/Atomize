@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import type { TimingsRecord } from "@sppg2001/atomize-core/utils/run-timings";
 import { E2EWorkspace, mockStory } from "./harness";
 
 /**
@@ -279,5 +280,39 @@ describe("generate --resume and stopping a run", () => {
     // how many of its Tasks were already under way), and none after it started.
     expect(report.results.map((r) => r.story.id)).toEqual(["STORY-001"]);
     expect(report.stopped?.storiesNotStarted).toEqual(["STORY-002", "STORY-003", "STORY-004", "STORY-005", "STORY-006", "STORY-007"]);
+  });
+});
+
+describe("generate --timings", () => {
+  test("writes where the run spent its time, and leaves the report unchanged", async () => {
+    const file = join(ws.root, "timings.json");
+    const { report, exitCode } = await generate(
+      "features.atomize.yaml", "--execute", "--auto-approve", "--story-concurrency", "2", "--timings", file,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(report.tasksCreated).toBeGreaterThan(0);
+    const timings = JSON.parse(await ws.read(file)) as TimingsRecord;
+    expect(timings.version).toBe(1);
+    expect(timings.phases.map((phase) => phase.name)).toEqual(["connect", "fieldSchema", "storyQuery", "processStories"]);
+    expect(timings.run.storyConcurrency).toBe(2);
+    expect(timings.stories).toHaveLength(timings.run.stories ?? -1);
+    expect(timings.stories.every((story) => story.outcome === "success")).toBe(true);
+  });
+
+  test("a timings file that can't be written is a warning, not a failed run", async () => {
+    const file = join(ws.root, "missing-dir", "timings.json");
+    const output = join(ws.root, "report.json");
+    const result = await ws.run(["generate", ws.file("features.atomize.yaml"), "--platform", "mock", "-o", output, "-q", "--timings", file]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(await ws.read(output)).storiesProcessed).toBeGreaterThan(0);
+    expect(result.stderr).toContain("Couldn't save timings");
+  });
+
+  test("is hidden from --help", async () => {
+    const result = await ws.run(["generate", "--help"]);
+
+    expect(result.stdout).not.toContain("--timings");
   });
 });

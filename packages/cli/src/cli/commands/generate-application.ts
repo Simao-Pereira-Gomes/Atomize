@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { logger } from "@config/logger";
 import type { AtomizationReport } from "@sppg2001/atomize-core/core/atomizer";
 import { writeReportFile } from "@sppg2001/atomize-core/core/report-formatter";
@@ -7,6 +8,7 @@ import type {
   ProjectMetadataReader,
 } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { RunTimings } from "@sppg2001/atomize-core/utils/run-timings";
 import chalk from "chalk";
 import type { Config } from "@/config/config";
 import type { CommandOutputPolicy } from "../utilities/command-output";
@@ -32,6 +34,8 @@ export interface GenerateCommandOptions {
   resume?: boolean;
   profile?: string;
   jsonStream?: boolean;
+  /** Write where the run spent its time to this file (hidden, for maintainers). */
+  timings?: string;
 }
 
 export interface GenerateConcurrencySettings {
@@ -59,7 +63,7 @@ export interface GenerateCommandApplicationDeps {
     print: (msg: string) => void,
   ): GenerateConcurrencySettings;
   initPlatform(
-    options: { platform: string; profile?: string },
+    options: { platform: string; profile?: string; timings?: RunTimings },
     taskConcurrency: number,
     output: Pick<OutputSink, "cancel" | "print">,
   ): Promise<PlatformAuthenticator & GenerationPlatform & ProjectMetadataReader>;
@@ -98,6 +102,7 @@ export interface GenerateCommandApplicationDeps {
       isTTYSession: boolean;
       profileLabel?: string;
       jsonStream?: boolean;
+      timings?: RunTimings;
     },
     output: OutputSink,
   ): Promise<AtomizationReport>;
@@ -162,8 +167,10 @@ export async function runGenerateCommandApplication(input: {
   const template = await deps.loadTemplate(templatePath, output);
   const { storyConcurrency, taskConcurrency, dependencyConcurrency } =
     deps.parseConcurrency(options, output.print);
+  const timingsFile = options.timings;
+  const timings = timingsFile ? new RunTimings() : undefined;
   const platformAdapter = await deps.initPlatform(
-    { platform, profile: options.profile ?? config.profile },
+    { platform, profile: options.profile ?? config.profile, timings },
     taskConcurrency,
     output,
   );
@@ -198,24 +205,31 @@ export async function runGenerateCommandApplication(input: {
     output.warn("--limit is ignored when --story is used");
   }
 
-  const report = await deps.runWorkflow(
-    template,
-    platformAdapter,
-    {
-      dryRun,
-      continueOnError: options.continueOnError,
-      limit: options.limit !== undefined ? parseInt(options.limit, 10) : undefined,
-      storyIds,
-      resume: options.resume,
-      storyConcurrency,
-      dependencyConcurrency,
-      forceNormalize,
-      isTTYSession,
-      profileLabel: options.profile,
-      jsonStream: options.jsonStream,
-    },
-    output,
-  );
+  let report: AtomizationReport;
+  try {
+    report = await deps.runWorkflow(
+      template,
+      platformAdapter,
+      {
+        dryRun,
+        continueOnError: options.continueOnError,
+        limit: options.limit !== undefined ? parseInt(options.limit, 10) : undefined,
+        storyIds,
+        resume: options.resume,
+        storyConcurrency,
+        dependencyConcurrency,
+        forceNormalize,
+        isTTYSession,
+        profileLabel: options.profile,
+        jsonStream: options.jsonStream,
+        timings,
+      },
+      output,
+    );
+  } finally {
+    // Also after a run that failed part-way: the time up to the failure is what was asked for.
+    if (timingsFile && timings) await writeTimings(timingsFile, timings);
+  }
 
   const exitCode = deps.printReport(
     report,
@@ -251,4 +265,25 @@ export async function runGenerateCommandApplication(input: {
   );
 
   return exitCode;
+}
+
+/**
+ * Writes the timings file, and one line about it to stderr so --json output stays parseable. A file
+ * that can't be written is only a warning: the run itself, and its report, are unaffected.
+ */
+async function writeTimings(file: string, timings: RunTimings): Promise<void> {
+  const record = timings.toJSON();
+  try {
+    await writeFile(file, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+  } catch (error) {
+    process.stderr.write(`Couldn't save timings to ${sanitizeTty(file)}: ${sanitizeTty(error instanceof Error ? error.message : String(error))}\n`);
+    return;
+  }
+  const { summary, run } = record;
+  const inFlight = summary.avgInFlightWhileProcessing !== undefined
+    ? `, ${summary.avgInFlightWhileProcessing} of ${summary.nominalInFlight ?? "?"} requests in flight on average`
+    : "";
+  process.stderr.write(
+    `Timings saved to ${sanitizeTty(file)}: ${(run.totalMs / 1000).toFixed(1)}s, ${summary.requests.total} requests${inFlight}, ${summary.throttleEvents} throttled\n`,
+  );
 }
