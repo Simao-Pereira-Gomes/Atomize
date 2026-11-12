@@ -263,7 +263,6 @@ atomize gen [template] [options]  # alias
 | `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
 | `--dependency-concurrency <n>` | number | `5` | Max dependency links created in parallel (max: 10) |
-| `--timings <file>` | string | - | Write where the run spent its time (phases, each Story, every Azure DevOps request) to a JSON file, and one summary line to stderr. For diagnosing slow runs; the file's format can change between releases (it carries a `version`) |
 | `--limit <n>` | number | - | Cap the number of work items processed (useful for testing before a full `--execute` run) |
 | `-v, --verbose` | flag | - | Show detailed output including per-task breakdown |
 | `-o, --output <file>` | string | - | Write a JSON report to this file path (for CI/CD) |
@@ -272,7 +271,7 @@ atomize gen [template] [options]  # alias
 | `--json` | flag | - | Print the JSON report to stdout instead of the human-readable output. Runs a dry run unless `--execute` is also passed. Implies `--quiet` |
 | `--json-stream` | flag | - | Print newline-delimited JSON progress events, then a final report event, to stdout. Implies `--quiet`; cannot be combined with `--json` |
 
-The concurrency options and `--timings` are hidden from `atomize generate --help`.
+The concurrency options are hidden from `atomize generate --help`.
 
 #### Examples
 
