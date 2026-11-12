@@ -5,6 +5,7 @@ import {
 } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/azure-devops.adapter";
 import { hasChildRelations } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/work-item-mapper";
 import { PlatformError } from "@sppg2001/atomize-core/utils/errors";
+import { RunTimings } from "@sppg2001/atomize-core/utils/run-timings";
 
 const validConfig: AzureDevOpsConfig = {
   type: "azure-devops",
@@ -671,6 +672,16 @@ describe("AzureDevOpsAdapter", () => {
 
       // The first window of 5 was already in flight when the first one finished.
       expect(created.length).toBe(5);
+    });
+
+    test("records each request's method in the run's timings", async () => {
+      const timings = new RunTimings();
+      const timed = new AzureDevOpsAdapter({ ...validConfig, timings });
+      await timed.authenticate();
+
+      await timed.createTasksBulk("100", [{ title: "Timed" }]);
+
+      expect(timings.toJSON().requests.map((r) => r.method)).toContain("createWorkItem");
     });
 
     test("declares that it links dependencies while creating Tasks", () => {

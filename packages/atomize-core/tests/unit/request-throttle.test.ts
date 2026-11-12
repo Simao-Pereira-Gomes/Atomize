@@ -3,6 +3,7 @@ import {
   RequestThrottle,
   withRequestThrottle,
 } from "@sppg2001/atomize-core/platforms/adapters/azure-devops/request-throttle";
+import type { RequestRecord } from "@sppg2001/atomize-core/utils/run-timings";
 
 /** A fake clock: sleep advances time instantly and records each wait. */
 function fakeClock() {
@@ -342,5 +343,75 @@ describe("RequestThrottle unauthorized responses", () => {
     await expect(throttle.run(async () => { throw httpError(403); })).rejects.toThrow("HTTP 403");
 
     expect(unauthorized).toBe(1);
+  });
+});
+
+describe("RequestThrottle request observer", () => {
+  test("reports each request's method, when it was asked for, and each attempt", async () => {
+    const clock = fakeClock();
+    const requests: RequestRecord[] = [];
+    const throttle = new RequestThrottle({ sleep: clock.sleep, now: clock.now, onRequest: (r) => requests.push(r) });
+    let calls = 0;
+
+    await throttle.run(
+      async () => {
+        calls++;
+        await clock.sleep(100);
+        if (calls === 1) throw httpError(429, 2);
+        return "ok";
+      },
+      { method: "createWorkItem", idempotent: false },
+    );
+
+    expect(requests).toEqual([
+      {
+        method: "createWorkItem",
+        queuedAt: 0,
+        ok: true,
+        attempts: [
+          { sentAt: 0, finishedAt: 100, inFlight: 1, limit: Number.POSITIVE_INFINITY, status: 429, retryAfterMs: 2000 },
+          { sentAt: 2100, finishedAt: 2200, inFlight: 1, limit: 2 },
+        ],
+      },
+    ]);
+  });
+
+  test("reports a request that failed, and a success carrying Retry-After", async () => {
+    const clock = fakeClock();
+    const requests: RequestRecord[] = [];
+    const throttle = new RequestThrottle({ sleep: clock.sleep, now: clock.now, onRequest: (r) => requests.push(r) });
+
+    await expect(throttle.run(async () => { throw httpError(400); })).rejects.toThrow("HTTP 400");
+    await throttle.run(async () => ({ rateLimit: { retryAfter: 1 } }));
+
+    expect(requests[0]).toMatchObject({ method: "unknown", ok: false, attempts: [{ status: 400 }] });
+    expect(requests[1]?.attempts[0]).toMatchObject({ retryAfterMs: 1000 });
+  });
+
+  test("counts requests already in flight when one is sent", async () => {
+    const requests: RequestRecord[] = [];
+    const throttle = new RequestThrottle({ onRequest: (r) => requests.push(r) });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const first = throttle.run(() => held);
+    const second = throttle.run(async () => undefined);
+    await second;
+    release();
+    await first;
+
+    expect(requests.map((r) => r.attempts[0]?.inFlight).sort()).toEqual([1, 2]);
+  });
+
+  test("withRequestThrottle names each request after the SDK method", async () => {
+    const requests: RequestRecord[] = [];
+    const throttle = new RequestThrottle({ onRequest: (r) => requests.push(r) });
+    const api = withRequestThrottle({ getWorkItems: async () => [] }, throttle);
+
+    await api.getWorkItems();
+
+    expect(requests.map((r) => r.method)).toEqual(["getWorkItems"]);
   });
 });

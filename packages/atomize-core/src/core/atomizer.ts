@@ -8,6 +8,7 @@ import type {
 } from "../templates/schema";
 import { runWithConcurrency } from "../utils/concurrency";
 import { GenerationTimeoutError, getErrorMessage } from "../utils/errors";
+import { type RunTimings, type StoryOutcome, timePhase } from "../utils/run-timings";
 import { DependencyResolver } from "./dependency-resolver.js";
 import type { CalculatedTask } from "./estimation-calculator";
 import { FilterEngine } from "./filter-engine";
@@ -98,6 +99,9 @@ export interface AtomizationOptions {
    * long it takes. No deadline when omitted.
    */
   stallTimeoutMs?: number;
+
+  /** Records where the run spends its time (`generate --timings`): the Story query, Story processing, and each Story. */
+  timings?: RunTimings;
 }
 
 /** What every Story in one run is processed with. */
@@ -329,7 +333,8 @@ export class Atomizer {
     logger.info("Querying user stories...");
     onProgress?.({ type: "query_start" });
     const excluded: WorkItem[] = [];
-    const stories = await this.platform.queryWorkItems(platformFilter, { onExcluded: (story) => excluded.push(story) });
+    const query = () => this.platform.queryWorkItems(platformFilter, { onExcluded: (story) => excluded.push(story) });
+    const stories = await timePhase(options.timings, "storyQuery", query);
     state.stories = stories;
     state.queried = true;
     logger.info(`Found ${stories.length} stories`);
@@ -360,13 +365,23 @@ export class Atomizer {
     logger.info(
       `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,
     );
-
-    await this.processStories(
-      stories,
-      { orderedTasks, template, connectUserEmail, options, warnings },
+    options.timings?.setRun({
+      template: template.name,
+      dryRun: options.dryRun === true,
       storyConcurrency,
-      state,
-    );
+      taskConcurrency: this.platform.taskConcurrency ?? 5,
+      dependencyConcurrency: options.dependencyConcurrency ?? 5,
+      stories: stories.length,
+    });
+
+    const process = () =>
+      this.processStories(
+        stories,
+        { orderedTasks, template, connectUserEmail, options, warnings },
+        storyConcurrency,
+        state,
+      );
+    await timePhase(options.timings, "processStories", process);
 
     const report = this.buildReport(
       template,
@@ -463,12 +478,15 @@ export class Atomizer {
     const onProgress = run.options.onProgress;
     const signal = run.options.signal;
     const isCancelled = () => stopProcessing || signal?.aborted === true;
+    const timings = run.options.timings;
+    const readyAt = timings?.now();
 
     await runWithConcurrency(
       stories,
       concurrency,
       async (story, storyIndex) => {
         state.started.add(storyIndex);
+        const timer = timings?.startStory(story.id, readyAt as number);
         const inFlight: InFlightStory = { created: [] };
         state.inFlight.set(storyIndex, inFlight);
         onProgress?.({ type: "story_start", storyIndex, totalStories: stories.length, story });
@@ -498,6 +516,7 @@ export class Atomizer {
               onTaskCreated,
               onPlanned: (planned) => {
                 inFlight.planned = planned;
+                timer?.planned();
               },
             },
             run.warnings,
@@ -505,6 +524,7 @@ export class Atomizer {
           results[storyIndex] = result;
           state.inFlight.delete(storyIndex);
           completedStories++;
+          timer?.end(outcomeOf(result));
 
           onProgress?.({
             type: "story_complete",
@@ -519,6 +539,7 @@ export class Atomizer {
           errors.push({ storyId: story.id, error: failedResult.error ?? "" });
           results[storyIndex] = failedResult;
           state.inFlight.delete(storyIndex);
+          timer?.end("failed");
 
           completedStories++;
           onProgress?.({
@@ -605,4 +626,11 @@ export class Atomizer {
     if (platformFilter.excludeIfHasTasks) Object.assign(platformFilter, taskWorkItemTypes);
     return platformFilter;
   }
+}
+
+/** How a processed Story ended, for its timings. */
+function outcomeOf(result: StoryAtomizationResult): StoryOutcome {
+  if (result.stoppedEarly) return "stopped";
+  if (result.skipReason !== undefined) return "skipped";
+  return result.success ? "success" : "failed";
 }

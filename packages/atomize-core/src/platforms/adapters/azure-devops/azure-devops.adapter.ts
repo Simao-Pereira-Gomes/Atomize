@@ -10,6 +10,7 @@ import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackin
 import { logger } from "../../../logger";
 import { runWithConcurrency } from "../../../utils/concurrency";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "../../../utils/errors";
+import type { RunTimings } from "../../../utils/run-timings";
 import type { EstimationDefaults } from "../../interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
 import type { FilterCriteria } from "../../interfaces/filter.interface";
@@ -59,6 +60,9 @@ export interface AzureDevOpsConfig extends PlatformConfig {
 
   /** Maximum concurrent API requests for bulk operations (default: 5) */
   maxConcurrency?: number;
+
+  /** Records every throttled request's method, time queued and time in flight (`generate --timings`). */
+  timings?: RunTimings;
 }
 
 /**
@@ -74,11 +78,7 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   }
   private connection?: azdev.WebApi;
   /** Shared by every Work Item Tracking request this adapter sends, so throttling slows the whole run. */
-  private readonly throttle = new RequestThrottle({
-    onUnauthorized: () => {
-      this.credentialsRejected = true;
-    },
-  });
+  private readonly throttle: RequestThrottle;
   /** Set when a request comes back 401, so a cache holding this adapter authenticates a fresh one. */
   private credentialsRejected = false;
   private witApi?: IWorkItemTrackingApi;
@@ -93,6 +93,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     fieldSchemaService?: FieldSchemaService,
   ) {
     this.fieldSchemaService = fieldSchemaService ?? new FieldSchemaService();
+    const timings = config.timings;
+    this.throttle = new RequestThrottle({
+      onUnauthorized: () => {
+        this.credentialsRejected = true;
+      },
+      ...(timings ? { onRequest: (request) => timings.recordRequest(request), now: timings.now } : {}),
+    });
     if (!config.organizationUrl) {
       throw new PlatformError("Organization URL is required", "azure-devops");
     }
