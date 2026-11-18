@@ -244,7 +244,7 @@ export function parseConcurrency(
   print: (msg: string) => void,
 ): ConcurrencySettings {
   const MIN = 1;
-  const MAX_STORY = 10;
+  const MAX_STORY = 20;
   const MAX_TASK = 20;
   const MAX_DEP = 10;
 
