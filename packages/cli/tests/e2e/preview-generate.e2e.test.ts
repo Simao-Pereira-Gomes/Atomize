@@ -192,7 +192,8 @@ describe("generate --platform mock", () => {
   test("stops at the first failing Story, or keeps going with --continue-on-error, creating nothing for a failed one", async () => {
     // Stories tagged "api" activate a Task whose share breaks taskEstimationRange; the others are fine.
     const continuing = await generate("runtime-range.atomize.yaml", "--execute", "--auto-approve", "--continue-on-error");
-    const stopping = await generate("runtime-range.atomize.yaml", "--execute", "--auto-approve");
+    // Stories already under way still finish, so take them one at a time to see the run stop.
+    const stopping = await generate("runtime-range.atomize.yaml", "--execute", "--auto-approve", "--story-concurrency", "1");
 
     expect(continuing.report).toMatchObject({ storiesProcessed: 7, storiesFailed: 4, storiesSuccess: 3, tasksCreated: 12 });
     for (const result of continuing.report.results) {
@@ -314,6 +315,6 @@ describe("generate --timings", () => {
     const result = await ws.run(["generate", "--help"]);
 
     expect(result.stdout).not.toContain("--timings");
-    expect(result.stdout).not.toContain("--batch-create");
+    expect(result.stdout).not.toContain("batch-create");
   });
 });

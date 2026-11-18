@@ -36,7 +36,7 @@ export interface GenerateCommandOptions {
   jsonStream?: boolean;
   /** Write where the run spent its time to this file (hidden, for maintainers). */
   timings?: string;
-  /** Create each Story's Tasks with Azure DevOps $batch requests (hidden, being measured in #337). */
+  /** False (`--no-batch-create`, hidden): create Tasks one request each instead of in $batch requests. */
   batchCreate?: boolean;
 }
 
@@ -172,7 +172,7 @@ export async function runGenerateCommandApplication(input: {
   const timingsFile = options.timings;
   const timings = timingsFile ? new RunTimings() : undefined;
   const platformAdapter = await deps.initPlatform(
-    { platform, profile: options.profile ?? config.profile, timings, batchCreate: options.batchCreate === true },
+    { platform, profile: options.profile ?? config.profile, timings, batchCreate: options.batchCreate !== false },
     taskConcurrency,
     output,
   );
