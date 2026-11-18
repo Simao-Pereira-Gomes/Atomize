@@ -83,7 +83,7 @@ export interface TimingsRecord {
     peakInFlight: number;
     /** Mean requests in flight during the processStories phase; absent without that phase. */
     avgInFlightWhileProcessing?: number;
-    /** Story × Task concurrency: the most requests the nested pools allow at once. */
+    /** The most requests the pools allow at once: Story × Task concurrency, or Story concurrency when batching. */
     nominalInFlight?: number;
   };
 }
@@ -218,7 +218,9 @@ export class RunTimings {
 
     const attempts = this.requests.flatMap((request) => request.attempts);
     const processing = closedPhases.find((phase) => phase.name === "processStories");
-    const { storyConcurrency, taskConcurrency } = this.run;
+    const { storyConcurrency, taskConcurrency, taskCreation } = this.run;
+    // A batched run sends one request per Story at a time; otherwise each Story sends up to taskConcurrency.
+    const perStory = taskCreation === "batch" ? 1 : taskConcurrency;
     return {
       phases,
       stories,
@@ -230,8 +232,8 @@ export class RunTimings {
       ...(processing && processing.end > processing.start
         ? { avgInFlightWhileProcessing: round(busyTime(attempts, processing.start, processing.end) / (processing.end - processing.start)) }
         : {}),
-      ...(storyConcurrency !== undefined && taskConcurrency !== undefined
-        ? { nominalInFlight: storyConcurrency * taskConcurrency }
+      ...(storyConcurrency !== undefined && perStory !== undefined
+        ? { nominalInFlight: storyConcurrency * perStory }
         : {}),
     };
   }

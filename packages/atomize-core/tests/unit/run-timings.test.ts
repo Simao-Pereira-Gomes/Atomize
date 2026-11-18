@@ -154,6 +154,13 @@ describe("RunTimings", () => {
     expect(summary.nominalInFlight).toBe(15);
   });
 
+  test("a run creating Tasks in batches sends one request per Story, so the nominal in flight is its Story concurrency", () => {
+    const timings = new RunTimings({ now: () => 0 });
+    timings.setRun({ storyConcurrency: 10, taskConcurrency: 5, taskCreation: "batch" });
+
+    expect(timings.toJSON().summary.nominalInFlight).toBe(10);
+  });
+
   test("records each Story's slot wait, calculation and creation", () => {
     const clock = clockAt(0);
     const timings = new RunTimings({ now: clock.now });
