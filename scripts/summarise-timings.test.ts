@@ -15,7 +15,7 @@ describe("summariseTimings", () => {
     const lines = summariseTimings([{ label: "flat-3-5-5", record: timings.toJSON() }]).split("\n");
 
     expect(lines).toHaveLength(3);
-    expect(lines[2]).toStartWith("| flat-3-5-5 | 3/5/5 | 1 | 1.0 |");
+    expect(lines[2]).toStartWith("| flat-3-5-5 | 3/5/5 | single | 1 | 1.0 |");
     expect(lines[2]).toContain("| 1000/1000 |");
     expect(lines[2]).toContain("| 1 / 15 |");
   });

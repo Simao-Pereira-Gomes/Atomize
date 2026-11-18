@@ -269,7 +269,7 @@ export function parseConcurrency(
 }
 
 async function initPlatform(
-  options: { platform: string; profile?: string; timings?: RunTimings },
+  options: { platform: string; profile?: string; timings?: RunTimings; batchCreate?: boolean },
   taskConcurrency: number,
   output: Pick<ReturnType<typeof createCommandOutput>, "cancel" | "print">,
 ): Promise<PlatformAuthenticator & GenerationPlatform & ProjectMetadataReader> {
@@ -283,6 +283,7 @@ async function initPlatform(
           ...azureConfig,
           maxConcurrency: taskConcurrency,
           ...(options.timings ? { timings: options.timings } : {}),
+          ...(options.batchCreate ? { batchTaskCreation: true } : {}),
         });
       })
       .otherwise(() => PlatformFactory.create(options.platform as import("@sppg2001/atomize-core/platforms/interfaces/platform.interface").PlatformType));
@@ -676,6 +677,7 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
   .addOption(new Option("--task-concurrency <number>", "Max concurrent tasks to create per story").default("5").hideHelp())
   .addOption(new Option("--dependency-concurrency <number>", "Max concurrent dependency links to create").default("5").hideHelp())
   .addOption(new Option("--timings <file>", "Write where the run spent its time (phases, Stories, every platform request) to a JSON file").hideHelp())
+  .addOption(new Option("--batch-create", "Create each Story's Tasks in Azure DevOps $batch requests (being measured, #337)").hideHelp())
   .option("-v, --verbose", "Show detailed output", false)
   .option("-o, --output <file>", "Write JSON report to file")
   .option(

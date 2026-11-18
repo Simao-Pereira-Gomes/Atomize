@@ -314,5 +314,6 @@ describe("generate --timings", () => {
     const result = await ws.run(["generate", "--help"]);
 
     expect(result.stdout).not.toContain("--timings");
+    expect(result.stdout).not.toContain("--batch-create");
   });
 });

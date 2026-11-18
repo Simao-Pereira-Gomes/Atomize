@@ -15,18 +15,20 @@ const seconds = (ms: number | undefined) => (ms === undefined ? "–" : (ms / 10
 /** One Markdown table comparing the runs, in the order given. */
 export function summariseTimings(runs: Array<{ label: string; record: TimingsRecord }>): string {
   const header = [
-    "Run", "Concurrency (S/T/D)", "Stories", "Total s", "Connect s", "Field schema s", "Story query s", "Processing s",
+    "Run", "Concurrency (S/T/D)", "Creation", "Stories", "Total s", "Connect s", "Field schema s", "Story query s", "Processing s",
     "Requests", "Create p50/p95 ms", "Queued p95 ms", "Avg in flight / nominal", "Peak in flight",
     "Slot wait p50/p95 s", "Throttled",
   ];
   const rows = runs.map(({ label, record }) => {
     if (record.version !== 1) throw new Error(`${label}: unsupported timings version ${record.version}`);
     const { run, summary } = record;
-    const create = summary.requests.byMethod.createWorkItem;
+    // One request per Task, or one per batch of a Story's Tasks.
+    const create = summary.requests.byMethod.createWorkItem ?? summary.requests.byMethod.workItemBatch;
     const queuedP95 = Math.max(0, ...Object.values(summary.requests.byMethod).map((method) => method.queued.p95));
     return [
       label,
       `${run.storyConcurrency ?? "?"}/${run.taskConcurrency ?? "?"}/${run.dependencyConcurrency ?? "?"}`,
+      run.taskCreation ?? "single",
       String(run.stories ?? summary.stories.count),
       seconds(run.totalMs),
       seconds(summary.phases.connect),
