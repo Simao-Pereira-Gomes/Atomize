@@ -84,6 +84,7 @@
       "dependencies": {
         "@sppg2001/atomize-ai": "workspace:*",
         "@sppg2001/atomize-core": "workspace:*",
+        "zod": "^4.6.7",
       },
       "devDependencies": {
         "@types/bun": "1.4.2",

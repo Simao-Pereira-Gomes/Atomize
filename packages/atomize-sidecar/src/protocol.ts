@@ -26,7 +26,6 @@ import {
 import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import { inspectTemplate, parseMockStory, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
-import type { TemplateCatalogKind, TemplateCatalogScope } from "@sppg2001/atomize-core/templates/template-library";
 import { projectVerificationPlatform, type TemplateVerificationResult, verifyTemplate } from "@sppg2001/atomize-core/templates/template-verification";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError } from "@sppg2001/atomize-core/utils/errors";
 import type {
@@ -34,10 +33,8 @@ import type {
   AIDraftResult,
   AIImproveParams,
   AIImproveResult,
-  CatalogInstallParams,
   GenerateQueryStoriesParams,
   GenerateRunParams,
-  GenerateScope,
   GroundingConnection,
   OnlineValidationParams,
   ReferencesListParams,
@@ -48,9 +45,11 @@ import type {
   SidecarError,
   SidecarMethod,
   SidecarNotifications,
+  SidecarParams,
   SidecarResult,
   WikiPagesParams,
 } from "./contract";
+import { SIDECAR_PARAMS } from "./contract";
 
 /**
  * One authenticated adapter per Studio connection and token for the sidecar's lifetime, so each
@@ -169,15 +168,6 @@ export async function validateOnline(params: OnlineValidationParams, signal: Abo
   }
 }
 
-function aiDraftParams(params: unknown): AIDraftParams {
-  if (typeof params !== "object" || params === null) throw Object.assign(new Error("AI drafting requires a draft id and description."), { code: "INVALID_PARAMS" });
-  const value = params as Partial<AIDraftParams>;
-  if (typeof value.draftId !== "string" || !value.draftId || typeof value.prose !== "string" || !value.prose.trim()) {
-    throw Object.assign(new Error("AI drafting requires a draft id and description."), { code: "INVALID_PARAMS" });
-  }
-  return value as AIDraftParams;
-}
-
 /**
  * Runs one AI request on a fresh Copilot Session registered under `draftId`, so `ai.cancel` can stop
  * it and `ai.progress` reports its stream — the shared shape of `ai.generate` and `ai.improve`.
@@ -260,20 +250,7 @@ async function improveDraft(params: AIImproveParams, services: SidecarServices):
   throw Object.assign(new Error("Copilot did not return a usable proposal. Your Template is unchanged."), { code: "AI_DRAFT_MALFORMED" });
 }
 
-function aiImproveParams(params: unknown): AIImproveParams {
-  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<AIImproveParams>;
-  if (typeof value.draftId !== "string" || !value.draftId || typeof value.template !== "object" || value.template === null || Array.isArray(value.template)) {
-    throw Object.assign(new Error("Improving with AI requires a request id and the Template."), { code: "INVALID_PARAMS" });
-  }
-  if (value.guidance !== undefined && value.guidance !== null && typeof value.guidance !== "string") {
-    throw Object.assign(new Error("Improvement guidance must be text."), { code: "INVALID_PARAMS" });
-  }
-  return value as AIImproveParams;
-}
-
-async function cancelDraft(params: unknown, services: SidecarServices): Promise<{ cancelled: boolean }> {
-  const draftId = typeof params === "object" && params !== null ? (params as { draftId?: unknown }).draftId : undefined;
-  if (typeof draftId !== "string" || !draftId) throw Object.assign(new Error("AI cancellation requires a draft id."), { code: "INVALID_PARAMS" });
+async function cancelDraft({ draftId }: SidecarParams<"ai.cancel">, services: SidecarServices): Promise<{ cancelled: boolean }> {
   const session = services.drafts.get(draftId);
   if (!session) return { cancelled: false };
   services.cancelledDrafts.add(draftId);
@@ -358,24 +335,6 @@ async function isDirectory(path: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function stringParam(params: unknown, key: string, label: string): string {
-  const value = typeof params === "object" && params !== null ? (params as Record<string, unknown>)[key] : undefined;
-  if (typeof value !== "string" || !value.trim()) throw Object.assign(new Error(`${label} is required.`), { code: "INVALID_PARAMS" });
-  return value;
-}
-
-function referencesLoadParams(params: unknown): ReferencesLoadParams {
-  const value = (typeof params === "object" && params !== null ? params : {}) as Partial<ReferencesLoadParams>;
-  if (!Array.isArray(value.entries) || value.entries.some((entry) => typeof entry !== "string")) {
-    throw Object.assign(new Error("Loading Reference Documents needs a list of entries."), { code: "INVALID_PARAMS" });
-  }
-  return {
-    workspaceRoot: stringParam(params, "workspaceRoot", "A project folder"),
-    entries: value.entries,
-    ...(value.connection ? { connection: groundingConnection(value.connection) } : {}),
-  };
 }
 
 async function resolveGenerateTemplate(source: string, library: SidecarTemplateLibrary): Promise<TaskTemplate> {
@@ -479,13 +438,6 @@ export async function resolveLocalTemplate(path: string, services: SidecarServic
   }
 }
 
-function resolveLocalTemplateParams(params: unknown): { path: string } {
-  if (typeof params !== "object" || params === null || typeof (params as { path?: unknown }).path !== "string" || !(params as { path: string }).path.trim()) {
-    throw Object.assign(new Error("Resolving a local template requires a file path."), { code: "INVALID_PARAMS" });
-  }
-  return params as { path: string };
-}
-
 /** Resolves a Generate Area Preview Source (Catalog ref or local path) for Mock Preview, tolerating field-level invalidity the same way Open does — see ADR-0048. */
 async function resolvePreviewSource(source: string, services: SidecarServices) {
   try {
@@ -496,155 +448,56 @@ async function resolvePreviewSource(source: string, services: SidecarServices) {
   }
 }
 
-function inspectPreviewParams(params: unknown): { source: string } {
-  if (typeof params !== "object" || params === null || typeof (params as { source?: unknown }).source !== "string" || !(params as { source: string }).source.trim()) {
-    throw Object.assign(new Error("Inspecting a Template requires its source."), { code: "INVALID_PARAMS" });
-  }
-  return { source: (params as { source: string }).source };
-}
+/** A method's handler, given its params already parsed against the method's schema. */
+type Handler<M extends SidecarMethod> = (params: SidecarParams<M>, services: SidecarServices, signal: AbortSignal) => Promise<SidecarResult<M>>;
 
-function mockStoryPreviewParams(params: unknown): { source: string; mockStory: string } {
-  const invalid = () => Object.assign(new Error("Previewing a Template requires its source and mock Story values."), { code: "INVALID_PARAMS" });
-  if (typeof params !== "object" || params === null) throw invalid();
-  const value = params as Partial<{ source: unknown; mockStory: unknown }>;
-  if (typeof value.source !== "string" || !value.source.trim() || typeof value.mockStory !== "string") throw invalid();
-  return { source: value.source, mockStory: value.mockStory };
-}
-
-function removeCatalogItemParams(params: unknown): { kind: TemplateCatalogKind; name: string } {
-  if (typeof params !== "object" || params === null) throw Object.assign(new Error("Removing a Catalog item requires its kind and name."), { code: "INVALID_PARAMS" });
-  const value = params as Partial<{ kind: unknown; name: unknown }>;
-  if ((value.kind !== "template" && value.kind !== "mixin") || typeof value.name !== "string" || !value.name.trim()) {
-    throw Object.assign(new Error("Removing a Catalog item requires its kind and name."), { code: "INVALID_PARAMS" });
-  }
-  return { kind: value.kind, name: value.name };
-}
-
-type InstallCatalogItemParams = {
-  content: string;
-  name: string;
-  scope: Extract<TemplateCatalogScope, "user" | "project">;
-  overwrite: boolean;
-  workspaceRoot?: string;
-};
-
-function installCatalogItemParams(params: unknown): InstallCatalogItemParams {
-  const invalid = () => Object.assign(new Error("Installing a Catalog item requires its content, name, and scope."), { code: "INVALID_PARAMS" });
-  if (typeof params !== "object" || params === null) throw invalid();
-  const value = params as Partial<{ content: unknown; name: unknown; scope: unknown; overwrite: unknown; workspaceRoot: unknown }>;
-  if (
-    typeof value.content !== "string" || !value.content.trim()
-    || typeof value.name !== "string" || !value.name.trim()
-    || (value.scope !== "user" && value.scope !== "project")
-  ) {
-    throw invalid();
-  }
-  if (value.scope === "project" && (typeof value.workspaceRoot !== "string" || !value.workspaceRoot.trim() || !isAbsolute(value.workspaceRoot) || resolve(value.workspaceRoot) === "/")) {
-    throw Object.assign(new Error("Choose a project folder before installing to the project Catalog."), { code: "PROJECT_WORKSPACE_REQUIRED" });
-  }
-  return { content: value.content, name: value.name, scope: value.scope, overwrite: value.overwrite === true, workspaceRoot: typeof value.workspaceRoot === "string" ? value.workspaceRoot : undefined };
-}
-
-function groundingConnection(params: unknown): GroundingConnection {
-  if (typeof params !== "object" || params === null) throw Object.assign(new Error("Grounding requires a resolved connection."), { code: "INVALID_PARAMS" });
-  const value = params as Partial<GroundingConnection>;
-  if ([value.organizationUrl, value.project, value.team, value.token].some(field => typeof field !== "string" || !field.trim())) {
-    throw Object.assign(new Error("Grounding requires a resolved connection."), { code: "INVALID_PARAMS" });
-  }
-  return value as GroundingConnection;
-}
-
-function onlineValidationParams(params: unknown): OnlineValidationParams {
-  if (typeof params !== "object" || params === null) throw Object.assign(new Error("Online Validation requires a Template and resolved connection."), { code: "INVALID_PARAMS" });
-  const value = params as Partial<OnlineValidationParams>;
-  if (typeof value.template !== "object" || value.template === null || Array.isArray(value.template)) {
-    throw Object.assign(new Error("Online Validation requires a Template."), { code: "INVALID_PARAMS" });
-  }
-  return { template: value.template as TaskTemplate, connection: groundingConnection(value.connection) };
-}
-
-function generateScope(value: unknown): GenerateScope {
-  const invalid = () => Object.assign(new Error("Generate requires a scope of Stories or the Template's filter."), { code: "INVALID_PARAMS" });
-  if (typeof value !== "object" || value === null) throw invalid();
-  const scope = value as Partial<{ kind: unknown; storyIds: unknown; resume: unknown }>;
-  if (scope.kind === "filter") return { kind: "filter" };
-  if (scope.kind === "stories" && Array.isArray(scope.storyIds) && scope.storyIds.length > 0 && scope.storyIds.every((id) => typeof id === "string")) {
-    return { kind: "stories", storyIds: scope.storyIds as string[], ...(scope.resume === true ? { resume: true } : {}) };
-  }
-  throw invalid();
-}
-
-function generateQueryStoriesParams(params: unknown): GenerateQueryStoriesParams {
-  if (typeof params !== "object" || params === null || typeof (params as { source?: unknown }).source !== "string" || !(params as { source: string }).source.trim()) {
-    throw Object.assign(new Error("Browsing Stories requires a Template source and a resolved connection."), { code: "INVALID_PARAMS" });
-  }
-  return {
-    source: (params as { source: string }).source,
-    connection: groundingConnection((params as { connection?: unknown }).connection),
-    ...((params as { withTasks?: unknown }).withTasks === true ? { withTasks: true } : {}),
-  };
-}
-
-function generateRunParams(params: unknown): GenerateRunParams {
-  const invalid = () => Object.assign(new Error("Generating requires a run id, Template source, resolved connection, scope, and dryRun flag."), { code: "INVALID_PARAMS" });
-  if (typeof params !== "object" || params === null) throw invalid();
-  const value = params as Partial<{ runId: unknown; source: unknown; connection: unknown; dryRun: unknown; scope: unknown; continueOnError: unknown }>;
-  if (typeof value.runId !== "string" || !value.runId || typeof value.source !== "string" || !value.source.trim() || typeof value.dryRun !== "boolean") {
-    throw invalid();
-  }
-  return {
-    runId: value.runId,
-    source: value.source,
-    connection: groundingConnection(value.connection),
-    dryRun: value.dryRun,
-    scope: generateScope(value.scope),
-    continueOnError: value.continueOnError === true,
-  };
-}
-
-type Handler<M extends SidecarMethod> = (params: unknown, services: SidecarServices, signal: AbortSignal) => Promise<SidecarResult<M>>;
-
-/** One handler per contract method; a result that drifts from the contract is a type error here. */
+/** One handler per contract method, given params already parsed against its schema; a result that drifts from the contract is a type error here. */
 const handlers: { [M in SidecarMethod]: Handler<M> } = {
   "catalog.list": async (_params, services) => {
     const { items } = await services.library.getCatalogAll();
     return await Promise.all(items.map(async item => ({ ...item, content: await services.library.readCatalogItemContent(item) })));
   },
-  "catalog.remove": async (params, services) => {
-    const { kind, name } = removeCatalogItemParams(params);
+  "catalog.remove": async ({ kind, name }, services) => {
     await services.library.removeCatalogItem(kind, name);
     return { removed: true };
   },
-  "catalog.install": async (params, services) => {
-    const { content, name, scope, overwrite, workspaceRoot }: CatalogInstallParams = installCatalogItemParams(params);
+  "catalog.install": async ({ content, name, scope, overwrite, workspaceRoot }, services) => {
+    if (scope === "project" && (!workspaceRoot?.trim() || !isAbsolute(workspaceRoot) || resolve(workspaceRoot) === "/")) {
+      throw Object.assign(new Error("Choose a project folder before installing to the project Catalog."), { code: "PROJECT_WORKSPACE_REQUIRED" });
+    }
     const library = scope === "project" ? createTemplateLibrary(workspaceRoot) : services.library;
     return await library.installTemplate({ source: { content, name }, scope, overwrite });
   },
-  "grounding.fetch": (params, services) => services.fetchGrounding(groundingConnection(params)),
-  "references.list": async (params) => await listReferences({ startPath: stringParam(params, "startPath", "A project folder") }),
-  "references.save": async (params) => await saveReference({ workspaceRoot: stringParam(params, "workspaceRoot", "A project folder"), entry: stringParam(params, "entry", "A Reference Document") }),
-  "references.load": async (params) => await loadReferences(referencesLoadParams(params)),
-  "wiki.list": async (params) => await listWikis(groundingConnection((params as { connection?: unknown } | undefined)?.connection)),
-  "wiki.pages": async (params) => await listWikiPages({ connection: groundingConnection((params as { connection?: unknown } | undefined)?.connection), wiki: stringParam(params, "wiki", "A wiki") }),
-  "validation.online": (params, services, signal) => services.validateOnline(onlineValidationParams(params), signal),
-  "ai.generate": (params, services) => generateDraft(aiDraftParams(params), services),
-  "ai.improve": (params, services) => improveDraft(aiImproveParams(params), services),
+  "grounding.fetch": (params, services) => services.fetchGrounding(params),
+  "references.list": (params) => listReferences(params),
+  "references.save": (params) => saveReference(params),
+  "references.load": (params) => loadReferences(params),
+  "wiki.list": ({ connection }) => listWikis(connection),
+  "wiki.pages": (params) => listWikiPages(params),
+  "validation.online": (params, services, signal) => services.validateOnline(params, signal),
+  "ai.generate": (params, services) => generateDraft(params, services),
+  "ai.improve": (params, services) => improveDraft(params, services),
   "ai.cancel": (params, services) => cancelDraft(params, services),
   "ai.authStatus": (_params, services) => services.checkCopilotAuth(),
-  "template.resolveLocal": (params, services) => resolveLocalTemplate(resolveLocalTemplateParams(params).path, services),
-  "generate.queryStories": (params, services) => services.queryGenerateStories(generateQueryStoriesParams(params)),
-  "generate.run": (params, services, signal) => services.runGenerate(generateRunParams(params), signal),
-  "preview.inspect": async (params, services) => {
-    const { source } = inspectPreviewParams(params);
-    return inspectTemplate(await resolvePreviewSource(source, services));
-  },
-  "preview.mockStory": async (params, services) => {
-    const { source, mockStory } = mockStoryPreviewParams(params);
+  "template.resolveLocal": ({ path }, services) => resolveLocalTemplate(path, services),
+  "generate.queryStories": (params, services) => services.queryGenerateStories(params),
+  "generate.run": (params, services, signal) => services.runGenerate(params, signal),
+  "preview.inspect": async ({ source }, services) => inspectTemplate(await resolvePreviewSource(source, services)),
+  "preview.mockStory": async ({ source, mockStory }, services) => {
     try { parseMockStory(mockStory); }
     catch (error) { throw Object.assign(new Error(getErrorMessage(error)), { code: "MOCK_STORY_INVALID" }); }
     return await runPreview(await resolvePreviewSource(source, services), mockStory);
   },
 };
+
+/** A request's params parsed against its method's schema; a mismatch is `INVALID_PARAMS` with the method's message. */
+function parseParams<M extends SidecarMethod>(method: M, params: unknown): SidecarParams<M> {
+  const { schema, message } = SIDECAR_PARAMS[method];
+  const parsed = schema.safeParse(params);
+  if (!parsed.success) throw Object.assign(new Error(message), { code: "INVALID_PARAMS" });
+  // TypeScript can't tie a generic `M` to the schema it indexes; `SidecarParams<M>` is that schema's output by definition.
+  return parsed.data as SidecarParams<M>;
+}
 
 /**
  * Methods still answered after `$/cancelRequest`: a cancelled Generation Run stops starting new
@@ -661,7 +514,8 @@ export async function dispatch(request: RpcRequest, services: SidecarServices, s
   if (!isSidecarMethod(request.method)) {
     throw Object.assign(new Error(`Unknown method: ${request.method}`), { code: "METHOD_NOT_FOUND" });
   }
-  return await (handlers[request.method] as Handler<SidecarMethod>)(request.params, services, signal);
+  const method = request.method;
+  return await (handlers[method] as Handler<SidecarMethod>)(parseParams(method, request.params), services, signal);
 }
 
 function toSidecarError(error: unknown): SidecarError {
