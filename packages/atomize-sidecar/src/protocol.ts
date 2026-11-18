@@ -250,7 +250,7 @@ async function improveDraft(params: AIImproveParams, services: SidecarServices):
   throw Object.assign(new Error("Copilot did not return a usable proposal. Your Template is unchanged."), { code: "AI_DRAFT_MALFORMED" });
 }
 
-async function cancelDraft({ draftId }: { draftId: string }, services: SidecarServices): Promise<{ cancelled: boolean }> {
+async function cancelDraft({ draftId }: SidecarParams<"ai.cancel">, services: SidecarServices): Promise<{ cancelled: boolean }> {
   const session = services.drafts.get(draftId);
   if (!session) return { cancelled: false };
   services.cancelledDrafts.add(draftId);
@@ -448,6 +448,7 @@ async function resolvePreviewSource(source: string, services: SidecarServices) {
   }
 }
 
+/** A method's handler, given its params already parsed against the method's schema. */
 type Handler<M extends SidecarMethod> = (params: SidecarParams<M>, services: SidecarServices, signal: AbortSignal) => Promise<SidecarResult<M>>;
 
 /** One handler per contract method, given params already parsed against its schema; a result that drifts from the contract is a type error here. */
@@ -494,6 +495,7 @@ function parseParams<M extends SidecarMethod>(method: M, params: unknown): Sidec
   const { schema, message } = SIDECAR_PARAMS[method];
   const parsed = schema.safeParse(params);
   if (!parsed.success) throw Object.assign(new Error(message), { code: "INVALID_PARAMS" });
+  // TypeScript can't tie a generic `M` to the schema it indexes; `SidecarParams<M>` is that schema's output by definition.
   return parsed.data as SidecarParams<M>;
 }
 
