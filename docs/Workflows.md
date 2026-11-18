@@ -237,7 +237,7 @@ Without an interactive terminal (a script or CI job), `--execute` refuses to run
 
 **When Tasks are created:** only with `--execute`, and only after you confirm or pass `--auto-approve`. Press Ctrl+C at any prompt to cancel. Once creation has started, Ctrl+C stops the run: no further Story or Task is started, the requests already sent finish, and `generate` prints its report and exits `4`. Press Ctrl+C again to quit at once. Tasks already created stay in Azure DevOps. A run that makes no progress for six minutes (for example because Azure DevOps stopped responding) stops the same way and reports the timeout. A long run that keeps creating Tasks is never cut off. A stopped run lists the Stories it left partly created with the command that finishes them; see [A Run Stopped Part-Way](#a-run-stopped-part-way).
 
-**Results and exit codes:** `generate` exits `0` when every Story succeeded (including a dry run), `1` when one or more Stories failed or the run was refused, `2` when no Stories matched, `3` when authentication failed, and `4` when the run was cancelled or timed out. By default the run stops after the first failing Story; pass `--continue-on-error` to keep processing the rest. To retry only the Stories that failed, re-run with `--story`; with `excludeIfHasTasks: true` in the Template, Stories that already have Tasks are skipped. A Story a stopped run left partly created is skipped too, so finish it with `--story <id> --resume` instead.
+**Results and exit codes:** `generate` exits `0` when every Story succeeded (including a dry run), `1` when one or more Stories failed or the run was refused, `2` when no Stories matched, `3` when authentication failed, and `4` when the run was cancelled or timed out. By default the run stops after the first failing Story: no further Story starts, but Stories already under way (up to 10 at once) still finish, so a run of 10 Stories or fewer processes all of them. Pass `--continue-on-error` to keep processing the rest. To retry only the Stories that failed, re-run with `--story`; with `excludeIfHasTasks: true` in the Template, Stories that already have Tasks are skipped. A Story a stopped run left partly created is skipped too, so finish it with `--story <id> --resume` instead.
 
 See [Automate With The CLI](#automate-with-the-cli) for scripts and CI, and the [`generate` reference](./Cli-Reference.md#generate) for every option.
 
@@ -353,7 +353,7 @@ Create a short-lived Connection Profile in the job from your secrets store, and 
 
 The exit codes are the same with `--json` and `--json-stream`. A run with no matching Stories exits `2` and still prints its report, with `storiesProcessed: 0`.
 
-- By default `generate` stops after the first failing Story. `--continue-on-error` processes the rest and still exits `1` if any failed.
+- By default `generate` stops after the first failing Story: no further Story starts, though the ones already under way (up to 10 at once) still finish. `--continue-on-error` processes the rest and still exits `1` if any failed.
 - Test against a few items with `--limit <n>` before a full `--execute` run.
 - Re-run failed Stories with `--story <ids...>`. With `excludeIfHasTasks: true` in the Template, Stories that already have Tasks are skipped, so a retry does not duplicate them.
 - A run that exits `4` stopped before finishing. Its report lists the Stories it left partly created (`stoppedEarly`) and those it never started (`stopped.storiesNotStarted`). Finish the first with `--story <ids...> --resume` and run the second with `--story <ids...>`.
