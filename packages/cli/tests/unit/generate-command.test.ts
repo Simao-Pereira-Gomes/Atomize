@@ -63,14 +63,24 @@ describe("parseConcurrency", () => {
     expect(warnings.some((w) => w.includes("Task concurrency"))).toBe(true);
   });
 
-  test("clamps story concurrency above max (10) to default (3)", () => {
+  test("accepts story concurrency up to 20, above the default of 10", () => {
     const warnings: string[] = [];
     const result = parseConcurrency(
-      { taskConcurrency: "5", storyConcurrency: "15", dependencyConcurrency: "5" },
+      { taskConcurrency: "5", storyConcurrency: "20", dependencyConcurrency: "5" },
       (msg) => warnings.push(msg),
     );
-    expect(result.storyConcurrency).toBe(3);
-    expect(warnings.some((w) => w.includes("Story concurrency"))).toBe(true);
+    expect(result.storyConcurrency).toBe(20);
+    expect(warnings).toEqual([]);
+  });
+
+  test("clamps story concurrency above max (20) to default (10)", () => {
+    const warnings: string[] = [];
+    const result = parseConcurrency(
+      { taskConcurrency: "5", storyConcurrency: "25", dependencyConcurrency: "5" },
+      (msg) => warnings.push(msg),
+    );
+    expect(result.storyConcurrency).toBe(10);
+    expect(warnings.some((w) => w.includes("Story concurrency") && w.includes("default (10)"))).toBe(true);
   });
 
   test("clamps dependency concurrency above max (10) to default (5)", () => {
@@ -88,7 +98,7 @@ describe("parseConcurrency", () => {
       { taskConcurrency: "0", storyConcurrency: "0", dependencyConcurrency: "0" },
       noop,
     );
-    expect(result).toEqual({ taskConcurrency: 5, storyConcurrency: 3, dependencyConcurrency: 5 });
+    expect(result).toEqual({ taskConcurrency: 5, storyConcurrency: 10, dependencyConcurrency: 5 });
   });
 
   test("accepts boundary values (min=1, max=20 for tasks)", () => {
@@ -114,7 +124,7 @@ describe("parseConcurrency", () => {
       noop,
     );
     // parseInt("abc") → NaN → || 5 default; all within range so no clamping
-    expect(result).toEqual({ taskConcurrency: 5, storyConcurrency: 3, dependencyConcurrency: 5 });
+    expect(result).toEqual({ taskConcurrency: 5, storyConcurrency: 10, dependencyConcurrency: 5 });
   });
 });
 

@@ -1,6 +1,6 @@
 import { logger } from "../logger";
 import type { GenerationPlatform } from "../platforms/interfaces/platform-capabilities";
-import type { WorkItem } from "../platforms/interfaces/work-item.interface";
+import type { BatchTaskDefinition, WorkItem } from "../platforms/interfaces/work-item.interface";
 import type { TaskDefinition as TemplateTaskDefinition } from "../templates/schema";
 import { runAsDependenciesFinish, runWithConcurrency } from "../utils/concurrency";
 import { getErrorMessage } from "../utils/errors";
@@ -126,9 +126,11 @@ export class TaskMaterializer {
       ),
     );
     const known = calculatedTasks.map((_, index) => existing[index]);
-    const createdTasks = this.linksOnCreate(wanted, options)
-      ? await this.createAsPredecessorsFinish(parentId, calculatedTasks, wanted, known, options)
-      : await this.createThenLink(parentId, calculatedTasks, wanted, known, options);
+    const createdTasks = this.platform.createsTasksInBatch && this.platform.createTasksInBatch
+      ? await this.createInBatch(parentId, calculatedTasks, wanted, known, options)
+      : this.linksOnCreate(wanted, options)
+        ? await this.createAsPredecessorsFinish(parentId, calculatedTasks, wanted, known, options)
+        : await this.createThenLink(parentId, calculatedTasks, wanted, known, options);
     return createdTasks.filter((task, index): task is WorkItem => task !== undefined && isNew(index));
   }
 
@@ -190,6 +192,53 @@ export class TaskMaterializer {
       { shouldStop: () => options.signal?.aborted === true },
     );
     const existingDependents = predecessors.map((deps, index) => (isKnown(index) ? deps : []));
+    await this.createDependencyLinks(planLinks(calculatedTasks, created, existingDependents, options.signal?.aborted), options.dependencyConcurrency ?? 5);
+    return created;
+  }
+
+  /**
+   * Hands every new Task to the platform's createTasksInBatch in one call, each with its links: to
+   * other new Tasks by their index in the call, to existing ones by ID. An existing dependent of a
+   * new Task is linked afterwards.
+   */
+  private async createInBatch(
+    parentId: string,
+    calculatedTasks: CalculatedTask[],
+    predecessors: number[][],
+    known: Array<WorkItem | undefined>,
+    options: TaskMaterializationOptions,
+  ): Promise<Array<WorkItem | undefined>> {
+    const created = [...known];
+    const toCreate = calculatedTasks.flatMap((_, index) => (known[index] === undefined ? [index] : []));
+    const position = new Map(toCreate.map((index, inBatch) => [index, inBatch]));
+    const batch = toCreate.map((index): BatchTaskDefinition => {
+      const deps = predecessors[index] ?? [];
+      const predecessorIndices = deps.flatMap((dep) => {
+        const inBatch = position.get(dep);
+        return inBatch === undefined ? [] : [inBatch];
+      });
+      const predecessorIds = deps.flatMap((dep) => {
+        const existing = known[dep];
+        return existing ? [existing.id] : [];
+      });
+      return {
+        ...(calculatedTasks[index] as CalculatedTask),
+        ...(predecessorIndices.length > 0 ? { predecessorIndices } : {}),
+        ...(predecessorIds.length > 0 ? { predecessorIds } : {}),
+      };
+    });
+    if (batch.length > 0) {
+      await this.platform.createTasksInBatch?.(
+        parentId,
+        batch,
+        (task, inBatch) => {
+          created[toCreate[inBatch] as number] = task;
+          options.onTaskCreated?.(task);
+        },
+        { signal: options.signal },
+      );
+    }
+    const existingDependents = predecessors.map((deps, index) => (known[index] !== undefined ? deps : []));
     await this.createDependencyLinks(planLinks(calculatedTasks, created, existingDependents, options.signal?.aborted), options.dependencyConcurrency ?? 5);
     return created;
   }

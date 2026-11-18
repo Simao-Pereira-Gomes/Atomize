@@ -8,8 +8,9 @@ import {
 } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import type { IWorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
 import { logger } from "../../../logger";
-import { runWithConcurrency } from "../../../utils/concurrency";
+import { runAsDependenciesFinish, runWithConcurrency } from "../../../utils/concurrency";
 import { AuthError, ConfigurationError, getErrorMessage, PlatformError, UnknownError } from "../../../utils/errors";
+import type { RunTimings } from "../../../utils/run-timings";
 import type { EstimationDefaults } from "../../interfaces/estimation-defaults.interface";
 import type { ADoFieldSchema } from "../../interfaces/field-schema.interface";
 import type { FilterCriteria } from "../../interfaces/filter.interface";
@@ -24,16 +25,37 @@ import type {
 import type { CreateTasksOptions, QueryWorkItemsOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
+  BatchTaskDefinition,
   TaskDefinition,
   WorkItem,
 } from "../../interfaces/work-item.interface";
 import { FieldSchemaService } from "./azure-devops-field-schema.service.js";
 import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "./estimation-defaults";
 import { RequestThrottle, withRequestThrottle } from "./request-throttle";
-import { buildCreateTaskPatch, buildDependencyLinkPatch } from "./task-patch-builder";
+import { buildCreateTaskPatch, buildDependencyLinkPatch, type TaskPatch } from "./task-patch-builder";
 import { convertWorkItem } from "./work-item-mapper";
 import { buildWorkItemWiqlQuery, pickCurrentAndNextSprint } from "./work-item-query";
 import { AzureDevOpsWorkItemRetrieval } from "./work-item-retrieval";
+
+/**
+ * Most Work Item operations sent in one $batch request. Not documented; a batch of 150 creates with
+ * a link each was accepted (#337).
+ */
+const MAX_BATCH_OPERATIONS = 150;
+
+/** One request in a Work Item $batch call. */
+interface WorkItemBatchRequest {
+  method: "PATCH";
+  uri: string;
+  headers: Record<string, string>;
+  body: TaskPatch;
+}
+
+/** One answer in a Work Item $batch response: the request's status, and its JSON body as a string. */
+interface WorkItemBatchResponse {
+  code: number;
+  body: string;
+}
 
 /** The Wiki Pages Batch REST resource's location ID, as azure-devops-node-api's WikiApi uses it. */
 const WIKI_PAGES_BATCH_LOCATION = "71323c46-2592-4398-8771-ced73dd87207";
@@ -59,6 +81,16 @@ export interface AzureDevOpsConfig extends PlatformConfig {
 
   /** Maximum concurrent API requests for bulk operations (default: 5) */
   maxConcurrency?: number;
+
+  /**
+   * Create each Story's Tasks with Work Item $batch requests (default true). `false` creates them one
+   * request each (`generate --no-batch-create`), as the adapter also does by itself on a server that
+   * refuses $batch.
+   */
+  batchTaskCreation?: boolean;
+
+  /** Records every throttled request's method, time queued and time in flight (`generate --timings`). */
+  timings?: RunTimings;
 }
 
 /**
@@ -72,13 +104,15 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
   get taskConcurrency(): number {
     return this.config.maxConcurrency ?? 5;
   }
+
+  get createsTasksInBatch(): boolean {
+    return this.config.batchTaskCreation !== false && !this.batchUnavailable;
+  }
+  /** Set once the server refuses $batch (an older Azure DevOps Server): from then on Tasks are created one request each. */
+  private batchUnavailable = false;
   private connection?: azdev.WebApi;
   /** Shared by every Work Item Tracking request this adapter sends, so throttling slows the whole run. */
-  private readonly throttle = new RequestThrottle({
-    onUnauthorized: () => {
-      this.credentialsRejected = true;
-    },
-  });
+  private readonly throttle: RequestThrottle;
   /** Set when a request comes back 401, so a cache holding this adapter authenticates a fresh one. */
   private credentialsRejected = false;
   private witApi?: IWorkItemTrackingApi;
@@ -93,6 +127,13 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
     fieldSchemaService?: FieldSchemaService,
   ) {
     this.fieldSchemaService = fieldSchemaService ?? new FieldSchemaService();
+    const timings = config.timings;
+    this.throttle = new RequestThrottle({
+      onUnauthorized: () => {
+        this.credentialsRejected = true;
+      },
+      ...(timings ? { onRequest: (request) => timings.recordRequest(request), now: timings.now } : {}),
+    });
     if (!config.organizationUrl) {
       throw new PlatformError("Organization URL is required", "azure-devops");
     }
@@ -374,26 +415,15 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new Error(`Invalid predecessor work item ID: ${invalidPredecessor}`);
       }
 
-      const defaults = this.getEstimationDefaults();
-      const estimateWrite = task.estimateFields?.length
-        ? { fields: task.estimateFields }
-        : { fields: defaults.taskEstimateFields, initializeCompletedWork: true };
-      const patchDocument = buildCreateTaskPatch(
-        this.config.organizationUrl,
-        numericParentId,
-        task,
-        estimateWrite,
-      );
-
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
       }
       // Create work item
       const createdItem = await this.witApi.createWorkItem(
         undefined, // customHeaders
-        patchDocument,
+        this.createTaskPatch(numericParentId, task),
         this.config.project,
-        task.workItemType ?? defaults.taskWorkItemType,
+        this.taskWorkItemType(task),
       );
 
       logger.info(`AzureDevOps: Created task ${createdItem.id}: ${task.title}`);
@@ -406,6 +436,158 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         `Failed to create task: ${message}`,
         "azure-devops",
       );
+    }
+  }
+
+  private createTaskPatch(parentId: number, task: TaskDefinition): TaskPatch {
+    const estimateWrite = task.estimateFields?.length
+      ? { fields: task.estimateFields }
+      : { fields: this.getEstimationDefaults().taskEstimateFields, initializeCompletedWork: true };
+    return buildCreateTaskPatch(this.config.organizationUrl, parentId, task, estimateWrite);
+  }
+
+  private taskWorkItemType(task: TaskDefinition): string {
+    return task.workItemType ?? this.getEstimationDefaults().taskWorkItemType;
+  }
+
+  /**
+   * Creates the Tasks with Work Item $batch requests of at most MAX_BATCH_OPERATIONS each. A Task
+   * linking to another new Task in the same request uses its temporary ID (-1, -2, ...), and one in
+   * an earlier request its real ID; Tasks are sent in dependency order to make that possible. A
+   * batch isn't transactional: each Task is created or fails on its own.
+   */
+  async createTasksInBatch(
+    parentId: string,
+    tasks: BatchTaskDefinition[],
+    onTaskCreated?: (task: WorkItem, index: number) => void,
+    options: CreateTasksOptions = {},
+  ): Promise<Array<WorkItem | undefined>> {
+    this.ensureAuthenticated();
+    const numericParentId = parseInt(parentId, 10);
+    if (Number.isNaN(numericParentId)) throw new PlatformError(`Invalid parent ID: ${parentId}`, "azure-devops");
+
+    const created: Array<WorkItem | undefined> = new Array(tasks.length).fill(undefined);
+    const order = dependencyOrder(tasks);
+    for (let start = 0; start < order.length; start += MAX_BATCH_OPERATIONS) {
+      if (options.signal?.aborted) break;
+      const chunk = order.slice(start, start + MAX_BATCH_OPERATIONS);
+      const temporaryId = new Map(chunk.map((index, position) => [index, -(position + 1)]));
+      const requests = chunk.map((index) => this.batchCreateRequest(numericParentId, tasks, index, temporaryId, created));
+
+      const sent = await this.sendWorkItemBatch(requests, tasks.length);
+      if (sent === "unavailable") {
+        await this.createOneByOne(parentId, tasks, order.slice(start), created, onTaskCreated, options);
+        break;
+      }
+      const responses = sent === "failed" ? undefined : sent;
+      chunk.forEach((index, position) => {
+        const response = responses?.[position];
+        if (!response || response.code >= 300) {
+          if (responses) logger.error(`AzureDevOps: Failed to create task: ${tasks[index]?.title}`, { error: batchErrorMessage(response) });
+          return;
+        }
+        const item = convertWorkItem(JSON.parse(response.body));
+        created[index] = item;
+        onTaskCreated?.(item, index);
+      });
+    }
+
+    logger.info(`AzureDevOps: Created ${created.filter(Boolean).length} of ${tasks.length} tasks in batches`);
+    return created;
+  }
+
+  /** The $batch request creating `tasks[index]`, linked to new predecessors by temporary or real ID. */
+  private batchCreateRequest(
+    parentId: number,
+    tasks: BatchTaskDefinition[],
+    index: number,
+    temporaryId: Map<number, number>,
+    created: Array<WorkItem | undefined>,
+  ): WorkItemBatchRequest {
+    const { predecessorIndices: _, ...task } = tasks[index] as BatchTaskDefinition;
+    const newPredecessorIds = linkedIds(tasks, index, (predecessor) => {
+      const inThisRequest = temporaryId.get(predecessor);
+      return inThisRequest !== undefined ? String(inThisRequest) : created[predecessor]?.id;
+    });
+    return {
+      method: "PATCH",
+      uri: `/${encodeURIComponent(this.config.project)}/_apis/wit/workitems/$${encodeURIComponent(this.taskWorkItemType(task))}?api-version=7.1`,
+      headers: { "Content-Type": "application/json-patch+json" },
+      body: [
+        { op: "add", path: "/id", value: String(temporaryId.get(index)) },
+        ...this.createTaskPatch(parentId, { ...task, predecessorIds: [...(task.predecessorIds ?? []), ...newPredecessorIds] }),
+      ],
+    };
+  }
+
+  /**
+   * Creates the Tasks at `remaining` (indices of `tasks`) one request each, each as soon as its new
+   * predecessors exist. For a server that refused $batch.
+   */
+  private async createOneByOne(
+    parentId: string,
+    tasks: BatchTaskDefinition[],
+    remaining: number[],
+    created: Array<WorkItem | undefined>,
+    onTaskCreated: ((task: WorkItem, index: number) => void) | undefined,
+    options: CreateTasksOptions,
+  ): Promise<void> {
+    const pending = new Set(remaining);
+    await runAsDependenciesFinish(
+      tasks.map((task, index) => (pending.has(index) ? (task.predecessorIndices ?? []).filter((dep) => pending.has(dep)) : [])),
+      this.taskConcurrency,
+      async (index) => {
+        if (!pending.has(index)) return;
+        const { predecessorIndices: _, ...task } = tasks[index] as BatchTaskDefinition;
+        const newPredecessorIds = linkedIds(tasks, index, (predecessor) => created[predecessor]?.id);
+        try {
+          const item = await this.createTask(parentId, { ...task, predecessorIds: [...(task.predecessorIds ?? []), ...newPredecessorIds] });
+          created[index] = item;
+          onTaskCreated?.(item, index);
+        } catch (error) {
+          logger.error(`AzureDevOps: Failed to create task: ${task.title}`, { error: getErrorMessage(error) });
+        }
+      },
+      { shouldStop: () => options.signal?.aborted === true },
+    );
+  }
+
+  /**
+   * Sends one $batch request through the throttle. "failed" when it failed as a whole (logged), and
+   * "unavailable" when the server doesn't support it, after which this adapter stops batching.
+   */
+  private async sendWorkItemBatch(
+    requests: WorkItemBatchRequest[],
+    taskCount: number,
+  ): Promise<WorkItemBatchResponse[] | "failed" | "unavailable"> {
+    const rest = this.connection?.rest;
+    if (!rest) throw new UnknownError("Not connected to Azure DevOps");
+    const url = `${this.config.organizationUrl.replace(/\/+$/, "")}/_apis/wit/$batch?api-version=7.1`;
+    try {
+      const response = await this.throttle.run(
+        async () => {
+          const result = await rest.update<{ value?: WorkItemBatchResponse[] }>(url, requests);
+          // The REST client answers a 404 with an empty result rather than an error.
+          if (result.statusCode === 404) throw Object.assign(new Error("No Work Item $batch endpoint"), { statusCode: 404 });
+          // The throttle reads Retry-After from `responseHeaders`.
+          return { value: result.result?.value, responseHeaders: result.headers };
+        },
+        { idempotent: false, method: "workItemBatch" },
+      );
+      if (!response.value) throw new Error("The batch response had no results");
+      return response.value;
+    } catch (error) {
+      if (refusesBatch(error)) {
+        if (!this.batchUnavailable) {
+          this.batchUnavailable = true;
+          logger.warn("AzureDevOps: this server doesn't support creating Tasks in batches; creating them one request each");
+        }
+        return "unavailable";
+      }
+      logger.error(`AzureDevOps: Failed to create ${requests.length} of ${taskCount} tasks in a batch`, {
+        error: sanitizeAzureErrorMessage(error),
+      });
+      return "failed";
     }
   }
 
@@ -843,4 +1025,61 @@ function flattenClassificationNode(
     }
   }
   return paths;
+}
+
+/**
+ * Task indices with every Task after the Tasks it depends on (by `predecessorIndices`), otherwise in
+ * input order. A predecessor index out of range, or one closing a cycle, is ignored for ordering.
+ */
+function dependencyOrder(tasks: BatchTaskDefinition[]): number[] {
+  const order: number[] = [];
+  const visited = new Set<number>();
+  const visit = (index: number) => {
+    if (visited.has(index)) return;
+    visited.add(index);
+    for (const predecessor of tasks[index]?.predecessorIndices ?? []) {
+      if (predecessor >= 0 && predecessor < tasks.length) visit(predecessor);
+    }
+    order.push(index);
+  };
+  for (let index = 0; index < tasks.length; index++) visit(index);
+  return order;
+}
+
+/**
+ * The IDs to link `tasks[index]` to for its new predecessors, from `idOf`. A predecessor without an
+ * ID (it wasn't created) is left out with a warning.
+ */
+function linkedIds(
+  tasks: BatchTaskDefinition[],
+  index: number,
+  idOf: (predecessor: number) => string | undefined,
+): string[] {
+  return (tasks[index]?.predecessorIndices ?? []).flatMap((predecessor) => {
+    const id = idOf(predecessor);
+    if (id !== undefined) return [id];
+    logger.warn(`Cannot link "${tasks[index]?.title}" to "${tasks[predecessor]?.title}": that Task wasn't created`);
+    return [];
+  });
+}
+
+/**
+ * Whether a failed $batch request means the server doesn't support it: no such endpoint (404), or an
+ * API version it doesn't know (an Azure DevOps Server older than 2022 answers 7.1 with
+ * VssVersionOutOfRangeException).
+ */
+function refusesBatch(error: unknown): boolean {
+  const status = (error as { statusCode?: number } | undefined)?.statusCode;
+  if (status === 404) return true;
+  return status === 400 && /VersionOutOfRange|api-version|out of range/i.test(getErrorMessage(error));
+}
+
+function batchErrorMessage(response: WorkItemBatchResponse | undefined): string {
+  if (!response) return "no response for this Task";
+  try {
+    const body = JSON.parse(response.body) as { message?: string; errorMessage?: string; value?: { Message?: string } };
+    return `HTTP ${response.code}: ${body.message ?? body.errorMessage ?? body.value?.Message ?? response.body}`;
+  } catch {
+    return `HTTP ${response.code}: ${response.body}`;
+  }
 }

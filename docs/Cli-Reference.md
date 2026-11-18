@@ -257,10 +257,10 @@ atomize gen [template] [options]  # alias
 | `--profile <name>` | string | - | Named connection profile to use (see `auth add`) |
 | `--execute` | flag | - | Actually create tasks (default is dry-run preview) |
 | `--auto-approve` | flag | - | Required with `--execute` in non-interactive mode to acknowledge live task creation |
-| `--continue-on-error` | flag | - | Keep processing other stories if one fails |
+| `--continue-on-error` | flag | - | Keep processing other stories if one fails. Without it, no further Story starts after the first failure, but Stories already under way (up to `--story-concurrency`, 10 by default) still finish, so a run of 10 Stories or fewer processes all of them |
 | `--story <ids...>` | string[] | - | Target specific work items by ID, bypassing the template filter. `excludeIfHasTasks` still applies. |
 | `--resume` | flag | - | With `--story`: finish Stories a stopped run left partly created, creating only the Tasks whose title isn't already among each Story's child Tasks. `excludeIfHasTasks` is ignored for them. Refused without `--story` |
-| `--story-concurrency <n>` | number | `3` | Max stories processed in parallel (max: 10) |
+| `--story-concurrency <n>` | number | `10` | Max stories processed in parallel (max: 20) |
 | `--task-concurrency <n>` | number | `5` | Max tasks created in parallel per story (max: 20) |
 | `--dependency-concurrency <n>` | number | `5` | Max dependency links created in parallel (max: 10) |
 | `--limit <n>` | number | - | Cap the number of work items processed (useful for testing before a full `--execute` run) |

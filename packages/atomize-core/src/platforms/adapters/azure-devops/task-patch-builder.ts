@@ -1,5 +1,24 @@
-import type { JsonPatchDocument } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import type { TaskDefinition } from "../../interfaces/work-item.interface";
+
+/** A Work Item relation, as a patch adds it. */
+export interface RelationValue {
+  rel: string;
+  url: string;
+  attributes: { comment: string };
+}
+
+/** A Work Item field value a Task patch writes. */
+export type FieldValue = string | number | boolean;
+
+/** One operation of a Task's create or link patch: Atomize only ever adds. */
+export interface AddOperation {
+  op: "add";
+  path: string;
+  value: FieldValue | RelationValue;
+}
+
+/** A JSON Patch document for a Task. The SDK types a patch as an opaque object; this is its real shape. */
+export type TaskPatch = AddOperation[];
 
 const DATE_MACRO_RE =
   /^(@Today|@StartOfDay|@StartOfMonth|@StartOfWeek|@StartOfYear)(?:\s*([+-])\s*(\d+))?$/i;
@@ -12,7 +31,7 @@ const DATE_MACRO_RE =
  * resolution step, so it has to happen locally, at generation time, right before the patch
  * is built — otherwise the literal string "@Today" would be sent as the field's value.
  */
-export function resolveDateMacro(value: unknown): unknown {
+export function resolveDateMacro(value: FieldValue): FieldValue {
   if (typeof value !== "string") return value;
   const match = DATE_MACRO_RE.exec(value.trim());
   if (!match) return value;
@@ -46,107 +65,36 @@ export interface TaskEstimateWrite {
   initializeCompletedWork?: boolean;
 }
 
+/** Sets Work Item field `referenceName` to `value`. */
+function setField(referenceName: string, value: FieldValue): AddOperation {
+  return { op: "add", path: `/fields/${referenceName}`, value };
+}
+
+/** Adds a `rel` relation to Work Item `targetId`. */
+function addRelation(organizationUrl: string, rel: string, targetId: number | string, comment: string): AddOperation {
+  return { op: "add", path: "/relations/-", value: { rel, url: `${organizationUrl}/_apis/wit/workItems/${targetId}`, attributes: { comment } } };
+}
+
 export function buildCreateTaskPatch(
   organizationUrl: string,
   parentId: number,
   task: TaskDefinition,
   estimateWrite: TaskEstimateWrite,
-): JsonPatchDocument {
+): TaskPatch {
+  const { estimation } = task;
   return [
-    {
-      op: "add",
-      path: "/fields/System.Title",
-      value: task.title,
-    },
-    ...(task.description
-      ? [
-          {
-            op: "add",
-            path: "/fields/System.Description",
-            value: task.description,
-          },
-        ]
-      : []),
-    ...(task.estimation !== undefined
-      ? estimateWrite.fields.map((field) => ({
-          op: "add" as const,
-          path: `/fields/${field}`,
-          value: task.estimation,
-        }))
-      : []),
-    ...(estimateWrite.initializeCompletedWork
-      ? [{ op: "add" as const, path: "/fields/Microsoft.VSTS.Scheduling.CompletedWork", value: 0 }]
-      : []),
-    ...(task.iteration
-      ? [
-          {
-            op: "add",
-            path: "/fields/System.IterationPath",
-            value: task.iteration,
-          },
-        ]
-      : []),
-    ...(task.areaPath
-      ? [
-          {
-            op: "add",
-            path: "/fields/System.AreaPath",
-            value: task.areaPath,
-          },
-        ]
-      : []),
-    ...(task.tags && task.tags.length > 0
-      ? [
-          {
-            op: "add",
-            path: "/fields/System.Tags",
-            value: task.tags.join("; "),
-          },
-        ]
-      : []),
-    ...(task.assignTo
-      ? [
-          {
-            op: "add",
-            path: "/fields/System.AssignedTo",
-            value: task.assignTo,
-          },
-        ]
-      : []),
-    ...(task.priority !== undefined
-      ? [
-          {
-            op: "add",
-            path: "/fields/Microsoft.VSTS.Common.Priority",
-            value: task.priority,
-          },
-        ]
-      : []),
-    ...(task.activity
-      ? [
-          {
-            op: "add",
-            path: "/fields/Microsoft.VSTS.Common.Activity",
-            value: task.activity,
-          },
-        ]
-      : []),
-    ...Object.entries(task.customFields ?? {}).map(([referenceName, value]) => ({
-      op: "add" as const,
-      path: `/fields/${referenceName}`,
-      value: resolveDateMacro(value),
-    })),
-    {
-      op: "add",
-      path: "/relations/-",
-      value: {
-        rel: "System.LinkTypes.Hierarchy-Reverse",
-        url: `${organizationUrl}/_apis/wit/workItems/${parentId}`,
-        attributes: {
-          comment: "Parent link",
-        },
-      },
-    },
+    setField("System.Title", task.title),
+    ...(task.description ? [setField("System.Description", task.description)] : []),
+    ...(estimation !== undefined ? estimateWrite.fields.map((field) => setField(field, estimation)) : []),
+    ...(estimateWrite.initializeCompletedWork ? [setField("Microsoft.VSTS.Scheduling.CompletedWork", 0)] : []),
+    ...(task.iteration ? [setField("System.IterationPath", task.iteration)] : []),
+    ...(task.areaPath ? [setField("System.AreaPath", task.areaPath)] : []),
+    ...(task.tags && task.tags.length > 0 ? [setField("System.Tags", task.tags.join("; "))] : []),
+    ...(task.assignTo ? [setField("System.AssignedTo", task.assignTo)] : []),
+    ...(task.priority !== undefined ? [setField("Microsoft.VSTS.Common.Priority", task.priority)] : []),
+    ...(task.activity ? [setField("Microsoft.VSTS.Common.Activity", task.activity)] : []),
+    ...Object.entries(task.customFields ?? {}).map(([referenceName, value]) => setField(referenceName, resolveDateMacro(value))),
+    addRelation(organizationUrl, "System.LinkTypes.Hierarchy-Reverse", parentId, "Parent link"),
     ...(task.predecessorIds ?? []).flatMap((predecessorId) => buildDependencyLinkPatch(organizationUrl, predecessorId)),
   ];
 }
@@ -154,18 +102,6 @@ export function buildCreateTaskPatch(
 export function buildDependencyLinkPatch(
   organizationUrl: string,
   predecessorId: number | string,
-): JsonPatchDocument {
-  return [
-    {
-      op: "add",
-      path: "/relations/-",
-      value: {
-        rel: "System.LinkTypes.Dependency-Reverse",
-        url: `${organizationUrl}/_apis/wit/workItems/${predecessorId}`,
-        attributes: {
-          comment: "Predecessor dependency",
-        },
-      },
-    },
-  ];
+): TaskPatch {
+  return [addRelation(organizationUrl, "System.LinkTypes.Dependency-Reverse", predecessorId, "Predecessor dependency")];
 }

@@ -1,4 +1,5 @@
 import { logger } from "../../../logger";
+import type { RequestAttempt, RequestRecord } from "../../../utils/run-timings";
 
 /**
  * 429 means Azure DevOps blocked the request before doing any work, so any request can be sent again.
@@ -19,6 +20,8 @@ export interface RequestThrottleOptions {
   recoverAfterMs?: number;
   /** Called when Azure DevOps answers 401: the credentials were rejected (an expired or revoked PAT). */
   onUnauthorized?: () => void;
+  /** Receives every request once it settles: its method, when it was asked for, and each attempt (for `generate --timings`). */
+  onRequest?: (request: RequestRecord) => void;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
 }
@@ -26,6 +29,8 @@ export interface RequestThrottleOptions {
 export interface ThrottledRequestOptions {
   /** False for writes, which aren't retried on 503 (default true). */
   idempotent?: boolean;
+  /** The SDK method, reported to `onRequest` (default "unknown"). */
+  method?: string;
 }
 
 /**
@@ -55,6 +60,7 @@ export class RequestThrottle {
   private readonly maxRetryDelayMs: number;
   private readonly recoverAfterMs: number;
   private readonly onUnauthorized: (() => void) | undefined;
+  private readonly onRequest: ((request: RequestRecord) => void) | undefined;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
 
@@ -64,6 +70,7 @@ export class RequestThrottle {
     this.maxRetryDelayMs = options.maxRetryDelayMs ?? 5 * 60_000;
     this.recoverAfterMs = options.recoverAfterMs ?? 5 * 60_000;
     this.onUnauthorized = options.onUnauthorized;
+    this.onRequest = options.onRequest;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? Date.now;
   }
@@ -74,23 +81,42 @@ export class RequestThrottle {
 
   async run<T>(request: () => Promise<T>, options: ThrottledRequestOptions = {}): Promise<T> {
     const retryStatuses = options.idempotent === false ? RETRY_STATUSES.write : RETRY_STATUSES.read;
-    for (let attempt = 0; ; attempt++) {
-      const cutsAtStart = await this.acquire();
-      try {
-        const result = await request();
-        const retryAfterMs = this.retryAfterMsOf(result);
-        if (retryAfterMs !== undefined && retryAfterMs > 0) this.onThrottled(cutsAtStart, retryAfterMs);
-        return result;
-      } catch (error) {
-        const status = statusCodeOf(error);
-        if (status === 401) this.onUnauthorized?.();
-        if (status === undefined || !retryStatuses.has(status) || attempt >= this.maxRetries) throw error;
-        const delayMs = this.retryAfterMsOf(error) ?? this.baseRetryDelayMs * 2 ** attempt;
-        this.onThrottled(cutsAtStart, delayMs);
-        logger.debug(`AzureDevOps: HTTP ${status}, retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt + 1})`);
-      } finally {
-        this.release();
+    const record: RequestRecord | undefined = this.onRequest
+      ? { method: options.method ?? "unknown", queuedAt: this.now(), attempts: [], ok: false }
+      : undefined;
+    try {
+      for (let attempt = 0; ; attempt++) {
+        const { cutsAtStart, inFlight, limit } = await this.acquire();
+        const sent: RequestAttempt | undefined = record
+          ? { sentAt: this.now(), finishedAt: 0, inFlight, limit }
+          : undefined;
+        try {
+          const result = await request();
+          const retryAfterMs = this.retryAfterMsOf(result);
+          if (sent && retryAfterMs !== undefined) sent.retryAfterMs = retryAfterMs;
+          if (retryAfterMs !== undefined && retryAfterMs > 0) this.onThrottled(cutsAtStart, retryAfterMs);
+          if (record) record.ok = true;
+          return result;
+        } catch (error) {
+          const status = statusCodeOf(error);
+          const retryAfterMs = this.retryAfterMsOf(error);
+          if (sent && status !== undefined) sent.status = status;
+          if (sent && retryAfterMs !== undefined) sent.retryAfterMs = retryAfterMs;
+          if (status === 401) this.onUnauthorized?.();
+          if (status === undefined || !retryStatuses.has(status) || attempt >= this.maxRetries) throw error;
+          const delayMs = retryAfterMs ?? this.baseRetryDelayMs * 2 ** attempt;
+          this.onThrottled(cutsAtStart, delayMs);
+          logger.debug(`AzureDevOps: HTTP ${status}, retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt + 1})`);
+        } finally {
+          if (record && sent) {
+            sent.finishedAt = this.now();
+            record.attempts.push(sent);
+          }
+          this.release();
+        }
       }
+    } finally {
+      if (record) this.onRequest?.(record);
     }
   }
 
@@ -109,7 +135,8 @@ export class RequestThrottle {
     }
   }
 
-  private async acquire(): Promise<number> {
+  /** Waits for a slot; returns the limit cuts so far, and the in-flight count and limit as this request took it. */
+  private async acquire(): Promise<{ cutsAtStart: number; inFlight: number; limit: number }> {
     for (;;) {
       const waitMs = this.pausedUntil - this.now();
       if (waitMs > 0) {
@@ -124,7 +151,7 @@ export class RequestThrottle {
       if (this.inFlight < this.limit) {
         this.inFlight++;
         this.peakInFlight = Math.max(this.peakInFlight, this.inFlight);
-        return this.limitCuts;
+        return { cutsAtStart: this.limitCuts, inFlight: this.inFlight, limit: this.limit };
       }
       await new Promise<void>((resolve) => this.waiters.push(resolve));
     }
@@ -162,7 +189,8 @@ export function withRequestThrottle<T extends object>(api: T, throttle: RequestT
       const value = Reflect.get(target, property, receiver);
       if (typeof value !== "function") return value;
       const idempotent = typeof property !== "string" || !WRITE_METHOD.test(property);
-      return (...args: unknown[]) => throttle.run(() => value.apply(target, args), { idempotent });
+      const method = typeof property === "string" ? property : undefined;
+      return (...args: unknown[]) => throttle.run(() => value.apply(target, args), { idempotent, method });
     },
   });
 }

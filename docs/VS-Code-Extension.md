@@ -191,7 +191,7 @@ Runs the Generate Panel for the active Template. The panel first shows a dry-run
   <img alt="VS Code's Generate Panel beside a Template, showing a DRY RUN report for two Stories with 6 Tasks, 64 hours, and a 100% budget, each Task with its estimate, and the Create 6 Tasks button." src="../packages/website/public/vscode/generate-dry-run-light.png">
 </picture>
 
-5. Choose **Create *N* Tasks in *profile*…**. The arrow beside it offers **Continue on task failure**, which keeps creating the remaining Tasks when one fails.
+5. Choose **Create *N* Tasks in *profile*…**. The arrow beside it offers **Continue on task failure**, which keeps creating the remaining Tasks when one fails. Without it, no further Story starts after the first failure, but Stories already under way (up to 10 at once) still finish.
 6. Confirm in the dialog, which names the number of Tasks and Stories and the profile, by choosing **Create Tasks**. Closing the dialog creates nothing.
 
 <picture>

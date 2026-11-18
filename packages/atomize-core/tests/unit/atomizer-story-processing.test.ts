@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { type AtomizationOptions, Atomizer, type ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
+import { type AtomizationOptions, Atomizer, DEFAULT_STORY_CONCURRENCY, type ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
 import { sanitizeReport } from "@sppg2001/atomize-core/core/report-formatter";
 import type { FilterCriteria } from "@sppg2001/atomize-core/platforms/interfaces/filter.interface";
 import type { GenerationPlatform } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
 import type { TaskDefinition, WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
+import { RunTimings } from "@sppg2001/atomize-core/utils/run-timings";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -193,5 +194,46 @@ describe("stopping a Generation Run partway through a Story", () => {
 
     expect(report.results[0]?.tasksCreated).toHaveLength(2);
     expect(report.results[0]).not.toHaveProperty("stoppedEarly");
+  });
+});
+
+describe("default Story concurrency", () => {
+  test("works on up to 10 Stories at once when the run doesn't say", async () => {
+    const stories = Array.from({ length: 11 }, (_, i) => story(String(i + 1)));
+    const platform = new ScriptedPlatform(stories, Object.fromEntries(stories.map((s) => [s.id, 30])));
+
+    await new Atomizer(platform).atomize(template);
+
+    const firstEnd = platform.events.findIndex((event) => event.startsWith("end "));
+    const startsBeforeFirstEnd = platform.events.slice(0, firstEnd).filter((event) => event.startsWith("start ")).length;
+    expect(startsBeforeFirstEnd).toBe(10);
+    expect(DEFAULT_STORY_CONCURRENCY).toBe(10);
+  });
+});
+
+describe("timing a Generation Run", () => {
+  test("records the Story query, the processing phase, and each Story's slot wait, calculation and creation", async () => {
+    const platform = new ScriptedPlatform([story("1"), story("2"), story("3")], { "1": 40, "2": 40, "3": 10 });
+    const timings = new RunTimings();
+
+    await run(platform, { timings });
+
+    const record = timings.toJSON();
+    expect(record.phases.map((phase) => phase.name)).toEqual(["storyQuery", "processStories"]);
+    expect(record.run).toMatchObject({ template: "Processing", dryRun: false, storyConcurrency: 2, dependencyConcurrency: 5, taskConcurrency: 5, taskCreation: "single", stories: 3 });
+    expect(record.stories.map((s) => [s.id, s.outcome])).toEqual([["1", "success"], ["2", "success"], ["3", "success"]]);
+    for (const s of record.stories) expect(s.plannedMs).toBeDefined();
+    // Two slots: Story 3 waits for one of the first two to finish.
+    const third = record.stories.find((s) => s.id === "3");
+    expect((third?.startMs ?? 0) - (third?.readyMs ?? 0)).toBeGreaterThanOrEqual(30);
+  });
+
+  test("marks a failed Story as failed", async () => {
+    const platform = new ScriptedPlatform([story("1")], {}, new Set(["1"]));
+    const timings = new RunTimings();
+
+    await run(platform, { timings, continueOnError: true });
+
+    expect(timings.toJSON().stories).toMatchObject([{ id: "1", outcome: "failed" }]);
   });
 });

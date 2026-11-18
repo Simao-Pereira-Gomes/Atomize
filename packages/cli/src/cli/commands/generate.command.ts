@@ -6,7 +6,7 @@ import {
 } from "@clack/prompts";
 import type { Config } from "@config/config";
 import { logger } from "@config/logger";
-import type { AtomizationReport, Atomizer } from "@sppg2001/atomize-core/core/atomizer";
+import { type AtomizationReport, type Atomizer, DEFAULT_STORY_CONCURRENCY } from "@sppg2001/atomize-core/core/atomizer";
 import type {
   GenerationPlatform,
   PlatformAuthenticator,
@@ -18,6 +18,7 @@ import type { CompositionMeta } from "@sppg2001/atomize-core/templates/template-
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { AuthError } from "@sppg2001/atomize-core/utils/errors";
 import { clampConcurrency } from "@sppg2001/atomize-core/utils/math";
+import type { RunTimings } from "@sppg2001/atomize-core/utils/run-timings";
 import chalk from "chalk";
 import { Command, Option } from "commander";
 import { match } from "ts-pattern";
@@ -243,22 +244,22 @@ export function parseConcurrency(
   print: (msg: string) => void,
 ): ConcurrencySettings {
   const MIN = 1;
-  const MAX_STORY = 10;
+  const MAX_STORY = 20;
   const MAX_TASK = 20;
   const MAX_DEP = 10;
 
   const rawTask = parseInt(options.taskConcurrency, 10) || 5;
-  const rawStory = parseInt(options.storyConcurrency, 10) || 3;
+  const rawStory = parseInt(options.storyConcurrency, 10) || DEFAULT_STORY_CONCURRENCY;
   const rawDep = parseInt(options.dependencyConcurrency, 10) || 5;
 
   const taskConcurrency = clampConcurrency(rawTask, MIN, MAX_TASK, 5);
-  const storyConcurrency = clampConcurrency(rawStory, MIN, MAX_STORY, 3);
+  const storyConcurrency = clampConcurrency(rawStory, MIN, MAX_STORY, DEFAULT_STORY_CONCURRENCY);
   const dependencyConcurrency = clampConcurrency(rawDep, MIN, MAX_DEP, 5);
 
   if (rawTask !== taskConcurrency)
     print(chalk.yellow(`Task concurrency must be between ${MIN} and ${MAX_TASK}. Using default (5).`));
   if (rawStory !== storyConcurrency)
-    print(chalk.yellow(`Story concurrency must be between ${MIN} and ${MAX_STORY}. Using default (3).`));
+    print(chalk.yellow(`Story concurrency must be between ${MIN} and ${MAX_STORY}. Using default (${DEFAULT_STORY_CONCURRENCY}).`));
   if (rawDep !== dependencyConcurrency)
     print(chalk.yellow(`Dependency concurrency must be between ${MIN} and ${MAX_DEP}. Using default (5).`));
 
@@ -268,7 +269,7 @@ export function parseConcurrency(
 }
 
 async function initPlatform(
-  options: { platform: string; profile?: string },
+  options: { platform: string; profile?: string; timings?: RunTimings; batchCreate?: boolean },
   taskConcurrency: number,
   output: Pick<ReturnType<typeof createCommandOutput>, "cancel" | "print">,
 ): Promise<PlatformAuthenticator & GenerationPlatform & ProjectMetadataReader> {
@@ -281,6 +282,8 @@ async function initPlatform(
         return PlatformFactory.create("azure-devops", {
           ...azureConfig,
           maxConcurrency: taskConcurrency,
+          ...(options.timings ? { timings: options.timings } : {}),
+          ...(options.batchCreate === false ? { batchTaskCreation: false } : {}),
         });
       })
       .otherwise(() => PlatformFactory.create(options.platform as import("@sppg2001/atomize-core/platforms/interfaces/platform.interface").PlatformType));
@@ -670,9 +673,11 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
   .option("--execute", "Execute task creation (default is dry-run preview)", false)
   .option("--continue-on-error", "Continue processing remaining stories if one fails", false)
   .option("--auto-approve", "Acknowledge live execution in non-interactive mode", false)
-  .addOption(new Option("--story-concurrency <number>", "Max concurrent stories to process").default("3").hideHelp())
+  .addOption(new Option("--story-concurrency <number>", "Max concurrent stories to process").default(String(DEFAULT_STORY_CONCURRENCY)).hideHelp())
   .addOption(new Option("--task-concurrency <number>", "Max concurrent tasks to create per story").default("5").hideHelp())
   .addOption(new Option("--dependency-concurrency <number>", "Max concurrent dependency links to create").default("5").hideHelp())
+  .addOption(new Option("--timings <file>", "Write where the run spent its time (phases, Stories, every platform request) to a JSON file").hideHelp())
+  .addOption(new Option("--no-batch-create", "Create Tasks one request each instead of in Azure DevOps $batch requests").hideHelp())
   .option("-v, --verbose", "Show detailed output", false)
   .option("-o, --output <file>", "Write JSON report to file")
   .option(
