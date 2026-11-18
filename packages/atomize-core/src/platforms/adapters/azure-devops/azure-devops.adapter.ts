@@ -25,16 +25,37 @@ import type {
 import type { CreateTasksOptions, QueryWorkItemsOptions } from "../../interfaces/platform-capabilities";
 import type { StorySearch } from "../../interfaces/story-search.interface";
 import type {
+  BatchTaskDefinition,
   TaskDefinition,
   WorkItem,
 } from "../../interfaces/work-item.interface";
 import { FieldSchemaService } from "./azure-devops-field-schema.service.js";
 import { AZURE_DEVOPS_ESTIMATION_DEFAULTS } from "./estimation-defaults";
 import { RequestThrottle, withRequestThrottle } from "./request-throttle";
-import { buildCreateTaskPatch, buildDependencyLinkPatch } from "./task-patch-builder";
+import { buildCreateTaskPatch, buildDependencyLinkPatch, type TaskPatch } from "./task-patch-builder";
 import { convertWorkItem } from "./work-item-mapper";
 import { buildWorkItemWiqlQuery, pickCurrentAndNextSprint } from "./work-item-query";
 import { AzureDevOpsWorkItemRetrieval } from "./work-item-retrieval";
+
+/**
+ * Most Work Item operations sent in one $batch request. Not documented; a batch of 150 creates with
+ * a link each was accepted (#337).
+ */
+const MAX_BATCH_OPERATIONS = 150;
+
+/** One request in a Work Item $batch call. */
+interface WorkItemBatchRequest {
+  method: "PATCH";
+  uri: string;
+  headers: Record<string, string>;
+  body: TaskPatch;
+}
+
+/** One answer in a Work Item $batch response: the request's status, and its JSON body as a string. */
+interface WorkItemBatchResponse {
+  code: number;
+  body: string;
+}
 
 /** The Wiki Pages Batch REST resource's location ID, as azure-devops-node-api's WikiApi uses it. */
 const WIKI_PAGES_BATCH_LOCATION = "71323c46-2592-4398-8771-ced73dd87207";
@@ -61,6 +82,9 @@ export interface AzureDevOpsConfig extends PlatformConfig {
   /** Maximum concurrent API requests for bulk operations (default: 5) */
   maxConcurrency?: number;
 
+  /** Create each Story's Tasks with Work Item $batch requests (`generate --batch-create`, #337). */
+  batchTaskCreation?: boolean;
+
   /** Records every throttled request's method, time queued and time in flight (`generate --timings`). */
   timings?: RunTimings;
 }
@@ -75,6 +99,10 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
 
   get taskConcurrency(): number {
     return this.config.maxConcurrency ?? 5;
+  }
+
+  get createsTasksInBatch(): boolean {
+    return this.config.batchTaskCreation === true;
   }
   private connection?: azdev.WebApi;
   /** Shared by every Work Item Tracking request this adapter sends, so throttling slows the whole run. */
@@ -381,26 +409,15 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         throw new Error(`Invalid predecessor work item ID: ${invalidPredecessor}`);
       }
 
-      const defaults = this.getEstimationDefaults();
-      const estimateWrite = task.estimateFields?.length
-        ? { fields: task.estimateFields }
-        : { fields: defaults.taskEstimateFields, initializeCompletedWork: true };
-      const patchDocument = buildCreateTaskPatch(
-        this.config.organizationUrl,
-        numericParentId,
-        task,
-        estimateWrite,
-      );
-
       if (!this.witApi) {
         throw new UnknownError("Work Item Tracking API not initialized");
       }
       // Create work item
       const createdItem = await this.witApi.createWorkItem(
         undefined, // customHeaders
-        patchDocument,
+        this.createTaskPatch(numericParentId, task),
         this.config.project,
-        task.workItemType ?? defaults.taskWorkItemType,
+        this.taskWorkItemType(task),
       );
 
       logger.info(`AzureDevOps: Created task ${createdItem.id}: ${task.title}`);
@@ -413,6 +430,113 @@ export class AzureDevOpsAdapter implements IPlatformAdapter {
         `Failed to create task: ${message}`,
         "azure-devops",
       );
+    }
+  }
+
+  private createTaskPatch(parentId: number, task: TaskDefinition): TaskPatch {
+    const estimateWrite = task.estimateFields?.length
+      ? { fields: task.estimateFields }
+      : { fields: this.getEstimationDefaults().taskEstimateFields, initializeCompletedWork: true };
+    return buildCreateTaskPatch(this.config.organizationUrl, parentId, task, estimateWrite);
+  }
+
+  private taskWorkItemType(task: TaskDefinition): string {
+    return task.workItemType ?? this.getEstimationDefaults().taskWorkItemType;
+  }
+
+  /**
+   * Creates the Tasks with Work Item $batch requests of at most MAX_BATCH_OPERATIONS each. A Task
+   * linking to another new Task in the same request uses its temporary ID (-1, -2, ...), and one in
+   * an earlier request its real ID; Tasks are sent in dependency order to make that possible. A
+   * batch isn't transactional: each Task is created or fails on its own.
+   */
+  async createTasksInBatch(
+    parentId: string,
+    tasks: BatchTaskDefinition[],
+    onTaskCreated?: (task: WorkItem, index: number) => void,
+    options: CreateTasksOptions = {},
+  ): Promise<Array<WorkItem | undefined>> {
+    this.ensureAuthenticated();
+    const numericParentId = parseInt(parentId, 10);
+    if (Number.isNaN(numericParentId)) throw new PlatformError(`Invalid parent ID: ${parentId}`, "azure-devops");
+
+    const created: Array<WorkItem | undefined> = new Array(tasks.length).fill(undefined);
+    const order = dependencyOrder(tasks);
+    for (let start = 0; start < order.length; start += MAX_BATCH_OPERATIONS) {
+      if (options.signal?.aborted) break;
+      const chunk = order.slice(start, start + MAX_BATCH_OPERATIONS);
+      const temporaryId = new Map(chunk.map((index, position) => [index, -(position + 1)]));
+      const requests = chunk.map((index) => this.batchCreateRequest(numericParentId, tasks, index, temporaryId, created));
+
+      const responses = await this.sendWorkItemBatch(requests, tasks.length);
+      chunk.forEach((index, position) => {
+        const response = responses?.[position];
+        if (!response || response.code >= 300) {
+          if (responses) logger.error(`AzureDevOps: Failed to create task: ${tasks[index]?.title}`, { error: batchErrorMessage(response) });
+          return;
+        }
+        const item = convertWorkItem(JSON.parse(response.body));
+        created[index] = item;
+        onTaskCreated?.(item, index);
+      });
+    }
+
+    logger.info(`AzureDevOps: Created ${created.filter(Boolean).length} of ${tasks.length} tasks in batches`);
+    return created;
+  }
+
+  /** The $batch request creating `tasks[index]`, linked to new predecessors by temporary or real ID. */
+  private batchCreateRequest(
+    parentId: number,
+    tasks: BatchTaskDefinition[],
+    index: number,
+    temporaryId: Map<number, number>,
+    created: Array<WorkItem | undefined>,
+  ): WorkItemBatchRequest {
+    const { predecessorIndices, ...task } = tasks[index] as BatchTaskDefinition;
+    const newPredecessorIds = (predecessorIndices ?? []).flatMap((predecessor) => {
+      const inThisRequest = temporaryId.get(predecessor);
+      if (inThisRequest !== undefined) return [String(inThisRequest)];
+      const earlier = created[predecessor];
+      if (earlier) return [earlier.id];
+      logger.warn(`Cannot link "${task.title}" to "${tasks[predecessor]?.title}": that Task wasn't created`);
+      return [];
+    });
+    return {
+      method: "PATCH",
+      uri: `/${encodeURIComponent(this.config.project)}/_apis/wit/workitems/$${encodeURIComponent(this.taskWorkItemType(task))}?api-version=7.1`,
+      headers: { "Content-Type": "application/json-patch+json" },
+      body: [
+        { op: "add", path: "/id", value: String(temporaryId.get(index)) },
+        ...this.createTaskPatch(parentId, { ...task, predecessorIds: [...(task.predecessorIds ?? []), ...newPredecessorIds] }),
+      ],
+    };
+  }
+
+  /** Sends one $batch request through the throttle; undefined when it failed as a whole (logged). */
+  private async sendWorkItemBatch(
+    requests: WorkItemBatchRequest[],
+    taskCount: number,
+  ): Promise<WorkItemBatchResponse[] | undefined> {
+    const rest = this.connection?.rest;
+    if (!rest) throw new UnknownError("Not connected to Azure DevOps");
+    const url = `${this.config.organizationUrl.replace(/\/+$/, "")}/_apis/wit/$batch?api-version=7.1`;
+    try {
+      const response = await this.throttle.run(
+        async () => {
+          const result = await rest.update<{ value?: WorkItemBatchResponse[] }>(url, requests);
+          // The throttle reads Retry-After from `responseHeaders`.
+          return { value: result.result?.value, responseHeaders: result.headers };
+        },
+        { idempotent: false, method: "workItemBatch" },
+      );
+      if (!response.value) throw new Error("The batch response had no results");
+      return response.value;
+    } catch (error) {
+      logger.error(`AzureDevOps: Failed to create ${requests.length} of ${taskCount} tasks in a batch`, {
+        error: sanitizeAzureErrorMessage(error),
+      });
+      return undefined;
     }
   }
 
@@ -850,4 +974,33 @@ function flattenClassificationNode(
     }
   }
   return paths;
+}
+
+/**
+ * Task indices with every Task after the Tasks it depends on (by `predecessorIndices`), otherwise in
+ * input order. A predecessor index out of range, or one closing a cycle, is ignored for ordering.
+ */
+function dependencyOrder(tasks: BatchTaskDefinition[]): number[] {
+  const order: number[] = [];
+  const visited = new Set<number>();
+  const visit = (index: number) => {
+    if (visited.has(index)) return;
+    visited.add(index);
+    for (const predecessor of tasks[index]?.predecessorIndices ?? []) {
+      if (predecessor >= 0 && predecessor < tasks.length) visit(predecessor);
+    }
+    order.push(index);
+  };
+  for (let index = 0; index < tasks.length; index++) visit(index);
+  return order;
+}
+
+function batchErrorMessage(response: WorkItemBatchResponse | undefined): string {
+  if (!response) return "no response for this Task";
+  try {
+    const body = JSON.parse(response.body) as { message?: string; errorMessage?: string; value?: { Message?: string } };
+    return `HTTP ${response.code}: ${body.message ?? body.errorMessage ?? body.value?.Message ?? response.body}`;
+  } catch {
+    return `HTTP ${response.code}: ${response.body}`;
+  }
 }

@@ -371,6 +371,7 @@ export class Atomizer {
       storyConcurrency,
       taskConcurrency: this.platform.taskConcurrency ?? 5,
       dependencyConcurrency: options.dependencyConcurrency ?? 5,
+      taskCreation: this.platform.createsTasksInBatch ? "batch" : "single",
       stories: stories.length,
     });
 

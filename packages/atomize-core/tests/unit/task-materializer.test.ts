@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { CalculatedTask } from "@sppg2001/atomize-core/core/estimation-calculator";
 import { TaskMaterializer } from "@sppg2001/atomize-core/core/task-materializer";
 import type { GenerationPlatform } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
-import type { TaskDefinition, WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
+import type { BatchTaskDefinition, TaskDefinition, WorkItem } from "@sppg2001/atomize-core/platforms/interfaces/work-item.interface";
 import type { TaskDefinition as TemplateTaskDefinition } from "@sppg2001/atomize-core/templates/schema";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -216,5 +216,82 @@ describe("TaskMaterializer on a platform that links dependencies afterwards", ()
 
     // Build=100, Docs=101, Test=102. Build's predecessor failed, so it gets no link.
     expect(links.sort()).toEqual([["102", "100"], ["102", "101"]]);
+  });
+});
+
+describe("TaskMaterializer on a platform that creates Tasks in batches", () => {
+  /** A batching platform that records each createTasksInBatch call and each separate link. */
+  function batchingPlatform(failTitles: string[] = []) {
+    let nextId = 200;
+    const batches: BatchTaskDefinition[][] = [];
+    const links: Array<[string, string]> = [];
+    const platform: GenerationPlatform = {
+      getConnectUserEmail: async () => "",
+      queryWorkItems: async () => [],
+      createsDependencyLinksWithTasks: true,
+      createsTasksInBatch: true,
+      createTasksBulk: async () => {
+        throw new Error("createTasksBulk must not be used when batching");
+      },
+      createTasksInBatch: async (_parentId, tasks, onTaskCreated) => {
+        batches.push(tasks);
+        return tasks.map((task, index) => {
+          if (failTitles.includes(task.title)) return undefined;
+          const item: WorkItem = { id: String(nextId++), title: task.title, type: "Task", state: "New" };
+          onTaskCreated?.(item, index);
+          return item;
+        });
+      },
+      createDependencyLink: async (dependentId, predecessorId) => {
+        links.push([dependentId, predecessorId]);
+      },
+    };
+    return { platform, batches, links };
+  }
+
+  test("sends a Story's Tasks in one call, linking new Tasks to each other by index", async () => {
+    const { platform, batches, links } = batchingPlatform();
+    const reported: string[] = [];
+
+    const created = await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks, {
+      onTaskCreated: (task) => reported.push(task.title),
+    });
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.map((t) => [t.title, t.predecessorIndices ?? [], t.predecessorIds ?? []])).toEqual([
+      ["Design", [], []],
+      ["Build", [0], []],
+      ["Docs", [], []],
+      ["Test", [1, 2], []],
+    ]);
+    expect(links).toEqual([]);
+    expect(created.map((t) => t.title)).toEqual(["Design", "Build", "Docs", "Test"]);
+    expect(reported).toEqual(["Design", "Build", "Docs", "Test"]);
+  });
+
+  test("on a Resume, links to an existing Task by ID and links an existing dependent afterwards", async () => {
+    const { platform, batches, links } = batchingPlatform();
+    const design: WorkItem = { id: "E1", title: "Design", type: "Task", state: "New" };
+    const test: WorkItem = { id: "E4", title: "Test", type: "Task", state: "New" };
+
+    const created = await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks, {
+      existing: [design, undefined, undefined, test],
+    });
+
+    expect(batches[0]?.map((t) => [t.title, t.predecessorIndices ?? [], t.predecessorIds ?? []])).toEqual([
+      ["Build", [], ["E1"]],
+      ["Docs", [], []],
+    ]);
+    // Test already exists, so its links to the new Build and Docs are added to it afterwards.
+    expect(links.sort()).toEqual([["E4", "200"], ["E4", "201"]]);
+    expect(created.map((t) => t.title)).toEqual(["Build", "Docs"]);
+  });
+
+  test("leaves out a Task the batch didn't create", async () => {
+    const { platform } = batchingPlatform(["Docs"]);
+
+    const created = await new TaskMaterializer(platform).materialize("1", calculated(all), templateTasks);
+
+    expect(created.map((t) => t.title)).toEqual(["Design", "Build", "Test"]);
   });
 });

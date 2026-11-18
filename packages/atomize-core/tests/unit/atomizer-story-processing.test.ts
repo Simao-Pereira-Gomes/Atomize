@@ -206,7 +206,7 @@ describe("timing a Generation Run", () => {
 
     const record = timings.toJSON();
     expect(record.phases.map((phase) => phase.name)).toEqual(["storyQuery", "processStories"]);
-    expect(record.run).toMatchObject({ template: "Processing", dryRun: false, storyConcurrency: 2, dependencyConcurrency: 5, taskConcurrency: 5, stories: 3 });
+    expect(record.run).toMatchObject({ template: "Processing", dryRun: false, storyConcurrency: 2, dependencyConcurrency: 5, taskConcurrency: 5, taskCreation: "single", stories: 3 });
     expect(record.stories.map((s) => [s.id, s.outcome])).toEqual([["1", "success"], ["2", "success"], ["3", "success"]]);
     for (const s of record.stories) expect(s.plannedMs).toBeDefined();
     // Two slots: Story 3 waits for one of the first two to finish.

@@ -131,3 +131,9 @@ export interface TaskDefinition {
   /** Custom fields to set on the work item (keyed by reference name, e.g. "Custom.ClientTier") */
   customFields?: Record<string, string | number | boolean>;
 }
+
+/** A Task for createTasksInBatch: it may also depend on other Tasks of the same batch call. */
+export interface BatchTaskDefinition extends TaskDefinition {
+  /** Indices, in the same createTasksInBatch call, of the new Tasks this one depends on. */
+  predecessorIndices?: number[];
+}

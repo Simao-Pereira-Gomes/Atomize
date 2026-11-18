@@ -96,7 +96,35 @@ const mockWorkApi = {
   getTeamIterations: mock(async () => mockTeamIterations),
 };
 
+type BatchItem = { method: string; uri: string; headers: Record<string, string>; body: Array<{ op: string; path: string; value?: unknown }> };
+let nextBatchId = 500;
+/** Answers each batch item: 200 with a created Task, unless `failBatchItem` says otherwise. */
+let failBatchItem: (item: BatchItem) => boolean = () => false;
+const batchItemTitle = (item: BatchItem) => item.body.find((op) => op.path === "/fields/System.Title")?.value as string;
+const mockRest = {
+  update: mock(async (_url: string, items: BatchItem[]) => ({
+    statusCode: 200,
+    headers: {},
+    result: {
+      count: items.length,
+      value: items.map((item) =>
+        failBatchItem(item)
+          ? { code: 400, body: JSON.stringify({ message: `TF401320: Rule error for ${batchItemTitle(item)}` }) }
+          : {
+              code: 200,
+              body: JSON.stringify({
+                id: nextBatchId++,
+                fields: { "System.Title": batchItemTitle(item), "System.WorkItemType": "Task", "System.State": "New" },
+                relations: [],
+              }),
+            },
+      ),
+    },
+  })),
+};
+
 const mockWebApi = {
+  rest: mockRest,
   getWikiApi: mock(async () => mockWikiApi),
   getWorkApi: mock(async () => mockWorkApi),
   getWorkItemTrackingApi: mock(async () => mockWorkItemTrackingApi),
@@ -686,6 +714,127 @@ describe("AzureDevOpsAdapter", () => {
 
     test("declares that it links dependencies while creating Tasks", () => {
       expect(adapter.createsDependencyLinksWithTasks).toBe(true);
+    });
+  });
+
+  describe("createTasksInBatch", () => {
+    const batchConfig: AzureDevOpsConfig = { ...validConfig, batchTaskCreation: true };
+    const sentBatches = () => mockRest.update.mock.calls.map((call) => call[1] as BatchItem[]);
+    const relationUrls = (item: BatchItem, rel: string) =>
+      item.body
+        .filter((op) => op.path === "/relations/-" && (op.value as { rel: string }).rel === rel)
+        .map((op) => (op.value as { url: string }).url.split("/").pop());
+
+    beforeEach(() => {
+      mockRest.update.mockClear();
+      failBatchItem = () => false;
+    });
+
+    test("only batches when the config asks for it", () => {
+      expect(new AzureDevOpsAdapter(validConfig).createsTasksInBatch).toBe(false);
+      expect(new AzureDevOpsAdapter(batchConfig).createsTasksInBatch).toBe(true);
+    });
+
+    test("creates a Story's Tasks in one $batch request, linking new Tasks to each other by temporary ID", async () => {
+      const adapter = new AzureDevOpsAdapter(batchConfig);
+      await adapter.authenticate();
+      const reported: Array<[string, number]> = [];
+
+      const created = await adapter.createTasksInBatch(
+        "100",
+        [
+          { title: "A" },
+          { title: "B", predecessorIndices: [0] },
+          { title: "C", predecessorIndices: [0, 1], predecessorIds: ["77"] },
+        ],
+        (task, index) => reported.push([task.title, index]),
+      );
+
+      expect(mockRest.update).toHaveBeenCalledTimes(1);
+      expect(mockRest.update.mock.calls[0]?.[0]).toBe("https://dev.azure.com/test/_apis/wit/$batch?api-version=7.1");
+      const [a, b, c] = sentBatches()[0] ?? [];
+      expect(a?.method).toBe("PATCH");
+      expect(a?.uri).toBe("/SampleProject/_apis/wit/workitems/$Task?api-version=7.1");
+      expect(a?.headers).toEqual({ "Content-Type": "application/json-patch+json" });
+      expect([a, b, c].map((item) => item?.body[0])).toEqual([
+        { op: "add", path: "/id", value: "-1" },
+        { op: "add", path: "/id", value: "-2" },
+        { op: "add", path: "/id", value: "-3" },
+      ]);
+      expect(relationUrls(a as BatchItem, "System.LinkTypes.Hierarchy-Reverse")).toEqual(["100"]);
+      expect(relationUrls(b as BatchItem, "System.LinkTypes.Dependency-Reverse")).toEqual(["-1"]);
+      expect(relationUrls(c as BatchItem, "System.LinkTypes.Dependency-Reverse")).toEqual(["77", "-1", "-2"]);
+      expect(created.map((task) => task?.title)).toEqual(["A", "B", "C"]);
+      expect(reported).toEqual([["A", 0], ["B", 1], ["C", 2]]);
+    });
+
+    test("sends predecessors before their dependents, whatever the input order", async () => {
+      const adapter = new AzureDevOpsAdapter(batchConfig);
+      await adapter.authenticate();
+
+      const created = await adapter.createTasksInBatch("100", [{ title: "Late", predecessorIndices: [1] }, { title: "Early" }]);
+
+      expect(sentBatches()[0]?.map(batchItemTitle)).toEqual(["Early", "Late"]);
+      expect(relationUrls(sentBatches()[0]?.[1] as BatchItem, "System.LinkTypes.Dependency-Reverse")).toEqual(["-1"]);
+      expect(created.map((task) => task?.title)).toEqual(["Late", "Early"]);
+    });
+
+    test("leaves out a Task the batch failed to create and keeps the rest", async () => {
+      const adapter = new AzureDevOpsAdapter(batchConfig);
+      await adapter.authenticate();
+      failBatchItem = (item) => batchItemTitle(item) === "B";
+
+      const created = await adapter.createTasksInBatch("100", [{ title: "A" }, { title: "B" }, { title: "C" }]);
+
+      expect(created.map((task) => task?.title)).toEqual(["A", undefined, "C"]);
+    });
+
+    test("splits more than 150 Tasks into requests in dependency order, linking across them by real ID", async () => {
+      const adapter = new AzureDevOpsAdapter(batchConfig);
+      await adapter.authenticate();
+      const tasks = Array.from({ length: 160 }, (_, i) => ({ title: `T${i}`, ...(i > 0 ? { predecessorIndices: [i - 1] } : {}) }));
+
+      const created = await adapter.createTasksInBatch("100", tasks);
+
+      expect(sentBatches().map((batch) => batch.length)).toEqual([150, 10]);
+      const firstOfSecond = sentBatches()[1]?.[0] as BatchItem;
+      expect(batchItemTitle(firstOfSecond)).toBe("T150");
+      expect(relationUrls(firstOfSecond, "System.LinkTypes.Dependency-Reverse")).toEqual([String(created[149]?.id)]);
+      expect(created.every((task) => task !== undefined)).toBe(true);
+    });
+
+    test("sends nothing once the signal is aborted", async () => {
+      const adapter = new AzureDevOpsAdapter(batchConfig);
+      await adapter.authenticate();
+      const controller = new AbortController();
+      controller.abort();
+
+      const created = await adapter.createTasksInBatch("100", [{ title: "A" }], undefined, { signal: controller.signal });
+
+      expect(mockRest.update).not.toHaveBeenCalled();
+      expect(created).toEqual([undefined]);
+    });
+
+    test("counts a batch that fails as a whole as none of its Tasks created", async () => {
+      const adapter = new AzureDevOpsAdapter(batchConfig);
+      await adapter.authenticate();
+      mockRest.update.mockImplementationOnce(async () => {
+        throw Object.assign(new Error("Bad Request"), { statusCode: 400 });
+      });
+
+      const created = await adapter.createTasksInBatch("100", [{ title: "A" }, { title: "B" }]);
+
+      expect(created).toEqual([undefined, undefined]);
+    });
+
+    test("records the batch request in the run's timings", async () => {
+      const timings = new RunTimings();
+      const adapter = new AzureDevOpsAdapter({ ...batchConfig, timings });
+      await adapter.authenticate();
+
+      await adapter.createTasksInBatch("100", [{ title: "A" }]);
+
+      expect(timings.toJSON().requests.map((r) => r.method)).toContain("workItemBatch");
     });
   });
 

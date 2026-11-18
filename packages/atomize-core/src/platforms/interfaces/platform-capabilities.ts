@@ -1,6 +1,6 @@
 import type { EstimationDefaultsProvider } from "./estimation-defaults.interface";
 import type { FilterCriteria } from "./filter.interface";
-import type { TaskDefinition, WorkItem } from "./work-item.interface";
+import type { BatchTaskDefinition, TaskDefinition, WorkItem } from "./work-item.interface";
 
 export interface PlatformAuthenticator {
   authenticate(): Promise<void>;
@@ -54,6 +54,21 @@ export interface TaskWriter {
   readonly createsDependencyLinksWithTasks?: boolean;
   /** How many Tasks the platform creates at once; generation uses it when it schedules Tasks itself (default 5). */
   readonly taskConcurrency?: number;
+  /** True when generation should create each Story's Tasks with createTasksInBatch. */
+  readonly createsTasksInBatch?: boolean;
+  /**
+   * Creates the Tasks in as few requests as the platform allows, each with its parent link and its
+   * links to predecessors: new ones by index (`predecessorIndices`), existing ones by ID
+   * (`predecessorIds`). Returns the created Tasks in input order, `undefined` for one that wasn't
+   * created. `onTaskCreated` receives each created Task with its index in `tasks`. Once
+   * `options.signal` is aborted no further request is sent.
+   */
+  createTasksInBatch?(
+    parentId: string,
+    tasks: BatchTaskDefinition[],
+    onTaskCreated?: (task: WorkItem, index: number) => void,
+    options?: CreateTasksOptions,
+  ): Promise<Array<WorkItem | undefined>>;
 }
 
 export interface DependencyLinker {

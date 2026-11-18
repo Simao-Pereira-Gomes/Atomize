@@ -34,6 +34,8 @@ export interface RunInfo {
   storyConcurrency?: number;
   taskConcurrency?: number;
   dependencyConcurrency?: number;
+  /** Whether Tasks were created one request each, or in batches per Story (#337). */
+  taskCreation?: "single" | "batch";
   stories?: number;
 }
 
