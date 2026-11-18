@@ -181,6 +181,17 @@ describe("catalog.install", () => {
     expect(received).toEqual({ source: { content: "name: Delivery", name: "delivery" }, scope: "user", overwrite: false });
   });
 
+  it("accepts a null workspaceRoot, as the relay sends for a user install", async () => {
+    let received: unknown;
+    const installing: SidecarServices = {
+      ...services,
+      library: { ...services.library, installTemplate: async (input) => { received = input; return {} as never; } },
+    };
+    await expect(handleLine('{"jsonrpc":"2.0","id":43,"method":"catalog.install","params":{"content":"name: Delivery","name":"delivery","scope":"user","overwrite":false,"workspaceRoot":null}}', installing))
+      .resolves.toMatchObject({ jsonrpc: "2.0", id: 43, result: {} });
+    expect(received).toEqual({ source: { content: "name: Delivery", name: "delivery" }, scope: "user", overwrite: false });
+  });
+
   it("passes overwrite through when set", async () => {
     let received: unknown;
     const installing: SidecarServices = {
@@ -342,6 +353,35 @@ describe("generate.run", () => {
     const params = { runId: "run-3", source: "template:release-checklist", connection, scope: { kind: "filter" } };
     await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 92, method: "generate.run", params }), services))
       .resolves.toMatchObject({ jsonrpc: "2.0", id: 92, error: { code: "INVALID_PARAMS" } });
+  });
+
+  it("rejects an unknown field instead of dropping it", async () => {
+    const params = { runId: "run-4", source: "template:release-checklist", connection, dryRun: true, scope: { kind: "filter" }, dry_run: false };
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 94, method: "generate.run", params }), services))
+      .resolves.toEqual({ jsonrpc: "2.0", id: 94, error: { code: "INVALID_PARAMS", message: "Generating requires a run id, Template source, resolved connection, scope, and dryRun flag." } });
+  });
+
+  it("rejects an unknown field in the connection", async () => {
+    const params = { runId: "run-5", source: "template:release-checklist", connection: { ...connection, pat: "x" }, dryRun: true, scope: { kind: "filter" } };
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 95, method: "generate.run", params }), services))
+      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+  });
+
+  it("rejects a continueOnError that isn't a boolean", async () => {
+    const params = { runId: "run-6", source: "template:release-checklist", connection, dryRun: true, scope: { kind: "filter" }, continueOnError: "yes" };
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 96, method: "generate.run", params }), services))
+      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+  });
+
+  it("treats a null continueOnError, as the relay sends an unset one, as false", async () => {
+    let received: unknown;
+    const generating: SidecarServices = {
+      ...services,
+      runGenerate: async (params) => { received = params; return { report: {} as never }; },
+    };
+    const params = { runId: "run-7", source: "template:release-checklist", connection, dryRun: true, scope: { kind: "filter" }, continueOnError: null };
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 97, method: "generate.run", params }), generating);
+    expect(received).toEqual({ ...params, continueOnError: false });
   });
 
   it("rejects a stories scope with an empty storyIds array as INVALID_PARAMS", async () => {
@@ -618,11 +658,12 @@ describe("AI grounding protocol", () => {
   });
   const storyGrounding = { stories: [{ id: "7", title: "STORY-MARKER", type: "Bug", state: "Done", tasks: [] }], includesSensitiveContext: false };
 
-  it("never sends Stories with an AI draft", async () => {
+  it("rejects Stories sent with an AI draft, so they never reach Copilot", async () => {
     const prompts: string[] = [];
     const ai = aiServices(prompts, "version: '1.0'\nname: Draft\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n");
-    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 44, method: "ai.generate", params: { draftId: "d-examples", prose: "Bug triage", storyGrounding } }), ai);
-    expect(prompts[0]).not.toContain("STORY-MARKER");
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 44, method: "ai.generate", params: { draftId: "d-examples", prose: "Bug triage", storyGrounding } }), ai))
+      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+    expect(prompts).toEqual([]);
   });
 
   it("sends Project Grounding with an improvement, and never Stories", async () => {
@@ -630,9 +671,11 @@ describe("AI grounding protocol", () => {
     const ai = aiServices(prompts, "version: '1.0'\nname: B\nfilter: {}\ntasks:\n  - title: Build\n    estimationPercent: 100\n");
     const template = { version: "1.0", name: "B", filter: {}, tasks: [{ title: "Build", estimationPercent: 100 }] };
     const grounding = { workItemTypes: ["PROJECT-MARKER"] };
-    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 52, method: "ai.improve", params: { draftId: "i-grounded", template, grounding, storyGrounding } }), ai);
+    await handleLine(JSON.stringify({ jsonrpc: "2.0", id: 52, method: "ai.improve", params: { draftId: "i-grounded", template, grounding } }), ai);
     expect(prompts[0]).toContain("PROJECT-MARKER");
-    expect(prompts[0]).not.toContain("STORY-MARKER");
+    await expect(handleLine(JSON.stringify({ jsonrpc: "2.0", id: 55, method: "ai.improve", params: { draftId: "i-stories", template, grounding, storyGrounding } }), ai))
+      .resolves.toMatchObject({ error: { code: "INVALID_PARAMS" } });
+    expect(prompts).toHaveLength(1);
   });
 
   it("no longer offers Story Search or Story Grounding", async () => {
