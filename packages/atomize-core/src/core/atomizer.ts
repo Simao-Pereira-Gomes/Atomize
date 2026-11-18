@@ -64,7 +64,7 @@ export interface AtomizationOptions {
   /** Stop on first error or continue */
   continueOnError?: boolean;
 
-  /** Maximum concurrent stories to process (default: 3) */
+  /** Maximum concurrent stories to process (default: DEFAULT_STORY_CONCURRENCY) */
   storyConcurrency?: number;
 
   /** Maximum concurrent dependency links to create (default: 5) */
@@ -158,6 +158,13 @@ export type StoryScopeOptions = Pick<AtomizationOptions, "storyIds" | "limit" | 
  * for a stuck one.
  */
 export const DEFAULT_GENERATION_STALL_TIMEOUT_MS = 6 * 60 * 1_000;
+
+/**
+ * How many Stories a Generation Run works on at once unless told otherwise. Azure DevOps creates each
+ * Story's Tasks in one batch request, so this is how many requests are in flight; 10 was measured
+ * fastest with no throttling (#337).
+ */
+export const DEFAULT_STORY_CONCURRENCY = 10;
 
 /**
  * Result for a single story
@@ -361,7 +368,7 @@ export class Atomizer {
       return [{ storyId: story.id, title: story.title, ...partly }];
     });
 
-    const storyConcurrency = options.storyConcurrency ?? 3;
+    const storyConcurrency = options.storyConcurrency ?? DEFAULT_STORY_CONCURRENCY;
     logger.info(
       `Processing ${stories.length} stories (concurrency: ${storyConcurrency})`,
     );

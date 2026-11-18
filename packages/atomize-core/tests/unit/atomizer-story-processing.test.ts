@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type AtomizationOptions, Atomizer, type ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
+import { type AtomizationOptions, Atomizer, DEFAULT_STORY_CONCURRENCY, type ProgressEvent } from "@sppg2001/atomize-core/core/atomizer";
 import { sanitizeReport } from "@sppg2001/atomize-core/core/report-formatter";
 import type { FilterCriteria } from "@sppg2001/atomize-core/platforms/interfaces/filter.interface";
 import type { GenerationPlatform } from "@sppg2001/atomize-core/platforms/interfaces/platform-capabilities";
@@ -194,6 +194,20 @@ describe("stopping a Generation Run partway through a Story", () => {
 
     expect(report.results[0]?.tasksCreated).toHaveLength(2);
     expect(report.results[0]).not.toHaveProperty("stoppedEarly");
+  });
+});
+
+describe("default Story concurrency", () => {
+  test("works on up to 10 Stories at once when the run doesn't say", async () => {
+    const stories = Array.from({ length: 11 }, (_, i) => story(String(i + 1)));
+    const platform = new ScriptedPlatform(stories, Object.fromEntries(stories.map((s) => [s.id, 30])));
+
+    await new Atomizer(platform).atomize(template);
+
+    const firstEnd = platform.events.findIndex((event) => event.startsWith("end "));
+    const startsBeforeFirstEnd = platform.events.slice(0, firstEnd).filter((event) => event.startsWith("start ")).length;
+    expect(startsBeforeFirstEnd).toBe(10);
+    expect(DEFAULT_STORY_CONCURRENCY).toBe(10);
   });
 });
 

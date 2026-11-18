@@ -730,10 +730,47 @@ describe("AzureDevOpsAdapter", () => {
       failBatchItem = () => false;
     });
 
-    test("only batches when the config asks for it", () => {
-      expect(new AzureDevOpsAdapter(validConfig).createsTasksInBatch).toBe(false);
-      expect(new AzureDevOpsAdapter(batchConfig).createsTasksInBatch).toBe(true);
+    test("batches by default; batchTaskCreation: false turns it off", () => {
+      expect(new AzureDevOpsAdapter(validConfig).createsTasksInBatch).toBe(true);
+      expect(new AzureDevOpsAdapter({ ...validConfig, batchTaskCreation: false }).createsTasksInBatch).toBe(false);
     });
+
+    for (const [why, refusal] of [
+      ["the server has no $batch endpoint (404)", async () => ({ statusCode: 404, result: null, headers: {} })],
+      [
+        "the server refuses the API version",
+        async () => {
+          throw Object.assign(
+            new Error("VssVersionOutOfRangeException: The requested REST API version of 7.1 is out of range for this server. The latest REST API version for this server is 5.1."),
+            { statusCode: 400 },
+          );
+        },
+      ],
+    ] as const) {
+      test(`creates the Tasks one request each when ${why}, and stops batching`, async () => {
+        const adapter = new AzureDevOpsAdapter(batchConfig);
+        await adapter.authenticate();
+        mockWorkItemTrackingApi.createWorkItem.mockClear();
+        mockRest.update.mockImplementationOnce(refusal as never);
+        const reported: string[] = [];
+
+        const created = await adapter.createTasksInBatch(
+          "100",
+          [{ title: "A" }, { title: "B", predecessorIndices: [0] }],
+          (task) => reported.push(task.title),
+        );
+
+        expect(mockRest.update).toHaveBeenCalledTimes(1);
+        expect(mockWorkItemTrackingApi.createWorkItem).toHaveBeenCalledTimes(2);
+        // biome-ignore lint/suspicious/noExplicitAny: mock call arguments are untyped
+        const bPatch = (mockWorkItemTrackingApi.createWorkItem.mock.calls[1] as any[])[1] as Array<{ value?: { rel?: string; url?: string } }>;
+        const dependency = bPatch.find((op) => op.value?.rel === "System.LinkTypes.Dependency-Reverse");
+        expect(dependency?.value?.url).toBe(`https://dev.azure.com/test/_apis/wit/workItems/${created[0]?.id}`);
+        expect(created.map((task) => task?.title)).toEqual(["A", "B"]);
+        expect(reported.sort()).toEqual(["A", "B"]);
+        expect(adapter.createsTasksInBatch).toBe(false);
+      });
+    }
 
     test("creates a Story's Tasks in one $batch request, linking new Tasks to each other by temporary ID", async () => {
       const adapter = new AzureDevOpsAdapter(batchConfig);
@@ -815,7 +852,7 @@ describe("AzureDevOpsAdapter", () => {
       expect(created).toEqual([undefined]);
     });
 
-    test("counts a batch that fails as a whole as none of its Tasks created", async () => {
+    test("counts a batch that fails as a whole as none of its Tasks created, and keeps batching", async () => {
       const adapter = new AzureDevOpsAdapter(batchConfig);
       await adapter.authenticate();
       mockRest.update.mockImplementationOnce(async () => {
@@ -825,6 +862,7 @@ describe("AzureDevOpsAdapter", () => {
       const created = await adapter.createTasksInBatch("100", [{ title: "A" }, { title: "B" }]);
 
       expect(created).toEqual([undefined, undefined]);
+      expect(adapter.createsTasksInBatch).toBe(true);
     });
 
     test("records the batch request in the run's timings", async () => {
