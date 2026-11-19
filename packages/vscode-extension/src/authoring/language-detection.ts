@@ -1,5 +1,3 @@
-import { MixinTemplateSchema } from '@sppg2001/atomize-core/templates/schema';
-
 const LANGUAGE_ID = 'atomize-yaml' as const;
 
 export const LAYER1_PATTERNS: RegExp[] = [
@@ -46,7 +44,12 @@ export function isMixinDocument(doc: { getText(): string }): boolean {
 	return rootKeys.includes('tasks') && rootKeys.every(key => MIXIN_KEYS.has(key));
 }
 
-const MIXIN_KEYS: ReadonlySet<string> = new Set(Object.keys(MixinTemplateSchema.shape));
+/**
+ * Root keys a Mixin may declare. Mirrors MixinTemplateSchema in atomize-core, but is spelled out here
+ * so this module, which runs on every YAML document, doesn't load zod and the schema at activation;
+ * language-detection.test.ts fails if the two drift apart.
+ */
+export const MIXIN_KEYS: ReadonlySet<string> = new Set(['formatVersion', 'version', 'name', 'description', 'tasks', 'origin']);
 
 /**
  * Schema support is broader than full tooling: content-only matches get hovers

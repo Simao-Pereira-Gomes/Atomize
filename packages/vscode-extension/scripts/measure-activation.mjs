@@ -5,7 +5,7 @@
 // --use-mock-keychain, an Electron flag for the macOS Keychain. On other platforms, set
 // VSCODE_EXECUTABLE and YAML_EXTENSION_DIR, and expect to adjust the launch flags. Not run in CI.
 //
-//   bun scripts/measure-activation.mjs [--baseline <ref>] [--runs <n>] [--settle <ms>]
+//   bun scripts/measure-activation.mjs [--baseline <ref>] [--runs <n>] [--settle <ms>] [--scenario <name substring>]
 //
 // Each variant is built, then wrapped by a measuring `main` that records how long the bundle takes
 // to load, how long activate() takes to return, and how long until its promise resolves (what
@@ -27,6 +27,7 @@ const { values: args } = parseArgs({
 		baseline: { type: 'string', default: 'HEAD' },
 		runs: { type: 'string', default: '3' },
 		settle: { type: 'string', default: '8000' },
+		scenario: { type: 'string' },
 	},
 });
 const RUNS = Number(args.runs);
@@ -52,6 +53,14 @@ const SCENARIOS = [
 		name: 'Atomize project',
 		files: { 'templates/story.atomize.yaml': readFileSync(join(packageDir, 'e2e/fixtures/workspace/templates/valid.atomize.yaml'), 'utf8') },
 	},
+	// Runs a command twice after startup settles. The first run includes loading whatever the command
+	// needs on demand; the second is the warm cost, so first minus second is the lazy-load cost.
+	...['atomize.showResolvedTemplate', 'atomize.openSchemaReference'].map(command => ({
+		name: `Atomize project, first ${command}`,
+		files: { 'templates/story.atomize.yaml': readFileSync(join(packageDir, 'e2e/fixtures/workspace/templates/valid.atomize.yaml'), 'utf8') },
+		openFile: 'templates/story.atomize.yaml',
+		command,
+	})),
 ];
 
 const scratch = mkdtempSync(join(tmpdir(), 'atomize-activation-'));
@@ -62,7 +71,7 @@ try {
 	];
 	const runner = writeRunner();
 	const results = [];
-	for (const scenario of SCENARIOS) {
+	for (const scenario of SCENARIOS.filter(s => !args.scenario || s.name.includes(args.scenario))) {
 		for (const variant of variants) {
 			const staged = stageExtension(variant.dir);
 			const samples = [];
@@ -151,7 +160,19 @@ exports.run = async function () {
 	} else if (activeAtStartup) {
 		for (let i = 0; i < 150 && !existsSync(env.ATOMIZE_MEASURE_OUT); i++) await sleep(100);
 	}
-	writeFileSync(env.RUNNER_OUT, JSON.stringify({ activeAtStartup }));
+	let commandMs;
+	if (env.COMMAND) {
+		const uri = vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, env.OPEN_FILE);
+		const args = env.COMMAND === 'atomize.openSchemaReference' ? [uri.toString(), 0] : [uri];
+		commandMs = [];
+		for (let i = 0; i < 2; i++) {
+			const start = performance.now();
+			await Promise.race([vscode.commands.executeCommand(env.COMMAND, ...args), sleep(15000)]);
+			commandMs.push(performance.now() - start);
+			await sleep(500);
+		}
+	}
+	writeFileSync(env.RUNNER_OUT, JSON.stringify({ activeAtStartup, commandMs }));
 };
 `);
 	return file;
@@ -200,6 +221,7 @@ async function measureOnce(extensionDir, scenario, runner) {
 			RUNNER_OUT: runnerOut,
 			SETTLE_MS: String(SETTLE_MS),
 			OPEN_FILE: scenario.openFile ?? '',
+			COMMAND: scenario.command ?? '',
 		},
 	}).catch(() => {});
 	const runnerResult = existsSync(runnerOut) ? JSON.parse(readFileSync(runnerOut, 'utf8')) : undefined;
@@ -225,6 +247,10 @@ function report(results) {
 			'Bundle load': ms(pick('loadMs')),
 			'activate() returns': ms(pick('callMs')),
 			'activate() resolves': ms(pick('resolvedMs')),
+			...(samples.some(s => s.commandMs) && {
+				'1st command': ms(median(samples.map(s => s.commandMs[0]))),
+				'2nd command': ms(median(samples.map(s => s.commandMs[1]))),
+			}),
 		};
 	});
 	console.log(`Medians over ${RUNS} run(s) each, VS Code at ${vscodeExecutable}, YAML extension ${basename(yamlExtensionDir)}.`);
