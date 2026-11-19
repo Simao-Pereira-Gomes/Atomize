@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { registerDraftTemplateCommand } from './ai/draft-template-command.js';
-import { registerImproveTemplateCommand } from './ai/improve-template-command.js';
 import { AtomizeCodeLensProvider } from './authoring/codelens-provider.js';
 import {
 	handleDocument,
@@ -9,25 +7,26 @@ import {
 	isContentOnlyDetected,
 	isMixinDocument,
 } from './authoring/language-detection.js';
-import { ValidationCodeActionProvider } from './authoring/validation-code-action-provider.js';
 import { addSchemaUri, registerYamlSchemaContributor, removeSchemaUri } from './authoring/yaml-schema-contributor.js';
-import { CATALOG_ITEM_SCHEME, CatalogItemProvider, registerBrowseCatalogCommand } from './catalog/browse-catalog-command.js';
-import { registerInstallToCatalogCommand } from './catalog/install-to-catalog-command.js';
-import { RESOLVED_TEMPLATE_SCHEME, ResolvedTemplateProvider, registerShowResolvedTemplateCommand } from './catalog/show-resolved-template-command.js';
-import { GeneratePanel } from './generate/generate-panel.js';
+import type { CatalogItemProvider } from './catalog/browse-catalog-command.js';
+import type { ResolvedTemplateProvider } from './catalog/show-resolved-template-command.js';
+import { once, registerLazyCommands } from './lazy.js';
 import { AtomizePanel } from './panel.js';
-import { registerBrowseFieldsCommand } from './platform-metadata/browse-fields-command.js';
-import { registerBrowseQueriesCommand } from './platform-metadata/browse-queries-command.js';
-import { LivePreviewPanel } from './preview/live-preview-panel.js';
-import { PreviewPanel } from './preview/mock-preview-panel.js';
-import { createCredentialResolver } from './profiles/credential-resolver.js';
-import { manageProfiles } from './profiles/profile-management.js';
 import { ProfileStore } from './profiles/profile-store.js';
-import { registerOpenSchemaReferenceCommand } from './schema-reference/open-schema-reference-command.js';
-import { SchemaReferenceLinkProvider } from './schema-reference/schema-reference-authoring.js';
 import { SchemaReferencePanel } from './schema-reference/schema-reference-panel.js';
-import { clearRunState, runDiagnosticValidation } from './validation/diagnostics.js';
-import { registerValidateCommand } from './validation/validate-command.js';
+
+// Everything that pulls in atomize-core, zod, azure-devops-node-api or yaml is loaded on first use
+// (dynamic import), not when the bundle loads: those evaluate for tens of milliseconds and most
+// sessions never need them. Only language detection, CodeLens, the YAML schema contributor and
+// the panels' disposal stay on the activation path.
+type GeneratePanelModule = typeof import('./generate/generate-panel.js');
+type LivePreviewPanelModule = typeof import('./preview/live-preview-panel.js');
+type MockPreviewPanelModule = typeof import('./preview/mock-preview-panel.js');
+type DiagnosticsModule = typeof import('./validation/diagnostics.js');
+
+let generatePanelModule: GeneratePanelModule | undefined;
+let livePreviewPanelModule: LivePreviewPanelModule | undefined;
+let mockPreviewPanelModule: MockPreviewPanelModule | undefined;
 
 const DEPRECATED_CLI_SETTINGS_NOTICE_KEY = 'atomize.deprecatedCliSettingsNoticeShown';
 const DEPRECATED_CLI_SETTING_KEYS = ['cliPath', 'cli.installCommand', 'cli.autoCheckUpdates'];
@@ -64,7 +63,16 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	void maybeShowDeprecatedCliSettingsNotice(ctx);
 
 	const store = new ProfileStore(ctx);
-	const credentialResolver = createCredentialResolver(store);
+	const getCredentialResolver = once(async () => {
+		const { createCredentialResolver } = await import('./profiles/credential-resolver.js');
+		return createCredentialResolver(store);
+	});
+	let diagnosticsModule: DiagnosticsModule | undefined;
+	const loadDiagnostics = once(async () => {
+		diagnosticsModule = await import('./validation/diagnostics.js');
+		return diagnosticsModule;
+	});
+	let catalogProviders: { resolved: ResolvedTemplateProvider; items: CatalogItemProvider; resolvedScheme: string; itemScheme: string } | undefined;
 
 	const diagnostics = vscode.languages.createDiagnosticCollection('atomize');
 	const validationFailureWarnedUris = new Set<string>();
@@ -72,17 +80,20 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	function validatePassive(doc: vscode.TextDocument): void {
 		if (!isAtomizeToolingDocument(doc)) {
 			diagnostics.delete(doc.uri);
-			clearRunState(doc.uri);
+			diagnosticsModule?.clearRunState(doc.uri);
 			if (!isAtomizeSchemaDocument(doc)) {
 				removeSchemaUri(doc.uri.toString());
 			}
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			return;
 		}
-		runDiagnosticValidation(
-			doc,
-			diagnostics,
-			() => { validationFailureWarnedUris.delete(doc.uri.toString()); },
+		loadDiagnostics().then(
+			({ runDiagnosticValidation }) => runDiagnosticValidation(
+				doc,
+				diagnostics,
+				() => { validationFailureWarnedUris.delete(doc.uri.toString()); },
+				() => { showValidationRunnerFailure(doc, true); },
+			),
 			() => { showValidationRunnerFailure(doc, true); },
 		);
 	}
@@ -187,13 +198,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
 		validatePassive(doc);
 	}
 
-	const resolvedTemplateProvider = new ResolvedTemplateProvider();
-	const catalogItemProvider = new CatalogItemProvider();
-
 	ctx.subscriptions.push(
 		diagnostics,
-		resolvedTemplateProvider,
-		catalogItemProvider,
 
 		vscode.workspace.onDidOpenTextDocument(doc => {
 			warnContentOnlyDetected(doc);
@@ -211,11 +217,13 @@ export function activate(ctx: vscode.ExtensionContext): void {
 		vscode.workspace.onDidCloseTextDocument(doc => {
 			updateSchemaReferenceContext(doc);
 			diagnostics.delete(doc.uri);
-			clearRunState(doc.uri);
+			diagnosticsModule?.clearRunState(doc.uri);
 			validationFailureWarnedUris.delete(doc.uri.toString());
 			removeSchemaUri(doc.uri.toString());
-			if (doc.uri.scheme === RESOLVED_TEMPLATE_SCHEME) resolvedTemplateProvider.delete(doc.uri);
-			if (doc.uri.scheme === CATALOG_ITEM_SCHEME) catalogItemProvider.delete(doc.uri);
+			if (catalogProviders) {
+				if (doc.uri.scheme === catalogProviders.resolvedScheme) catalogProviders.resolved.delete(doc.uri);
+				if (doc.uri.scheme === catalogProviders.itemScheme) catalogProviders.items.delete(doc.uri);
+			}
 		}),
 
 		vscode.languages.registerCodeLensProvider(
@@ -225,25 +233,46 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
 		vscode.languages.registerCodeActionsProvider(
 			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
-			new ValidationCodeActionProvider(),
-			{ providedCodeActionKinds: ValidationCodeActionProvider.providedCodeActionKinds },
+			lazyCodeActionProvider(),
+			{ providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
 		),
 
 		vscode.languages.registerDocumentLinkProvider(
 			[{ language: 'yaml' }, { language: 'atomize-yaml' }],
-			new SchemaReferenceLinkProvider(),
+			lazyDocumentLinkProvider(),
 		),
 
-		registerDraftTemplateCommand({ store, credentialResolver }),
-		registerImproveTemplateCommand({ checkDirtyDocument, isRunnableTemplate, store, credentialResolver }),
+		registerLazyCommands(['atomize.draftTemplateWithAI'], async () => {
+			const [{ registerDraftTemplateCommand }, credentialResolver] = await Promise.all([
+				import('./ai/draft-template-command.js'),
+				getCredentialResolver(),
+			]);
+			return registerDraftTemplateCommand({ store, credentialResolver });
+		}),
+		registerLazyCommands(
+			['atomize.improveTemplateWithAI', 'atomize.acceptImprovement', 'atomize.saveImprovementAsNew', 'atomize.rejectImprovement'],
+			async () => {
+				const [{ registerImproveTemplateCommand }, credentialResolver] = await Promise.all([
+					import('./ai/improve-template-command.js'),
+					getCredentialResolver(),
+				]);
+				return registerImproveTemplateCommand({ checkDirtyDocument, isRunnableTemplate, store, credentialResolver });
+			},
+		),
 
-		registerValidateCommand({
-			diagnostics,
-			store,
-			credentialResolver,
-			onValidationSuccess: uri => { validationFailureWarnedUris.delete(uri.toString()); },
-			onRunnerFailure: doc => showValidationRunnerFailure(doc, false),
-			checkDirtyDocument,
+		registerLazyCommands(['atomize.validate'], async () => {
+			const [{ registerValidateCommand }, credentialResolver] = await Promise.all([
+				import('./validation/validate-command.js'),
+				getCredentialResolver(),
+			]);
+			return registerValidateCommand({
+				diagnostics,
+				store,
+				credentialResolver,
+				onValidationSuccess: uri => { validationFailureWarnedUris.delete(uri.toString()); },
+				onRunnerFailure: doc => showValidationRunnerFailure(doc, false),
+				checkDirtyDocument,
+			});
 		}),
 
 		vscode.commands.registerCommand('atomize.preview', async (uri?: vscode.Uri) => {
@@ -253,7 +282,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			if (!doc) return;
 			if (!isRunnableTemplate(doc)) return;
 			if (!await checkDirtyDocument(doc, 'preview')) return;
-			await PreviewPanel.open(doc.uri);
+			mockPreviewPanelModule ??= await import('./preview/mock-preview-panel.js');
+			await mockPreviewPanelModule.PreviewPanel.open(doc.uri);
 		}),
 
 		vscode.commands.registerCommand('atomize.livePreview', async (uri?: vscode.Uri) => {
@@ -263,7 +293,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			if (!doc) return;
 			if (!isRunnableTemplate(doc)) return;
 			if (!await checkDirtyDocument(doc, 'preview')) return;
-			await LivePreviewPanel.open(doc.uri, store, credentialResolver);
+			livePreviewPanelModule ??= await import('./preview/live-preview-panel.js');
+			await livePreviewPanelModule.LivePreviewPanel.open(doc.uri, store, await getCredentialResolver());
 		}),
 
 		vscode.commands.registerCommand('atomize.generate', async (uri?: vscode.Uri) => {
@@ -273,7 +304,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			if (!doc) return;
 			if (!isRunnableTemplate(doc)) return;
 			if (!await checkDirtyDocument(doc, 'generate')) return;
-			await GeneratePanel.open(doc.uri, store, credentialResolver);
+			generatePanelModule ??= await import('./generate/generate-panel.js');
+			await generatePanelModule.GeneratePanel.open(doc.uri, store, await getCredentialResolver());
 		}),
 
 		// Create only the Tasks each picked Story is missing, after a cancelled or stalled run (#331).
@@ -284,10 +316,15 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			if (!doc) return;
 			if (!isRunnableTemplate(doc)) return;
 			if (!await checkDirtyDocument(doc, 'generate')) return;
-			await GeneratePanel.open(doc.uri, store, credentialResolver, { resume: true });
+			generatePanelModule ??= await import('./generate/generate-panel.js');
+			await generatePanelModule.GeneratePanel.open(doc.uri, store, await getCredentialResolver(), { resume: true });
 		}),
 
 		vscode.commands.registerCommand('atomize.manageProfiles', async () => {
+			const [{ manageProfiles }, credentialResolver] = await Promise.all([
+				import('./profiles/profile-management.js'),
+				getCredentialResolver(),
+			]);
 			await manageProfiles(store, credentialResolver);
 		}),
 
@@ -295,25 +332,82 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:atomize.atomize'),
 		),
 
-		registerOpenSchemaReferenceCommand(ctx),
+		registerLazyCommands(['atomize.openSchemaReference'], async () => {
+			const { registerOpenSchemaReferenceCommand } = await import('./schema-reference/open-schema-reference-command.js');
+			return registerOpenSchemaReferenceCommand(ctx);
+		}),
 
-		registerBrowseFieldsCommand({ store, credentialResolver }),
-		registerBrowseQueriesCommand({ store, credentialResolver }),
-		registerBrowseCatalogCommand({ provider: catalogItemProvider }),
-		registerInstallToCatalogCommand({ checkDirtyDocument }),
-		vscode.workspace.registerTextDocumentContentProvider(CATALOG_ITEM_SCHEME, catalogItemProvider),
-		vscode.workspace.registerTextDocumentContentProvider(RESOLVED_TEMPLATE_SCHEME, resolvedTemplateProvider),
-		registerShowResolvedTemplateCommand({
-			provider: resolvedTemplateProvider,
-			checkDirtyDocument,
+		registerLazyCommands(['atomize.browseFields'], async () => {
+			const [{ registerBrowseFieldsCommand }, credentialResolver] = await Promise.all([
+				import('./platform-metadata/browse-fields-command.js'),
+				getCredentialResolver(),
+			]);
+			return registerBrowseFieldsCommand({ store, credentialResolver });
+		}),
+		registerLazyCommands(['atomize.browseQueries'], async () => {
+			const [{ registerBrowseQueriesCommand }, credentialResolver] = await Promise.all([
+				import('./platform-metadata/browse-queries-command.js'),
+				getCredentialResolver(),
+			]);
+			return registerBrowseQueriesCommand({ store, credentialResolver });
+		}),
+
+		// The catalog commands share two content providers, so they load together.
+		registerLazyCommands(['atomize.browseCatalog', 'atomize.installToCatalog', 'atomize.showResolvedTemplate'], async () => {
+			const [browse, install, show] = await Promise.all([
+				import('./catalog/browse-catalog-command.js'),
+				import('./catalog/install-to-catalog-command.js'),
+				import('./catalog/show-resolved-template-command.js'),
+			]);
+			const resolved = new show.ResolvedTemplateProvider();
+			const items = new browse.CatalogItemProvider();
+			const registration = vscode.Disposable.from(
+				resolved,
+				items,
+				browse.registerBrowseCatalogCommand({ provider: items }),
+				install.registerInstallToCatalogCommand({ checkDirtyDocument }),
+				vscode.workspace.registerTextDocumentContentProvider(browse.CATALOG_ITEM_SCHEME, items),
+				vscode.workspace.registerTextDocumentContentProvider(show.RESOLVED_TEMPLATE_SCHEME, resolved),
+				show.registerShowResolvedTemplateCommand({ provider: resolved, checkDirtyDocument }),
+			);
+			catalogProviders = { resolved, items, resolvedScheme: show.RESOLVED_TEMPLATE_SCHEME, itemScheme: browse.CATALOG_ITEM_SCHEME };
+			return registration;
 		}),
 	);
+}
+
+/** Quick fixes need yaml, so it loads only once Atomize has reported a diagnostic the document can be fixed with. */
+function lazyCodeActionProvider(): vscode.CodeActionProvider {
+	const load = once(async () => {
+		const { ValidationCodeActionProvider } = await import('./authoring/validation-code-action-provider.js');
+		return new ValidationCodeActionProvider();
+	});
+	return {
+		async provideCodeActions(document, range, context) {
+			if (!isAtomizeToolingDocument(document) || !context.diagnostics.some(d => d.source === 'atomize')) return [];
+			return (await load()).provideCodeActions(document, range, context);
+		},
+	};
+}
+
+/** Field links need yaml, so it loads only for Atomize documents. */
+function lazyDocumentLinkProvider(): vscode.DocumentLinkProvider {
+	const load = once(async () => {
+		const { SchemaReferenceLinkProvider } = await import('./schema-reference/schema-reference-authoring.js');
+		return new SchemaReferenceLinkProvider();
+	});
+	return {
+		async provideDocumentLinks(document) {
+			if (!isAtomizeSchemaDocument(document)) return [];
+			return (await load()).provideDocumentLinks(document);
+		},
+	};
 }
 
 export function deactivate(): void {
 	SchemaReferencePanel.dispose();
 	AtomizePanel.dispose();
-	PreviewPanel.dispose();
-	LivePreviewPanel.dispose();
-	GeneratePanel.dispose();
+	mockPreviewPanelModule?.PreviewPanel.dispose();
+	livePreviewPanelModule?.LivePreviewPanel.dispose();
+	generatePanelModule?.GeneratePanel.dispose();
 }

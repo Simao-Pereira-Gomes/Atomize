@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { MixinTemplateSchema } from '@sppg2001/atomize-core/templates/schema';
 import {
 	detectAtomizeLanguage,
 	handleDocument,
@@ -7,6 +8,7 @@ import {
 	isAtomizeToolingDocument,
 	isContentOnlyDetected,
 	isMixinDocument,
+	MIXIN_KEYS,
 } from '../authoring/language-detection.js';
 
 // --- detectAtomizeLanguage ---
@@ -466,5 +468,11 @@ describe('handleDocument', () => {
 			(doc, lang) => calls.push([doc, lang]),
 		);
 		expect(calls).toHaveLength(0);
+	});
+});
+
+describe('MIXIN_KEYS', () => {
+	it('matches the root keys of atomize-core\'s MixinTemplateSchema', () => {
+		expect([...MIXIN_KEYS].sort()).toEqual(Object.keys(MixinTemplateSchema.shape).sort());
 	});
 });
