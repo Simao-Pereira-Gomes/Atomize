@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize: generate tasks from YAML templates",
-	"version": "0.7.0",
+	"version": "0.7.1",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -21,7 +21,14 @@
 		"Other"
 	],
 	"extensionPack": ["redhat.vscode-yaml"],
-	"activationEvents": ["onStartupFinished"],
+	"activationEvents": [
+		"workspaceContains:**/*.atomize.yaml",
+		"workspaceContains:**/*.atomize.yml",
+		"workspaceContains:.atomize/ai.yaml",
+		"workspaceContains:.atomize/ai.yml",
+		"onLanguage:yaml",
+		"onLanguage:atomize-yaml"
+	],
 	"main": "./dist/extension.js",
 	"contributes": {
 		"configurationDefaults": {
