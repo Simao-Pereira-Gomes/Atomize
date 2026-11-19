@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import type { SchemaTab } from '@sppg2001/atomize-schema-reference';
+import { type SchemaTab, websiteUrl } from '@sppg2001/atomize-schema-reference';
 import * as vscode from 'vscode';
 
-const GUIDE_URL = 'https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Template-Reference.md';
 
 export interface SchemaReferenceDestination {
 	tab: SchemaTab;
@@ -45,8 +44,8 @@ export const SchemaReferencePanel = {
 				return;
 			}
 			if (type !== 'openGuide' || typeof url !== 'string') return;
-			// Only this host's Template Reference links can leave the webview.
-			if (url.startsWith(`${GUIDE_URL}#`)) void vscode.env.openExternal(vscode.Uri.parse(url));
+			// Only Template Reference links on the website can leave the webview.
+			if (url.startsWith(`${websiteUrl}/reference/templates/`)) void vscode.env.openExternal(vscode.Uri.parse(url));
 		});
 		createdPanel.onDidDispose(() => {
 			messages.dispose();
