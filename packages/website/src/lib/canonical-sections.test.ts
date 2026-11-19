@@ -324,13 +324,27 @@ describe("feature markers", () => {
   });
 
   test("a marker that starts a line of text is rejected instead of silently publishing raw Markdown", async () => {
-    await expect(render("<!-- atomize:feature studio -->In Studio, do this.", false)).rejects.toThrow("cannot start a line");
+    expect(await rejectionMessage(render("<!-- atomize:feature studio -->In Studio, do this.", false))).toContain("cannot start a line");
   });
 
   test("an unclosed region is rejected", async () => {
-    await expect(render("<!-- atomize:feature studio -->\n\nText", false)).rejects.toThrow("Unclosed feature marker");
+    expect(await rejectionMessage(render("<!-- atomize:feature studio -->\n\nText", false))).toContain("Unclosed feature marker");
   });
 });
+
+/**
+ * The message a promise rejects with; fails if it resolves. bun-types types `.rejects` matchers as
+ * returning `void`, so `await expect(…).rejects.toThrow(…)` reads to TypeScript as a needless await,
+ * though dropping it would let the test pass before the assertion runs.
+ */
+async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("Expected the promise to reject, but it resolved.");
+}
 
 test.each([false, true])("Studio guide links match publication state %s", published => {
   const studio = features.studio;
