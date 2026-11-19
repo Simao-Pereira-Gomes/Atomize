@@ -53,10 +53,13 @@ async function maybeShowDeprecatedCliSettingsNotice(ctx: vscode.ExtensionContext
 	);
 }
 
-export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
-	// Register schema contributor before anything else to minimise the timing
-	// window between extension activation and the YAML LS calling requestSchema.
-	await registerYamlSchemaContributor(ctx);
+export function activate(ctx: vscode.ExtensionContext): void {
+	// Start registering the schema contributor before anything else to minimise the
+	// timing window between extension activation and the YAML LS calling requestSchema.
+	// Not awaited: it waits for redhat.vscode-yaml to activate and start its language
+	// server, which would otherwise count toward Atomize's activation time and hold
+	// back every command and provider registered below.
+	void registerYamlSchemaContributor(ctx);
 
 	void maybeShowDeprecatedCliSettingsNotice(ctx);
 
