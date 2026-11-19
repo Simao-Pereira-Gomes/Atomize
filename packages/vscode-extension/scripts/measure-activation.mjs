@@ -1,6 +1,10 @@
 // Measures the extension's activation cost in a real VS Code with redhat.vscode-yaml installed,
 // comparing a baseline git ref against the working tree.
 //
+// macOS only as written: it defaults to the VS Code install under /Applications and passes
+// --use-mock-keychain, an Electron flag for the macOS Keychain. On other platforms, set
+// VSCODE_EXECUTABLE and YAML_EXTENSION_DIR, and expect to adjust the launch flags. Not run in CI.
+//
 //   bun scripts/measure-activation.mjs [--baseline <ref>] [--runs <n>] [--settle <ms>]
 //
 // Each variant is built, then wrapped by a measuring `main` that records how long the bundle takes
