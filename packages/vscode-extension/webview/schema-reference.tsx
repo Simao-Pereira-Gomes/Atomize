@@ -1,4 +1,4 @@
-import { buildSchemaTrees, type JsonSchema, type SchemaTab } from '@sppg2001/atomize-schema-reference';
+import { buildSchemaTrees, type JsonSchema, type SchemaTab, websiteGuideUrl } from '@sppg2001/atomize-schema-reference';
 import schema from '@sppg2001/atomize-schema-reference/schema.json';
 import { SchemaReference } from '@sppg2001/atomize-schema-reference/viewer';
 import { createSignal, Show } from 'solid-js';
@@ -31,7 +31,7 @@ render(() => (
 				versionLabel={`Extension ${root.dataset.version}`}
 				syncUrl={false}
 				showPermalinks={false}
-				guideUrl={anchor => `https://github.com/Simao-Pereira-Gomes/atomize/blob/main/docs/Template-Reference.md#${encodeURIComponent(anchor)}`}
+				guideUrl={websiteGuideUrl}
 				openExternalLink={url => { vscode.postMessage({ type: 'openGuide', url }); }}
 			/>
 		)}
