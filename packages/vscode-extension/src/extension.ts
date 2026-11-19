@@ -161,6 +161,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	}
 
 	function warnContentOnlyDetected(doc: vscode.TextDocument): void {
+		// Renaming or adding a modeline only makes sense for a file on disk; virtual documents such as
+		// the resolved-template and catalog views have no marker to add.
+		if (doc.uri.scheme !== 'file') return;
 		const key = doc.uri.toString();
 		if (warnedUris.has(key) || !isContentOnlyDetected(doc)) return;
 		warnedUris.add(key);
