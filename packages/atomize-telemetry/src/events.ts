@@ -88,7 +88,7 @@ const generateProps = {
 const referenceProps = { grounded: z.boolean(), referenceDocCount: count };
 
 function command<A extends TelemetryAction, P extends z.ZodRawShape>(action: A, props: P) {
-	return z.object({ ...envelopeShape, ...commandBase, action: z.literal(action), ...props });
+	return z.strictObject({ ...envelopeShape, ...commandBase, action: z.literal(action), ...props });
 }
 
 const scope = { scope: z.enum(["user", "project"]) };
@@ -120,15 +120,15 @@ export const commandFinishedSchema = z.discriminatedUnion("action", [
 	command("telemetry.status", {}),
 ]);
 
-export const sessionStartedSchema = z.object({ ...envelopeShape, event: z.literal("session_started") });
+export const sessionStartedSchema = z.strictObject({ ...envelopeShape, event: z.literal("session_started") });
 
-export const telemetryEnabledSchema = z.object({
+export const telemetryEnabledSchema = z.strictObject({
 	...envelopeShape,
 	event: z.literal("telemetry_enabled"),
 	source: z.enum(["command", "vscode-notification", "studio"]),
 });
 
-export const telemetryDeletionRequestedSchema = z.object({
+export const telemetryDeletionRequestedSchema = z.strictObject({
 	...envelopeShape,
 	event: z.literal("telemetry_deletion_requested"),
 });
@@ -157,3 +157,22 @@ export type ActionProps<A extends TelemetryAction> = Omit<
 	Extract<Extract<TelemetryEventInput, { event: "command_finished" }>, { action: A }>,
 	"event" | "action" | "outcome" | "errorCategory" | "durationMs"
 >;
+
+const PLACEHOLDER_ENVELOPE = {
+	surface: "studio",
+	atomizeVersion: "0",
+	runtimeVersion: "0",
+	os: "other",
+	anonymousId: "00000000-0000-4000-8000-000000000000",
+	timestamp: "2026-01-01T00:00:00.000Z",
+} as const;
+
+/**
+ * Whether `value` is a well-formed event without its envelope, which only the client fills in. A
+ * caller that sends an envelope field, an unknown prop, or any value outside the schema is refused.
+ */
+export function isTelemetryEventInput(value: unknown): value is TelemetryEventInput {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	if (Object.keys(envelopeShape).some((key) => key in value)) return false;
+	return telemetryEventSchema.safeParse({ ...PLACEHOLDER_ENVELOPE, ...value }).success;
+}

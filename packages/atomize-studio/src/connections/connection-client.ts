@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { observed } from "../telemetry/telemetry";
 
 export type AzureDevOpsProfile = {
   name: string;
@@ -19,17 +20,17 @@ export async function listAzureDevOpsProfiles(call: Invoker = tauriInvoke): Prom
 }
 
 export async function addAzureDevOpsProfile(profile: NewAzureDevOpsProfile, call: Invoker = tauriInvoke): Promise<void> {
-  await call("connection_add_profile", { profile });
+  await observed("auth.add", {}, () => call("connection_add_profile", { profile }));
 }
 
 export async function rotateAzureDevOpsToken(name: string, pat: string, call: Invoker = tauriInvoke): Promise<void> {
-  await call("connection_rotate_token", { name, pat });
+  await observed("auth.rotate", {}, () => call("connection_rotate_token", { name, pat }));
 }
 
 export async function removeConnectionProfile(name: string, call: Invoker = tauriInvoke): Promise<void> {
-  await call("connection_remove_profile", { name });
+  await observed("auth.remove", {}, () => call("connection_remove_profile", { name }));
 }
 
 export async function setDefaultConnectionProfile(name: string, call: Invoker = tauriInvoke): Promise<void> {
-  await call("connection_set_default", { name });
+  await observed("auth.use", {}, () => call("connection_set_default", { name }));
 }

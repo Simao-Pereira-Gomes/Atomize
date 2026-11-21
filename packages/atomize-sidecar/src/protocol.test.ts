@@ -36,6 +36,13 @@ const services: SidecarServices = {
   cancelledDrafts: new Set(),
   activeRequests: new Map(),
   notify: () => {},
+  telemetry: {
+    report: () => {},
+    status: () => ({ state: "undecided", override: null, anonymousId: null, nudged: false }),
+    setConsent: () => ({ state: "undecided", override: null, anonymousId: null, nudged: false }),
+    requestDeletion: () => ({ sent: false, anonymousId: null }),
+    flush: async () => {},
+  },
 };
 
 describe("sidecar protocol", () => {

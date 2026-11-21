@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { categorizeError, telemetryEventSchema } from "../src/index";
+import { categorizeError, isTelemetryEventInput, telemetryEventSchema } from "../src/index";
 
 type JsonSchema = {
 	type?: string | string[];
@@ -91,5 +91,27 @@ describe("categorizeError", () => {
 	test("non-errors are unknown failures", () => {
 		expect(categorizeError("boom")).toEqual({ outcome: "failure", errorCategory: "unknown" });
 		expect(categorizeError(undefined)).toEqual({ outcome: "failure", errorCategory: "unknown" });
+	});
+});
+
+describe("isTelemetryEventInput", () => {
+	const valid = { event: "command_finished", action: "validate", outcome: "success", durationMs: 5, mode: "online", valid: true, issueCount: 0 };
+
+	test("accepts a well-formed event without its envelope", () => {
+		expect(isTelemetryEventInput(valid)).toBe(true);
+		expect(isTelemetryEventInput({ event: "session_started" })).toBe(true);
+	});
+
+	test.each([
+		["a free-form prop", { ...valid, templateName: "Payroll" }],
+		["a free-form value", { ...valid, mode: "my org" }],
+		["an envelope field", { ...valid, anonymousId: "3b241101-e2bb-4255-8caf-4136c566a962" }],
+		["an unknown action", { ...valid, action: "format-disk" }],
+		["a negative count", { ...valid, issueCount: -1 }],
+		["a string", "command_finished"],
+		["null", null],
+		["an array", []],
+	])("rejects %s", (_name, value) => {
+		expect(isTelemetryEventInput(value)).toBe(false);
 	});
 });
