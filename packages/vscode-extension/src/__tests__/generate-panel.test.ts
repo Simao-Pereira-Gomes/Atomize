@@ -61,10 +61,42 @@ function createFakePanel(): FakePanel {
 	return panel;
 }
 
+/** Fires VS Code's save event for a document, as the panel's save watcher sees it. */
+let saveDocument: (doc: { uri: { toString(): string }; languageId: string; fileName: string; getText(): string }) => void = () => {};
+
+/** The scope the user chooses in Generate's first picker; undefined dismisses it. */
+let scopeChoice: 'filter' | 'stories' | undefined = 'filter';
+/** What the scope picker offered, in order, and which one it highlighted. */
+let scopePicker: { scopes: string[]; active?: string } = { scopes: [] };
+
+function fakeScopePicker() {
+	let accept: () => void = () => {};
+	let hide: () => void = () => {};
+	const picker = {
+		title: '', placeholder: '',
+		items: [] as Array<{ scope: string }>,
+		activeItems: [] as Array<{ scope: string }>,
+		onDidAccept: (cb: () => void) => { accept = cb; },
+		onDidHide: (cb: () => void) => { hide = cb; },
+		show: () => {
+			scopePicker = { scopes: picker.items.map(item => item.scope), active: picker.activeItems[0]?.scope };
+			const chosen = picker.items.find(item => item.scope === scopeChoice);
+			if (!chosen) { hide(); return; }
+			picker.activeItems = [chosen];
+			accept();
+		},
+		hide: () => hide(),
+		dispose: () => {},
+	};
+	return picker;
+}
+
 function setupVscodeMock(panel: FakePanel, opts: { confirm?: string } = {}): void {
+	saveDocument = () => {};
 	mock.module('vscode', () => ({
 		...baseVscodeMock(),
 		window: {
+			createQuickPick: fakeScopePicker,
 			createWebviewPanel: mock(() => ({
 				...panel,
 				onDidDispose: () => ({ dispose() {} }),
@@ -75,6 +107,7 @@ function setupVscodeMock(panel: FakePanel, opts: { confirm?: string } = {}): voi
 		},
 		workspace: {
 			asRelativePath: (uri: { fsPath: string }) => uri.fsPath,
+			onDidSaveTextDocument: (cb: typeof saveDocument) => { saveDocument = cb; return { dispose() {} }; },
 		},
 		env: { openExternal: mock(() => undefined) },
 		commands: { executeCommand: mock(() => undefined) },
@@ -82,16 +115,19 @@ function setupVscodeMock(panel: FakePanel, opts: { confirm?: string } = {}): voi
 }
 
 /** What the panel last asked the Story Browser for. */
-let lastBrowse: { prepare?: unknown; browse?: Record<string, unknown> } = {};
+let lastBrowse: { browse?: Record<string, unknown> } = {};
 
-function setupSupportMocks(opts: { pickedStoryIds?: string[] } = {}): void {
+/** `resume`: the user switched the Story Browser's Finish toggle on before accepting. */
+function setupSupportMocks(opts: { pickedStoryIds?: string[]; resume?: boolean; scope?: 'filter' | 'stories' | null } = {}): void {
 	lastBrowse = {};
+	// Picking Stories, or finishing them, goes through "Pick Stories…"; otherwise the Template's filter.
+	scopeChoice = opts.scope === null ? undefined : opts.scope ?? (opts.pickedStoryIds?.length || opts.resume ? 'stories' : 'filter');
 	mock.module('../stories/story-browser.js', () => ({
-		prepareTemplateStoryBrowser: async (_resolver: unknown, _profile: unknown, _uri: unknown, prepareOptions?: unknown) => {
-			lastBrowse.prepare = prepareOptions;
-			return { adapter: {}, defaultView: { kind: 'sprint' } };
+		prepareTemplateStoryBrowser: async () => ({ adapter: {}, defaultView: { kind: 'sprint' } }),
+		browseStories: async (options: Record<string, unknown>) => {
+			lastBrowse.browse = options;
+			return { ids: opts.pickedStoryIds ?? [], resume: opts.resume === true };
 		},
-		browseStories: async (options: Record<string, unknown>) => { lastBrowse.browse = options; return opts.pickedStoryIds ?? []; },
 	}));
 	mock.module('../config/atomize-configuration.js', () => ({
 		getDefaultProfile: () => undefined,
@@ -113,6 +149,10 @@ async function waitFor(check: () => boolean, timeoutMs = 2000): Promise<void> {
 function htmlTitle(html: string): string {
 	return /<title>(.*?)<\/title>/.exec(html)?.[1] ?? '';
 }
+
+const templateUri = { fsPath: '/tmp/a.atomize.yaml', toString: () => 'file:///tmp/a.atomize.yaml' };
+const savedTemplate = { uri: templateUri, languageId: 'atomize-yaml', fileName: '/tmp/a.atomize.yaml', getText: () => '' };
+const savedOtherFile = { uri: { toString: () => 'file:///tmp/notes.md' }, languageId: 'markdown', fileName: '/tmp/notes.md', getText: () => '# notes' };
 
 const fakeCredentialResolver = { resolveByName: async () => ({}) };
 const fakeStore = { list: () => [] };
@@ -162,10 +202,10 @@ describe('GeneratePanel', () => {
 		expect(received).toEqual([['12', '34']]);
 	});
 
-	it("uses the Template's filter when no Stories are picked", async () => {
+	it("uses the Template's filter when that scope is chosen, without opening the Story Browser", async () => {
 		const panel = createFakePanel();
 		setupVscodeMock(panel);
-		setupSupportMocks({ pickedStoryIds: [] });
+		setupSupportMocks({ scope: 'filter' });
 		mockTemplateLibrary();
 		const received: unknown[] = [];
 		mockAtomizeCore({
@@ -178,6 +218,49 @@ describe('GeneratePanel', () => {
 		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
 
 		expect(received).toEqual([undefined]);
+		expect(lastBrowse.browse).toBeUndefined();
+	});
+
+	it('asks for the scope first, and requires a Story picked when picking Stories', async () => {
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks({ pickedStoryIds: ['12'] });
+		mockTemplateLibrary();
+		mockAtomizeCore({ Atomizer: class { async atomize() { return makeReport(); } } });
+
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
+
+		expect(scopePicker.scopes).toEqual(['filter', 'stories']);
+		expect(lastBrowse.browse?.requirePick).toBe(true);
+	});
+
+	it('offers the scope chosen last first, the next time Generate runs', async () => {
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks({ pickedStoryIds: ['12'] });
+		mockTemplateLibrary();
+		mockAtomizeCore({ Atomizer: class { async atomize() { return makeReport(); } } });
+
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
+		expect(scopePicker.active).toBe('filter');
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
+		expect(scopePicker.active).toBe('stories');
+	});
+
+	it('does nothing when the scope picker is dismissed', async () => {
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks({ scope: null });
+		mockTemplateLibrary();
+		const received: unknown[] = [];
+		mockAtomizeCore({ Atomizer: class { async atomize() { received.push(1); return makeReport(); } } });
+
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
+
+		expect(received).toEqual([]);
 	});
 
 	it('renders an auth-error blocked state when Atomizer throws AuthError', async () => {
@@ -257,7 +340,7 @@ describe('GeneratePanel and Partly Created Stories', () => {
 	async function openPanel(reports: unknown[], opts: { pickedStoryIds?: string[]; resume?: boolean } = {}) {
 		const panel = createFakePanel();
 		setupVscodeMock(panel);
-		setupSupportMocks({ pickedStoryIds: opts.pickedStoryIds });
+		setupSupportMocks({ pickedStoryIds: opts.pickedStoryIds, resume: opts.resume });
 		mockTemplateLibrary();
 		const calls: Array<{ dryRun?: boolean; storyIds?: string[]; resume?: boolean }> = [];
 		mockAtomizeCore({
@@ -269,7 +352,7 @@ describe('GeneratePanel and Partly Created Stories', () => {
 			},
 		});
 		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
-		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver, opts.resume ? { resume: true } : undefined);
+		await GeneratePanel.open({ fsPath: '/tmp/a.atomize.yaml' }, fakeStore, fakeCredentialResolver);
 		return { panel, calls };
 	}
 
@@ -318,7 +401,7 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		expect(calls[1]).toEqual({ dryRun: true, storyIds: ['1', '7'], resume: true });
 	});
 
-	it('opened to finish Stories, resumes the picked ones and shows what already exists', async () => {
+	it('with Finish switched on in the Story Browser, resumes the picked ones and shows what already exists', async () => {
 		const resumed = makeReport({
 			results: [{
 				story: story('1'), tasksCalculated: [task('B')], tasksCreated: [], success: true,
@@ -364,16 +447,17 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		expect(panel.webview.html).toContain('data-story="7"');
 	});
 
-	it('opened to finish Stories, lists Stories with or without Tasks to pick from', async () => {
-		await openPanel([dryReport], { pickedStoryIds: ['1'], resume: true });
-
-		expect(lastBrowse.prepare).toEqual({ withTasks: true });
-	});
-
-	it('opened to generate, lists Stories without Tasks as before', async () => {
+	it("offers finishing partly created Stories from Generate's Story Browser", async () => {
 		await openPanel([dryReport], { pickedStoryIds: ['1'] });
 
-		expect(lastBrowse.prepare).toEqual({ withTasks: false });
+		expect(lastBrowse.browse?.title).toBe('Atomize: Generate');
+		expect(lastBrowse.browse?.finish).toEqual({ placeholder: expect.stringContaining('only the Tasks each one is missing') });
+	});
+
+	it('with Finish left off, generates for the picked Stories without a Resume', async () => {
+		const { calls } = await openPanel([dryReport], { pickedStoryIds: ['1'] });
+
+		expect(calls).toEqual([{ dryRun: true, storyIds: ['1'], resume: undefined }]);
 	});
 
 	it('links each existing Task and child not in the plan to its Work Item, to check it is the right one', async () => {
@@ -395,7 +479,7 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		expect(panel.webview.html).toContain('data-url="https://dev.azure.com/org/P/_workitems/edit/E9"');
 	});
 
-	it('opened to finish Stories, does nothing when no Story is picked', async () => {
+	it('with Finish switched on in the Story Browser, does nothing when no Story is picked', async () => {
 		const { calls } = await openPanel([dryReport], { pickedStoryIds: [], resume: true });
 
 		expect(calls).toEqual([]);
@@ -457,5 +541,89 @@ describe('GeneratePanel and Partly Created Stories', () => {
 		const { panel } = await openPanel([complete], { pickedStoryIds: ['1'], resume: true });
 
 		expect(panel.webview.html).toContain('Every planned Task already exists');
+	});
+});
+
+// ─── The live run creates what the dry run previewed ────────────────────────
+
+describe('GeneratePanel keeps Create to the previewed plan', () => {
+	afterEach(() => {
+		mock.restore();
+	});
+
+	const story = (id: string) => ({ id, title: `Story ${id}` });
+	const previewed = makeReport({
+		results: [
+			{ story: story('1'), tasksCalculated: [{ title: 'A', estimation: 1 }], tasksCreated: [], success: true },
+			{ story: story('2'), tasksCalculated: [{ title: 'B', estimation: 1 }], tasksCreated: [], success: true },
+		],
+		tasksCalculated: 2,
+		partlyCreated: [],
+	});
+
+	async function openPanel(opts: { pickedStoryIds?: string[]; resume?: boolean } = {}) {
+		const panel = createFakePanel();
+		setupVscodeMock(panel);
+		setupSupportMocks(opts);
+		mockTemplateLibrary();
+		const calls: Array<{ dryRun?: boolean; storyIds?: string[]; resume?: boolean }> = [];
+		mockAtomizeCore({
+			Atomizer: class {
+				async atomize(_template: unknown, options: { dryRun?: boolean; storyIds?: string[]; resume?: boolean }) {
+					calls.push({ dryRun: options.dryRun, storyIds: options.storyIds, resume: options.resume });
+					return options.dryRun ? previewed : makeReport({ dryRun: false, partlyCreated: [] });
+				}
+			},
+		});
+		const { GeneratePanel } = await import(`../generate/generate-panel.js?t=${importCounter++}`);
+		await GeneratePanel.open(templateUri, fakeStore, fakeCredentialResolver);
+		return { panel, calls };
+	}
+
+	it("a run on the Template's filter creates Tasks only for the Stories the dry run previewed", async () => {
+		const { panel, calls } = await openPanel();
+
+		panel.receive?.({ type: 'createTasks', continueOnError: false });
+		await waitFor(() => calls.length === 2);
+
+		expect(calls[0]?.storyIds).toBeUndefined();
+		expect(calls[1]).toEqual({ dryRun: false, storyIds: ['1', '2'], resume: undefined });
+	});
+
+	it('saving the Template after the dry run disables Create until the dry run runs again', async () => {
+		const { panel, calls } = await openPanel();
+		expect(panel.webview.html).not.toContain('id="stale-notice"');
+
+		saveDocument(savedTemplate);
+
+		expect(panel.webview.html).toContain('id="stale-notice"');
+		expect(panel.webview.html).toContain('id="btn-create" disabled');
+		panel.receive?.({ type: 'createTasks', continueOnError: false });
+		await new Promise(resolve => setTimeout(resolve, 20));
+		expect(calls).toHaveLength(1);
+
+		panel.receive?.({ type: 'rerunDryRun' });
+		await waitFor(() => calls.length === 2);
+		await waitFor(() => !panel.webview.html.includes('Running dry run'));
+		expect(panel.webview.html).not.toContain('id="stale-notice"');
+		expect(panel.webview.html).not.toContain('id="btn-create" disabled');
+	});
+
+	it('saving a file that is not Atomize YAML leaves the dry run usable', async () => {
+		const { panel } = await openPanel();
+
+		saveDocument(savedOtherFile);
+
+		expect(panel.webview.html).not.toContain('id="stale-notice"');
+	});
+
+	it('Re-run dry run keeps the picked Stories and the Finish setting', async () => {
+		const { panel, calls } = await openPanel({ pickedStoryIds: ['7'], resume: true });
+		expect(panel.webview.html).toContain('data-rerun');
+
+		panel.receive?.({ type: 'rerunDryRun' });
+		await waitFor(() => calls.length === 2);
+
+		expect(calls[1]).toEqual({ dryRun: true, storyIds: ['7'], resume: true });
 	});
 });

@@ -13,6 +13,7 @@
   "dependencies": {
     "@sppg2001/atomize-ai": "workspace:*",
     "@sppg2001/atomize-core": "workspace:*",
+    "@sppg2001/atomize-telemetry": "workspace:*",
     "zod": "^4.6.7"
   },
   "devDependencies": {

@@ -86,6 +86,7 @@ export default defineConfig({
         { label: "Fix validation errors", slug: "validation/errors" },
       ] },
       { label: "Troubleshooting", slug: "troubleshooting" },
+      { label: "Telemetry and privacy", slug: "telemetry" },
       { label: "Release notes", slug: "releases" },
     ],
   })],

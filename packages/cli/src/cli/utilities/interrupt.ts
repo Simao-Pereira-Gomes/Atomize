@@ -1,4 +1,5 @@
 import { settings } from "@clack/prompts";
+import { exitWith } from "@/cli/telemetry/telemetry";
 
 /** The exit code a shell gives a process ended by SIGINT. */
 const SIGINT_EXIT_CODE = 130;
@@ -26,7 +27,10 @@ export async function stopOnInterrupt<T>(
   const input = deps.input ?? process.stdin;
   const controller = new AbortController();
   const onInterrupt = () => {
-    if (controller.signal.aborted) process.exit(SIGINT_EXIT_CODE);
+    if (controller.signal.aborted) {
+      void exitWith(SIGINT_EXIT_CODE, { hint: false });
+      return;
+    }
     controller.abort();
     onFirstInterrupt();
   };

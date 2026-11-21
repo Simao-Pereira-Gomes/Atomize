@@ -11,10 +11,14 @@ import { fieldsCommand } from "./commands/fields/fields.command";
 import { makeGenerateCommand } from "./commands/generate.command";
 import { previewCommand } from "./commands/preview.command";
 import { queriesCommand } from "./commands/queries/queries.command";
+import { telemetryCommand } from "./commands/telemetry.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
+import { exitWith } from "./telemetry/telemetry";
+import { maybeShowTelemetryHint } from "./telemetry/telemetry-hint";
 import { runUpdateNotifier } from "./update-notifier";
+import { ExitError } from "./utilities/exit-codes";
 import { createOutputSink } from "./utilities/output-sink";
 import { createPromptDriver } from "./utilities/prompt-driver";
 import { writeManagedOutput } from "./utilities/terminal-output";
@@ -40,13 +44,24 @@ program.hook("preAction", async () => {
 			loadEnvFile(envFile);
 		} catch (err) {
 			writeManagedOutput("stderr", chalk.red(`Error: ${(err as Error).message}`));
-			process.exit(1);
+			await exitWith(1, { hint: false });
 		}
 	}
 
 	await runUpdateNotifier({ name, version }, {
 		env: { ATOMIZE_UPDATE_NOTIFIER: config.updateNotifier },
 	});
+});
+
+// Commands that finish by returning land here; `generate` exits through exitWith, which shows it too.
+program.hook("postAction", (_program, actionCommand) => {
+	let command: Command | null = actionCommand;
+	while (command) {
+		if (command.name() === "telemetry") return;
+		command = command.parent;
+	}
+	if (process.exitCode) return;
+	maybeShowTelemetryHint();
 });
 
 const banner = `
@@ -67,8 +82,13 @@ program.addCommand(validateCommand);
 program.addCommand(previewCommand);
 program.addCommand(makeGenerateCommand(createOutputSink, createPromptDriver(), config));
 program.addCommand(templateCommand);
+program.addCommand(telemetryCommand);
 if (process.argv.length === 2) {
 	program.help();
 }
 
-program.parse();
+// A cancellation (Ctrl+C at a prompt) that no command caught still exits with its own code.
+await program.parseAsync().catch(async (error: unknown) => {
+	if (error instanceof ExitError) await exitWith(error.code, { hint: false });
+	throw error;
+});

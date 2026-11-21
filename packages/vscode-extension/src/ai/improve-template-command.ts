@@ -5,12 +5,14 @@ import type { DocumentGrounding } from '@sppg2001/atomize-core/services/template
 import type { TaskTemplate } from '@sppg2001/atomize-core/templates/schema';
 import { TemplateDocument } from '@sppg2001/atomize-core/templates/template-document';
 import { CancellationError } from '@sppg2001/atomize-core/utils/errors';
+import type { ActionProps } from '@sppg2001/atomize-telemetry';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import { isAtomizeToolingDocument } from '../authoring/language-detection.js';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getAIModel } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { type CommandRun, telemetry } from '../telemetry/extension-telemetry.js';
 import { type AIGrounding, type AIGroundingDeps, chooseAIGrounding } from './ai-grounding.js';
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
@@ -38,26 +40,26 @@ const proposals = new Map<string, Proposal>();
 
 export function registerImproveTemplateCommand(deps: ImproveCommandDeps): vscode.Disposable {
 	return vscode.Disposable.from(
-		vscode.commands.registerCommand('atomize.improveTemplateWithAI', (uri?: vscode.Uri) => improveTemplateWithAI(deps, uri)),
-		vscode.commands.registerCommand('atomize.acceptImprovement', (uri?: vscode.Uri) => acceptImprovement(uri)),
-		vscode.commands.registerCommand('atomize.saveImprovementAsNew', (uri?: vscode.Uri) => saveImprovementAsNew(uri)),
-		vscode.commands.registerCommand('atomize.rejectImprovement', (uri?: vscode.Uri) => rejectImprovement(uri)),
+		vscode.commands.registerCommand('atomize.improveTemplateWithAI', telemetry.instrument('template.improve', { grounded: false, referenceDocCount: 0 }, (run, uri?: vscode.Uri) => improveTemplateWithAI(deps, run, uri))),
+		vscode.commands.registerCommand('atomize.acceptImprovement', telemetry.instrument('template.improve.review', { decision: 'accepted' }, (run, uri?: vscode.Uri) => acceptImprovement(run, uri))),
+		vscode.commands.registerCommand('atomize.saveImprovementAsNew', telemetry.instrument('template.improve.review', { decision: 'saved-as-new' }, (run, uri?: vscode.Uri) => saveImprovementAsNew(run, uri))),
+		vscode.commands.registerCommand('atomize.rejectImprovement', telemetry.instrument('template.improve.review', { decision: 'rejected' }, (run, uri?: vscode.Uri) => rejectImprovement(run, uri))),
 		vscode.workspace.onDidCloseTextDocument(doc => {
 			if (proposals.delete(doc.uri.toString())) void publishProposals();
 		}),
 	);
 }
 
-async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri): Promise<void> {
+async function improveTemplateWithAI(deps: ImproveCommandDeps, run: CommandRun<ActionProps<'template.improve'>>, uri?: vscode.Uri): Promise<void> {
 	const doc = uri
 		? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) ?? await vscode.workspace.openTextDocument(uri)
 		: vscode.window.activeTextEditor?.document;
 	if (!doc || !isAtomizeToolingDocument(doc)) {
 		void vscode.window.showWarningMessage('Open an Atomize Template to improve it with AI.');
-		return;
+		return run.cancelled();
 	}
-	if (!deps.isRunnableTemplate(doc)) return;
-	if (!await deps.checkDirtyDocument(doc, 'improve')) return;
+	if (!deps.isRunnableTemplate(doc)) return run.cancelled();
+	if (!await deps.checkDirtyDocument(doc, 'improve')) return run.cancelled();
 
 	const path = resolveDocumentPath(doc.uri);
 	const library = createTemplateLibrary();
@@ -66,7 +68,7 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		({ template: resolvedTemplate } = await library.loadSource(path));
 	} catch (error) {
 		void vscode.window.showErrorMessage(`Atomize could not load this Template: ${error instanceof Error ? error.message : String(error)}`);
-		return;
+		return run.failed(error);
 	}
 
 	const grounding = await chooseAIGrounding(deps, {
@@ -75,9 +77,10 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		noGrounding: { label: 'No grounding', description: 'Review the Template on its own' },
 		purpose: 'The improvement',
 	});
-	if (grounding === 'cancelled') return;
+	if (grounding === 'cancelled') return run.cancelled();
 	const documentGrounding = await chooseReferenceDocuments({ title: TITLE, resource: doc.uri, adapter: grounding.adapter });
-	if (documentGrounding === undefined) return;
+	if (documentGrounding === undefined) return run.cancelled();
+	run.set({ grounded: grounding.projectGrounding !== null && grounding.projectGrounding !== undefined, referenceDocCount: documentGrounding?.documents.length ?? 0 });
 
 	// The focus comes after the Grounding, so it can name the documents just chosen.
 	const context = groundingContext(grounding, documentGrounding);
@@ -87,7 +90,7 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		placeHolder: improveFocusPlaceholder(context),
 		ignoreFocusOut: true,
 	});
-	if (guidance === undefined) return;
+	if (guidance === undefined) return run.cancelled();
 
 	let prepared: { sourceText: string; result: ImproveResult; catalogRef: string | undefined } | undefined;
 	try {
@@ -97,19 +100,19 @@ async function improveTemplateWithAI(deps: ImproveCommandDeps, uri?: vscode.Uri)
 		);
 	} catch (error) {
 		if (error instanceof AIUnavailableError) {
-			await offerFix(error, () => improveTemplateWithAI(deps, doc.uri));
-			return;
+			await offerFix(error, () => improveTemplateWithAI(deps, run, doc.uri));
+			return run.failed(error);
 		}
 		void vscode.window.showErrorMessage(`Atomize could not improve this Template: ${error instanceof Error ? error.message : String(error)}`);
-		return;
+		return run.failed(error);
 	}
-	if (!prepared) return;
+	if (!prepared) return run.cancelled();
 
 	const { sourceText, result, catalogRef } = prepared;
 	const proposal = result.ok ? result.template : (result.template as TaskTemplate | undefined);
 	if (!proposal) {
 		void vscode.window.showErrorMessage(`Copilot did not return a usable proposal, so ${vscode.workspace.asRelativePath(doc.uri)} is unchanged.`);
-		return;
+		return run.failed(new Error('no proposal'));
 	}
 
 	const proposalText = TemplateDocument.parse(sourceText).withValue(proposal).toString();
@@ -179,39 +182,40 @@ async function runImprovement(
 }
 
 /** Replaces the source with the proposal as it now reads, including edits, as one undoable change; the file is left unsaved. */
-async function acceptImprovement(uri?: vscode.Uri): Promise<void> {
+async function acceptImprovement(run: CommandRun<ActionProps<'template.improve.review'>>, uri?: vscode.Uri): Promise<void> {
 	const found = findProposal(uri);
-	if (!found) return;
+	if (!found) return run.cancelled();
 	const [proposalDoc, proposal] = found;
 	const sourceDoc = await vscode.workspace.openTextDocument(proposal.source);
 	const edit = new vscode.WorkspaceEdit();
 	edit.replace(sourceDoc.uri, new vscode.Range(sourceDoc.positionAt(0), sourceDoc.positionAt(sourceDoc.getText().length)), proposalDoc.getText());
 	if (!await vscode.workspace.applyEdit(edit)) {
 		void vscode.window.showErrorMessage('Atomize could not apply the proposal. The file is unchanged.');
-		return;
+		return run.failed(new Error('apply'));
 	}
 	await closeProposal(proposalDoc);
 	await vscode.window.showTextDocument(sourceDoc);
 }
 
 /** Opens the proposal, including edits, as a new untitled Template; the source stays as it was. */
-async function saveImprovementAsNew(uri?: vscode.Uri): Promise<void> {
+async function saveImprovementAsNew(run: CommandRun<ActionProps<'template.improve.review'>>, uri?: vscode.Uri): Promise<void> {
 	const found = findProposal(uri);
-	if (!found) return;
+	if (!found) return run.cancelled();
 	const [proposalDoc, proposal] = found;
 	let content: string;
 	try {
 		content = improvedCopyContent(proposalDoc.getText(), proposal.catalogRef);
 	} catch (error) {
 		void vscode.window.showErrorMessage(`The proposal isn't valid YAML, so it can't be saved as a new Template: ${error instanceof Error ? error.message : String(error)}`);
-		return;
+		return run.failed(error);
 	}
 	await closeProposal(proposalDoc);
 	await vscode.window.showTextDocument(await vscode.workspace.openTextDocument({ language: 'yaml', content }));
 }
 
-async function rejectImprovement(uri?: vscode.Uri): Promise<void> {
+async function rejectImprovement(run: CommandRun<ActionProps<'template.improve.review'>>, uri?: vscode.Uri): Promise<void> {
 	const found = findProposal(uri);
+	if (!found) return run.cancelled();
 	if (found) await closeProposal(found[0]);
 }
 

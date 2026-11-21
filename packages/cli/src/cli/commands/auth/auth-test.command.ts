@@ -2,6 +2,7 @@ import { readConnectionsFile } from "@config/connections.config";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -18,7 +19,7 @@ export function makeAuthTestCommand(): Command {
   return new Command("test")
   .description("Test connectivity for a profile")
   .argument("[name]", "Profile name (uses default if omitted)")
-  .action(async (nameArg: string | undefined) => {
+  .action(tracked("auth.test", {}, async (_run, nameArg: string | undefined) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     try {
       output.intro(" Atomize: Test Connection");
@@ -62,7 +63,7 @@ export function makeAuthTestCommand(): Command {
       }
     } catch (error) {
       if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 }

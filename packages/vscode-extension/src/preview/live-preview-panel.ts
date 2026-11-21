@@ -27,13 +27,13 @@ type WebviewMessage = SwitchModeMessage | RerunMessage | OpenTemplateMessage | M
 async function pickPreviewStory(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri): Promise<string | null> {
 	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri);
 	if (!source) return pickStoryId();
-	const storyIds = await browseStories({
+	const pick = await browseStories({
 		...source,
 		title: 'Atomize: Live Preview',
 		canPickMany: false,
 		placeholder: 'Choose the Story to preview against.',
 	});
-	return storyIds?.[0] ?? null;
+	return pick?.ids[0] ?? null;
 }
 
 async function pickStoryId(): Promise<string | null> {

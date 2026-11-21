@@ -8,6 +8,7 @@ on:
       - packages/atomize-core/**
       - packages/atomize-schema/**
       - packages/atomize-schema-reference/**
+      - packages/atomize-telemetry/**
 
 permissions: {}
 
@@ -107,7 +108,7 @@ jobs:
             --new-tag "vscode-v${{ needs.check-version.outputs.version }}" \
             --repo "${{ github.repository }}" \
             --surface extension \
-            --paths packages/vscode-extension,packages/atomize-core,packages/atomize-schema,packages/atomize-schema-reference \
+            --paths packages/vscode-extension,packages/atomize-core,packages/atomize-schema,packages/atomize-schema-reference,packages/atomize-telemetry \
             > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create GitHub Release

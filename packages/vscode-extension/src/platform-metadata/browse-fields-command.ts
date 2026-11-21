@@ -5,6 +5,7 @@ import { getDefaultProfile } from '../config/atomize-configuration.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
+import { telemetry } from '../telemetry/extension-telemetry.js';
 
 type FieldItem = vscode.QuickPickItem & { referenceName: string };
 
@@ -43,10 +44,10 @@ export interface BrowseFieldsCommandDeps {
 }
 
 export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vscode.Disposable {
-	return vscode.commands.registerCommand('atomize.browseFields', async () => {
+	return vscode.commands.registerCommand('atomize.browseFields', telemetry.instrument('fields.list', {}, async run => {
 		const defaultProfile = getDefaultProfile(vscode.window.activeTextEditor?.document.uri);
 		const profile = await pickProfile(deps.store, deps.credentialResolver, { title: 'Atomize: Browse Fields', allowOffline: false, defaultProfile });
-		if (!profile) return;
+		if (!profile) return run.cancelled();
 
 		const connection = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Fetching work item types…', cancellable: false },
@@ -58,7 +59,7 @@ export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vsco
 		);
 		if (!connection) {
 			void vscode.window.showErrorMessage('Could not fetch work item types. Check your connection profile.');
-			return;
+			return run.failed(new Error('fetch'));
 		}
 
 		const typePick = await vscode.window.showQuickPick(
@@ -68,7 +69,7 @@ export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vsco
 			],
 			{ title: 'Atomize: Browse Fields', placeHolder: 'Filter fields by work item type' },
 		);
-		if (!typePick) return;
+		if (!typePick) return run.cancelled();
 		const typeFilter = typePick.type;
 
 		const fields = await vscode.window.withProgress(
@@ -78,7 +79,7 @@ export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vsco
 
 		if (fields === null) {
 			void vscode.window.showErrorMessage('Could not fetch fields. Check your connection profile.');
-			return;
+			return run.failed(new Error('fetch'));
 		}
 
 		if (fields.length === 0) {
@@ -94,9 +95,9 @@ export function registerBrowseFieldsCommand(deps: BrowseFieldsCommandDeps): vsco
 			matchOnDetail: true,
 			placeHolder: 'Select a field to copy its reference name',
 		});
-		if (!picked) return;
+		if (!picked) return run.cancelled();
 
 		await vscode.env.clipboard.writeText(picked.referenceName);
 		void vscode.window.showInformationMessage(`Copied "${picked.referenceName}" to clipboard.`);
-	});
+	}));
 }

@@ -1,5 +1,5 @@
 import type { TaskTemplate } from "@sppg2001/atomize-schema";
-import { type Accessor, createEffect, createSignal, For, onMount, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { CatalogItem } from "../catalog/catalog-item";
 import { addAzureDevOpsProfile, removeConnectionProfile, rotateAzureDevOpsToken, setDefaultConnectionProfile } from "../connections/connection-client";
 import { loadOriginBaseline, type OriginBaselineSession, type OriginBaselineState, shouldLoadBaseline } from "../diff/origin-baseline";
@@ -14,6 +14,7 @@ import { toCatalogClone } from "../starting-paths/catalog-clone";
 import { createNavigationHistory } from "../stores/navigation-history";
 import { createAuthoringStore, type SectionId } from "../stores/sections";
 import { STUDIO_AREAS, type StudioAreaId } from "../stores/studio-areas";
+import { reportFinished, setNudgeListener, setTelemetryConsent } from "../telemetry/telemetry";
 import { AtomizeStudio } from "./AtomizeStudio";
 import { CatalogArea } from "./CatalogArea";
 import { dismissOverlay } from "./dismiss-overlay";
@@ -23,6 +24,8 @@ import { StartingPathPicker } from "./StartingPathPicker";
 import { openTemplateReference, StudioSchemaReference, studioFieldPermalink } from "./StudioSchemaReference";
 import { SchemaReferenceNavigation } from "./schema-reference-navigation";
 import type { OnlineValidationSession, StoredOnlineValidation } from "./sections/ReviewSection";
+import { TelemetryBanner } from "./TelemetryBanner";
+import { UsageDataSettings } from "./UsageDataSettings";
 
 type PendingStart =
   | { kind: "scratch" }
@@ -79,11 +82,12 @@ function AreaRail(props: { active: StudioAreaId; onSelect: (id: StudioAreaId) =>
   );
 }
 
-function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; theme: Accessor<"light" | "dark">; onToggleTheme: () => void; manageProjectRequest: Accessor<number>; onOpenSchemaReference: () => void }) {
+function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Accessor<boolean>; theme: Accessor<"light" | "dark">; onToggleTheme: () => void; manageProjectRequest: Accessor<number>; settingsRequest: Accessor<number>; onOpenSchemaReference: () => void }) {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [helpError, setHelpError] = createSignal("");
   createEffect(() => { if (props.manageProjectRequest() > 0) setSettingsOpen(true); });
+  createEffect(() => { if (props.settingsRequest() > 0) setSettingsOpen(true); });
   let triggerRef: HTMLButtonElement | undefined;
   let panelRef: HTMLDivElement | undefined;
   let helpTriggerRef: HTMLButtonElement | undefined;
@@ -115,6 +119,10 @@ function ShellHeader(props: { grounding: GroundingSession; sidecarAvailable: Acc
               <div>
                 <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Work project</p>
                 <GroundingSettings session={props.grounding} sidecarAvailable={props.sidecarAvailable} openManagerRequest={props.manageProjectRequest} />
+              </div>
+              <div class="border-t border-slate-100 pt-3 dark:border-slate-800">
+                <p class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase">Usage data</p>
+                <UsageDataSettings />
               </div>
               <div class="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
                 <span class="text-sm text-slate-600 dark:text-slate-300">Theme</span>
@@ -200,6 +208,12 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
   const [onlineValidationRunning, setOnlineValidationRunning] = createSignal(false);
   const [activeValidationId, setActiveValidationId] = createSignal<string>();
   const [manageProjectRequest, setManageProjectRequest] = createSignal(0);
+  const [settingsRequest, setSettingsRequest] = createSignal(0);
+  const [nudgeVisible, setNudgeVisible] = createSignal(false);
+  onMount(() => {
+    setNudgeListener(() => setNudgeVisible(true));
+    onCleanup(() => setNudgeListener(undefined));
+  });
   const onlineValidation: OnlineValidationSession = {
     result: onlineValidationResult,
     error: onlineValidationError,
@@ -261,6 +275,7 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
     }
     setSchemaReferenceTarget(permalink);
     setSchemaReferenceOpen(true);
+    reportFinished("schemaReference.open", {}, { outcome: "success" }, Date.now());
   };
   const navigateToArea = (id: StudioAreaId) => {
     if (id === activeArea() && !schemaReferenceOpen()) return;
@@ -382,7 +397,14 @@ export function StudioShell(props: { sidecarAvailable: Accessor<boolean>; diagno
 
   return (
     <div class={`flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 ${theme() === "dark" ? "dark" : ""}`} data-theme={theme()}>
-      <ShellHeader grounding={grounding} sidecarAvailable={props.sidecarAvailable} theme={theme} onToggleTheme={toggleTheme} manageProjectRequest={manageProjectRequest} onOpenSchemaReference={openSchemaReference} />
+      <ShellHeader grounding={grounding} sidecarAvailable={props.sidecarAvailable} theme={theme} onToggleTheme={toggleTheme} manageProjectRequest={manageProjectRequest} settingsRequest={settingsRequest} onOpenSchemaReference={openSchemaReference} />
+      <Show when={nudgeVisible()}>
+        <TelemetryBanner
+          onEnable={() => { setNudgeVisible(false); void setTelemetryConsent("enable").catch(() => undefined); }}
+          onNotNow={() => setNudgeVisible(false)}
+          onSettings={() => { setNudgeVisible(false); setSettingsRequest((request) => request + 1); }}
+        />
+      </Show>
       {/* The header and Area Rail stay put; only the content column scrolls. */}
       <div class="flex min-h-0 flex-1">
         <AreaRail active={activeArea()} onSelect={navigateToArea} collapsed={railCollapsed()} onToggleCollapsed={() => setRailCollapsed((value) => !value)} canGoBack={history.canGoBack()} onBack={goBack} />

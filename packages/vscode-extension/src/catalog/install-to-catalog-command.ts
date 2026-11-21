@@ -3,10 +3,13 @@ import { basename, dirname } from 'node:path';
 import type { TemplateInstallScope } from '@sppg2001/atomize-core/services/template/template-install-source';
 import { defaultCatalogScope, discoverWorkspaceRoot } from '@sppg2001/atomize-core/services/template/workspace-root';
 import type { TemplateCatalogKind } from '@sppg2001/atomize-core/templates/template-library';
+import type { ActionProps } from '@sppg2001/atomize-telemetry';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import { isAtomizeToolingDocument, isMixinDocument } from '../authoring/language-detection.js';
 import { createTemplateLibrary } from '../core-library.js';
+import type { CommandRun } from '../telemetry/extension-telemetry.js';
+import { telemetry } from '../telemetry/extension-telemetry.js';
 import { catalogInstallName } from './install-name.js';
 
 const TITLE = 'Atomize: Install to Catalog';
@@ -19,7 +22,7 @@ export interface InstallToCatalogDeps {
 type ScopeItem = vscode.QuickPickItem & { scope: TemplateInstallScope };
 
 export function registerInstallToCatalogCommand(deps: InstallToCatalogDeps): vscode.Disposable {
-	return vscode.commands.registerCommand('atomize.installToCatalog', (uri?: vscode.Uri) => installToCatalog(deps, uri));
+	return vscode.commands.registerCommand('atomize.installToCatalog', telemetry.instrument('catalog.install', { scope: 'user' }, (run, uri?: vscode.Uri) => installToCatalog(deps, run, uri)));
 }
 
 /**
@@ -27,15 +30,15 @@ export function registerInstallToCatalogCommand(deps: InstallToCatalogDeps): vsc
  * composed by name (`template:<name>`). Only ever on request: saving a file never installs it. An
  * unsaved AI draft installs straight from the editor.
  */
-async function installToCatalog(deps: InstallToCatalogDeps, uri?: vscode.Uri): Promise<void> {
+async function installToCatalog(deps: InstallToCatalogDeps, run: CommandRun<ActionProps<'catalog.install'>>, uri?: vscode.Uri): Promise<void> {
 	const doc = uri
 		? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) ?? await vscode.workspace.openTextDocument(uri)
 		: vscode.window.activeTextEditor?.document;
 	if (!doc || !isAtomizeToolingDocument(doc)) {
 		void vscode.window.showWarningMessage('Open an Atomize Template or Mixin to install it to the Catalog.');
-		return;
+		return run.cancelled();
 	}
-	if (!doc.isUntitled && !await deps.checkDirtyDocument(doc, 'install')) return;
+	if (!doc.isUntitled && !await deps.checkDirtyDocument(doc, 'install')) return run.cancelled();
 	// "Install Saved Version" leaves the editor dirty, so the Catalog gets what's on disk.
 	const content = !doc.isUntitled && doc.isDirty ? await readFile(doc.fileName, 'utf8') : doc.getText();
 
@@ -44,7 +47,8 @@ async function installToCatalog(deps: InstallToCatalogDeps, uri?: vscode.Uri): P
 	const { folder, library } = projectFor(doc);
 
 	const scope = await chooseScope(library, kind, name, folder);
-	if (!scope) return;
+	if (!scope) return run.cancelled();
+	run.set({ scope });
 
 	try {
 		const preview = await library.previewInstall({ source: { content, name }, kind, scope });
@@ -55,7 +59,7 @@ async function installToCatalog(deps: InstallToCatalogDeps, uri?: vscode.Uri): P
 				{ modal: true, detail: `Overwrite ${preview.targetPath}?` },
 				'Overwrite',
 			);
-			if (choice !== 'Overwrite') return;
+			if (choice !== 'Overwrite') return run.cancelled();
 			overwrite = true;
 		}
 		const item = await preview.source.install({ overwrite });
@@ -72,6 +76,7 @@ async function installToCatalog(deps: InstallToCatalogDeps, uri?: vscode.Uri): P
 		);
 		if (open) await vscode.window.showTextDocument(vscode.Uri.file(item.path));
 	} catch (error) {
+		run.failed(error);
 		void vscode.window.showErrorMessage(`Atomize could not install this ${kind}: ${error instanceof Error ? error.message : String(error)}`);
 	}
 }

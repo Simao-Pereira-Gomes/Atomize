@@ -138,6 +138,27 @@ async fn preview_mock_story(source: String, mock_story: String, relay: tauri::St
     relay.request("preview.mockStory", json!({ "source": source, "mockStory": mock_story })).await
 }
 
+// Telemetry is the sidecar's alone: Rust only relays these four calls and never reads ~/.atomize.
+#[tauri::command]
+async fn telemetry_report(event: serde_json::Value, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("telemetry.report", json!({ "event": event })).await
+}
+
+#[tauri::command]
+async fn telemetry_set_consent(decision: String, relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("telemetry.setConsent", json!({ "decision": decision })).await
+}
+
+#[tauri::command]
+async fn telemetry_status(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("telemetry.status", json!({})).await
+}
+
+#[tauri::command]
+async fn telemetry_request_deletion(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<serde_json::Value, sidecar::SidecarError> {
+    relay.request("telemetry.requestDeletion", json!({})).await
+}
+
 #[tauri::command]
 fn retry_sidecar(relay: tauri::State<'_, Arc<SidecarRelay>>) -> Result<(), String> { relay.retry() }
 
@@ -218,7 +239,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| { let relay = SidecarRelay::new(app.handle().clone()); if relay.start().is_err() { relay.mark_fatal(); } app.manage(relay); Ok(()) })
-        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_improve, ai_cancel, ai_auth_status, references_list, references_save, references_load, wiki_list, wiki_pages, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default, open_panel::open_atomize_file])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .invoke_handler(tauri::generate_handler![catalog_list_items, catalog_remove_item, catalog_install_item, grounding_load, validation_online, validation_cancel, ai_generate, ai_improve, ai_cancel, ai_auth_status, references_list, references_save, references_load, wiki_list, wiki_pages, generate_query_stories, generate_run, generate_cancel, template_resolve_local, preview_inspect, preview_mock_story, telemetry_report, telemetry_set_consent, telemetry_status, telemetry_request_deletion, retry_sidecar, sidecar_fatal, connection_list_profiles, connection_add_profile, connection_rotate_token, connection_remove_profile, connection_set_default, open_panel::open_atomize_file])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Lets the sidecar flush in-flight telemetry (300 ms cap) before the app goes.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(relay) = app.try_state::<Arc<SidecarRelay>>() { relay.shutdown(); }
+            }
+        });
 }

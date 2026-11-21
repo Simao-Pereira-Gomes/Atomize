@@ -2,6 +2,7 @@ import { confirm } from "@clack/prompts";
 import { keychainAvailable } from "@config/keychain.service";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -41,7 +42,7 @@ export function makeAuthRotateCommand(): Command {
     "Read the new Personal Access Token from stdin instead of prompting interactively",
     false,
   )
-  .action(async (nameArg: string | undefined, options: RotateOptions) => {
+  .action(tracked("auth.rotate", {}, async (_run, nameArg: string | undefined, options: RotateOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     const usePatStdin = options.patStdin ?? false;
     let stdinPat: string | undefined;
@@ -153,7 +154,7 @@ export function makeAuthRotateCommand(): Command {
         if (usePatStdin) writeManagedOutput("stderr", `Error: ${getErrorMessage(error)}`);
         else output.cancel(getErrorMessage(error));
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 }

@@ -16,6 +16,7 @@ import {
 	canLoadMore,
 	emptyFilters,
 	filterTooltip,
+	finishTooltip,
 	hasTasksTooltip,
 	listStatus,
 	parseStoryIds,
@@ -40,12 +41,26 @@ export interface StoryBrowserOptions {
 	defaultView?: DefaultView;
 	canPickMany: boolean;
 	placeholder: string;
+	/**
+	 * Offers a title-bar toggle to finish Partly Created Stories (a Resume) instead. While it's on,
+	 * the sprint view lists Stories with or without Tasks, this placeholder replaces `placeholder`,
+	 * and at least one Story must be picked, since a Resume applies only to Stories the user names.
+	 */
+	finish?: { placeholder: string };
+	/** With `canPickMany`: Enter needs at least one Story ticked, instead of resolving with none. */
+	requirePick?: boolean;
+}
+
+/** The Stories picked, and whether to finish them (a Resume) rather than generate for them. */
+export interface StoryPick {
+	ids: string[];
+	resume: boolean;
 }
 
 export type DefaultView = { kind: 'sprint'; workItemTypes?: string[]; tasks?: 'none' | 'any' };
 
 type StoryItem = vscode.QuickPickItem & { story: StorySummary };
-type Action = 'switchMode' | 'enterIds' | 'type' | 'state' | 'area' | 'iteration' | 'hasTasks';
+type Action = 'switchMode' | 'enterIds' | 'type' | 'state' | 'area' | 'iteration' | 'hasTasks' | 'finish';
 type ActionButton = vscode.QuickInputButton & { action: Action | 'loadMore' };
 type Outcome = { kind: 'done'; ids: string[] } | { kind: 'cancelled' } | { kind: 'action'; action: Action };
 
@@ -55,14 +70,16 @@ const SEARCH_DEBOUNCE_MS = 300;
  * The VS Code Story Browser (see CONTEXT.md): a QuickPick that lists a default set of Stories or
  * runs a Story Search as the user types, narrowed by title-bar filters. Further pages load from a
  * title-bar button, never a list row that a multi-select would tick, and another button types Story
- * IDs directly. Resolves with the chosen Story IDs (possibly none), or undefined when dismissed.
+ * IDs directly. Resolves with the chosen Story IDs (possibly none), or undefined when dismissed;
+ * with `finish`, also whether the user switched to finishing them.
  */
-export async function browseStories(options: StoryBrowserOptions): Promise<string[] | undefined> {
+export async function browseStories(options: StoryBrowserOptions): Promise<StoryPick | undefined> {
 	const state = {
 		mode: (options.defaultView?.kind ?? 'search') as StoryBrowserModeKind,
 		filters: emptyFilters(false),
 		selected: new Map<string, StorySummary>(),
 		limit: STORY_SEARCH_LIMIT,
+		finishing: false,
 	};
 	const metadata = new ProjectChoices(options.adapter);
 
@@ -70,14 +87,20 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 	// reopens the browser with the same mode, filters, and selection.
 	while (true) {
 		const outcome = await showBrowser();
-		if (outcome.kind === 'done') return outcome.ids;
+		if (outcome.kind === 'done') return { ids: outcome.ids, resume: state.finishing };
 		if (outcome.kind === 'cancelled') return undefined;
 		if (outcome.action === 'enterIds') {
 			const typed = await enterIds();
-			if (typed) return options.canPickMany ? [...new Set([...state.selected.keys(), ...typed])] : typed.slice(0, 1);
+			if (typed) return { ids: options.canPickMany ? [...new Set([...state.selected.keys(), ...typed])] : typed.slice(0, 1), resume: state.finishing };
 			continue;
 		}
 		await runAction(outcome.action);
+	}
+
+	/** The sprint view in effect: finishing lists Stories with or without Tasks. */
+	function currentView(): DefaultView | undefined {
+		const view = options.defaultView;
+		return view && state.finishing ? { ...view, tasks: 'any' } : view;
 	}
 
 	function showBrowser(): Promise<Outcome> {
@@ -95,14 +118,17 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				picker.hide();
 			};
 
-			const title = browserTitle(options.title, state.mode, state.filters, { sprintTasks: options.defaultView?.tasks });
+			const view = currentView();
+			const baseTitle = state.finishing ? `${options.title} · Finish partly created Stories` : options.title;
+			const title = browserTitle(baseTitle, state.mode, state.filters, { sprintTasks: view?.tasks });
 			picker.title = title;
+			const placeholder = state.finishing && options.finish ? options.finish.placeholder : options.placeholder;
 			picker.placeholder = state.mode !== 'search'
-				? `${options.placeholder} Type to narrow the list, search all Stories, or enter IDs from the buttons above.`
-				: `${options.placeholder} Type an ID or part of a title, or enter IDs from the buttons above.`;
+				? `${placeholder} Type to narrow the list, search all Stories, or enter IDs from the buttons above.`
+				: `${placeholder} Type an ID or part of a title, or enter IDs from the buttons above.`;
 			picker.canSelectMany = options.canPickMany;
 			picker.matchOnDescription = true;
-			const baseButtons = buttonsFor(state.mode, state.filters, options.defaultView);
+			const baseButtons = buttonsFor(state.mode, state.filters, view, options.finish ? { finishing: state.finishing } : undefined);
 			picker.buttons = baseButtons;
 			picker.value = state.filters.text;
 
@@ -127,7 +153,6 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 				picker.buttons = baseButtons;
 				let loaded = 0;
 				try {
-					const view = options.defaultView;
 					const stories = state.mode === 'search' || !view
 						? await searchStories(options.adapter, { ...toStorySearch(state.filters), limit: state.limit })
 						: await listSprintStories(options.adapter, { workItemTypes: view.workItemTypes, limit: state.limit, tasks: view.tasks });
@@ -164,6 +189,11 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 			picker.onDidAccept(() => {
 				const active = picker.activeItems[0];
 				if (options.canPickMany) {
+					// A Resume applies only to Stories the user names, never to the whole filter.
+					if ((state.finishing || options.requirePick) && state.selected.size === 0) {
+						picker.placeholder = state.finishing ? 'Tick at least one Story to finish.' : 'Tick at least one Story.';
+						return;
+					}
 					finish({ kind: 'done', ids: [...state.selected.keys()] });
 					return;
 				}
@@ -217,6 +247,9 @@ export async function browseStories(options: StoryBrowserOptions): Promise<strin
 					return;
 				case 'hasTasks':
 					filters.hasTasks = !filters.hasTasks;
+					return;
+				case 'finish':
+					state.finishing = !state.finishing;
 					return;
 				case 'type':
 					filters.workItemTypes = await pickMany('Work Item types', metadata.types(), filters.workItemTypes) ?? filters.workItemTypes;
@@ -289,13 +322,11 @@ export async function prepareTemplateStoryBrowser(
 	credentialResolver: CredentialResolver,
 	profile: string,
 	fileUri: vscode.Uri,
-	/** `withTasks`: list Stories with or without Tasks, to pick untouched and Partly Created Stories to finish together. */
-	options: { withTasks?: boolean } = {},
 ): Promise<{ adapter: IPlatformAdapter; defaultView: DefaultView } | undefined> {
 	try {
 		const adapter = await credentialResolver.resolveByName(profile);
 		const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
-		return { adapter, defaultView: { kind: 'sprint', workItemTypes: template.filter.workItemTypes, tasks: options.withTasks ? 'any' : 'none' } };
+		return { adapter, defaultView: { kind: 'sprint', workItemTypes: template.filter.workItemTypes, tasks: 'none' } };
 	} catch {
 		return undefined;
 	}
@@ -309,13 +340,25 @@ function loadMoreButton(shown: number): ActionButton {
 	return { action: 'loadMore', iconPath: new vscode.ThemeIcon('fold-down'), tooltip: `Load more: load the next ${STORY_SEARCH_LIMIT} Stories (showing ${shown})` };
 }
 
-function buttonsFor(mode: StoryBrowserModeKind, filters: StoryBrowserFilters, defaultView: DefaultView | undefined): ActionButton[] {
+function buttonsFor(
+	mode: StoryBrowserModeKind,
+	filters: StoryBrowserFilters,
+	defaultView: DefaultView | undefined,
+	finish: { finishing: boolean } | undefined,
+): ActionButton[] {
 	const buttons: ActionButton[] = [];
+	if (finish) {
+		buttons.push({
+			action: 'finish',
+			iconPath: new vscode.ThemeIcon(finish.finishing ? 'check-all' : 'tasklist'),
+			tooltip: finishTooltip(finish.finishing),
+		});
+	}
 	if (defaultView) {
 		buttons.push({
 			action: 'switchMode',
 			iconPath: new vscode.ThemeIcon(mode !== 'search' ? 'search' : 'history'),
-			tooltip: switchModeTooltip(mode),
+			tooltip: switchModeTooltip(mode, { sprintTasks: defaultView.tasks }),
 		});
 	}
 	buttons.push({ action: 'enterIds', iconPath: new vscode.ThemeIcon('edit'), tooltip: 'Enter Story IDs: type IDs directly instead of picking from the list' });

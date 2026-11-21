@@ -8,6 +8,7 @@ import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-libra
 import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -45,7 +46,7 @@ export function makeTemplateInstallCommand(
   .option("--scope <scope>", 'Installation scope: user (displayed as "personal") or project (displayed as "your project") [default: project when the project has its own .atomize folder, otherwise user]')
   .option("--open", "Open the installed Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
-  .action(async (source: string, options: InstallOptions) => {
+  .action(tracked("catalog.install", { scope: "user" }, async (run, source: string, options: InstallOptions) => {
     const output = createCommandOutput(
       resolveCommandOutputPolicy({ quiet: options.quiet, verbose: false }),
     );
@@ -54,6 +55,7 @@ export function makeTemplateInstallCommand(
       const library = new TemplateLibrary();
       // A project's own .atomize/ folder means the team has opted in to a project Catalog.
       const scope = library.parseInstallScope(options.scope ?? defaultCatalogScope());
+      run.set({ scope });
       const preview = await library.previewInstall({
         source,
         kind: options.type ? library.parseCatalogKind(options.type) : undefined,
@@ -83,7 +85,7 @@ export function makeTemplateInstallCommand(
         );
         if (!confirmed) {
           output.outro("Cancelled.");
-          process.exit(ExitCode.Success);
+          throw new ExitError(ExitCode.Success);
         }
         overwrite = true;
       }
@@ -104,12 +106,12 @@ export function makeTemplateInstallCommand(
     } catch (error) {
       if (error instanceof CancellationError) {
         output.outro("Cancelled.");
-        process.exit(ExitCode.Success);
+        throw new ExitError(ExitCode.Success);
       }
       if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 }
 
 export const templateInstallCommand = makeTemplateInstallCommand();

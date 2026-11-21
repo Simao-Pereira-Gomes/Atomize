@@ -8,7 +8,7 @@ Atomize ships three independent release surfaces, each with its own version, tag
 | VS Code extension | `packages/vscode-extension` | `vscode-v<version>` | `.github/workflows/publish-extension.yml` | VS Code Marketplace + GitHub Release |
 | Atomize Studio | `packages/atomize-studio` | `studio-v<version>` | `.github/workflows/publish-studio.yml` | GitHub Release (installers) |
 
-The four shared libraries (`atomize-schema`, `atomize-core`, `atomize-ai`, `atomize-sidecar`) are never released on their own: they ship inside whichever surface consumes them.
+The shared libraries (`atomize-schema`, `atomize-core`, `atomize-ai`, `atomize-sidecar`, `atomize-telemetry`) are never released on their own: they ship inside whichever surface consumes them.
 
 The website (`packages/website`, https://atomize-docs.pages.dev/schema) isn't a release surface. It has no version or tag. `.github/workflows/deploy-website.yml` deploys it to Cloudflare Pages on every push to `main` that touches `atomize-schema`, `atomize-schema-reference` or the website (ADR-[0072](adr/0072-website-tracks-main-on-cloudflare-pages-direct-upload.md)).
 
@@ -37,9 +37,9 @@ It runs `git log <last surface tag>..HEAD --no-merges` filtered to `--paths`, wh
 
 | Surface | `--paths` |
 | --- | --- |
-| CLI | `packages/cli,packages/atomize-core,packages/atomize-schema,packages/atomize-ai` |
-| Extension | `packages/vscode-extension,packages/atomize-core,packages/atomize-schema` |
-| Studio | `packages/atomize-studio,packages/atomize-sidecar,packages/atomize-core,packages/atomize-schema,packages/atomize-ai` |
+| CLI | `packages/cli,packages/atomize-core,packages/atomize-schema,packages/atomize-telemetry,packages/atomize-ai` |
+| Extension | `packages/vscode-extension,packages/atomize-core,packages/atomize-schema,packages/atomize-schema-reference,packages/atomize-telemetry` |
+| Studio | `packages/atomize-studio,packages/atomize-sidecar,packages/atomize-core,packages/atomize-schema,packages/atomize-schema-reference,packages/atomize-telemetry,packages/atomize-ai` |
 
 Each list must stay in sync with that workflow's `on.push.paths` trigger: the two are the same set, maintained together.
 

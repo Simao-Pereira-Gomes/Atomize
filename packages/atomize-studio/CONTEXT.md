@@ -32,6 +32,14 @@ module into the embedded Schema Reference. Concrete task indices resolve to `tas
 Studio uses host-supplied targets rather than URL fragments and hides Copy link;
 Navigation History restores the underlying task editor, inputs, focus and scroll.
 
+**Usage Data Settings**:
+The "Usage data" section of Global Settings: a toggle for the shared Telemetry Consent, a scope line naming the CLI, Studio and the VS Code extension, what is collected, the Anonymous ID, Request deletion, and Learn more. It asks the companion process for the current state every time it opens, so a choice made from the CLI or the extension shows up the next time. Neither the webview nor Rust ever reads `~/.atomize`; the companion process owns that file, and the webview only reports what each action did.
+_Avoid_: treating it as a Studio-only setting; turning it on or off applies to all three surfaces.
+
+**Telemetry Banner**:
+Studio's Telemetry Nudge: one inline banner, shown after the first successful Studio action while the user is undecided, with Enable, Not now and Settings. It is recorded as shown the moment it appears, so it can never return, and it is not a toast system.
+_Avoid_: calling it a prompt or a toast; it never blocks or waits for an answer.
+
 **Companion Process Recovery**:
 The app-level recovery surface shown only when Studio's bundled companion process cannot start or repeatedly exits. It offers Retry, preserves the current in-memory authoring session, and leaves offline authoring and native Connection Profile management available while blocking companion-dependent actions. It is distinct from normal Studio launch and never checks for or installs an external CLI.
 

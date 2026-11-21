@@ -10,6 +10,7 @@ import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled } from "../../utilities/prompt-utilities";
 import { buildTaskDefinition } from "./task-configuration";
 import type { EstimationWizardContext, FilterWizardContext } from "./template-wizard-helper.command";
@@ -456,6 +457,7 @@ export async function configureTasksWithValidation(
       await handleEstimationNormalization(tasks);
       return tasks;
     } catch (error) {
+      if (error instanceof ExitError) throw error;
       const shouldRetry = await promptRetry(error);
       if (!shouldRetry) {
         throw error;

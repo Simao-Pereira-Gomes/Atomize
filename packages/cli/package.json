@@ -1,6 +1,6 @@
 {
 	"name": "@sppg2001/atomize",
-	"version": "5.3.0",
+	"version": "5.4.0",
 	"description": "Automatically generate tasks from user stories with smart templates",
 	"type": "module",
 	"main": "./dist/cli/index.js",
@@ -68,6 +68,7 @@
 		"@sppg2001/atomize-ai": "workspace:*",
 		"@sppg2001/atomize-core": "workspace:*",
 		"@sppg2001/atomize-schema": "workspace:*",
+		"@sppg2001/atomize-telemetry": "workspace:*",
 		"@types/bun": "1.4.2",
 		"@types/keytar": "^4.4.2",
 		"@types/node": "^26.5.1",

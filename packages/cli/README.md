@@ -176,6 +176,10 @@ Validate first, then run live generation with explicit acknowledgement:
 
 The CLI and Studio share Connection Profile metadata and compatible OS-keyring-backed tokens. VS Code manages its own profiles. See the [Auth Guide](https://atomize-docs.pages.dev/connections/profiles/#shared-between-the-cli-and-atomize-studio) for details.
 
+## Telemetry
+
+Atomize can send anonymous usage data, but only if you opt in. It is off by default, and `ATOMIZE_TELEMETRY=0` or `DO_NOT_TRACK=1` forces it off. Run `atomize telemetry status` to see where you stand, or read [Telemetry and privacy](https://atomize-docs.pages.dev/telemetry/) for exactly what is collected and how to turn it on, off, or delete your data.
+
 ## Documentation
 
 - [Website and Documentation](https://atomize-docs.pages.dev/)

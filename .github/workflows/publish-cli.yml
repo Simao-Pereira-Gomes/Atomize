@@ -8,6 +8,7 @@ on:
       - packages/atomize-ai/**
       - packages/atomize-core/**
       - packages/atomize-schema/**
+      - packages/atomize-telemetry/**
 
 permissions: {}
 
@@ -103,7 +104,7 @@ jobs:
             --new-tag "v${{ needs.check-version.outputs.version }}" \
             --repo "${{ github.repository }}" \
             --surface cli \
-            --paths packages/cli,packages/atomize-core,packages/atomize-schema,packages/atomize-ai \
+            --paths packages/cli,packages/atomize-core,packages/atomize-schema,packages/atomize-telemetry,packages/atomize-ai \
             > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create GitHub Release

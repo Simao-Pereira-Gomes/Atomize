@@ -11,11 +11,12 @@ import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-libra
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import { formatScope, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
@@ -42,7 +43,7 @@ export const templateListCommand = new Command("list")
   .description("List available templates and mixins")
   .option("--type <type>", "Filter by type: template or mixin")
   .option("--json", "Print results as JSON to stdout; progress is written to stderr", false)
-  .action(async (options: ListOptions) => {
+  .action(tracked("catalog.list", {}, async (_run, options: ListOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     const jsonMode = options.json;
     const logProgress = jsonMode
@@ -138,9 +139,9 @@ export const templateListCommand = new Command("list")
         if (jsonMode) writeManagedOutput("stderr", `Error: ${msg}`);
         else output.cancel(msg);
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
