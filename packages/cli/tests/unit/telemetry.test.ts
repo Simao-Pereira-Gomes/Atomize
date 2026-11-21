@@ -277,6 +277,19 @@ describe("atomize telemetry", () => {
 		await command.parseAsync(["node", "telemetry", "delete"]);
 		const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
 		expect(JSON.parse(init.body as string)).toMatchObject({ event: "telemetry_deletion_requested", distinct_id: id });
+		expect(readConsent(consentPath)).toMatchObject({ enabled: false, anonymousId: undefined });
+		await invoke(["enable"]);
+		expect(readConsent(consentPath).anonymousId).not.toBe(id);
+	});
+
+	test("delete keeps the Anonymous ID when the request cannot be sent", async () => {
+		await invoke(["enable"]);
+		const id = readConsent(consentPath).anonymousId as string;
+		setTelemetryClientForTesting(
+			createTelemetryClient({ surface: "cli", atomizeVersion: "5.3.0", projectKey: "", consentPath, env: {} }),
+		);
+		const { out } = await invoke(["delete"]);
+		expect(out).toContain(id);
 		expect(readConsent(consentPath)).toMatchObject({ enabled: false, anonymousId: id });
 	});
 

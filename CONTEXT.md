@@ -165,7 +165,7 @@ The user's single, explicit choice to send anonymous usage data, made from any s
 _Avoid_: "tracking" or "analytics opt-out"; Telemetry Consent is opt-in only.
 
 **Anonymous ID**:
-A random identifier created when the user first gives Telemetry Consent and shared by all three surfaces. It is never derived from the machine or the user, and it survives disabling and re-enabling so the user can always quote it in a Deletion Request.
+A random identifier created when the user first gives Telemetry Consent and shared by all three surfaces. It is never derived from the machine or the user, and it survives disabling and re-enabling so the user can always quote it in a Deletion Request. A sent Deletion Request retires it: enabling again creates a new one.
 _Avoid_: "user ID" or "installation ID".
 
 **Telemetry Nudge**:

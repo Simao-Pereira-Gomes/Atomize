@@ -18,6 +18,12 @@ export interface TelemetryClientOptions {
 	env?: Record<string, string | undefined>;
 	fetch?: typeof fetch;
 	now?: () => Date;
+	/**
+	 * A second gate checked at send time, after the shared consent: a surface with its own switch
+	 * (VS Code's) can only add a condition, never override the shared decision. Not applied to
+	 * deletion requests.
+	 */
+	gate?: () => boolean;
 	runtimeVersion?: string;
 	os?: string;
 }
@@ -94,6 +100,7 @@ export function createTelemetryClient(options: TelemetryClientOptions): Telemetr
 		track(input) {
 			try {
 				if (projectKey === "") return;
+				if (options.gate && !options.gate()) return;
 				const consent = resolveConsent(reader.read(), env);
 				if (!consent.enabled || !consent.state.anonymousId) return;
 				const event = build(input, consent.state.anonymousId);

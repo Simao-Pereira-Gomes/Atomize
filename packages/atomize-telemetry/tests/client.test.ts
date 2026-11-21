@@ -156,3 +156,54 @@ describe("deletion request", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });
+
+describe("second gate", () => {
+	function gated(open: () => boolean) {
+		const fetchMock = mock(async () => new Response("{}"));
+		const client = createTelemetryClient({
+			surface: "vscode",
+			atomizeVersion: "0.7.3",
+			projectKey: "phc_test",
+			consentPath,
+			env: {},
+			gate: open,
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+		return { client, fetchMock };
+	}
+
+	// Only (shared enabled) AND (gate open) sends.
+	test.each([
+		{ enabled: true, gate: true, sends: true },
+		{ enabled: true, gate: false, sends: false },
+		{ enabled: false, gate: true, sends: false },
+		{ enabled: false, gate: false, sends: false },
+	])("enabled=$enabled gate=$gate sends=$sends", async ({ enabled, gate, sends }) => {
+		setConsent(enabled, { path: consentPath });
+		const { client, fetchMock } = gated(() => gate);
+		client.track(event);
+		await client.flush(50);
+		expect(fetchMock).toHaveBeenCalledTimes(sends ? 1 : 0);
+	});
+
+	test("the gate is read live on every send", async () => {
+		setConsent(true, { path: consentPath });
+		let open = true;
+		const { client, fetchMock } = gated(() => open);
+		client.track(event);
+		open = false;
+		client.track(event);
+		open = true;
+		client.track(event);
+		await client.flush(50);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	test("a deletion request ignores the gate", async () => {
+		setConsent(true, { path: consentPath });
+		const { client, fetchMock } = gated(() => false);
+		expect(client.requestDeletion()).toBe(true);
+		await client.flush(50);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+});

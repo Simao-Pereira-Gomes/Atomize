@@ -1,14 +1,8 @@
-import { categorizeError, type ErrorCategory, type TelemetryAction, type TelemetryEventInput } from "@sppg2001/atomize-telemetry";
+import { type ActionProps, categorizeError, type ErrorCategory, type TelemetryAction, type TelemetryEventInput } from "@sppg2001/atomize-telemetry";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { EXIT_FLUSH_CAP_MS, exitWith, getTelemetry } from "./telemetry";
 
 type CommandFinishedInput = Extract<TelemetryEventInput, { event: "command_finished" }>;
-
-/** The per-action props: everything on a `command_finished` event the surface supplies besides how it ended. */
-export type ActionProps<A extends TelemetryAction> = Omit<
-	Extract<CommandFinishedInput, { action: A }>,
-	"event" | "action" | "outcome" | "errorCategory" | "durationMs"
->;
 
 export interface TrackedRun<P> {
 	/** Fills in props once the command knows them. */

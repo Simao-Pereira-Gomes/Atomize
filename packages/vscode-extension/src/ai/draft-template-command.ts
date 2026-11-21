@@ -2,8 +2,10 @@ import { draftTemplate } from '@sppg2001/atomize-core/services/template/ai-templ
 import { MAX_ATTEMPTS } from '@sppg2001/atomize-core/services/template/llm-template-generator';
 import type { DocumentGrounding } from '@sppg2001/atomize-core/services/template/reference-documents';
 import { CancellationError } from '@sppg2001/atomize-core/utils/errors';
+import type { ActionProps } from '@sppg2001/atomize-telemetry';
 import * as vscode from 'vscode';
 import { getAIModel } from '../config/atomize-configuration.js';
+import { type CommandRun, telemetry } from '../telemetry/extension-telemetry.js';
 import { type AIGrounding, type AIGroundingDeps, chooseAIGrounding } from './ai-grounding.js';
 import { AIUnavailableError, type CopilotLmSession, openCopilotSession } from './copilot-session.js';
 import { languageModels, offerFix } from './copilot-support.js';
@@ -27,7 +29,7 @@ const promptGrounding = new Map<string, ChosenGrounding>();
 
 export function registerDraftTemplateCommand(deps: DraftCommandDeps): vscode.Disposable {
 	return vscode.Disposable.from(
-		vscode.commands.registerCommand(COMMAND, (promptDocument?: vscode.Uri) => draftTemplateWithAI(deps, promptDocument)),
+		vscode.commands.registerCommand(COMMAND, telemetry.instrument('template.create', { mode: 'ai', grounded: false, referenceDocCount: 0 }, (run, promptDocument?: vscode.Uri) => draftTemplateWithAI(deps, run, promptDocument))),
 		vscode.languages.registerCodeLensProvider({ language: 'markdown' }, new PromptDocumentCodeLensProvider()),
 		vscode.workspace.onDidCloseTextDocument(doc => promptGrounding.delete(doc.uri.toString())),
 	);
@@ -45,15 +47,16 @@ class PromptDocumentCodeLensProvider implements vscode.CodeLensProvider {
  * Grounding first, then the description, so the description can refer to the documents just
  * chosen. A prompt document keeps the Grounding it was opened with.
  */
-async function draftTemplateWithAI(deps: DraftCommandDeps, promptDocument?: vscode.Uri): Promise<void> {
+async function draftTemplateWithAI(deps: DraftCommandDeps, run: CommandRun<ActionProps<'template.create'>>, promptDocument?: vscode.Uri): Promise<void> {
 	const key = promptDocument?.toString();
 	const grounding = (key ? promptGrounding.get(key) : undefined) ?? await chooseGrounding(deps, promptDocument);
-	if (!grounding) return;
+	if (!grounding) return run.cancelled();
 	if (key) promptGrounding.set(key, grounding);
+	run.set({ grounded: grounding.projectGrounding !== null && grounding.projectGrounding !== undefined, referenceDocCount: grounding.documentGrounding?.documents.length ?? 0 });
 
 	const context = groundingContext(grounding, grounding.documentGrounding);
 	const description = promptDocument ? await describeFromDocument(promptDocument) : await describeInInputBox(grounding, context);
-	if (description === undefined) return;
+	if (description === undefined) return run.cancelled();
 	lastDescription = description;
 
 	let content: string | undefined;
@@ -64,12 +67,12 @@ async function draftTemplateWithAI(deps: DraftCommandDeps, promptDocument?: vsco
 		);
 	} catch (error) {
 		if (error instanceof AIUnavailableError) {
-			await offerFix(error, () => draftTemplateWithAI(deps, promptDocument));
-			return;
+			await offerFix(error, () => draftTemplateWithAI(deps, run, promptDocument));
+			return run.failed(error);
 		}
 		throw error;
 	}
-	if (content === undefined) return;
+	if (content === undefined) return run.cancelled();
 
 	const document = await vscode.workspace.openTextDocument({ language: 'yaml', content });
 	await vscode.window.showTextDocument(document);

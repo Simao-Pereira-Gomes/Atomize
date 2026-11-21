@@ -151,3 +151,9 @@ export type TelemetryEventInput = TelemetryEvent extends infer E
 		? Omit<E, EnvelopeKey>
 		: never
 	: never;
+
+/** The props one action carries: everything on its `command_finished` event besides how it ended. */
+export type ActionProps<A extends TelemetryAction> = Omit<
+	Extract<Extract<TelemetryEventInput, { event: "command_finished" }>, { action: A }>,
+	"event" | "action" | "outcome" | "errorCategory" | "durationMs"
+>;

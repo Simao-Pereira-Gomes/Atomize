@@ -84,7 +84,8 @@ function writeMerged(path: string, update: (current: Record<string, unknown>) =>
 
 /**
  * Records an explicit decision. The Anonymous ID is created on the first enable and kept on
- * disable, so a user can always quote it in a Deletion Request.
+ * disable, so a user can always quote it in a Deletion Request. Only a sent Deletion Request
+ * retires it (see `retireAnonymousId`).
  */
 export function setConsent(
 	enabled: boolean,
@@ -101,6 +102,19 @@ export function setConsent(
 			decidedAt: now().toISOString(),
 			anonymousId: existingId.success ? existingId.data : enabled ? randomUUID() : current.anonymousId,
 		};
+	});
+}
+
+/**
+ * Records a sent Deletion Request: telemetry is disabled and the Anonymous ID is forgotten, so a
+ * later enable creates a fresh one. Reusing an ID queued for deletion could get new events erased
+ * with the old ones, or attached to the person the deletion workaround creates.
+ */
+export function retireAnonymousId(options: { path?: string; now?: () => Date } = {}): ConsentState {
+	const now = options.now ?? (() => new Date());
+	return writeMerged(options.path ?? defaultConsentPath(), (current) => {
+		const { anonymousId: _retired, ...rest } = current;
+		return { ...rest, version: 1, enabled: false, decidedAt: now().toISOString() };
 	});
 }
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createConsentReader, type EnvOverrideName, envOverride, markNudged, readConsent, resolveConsent, setConsent } from "../src/index";
+import { createConsentReader, type EnvOverrideName, envOverride, markNudged, readConsent, resolveConsent, retireAnonymousId, setConsent } from "../src/index";
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -40,6 +40,21 @@ describe("consent file", () => {
 		const first = setConsent(true, { path }).anonymousId;
 		expect(setConsent(false, { path })).toMatchObject({ enabled: false, anonymousId: first });
 		expect(setConsent(true, { path }).anonymousId).toBe(first);
+	});
+
+	test("retiring the Anonymous ID disables telemetry, and a later enable creates a new ID", () => {
+		const first = setConsent(true, { path }).anonymousId;
+		expect(retireAnonymousId({ path })).toMatchObject({ enabled: false, anonymousId: undefined });
+		expect(JSON.parse(readFileSync(path, "utf8"))).not.toHaveProperty("anonymousId");
+		const second = setConsent(true, { path }).anonymousId;
+		expect(second).toMatch(UUID_V4);
+		expect(second).not.toBe(first);
+	});
+
+	test("retiring the Anonymous ID keeps other surfaces' fields", () => {
+		setConsent(true, { path });
+		markNudged("vscode", { path });
+		expect(retireAnonymousId({ path }).nudged).toEqual({ vscode: true });
 	});
 
 	test("disabling while undecided records the decision without inventing an ID", () => {

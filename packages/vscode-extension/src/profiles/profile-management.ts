@@ -1,5 +1,6 @@
 import { validateOrganizationUrl } from '@sppg2001/atomize-core';
 import * as vscode from 'vscode';
+import { telemetry } from '../telemetry/extension-telemetry.js';
 import { readCliProfiles } from './cli-import.js';
 import type { CredentialResolver } from './credential-resolver.js';
 import { profileDetail, sortProfiles } from './profile-helpers.js';
@@ -93,16 +94,17 @@ function showOperationFailure(operation: string, error: unknown): void {
 	void vscode.window.showErrorMessage(`${operation} failed. ${getErrorMessage(error)}`);
 }
 
-async function addProfile(store: ProfileStore): Promise<void> {
+const addProfile = (store: ProfileStore) => telemetry.instrument('auth.add', {}, async (run) => {
 	const input = await collectAddInput();
-	if (!input) return;
+	if (!input) return run.cancelled();
 	try {
 		await runWithProgress('Adding Atomize profile...', () => store.add(input, input.pat));
 		void vscode.window.showInformationMessage(`Profile "${input.name}" added.`);
 	} catch (error) {
+		run.failed(error);
 		showOperationFailure('Add profile', error);
 	}
-}
+})();
 
 async function importFromCli(store: ProfileStore): Promise<void> {
 	const cliProfiles = await readCliProfiles();
@@ -130,41 +132,43 @@ async function importFromCli(store: ProfileStore): Promise<void> {
 	void vscode.window.showInformationMessage('Import from CLI complete.');
 }
 
-async function setDefault(store: ProfileStore, profile: AzureDevOpsProfileMeta): Promise<void> {
+const setDefault = (store: ProfileStore, profile: AzureDevOpsProfileMeta) => telemetry.instrument('auth.use', {}, async () => {
 	await runWithProgress(`Setting "${profile.name}" as default...`, () => store.setDefault(profile.id));
 	void vscode.window.showInformationMessage(`Profile "${profile.name}" is now the default.`);
-}
+})();
 
-async function testProfile(credentialResolver: CredentialResolver, profile: AzureDevOpsProfileMeta): Promise<void> {
+const testProfile = (credentialResolver: CredentialResolver, profile: AzureDevOpsProfileMeta) => telemetry.instrument('auth.test', {}, async (run) => {
 	try {
 		await runWithProgress(`Testing "${profile.name}"...`, () => credentialResolver.resolveByName(profile.name));
 		void vscode.window.showInformationMessage(`Profile "${profile.name}" test succeeded.`);
 	} catch (error) {
+		run.failed(error);
 		showOperationFailure('Test profile', error);
 	}
-}
+})();
 
-async function rotateProfile(store: ProfileStore, profile: AzureDevOpsProfileMeta): Promise<void> {
+const rotateProfile = (store: ProfileStore, profile: AzureDevOpsProfileMeta) => telemetry.instrument('auth.rotate', {}, async (run) => {
 	const pat = await collectPat('New Personal Access Token');
-	if (pat === undefined) return;
+	if (pat === undefined) return run.cancelled();
 	try {
 		await runWithProgress(`Rotating "${profile.name}"...`, () => store.setToken(profile.id, pat));
 		void vscode.window.showInformationMessage(`Profile "${profile.name}" token rotated.`);
 	} catch (error) {
+		run.failed(error);
 		showOperationFailure('Rotate profile', error);
 	}
-}
+})();
 
-async function removeProfile(store: ProfileStore, profile: AzureDevOpsProfileMeta): Promise<void> {
+const removeProfile = (store: ProfileStore, profile: AzureDevOpsProfileMeta) => telemetry.instrument('auth.remove', {}, async (run) => {
 	const selection = await vscode.window.showWarningMessage(
 		`Remove profile "${profile.name}"? The saved token will be deleted and cannot be recovered by Atomize.`,
 		{ modal: true },
 		'Remove',
 	);
-	if (selection !== 'Remove') return;
+	if (selection !== 'Remove') return run.cancelled();
 	await runWithProgress(`Removing "${profile.name}"...`, () => store.remove(profile.id));
 	void vscode.window.showInformationMessage(`Profile "${profile.name}" removed.`);
-}
+})();
 
 async function runAction(
 	store: ProfileStore,

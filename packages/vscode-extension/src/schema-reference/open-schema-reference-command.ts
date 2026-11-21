@@ -2,11 +2,12 @@ import * as vscode from 'vscode';
 import { isAtomizeSchemaDocument, isMixinDocument } from '../authoring/language-detection.js';
 import { yamlCursorPath } from '../authoring/yaml-cursor-path.js';
 import { getSchemaReferenceOpenMode } from '../config/atomize-configuration.js';
+import { telemetry } from '../telemetry/extension-telemetry.js';
 import { schemaReferenceLocation } from './schema-reference-location.js';
 import { SchemaReferencePanel } from './schema-reference-panel.js';
 
 export function registerOpenSchemaReferenceCommand(ctx: vscode.ExtensionContext): vscode.Disposable {
-	return vscode.commands.registerCommand('atomize.openSchemaReference', (resource?: vscode.Uri | string, offset?: number): Promise<void> => {
+	return vscode.commands.registerCommand('atomize.openSchemaReference', telemetry.instrument('schemaReference.open', {}, (_run, resource?: vscode.Uri | string, offset?: number): Promise<void> => {
 		const uri = typeof resource === 'string' ? vscode.Uri.parse(resource) : resource;
 		const editor = vscode.window.activeTextEditor;
 		const doc = uri
@@ -21,5 +22,5 @@ export function registerOpenSchemaReferenceCommand(ctx: vscode.ExtensionContext)
 			: editor?.document === doc ? doc.offsetAt(editor.selection.active) : undefined;
 		const path = cursorOffset === undefined ? undefined : yamlCursorPath(doc.getText(), cursorOffset);
 		return SchemaReferencePanel.open(ctx, { tab, permalink: schemaReferenceLocation(path, tab) }, mode);
-	});
+	}));
 }

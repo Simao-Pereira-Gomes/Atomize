@@ -14,6 +14,7 @@ import { once, registerLazyCommands } from './lazy.js';
 import { AtomizePanel } from './panel.js';
 import { ProfileStore } from './profiles/profile-store.js';
 import { SchemaReferencePanel } from './schema-reference/schema-reference-panel.js';
+import { type ExtensionTelemetry, initExtensionTelemetry, telemetry } from './telemetry/extension-telemetry.js';
 
 // Everything that pulls in atomize-core, zod, azure-devops-node-api or yaml is loaded on first use
 // (dynamic import), not when the bundle loads: those evaluate for tens of milliseconds and most
@@ -27,6 +28,10 @@ type DiagnosticsModule = typeof import('./validation/diagnostics.js');
 let generatePanelModule: GeneratePanelModule | undefined;
 let livePreviewPanelModule: LivePreviewPanelModule | undefined;
 let mockPreviewPanelModule: MockPreviewPanelModule | undefined;
+let activeTelemetry: ExtensionTelemetry | undefined;
+
+/** `session_started` waits this long after activation, so its consent read and import stay off the startup path. */
+const SESSION_STARTED_DELAY_MS = 5_000;
 
 const DEPRECATED_CLI_SETTINGS_NOTICE_KEY = 'atomize.deprecatedCliSettingsNoticeShown';
 const DEPRECATED_CLI_SETTING_KEYS = ['cliPath', 'cli.installCommand', 'cli.autoCheckUpdates'];
@@ -61,6 +66,20 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	void registerYamlSchemaContributor(ctx);
 
 	void maybeShowDeprecatedCliSettingsNotice(ctx);
+
+	// Wiring only: the consent file is read, and atomize-telemetry loaded, on the first event.
+	const extensionTelemetry = initExtensionTelemetry({
+		atomizeVersion: String(ctx.extension?.packageJSON?.version ?? '0.0.0'),
+		isVscodeTelemetryEnabled: () => vscode.env.isTelemetryEnabled,
+		loadPackage: once(() => import('@sppg2001/atomize-telemetry')),
+		ui: {
+			showInformationMessage: (message, ...items) => vscode.window.showInformationMessage(message, ...items),
+			showWarningMessage: (message, options, ...items) => vscode.window.showWarningMessage(message, options, ...items),
+			openExternal: url => vscode.env.openExternal(vscode.Uri.parse(url)),
+		},
+	});
+	activeTelemetry = extensionTelemetry;
+	const sessionStartedTimer = setTimeout(() => extensionTelemetry.sessionStarted(), SESSION_STARTED_DELAY_MS);
 
 	const store = new ProfileStore(ctx);
 	const getCredentialResolver = once(async () => {
@@ -278,27 +297,27 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			});
 		}),
 
-		vscode.commands.registerCommand('atomize.preview', async (uri?: vscode.Uri) => {
+		vscode.commands.registerCommand('atomize.preview', telemetry.instrument('preview', { variant: 'mock-story' }, async (run, uri?: vscode.Uri) => {
 			const doc = uri
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
-			if (!doc) return;
-			if (!isRunnableTemplate(doc)) return;
-			if (!await checkDirtyDocument(doc, 'preview')) return;
+			if (!doc) return run.cancelled();
+			if (!isRunnableTemplate(doc)) return run.cancelled();
+			if (!await checkDirtyDocument(doc, 'preview')) return run.cancelled();
 			mockPreviewPanelModule ??= await import('./preview/mock-preview-panel.js');
 			await mockPreviewPanelModule.PreviewPanel.open(doc.uri);
-		}),
+		})),
 
-		vscode.commands.registerCommand('atomize.livePreview', async (uri?: vscode.Uri) => {
+		vscode.commands.registerCommand('atomize.livePreview', telemetry.instrument('preview', { variant: 'live' }, async (run, uri?: vscode.Uri) => {
 			const doc = uri
 				? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString())
 				: vscode.window.activeTextEditor?.document;
-			if (!doc) return;
-			if (!isRunnableTemplate(doc)) return;
-			if (!await checkDirtyDocument(doc, 'preview')) return;
+			if (!doc) return run.cancelled();
+			if (!isRunnableTemplate(doc)) return run.cancelled();
+			if (!await checkDirtyDocument(doc, 'preview')) return run.cancelled();
 			livePreviewPanelModule ??= await import('./preview/live-preview-panel.js');
 			await livePreviewPanelModule.LivePreviewPanel.open(doc.uri, store, await getCredentialResolver());
-		}),
+		})),
 
 		vscode.commands.registerCommand('atomize.generate', async (uri?: vscode.Uri) => {
 			const doc = uri
@@ -330,6 +349,12 @@ export function activate(ctx: vscode.ExtensionContext): void {
 			]);
 			await manageProfiles(store, credentialResolver);
 		}),
+
+		{ dispose: () => clearTimeout(sessionStartedTimer) },
+		vscode.commands.registerCommand('atomize.telemetry.enable', () => extensionTelemetry.enable('command')),
+		vscode.commands.registerCommand('atomize.telemetry.disable', () => extensionTelemetry.disable()),
+		vscode.commands.registerCommand('atomize.telemetry.showStatus', telemetry.instrument('telemetry.status', {}, () => extensionTelemetry.showStatus())),
+		vscode.commands.registerCommand('atomize.telemetry.requestDeletion', () => extensionTelemetry.requestDeletion()),
 
 		vscode.commands.registerCommand('atomize.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:atomize.atomize'),
@@ -407,7 +432,8 @@ function lazyDocumentLinkProvider(): vscode.DocumentLinkProvider {
 	};
 }
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
+	await activeTelemetry?.flush(300);
 	SchemaReferencePanel.dispose();
 	AtomizePanel.dispose();
 	mockPreviewPanelModule?.PreviewPanel.dispose();

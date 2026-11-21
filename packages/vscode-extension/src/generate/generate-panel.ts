@@ -11,6 +11,7 @@ import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
 import { browseStories, prepareTemplateStoryBrowser } from '../stories/story-browser.js';
+import { type Ending, telemetry } from '../telemetry/extension-telemetry.js';
 import type { GenerateReport } from './generate-html.js';
 import {
 	renderGenerateBlocked,
@@ -48,16 +49,45 @@ async function runAtomize(
 	fileUri: vscode.Uri,
 	options: { dryRun: boolean; continueOnError?: boolean; storyIds?: string[]; resume?: boolean; signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void },
 ): Promise<GenerateOutcome> {
+	const startedAt = Date.now();
 	try {
 		const adapter = await credentialResolver.resolveByName(profile);
 		const { template } = await createTemplateLibrary().loadSource(resolveDocumentPath(fileUri));
 		const atomizer = new Atomizer(adapter);
 		const report = await atomizer.atomize(template, { ...options, stallTimeoutMs: DEFAULT_GENERATION_STALL_TIMEOUT_MS });
+		reportGenerationRun(options, report, undefined, startedAt);
 		return { report };
 	} catch (err) {
+		reportGenerationRun(options, undefined, err, startedAt);
 		if (err instanceof AuthError) return { error: 'auth', detail: authFailureDetail(err) };
 		return { error: 'blocked', detail: errorDetail(err) };
 	}
+}
+
+const clampCount = (value: number): number => Math.max(0, Math.min(1_000_000, Math.trunc(value)));
+
+/** Reports one Generation Run (a dry run or a live one) as it ends, with counts only. */
+function reportGenerationRun(
+	options: { dryRun: boolean; continueOnError?: boolean; resume?: boolean },
+	report: AtomizationReport | undefined,
+	error: unknown,
+	startedAt: number,
+): void {
+	const props = {
+		mode: options.dryRun ? 'dry-run' as const : 'execute' as const,
+		output: 'human' as const,
+		continueOnError: options.continueOnError === true,
+		storyCount: clampCount(report?.storiesProcessed ?? 0),
+		taskCount: clampCount((options.dryRun ? report?.tasksCalculated : report?.tasksCreated) ?? 0),
+		failedStoryCount: clampCount(report?.storiesFailed ?? 0),
+	};
+	const ending: Ending = report
+		? report.stopped
+			? report.stopped.reason === 'timedOut' ? { outcome: 'failure', errorCategory: 'timeout' } : { outcome: 'cancelled' }
+			: report.storiesFailed > 0 ? { outcome: 'failure' } : { outcome: 'success' }
+		: { error };
+	if (options.resume) telemetry.finished('generate.resume', props, ending, startedAt);
+	else telemetry.finished('generate', props, ending, startedAt);
 }
 
 /**

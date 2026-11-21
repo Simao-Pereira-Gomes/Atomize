@@ -173,6 +173,26 @@
 				"command": "atomize.openSchemaReference",
 				"title": "Open Schema Reference",
 				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.enable",
+				"title": "Enable Telemetry",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.disable",
+				"title": "Disable Telemetry",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.showStatus",
+				"title": "Show Telemetry Status",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.requestDeletion",
+				"title": "Request Deletion of Telemetry Data",
+				"category": "Atomize"
 			}
 		],
 		"menus": {
@@ -242,6 +262,7 @@
 	"dependencies": {
 		"@sppg2001/atomize-core": "workspace:*",
 		"@sppg2001/atomize-schema-reference": "workspace:*",
+		"@sppg2001/atomize-telemetry": "workspace:*",
 		"solid-js": "^1.9.17",
 		"yaml": "^2.9.0"
 	},

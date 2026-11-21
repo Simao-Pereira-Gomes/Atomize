@@ -1,9 +1,9 @@
 import { note } from "@clack/prompts";
-import { envOverride, markNudged, readConsent } from "@sppg2001/atomize-telemetry";
+import { envOverride, markNudged, readConsent, TELEMETRY_DOCS_URL } from "@sppg2001/atomize-telemetry";
 import chalk from "chalk";
 import { isInteractiveTerminal } from "@/cli/utilities/prompt-utilities";
 
-export const TELEMETRY_DOCS_URL = "https://atomize-docs.pages.dev/telemetry";
+export { TELEMETRY_DOCS_URL };
 
 export interface TelemetryHintDependencies {
 	isInteractive?: () => boolean;
