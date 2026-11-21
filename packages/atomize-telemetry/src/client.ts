@@ -125,9 +125,11 @@ export function createTelemetryClient(options: TelemetryClientOptions): Telemetr
 		async flush(capMs) {
 			if (inFlight.size === 0) return;
 			let timer: ReturnType<typeof setTimeout> | undefined;
+			// Not unref'd: the caller awaits this and the timer is cleared below, so it can hold the
+			// process for capMs at most. Unref'd, an idle event loop could end the process before the
+			// cap fires (so exitWith never sets its exit code), and on Windows bun waits forever.
 			const cap = new Promise<void>((resolve) => {
 				timer = setTimeout(resolve, capMs);
-				timer.unref?.();
 			});
 			try {
 				await Promise.race([Promise.allSettled([...inFlight]).then(() => undefined), cap]);
