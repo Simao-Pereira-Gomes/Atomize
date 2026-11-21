@@ -8,9 +8,25 @@ import { z } from "zod";
 const root = resolve(import.meta.dir, "../../../..");
 const page = readFileSync(resolve(import.meta.dir, "../content/docs/telemetry.md"), "utf8");
 
+/**
+ * The page without its HTML comments (feature markers sit inside table cells), including comments
+ * that span lines. A comment left open would hide the rest of the page, so it fails instead.
+ */
+function withoutComments(markdown: string): string {
+	let text = "";
+	let from = 0;
+	for (let open = markdown.indexOf("<!--"); open !== -1; open = markdown.indexOf("<!--", from)) {
+		const close = markdown.indexOf("-->", open + 4);
+		if (close === -1) throw new Error("The telemetry page has an HTML comment that is never closed.");
+		text += markdown.slice(from, open);
+		from = close + 3;
+	}
+	return text + markdown.slice(from);
+}
+
 /** Rows of every Markdown table whose header's first cell is `title`, as cell arrays. */
 function table(title: string): string[][] {
-	const lines = page.replace(/<!--.*?-->/g, "").split("\n");
+	const lines = withoutComments(page).split("\n");
 	const rows: string[][] = [];
 	let found = false;
 	for (let index = 0; index < lines.length; index++) {
