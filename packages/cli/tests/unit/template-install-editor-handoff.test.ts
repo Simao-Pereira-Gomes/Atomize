@@ -23,17 +23,25 @@ type HandoffCall = {
   interactive: boolean;
 };
 
+// mock.module replaces the module for the whole test run, and mock.restore() doesn't undo it, so
+// test files that run after this one get this TemplateLibrary too. Extending the real class (taken
+// before the module is replaced) keeps its other methods, such as loadSource, working for them.
+const realTemplateLibrary = await import("@sppg2001/atomize-core/templates/template-library");
+const RealTemplateLibrary = realTemplateLibrary.TemplateLibrary;
+type Library = InstanceType<typeof RealTemplateLibrary>;
+
 mock.module("@sppg2001/atomize-core/templates/template-library", () => ({
-  TemplateLibrary: class {
-    parseInstallScope(value: string) {
-      return value;
+  ...realTemplateLibrary,
+  TemplateLibrary: class extends RealTemplateLibrary {
+    override parseInstallScope(value: string) {
+      return value as ReturnType<Library["parseInstallScope"]>;
     }
 
-    parseCatalogKind(value: string) {
-      return value;
+    override parseCatalogKind(value: string) {
+      return value as ReturnType<Library["parseCatalogKind"]>;
     }
 
-    previewInstall = mockPreviewInstall;
+    override previewInstall = mockPreviewInstall as unknown as Library["previewInstall"];
   },
 }));
 
