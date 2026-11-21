@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
+    "@sppg2001/atomize-telemetry": "workspace:*",
     "@types/bun": "^1.4.3",
     "@types/mdast": "^4.0.4",
     "linkedom": "^0.18.13",

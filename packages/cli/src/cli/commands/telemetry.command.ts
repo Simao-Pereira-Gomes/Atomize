@@ -4,6 +4,7 @@ import {
 	readConsent,
 	retireAnonymousId,
 	setConsent,
+	TELEMETRY_CONTACT_EMAIL,
 } from "@sppg2001/atomize-telemetry";
 import chalk from "chalk";
 import { Command } from "commander";
@@ -104,7 +105,7 @@ export function makeTelemetryCommand(dependencies: TelemetryCommandDependencies 
 			// Keep the ID when the request didn't go out: the user still needs it to ask by email.
 			if (sent) retireAnonymousId({ path: consentPath });
 			else setConsent(false, { path: consentPath });
-			print(sent ? `Deletion requested for Anonymous ID ${chalk.bold(anonymousId)}. Telemetry is now disabled.` : `Telemetry is now disabled. The deletion request could not be sent from this build; quote Anonymous ID ${chalk.bold(anonymousId)} when you ask for deletion: ${TELEMETRY_DOCS_URL}`);
+			print(sent ? `Deletion requested for Anonymous ID ${chalk.bold(anonymousId)}. Telemetry is now disabled.` : `Telemetry is now disabled. The deletion request could not be sent from this build; quote Anonymous ID ${chalk.bold(anonymousId)} and email ${TELEMETRY_CONTACT_EMAIL} to ask for deletion.`);
 			if (sent) {
 				print("Deletion is completed within 30 days. Keep the ID above if you want to follow up.");
 				print("That ID is now retired: enabling telemetry again creates a new one.");
