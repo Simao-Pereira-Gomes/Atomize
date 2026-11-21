@@ -114,7 +114,9 @@ Apps started from the Dock, Finder, or the Start menu do not inherit variables y
 
 ## How long data is kept
 
-Usage data is kept for up to 12 months. Requests to delete your data are completed within 30 days.
+Usage data is kept for about 12 months, and up to about 14. PostHog removes expired data in monthly cleanups, so an event can outlive its year by up to about two months, and backups can hold data for about two weeks longer, including data already deleted at your request.
+
+Requests to delete your data are completed within 30 days.
 
 ## Request deletion
 

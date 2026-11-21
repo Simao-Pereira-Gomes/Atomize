@@ -125,6 +125,11 @@ test("the page gives the same contact email as the product", () => {
 	expect(page).not.toMatch(/to be added before release/);
 });
 
+test("retention is stated as about 12 months, up to about 14, never a flat 12 (ADR-0060)", () => {
+	expect(page).toContain("about 12 months, and up to about 14");
+	expect(page).not.toMatch(/\bup to 12 months|\b12 months\b(?!, and up to about 14)/);
+});
+
 describe("every Learn more points at the published page", () => {
 	const site = /site:\s*"([^"]+)"/.exec(readFileSync(resolve(import.meta.dir, "../../astro.config.mjs"), "utf8"))?.[1];
 
