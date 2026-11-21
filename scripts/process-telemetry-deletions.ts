@@ -132,7 +132,7 @@ async function deleteOne(config: DeletionConfig, api: ReturnType<typeof client>,
 		captured = await deps.fetch(config.captureUrl, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ api_key: config.projectKey, event: "$set", distinct_id: id, properties: { $set: { atomize_deletion_requested: true } } }),
+			body: JSON.stringify({ api_key: config.projectKey, event: "$set", distinct_id: id, properties: { $geoip_disable: true, $set: { atomize_deletion_requested: true } } }),
 		});
 	} catch {
 		throw new StepError("Attaching a person: the capture request failed.");

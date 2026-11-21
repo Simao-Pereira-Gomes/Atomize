@@ -70,8 +70,10 @@ describe("a new Deletion Request", () => {
 		expect(steps.indexOf("/capture/")).toBeLessThan(steps.lastIndexOf("/persons/"));
 		expect(steps.lastIndexOf("/persons/")).toBeLessThan(steps.indexOf("/persons/bulk_delete/"));
 
-		const capture = ph.calls.find((call) => call.path === "/capture/")?.body as { event: string; distinct_id: string; api_key: string };
+		const capture = ph.calls.find((call) => call.path === "/capture/")?.body as { event: string; distinct_id: string; api_key: string; properties: Record<string, unknown> };
 		expect(capture).toMatchObject({ event: "$set", distinct_id: A, api_key: "phc_public" });
+		// No location data is attached to the person created for deletion.
+		expect(capture.properties).toMatchObject({ $geoip_disable: true });
 		const bulk = ph.calls.find((call) => call.path.endsWith("/persons/bulk_delete/"));
 		expect(bulk?.body).toEqual({ distinct_ids: [A], delete_events: true });
 		expect(lines).toEqual(["1 new, 0 pending, 0 failed"]);
