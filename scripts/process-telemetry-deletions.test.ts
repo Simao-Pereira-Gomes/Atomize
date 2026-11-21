@@ -157,9 +157,8 @@ describe("main and exit codes", () => {
 	});
 
 	test("an empty project key is refused with a clear message instead of passing silently", async () => {
-		const lines: string[] = [];
-		expect(await main({ POSTHOG_PERSONAL_API_KEY: "k", POSTHOG_PROJECT_ID: "1" }, { log: (line) => void lines.push(line) })).toBe(1);
-		expect(lines.join("\n")).toContain("project key");
+		expect(() => readConfig({ POSTHOG_PERSONAL_API_KEY: "k", POSTHOG_PROJECT_ID: "1" }, "")).toThrow(/project key/);
+		expect(readConfig({ POSTHOG_PERSONAL_API_KEY: "k", POSTHOG_PROJECT_ID: "1" }, "phc_x").projectKey).toBe("phc_x");
 	});
 
 	test("an invalid project id is refused", () => {

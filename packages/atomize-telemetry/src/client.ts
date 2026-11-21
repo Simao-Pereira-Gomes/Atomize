@@ -2,8 +2,8 @@ import { platform } from "node:os";
 import { type ConsentReader, createConsentReader, defaultConsentPath, resolveConsent } from "./consent";
 import { type Surface, type TelemetryEvent, type TelemetryEventInput, telemetryEventSchema } from "./events";
 
-/** The PostHog project key. Empty until release; an empty key disables sending. */
-export const POSTHOG_PROJECT_KEY = "";
+/** The PostHog project's public capture key (safe to ship in a client). An empty key disables sending. */
+export const POSTHOG_PROJECT_KEY = "phc_pqJ6w4CSEmnwsSdyGiXbCEoMSuz8abRNoUu6hwYjPKtE";
 export const POSTHOG_CAPTURE_URL = "https://eu.i.posthog.com/capture/";
 
 /** A send that has not finished by now is abandoned. */

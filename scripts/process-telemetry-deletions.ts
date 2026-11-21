@@ -56,11 +56,11 @@ const MAX_REQUESTS_PER_RUN = 500;
 const DEFAULT_PERSON_POLLS = 12;
 const DEFAULT_PERSON_POLL_MS = 10_000;
 
-export function readConfig(env: Record<string, string | undefined>): DeletionConfig {
+export function readConfig(env: Record<string, string | undefined>, packagedProjectKey: string = POSTHOG_PROJECT_KEY): DeletionConfig {
 	const missing = ["POSTHOG_PERSONAL_API_KEY", "POSTHOG_PROJECT_ID"].filter((name) => !env[name]?.trim());
 	if (missing.length > 0) throw new StepError(`Missing configuration: ${missing.join(", ")}. Set them as repository secrets.`);
-	const projectKey = env.POSTHOG_PROJECT_API_KEY?.trim() || POSTHOG_PROJECT_KEY.trim();
-	if (!projectKey) throw new StepError("The PostHog project key is not set in packages/atomize-telemetry, so nothing could have been sent or deleted yet.");
+	const projectKey = env.POSTHOG_PROJECT_API_KEY?.trim() || packagedProjectKey.trim();
+	if (!projectKey) throw new StepError("The PostHog project key is empty in packages/atomize-telemetry, so nothing could have been sent or deleted.");
 	const projectId = (env.POSTHOG_PROJECT_ID as string).trim();
 	if (!/^\d+$/.test(projectId)) throw new StepError("POSTHOG_PROJECT_ID must be the numeric project id.");
 	return {
