@@ -113,6 +113,36 @@ describe("an ID PostHog is already deleting", () => {
 	});
 });
 
+describe("IDs given by hand (emailed requests)", () => {
+	test("are deleted like a found request, once, even when also found or repeated", async () => {
+		const ph = posthog({ requests: [[A]] });
+		const { deps, lines } = quietDeps(ph.fetchMock);
+		const summary = await processDeletions(config, deps, [A, B, B]);
+
+		expect(summary).toEqual({ new: 2, pending: 0, failed: 0, ignored: 0 });
+		const bulk = ph.calls.filter((call) => call.path.endsWith("/persons/bulk_delete/")).map((call) => (call.body as { distinct_ids: string[] }).distinct_ids[0]);
+		expect(bulk.sort()).toEqual([A, B].sort());
+		expect(lines).toEqual(["2 new, 0 pending, 0 failed"]);
+	});
+
+	test("a malformed one is ignored, never acted on", async () => {
+		const ph = posthog({ requests: [] });
+		const { deps } = quietDeps(ph.fetchMock);
+		const summary = await processDeletions(config, deps, ["not-an-id"]);
+
+		expect(summary).toEqual({ new: 0, pending: 0, failed: 0, ignored: 1 });
+		expect(ph.calls.some((call) => call.path.endsWith("/capture/") || call.path.endsWith("/bulk_delete/"))).toBe(false);
+	});
+
+	test("main reads them from TELEMETRY_DELETION_IDS, separated by commas or spaces", async () => {
+		const ph = posthog({ requests: [] });
+		const { deps } = quietDeps(ph.fetchMock);
+		const env = { POSTHOG_PERSONAL_API_KEY: "phx", POSTHOG_PROJECT_ID: "123", POSTHOG_PROJECT_API_KEY: "phc", TELEMETRY_DELETION_IDS: `${A}, ${B}` };
+		expect(await main(env, deps)).toBe(0);
+		expect(ph.calls.filter((call) => call.path.endsWith("/persons/bulk_delete/"))).toHaveLength(2);
+	});
+});
+
 describe("failures", () => {
 	test("a person that never appears is reported as failed, and nothing is deleted", async () => {
 		const ph = posthog({ requests: [[A]], personAppears: () => false });
@@ -205,6 +235,6 @@ describe("the workflow", () => {
 		expect((workflow.on.schedule as Array<{ cron: string }>)[0]?.cron.split(" ")[4]).toBe("4");
 		const withSecrets = Object.values(workflow.jobs).flatMap((job) => job.steps).filter((step) => step.env);
 		expect(withSecrets).toHaveLength(1);
-		expect(Object.keys(withSecrets[0]?.env ?? {}).sort()).toEqual(["POSTHOG_PERSONAL_API_KEY", "POSTHOG_PROJECT_ID"]);
+		expect(Object.keys(withSecrets[0]?.env ?? {}).sort()).toEqual(["POSTHOG_PERSONAL_API_KEY", "POSTHOG_PROJECT_ID", "TELEMETRY_DELETION_IDS"]);
 	});
 });

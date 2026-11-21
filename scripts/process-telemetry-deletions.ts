@@ -14,6 +14,9 @@
  * Output is counts only (`N new, N pending, N failed`): an Anonymous ID is never printed, not even
  * in an error. Any failure, and any missing configuration, exits non-zero.
  *
+ * Requests that arrive by email have no event, so their Anonymous IDs can be given in the optional
+ * TELEMETRY_DELETION_IDS (comma or space separated); they go through the same checks and steps.
+ *
  * Env: POSTHOG_PERSONAL_API_KEY (person write and query read only), POSTHOG_PROJECT_ID. Optional:
  * POSTHOG_HOST (default https://eu.posthog.com), POSTHOG_CAPTURE_URL, and POSTHOG_PROJECT_API_KEY,
  * the public capture key, which otherwise comes from packages/atomize-telemetry.
@@ -154,12 +157,20 @@ async function deleteOne(config: DeletionConfig, api: ReturnType<typeof client>,
 	if (queued < 1 || errors > 0) throw new StepError("Deleting: PostHog did not queue the deletion.");
 }
 
-export async function processDeletions(config: DeletionConfig, deps: DeletionDeps): Promise<DeletionSummary> {
+/** Anonymous IDs given by hand (an emailed request), separated by commas or whitespace. */
+export function parseExtraIds(value: string | undefined): string[] {
+	return [...new Set((value ?? "").split(/[\s,]+/).filter(Boolean))];
+}
+
+export async function processDeletions(config: DeletionConfig, deps: DeletionDeps, extraIds: string[] = []): Promise<DeletionSummary> {
 	const api = client(config, deps);
 	const summary: DeletionSummary = { new: 0, pending: 0, failed: 0, ignored: 0 };
 	const failures = new Set<string>();
 
-	const requests = await findRequests(api);
+	const found = await findRequests(api);
+	const known = new Set(found.map((request) => request.id));
+	const manual = [...new Set(extraIds)].filter((id) => !known.has(id)).map((id) => ({ id, personId: undefined }));
+	const requests = [...found, ...manual];
 	for (const { id, personId } of requests) {
 		// Anyone can send an event, so only a well-formed Anonymous ID is ever acted on.
 		if (!anonymousIdSchema.safeParse(id).success) {
@@ -167,10 +178,10 @@ export async function processDeletions(config: DeletionConfig, deps: DeletionDep
 			continue;
 		}
 		try {
-			const known = new Set<string>(personId ? [personId] : []);
-			for (const uuid of await personUuidsFor(api, id)) known.add(uuid);
+			const uuids = new Set<string>(personId ? [personId] : []);
+			for (const uuid of await personUuidsFor(api, id)) uuids.add(uuid);
 			let handled = false;
-			for (const uuid of known) {
+			for (const uuid of uuids) {
 				if (await hasDeletionRecord(api, uuid)) { handled = true; break; }
 			}
 			if (handled) {
@@ -195,13 +206,17 @@ export async function main(env: Record<string, string | undefined> = process.env
 	const log = deps?.log ?? ((line: string) => console.log(line));
 	try {
 		const config = readConfig(env);
-		const summary = await processDeletions(config, {
-			fetch: deps?.fetch ?? fetch,
-			sleep: deps?.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
-			log,
-			...(deps?.personPolls !== undefined ? { personPolls: deps.personPolls } : {}),
-			...(deps?.personPollMs !== undefined ? { personPollMs: deps.personPollMs } : {}),
-		});
+		const summary = await processDeletions(
+			config,
+			{
+				fetch: deps?.fetch ?? fetch,
+				sleep: deps?.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+				log,
+				...(deps?.personPolls !== undefined ? { personPolls: deps.personPolls } : {}),
+				...(deps?.personPollMs !== undefined ? { personPollMs: deps.personPollMs } : {}),
+			},
+			parseExtraIds(env.TELEMETRY_DELETION_IDS),
+		);
 		return summary.failed > 0 ? 1 : 0;
 	} catch (error) {
 		log(error instanceof StepError ? error.message : "An unexpected error occurred.");

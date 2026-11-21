@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: "17 6 * * 4"
   workflow_dispatch:
+    inputs:
+      anonymous_ids:
+        description: "Anonymous IDs from emailed requests (comma or space separated). Shown in the run's inputs."
+        required: false
+        default: ""
 
 permissions: {}
 
@@ -40,3 +45,5 @@ jobs:
         env:
           POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
           POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          # Passed through env, never interpolated into the command, so an input can't inject shell.
+          TELEMETRY_DELETION_IDS: ${{ inputs.anonymous_ids }}
