@@ -6,6 +6,7 @@
       "name": "atomize",
       "devDependencies": {
         "@biomejs/biome": "2.5.14",
+        "yaml": "^2.9.0",
       },
     },
     "packages/atomize-ai": {
