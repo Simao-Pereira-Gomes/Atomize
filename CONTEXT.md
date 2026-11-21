@@ -159,3 +159,22 @@ _Avoid_: "merged template" or "expanded template".
 
 **Editor Handoff**:
 An opt-in CLI action that opens a saved Atomize YAML File in the user's editor after successful creation or installation, while the CLI remains responsible for Template creation, installation, validation, persistence, and Catalog lifecycle.
+
+**Telemetry Consent**:
+The user's single, explicit choice to send anonymous usage data, made from any surface and applying to the CLI, Atomize Studio, and the VS Code extension alike. Until the user decides, nothing is sent. The VS Code extension additionally requires the editor's own telemetry switch to be on, and an `ATOMIZE_TELEMETRY=0` or `DO_NOT_TRACK=1` environment variable always turns it off.
+_Avoid_: "tracking" or "analytics opt-out"; Telemetry Consent is opt-in only.
+
+**Anonymous ID**:
+A random identifier created when the user first gives Telemetry Consent and shared by all three surfaces. It is never derived from the machine or the user, and it survives disabling and re-enabling so the user can always quote it in a Deletion Request.
+_Avoid_: "user ID" or "installation ID".
+
+**Telemetry Nudge**:
+The one-time, non-blocking invitation each surface may show, after the user's first successful action, to give Telemetry Consent: a hint in the CLI, a notification in VS Code, a banner in Studio. A surface never nudges once the user has decided, and never blocks or prompts.
+_Avoid_: "telemetry prompt"; a Nudge never waits for an answer.
+
+**Telemetry Action**:
+A surface-neutral name for what the user asked Atomize to do (for example `generate` or `template.create`), drawn from a closed list so the same intent reads the same whichever surface reported it. Its detail is limited to enums, booleans, and counts: never free text.
+_Avoid_: confusing it with a CLI subcommand or a VS Code command ID; several of those can map to one Telemetry Action.
+
+**Deletion Request**:
+A user's request, sent from any surface or by email quoting their Anonymous ID, to erase the usage data already sent under that ID. Deletion completes within 30 days.

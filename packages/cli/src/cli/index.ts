@@ -11,9 +11,11 @@ import { fieldsCommand } from "./commands/fields/fields.command";
 import { makeGenerateCommand } from "./commands/generate.command";
 import { previewCommand } from "./commands/preview.command";
 import { queriesCommand } from "./commands/queries/queries.command";
+import { telemetryCommand } from "./commands/telemetry.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
+import { maybeShowTelemetryHint } from "./telemetry/telemetry-hint";
 import { runUpdateNotifier } from "./update-notifier";
 import { createOutputSink } from "./utilities/output-sink";
 import { createPromptDriver } from "./utilities/prompt-driver";
@@ -49,6 +51,17 @@ program.hook("preAction", async () => {
 	});
 });
 
+// Commands that finish by returning land here; `generate` exits through exitWith, which shows it too.
+program.hook("postAction", (_program, actionCommand) => {
+	let command: Command | null = actionCommand;
+	while (command) {
+		if (command.name() === "telemetry") return;
+		command = command.parent;
+	}
+	if (process.exitCode) return;
+	maybeShowTelemetryHint();
+});
+
 const banner = `
 ${chalk.cyan("    ___  __                  _         ")}
 ${chalk.cyan("   /   |/ /_____  ____ ___  (_)___  ___")}
@@ -67,6 +80,7 @@ program.addCommand(validateCommand);
 program.addCommand(previewCommand);
 program.addCommand(makeGenerateCommand(createOutputSink, createPromptDriver(), config));
 program.addCommand(templateCommand);
+program.addCommand(telemetryCommand);
 if (process.argv.length === 2) {
 	program.help();
 }
