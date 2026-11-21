@@ -92,7 +92,7 @@ See [Draft and improve with AI](https://atomize-docs.pages.dev/vscode/ai/) for s
 
 ## Generate Tasks
 
-Run **Atomize: Generate**, choose a Connection Profile, and select Stories in the Story Browser or enter their IDs. Review the **DRY RUN** report, including each Story's planned Tasks and estimates.
+Run **Atomize: Generate**, choose a Connection Profile, then run on the Template's filter or pick Stories in the Story Browser. Review the **DRY RUN** report, including each Story's planned Tasks and estimates.
 
 ![Generate Panel showing a dry run for two sample Stories with 6 planned Tasks, 64 hours, and no Tasks created](./images/screenshots/07-generate-dry-run.png)
 

@@ -82,9 +82,17 @@ export function hasTasksTooltip(hasTasks: boolean): string {
 }
 
 /** The mode button's hover text: which list clicking it switches to and whether the Search filters apply there. */
-export function switchModeTooltip(mode: StoryBrowserModeKind): string {
+export function switchModeTooltip(mode: StoryBrowserModeKind, options: { sprintTasks?: 'none' | 'any' } = {}): string {
 	if (mode !== 'search') return 'Search all Stories: type to search and narrow with the Type, State, Area, Iteration, and Has Tasks filters';
-	return 'Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied';
+	const sprint = options.sprintTasks === 'any' ? 'Stories with or without Tasks' : 'Stories with no Tasks yet';
+	return `Back to the current and next sprint (${sprint}). Your Search filters are kept but not applied`;
+}
+
+/** The Finish button's hover text: whether picked Stories are finished (a Resume) and what clicking it switches to. */
+export function finishTooltip(finishing: boolean): string {
+	return finishing
+		? 'Finish partly created Stories: on, only the Tasks each picked Story is missing are created, and the sprint lists Stories with or without Tasks. Click to generate as usual'
+		: 'Finish partly created Stories: off. Click to finish Stories a stopped run left partly created, creating only the Tasks each one is missing';
 }
 
 /** Merges the current page of results with Stories already selected, selected first and without duplicates. */

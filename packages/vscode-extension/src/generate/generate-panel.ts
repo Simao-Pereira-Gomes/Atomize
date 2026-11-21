@@ -3,6 +3,7 @@ import { Atomizer } from '@sppg2001/atomize-core';
 import { type AtomizationReport, DEFAULT_GENERATION_STALL_TIMEOUT_MS, type ProgressEvent } from '@sppg2001/atomize-core/core/atomizer';
 import { AuthError } from '@sppg2001/atomize-core/utils/errors';
 import * as vscode from 'vscode';
+import { isAtomizeDocument } from '../authoring/language-detection.js';
 import { resolveDocumentPath } from '../catalog/catalog-document-path.js';
 import { getDefaultProfile, getPreviewLayout } from '../config/atomize-configuration.js';
 import { createTemplateLibrary } from '../core-library.js';
@@ -10,7 +11,8 @@ import { authFailureDetail } from '../profiles/auth-failure.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
-import { browseStories, prepareTemplateStoryBrowser } from '../stories/story-browser.js';
+import { browseStories, prepareTemplateStoryBrowser, type StoryPick } from '../stories/story-browser.js';
+import { parseStoryIds } from '../stories/story-browser-model.js';
 import { type Ending, telemetry } from '../telemetry/extension-telemetry.js';
 import type { GenerateReport } from './generate-html.js';
 import {
@@ -32,10 +34,9 @@ interface OpenLinkMessage { type: 'openLink'; url: string; }
 interface FinishStoriesMessage { type: 'finishStories'; storyIds: string[]; }
 /** Stop the live run: no new Story or Task starts, and the result shows what was done. */
 interface CancelRunMessage { type: 'cancelRun'; }
-type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage | FinishStoriesMessage | CancelRunMessage;
-
-/** How the panel was opened: to generate, or to finish Partly Created Stories (a resume). */
-export interface GenerateOpenOptions { resume?: boolean; }
+/** Run the dry run again with the same profile, Stories, and Finish setting. */
+interface RerunDryRunMessage { type: 'rerunDryRun'; }
+type WebviewMessage = SwitchModeMessage | CreateTasksMessage | ManageProfilesMessage | OpenLinkMessage | FinishStoriesMessage | CancelRunMessage | RerunDryRunMessage;
 
 type GenerateOutcome = { report: AtomizationReport } | { error: 'auth' | 'blocked'; detail: string };
 
@@ -90,21 +91,77 @@ function reportGenerationRun(
 	else telemetry.finished('generate', props, ending, startedAt);
 }
 
+type GenerateScope = 'filter' | 'stories';
+type ScopeItem = vscode.QuickPickItem & { scope: GenerateScope };
+
+/** The scope chosen last in this VS Code session, offered first next time. */
+let lastScope: GenerateScope = 'filter';
+
+/** Asks whether to run on every Story the Template's filter matches or on Stories the user picks. */
+function pickGenerateScope(): Promise<GenerateScope | undefined> {
+	return new Promise(resolve => {
+		const items: ScopeItem[] = [
+			{ scope: 'filter', label: "$(filter) Use the Template's filter", detail: 'Dry run on every Story the Template matches.' },
+			{ scope: 'stories', label: '$(checklist) Pick Stories…', detail: 'Choose Stories in the Story Browser, or finish ones a stopped run left partly created.' },
+		];
+		const picker = vscode.window.createQuickPick<ScopeItem>();
+		picker.title = 'Atomize: Generate';
+		picker.placeholder = 'Which Stories should this run use?';
+		picker.items = items;
+		picker.activeItems = items.filter(item => item.scope === lastScope);
+		let settled = false;
+		picker.onDidAccept(() => {
+			const chosen = picker.activeItems[0]?.scope;
+			if (!chosen) return;
+			settled = true;
+			lastScope = chosen;
+			resolve(chosen);
+			picker.hide();
+		});
+		picker.onDidHide(() => {
+			if (!settled) resolve(undefined);
+			picker.dispose();
+		});
+		picker.show();
+	});
+}
+
+/** Typed Story IDs, when the Story Browser can't load; the dry run then reports why. */
+async function enterGenerateStoryIds(): Promise<string[] | undefined> {
+	const value = await vscode.window.showInputBox({
+		title: 'Atomize: Generate',
+		prompt: 'Story IDs, separated by commas or spaces',
+		placeHolder: '123, 456',
+		validateInput: (input): string | undefined => {
+			const parsed = parseStoryIds(input);
+			return 'error' in parsed ? parsed.error : undefined;
+		},
+	});
+	if (value === undefined) return undefined;
+	const parsed = parseStoryIds(value);
+	return 'ids' in parsed ? parsed.ids : undefined;
+}
+
 /**
- * Lets the user pick Stories with the Story Browser. Resolves undefined when dismissed, and an empty
- * list to run on every Story the Template matches — also the fallback when the browser can't load,
- * so the panel's own auth and blocked views still report the problem.
+ * Asks for the run's scope: the Template's filter (no Story IDs), or at least one Story picked in
+ * the Story Browser, whose Finish toggle makes the run a Resume. Resolves undefined when dismissed.
  */
-async function pickGenerateStories(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri, resume: boolean): Promise<string[] | undefined> {
-	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri, { withTasks: resume });
-	if (!source) return [];
+async function pickGenerateStories(credentialResolver: CredentialResolver, profile: string, fileUri: vscode.Uri): Promise<StoryPick | undefined> {
+	const scope = await pickGenerateScope();
+	if (scope === undefined) return undefined;
+	if (scope === 'filter') return { ids: [], resume: false };
+	const source = await prepareTemplateStoryBrowser(credentialResolver, profile, fileUri);
+	if (!source) {
+		const ids = await enterGenerateStoryIds();
+		return ids ? { ids, resume: false } : undefined;
+	}
 	return browseStories({
 		...source,
-		title: resume ? 'Atomize: Finish Partly Created Stories' : 'Atomize: Generate',
+		title: 'Atomize: Generate',
 		canPickMany: true,
-		placeholder: resume
-			? 'Tick the Stories to finish: only the Tasks each one is missing are created.'
-			: 'Tick Stories to generate for, or press Enter with none ticked to use every Story the Template matches.',
+		requirePick: true,
+		placeholder: 'Tick the Stories to generate for.',
+		finish: { placeholder: 'Tick the Stories to finish: only the Tasks each one is missing are created.' },
 	});
 }
 
@@ -124,6 +181,11 @@ export class GeneratePanel {
 	private _resume: boolean = false;
 	/** Cancels the live run in progress, if any. */
 	private _liveRun: AbortController | undefined;
+	/**
+	 * An Atomize file was saved after the dry run loaded the Template: the Template, or a Mixin it
+	 * builds on, may have changed, so the plan shown may not be what Create would make.
+	 */
+	private _stale: boolean = false;
 
 	private constructor(
 		panel: vscode.WebviewPanel,
@@ -139,12 +201,15 @@ export class GeneratePanel {
 		this._profile = profile;
 		this._storyIds = storyIds;
 
-		panel.onDidDispose(() => { GeneratePanel._instance = undefined; });
+		const saves = vscode.workspace.onDidSaveTextDocument(doc => this._onDocumentSaved(doc));
+		panel.onDidDispose(() => {
+			saves.dispose();
+			GeneratePanel._instance = undefined;
+		});
 		panel.webview.onDidReceiveMessage((msg: unknown) => { void this._handleMessage(msg); });
 	}
 
-	static async open(fileUri: vscode.Uri, store: ProfileStore, credentialResolver: CredentialResolver, options: GenerateOpenOptions = {}): Promise<void> {
-		const resume = options.resume === true;
+	static async open(fileUri: vscode.Uri, store: ProfileStore, credentialResolver: CredentialResolver): Promise<void> {
 		const mode = getPreviewLayout(fileUri);
 		const defaultProfile = getDefaultProfile(fileUri);
 
@@ -156,11 +221,12 @@ export class GeneratePanel {
 		const profile = await pickProfile(store, credentialResolver, { title: 'Atomize: Generate', allowOffline: false, defaultProfile });
 		if (profile == null) return;
 
-		const pickedStoryIds = await pickGenerateStories(credentialResolver, profile, fileUri, resume);
-		if (pickedStoryIds === undefined) return;
+		const pick = await pickGenerateStories(credentialResolver, profile, fileUri);
+		if (pick === undefined) return;
 		// A resume finishes only the Stories named; there is no filter-wide resume.
-		if (resume && pickedStoryIds.length === 0) return;
-		const storyIds = pickedStoryIds.length > 0 ? pickedStoryIds : undefined;
+		const resume = pick.resume;
+		if (resume && pick.ids.length === 0) return;
+		const storyIds = pick.ids.length > 0 ? pick.ids : undefined;
 
 		const fileName = basename(fileUri.fsPath);
 
@@ -193,8 +259,26 @@ export class GeneratePanel {
 		await panel._runDryRun();
 	}
 
+	private _onDocumentSaved(doc: vscode.TextDocument): void {
+		if (doc.uri.toString() !== this._fileUri.toString() && !isAtomizeDocument(doc)) return;
+		this._stale = true;
+		// A dry run in progress shows its result as stale when it ends; a live run's result has no Create.
+		if (!this._isExecuting && this._dryRunReport && !this._execReport) this._renderDryRun(this._dryRunReport);
+	}
+
+	/** The dry run's report with Create, or its warnings, in the current layout. */
+	private _renderDryRun(report: GenerateReport): void {
+		const fileName = basename(this._fileUri.fsPath);
+		const options = { stale: this._stale };
+		this._panel.webview.html = report.tasksSkipped > 0 || report.storiesFailed > 0
+			? renderGenerateDryWarnings(report, this._mode, fileName, this._profile, this._storyIds, options)
+			: renderGenerateDrySuccess(report, this._mode, fileName, this._profile, this._storyIds, options);
+	}
+
 	private async _runDryRun(): Promise<void> {
 		this._isExecuting = true;
+		// Saves from here on may or may not reach this run's Template load, so they still mark it stale.
+		this._stale = false;
 		try {
 			const fileName = basename(this._fileUri.fsPath);
 			this._panel.webview.html = renderGenerateLoading(fileName, this._profile, this._storyIds);
@@ -260,11 +344,7 @@ export class GeneratePanel {
 				return;
 			}
 
-			if (report.tasksSkipped > 0 || report.storiesFailed > 0) {
-				this._panel.webview.html = renderGenerateDryWarnings(report, this._mode, fileName, this._profile, this._storyIds);
-			} else {
-				this._panel.webview.html = renderGenerateDrySuccess(report, this._mode, fileName, this._profile, this._storyIds);
-			}
+			this._renderDryRun(report);
 		} finally {
 			this._isExecuting = false;
 		}
@@ -285,7 +365,7 @@ export class GeneratePanel {
 			const outcome = await runAtomize(this._credentialResolver, this._profile, this._fileUri, {
 				dryRun: false,
 				continueOnError: this._continueOnError,
-				storyIds: this._storyIds,
+				storyIds: previewedStoryIds(this._storyIds, dryReport),
 				...(this._resume ? { resume: true } : {}),
 				signal: liveRun.signal,
 				onProgress: event => {
@@ -312,7 +392,12 @@ export class GeneratePanel {
 				return;
 			}
 
-			const execReport = outcome.report as GenerateReport;
+			// A run on the Template's filter fetches only the previewed Stories live, so the partly
+			// created ones its dry run found and skipped come from the dry run.
+			const liveReport = outcome.report as GenerateReport;
+			const execReport = (liveReport.partlyCreated ?? []).length > 0
+				? liveReport
+				: { ...liveReport, partlyCreated: dryReport.partlyCreated ?? [] };
 			this._execReport = execReport;
 			if (execReport.stopped) this._panel.title = `Atomize: ${fileName} (Generate · Stopped)`;
 			this._panel.webview.html = this._renderLiveResult(dryReport, execReport, fileName);
@@ -337,17 +422,10 @@ export class GeneratePanel {
 			}
 
 			// Dry-run phase: re-render dry result
-			if (this._dryRunReport) {
-				const report = this._dryRunReport;
-				if (report.tasksSkipped > 0 || report.storiesFailed > 0) {
-					this._panel.webview.html = renderGenerateDryWarnings(report, this._mode, fileName, this._profile, this._storyIds);
-				} else {
-					this._panel.webview.html = renderGenerateDrySuccess(report, this._mode, fileName, this._profile, this._storyIds);
-				}
-			}
+			if (this._dryRunReport) this._renderDryRun(this._dryRunReport);
 		} else if (message.type === 'createTasks') {
 			const report = this._dryRunReport;
-			if (!report || report.storiesFailed > 0 || report.tasksCalculated === 0) return;
+			if (!report || report.storiesFailed > 0 || report.tasksCalculated === 0 || this._stale || this._isExecuting) return;
 
 			this._continueOnError = message.continueOnError;
 
@@ -362,9 +440,17 @@ export class GeneratePanel {
 			);
 
 			if (confirmed !== 'Create Tasks') return;
+			// Saved while the dialog was open: the plan confirmed is no longer the one Create would make.
+			if (this._stale) return;
 			await this._runLive();
 		} else if (message.type === 'cancelRun') {
 			this._liveRun?.abort();
+		} else if (message.type === 'rerunDryRun') {
+			if (this._isExecuting) return;
+			this._dryRunReport = undefined;
+			this._execReport = undefined;
+			this._continueOnError = false;
+			await this._runDryRun();
 		} else if (message.type === 'finishStories') {
 			if (this._isExecuting || !Array.isArray(message.storyIds) || message.storyIds.length === 0) return;
 			this._storyIds = message.storyIds.filter((id): id is string => typeof id === 'string');
@@ -389,4 +475,14 @@ export class GeneratePanel {
 	static dispose(): void {
 		GeneratePanel._instance?._panel.dispose();
 	}
+}
+
+/**
+ * The Stories a live run creates Tasks for: the ones picked, or, for a run on the Template's filter,
+ * exactly the Stories the dry run previewed. Querying the filter again could match Stories nobody
+ * previewed.
+ */
+export function previewedStoryIds(picked: string[] | undefined, dryReport: GenerateReport): string[] | undefined {
+	if (picked && picked.length > 0) return picked;
+	return dryReport.results.map(result => result.story.id);
 }
