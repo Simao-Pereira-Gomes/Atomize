@@ -120,6 +120,11 @@ describe("the telemetry page matches the event schema", () => {
 	});
 });
 
+test("the page gives the same contact email as the product", () => {
+	expect(page).toContain(`mailto:${TELEMETRY_CONTACT_EMAIL}`);
+	expect(page).not.toMatch(/to be added before release/);
+});
+
 describe("every Learn more points at the published page", () => {
 	const site = /site:\s*"([^"]+)"/.exec(readFileSync(resolve(import.meta.dir, "../../astro.config.mjs"), "utf8"))?.[1];
 
