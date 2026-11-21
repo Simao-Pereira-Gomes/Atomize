@@ -235,6 +235,9 @@ describe("the workflow", () => {
 		expect((workflow.on.schedule as Array<{ cron: string }>)[0]?.cron.split(" ")[4]).toBe("4");
 		const withSecrets = Object.values(workflow.jobs).flatMap((job) => job.steps).filter((step) => step.env);
 		expect(withSecrets).toHaveLength(1);
-		expect(Object.keys(withSecrets[0]?.env ?? {}).sort()).toEqual(["POSTHOG_PERSONAL_API_KEY", "POSTHOG_PROJECT_ID", "TELEMETRY_DELETION_IDS"]);
+		expect(Object.keys(withSecrets[0]?.env ?? {}).sort()).toEqual(["POSTHOG_PERSONAL_API_KEY", "POSTHOG_PROJECT_ID"]);
+		// The repo is public and dispatch inputs show on the run page, so an emailed ID is never entered in CI.
+		expect(text).not.toContain("TELEMETRY_DELETION_IDS");
+		expect(workflow.on.workflow_dispatch).not.toHaveProperty("inputs");
 	});
 });

@@ -16,6 +16,8 @@
  *
  * Requests that arrive by email have no event, so their Anonymous IDs can be given in the optional
  * TELEMETRY_DELETION_IDS (comma or space separated); they go through the same checks and steps.
+ * Run it locally only: the CI workflow deliberately has no input for it, because the repo is public
+ * and a dispatch input shows on the run page.
  *
  * Env: POSTHOG_PERSONAL_API_KEY (person write and query read only), POSTHOG_PROJECT_ID. Optional:
  * POSTHOG_HOST (default https://eu.posthog.com), POSTHOG_CAPTURE_URL, and POSTHOG_PROJECT_API_KEY,
