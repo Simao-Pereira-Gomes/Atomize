@@ -190,12 +190,13 @@ Runs the Generate Panel for the active Template. The panel first shows a dry-run
    To finish Stories a stopped run left partly created, choose **Pick Stories…** and switch on **Finish partly created Stories** with the Story Browser's title-bar button. The sprint view then lists Stories with or without Tasks, you must tick at least one, and only the Tasks each ticked Story is missing are created; a Story with no Tasks gets all of them. `excludeIfHasTasks` is ignored for them. The dry run shows each Story's Tasks that already exist, the Tasks it will create, and children that aren't in the plan. A Story with nothing missing is reported as already complete.
 4. The Generate Panel opens beside the editor with a **DRY RUN** report: each Story with its resolved Tasks and estimates, and any Tasks skipped by conditions. Nothing has been created yet.
 
+   **Re-run dry run** runs it again with the same profile, Stories and Finish setting, so after editing the Template you don't have to pick them again. Saving any Atomize YAML file after a dry run marks it out of date and disables Create until you re-run it, so you never create Tasks from a plan you didn't preview. Create also uses exactly the Stories the dry run showed: a run on the Template's filter doesn't query it again.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../packages/website/public/vscode/generate-dry-run-dark.png">
   <img alt="VS Code's Generate Panel beside a Template, showing a DRY RUN report for two Stories with 6 Tasks, 64 hours, and a 100% budget, each Task with its estimate, and the Create 6 Tasks button." src="../packages/website/public/vscode/generate-dry-run-light.png">
 </picture>
 
-   **Re-run dry run** runs it again with the same profile, Stories and Finish setting, so after editing the Template you don't have to pick them again. Saving any Atomize YAML file after a dry run marks it out of date and disables Create until you re-run it, so you never create Tasks from a plan you didn't preview. Create also uses exactly the Stories the dry run showed: a run on the Template's filter doesn't query it again.
 5. Choose **Create *N* Tasks in *profile*…**. The arrow beside it offers **Continue on task failure**, which keeps creating the remaining Tasks when one fails. Without it, no further Story starts after the first failure, but Stories already under way (up to 10 at once) still finish.
 6. Confirm in the dialog, which names the number of Tasks and Stories and the profile, by choosing **Create Tasks**. Closing the dialog creates nothing.
 
