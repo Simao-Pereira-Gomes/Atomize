@@ -9,8 +9,8 @@ import type {
 /**
  * The extension's telemetry. It sends only while two gates are both open: the shared consent
  * (`~/.atomize/telemetry.json`, read by the client at send time) and VS Code's own switch
- * (`vscode.env.isTelemetryEnabled`, read live on every event, so toggling either takes effect
- * without a reload).
+ * (`vscode.env.isTelemetryEnabled`, kept current through `onDidChangeTelemetryEnabled`, so toggling
+ * either takes effect without a reload).
  *
  * Nothing here touches the disk or loads `atomize-telemetry` (and its zod schemas) until the first
  * event is about to be sent, and not at all while VS Code's switch is off, so activation pays
@@ -27,8 +27,10 @@ export interface TelemetryUi {
 
 export interface ExtensionTelemetryDeps {
 	atomizeVersion: string;
-	/** `vscode.env.isTelemetryEnabled`, read live. */
+	/** `vscode.env.isTelemetryEnabled`, read once at construction; changes arrive through the listener. */
 	isVscodeTelemetryEnabled: () => boolean;
+	/** `vscode.env.onDidChangeTelemetryEnabled`: VS Code tells us when the user changes its switch. */
+	onDidChangeVscodeTelemetryEnabled: (listener: (enabled: boolean) => void) => { dispose(): void };
 	loadPackage: () => Promise<TelemetryPackage>;
 	ui: TelemetryUi;
 	consentPath?: string;
@@ -69,15 +71,19 @@ function memoize<T>(factory: () => Promise<T>): () => Promise<T> {
 
 export class ExtensionTelemetry {
 	private nudgeChecked = false;
+	private vscodeEnabled: boolean;
+	private readonly subscription: { dispose(): void };
 	private readonly client: () => Promise<TelemetryClient>;
 
 	constructor(private readonly deps: ExtensionTelemetryDeps) {
+		this.vscodeEnabled = deps.isVscodeTelemetryEnabled();
+		this.subscription = deps.onDidChangeVscodeTelemetryEnabled(enabled => { this.vscodeEnabled = enabled; });
 		this.client = memoize(async () => {
 			const pkg = await deps.loadPackage();
 			return pkg.createTelemetryClient({
 				surface: 'vscode',
 				atomizeVersion: deps.atomizeVersion,
-				gate: deps.isVscodeTelemetryEnabled,
+				gate: () => this.vscodeEnabled,
 				...(deps.consentPath ? { consentPath: deps.consentPath } : {}),
 				...(deps.env ? { env: deps.env } : {}),
 				...(deps.fetch ? { fetch: deps.fetch } : {}),
@@ -86,9 +92,13 @@ export class ExtensionTelemetry {
 		});
 	}
 
+	dispose(): void {
+		this.subscription.dispose();
+	}
+
 	/** Sends an event if both gates allow it. Never throws and never waits for the network. */
 	track(event: TelemetryEventInput): void {
-		if (!this.deps.isVscodeTelemetryEnabled()) return;
+		if (!this.vscodeEnabled) return;
 		void this.client().then(client => client.track(event), () => undefined);
 	}
 
@@ -98,7 +108,7 @@ export class ExtensionTelemetry {
 
 	/** Reports how an action ended. A success is also the moment the one-time nudge may appear. */
 	finished<A extends TelemetryAction>(action: A, props: ActionProps<A>, ending: Ending, startedAt: number): void {
-		if (!this.deps.isVscodeTelemetryEnabled()) return;
+		if (!this.vscodeEnabled) return;
 		const durationMs = Math.min(Date.now() - startedAt, 7 * 24 * 60 * 60 * 1000);
 		void (async () => {
 			const pkg = await this.deps.loadPackage();
@@ -164,7 +174,7 @@ export class ExtensionTelemetry {
 	 * activation. "Learn more" is not an answer, so the question comes back after the docs open.
 	 */
 	private maybeNudge(): void {
-		if (this.nudgeChecked || !this.deps.isVscodeTelemetryEnabled()) return;
+		if (this.nudgeChecked || !this.vscodeEnabled) return;
 		this.nudgeChecked = true;
 		void (async () => {
 			const pkg = await this.deps.loadPackage();
@@ -191,7 +201,7 @@ export class ExtensionTelemetry {
 		pkg.setConsent(true, path ? { path } : {});
 		this.track({ event: 'telemetry_enabled', source: source === 'command' ? 'command' : 'vscode-notification' });
 		const notes = [];
-		if (!this.deps.isVscodeTelemetryEnabled()) notes.push("VS Code's telemetry setting is off, so the extension sends nothing until it is on.");
+		if (!this.vscodeEnabled) notes.push("VS Code's telemetry setting is off, so the extension sends nothing until it is on.");
 		const override = pkg.envOverride(this.deps.env ?? process.env);
 		if (override) notes.push(`${override} is set in this environment, so nothing is sent.`);
 		void this.deps.ui.showInformationMessage(
@@ -217,7 +227,7 @@ export class ExtensionTelemetry {
 			override
 				? `Atomize telemetry: disabled by ${override} (your saved choice: ${saved}).`
 				: `Atomize telemetry: ${saved}.`,
-			this.deps.isVscodeTelemetryEnabled() ? 'VS Code telemetry: on.' : "VS Code telemetry: off, so this extension sends nothing.",
+			this.vscodeEnabled ? 'VS Code telemetry: on.' : "VS Code telemetry: off, so this extension sends nothing.",
 			`Anonymous ID: ${state.anonymousId ?? 'none yet'}.`,
 		];
 		const choice = await this.deps.ui.showInformationMessage(parts.join(' '), 'Learn more');

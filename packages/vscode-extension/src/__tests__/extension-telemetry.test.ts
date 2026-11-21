@@ -14,6 +14,13 @@ let loads: number;
 let choices: Array<string | undefined>;
 let messages: string[];
 let opened: string[];
+let listeners: Array<(enabled: boolean) => void>;
+
+/** What VS Code does when the user flips its telemetry switch: update the property and fire the event. */
+const setVscodeTelemetry = (enabled: boolean) => {
+	vscodeTelemetryOn = enabled;
+	for (const listener of listeners) listener(enabled);
+};
 
 beforeEach(() => {
 	dir = mkdtempSync(join(tmpdir(), 'atomize-ext-telemetry-'));
@@ -24,6 +31,7 @@ beforeEach(() => {
 	choices = [];
 	messages = [];
 	opened = [];
+	listeners = [];
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -37,6 +45,7 @@ function make(env: Record<string, string | undefined> = {}): ExtensionTelemetry 
 	return new ExtensionTelemetry({
 		atomizeVersion: '0.7.3',
 		isVscodeTelemetryEnabled: () => vscodeTelemetryOn,
+		onDidChangeVscodeTelemetryEnabled: listener => { listeners.push(listener); return { dispose() { listeners = listeners.filter(l => l !== listener); } }; },
 		loadPackage: async () => { loads++; return pkg; },
 		ui,
 		consentPath,
@@ -69,12 +78,19 @@ describe('two gates', () => {
 		pkg.setConsent(true, { path: consentPath });
 		const t = make();
 		t.track({ event: 'session_started' });
-		vscodeTelemetryOn = false;
+		setVscodeTelemetry(false);
 		t.track({ event: 'session_started' });
-		vscodeTelemetryOn = true;
+		setVscodeTelemetry(true);
 		t.track({ event: 'session_started' });
 		await t.flush(100);
 		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	test('stops following VS Code once disposed', async () => {
+		pkg.setConsent(true, { path: consentPath });
+		const t = make();
+		t.dispose();
+		expect(listeners).toHaveLength(0);
 	});
 
 	test('a disable written from outside stops the next send', async () => {

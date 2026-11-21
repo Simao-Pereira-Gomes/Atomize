@@ -71,6 +71,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	const extensionTelemetry = initExtensionTelemetry({
 		atomizeVersion: String(ctx.extension?.packageJSON?.version ?? '0.0.0'),
 		isVscodeTelemetryEnabled: () => vscode.env.isTelemetryEnabled,
+		onDidChangeVscodeTelemetryEnabled: listener => vscode.env.onDidChangeTelemetryEnabled(listener),
 		loadPackage: once(() => import('@sppg2001/atomize-telemetry')),
 		ui: {
 			showInformationMessage: (message, ...items) => vscode.window.showInformationMessage(message, ...items),
@@ -351,6 +352,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 		}),
 
 		{ dispose: () => clearTimeout(sessionStartedTimer) },
+		extensionTelemetry,
 		vscode.commands.registerCommand('atomize.telemetry.enable', () => extensionTelemetry.enable('command')),
 		vscode.commands.registerCommand('atomize.telemetry.disable', () => extensionTelemetry.disable()),
 		vscode.commands.registerCommand('atomize.telemetry.showStatus', telemetry.instrument('telemetry.status', {}, () => extensionTelemetry.showStatus())),

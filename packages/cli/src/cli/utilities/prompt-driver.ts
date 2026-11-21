@@ -56,10 +56,13 @@ export function createPromptDriver(): PromptDriver {
       required?: boolean;
     }): Promise<T[]> {
       return assertNotCancelled(
-        await clackMultiselect({
-          ...opts,
+        // Clack's Option<T> is conditional on T, which TypeScript can't resolve for a generic T, so the
+        // prompt runs over plain strings (T extends string) and the answers are narrowed back to T.
+        await clackMultiselect<string>({
+          message: opts.message,
+          options: opts.options,
           required: opts.required ?? true,
-        } as Parameters<typeof clackMultiselect<T>>[0]),
+        }),
       ) as T[];
     },
     async confirm(opts) {
