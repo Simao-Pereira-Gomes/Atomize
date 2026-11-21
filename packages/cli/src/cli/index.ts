@@ -15,8 +15,10 @@ import { telemetryCommand } from "./commands/telemetry.command";
 import { templateCommand } from "./commands/template/template.command";
 import { validateCommand } from "./commands/validate.command";
 import { loadEnvFile } from "./env-loader";
+import { exitWith } from "./telemetry/telemetry";
 import { maybeShowTelemetryHint } from "./telemetry/telemetry-hint";
 import { runUpdateNotifier } from "./update-notifier";
+import { ExitError } from "./utilities/exit-codes";
 import { createOutputSink } from "./utilities/output-sink";
 import { createPromptDriver } from "./utilities/prompt-driver";
 import { writeManagedOutput } from "./utilities/terminal-output";
@@ -42,7 +44,7 @@ program.hook("preAction", async () => {
 			loadEnvFile(envFile);
 		} catch (err) {
 			writeManagedOutput("stderr", chalk.red(`Error: ${(err as Error).message}`));
-			process.exit(1);
+			await exitWith(1, { hint: false });
 		}
 	}
 
@@ -85,4 +87,8 @@ if (process.argv.length === 2) {
 	program.help();
 }
 
-program.parse();
+// A cancellation (Ctrl+C at a prompt) that no command caught still exits with its own code.
+await program.parseAsync().catch(async (error: unknown) => {
+	if (error instanceof ExitError) await exitWith(error.code, { hint: false });
+	throw error;
+});

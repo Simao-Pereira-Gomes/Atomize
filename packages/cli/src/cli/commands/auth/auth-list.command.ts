@@ -3,11 +3,12 @@ import type { ConnectionProfile } from "@config/connections.interface";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
@@ -63,7 +64,7 @@ export function makeAuthListCommand(): Command {
     .alias("ls")
     .description("List all saved connection profiles")
     .option("--json", "Print results as JSON to stdout; progress is written to stderr", false)
-    .action(async (options: { json: boolean }) => {
+    .action(tracked("auth.list", {}, async (_run, options: { json: boolean }) => {
       const output = createCommandOutput(resolveCommandOutputPolicy({}));
       const jsonMode = options.json;
 
@@ -117,7 +118,7 @@ export function makeAuthListCommand(): Command {
           if (jsonMode) writeManagedOutput("stderr", `Error: ${msg}`);
           else output.cancel(msg);
         }
-        process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+        throw error;
       }
-    });
+    }));
 }

@@ -8,6 +8,7 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { EXIT_FLUSH_CAP_MS, getTelemetry } from "@/cli/telemetry/telemetry";
 import { TELEMETRY_DOCS_URL } from "@/cli/telemetry/telemetry-hint";
+import { tracked } from "@/cli/telemetry/tracked";
 import { writeStdout } from "@/cli/utilities/terminal-output";
 
 const COLLECTED = [
@@ -68,7 +69,7 @@ export function makeTelemetryCommand(dependencies: TelemetryCommandDependencies 
 	command
 		.command("status")
 		.description("Show whether telemetry is on, what is collected, and your Anonymous ID")
-		.action(() => {
+		.action(tracked("telemetry.status", {}, async () => {
 			const state = readConsent(consentPath);
 			const override = envOverride(env());
 			const saved = state.enabled === undefined ? "not decided" : state.enabled ? "enabled" : "disabled";
@@ -87,7 +88,7 @@ export function makeTelemetryCommand(dependencies: TelemetryCommandDependencies 
 			print(`Data goes to PostHog (EU). Details: ${TELEMETRY_DOCS_URL}`);
 			print("");
 			print(`Anonymous ID: ${state.anonymousId ?? "none yet (created when you enable telemetry)"}`);
-		});
+		}));
 
 	command
 		.command("delete")

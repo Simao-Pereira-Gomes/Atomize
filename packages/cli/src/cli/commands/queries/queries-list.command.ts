@@ -2,11 +2,12 @@ import { AzureDevOpsAdapter } from "@sppg2001/atomize-core/platforms/adapters/az
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
@@ -16,7 +17,7 @@ export const queriesListCommand = new Command("list")
   .option("--folder <path>", "Scope results to queries under this folder path")
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .option("--json", "Print results as JSON to stdout; progress is written to stderr", false)
-  .action(async (options: { folder?: string; profile?: string; json: boolean }) => {
+  .action(tracked("queries.list", {}, async (_run, options: { folder?: string; profile?: string; json: boolean }) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     // In --json mode stdout is reserved for pure JSON output.
     const jsonMode = options.json;
@@ -84,6 +85,6 @@ export const queriesListCommand = new Command("list")
         if (jsonMode) writeManagedOutput("stderr", `Error: ${msg}`);
         else output.cancel(msg);
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));

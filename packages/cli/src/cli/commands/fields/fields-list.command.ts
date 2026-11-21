@@ -3,11 +3,12 @@ import type { ADoFieldSchema } from "@sppg2001/atomize-core/platforms/interfaces
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import { createManagedSpinner, sanitizeTty } from "@/cli/utilities/prompt-utilities";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
 
@@ -18,7 +19,7 @@ export const fieldsListCommand = new Command("list")
   .option("--custom-only", "Show only custom fields (reference name starts with Custom.)", false)
   .option("--profile <name>", "Named connection profile to use (uses default if omitted)")
   .option("--json", "Print results as JSON to stdout; progress is written to stderr", false)
-  .action(async (options: {
+  .action(tracked("fields.list", {}, async (_run, options: {
     type?: string;
     customOnly: boolean;
     profile?: string;
@@ -79,9 +80,9 @@ export const fieldsListCommand = new Command("list")
         if (jsonMode) writeManagedOutput("stderr", `Error: ${msg}`);
         else output.cancel(msg);
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 
 function printFieldsTable(
   output: ReturnType<typeof createCommandOutput>,

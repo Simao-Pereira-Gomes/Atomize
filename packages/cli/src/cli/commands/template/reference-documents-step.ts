@@ -18,6 +18,7 @@ import {
 import { discoverWorkspaceRoot } from "@sppg2001/atomize-core/services/template/workspace-root";
 import { CancellationError, ConfigurationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, isInteractiveTerminal, sanitizeTty, withSpinner } from "@/cli/utilities/prompt-utilities";
 import { connectProfile } from "./ai-creation/grounding";
 
@@ -196,6 +197,7 @@ async function pickWikiPages(sources: Sources): Promise<ReferenceDocument[]> {
       return documents;
     }, { done: (documents) => `Read ${documents.length} wiki ${documents.length === 1 ? "page" : "pages"}`, failed: "Could not read the wiki pages" });
   } catch (error) {
+    if (error instanceof ExitError) throw error;
     output.warn(sanitizeTty(getErrorMessage(error)));
     return [];
   }

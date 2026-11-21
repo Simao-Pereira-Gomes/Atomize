@@ -4,6 +4,7 @@ import { keychainAvailable } from "@config/keychain.service";
 import { validateOrganizationUrl } from "@sppg2001/atomize-core";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -72,7 +73,7 @@ export function makeAuthAddCommand(config: Config): Command {
     "Read the Personal Access Token from stdin instead of ATOMIZE_PAT (safer in CI, as it avoids env var exposure in logs)",
     false,
   )
-  .action(async (nameArg: string | undefined, options: AddOptions) => {
+  .action(tracked("auth.add", {}, async (_run, nameArg: string | undefined, options: AddOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     const resolvedPat = resolvePat(options, config.pat);
     const ci = isNonInteractive(options, resolvedPat);
@@ -202,7 +203,7 @@ export function makeAuthAddCommand(config: Config): Command {
         if (ci) writeCliError(getErrorMessage(error));
         else output.cancel(getErrorMessage(error));
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 }

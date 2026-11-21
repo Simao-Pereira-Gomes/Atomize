@@ -4,6 +4,7 @@ import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-libra
 import { CancellationError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -28,7 +29,7 @@ export const templateRemoveCommand = new Command("remove")
   .argument("<name>", "Template ref (template:<name> or mixin:<name>) or bare name")
   .option("--type <type>", "Restrict to a specific type: template or mixin")
   .option("-f, --force", "Skip confirmation prompt", false)
-  .action(async (nameArg: string, options: RemoveOptions) => {
+  .action(tracked("catalog.remove", { scope: "user" }, async (_run, nameArg: string, options: RemoveOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
     try {
@@ -64,7 +65,7 @@ export const templateRemoveCommand = new Command("remove")
         );
         if (!confirmed) {
           output.outro("Cancelled.");
-          process.exit(ExitCode.Success);
+          throw new ExitError(ExitCode.Success);
         }
       }
 
@@ -74,12 +75,12 @@ export const templateRemoveCommand = new Command("remove")
     } catch (error) {
       if (error instanceof CancellationError) {
         output.outro("Cancelled.");
-        process.exit(ExitCode.Success);
+        throw new ExitError(ExitCode.Success);
       }
       if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 
 async function resolveNameArg(
   arg: string,

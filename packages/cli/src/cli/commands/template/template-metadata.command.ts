@@ -1,6 +1,7 @@
 import { requireProjectMetadataReader, requireSavedQueryReader } from "@sppg2001/atomize-core/platforms/capabilities";
 import { AuthError, getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { writeManagedOutput } from "@/cli/utilities/terminal-output";
@@ -32,7 +33,7 @@ export const templateMetadataCommand = new Command("metadata")
   .description("Read Azure DevOps metadata for template authoring")
   .option("--profile <name>", "Azure DevOps connection profile (uses the default if omitted)")
   .option("--json", "Print metadata as JSON", false)
-  .action(async (options: { profile?: string; json: boolean }) => {
+  .action(tracked("template.metadata", {}, async (_run, options: { profile?: string; json: boolean }) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({ quiet: options.json, verbose: false }));
     try {
       const adapter = await createAzureDevOpsAdapter(options.profile);
@@ -62,6 +63,6 @@ export const templateMetadataCommand = new Command("metadata")
       else output.print(JSON.stringify(result, null, 2));
     } catch (error) {
       writeManagedOutput("stderr", `Error: ${describeMetadataConnectionError(error)}`);
-      process.exitCode = 1;
+      throw error;
     }
-  });
+  }));

@@ -2,6 +2,7 @@ import { select } from "@clack/prompts";
 import { readConnectionsFile, setDefaultProfile } from "@config/connections.config";
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -13,7 +14,7 @@ export function makeAuthUseCommand(): Command {
   return new Command("use")
   .description("Set a profile as the default")
   .argument("[name]", "Profile name")
-  .action(async (nameArg: string | undefined) => {
+  .action(tracked("auth.use", {}, async (_run, nameArg: string | undefined) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     try {
       output.intro(" Atomize: Set Default Profile");
@@ -55,7 +56,7 @@ export function makeAuthUseCommand(): Command {
       }
     } catch (error) {
       if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 }
