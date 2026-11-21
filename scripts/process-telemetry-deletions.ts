@@ -117,6 +117,18 @@ async function findRequests(api: ReturnType<typeof client>): Promise<Array<{ id:
 	return rows.flatMap((row) => (Array.isArray(row) && typeof row[0] === "string" ? [{ id: row[0], personId: typeof row[1] === "string" ? row[1] : undefined }] : []));
 }
 
+/**
+ * The person id PostHog recorded one Anonymous ID's events under, for IDs given by hand. It is what
+ * lets a deletion already pending be recognised once the person itself is gone. The ID is a
+ * validated UUID v4 by now, so it is safe in the query.
+ */
+async function recordedPersonId(api: ReturnType<typeof client>, id: string): Promise<string | undefined> {
+	const query = `SELECT argMax(toString(person_id), timestamp) FROM events WHERE distinct_id = '${id}' AND timestamp > now() - INTERVAL 365 DAY`;
+	const result = await api.call("Looking up recorded events", "POST", "/query/", { query: { kind: "HogQLQuery", query } });
+	const row = Array.isArray(result.results) ? result.results[0] : undefined;
+	return Array.isArray(row) && typeof row[0] === "string" && row[0] !== "" ? row[0] : undefined;
+}
+
 /** Whether PostHog already has a deletion pending or completed for this person. */
 async function hasDeletionRecord(api: ReturnType<typeof client>, personUuid: string): Promise<boolean> {
 	const result = await api.call("Checking deletion status", "GET", `/persons/deletion_status/?person_uuid=${encodeURIComponent(personUuid)}&status=all`);
@@ -180,7 +192,8 @@ export async function processDeletions(config: DeletionConfig, deps: DeletionDep
 			continue;
 		}
 		try {
-			const uuids = new Set<string>(personId ? [personId] : []);
+			const recorded = personId ?? (await recordedPersonId(api, id));
+			const uuids = new Set<string>(recorded ? [recorded] : []);
 			for (const uuid of await personUuidsFor(api, id)) uuids.add(uuid);
 			let handled = false;
 			for (const uuid of uuids) {

@@ -20,6 +20,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 function posthog(options: {
 	requests: Array<[string, string?]>;
 	recorded?: Set<string>;
+	/** IDs that have events in PostHog, for the lookup of IDs given by hand. */
+	history?: Set<string>;
 	personAppears?: (id: string, polls: number) => boolean;
 	override?: (url: URL, init: RequestInit) => Response | undefined;
 }) {
@@ -35,7 +37,11 @@ function posthog(options: {
 			captured.add(body.distinct_id);
 			return json({ status: 1 });
 		}
-		if (url.pathname.endsWith("/query/")) return json({ results: options.requests.map(([id, person]) => [id, person ?? personUuid(id)]) });
+		if (url.pathname.endsWith("/query/")) {
+			const lookup = /WHERE distinct_id = '([^']+)'/.exec(body.query.query as string)?.[1];
+			if (lookup) return json({ results: options.history?.has(lookup) ? [[personUuid(lookup)]] : [[null]] });
+			return json({ results: options.requests.map(([id, person]) => [id, person ?? personUuid(id)]) });
+		}
 		if (url.pathname.endsWith("/persons/deletion_status/")) {
 			const uuid = url.searchParams.get("person_uuid") as string;
 			return json({ results: options.recorded?.has(uuid) ? [{ person_uuid: uuid, status: "pending", delete_verified_at: null }] : [] });
@@ -123,6 +129,16 @@ describe("IDs given by hand (emailed requests)", () => {
 		const bulk = ph.calls.filter((call) => call.path.endsWith("/persons/bulk_delete/")).map((call) => (call.body as { distinct_ids: string[] }).distinct_ids[0]);
 		expect(bulk.sort()).toEqual([A, B].sort());
 		expect(lines).toEqual(["2 new, 0 pending, 0 failed"]);
+	});
+
+	test("one already being deleted is pending, even though no event names it and its person is gone", async () => {
+		const ph = posthog({ requests: [], history: new Set([A]), recorded: new Set([personUuid(A)]), personAppears: () => false });
+		const { deps, lines } = quietDeps(ph.fetchMock);
+		const summary = await processDeletions(config, deps, [A]);
+
+		expect(summary).toEqual({ new: 0, pending: 1, failed: 0, ignored: 0 });
+		expect(ph.calls.some((call) => call.path.endsWith("/capture/") || call.path.endsWith("/bulk_delete/"))).toBe(false);
+		expect(lines).toEqual(["0 new, 1 pending, 0 failed"]);
 	});
 
 	test("a malformed one is ignored, never acted on", async () => {
