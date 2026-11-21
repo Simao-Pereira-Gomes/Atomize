@@ -19,11 +19,13 @@ import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-libra
 import { AuthError } from "@sppg2001/atomize-core/utils/errors";
 import { clampConcurrency } from "@sppg2001/atomize-core/utils/math";
 import type { RunTimings } from "@sppg2001/atomize-core/utils/run-timings";
+import { categorizeError, type ErrorCategory, type TelemetryEventInput } from "@sppg2001/atomize-telemetry";
 import chalk from "chalk";
 import { Command, Option } from "commander";
 import { match } from "ts-pattern";
 import { runGenerateCommandApplication } from "@/cli/commands/generate-application";
 import { runGenerateWorkflow } from "@/cli/orchestrator/generate-workflow";
+import { exitWith, getTelemetry } from "@/cli/telemetry/telemetry";
 import {
   type CommandOutputPolicy,
   createCommandOutput,
@@ -353,9 +355,57 @@ async function confirmLiveExecution(
   );
   if (!proceed) {
     output.outro("Cancelled.");
-    process.exit(ExitCode.Success);
+    throw new ExitError(ExitCode.Success);
   }
 }
+
+/** What a Generation Run turned out to be, collected as it goes so the exit can report it. */
+interface GenerateRunFacts {
+  dryRun?: boolean;
+  report?: AtomizationReport;
+}
+
+const clampCount = (value: number): number => Math.max(0, Math.min(1_000_000, Math.trunc(value)));
+
+/** The `command_finished` event for a `generate` run: enums, booleans and counts only. */
+export function buildGenerateTelemetryEvent(input: {
+  options: { execute?: boolean; json?: boolean; jsonStream?: boolean; continueOnError?: boolean };
+  facts: GenerateRunFacts;
+  exitCode: number;
+  error?: unknown;
+  durationMs: number;
+}): TelemetryEventInput {
+  const { options, facts, exitCode, error, durationMs } = input;
+  const { report } = facts;
+  const dryRun = report?.dryRun ?? facts.dryRun ?? options.execute !== true;
+
+  let ending: { outcome: "success" | "failure" | "cancelled"; errorCategory?: ErrorCategory };
+  if (error instanceof ExitError) {
+    ending = error.code === ExitCode.Success ? { outcome: "cancelled" } : { outcome: "failure" };
+  } else if (error !== undefined) {
+    const classified = categorizeError(error);
+    ending = classified.outcome === "cancelled" ? { outcome: "cancelled" } : { outcome: "failure", errorCategory: classified.errorCategory };
+  } else if (report?.stopped) {
+    ending = report.stopped.reason === "timedOut" ? { outcome: "failure", errorCategory: "timeout" } : { outcome: "cancelled" };
+  } else {
+    ending = { outcome: exitCode === ExitCode.Failure || exitCode === ExitCode.AuthFailure ? "failure" : "success" };
+  }
+
+  return {
+    event: "command_finished",
+    action: "generate",
+    outcome: ending.outcome,
+    ...(ending.errorCategory ? { errorCategory: ending.errorCategory } : {}),
+    durationMs: clampCount(durationMs),
+    mode: dryRun ? "dry-run" : "execute",
+    output: options.json === true ? "json" : options.jsonStream === true ? "json-stream" : "human",
+    continueOnError: options.continueOnError === true,
+    storyCount: clampCount(report?.storiesProcessed ?? 0),
+    taskCount: clampCount((dryRun ? report?.tasksCalculated : report?.tasksCreated) ?? 0),
+    failedStoryCount: clampCount(report?.storiesFailed ?? 0),
+  };
+}
+
 
 /** @internal Exported for testing */
 export function printReport(
@@ -700,6 +750,19 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
   .option("--json", "Emit AtomizationReport as JSON to stdout; implies --quiet. Runs a dry run unless --execute is passed", false)
   .option("--json-stream", "Emit NDJSON progress events then final report to stdout; implies --quiet. Runs a dry run unless --execute is passed", false)
   .action(async (templateArg: string | undefined, options) => {
+    const startedAt = Date.now();
+    const facts: GenerateRunFacts = {};
+    const finish = (exitCode: number, error?: unknown): Promise<never> => {
+      const isMachineOutput = options.json === true || options.jsonStream === true || options.quiet === true;
+      try {
+        getTelemetry().track(
+          buildGenerateTelemetryEvent({ options, facts, exitCode, error, durationMs: Date.now() - startedAt }),
+        );
+      } catch {
+        // telemetry never changes what a command does
+      }
+      return exitWith(exitCode, { hint: !isMachineOutput });
+    };
       try {
       const isJson = options.json === true;
       const isJsonStream = options.jsonStream === true;
@@ -759,7 +822,11 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
         outputPolicy,
         output,
         deps: {
-          promptMissingArgs,
+          promptMissingArgs: async (...args: Parameters<typeof promptMissingArgs>) => {
+            const answers = await promptMissingArgs(...args);
+            facts.dryRun = answers.dryRun;
+            return answers;
+          },
           getNonInteractiveLiveExecutionError,
           loadTemplate: loadAndValidateTemplate,
           parseConcurrency,
@@ -767,11 +834,15 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
           resolveNormalization,
           renderFilterCriteria,
           confirmLiveExecution,
-          runWorkflow: runGenerateWorkflow,
+          runWorkflow: async (...args: Parameters<typeof runGenerateWorkflow>) => {
+            const report = await runGenerateWorkflow(...args);
+            facts.report = report;
+            return report;
+          },
           printReport: isJson ? jsonPrintReport : isJsonStream ? jsonStreamPrintReport : printReport,
         },
       });
-      process.exit(exitCode);
+      return await finish(exitCode);
     } catch (error) {
       if (!(error instanceof ExitError)) {
         if (options.json === true || options.jsonStream === true) {
@@ -792,7 +863,7 @@ export function makeGenerateCommand(makeOutput: OutputSinkFactory, prompts: Prom
       const exitCode = error instanceof ExitError ? error.code
         : error instanceof AuthError ? ExitCode.AuthFailure
         : ExitCode.Failure;
-      process.exit(exitCode);
+      return await finish(exitCode, error);
     }
   });
 }

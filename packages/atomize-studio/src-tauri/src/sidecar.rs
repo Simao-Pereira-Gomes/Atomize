@@ -73,11 +73,12 @@ pub struct SidecarRelay {
     restarts: Mutex<Vec<Instant>>,
     ready: AtomicBool,
     fatal: AtomicBool,
+    shutting_down: AtomicBool,
 }
 
 impl SidecarRelay {
     pub fn new(app: AppHandle) -> Arc<Self> {
-        Arc::new(Self { app, requests: PendingRequests::new(), child: Mutex::new(None), restarts: Mutex::new(Vec::new()), ready: AtomicBool::new(false), fatal: AtomicBool::new(false) })
+        Arc::new(Self { app, requests: PendingRequests::new(), child: Mutex::new(None), restarts: Mutex::new(Vec::new()), ready: AtomicBool::new(false), fatal: AtomicBool::new(false), shutting_down: AtomicBool::new(false) })
     }
 
     pub fn start(self: &Arc<Self>) -> Result<(), String> {
@@ -86,7 +87,8 @@ impl SidecarRelay {
         let copilot = copilot_cli_path()?;
         let command = self.app.shell().sidecar(SIDECAR_NAME).map_err(|e| e.to_string())?
             .env("ATOMIZE_CATALOG_ROOT", catalog_root)
-            .env("ATOMIZE_COPILOT_CLI_PATH", copilot);
+            .env("ATOMIZE_COPILOT_CLI_PATH", copilot)
+            .env("ATOMIZE_STUDIO_VERSION", self.app.package_info().version.to_string());
         let (mut receiver, child) = command.spawn().map_err(|e| e.to_string())?;
         *self.child.lock().unwrap() = Some(child);
         let relay = Arc::clone(self);
@@ -119,6 +121,8 @@ impl SidecarRelay {
     fn handle_exit(self: &Arc<Self>) {
         self.ready.store(false, Ordering::SeqCst);
         *self.child.lock().unwrap() = None;
+        // An exit we asked for while the app closes is not a crash to recover from.
+        if self.shutting_down.load(Ordering::SeqCst) { return; }
         let now = Instant::now();
         let mut restarts = self.restarts.lock().unwrap();
         restarts.retain(|at| now.duration_since(*at) <= RESTART_WINDOW);
@@ -182,6 +186,14 @@ impl SidecarRelay {
         self.start()
     }
     pub fn mark_fatal(&self) { self.fatal.store(true, Ordering::SeqCst); }
+
+    /// Asks the sidecar to finish what it is sending (telemetry has a 300 ms cap there) and exit, as
+    /// the app closes. It never waits longer than the sidecar's own cap plus a little slack.
+    pub fn shutdown(&self) {
+        self.shutting_down.store(true, Ordering::SeqCst);
+        let Some(child) = self.child.lock().unwrap().as_mut().map(|child| child.write(b"{\"jsonrpc\":\"2.0\",\"method\":\"$/shutdown\"}\n").is_ok()) else { return };
+        if child { std::thread::sleep(std::time::Duration::from_millis(400)); }
+    }
     pub fn is_fatal(&self) -> bool { self.fatal.load(Ordering::SeqCst) }
 }
 

@@ -2,7 +2,7 @@
 	"name": "atomize",
 	"displayName": "Atomize",
 	"description": "VS Code extension for Atomize: generate tasks from YAML templates",
-	"version": "0.7.3",
+	"version": "0.8.0",
 	"publisher": "atomize",
 	"license": "MIT",
 	"repository": {
@@ -102,11 +102,6 @@
 				"category": "Atomize"
 			},
 			{
-				"command": "atomize.finishPartlyCreatedStories",
-				"title": "Finish Partly Created Stories",
-				"category": "Atomize"
-			},
-			{
 				"command": "atomize.manageProfiles",
 				"title": "Manage Profiles",
 				"category": "Atomize"
@@ -172,6 +167,26 @@
 			{
 				"command": "atomize.openSchemaReference",
 				"title": "Open Schema Reference",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.enable",
+				"title": "Enable Telemetry",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.disable",
+				"title": "Disable Telemetry",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.showStatus",
+				"title": "Show Telemetry Status",
+				"category": "Atomize"
+			},
+			{
+				"command": "atomize.telemetry.requestDeletion",
+				"title": "Request Deletion of Telemetry Data",
 				"category": "Atomize"
 			}
 		],
@@ -242,6 +257,7 @@
 	"dependencies": {
 		"@sppg2001/atomize-core": "workspace:*",
 		"@sppg2001/atomize-schema-reference": "workspace:*",
+		"@sppg2001/atomize-telemetry": "workspace:*",
 		"solid-js": "^1.9.17",
 		"yaml": "^2.9.0"
 	},

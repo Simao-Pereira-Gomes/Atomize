@@ -5,6 +5,7 @@ import { getDefaultProfile } from '../config/atomize-configuration.js';
 import type { CredentialResolver } from '../profiles/credential-resolver.js';
 import { pickProfile } from '../profiles/profile-picker.js';
 import type { ProfileStore } from '../profiles/profile-store.js';
+import { telemetry } from '../telemetry/extension-telemetry.js';
 
 type QueryItem = vscode.QuickPickItem & { path: string };
 
@@ -32,10 +33,10 @@ export interface BrowseQueriesCommandDeps {
 }
 
 export function registerBrowseQueriesCommand(deps: BrowseQueriesCommandDeps): vscode.Disposable {
-	return vscode.commands.registerCommand('atomize.browseQueries', async () => {
+	return vscode.commands.registerCommand('atomize.browseQueries', telemetry.instrument('queries.list', {}, async run => {
 		const defaultProfile = getDefaultProfile(vscode.window.activeTextEditor?.document.uri);
 		const profile = await pickProfile(deps.store, deps.credentialResolver, { title: 'Atomize: Browse Queries', allowOffline: false, defaultProfile });
-		if (!profile) return;
+		if (!profile) return run.cancelled();
 
 		const queries = await vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: 'Fetching queries…', cancellable: false },
@@ -44,7 +45,7 @@ export function registerBrowseQueriesCommand(deps: BrowseQueriesCommandDeps): vs
 
 		if (queries === null) {
 			void vscode.window.showErrorMessage('Could not fetch queries. Check your connection profile.');
-			return;
+			return run.failed(new Error('fetch'));
 		}
 
 		if (queries.length === 0) {
@@ -57,9 +58,9 @@ export function registerBrowseQueriesCommand(deps: BrowseQueriesCommandDeps): vs
 			matchOnDescription: true,
 			placeHolder: 'Select a query to copy its path',
 		});
-		if (!picked) return;
+		if (!picked) return run.cancelled();
 
 		await vscode.env.clipboard.writeText(picked.path);
 		void vscode.window.showInformationMessage(`Copied "${picked.path}" to clipboard.`);
-	});
+	}));
 }

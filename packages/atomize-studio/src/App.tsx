@@ -1,12 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { StudioShell } from "./components/StudioShell";
+import { reportSessionStarted } from "./telemetry/telemetry";
 import "./App.css";
 
 function StudioApplication() {
   const [fatal, setFatal] = createSignal(false);
   const refresh = async () => setFatal(await invoke<boolean>("sidecar_fatal").catch(() => false));
   onMount(() => {
+    reportSessionStarted();
     void refresh();
     const timer = window.setInterval(() => void refresh(), 1000);
     onCleanup(() => window.clearInterval(timer));

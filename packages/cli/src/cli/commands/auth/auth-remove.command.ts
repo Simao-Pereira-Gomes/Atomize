@@ -3,6 +3,7 @@ import { readConnectionsFile, setDefaultProfile } from "@config/connections.conf
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -37,7 +38,7 @@ export function makeAuthRemoveCommand(): Command {
   .argument("[name]", "Profile name to remove")
   .option("--confirm", "Confirm removal without prompting", false)
   .option("--new-default <name>", "Set a replacement default profile after removal")
-  .action(async (nameArg: string | undefined, options: RemoveOptions) => {
+  .action(tracked("auth.remove", {}, async (_run, nameArg: string | undefined, options: RemoveOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
     const confirmed = options.confirm ?? false;
     try {
@@ -139,7 +140,7 @@ export function makeAuthRemoveCommand(): Command {
         if (confirmed) writeCliError(getErrorMessage(error));
         else output.cancel(getErrorMessage(error));
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 }

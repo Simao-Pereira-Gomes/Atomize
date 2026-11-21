@@ -26,6 +26,7 @@ mock.module("@clack/prompts", () => ({
   text: mockText,
 }));
 
+import { ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   isInteractiveTerminal,
@@ -95,14 +96,19 @@ describe("assertNotCancelled", () => {
 
   test("calls cancel('Operation cancelled.') when the value is a cancel symbol", () => {
     mockIsCancel.mockReturnValue(true);
-    assertNotCancelled(Symbol.for("clack:cancel"));
+    expect(() => assertNotCancelled(Symbol.for("clack:cancel"))).toThrow();
     expect(mockCancel).toHaveBeenCalledWith("Operation cancelled.");
   });
 
-  test("calls process.exit(0) when the value is a cancel symbol", () => {
+  test("throws ExitError(0) when the value is a cancel symbol, leaving the exit to exitWith", () => {
     mockIsCancel.mockReturnValue(true);
-    assertNotCancelled(Symbol.for("clack:cancel"));
-    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(() => assertNotCancelled(Symbol.for("clack:cancel"))).toThrow(ExitError);
+    expect(exitSpy).not.toHaveBeenCalled();
+    try {
+      assertNotCancelled(Symbol.for("clack:cancel"));
+    } catch (error) {
+      expect((error as ExitError).code).toBe(0);
+    }
   });
 
   test("does not exit for non-cancel values regardless of their type", () => {

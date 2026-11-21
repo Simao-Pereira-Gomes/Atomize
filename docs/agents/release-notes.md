@@ -6,7 +6,7 @@ When producing a PR, commit, or version bump, follow these rules so the generate
 
 1. **PR title = release-note line.** Squash-merge makes the PR title the commit subject, which becomes a bullet in the GitHub Release of *every* surface whose dependency closure includes the changed paths. Write Conventional-Commit titles that read well to a user out of context.
 
-2. **Shared-package changes: lead the scope with the shared package.** A change under `packages/atomize-schema`, `packages/atomize-core`, `packages/atomize-ai`, or `packages/atomize-sidecar` fans out to multiple surfaces' notes. Title it `fix(schema): …` / `fix(core): …`, never `fix(studio): …` for work that is really a schema change.
+2. **Shared-package changes: lead the scope with the shared package.** A change under `packages/atomize-schema`, `packages/atomize-core`, `packages/atomize-ai`, `packages/atomize-sidecar`, or `packages/atomize-telemetry` fans out to multiple surfaces' notes. Title it `fix(schema): …` / `fix(core): …` / `fix(telemetry): …`, never `fix(studio): …` for work that is really a schema change.
 
 3. **Version bump rides the feature PR** as a `chore(release): bump <surface> to <x.y.z>` commit. That subject is filtered out of the notes. For Studio, bump both `packages/atomize-studio/package.json` and `packages/atomize-studio/src-tauri/tauri.conf.json`.
 

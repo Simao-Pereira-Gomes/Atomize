@@ -36,6 +36,7 @@ import {
 type AnyTaskTemplate = TaskTemplate | PartialTaskTemplate;
 
 import { CancellationError, ConfigurationError } from "@sppg2001/atomize-core/utils/errors";
+import { tracked } from "@/cli/telemetry/tracked";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import { createWithAI } from "./ai-creation";
 import { customizeTemplate } from "./template-customize";
@@ -100,11 +101,12 @@ export const templateCreateCommand = new Command("create")
   .option("--scope <scope>", 'Catalog to save to: user (displayed as "personal") or project (displayed as "your project") [default: project when the project has its own .atomize folder, otherwise user]')
   .option("--open", "Open the saved Atomize YAML file in a supported editor", false)
   .option("-q, --quiet", "Suppress non-essential output", false)
-  .action(async (options: CreateOptions) => {
+  .action(tracked("template.create", { mode: "scratch", grounded: false, referenceDocCount: 0 }, async (run, options: CreateOptions) => {
     const output = createCommandOutput(
       resolveCommandOutputPolicy({ quiet: options.quiet, verbose: false }),
     );
     try {
+      run.set({ grounded: options.ground === true, referenceDocCount: options.reference?.length ?? 0 });
       output.intro(" Atomize: Template Creator");
       if (isInteractiveTerminal()) {
         output.print(
@@ -116,11 +118,12 @@ export const templateCreateCommand = new Command("create")
       // Checked before any prompts or AI work, so an invalid --scope fails fast. A project's own
       // .atomize/ folder means the team has opted in to a project Catalog.
       const scope = new TemplateLibrary().parseInstallScope(options.scope ?? defaultCatalogScope());
+      run.set({ mode: creationModeOf(options) });
       const target = await determineCreationTarget(options);
       const created =
         target === "mixin"
           ? await createMixin({ quiet: options.quiet, profile: options.profile })
-          : await createFullTemplate(options);
+          : await createFullTemplate(options, (mode) => run.set({ mode: mode === "template" ? "from-existing" : mode }));
 
       const saved = await saveCreatedTemplate(created, target, options.saveAs, scope);
       output.print(chalk.green(`\n Template saved to ${saved.path} (${formatScope(saved.scope)})\n`));
@@ -136,7 +139,7 @@ export const templateCreateCommand = new Command("create")
     } catch (error) {
       if (error instanceof CancellationError) {
         output.outro("Cancelled.");
-        process.exit(ExitCode.Success);
+        throw new ExitError(ExitCode.Success);
       }
       if (!(error instanceof ExitError)) {
         output.cancel("Template creation failed");
@@ -145,12 +148,20 @@ export const templateCreateCommand = new Command("create")
           output.print(chalk.red(error.message));
         }
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 
-async function createFullTemplate(options: CreateOptions): Promise<AnyTaskTemplate> {
+/** The Telemetry mode a create run falls under, from its flags; an interactive pick is recorded as it is made. */
+function creationModeOf(options: CreateOptions): "scratch" | "from-existing" | "ai" {
+  if (options.ai) return "ai";
+  if (options.from) return "from-existing";
+  return "scratch";
+}
+
+async function createFullTemplate(options: CreateOptions, onMode: (mode: CreationMode) => void): Promise<AnyTaskTemplate> {
   const mode = await determineMode(options);
+  onMode(mode);
 
   return await match(mode)
     .with("template", async () => await createFromTemplate(options))

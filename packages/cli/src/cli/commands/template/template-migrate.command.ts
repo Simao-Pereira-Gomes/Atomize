@@ -2,8 +2,9 @@ import { TemplateLibrary, type WritableCatalogScope } from "@sppg2001/atomize-co
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
-import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
+import { ExitError } from "@/cli/utilities/exit-codes";
 import { sanitizeTty } from "@/cli/utilities/prompt-utilities";
 
 type MigrateOptions = {
@@ -30,7 +31,7 @@ export const templateMigrateCommand = new Command("migrate")
   .option("--scope <scope>", "Migration scope: user, project, or all [default: user]")
   .option("--dry-run", "Preview what would be migrated without making changes", false)
   .option("--cleanup-dirs", "Remove empty legacy kind subdirs and root after migration", false)
-  .action(async (options: MigrateOptions) => {
+  .action(tracked("template.migrate", {}, async (_run, options: MigrateOptions) => {
     const output = createCommandOutput(resolveCommandOutputPolicy({}));
 
     try {
@@ -89,6 +90,6 @@ export const templateMigrateCommand = new Command("migrate")
       output.outro(dryRun ? "Dry run complete." : "Done.");
     } catch (error) {
       if (!(error instanceof ExitError)) output.cancel(getErrorMessage(error));
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));

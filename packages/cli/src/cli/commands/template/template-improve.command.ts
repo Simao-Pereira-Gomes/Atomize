@@ -13,6 +13,7 @@ import { diffTemplates, type TemplateDiff } from "@sppg2001/atomize-schema";
 import chalk from "chalk";
 import { Command } from "commander";
 import { stringify as stringifyYaml } from "yaml";
+import { tracked } from "@/cli/telemetry/tracked";
 import { createCommandOutput, resolveCommandOutputPolicy } from "@/cli/utilities/command-output";
 import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { assertNotCancelled, createManagedSpinner, formatScope, isInteractiveTerminal, sanitizeTty } from "@/cli/utilities/prompt-utilities";
@@ -86,8 +87,9 @@ export const templateImproveCommand = new Command("improve")
   .option("--strict", "Treat validation warnings as errors", false)
   .option("--output <file>", "Write a JSON report of the proposal, validation, and notes")
   .option("-q, --quiet", "Suppress non-essential output", false)
-  .action(async (templateArg: string, options: ImproveOptions) => {
+  .action(tracked("template.improve", { grounded: false, referenceDocCount: 0 }, async (run, templateArg: string, options: ImproveOptions) => {
     try {
+      run.set({ grounded: options.ground === true });
       const { TemplateLibrary } = await import("@sppg2001/atomize-core/templates/template-library");
       const report = await runTemplateImprove(templateArg, options, {
         library: new TemplateLibrary(),
@@ -108,16 +110,17 @@ export const templateImproveCommand = new Command("improve")
         },
         interactive: isInteractiveTerminal(),
       });
-      if (!report.ok) process.exit(ExitCode.Failure);
+      run.set({ referenceDocCount: report.referenceDocuments.length });
+      if (!report.ok) throw new ExitError(ExitCode.Failure);
     } catch (error) {
       if (error instanceof CancellationError) {
         output.cancel(error.message);
-        process.exit(ExitCode.Success);
+        throw error;
       }
-      output.printError(chalk.red(sanitizeTty(getErrorMessage(error))));
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      if (!(error instanceof ExitError)) output.printError(chalk.red(sanitizeTty(getErrorMessage(error))));
+      throw error;
     }
-  });
+  }));
 
 /**
  * Proposes a Template Improvement and, only with the user's say-so, saves it: over the source

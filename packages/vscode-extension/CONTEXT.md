@@ -57,6 +57,10 @@ _Avoid_: conflating with the Catalog Browser, which surfaces Template Library it
 A VS Code surface for looking up saved Azure DevOps query paths for a selected Connection Profile.
 _Avoid_: conflating with the Catalog Browser, which surfaces Template Library items rather than platform data.
 
+**VS Code Telemetry Gate**:
+The extension's second condition for sending telemetry, on top of the shared Telemetry Consent: `vscode.env.isTelemetryEnabled` must also be true, kept current through `onDidChangeTelemetryEnabled`, so toggling it takes effect without a reload. It is true only at VS Code's telemetry level `all`, so nothing is sent at `error`, `crash` or `off`. The editor's switch always wins, and the extension's Telemetry Nudge is never shown while it is off. A Deletion Request is a data-subject request and ignores it.
+_Avoid_: treating it as the user's Telemetry Consent; it can only withhold sending, never grant it.
+
 **Workspace Default Profile**:
 A VS Code workspace-scoped setting that pre-selects a Connection Profile in the Validate, Live Preview, and Generate pickers.
 _Avoid_: "default profile" without qualification: the CLI has a global platform default that is unrelated.

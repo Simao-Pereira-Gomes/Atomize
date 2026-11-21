@@ -3,6 +3,7 @@ import { stringify as stringifyYaml } from 'yaml';
 import { resolveCommandDocument } from '../authoring/command-document-resolution.js';
 import { isAtomizeDocument, isMixinDocument } from '../authoring/language-detection.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { telemetry } from '../telemetry/extension-telemetry.js';
 import { resolveDocumentPath } from './catalog-document-path.js';
 
 export const RESOLVED_TEMPLATE_SCHEME = 'atomize-resolved';
@@ -54,7 +55,7 @@ export interface ShowResolvedTemplateCommandDeps {
 }
 
 export function registerShowResolvedTemplateCommand(deps: ShowResolvedTemplateCommandDeps): vscode.Disposable {
-	return vscode.commands.registerCommand('atomize.showResolvedTemplate', async (uri?: vscode.Uri) => {
+	return vscode.commands.registerCommand('atomize.showResolvedTemplate', telemetry.instrument('preview', { variant: 'resolved' }, async (run, uri?: vscode.Uri) => {
 		try {
 			const doc = await resolveCommandDocument(
 				uri,
@@ -64,17 +65,17 @@ export function registerShowResolvedTemplateCommand(deps: ShowResolvedTemplateCo
 			);
 			if (!doc) {
 				await vscode.window.showErrorMessage('Atomize: Open an Atomize YAML file before resolving the effective template.');
-				return;
+				return run.cancelled();
 			}
 			if (!isAtomizeDocument(doc)) {
 				await vscode.window.showErrorMessage('Atomize: The selected file is not recognized as an Atomize YAML file.');
-				return;
+				return run.cancelled();
 			}
 			if (isMixinDocument(doc)) {
 				await vscode.window.showInformationMessage('Atomize: Mixins are reusable partial Templates and do not have an effective Template view.');
-				return;
+				return run.cancelled();
 			}
-			if (!await deps.checkDirtyDocument(doc, 'resolve')) return;
+			if (!await deps.checkDirtyDocument(doc, 'resolve')) return run.cancelled();
 
 			const result = await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Window, title: 'Resolving effective template…' },
@@ -83,7 +84,7 @@ export function registerShowResolvedTemplateCommand(deps: ShowResolvedTemplateCo
 
 			if ('error' in result) {
 				await vscode.window.showErrorMessage(`Atomize: ${result.error}`);
-				return;
+				return run.failed(new Error('resolve'));
 			}
 
 			const target = virtualUri(doc.uri);
@@ -98,7 +99,8 @@ export function registerShowResolvedTemplateCommand(deps: ShowResolvedTemplateCo
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
+			run.failed(error);
 			await vscode.window.showErrorMessage(`Atomize: Could not resolve the effective template. ${message}`);
 		}
-	});
+	}));
 }

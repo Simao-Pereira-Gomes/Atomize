@@ -10,7 +10,7 @@ import {
 } from "@clack/prompts";
 import type { TemplateCatalogScope } from "@sppg2001/atomize-core/templates/template-library";
 import z from "zod";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 
 import { createManagedSpinner } from "@/cli/utilities/terminal-output";
 
@@ -72,7 +72,7 @@ const emailSchema = z.string().email();
 export function assertNotCancelled<T>(value: T): Exclude<T, symbol> {
   if (isCancel(value)) {
     cancel("Operation cancelled.");
-    process.exit(ExitCode.Success);
+    throw new ExitError(ExitCode.Success);
   }
   return value as Exclude<T, symbol>;
 }

@@ -5,6 +5,7 @@ import {
 	canLoadMore,
 	emptyFilters,
 	filterTooltip,
+	finishTooltip,
 	hasTasksTooltip,
 	listStatus,
 	parseStoryIds,
@@ -32,8 +33,8 @@ describe('story browser model', () => {
 
 	it('names the mode in the title and lists every Search filter in effect', () => {
 		expect(browserTitle('Atomize: Generate', 'sprint', emptyFilters(false))).toBe('Atomize: Generate · Current and next sprint, no Tasks yet');
-		expect(browserTitle('Atomize: Finish Partly Created Stories', 'sprint', emptyFilters(false), { sprintTasks: 'any' }))
-			.toBe('Atomize: Finish Partly Created Stories · Current and next sprint');
+		expect(browserTitle('Atomize: Generate · Finish partly created Stories', 'sprint', emptyFilters(false), { sprintTasks: 'any' }))
+			.toBe('Atomize: Generate · Finish partly created Stories · Current and next sprint');
 		expect(browserTitle('Atomize: Generate', 'search', emptyFilters(false))).toBe('Atomize: Generate · Search');
 		expect(browserTitle('Atomize: Generate', 'search', {
 			...emptyFilters(true), workItemTypes: ['Bug'], states: ['Active'], areaPaths: ['P\\Team A'], iterations: ['P\\Sprint 3'],
@@ -74,5 +75,11 @@ describe('story browser model', () => {
 	it('says where the mode button goes and that Search filters only apply in Search', () => {
 		expect(switchModeTooltip('sprint')).toStartWith('Search all Stories');
 		expect(switchModeTooltip('search')).toBe('Back to the current and next sprint (Stories with no Tasks yet). Your Search filters are kept but not applied');
+		expect(switchModeTooltip('search', { sprintTasks: 'any' })).toBe('Back to the current and next sprint (Stories with or without Tasks). Your Search filters are kept but not applied');
+	});
+
+	it('says whether the Finish button is on and what switching it does', () => {
+		expect(finishTooltip(false)).toBe('Finish partly created Stories: off. Click to finish Stories a stopped run left partly created, creating only the Tasks each one is missing');
+		expect(finishTooltip(true)).toStartWith('Finish partly created Stories: on, only the Tasks each picked Story is missing are created');
 	});
 });

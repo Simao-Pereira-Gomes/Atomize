@@ -21,13 +21,14 @@ import type {
 import { getErrorMessage } from "@sppg2001/atomize-core/utils/errors";
 import chalk from "chalk";
 import { Command } from "commander";
+import { tracked } from "@/cli/telemetry/tracked";
 import { createAzureDevOpsAdapter } from "@/cli/utilities/ado-adapter";
 import type { CommandOutput } from "@/cli/utilities/command-output";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
 } from "@/cli/utilities/command-output";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import {
   assertNotCancelled,
   createManagedSpinner,
@@ -64,7 +65,7 @@ export const validateCommand = new Command("validate")
   .option("-q, --quiet", "Suppress non-essential output", false)
   .option("--profile <name>", "Connect to ADO using a named profile for field verification (uses default profile if omitted)")
   .option("--output <format>", "Machine-readable output format; 'json' emits a ValidationResult object to stdout and suppresses all human-readable output")
-  .action(async (source: string, options: ValidateOptions) => {
+  .action(tracked("validate", { mode: "offline", valid: false, issueCount: 0 }, async (run, source: string, options: ValidateOptions) => {
     const isJsonOutput = options.output === 'json';
 
     const outputPolicy = resolveCommandOutputPolicy({
@@ -79,7 +80,15 @@ export const validateCommand = new Command("validate")
     if (commandLogLevel) logger.level = commandLogLevel;
 
     try {
-      const baseDeps = createValidateCommandDeps({ showStatus: !isJsonOutput });
+      const createdDeps = createValidateCommandDeps({ showStatus: !isJsonOutput });
+      const baseDeps: ValidateCommandApplicationDeps = {
+        ...createdDeps,
+        async resolveConnectionMode(...args) {
+          const mode = await createdDeps.resolveConnectionMode(...args);
+          run.set({ mode });
+          return mode;
+        },
+      };
       const result = await runValidateCommandApplication({
         source,
         options,
@@ -93,8 +102,11 @@ export const validateCommand = new Command("validate")
         process.stdout.write(`${JSON.stringify(result)}\n`);
       }
 
-      if (!result.valid) process.exit(ExitCode.Failure);
+      // A Template that fails validation is a successful `validate`: the command did its job.
+      run.set({ valid: result.valid, issueCount: result.errors.length + result.warnings.length });
+      if (!result.valid) run.exitWith(ExitCode.Failure);
     } catch (error) {
+      if (error instanceof ExitError) throw error;
       if (isJsonOutput) {
         const errorResult: ValidationResult = {
           valid: false,
@@ -103,12 +115,12 @@ export const validateCommand = new Command("validate")
           mode: 'lenient',
         };
         process.stdout.write(`${JSON.stringify(errorResult)}\n`);
-        process.exit(ExitCode.Failure);
+        throw error;
       }
       handleFatal(error, output);
-      process.exit(ExitCode.Failure);
+      throw error;
     }
-  });
+  }));
 
 function createValidateCommandDeps(depsOptions: { showStatus: boolean }): ValidateCommandApplicationDeps {
   return {

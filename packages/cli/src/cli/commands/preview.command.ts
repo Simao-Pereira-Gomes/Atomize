@@ -1,7 +1,8 @@
 import { inspectTemplate, runPreview } from "@sppg2001/atomize-core/templates/template-inspector";
 import { TemplateLibrary } from "@sppg2001/atomize-core/templates/template-library";
 import { Command } from "commander";
-import { ExitCode } from "@/cli/utilities/exit-codes";
+import { tracked } from "@/cli/telemetry/tracked";
+import { ExitCode, ExitError } from "@/cli/utilities/exit-codes";
 import { fetchTemplateContent } from "@/cli/utilities/template-fetch";
 
 type PreviewOptions = {
@@ -16,15 +17,16 @@ export const previewCommand = new Command("preview")
   .argument("<source>", "Path to a YAML template file, catalog ref, or HTTPS URL")
   .option("--inspect", "Output JSON describing which story fields the template references")
   .option("--mock-story <json>", "JSON object of mock story field values to preview against")
-  .action(async (source: string, options: PreviewOptions) => {
+  .action(tracked("preview", { variant: "inspect" }, async (run, source: string, options: PreviewOptions) => {
+    run.set({ variant: options.inspect ? "inspect" : "mock-story" });
     if (options.inspect && options.mockStory !== undefined) {
       process.stderr.write("Error: --inspect and --mock-story are mutually exclusive\n");
-      process.exit(ExitCode.Failure);
+      throw new ExitError(ExitCode.Failure);
     }
 
     if (!options.inspect && options.mockStory === undefined) {
       process.stderr.write("Error: one of --inspect or --mock-story is required\n");
-      process.exit(ExitCode.Failure);
+      throw new ExitError(ExitCode.Failure);
     }
 
     try {
@@ -41,6 +43,6 @@ export const previewCommand = new Command("preview")
       process.stderr.write(
         `Error: ${error instanceof Error ? error.message : String(error)}\n`,
       );
-      process.exit(ExitCode.Failure);
+      throw error;
     }
-  });
+  }));

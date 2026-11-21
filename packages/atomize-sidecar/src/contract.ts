@@ -19,9 +19,12 @@ import type { TaskTemplate } from "@sppg2001/atomize-core/templates/schema";
 import type { InspectResult, PreviewResult } from "@sppg2001/atomize-core/templates/template-inspector";
 import type { TemplateCatalogItem } from "@sppg2001/atomize-core/templates/template-library";
 import type { TemplateVerificationResult } from "@sppg2001/atomize-core/templates/template-verification";
+import { isTelemetryEventInput, type TelemetryEventInput } from "@sppg2001/atomize-telemetry";
 import { z } from "zod";
 
-export type { DocumentGrounding, ProjectGrounding, TemplateVerificationResult };
+import type { ConsentDecision, TelemetryStatus } from "./telemetry";
+
+export type { ConsentDecision, DocumentGrounding, ProjectGrounding, TelemetryStatus, TemplateVerificationResult };
 
 /** A required string that isn't blank; the value is passed on as sent. */
 const nonBlank = z.string().refine((value) => value.trim().length > 0);
@@ -82,6 +85,9 @@ const generateRunParams = z.strictObject({
   scope: generateScope,
   continueOnError: flag,
 });
+/** An event without its envelope: the sidecar fills in the surface, versions, Anonymous ID and time. */
+const telemetryReportParams = z.strictObject({ event: z.custom<TelemetryEventInput>(isTelemetryEventInput) });
+const telemetryConsentParams = z.strictObject({ decision: z.enum(["enable", "disable", "dismissNudge"]) });
 const previewInspectParams = z.strictObject({ source: nonBlank });
 const previewMockStoryParams = z.strictObject({ source: nonBlank, mockStory: z.string() });
 
@@ -109,6 +115,10 @@ export const SIDECAR_PARAMS = {
   "generate.run": { schema: generateRunParams, message: "Generating requires a run id, Template source, resolved connection, scope, and dryRun flag." },
   "preview.inspect": { schema: previewInspectParams, message: "Inspecting a Template requires its source." },
   "preview.mockStory": { schema: previewMockStoryParams, message: "Previewing a Template requires its source and mock Story values." },
+  "telemetry.report": { schema: telemetryReportParams, message: "Reporting telemetry requires one event made only of enums, booleans and counts." },
+  "telemetry.setConsent": { schema: telemetryConsentParams, message: "Setting telemetry consent requires a decision: enable, disable or dismissNudge." },
+  "telemetry.status": { schema: noParams, message: "Reading telemetry status takes no params." },
+  "telemetry.requestDeletion": { schema: noParams, message: "Requesting deletion of telemetry data takes no params." },
 } satisfies { [M in SidecarMethod]: { schema: z.ZodType; message: string } };
 
 export type CatalogListItem = TemplateCatalogItem & { content: unknown };
@@ -151,6 +161,11 @@ export interface SidecarResults {
   "generate.run": { report: AtomizationReport };
   "preview.inspect": InspectResult;
   "preview.mockStory": PreviewResult;
+  /** Fire and forget: `reported` says the event was handed over, not that anything was sent. */
+  "telemetry.report": { reported: true };
+  "telemetry.setConsent": TelemetryStatus;
+  "telemetry.status": TelemetryStatus;
+  "telemetry.requestDeletion": { sent: boolean; anonymousId: string | null };
 }
 
 export type SidecarMethod = keyof SidecarResults;

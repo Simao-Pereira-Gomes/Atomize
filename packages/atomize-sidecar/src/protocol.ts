@@ -50,6 +50,7 @@ import type {
   WikiPagesParams,
 } from "./contract";
 import { SIDECAR_PARAMS } from "./contract";
+import { createSidecarTelemetry, type SidecarTelemetry } from "./telemetry";
 
 /**
  * One authenticated adapter per Studio connection and token for the sidecar's lifetime, so each
@@ -105,6 +106,8 @@ export type SidecarServices = {
   activeRequests: Map<number, AbortController>;
   /** Writes an out-of-band notification (no request id) to the transport, e.g. live AI draft progress. */
   notify: (notification: RpcNotification) => void;
+  /** Studio's telemetry (ADR-0060): the only code that reads or writes the consent file. */
+  telemetry: SidecarTelemetry;
 };
 
 /**
@@ -139,6 +142,7 @@ export function createSidecarServices(library = createTemplateLibrary()): Sideca
     cancelledDrafts: new Set(),
     activeRequests: new Map(),
     notify,
+    telemetry: createSidecarTelemetry({ atomizeVersion: process.env.ATOMIZE_STUDIO_VERSION ?? "0.0.0" }),
   };
 }
 
@@ -488,6 +492,13 @@ const handlers: { [M in SidecarMethod]: Handler<M> } = {
     catch (error) { throw Object.assign(new Error(getErrorMessage(error)), { code: "MOCK_STORY_INVALID" }); }
     return await runPreview(await resolvePreviewSource(source, services), mockStory);
   },
+  "telemetry.report": async ({ event }, services) => {
+    services.telemetry.report(event);
+    return { reported: true };
+  },
+  "telemetry.setConsent": async ({ decision }, services) => services.telemetry.setConsent(decision),
+  "telemetry.status": async (_params, services) => services.telemetry.status(),
+  "telemetry.requestDeletion": async (_params, services) => services.telemetry.requestDeletion(),
 };
 
 /** A request's params parsed against its method's schema; a mismatch is `INVALID_PARAMS` with the method's message. */
@@ -541,6 +552,16 @@ export async function handleLine(line: string, services: SidecarServices): Promi
   } catch (error) {
     return suppressed() ? undefined : { jsonrpc: "2.0", id: value.id, error: toSidecarError(error) };
   } finally { services.activeRequests.delete(value.id); }
+}
+
+/** The relay's notice that Studio is closing: finish telemetry and exit. */
+export function isShutdownNotification(line: string): boolean {
+  try {
+    const value: unknown = JSON.parse(line);
+    return typeof value === "object" && value !== null && (value as { method?: unknown }).method === "$/shutdown";
+  } catch {
+    return false;
+  }
 }
 
 function isRequest(value: unknown): value is RpcRequest {

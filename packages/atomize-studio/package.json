@@ -1,6 +1,6 @@
 {
   "name": "@sppg2001/atomize-studio",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@sppg2001/atomize-sidecar": "workspace:*",
+    "@sppg2001/atomize-telemetry": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^26.5.1",

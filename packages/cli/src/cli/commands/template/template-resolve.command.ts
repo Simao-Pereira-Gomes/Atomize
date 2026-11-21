@@ -4,6 +4,7 @@ import { getErrorMessage, TemplateCompositionError, TemplateLoadError } from "@s
 import chalk from "chalk";
 import { Command } from "commander";
 import { stringify as stringifyYaml } from "yaml";
+import { tracked } from "@/cli/telemetry/tracked";
 import {
   createCommandOutput,
   resolveCommandOutputPolicy,
@@ -24,7 +25,7 @@ export const templateResolveCommand = new Command("resolve")
   .argument("<template>", "Template ref (template:<name>) or path to a YAML file")
   .option("--validate", "Also run schema validation on the resolved template", false)
   .option("-q, --quiet", "Print only the resolved YAML, no decorative output", false)
-  .action(async (templateArg: string, options: ResolveOptions) => {
+  .action(tracked("template.resolve", {}, async (_run, templateArg: string, options: ResolveOptions) => {
     const output = createCommandOutput(
       resolveCommandOutputPolicy({ quiet: options.quiet, verbose: false }),
     );
@@ -120,6 +121,6 @@ export const templateResolveCommand = new Command("resolve")
           output.cancel(message);
         }
       }
-      process.exit(error instanceof ExitError ? error.code : ExitCode.Failure);
+      throw error;
     }
-  });
+  }));

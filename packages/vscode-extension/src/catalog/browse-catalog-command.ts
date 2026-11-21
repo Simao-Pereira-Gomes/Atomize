@@ -3,6 +3,7 @@ import type { TemplateCatalogItem } from '@sppg2001/atomize-core/templates/templ
 import * as vscode from 'vscode';
 import { isAtomizeDocument } from '../authoring/language-detection.js';
 import { createTemplateLibrary } from '../core-library.js';
+import { telemetry } from '../telemetry/extension-telemetry.js';
 import { forgetCatalogDocumentPath, rememberCatalogDocumentPath } from './catalog-document-path.js';
 
 export const CATALOG_ITEM_SCHEME = 'atomize-catalog';
@@ -132,7 +133,7 @@ export interface BrowseCatalogCommandDeps {
 }
 
 export function registerBrowseCatalogCommand(deps: BrowseCatalogCommandDeps): vscode.Disposable {
-	return vscode.commands.registerCommand('atomize.browseCatalog', async () => {
+	return vscode.commands.registerCommand('atomize.browseCatalog', telemetry.instrument('catalog.list', {}, async run => {
 		const activeDoc = vscode.window.activeTextEditor?.document;
 		const targetDoc = activeDoc && isAtomizeDocument(activeDoc) ? activeDoc : undefined;
 
@@ -143,7 +144,7 @@ export function registerBrowseCatalogCommand(deps: BrowseCatalogCommandDeps): vs
 
 		if (items === null) {
 			void vscode.window.showErrorMessage('Atomize: Could not load the catalog.');
-			return;
+			return run.failed(new Error('load'));
 		}
 
 		if (items.length === 0) {
@@ -185,7 +186,7 @@ export function registerBrowseCatalogCommand(deps: BrowseCatalogCommandDeps): vs
 
 		quickPick.dispose();
 
-		if (!action) return;
+		if (!action) return run.cancelled();
 
 		if (action.type === 'open') {
 			await openCatalogItemFile(action.item, deps.provider);
@@ -203,5 +204,5 @@ export function registerBrowseCatalogCommand(deps: BrowseCatalogCommandDeps): vs
 
 		await vscode.env.clipboard.writeText(ref);
 		void vscode.window.showInformationMessage(`Atomize: Copied "${ref}" to clipboard.`);
-	});
+	}));
 }

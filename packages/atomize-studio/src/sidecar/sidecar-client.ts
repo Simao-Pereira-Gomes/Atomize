@@ -1,6 +1,13 @@
 import type { GenerateScope, SidecarNotifications, SidecarResult } from "@sppg2001/atomize-sidecar/contract";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { type Ending, observed } from "../telemetry/telemetry";
+
+const count = (value: number | undefined): number => Math.max(0, Math.min(1_000_000, Math.trunc(value ?? 0)));
+const documentCount = (grounding: unknown): number => {
+  const documents = (grounding as { documents?: unknown[] } | null | undefined)?.documents;
+  return Array.isArray(documents) ? count(documents.length) : 0;
+};
 
 export type SidecarInvoker = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 const tauriInvoke: SidecarInvoker = invoke;
@@ -34,11 +41,11 @@ function sidecarError(error: unknown): SidecarRequestError {
 
 /** The sole frontend seam for calls handled by Atomize Studio's companion process. */
 export async function listCatalogItems(): Promise<SidecarResult<"catalog.list">> {
-  return await invoke("catalog_list_items");
+  return await observed("catalog.list", {}, () => invoke("catalog_list_items"));
 }
 
 export async function removeCatalogItem(kind: "template" | "mixin", name: string, call: SidecarInvoker = tauriInvoke): Promise<void> {
-  try { await call("catalog_remove_item", { kind, name }); }
+  try { await observed("catalog.remove", { scope: "user" }, () => call("catalog_remove_item", { kind, name })); }
   catch (error) { throw sidecarError(error); }
 }
 
@@ -53,7 +60,7 @@ export async function installCatalogItem(
   call: SidecarInvoker = tauriInvoke,
   workspaceRoot?: string,
 ): Promise<SidecarResult<"catalog.install">> {
-  try { return await call("catalog_install_item", { content, name, scope, overwrite, ...(workspaceRoot ? { workspaceRoot } : {}) }); }
+  try { return await observed("catalog.install", { scope }, () => call<SidecarResult<"catalog.install">>("catalog_install_item", { content, name, scope, overwrite, ...(workspaceRoot ? { workspaceRoot } : {}) })); }
   catch (error) { throw sidecarError(error); }
 }
 
@@ -65,7 +72,13 @@ export async function loadGrounding(profile: string, call: SidecarInvoker = taur
 
 /** Runs Core's Online Validation with a Rust-injected credential; the webview never sees a token. */
 export async function validateOnline(validationId: string, template: unknown, profile: string, call: SidecarInvoker = tauriInvoke): Promise<OnlineValidationResult> {
-  try { return await call("validation_online", { validationId, template, profile }); }
+  try {
+    return await observed(
+      "validate",
+      (result: OnlineValidationResult | undefined) => ({ mode: "online" as const, valid: result?.valid ?? false, issueCount: count((result?.errors.length ?? 0) + (result?.warnings.length ?? 0)) }),
+      () => call<OnlineValidationResult>("validation_online", { validationId, template, profile }),
+    );
+  }
   catch (error) { throw sidecarError(error); }
 }
 
@@ -76,7 +89,13 @@ export async function cancelOnlineValidation(validationId: string, call: Sidecar
 }
 
 export async function generateAIDraft(draftId: string, prose: string, grounding?: unknown, documentGrounding?: unknown, call: SidecarInvoker = tauriInvoke): Promise<SidecarResult<"ai.generate">> {
-  try { return await call("ai_generate", { draftId, prose, grounding, documentGrounding }); }
+  try {
+    return await observed(
+      "template.create",
+      { mode: "ai", grounded: grounding != null, referenceDocCount: documentCount(documentGrounding) },
+      () => call<SidecarResult<"ai.generate">>("ai_generate", { draftId, prose, grounding, documentGrounding }),
+    );
+  }
   catch (error) { throw sidecarError(error); }
 }
 
@@ -114,13 +133,17 @@ export async function improveTemplateWithAI(
   call: SidecarInvoker = tauriInvoke,
 ): Promise<SidecarResult<"ai.improve">> {
   try {
-    return await call("ai_improve", {
-      draftId,
-      template,
-      guidance: guidance?.trim() || null,
-      grounding: grounding?.project ?? null,
-      documentGrounding: grounding?.documents ?? null,
-    });
+    return await observed(
+      "template.improve",
+      { grounded: grounding?.project != null, referenceDocCount: documentCount(grounding?.documents) },
+      () => call<SidecarResult<"ai.improve">>("ai_improve", {
+        draftId,
+        template,
+        guidance: guidance?.trim() || null,
+        grounding: grounding?.project ?? null,
+        documentGrounding: grounding?.documents ?? null,
+      }),
+    );
   } catch (error) { throw sidecarError(error); }
 }
 
@@ -135,17 +158,17 @@ export async function checkCopilotAuthStatus(call: SidecarInvoker = tauriInvoke)
 }
 
 export async function resolveLocalTemplate(path: string, call: SidecarInvoker = tauriInvoke): Promise<SidecarResult<"template.resolveLocal">> {
-  try { return await call("template_resolve_local", { path }); }
+  try { return await observed("template.resolve", {}, () => call<SidecarResult<"template.resolveLocal">>("template_resolve_local", { path })); }
   catch (error) { throw sidecarError(error); }
 }
 
 export async function inspectPreview(source: string, call: SidecarInvoker = tauriInvoke): Promise<SidecarResult<"preview.inspect">> {
-  try { return await call("preview_inspect", { source }); }
+  try { return await observed("preview", { variant: "inspect" }, () => call<SidecarResult<"preview.inspect">>("preview_inspect", { source })); }
   catch (error) { throw sidecarError(error); }
 }
 
 export async function runMockPreview(source: string, mockStory: string, call: SidecarInvoker = tauriInvoke): Promise<SidecarResult<"preview.mockStory">> {
-  try { return await call("preview_mock_story", { source, mockStory }); }
+  try { return await observed("preview", { variant: "mock-story" }, () => call<SidecarResult<"preview.mockStory">>("preview_mock_story", { source, mockStory })); }
   catch (error) { throw sidecarError(error); }
 }
 
@@ -164,7 +187,30 @@ export async function runGenerate(
   continueOnError = false,
   call: SidecarInvoker = tauriInvoke,
 ): Promise<SidecarResult<"generate.run">> {
-  try { return await call("generate_run", { runId, source, profile, dryRun, scope, continueOnError }); }
+  try {
+    const props = (result: SidecarResult<"generate.run"> | undefined) => {
+      const report = result?.report;
+      return {
+        mode: dryRun ? "dry-run" as const : "execute" as const,
+        output: "human" as const,
+        continueOnError,
+        storyCount: count(report?.storiesProcessed),
+        taskCount: count(dryRun ? report?.tasksCalculated : report?.tasksCreated),
+        failedStoryCount: count(report?.storiesFailed),
+      };
+    };
+    const endingOf = (result: SidecarResult<"generate.run">): Ending => {
+      const report = result?.report;
+      if (!report) return { outcome: "success" };
+      return report.stopped
+        ? report.stopped.reason === "timedOut" ? { outcome: "failure", errorCategory: "timeout" } : { outcome: "cancelled" }
+        : report.storiesFailed > 0 ? { outcome: "failure" } : { outcome: "success" };
+    };
+    const run = () => call<SidecarResult<"generate.run">>("generate_run", { runId, source, profile, dryRun, scope, continueOnError });
+    return scope.kind === "stories" && scope.resume === true
+      ? await observed("generate.resume", props, run, endingOf)
+      : await observed("generate", props, run, endingOf);
+  }
   catch (error) { throw sidecarError(error); }
 }
 

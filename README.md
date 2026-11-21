@@ -201,6 +201,10 @@ atomize generate template:backend-api \
 
 See [CLI Reference](./docs/Cli-Reference.md) for complete command and flag documentation.
 
+## Telemetry
+
+Atomize can send anonymous usage data, but only if you opt in. It is off by default, one choice covers the CLI, the VS Code extension and Atomize Studio, and `ATOMIZE_TELEMETRY=0` or `DO_NOT_TRACK=1` forces it off. [Telemetry and privacy](https://atomize-docs.pages.dev/telemetry/) lists exactly what is collected and what never is, and how to turn it on, off, or delete your data.
+
 ## Documentation
 
 - [Documentation Index](./docs/README.md) - Start here for the full docs map

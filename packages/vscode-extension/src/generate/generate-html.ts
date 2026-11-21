@@ -175,6 +175,12 @@ const GEN_CSS = `${css}
 body{color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);margin:0;padding:0 18px 90px;line-height:1.625}
 .btn-primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:6px 14px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn-primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}
+.btn-primary:disabled{opacity:.5;cursor:default}
+.btn-secondary{display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--vscode-editor-foreground);border:1px solid color-mix(in srgb,var(--vscode-editor-foreground) 35%,transparent);padding:5px 13px;border-radius:2px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);cursor:pointer;transition:background .08s,border-color .08s}
+.btn-secondary:hover{background:color-mix(in srgb,var(--vscode-editor-foreground) 8%,transparent);border-color:color-mix(in srgb,var(--vscode-editor-foreground) 60%,transparent)}
+.btn-secondary:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:2px}
+.btn-secondary__icon{font-size:1.05em;line-height:1;opacity:.85}
+.stale-notice{font-size:.84em;color:var(--vscode-editorWarning-foreground,#cca700);margin-bottom:10px}
 .live-card{border:1px solid var(--vscode-panel-border,#3d3d3d);border-radius:4px;padding:10px 12px;background:rgba(255,255,255,.02)}
 .live-status{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .live-progress{padding-left:24px}
@@ -370,13 +376,28 @@ function storySectionCompact(result: GenerateResult): string {
 </details>`;
 }
 
-function splitButton(nTasks: number, profile: string): string {
+/** Runs the dry run again with the same profile, Stories, and Finish setting. */
+function rerunButton(): string {
+	return `<button type="button" class="btn-secondary" data-rerun title="Run the dry run again with the same profile, Stories, and Finish setting"><span class="btn-secondary__icon" aria-hidden="true">↻</span>Re-run dry run</button>`;
+}
+
+/**
+ * The Create button, its runtime settings, and Re-run. When an Atomize file was saved since the dry
+ * run, Create is disabled: it would create Tasks from a plan nobody has previewed.
+ */
+function splitButton(nTasks: number, profile: string, stale = false): string {
+	const disabled = stale ? ' disabled' : '';
+	const staleNotice = stale
+		? `<div class="stale-notice" id="stale-notice">⚠ An Atomize file was saved after this dry run, so the plan may have changed. Re-run the dry run to create Tasks.</div>`
+		: '';
 	return `
 <div class="action-zone">
+  ${staleNotice}
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
   <div style="position:relative;display:inline-block" id="split-container">
     <div class="split-btn">
-      <button class="btn-primary split-btn__main" id="btn-create">Create ${nTasks} Task${nTasks === 1 ? '' : 's'} in ${esc(profile)}…</button>
-      <button class="btn-primary split-btn__arrow" id="split-arrow" onclick="toggleMenu(event)" title="Runtime settings" aria-haspopup="true" aria-expanded="false">▾</button>
+      <button class="btn-primary split-btn__main" id="btn-create"${disabled}>Create ${nTasks} Task${nTasks === 1 ? '' : 's'} in ${esc(profile)}…</button>
+      <button class="btn-primary split-btn__arrow" id="split-arrow" onclick="toggleMenu(event)" title="Runtime settings" aria-haspopup="true" aria-expanded="false"${disabled}>▾</button>
     </div>
     <div class="split-menu" id="split-menu" role="menu">
       <label class="menu-row">
@@ -390,6 +411,8 @@ function splitButton(nTasks: number, profile: string): string {
         </div>
       </label>
     </div>
+  </div>
+  ${rerunButton()}
   </div>
 </div>`;
 }
@@ -563,6 +586,9 @@ document.addEventListener('click', function(e) {
 }, true);
 ${script}
 document.addEventListener('click', function(e) {
+  if (e.target.closest('[data-rerun]')) vscode.postMessage({ type: 'rerunDryRun' });
+});
+document.addEventListener('click', function(e) {
   var finish = e.target.closest('[data-finish]');
   if (finish) {
     var boxes = finish.parentElement.querySelectorAll('input[data-story]');
@@ -649,12 +675,16 @@ export function renderGenerateLoading(fileName: string, profile: string, storyId
 	return page('Atomize: Generate · Dry Run', body, '');
 }
 
+/** `stale`: an Atomize file was saved after this dry run, so Create is disabled until it runs again. */
+export interface DryRunViewOptions { stale?: boolean; }
+
 export function renderGenerateDrySuccess(
 	report: GenerateReport,
 	mode: 'default' | 'compact',
 	fileName: string,
 	profile: string,
 	storyIds?: string[],
+	options: DryRunViewOptions = {},
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
 	const header = panelHeader(mode, true, shortFile, profile, report.templateName, storyIds);
@@ -662,7 +692,7 @@ export function renderGenerateDrySuccess(
 	const stories = mode === 'default'
 		? report.results.map(storySection).join('')
 		: report.results.map(storySectionCompact).join('');
-	const body = header + kpis + partlyCreatedBlock(report) + stories + splitButton(report.tasksCalculated, profile);
+	const body = header + kpis + partlyCreatedBlock(report) + stories + splitButton(report.tasksCalculated, profile, options.stale);
 	return page('Atomize: Generate', body, SPLIT_BUTTON_SCRIPT);
 }
 
@@ -672,6 +702,7 @@ export function renderGenerateDryWarnings(
 	fileName: string,
 	profile: string,
 	storyIds?: string[],
+	options: DryRunViewOptions = {},
 ): string {
 	const shortFile = fileName.split(/[/\\]/).pop() ?? fileName;
 	const header = panelHeader(mode, true, shortFile, profile, report.templateName, storyIds);
@@ -680,8 +711,8 @@ export function renderGenerateDryWarnings(
 		? report.results.map(storySection).join('')
 		: report.results.map(storySectionCompact).join('');
 	const action = report.storiesFailed === 0
-		? splitButton(report.tasksCalculated, profile)
-		: `<div class="action-zone"><span style="font-size:.84em;color:var(--vscode-descriptionForeground)">⚠ ${report.storiesFailed} ${report.storiesFailed === 1 ? 'story' : 'stories'} failed. Fix errors before creating tasks.</span></div>`;
+		? splitButton(report.tasksCalculated, profile, options.stale)
+		: `<div class="action-zone"><div style="font-size:.84em;color:var(--vscode-descriptionForeground);margin-bottom:10px">⚠ ${report.storiesFailed} ${report.storiesFailed === 1 ? 'story' : 'stories'} failed. Fix errors before creating tasks.</div>${rerunButton()}</div>`;
 	const body = header + kpis + partlyCreatedBlock(report) + stories + action;
 	return page('Atomize: Generate', body, report.storiesFailed === 0 ? SPLIT_BUTTON_SCRIPT : SWITCH_MODE_SCRIPT);
 }
@@ -699,21 +730,21 @@ export function renderGenerateBlocked(
 	const header = panelHeader('default', false, shortFile, profile, undefined, storyIds);
 
 	if (kind === 'auth') {
-		const ctaHtml = `<button id="btn-manage-profiles" class="btn-primary" style="margin-top:4px">Manage Profiles</button>`;
+		const ctaHtml = `<button id="btn-manage-profiles" class="btn-primary" style="margin-top:4px">Manage Profiles</button> ${rerunButton()}`;
 		const body = header + errorBubble('⚠', 'Authentication failed', detail, true, ctaHtml);
 		const script = `document.getElementById('btn-manage-profiles').addEventListener('click', function() { vscode.postMessage({ type: 'manageProfiles' }); });`;
 		return page('Atomize: Generate · Auth Error', body, script);
 	}
 
 	if (kind === 'exec-error') {
-		const body = header + errorBubble('⚠', 'Task creation failed', detail, true, '');
+		const body = header + errorBubble('⚠', 'Task creation failed', detail, true, rerunButton());
 		return page('Atomize: Generate · Error', body, '');
 	}
 
 	if (kind === 'no-matches') {
 		const body = header
 			+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
-			+ errorBubble('○', 'No matching stories', detail, false, '')
+			+ errorBubble('○', 'No matching stories', detail, false, rerunButton())
 			+ (report ? partlyCreatedBlock(report) : '');
 		return page('Atomize: Generate · No Matches', body, '');
 	}
@@ -721,7 +752,7 @@ export function renderGenerateBlocked(
 	// no-tasks
 	const body = header
 		+ `<div style="margin-bottom:14px"><span class="dry-run-badge">DRY RUN</span></div>`
-		+ errorBubble('○', 'No tasks to create', detail, false, '')
+		+ errorBubble('○', 'No tasks to create', detail, false, rerunButton())
 		+ (report ? partlyCreatedBlock(report) : '');
 	return page('Atomize: Generate · No Tasks', body, '');
 }
